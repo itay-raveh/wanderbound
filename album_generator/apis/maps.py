@@ -6,6 +6,8 @@ import base64
 import requests
 from typing import Optional, Tuple
 from pathlib import Path
+from io import BytesIO
+from lxml import etree
 
 try:
     import geopandas as gpd
@@ -25,6 +27,144 @@ _COUNTRY_BOUNDS = None
 _SVG_VIEWBOXES = {}
 _SVG_PATH_BOUNDS = {}
 _SVG_TRANSFORMS = {}
+
+
+def _parse_svg_with_lxml(svg_data: str) -> Optional[etree.Element]:
+    """Parse SVG string using lxml."""
+    try:
+        # Remove XML declaration and DOCTYPE if present (to avoid DTD fetching)
+        svg_clean = svg_data
+        lines = svg_clean.split("\n")
+        cleaned_lines = []
+        skip_doctype = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("<?xml"):
+                continue  # Skip XML declaration
+            elif stripped.startswith("<!DOCTYPE"):
+                skip_doctype = True
+                continue  # Skip DOCTYPE line
+            elif skip_doctype and ">" in line and not stripped.startswith("<"):
+                # Skip continuation of DOCTYPE if it spans multiple lines
+                if ">" in line:
+                    skip_doctype = False
+                continue
+            elif skip_doctype:
+                # Still in DOCTYPE block
+                if ">" in line:
+                    skip_doctype = False
+                continue
+            else:
+                cleaned_lines.append(line)
+
+        svg_clean = "\n".join(cleaned_lines)
+
+        # Use parser that doesn't fetch external DTDs
+        parser = etree.XMLParser(
+            recover=True,
+            strip_cdata=False,
+            no_network=True,  # Don't fetch external DTDs
+            huge_tree=True,  # Allow large SVG files
+        )
+        root = etree.fromstring(svg_clean.encode("utf-8"), parser=parser)
+
+        # Register SVG namespace if not already registered
+        if root is not None and hasattr(root, "nsmap") and root.nsmap:
+            if "http://www.w3.org/2000/svg" not in root.nsmap.values():
+                etree.register_namespace("svg", "http://www.w3.org/2000/svg")
+
+        return root
+    except Exception as e:
+        print(f"⚠️ Error parsing SVG with lxml: {e}")
+        return None
+
+
+def _get_svg_viewbox(root: etree.Element) -> Optional[list]:
+    """Extract viewBox from SVG root element."""
+    viewbox_str = root.get("viewBox")
+    if viewbox_str:
+        try:
+            viewbox = [float(x) for x in viewbox_str.split()]
+            if len(viewbox) == 4:
+                return viewbox
+        except (ValueError, AttributeError):
+            pass
+    return None
+
+
+def _parse_transform(transform_str: str) -> dict:
+    """Parse SVG transform string into translate and scale values."""
+    translate_x, translate_y = 0, 0
+    scale_x, scale_y = 1, 1
+
+    if not transform_str:
+        return {
+            "translate_x": translate_x,
+            "translate_y": translate_y,
+            "scale_x": scale_x,
+            "scale_y": scale_y,
+        }
+
+    # Parse translate
+    translate_match = re.search(r"translate\(([^)]+)\)", transform_str)
+    if translate_match:
+        translate_parts = [
+            float(x.strip()) for x in translate_match.group(1).split(",")
+        ]
+        if len(translate_parts) >= 2:
+            translate_x, translate_y = translate_parts[0], translate_parts[1]
+
+    # Parse scale
+    scale_match = re.search(r"scale\(([^)]+)\)", transform_str)
+    if scale_match:
+        scale_parts = [float(x.strip()) for x in scale_match.group(1).split(",")]
+        if len(scale_parts) >= 2:
+            scale_x, scale_y = scale_parts[0], scale_parts[1]
+        elif len(scale_parts) == 1:
+            scale_x = scale_y = scale_parts[0]
+
+    return {
+        "translate_x": translate_x,
+        "translate_y": translate_y,
+        "scale_x": scale_x,
+        "scale_y": scale_y,
+    }
+
+
+def _extract_path_bounds(root: etree.Element) -> Optional[dict]:
+    """Extract bounding box from all path elements in SVG."""
+    all_x = []
+    all_y = []
+
+    # Find all path elements (handle both namespaced and non-namespaced)
+    paths = root.xpath('.//*[local-name()="path"][@d]')
+    for path in paths:
+        path_d = path.get("d", "")
+        # Extract numbers from path data
+        numbers = re.findall(r"-?\d+\.?\d*", path_d)
+        for i, num_str in enumerate(numbers):
+            try:
+                num = float(num_str)
+                if i % 2 == 0:
+                    all_x.append(num)
+                else:
+                    all_y.append(num)
+            except ValueError:
+                continue
+
+    if all_x and all_y:
+        return {
+            "min_x": min(all_x),
+            "max_x": max(all_x),
+            "min_y": min(all_y),
+            "max_y": max(all_y),
+        }
+    return None
+
+
+def _svg_to_string(root: etree.Element) -> str:
+    """Convert SVG element tree back to string."""
+    return etree.tostring(root, encoding="unicode", pretty_print=False)
 
 
 def _load_country_bounds() -> dict:
@@ -136,33 +276,38 @@ def _generate_geo_calibrated_svg(
         svg_data = svg_buffer.getvalue()
         plt.close(fig)
 
-        viewbox_match = re.search(r'viewBox="([^"]+)"', svg_data)
-        if viewbox_match:
-            viewbox = viewbox_match.group(1)
-            viewbox_vals = [float(x) for x in viewbox_match.group(1).split()]
-        else:
-            viewbox = "0 0 100 100"
+        # Parse SVG with lxml
+        root = _parse_svg_with_lxml(svg_data)
+        if root is None:
+            return None
+
+        # Get viewBox
+        viewbox_vals = _get_svg_viewbox(root)
+        if viewbox_vals is None:
             viewbox_vals = [0, 0, 100, 100]
+            root.set("viewBox", "0 0 100 100")
 
-        geo_bounds_attr = f'data-geo-bounds="{min_lon},{min_lat},{max_lon},{max_lat}"'
-        proj_bounds_attr = f'data-proj-bounds="{actual_bounds[0]},{actual_bounds[1]},{actual_bounds[2]},{actual_bounds[3]}"'
-        crs_attr = f'data-crs="{local_crs.to_string()}"'
-        svg_data = re.sub(
-            r"<svg([^>]*)>",
-            f"<svg\\1 {geo_bounds_attr} {proj_bounds_attr} {crs_attr}>",
-            svg_data,
-            count=1,
+        # Add custom attributes
+        root.set("data-geo-bounds", f"{min_lon},{min_lat},{max_lon},{max_lat}")
+        root.set(
+            "data-proj-bounds",
+            f"{actual_bounds[0]},{actual_bounds[1]},{actual_bounds[2]},{actual_bounds[3]}",
         )
+        root.set("data-crs", local_crs.to_string())
 
-        svg_data = re.sub(r'fill="[^"]*"', 'fill="#ffffff"', svg_data)
-        svg_data = re.sub(
-            r"<path([^>]*?)(?:\s|>)(?!.*fill=)", r'<path\1 fill="#ffffff"', svg_data
-        )
+        # Set all fills to white
+        for elem in root.iter():
+            if (
+                elem.tag.endswith("path")
+                or elem.tag.endswith("polygon")
+                or elem.tag.endswith("circle")
+                or elem.tag.endswith("rect")
+            ):
+                elem.set("fill", "#ffffff")
+            elif "fill" in elem.attrib:
+                elem.set("fill", "#ffffff")
 
-        svg_data = re.sub(r"<\?xml[^>]*\?>", "", svg_data)
-        svg_data = re.sub(r"<!DOCTYPE[^>]*>", "", svg_data)
-
-        return svg_data
+        return _svg_to_string(root)
 
     except Exception as e:
         print(f"⚠️ Error generating geo-calibrated SVG for {country_code}: {e}")
@@ -178,7 +323,7 @@ def get_country_map_svg(
 
     cache_key_svg = f"map_svg_{country_code.lower()}"
     cached_svg = get_cached(cache_key_svg)
-    if cached_svg is not None:
+    if cached_svg is not None and isinstance(cached_svg, str):
         return cached_svg
 
     if HAS_GEO:
@@ -195,95 +340,68 @@ def get_country_map_svg(
         if response.status_code == 200:
             svg_data = response.text
 
-            viewbox_match = re.search(r'viewBox="([^"]+)"', svg_data)
-            if viewbox_match:
-                viewbox_str = viewbox_match.group(1)
-                viewbox = [float(x) for x in viewbox_str.split()]
-                if len(viewbox) == 4:
-                    _SVG_VIEWBOXES[country_code.lower()] = viewbox
+            # Parse SVG with lxml
+            root = _parse_svg_with_lxml(svg_data)
+            if root is None:
+                return None
 
-            transform_match = re.search(r'transform="([^"]+)"', svg_data)
-            if transform_match:
-                transform_str = transform_match.group(1)
-                translate_match = re.search(r"translate\(([^)]+)\)", transform_str)
-                scale_match = re.search(r"scale\(([^)]+)\)", transform_str)
+            # Extract viewBox
+            viewbox = _get_svg_viewbox(root)
+            if viewbox and len(viewbox) == 4:
+                _SVG_VIEWBOXES[country_code.lower()] = viewbox
 
-                translate_x, translate_y = 0, 0
-                scale_x, scale_y = 1, 1
+            # Extract transform from root or first group
+            transform_elem = root
+            # Try to find a group element with transform (handle namespaces)
+            group = root.xpath('.//*[local-name()="g"][@transform]')
+            if group:
+                transform_elem = group[0]
 
-                if translate_match:
-                    translate_parts = [
-                        float(x.strip()) for x in translate_match.group(1).split(",")
-                    ]
-                    if len(translate_parts) >= 2:
-                        translate_x, translate_y = (
-                            translate_parts[0],
-                            translate_parts[1],
-                        )
+            transform_str = transform_elem.get("transform", "")
+            if transform_str:
+                transform_data = _parse_transform(transform_str)
+                _SVG_TRANSFORMS[country_code.lower()] = transform_data
 
-                if scale_match:
-                    scale_parts = [
-                        float(x.strip()) for x in scale_match.group(1).split(",")
-                    ]
-                    if len(scale_parts) >= 2:
-                        scale_x, scale_y = scale_parts[0], scale_parts[1]
-                    elif len(scale_parts) == 1:
-                        scale_x = scale_y = scale_parts[0]
+            # Extract path bounds
+            path_bounds = _extract_path_bounds(root)
+            if path_bounds:
+                _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds
 
-                _SVG_TRANSFORMS[country_code.lower()] = {
-                    "translate_x": translate_x,
-                    "translate_y": translate_y,
-                    "scale_x": scale_x,
-                    "scale_y": scale_y,
-                }
+                transform = _SVG_TRANSFORMS.get(country_code.lower())
+                if transform and viewbox and len(viewbox) == 4:
+                    scale_x = transform["scale_x"]
+                    scale_y = transform["scale_y"]
+                    translate_x = transform["translate_x"]
+                    translate_y = transform["translate_y"]
 
-            paths = re.findall(r'<path[^>]*d="([^"]+)"', svg_data)
-            if paths:
-                all_x = []
-                all_y = []
-                for path_d in paths:
-                    numbers = re.findall(r"-?\d+\.?\d*", path_d)
-                    for i, num_str in enumerate(numbers):
-                        try:
-                            num = float(num_str)
-                            if i % 2 == 0:
-                                all_x.append(num)
-                            else:
-                                all_y.append(num)
-                        except ValueError:
-                            continue
+                    rendered_min_x = path_bounds["min_x"] * scale_x + translate_x
+                    rendered_max_x = path_bounds["max_x"] * scale_x + translate_x
+                    rendered_min_y = path_bounds["min_y"] * scale_y + translate_y
+                    rendered_max_y = path_bounds["max_y"] * scale_y + translate_y
 
-                if all_x and all_y:
-                    path_bounds = {
-                        "min_x": min(all_x),
-                        "max_x": max(all_x),
-                        "min_y": min(all_y),
-                        "max_y": max(all_y),
+                    _SVG_PATH_BOUNDS[country_code.lower()]["rendered"] = {
+                        "min_x": rendered_min_x,
+                        "max_x": rendered_max_x,
+                        "min_y": rendered_min_y,
+                        "max_y": rendered_max_y,
                     }
-                    _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds
 
-                    transform = _SVG_TRANSFORMS.get(country_code.lower())
-                    if transform and viewbox:
-                        scale_x = transform["scale_x"]
-                        scale_y = transform["scale_y"]
-                        translate_x = transform["translate_x"]
-                        translate_y = transform["translate_y"]
+            # Set fills to white
+            for elem in root.iter():
+                if (
+                    elem.tag.endswith("path")
+                    or elem.tag.endswith("polygon")
+                    or elem.tag.endswith("circle")
+                    or elem.tag.endswith("rect")
+                ):
+                    fill = elem.get("fill", "")
+                    if fill == "#000000" or fill == "black":
+                        elem.set("fill", "#ffffff")
+                elif "fill" in elem.attrib:
+                    if elem.get("fill") == "#000000" or elem.get("fill") == "black":
+                        elem.set("fill", "#ffffff")
 
-                        rendered_min_x = path_bounds["min_x"] * scale_x + translate_x
-                        rendered_max_x = path_bounds["max_x"] * scale_x + translate_x
-                        rendered_min_y = path_bounds["min_y"] * scale_y + translate_y
-                        rendered_max_y = path_bounds["max_y"] * scale_y + translate_y
-
-                        _SVG_PATH_BOUNDS[country_code.lower()]["rendered"] = {
-                            "min_x": rendered_min_x,
-                            "max_x": rendered_max_x,
-                            "min_y": rendered_min_y,
-                            "max_y": rendered_max_y,
-                        }
-
-            svg_data = re.sub(r'fill="#000000"', 'fill="#ffffff"', svg_data)
-            svg_data = re.sub(r"<\?xml[^>]*\?>", "", svg_data)
-            svg_data = re.sub(r"<!DOCTYPE[^>]*>", "", svg_data)
+            svg_data = _svg_to_string(root)
             set_cached(cache_key_svg, svg_data)
             return svg_data
     except requests.exceptions.RequestException as e:
@@ -328,63 +446,68 @@ def get_country_map_dot_position(
     svg_data = get_country_map_svg(country_code_lower)
 
     if svg_data:
-        geo_bounds_match = re.search(r'data-geo-bounds="([^"]+)"', svg_data)
-        if geo_bounds_match:
-            bounds_str = geo_bounds_match.group(1)
-            bounds = [float(x) for x in bounds_str.split(",")]
-            if len(bounds) == 4:
-                min_lon, min_lat, max_lon, max_lat = bounds
+        root = _parse_svg_with_lxml(svg_data)
+        if root is not None:
+            # Extract data attributes
+            geo_bounds_str = root.get("data-geo-bounds")
+            if geo_bounds_str:
+                try:
+                    bounds = [float(x) for x in geo_bounds_str.split(",")]
+                    if len(bounds) == 4:
+                        min_lon, min_lat, max_lon, max_lat = bounds
 
-                viewbox_match = re.search(r'viewBox="([^"]+)"', svg_data)
-                proj_bounds_match = re.search(r'data-proj-bounds="([^"]+)"', svg_data)
-                crs_match = re.search(r'data-crs="([^"]+)"', svg_data)
+                        viewbox = _get_svg_viewbox(root)
+                        proj_bounds_str = root.get("data-proj-bounds")
+                        crs_str = root.get("data-crs")
 
-                if viewbox_match and proj_bounds_match and crs_match:
-                    viewbox = [float(x) for x in viewbox_match.group(1).split()]
-                    proj_bounds = [
-                        float(x) for x in proj_bounds_match.group(1).split(",")
-                    ]
-                    crs_str = crs_match.group(1)
+                        if viewbox and proj_bounds_str and crs_str:
+                            try:
+                                proj_bounds = [
+                                    float(x) for x in proj_bounds_str.split(",")
+                                ]
+                                if len(viewbox) == 4 and len(proj_bounds) == 4:
+                                    point_geo = gpd.GeoDataFrame(
+                                        geometry=[Point(lon, lat)], crs="EPSG:4326"
+                                    )
+                                    point_proj = point_geo.to_crs(crs_str)
 
-                    if len(viewbox) == 4 and len(proj_bounds) == 4:
-                        point_geo = gpd.GeoDataFrame(
-                            geometry=[Point(lon, lat)], crs="EPSG:4326"
-                        )
-                        point_proj = point_geo.to_crs(crs_str)
+                                    proj_x = point_proj.geometry.iloc[0].x
+                                    proj_y = point_proj.geometry.iloc[0].y
 
-                        proj_x = point_proj.geometry.iloc[0].x
-                        proj_y = point_proj.geometry.iloc[0].y
+                                    proj_min_x, proj_min_y, proj_max_x, proj_max_y = (
+                                        proj_bounds
+                                    )
+                                    proj_width = proj_max_x - proj_min_x
+                                    proj_height = proj_max_y - proj_min_y
 
-                        proj_min_x, proj_min_y, proj_max_x, proj_max_y = proj_bounds
-                        proj_width = proj_max_x - proj_min_x
-                        proj_height = proj_max_y - proj_min_y
+                                    x_ratio = (proj_x - proj_min_x) / proj_width
+                                    y_ratio = (proj_max_y - proj_y) / proj_height
 
-                        x_ratio = (proj_x - proj_min_x) / proj_width
-                        y_ratio = (proj_max_y - proj_y) / proj_height
+                                    x_percent = x_ratio * 100
+                                    y_percent = y_ratio * 100
 
-                        x_percent = x_ratio * 100
-                        y_percent = y_ratio * 100
+                                    x_percent = max(0, min(100, x_percent))
+                                    y_percent = max(0, min(100, y_percent))
 
-                        x_percent = max(0, min(100, x_percent))
-                        y_percent = max(0, min(100, y_percent))
+                                    return (x_percent, y_percent)
+                            except (ValueError, AttributeError):
+                                pass
 
-                        return (x_percent, y_percent)
+                        if viewbox and len(viewbox) == 4:
+                            viewbox_min_lon = viewbox[0]
+                            viewbox_min_lat = viewbox[1]
+                            viewbox_width = viewbox[2]
+                            viewbox_height = viewbox[3]
 
-                if viewbox_match:
-                    viewbox = [float(x) for x in viewbox_match.group(1).split()]
-                    if len(viewbox) == 4:
-                        viewbox_min_lon = viewbox[0]
-                        viewbox_min_lat = viewbox[1]
-                        viewbox_width = viewbox[2]
-                        viewbox_height = viewbox[3]
+                            x_percent = ((lon - viewbox_min_lon) / viewbox_width) * 100
+                            y_percent = ((max_lat - lat) / abs(viewbox_height)) * 100
 
-                        x_percent = ((lon - viewbox_min_lon) / viewbox_width) * 100
-                        y_percent = ((max_lat - lat) / abs(viewbox_height)) * 100
+                            x_percent = max(0, min(100, x_percent))
+                            y_percent = max(0, min(100, y_percent))
 
-                        x_percent = max(0, min(100, x_percent))
-                        y_percent = max(0, min(100, y_percent))
-
-                        return (x_percent, y_percent)
+                            return (x_percent, y_percent)
+                except (ValueError, AttributeError):
+                    pass
 
     rendered_bounds = _SVG_PATH_BOUNDS.get(country_code_lower, {}).get("rendered")
     viewbox = _SVG_VIEWBOXES.get(country_code_lower)

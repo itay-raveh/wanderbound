@@ -3,16 +3,14 @@
 import requests
 import time
 from typing import Optional, List, Tuple
-from pathlib import Path
+from more_itertools import chunked
 
-from .cache import CACHE_DIR, _chunks, _load_elevation_cache, _save_elevation_cache
+from .cache import _get_elevation_cache
 
 
 def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[float]]:
     """Get altitude for multiple coordinates using OpenTopoData API with batching."""
-    cache_file = CACHE_DIR / "elevation_cache.json"
-
-    cache = _load_elevation_cache(cache_file)
+    elevation_cache = _get_elevation_cache()
 
     all_elevations: List[Optional[float]] = []
     locations_to_query: List[Tuple[float, float]] = []
@@ -20,8 +18,9 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
     for loc in locations:
         lat, lon = loc
         key = f"{lat},{lon}"
-        if key in cache:
-            all_elevations.append(cache[key])
+        cached_value = elevation_cache.get(key, default=None)
+        if cached_value is not None:
+            all_elevations.append(cached_value)
         else:
             locations_to_query.append(loc)
 
@@ -29,7 +28,7 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
     max_calls_per_day = 1000
     calls_made = 0
 
-    for batch in _chunks(locations_to_query, max_locations_per_request):
+    for batch in chunked(locations_to_query, max_locations_per_request):
         if calls_made >= max_calls_per_day:
             print("⚠️ Reached maximum API calls for today. Using cached data only.")
             all_elevations.extend([None] * len(batch))
@@ -50,7 +49,7 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
                     all_elevations.append(elevation)
 
                     key = f"{lat},{lon}"
-                    cache[key] = elevation
+                    elevation_cache.set(key, elevation)
             else:
                 all_elevations.extend([None] * len(batch))
 
@@ -63,8 +62,6 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
         except (KeyError, ValueError) as e:
             print(f"⚠️ Error parsing elevation response: {e}")
             all_elevations.extend([None] * len(batch))
-
-    _save_elevation_cache(cache_file, cache)
 
     return all_elevations
 

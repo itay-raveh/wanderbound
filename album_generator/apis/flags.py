@@ -6,6 +6,9 @@ from typing import Optional
 from PIL import Image
 import io
 from collections import Counter
+from colormath.color_objects import sRGBColor, LabColor
+from colormath.color_conversions import convert_color
+from colormath.color_diff import delta_e_cie2000
 
 from .cache import get_cached, set_cached
 
@@ -19,7 +22,7 @@ def get_country_flag_data_uri(country_code: str) -> Optional[str]:
 
     cache_key = f"flag_{country_code.lower()}"
     cached = get_cached(cache_key)
-    if cached is not None:
+    if cached is not None and isinstance(cached, str):
         return cached
 
     try:
@@ -40,19 +43,43 @@ def get_country_flag_data_uri(country_code: str) -> Optional[str]:
 
 
 def _color_distance(color1: str, color2: str) -> float:
-    """Calculate color distance (0-1 scale, 0 = identical)."""
+    """Calculate perceptual color distance using Delta E (CIE 2000).
+    Returns normalized distance (0-1 scale, 0 = identical).
+    Delta E values > 2.3 are considered perceptually different."""
     if not color1.startswith("#") or not color2.startswith("#"):
         return 1.0
 
-    r1 = int(color1[1:3], 16)
-    g1 = int(color1[3:5], 16)
-    b1 = int(color1[5:7], 16)
-    r2 = int(color2[1:3], 16)
-    g2 = int(color2[3:5], 16)
-    b2 = int(color2[5:7], 16)
+    try:
+        # Parse hex colors
+        r1 = int(color1[1:3], 16) / 255.0
+        g1 = int(color1[3:5], 16) / 255.0
+        b1 = int(color1[5:7], 16) / 255.0
+        r2 = int(color2[1:3], 16) / 255.0
+        g2 = int(color2[3:5], 16) / 255.0
+        b2 = int(color2[5:7], 16) / 255.0
 
-    dist = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-    return dist / (255 * (3**0.5))
+        # Convert to Lab color space for perceptual distance
+        rgb1 = sRGBColor(r1, g1, b1)
+        rgb2 = sRGBColor(r2, g2, b2)
+        lab1 = convert_color(rgb1, LabColor)
+        lab2 = convert_color(rgb2, LabColor)
+
+        # Calculate Delta E (CIE 2000) - perceptually uniform
+        delta_e = delta_e_cie2000(lab1, lab2)
+
+        # Normalize: Delta E > 50 is very different, normalize to 0-1
+        # Using 50 as max reasonable difference for normalization
+        return min(delta_e / 50.0, 1.0)
+    except Exception:
+        # Fallback to simple RGB distance if conversion fails
+        r1 = int(color1[1:3], 16)
+        g1 = int(color1[3:5], 16)
+        b1 = int(color1[5:7], 16)
+        r2 = int(color2[1:3], 16)
+        g2 = int(color2[3:5], 16)
+        b2 = int(color2[5:7], 16)
+        dist = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
+        return dist / (255 * (3**0.5))
 
 
 def _get_color_brightness(color: str) -> float:
@@ -157,7 +184,7 @@ def extract_prominent_color_from_flag(
     light_mode: bool = False,
 ) -> str:
     """Extract the most common non-white/black color from a country flag image."""
-    if not flag_data_uri:
+    if not flag_data_uri or not isinstance(flag_data_uri, str):
         return "#ff69b4"
 
     try:

@@ -6,6 +6,7 @@ import base64
 from datetime import datetime
 import pytz
 from jinja2 import Environment, FileSystemLoader
+from langdetect import detect, LangDetectException
 
 from .models import Step, TripData
 from .data_loader import (
@@ -55,8 +56,25 @@ def copy_assets(font_path: Path, output_dir: Path) -> str:
 
 
 def _is_hebrew(text: str) -> bool:
-    """Check if text contains Hebrew characters."""
-    return any("\u0590" <= char <= "\u05ff" for char in text) if text else False
+    """Check if text is Hebrew using fast Unicode check first, then langdetect if needed."""
+    if not text or not text.strip():
+        return False
+    
+    # Fast Unicode range check first (instant, no network)
+    has_hebrew_chars = any("\u0590" <= char <= "\u05ff" for char in text)
+    if has_hebrew_chars:
+        # If we found Hebrew characters, it's likely Hebrew text
+        # Only use langdetect for very short texts that might be ambiguous
+        if len(text.strip()) > 10:
+            return True
+    
+    # Use langdetect for mixed content or short texts
+    try:
+        detected_lang = detect(text)
+        return detected_lang == 'he'
+    except (LangDetectException, Exception):
+        # Fallback to Unicode check if langdetect fails
+        return has_hebrew_chars
 
 
 def _split_description(
@@ -261,8 +279,10 @@ def generate_album_html(
     font_rel_path = copy_assets(font_path, output_path.parent)
 
     # Batch fetch altitudes
+    print("  Fetching altitudes...")
     locations = [(step.location.lat, step.location.lon) for step in steps]
     elevations = get_altitude_batch(locations)
+    print(f"  Fetched {len(elevations)} elevations")
 
     # Prepare template environment
     template_dir = Path(__file__).parent / "templates"
@@ -270,8 +290,12 @@ def generate_album_html(
     template = env.get_template("album.html")
 
     # Prepare step data
+    print("  Preparing step data...")
     step_data_list = []
     for idx, (step, elevation) in enumerate(zip(steps, elevations)):
+        print(f"    Processing step {idx + 1}/{len(steps)}: {step.city}...")
+        import sys
+        sys.stdout.flush()
         image_path = step_images.get(step.id) if step.id else None
         step_data = prepare_step_data(
             step,
@@ -284,6 +308,9 @@ def generate_album_html(
             light_mode,
         )
         step_data_list.append(step_data)
+        print(f"      Step {idx + 1} completed")
+        sys.stdout.flush()
+    print("  Step data prepared")
 
     # Render template
     html = template.render(

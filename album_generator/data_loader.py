@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 import pytz
+from geopy import Point
+from babel.dates import format_date as babel_format_date
 
 from .models import TripData, Step, Location
 
@@ -58,32 +60,33 @@ def get_step_photo_dir(trip_dir: Path, step: Step) -> Optional[Path]:
 
 
 def format_date(timestamp: Optional[float], timezone_id: str) -> dict[str, str]:
-    """Format timestamp into month name and day with ordinal."""
+    """Format timestamp into month name and day using babel."""
     if not timestamp:
         return {"month": "", "day": ""}
 
-    tz = pytz.timezone(timezone_id)
-    dt = datetime.fromtimestamp(timestamp, tz=tz)
-
-    month_names = [
-        "JANUARY",
-        "FEBRUARY",
-        "MARCH",
-        "APRIL",
-        "MAY",
-        "JUNE",
-        "JULY",
-        "AUGUST",
-        "SEPTEMBER",
-        "OCTOBER",
-        "NOVEMBER",
-        "DECEMBER",
-    ]
-
-    month = month_names[dt.month - 1]
-    day = dt.day
-
-    return {"month": month, "day": str(day)}
+    try:
+        tz = pytz.timezone(timezone_id)
+        dt = datetime.fromtimestamp(timestamp, tz=tz)
+        
+        # Format month name in uppercase (English locale)
+        month = babel_format_date(dt, format='MMMM', locale='en').upper()
+        day = str(dt.day)
+        
+        return {"month": month, "day": day}
+    except Exception as e:
+        # Fallback to manual formatting if babel fails
+        print(f"⚠️ Error formatting date with babel: {e}")
+        tz = pytz.timezone(timezone_id)
+        dt = datetime.fromtimestamp(timestamp, tz=tz)
+        
+        month_names = [
+            "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+            "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+        ]
+        month = month_names[dt.month - 1]
+        day = str(dt.day)
+        
+        return {"month": month, "day": day}
 
 
 def calculate_day_number(
@@ -102,24 +105,52 @@ def calculate_day_number(
 
 
 def format_coordinates(lat: Optional[float], lon: Optional[float]) -> dict[str, str]:
-    """Format coordinates into degrees, minutes, seconds."""
+    """Format coordinates into degrees, minutes, seconds using geopy."""
     if lat is None or lon is None:
         return {"lat": "", "lon": ""}
 
-    def dms(coord: float, is_lat: bool) -> str:
-        abs_coord = abs(coord)
-        degrees = int(abs_coord)
-        minutes = int((abs_coord - degrees) * 60)
-        seconds = int(((abs_coord - degrees) * 60 - minutes) * 60)
-
-        direction = (
-            "N"
-            if (is_lat and coord >= 0)
-            else "S" if is_lat else ("E" if coord >= 0 else "W")
-        )
-        return f"{degrees}° {minutes}' {seconds}\" {direction}"
-
-    return {"lat": dms(lat, True), "lon": dms(lon, False)}
+    try:
+        point = Point(lat, lon)
+        # Format using format_unicode which gives us the degree symbol format
+        # Returns format like "37° 46′ 29.64″ N, 122° 25′ 9.84″ W"
+        formatted = point.format_unicode()
+        
+        # Split into latitude and longitude parts
+        parts = formatted.split(', ')
+        if len(parts) == 2:
+            lat_part = parts[0].strip()
+            lon_part = parts[1].strip()
+        else:
+            # Fallback if format is unexpected
+            raise ValueError("Unexpected format from geopy")
+        
+        # Round seconds to integer and convert unicode primes to regular quotes
+        import re
+        def round_seconds(dms_str: str) -> str:
+            # Match pattern: number″ (using unicode prime) or number" (regular quote)
+            match = re.search(r'(\d+\.\d+)[″"]', dms_str)
+            if match:
+                seconds = int(round(float(match.group(1))))
+                # Replace both unicode and regular quote versions
+                dms_str = re.sub(r'\d+\.\d+″', f'{seconds}″', dms_str)
+                dms_str = re.sub(r'\d+\.\d+"', f'{seconds}"', dms_str)
+            # Convert unicode primes to regular quotes for consistency
+            dms_str = dms_str.replace('°', '°').replace('′', "'").replace('″', '"')
+            return dms_str
+        
+        lat_dms = round_seconds(lat_part)
+        lon_dms = round_seconds(lon_part)
+        
+        return {"lat": lat_dms, "lon": lon_dms}
+    except Exception as e:
+        # Fallback to simple format if geopy fails
+        print(f"⚠️ Error formatting coordinates with geopy: {e}")
+        lat_dir = "N" if lat >= 0 else "S"
+        lon_dir = "E" if lon >= 0 else "W"
+        return {
+            "lat": f"{abs(int(lat))}° {lat_dir}",
+            "lon": f"{abs(int(lon))}° {lon_dir}"
+        }
 
 
 def format_weather_condition(condition: Optional[str]) -> str:

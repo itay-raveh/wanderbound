@@ -116,7 +116,11 @@ def main():
 
     # Load trip data
     print(f"Loading trip data from {trip_json}...")
+    import sys
+    sys.stdout.flush()
     trip_data = load_trip_data(trip_json)
+    print(f"Trip data loaded")
+    sys.stdout.flush()
     all_steps = trip_data.all_steps
 
     if not all_steps:
