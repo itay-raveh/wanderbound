@@ -1,0 +1,61 @@
+{
+  "PE": {
+    "lat_min": -18.0,
+    "lat_max": 0.0,
+    "lon_min": -81.0,
+    "lon_max": -68.0
+  },
+  "AR": {
+    "lat_min": -55.0,
+    "lat_max": -22.0,
+    "lon_min": -73.0,
+    "lon_max": -53.0
+  },
+  "BR": {
+    "lat_min": -33.0,
+    "lat_max": 5.0,
+    "lon_min": -74.0,
+    "lon_max": -32.0
+  },
+  "CL": {
+    "lat_min": -56.0,
+    "lat_max": -17.0,
+    "lon_min": -76.0,
+    "lon_max": -66.0
+  },
+  "BO": {
+    "lat_min": -23.0,
+    "lat_max": -9.0,
+    "lon_min": -69.0,
+    "lon_max": -57.0
+  },
+  "EC": { "lat_min": -5.0, "lat_max": 1.0, "lon_min": -81.0, "lon_max": -75.0 },
+  "CO": {
+    "lat_min": -4.0,
+    "lat_max": 12.0,
+    "lon_min": -79.0,
+    "lon_max": -66.0
+  },
+  "VE": { "lat_min": 0.0, "lat_max": 12.0, "lon_min": -73.0, "lon_max": -59.0 },
+  "GY": { "lat_min": 1.0, "lat_max": 9.0, "lon_min": -61.0, "lon_max": -56.0 },
+  "SR": { "lat_min": 1.0, "lat_max": 6.0, "lon_min": -58.0, "lon_max": -54.0 },
+  "GF": { "lat_min": 2.0, "lat_max": 6.0, "lon_min": -54.0, "lon_max": -51.0 },
+  "UY": {
+    "lat_min": -35.0,
+    "lat_max": -30.0,
+    "lon_min": -58.0,
+    "lon_max": -53.0
+  },
+  "PY": {
+    "lat_min": -27.0,
+    "lat_max": -19.0,
+    "lon_min": -62.0,
+    "lon_max": -54.0
+  },
+  "FK": {
+    "lat_min": -53.0,
+    "lat_max": -51.0,
+    "lon_min": -61.0,
+    "lon_max": -57.0
+  }
+}
