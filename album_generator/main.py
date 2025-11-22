@@ -30,11 +30,15 @@ def generate_pdf(html_path: Path, pdf_path: Path):
             browser = p.chromium.launch()
             page = browser.new_page()
             page.goto(f"file://{html_path.absolute()}")
+            page.wait_for_load_state("networkidle")
+            page.set_viewport_size({"width": 1123, "height": 794})
+
             page.pdf(
                 path=str(pdf_path),
                 format="A4",
                 landscape=True,
                 print_background=True,
+                prefer_css_page_size=True,
             )
             browser.close()
         print(f"PDF generated: {pdf_path}")
@@ -73,6 +77,17 @@ def main():
         "--pdf",
         action="store_true",
         help="Generate PDF file using Playwright (requires playwright install)",
+    )
+    parser.add_argument(
+        "--progress-mode",
+        choices=["original", "step-range"],
+        default="step-range",
+        help="Progress bar mode: 'original' uses trip days, 'step-range' uses step range (default: step-range)",
+    )
+    parser.add_argument(
+        "--light-mode",
+        action="store_true",
+        help="Use light mode instead of dark mode (default: dark mode)",
     )
 
     args = parser.parse_args()
@@ -134,8 +149,17 @@ def main():
 
     # Generate single HTML file with all steps
     html_path = args.output / "album.html"
+    use_step_range = args.progress_mode == "step-range"
     print(f"\nGenerating album HTML...")
-    generate_album_html(steps, step_images, trip_data, font_path, html_path)
+    generate_album_html(
+        steps,
+        step_images,
+        trip_data,
+        font_path,
+        html_path,
+        use_step_range,
+        args.light_mode,
+    )
     print(f"Generated: {html_path}")
 
     # Generate PDF if requested
