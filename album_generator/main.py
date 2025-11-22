@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Tuple
 import sys
 
-from .data_loader import load_trip_data, get_step_photo_dir, get_steps_in_range
+from .data_loader import (
+    load_trip_data,
+    get_step_photo_dir,
+    get_steps_in_range,
+    get_steps_distributed,
+)
 from .image_selector import select_step_image
 from .html_generator import generate_album_html
 
@@ -68,6 +73,11 @@ def main():
         "--steps", type=str, help='Step range to include (e.g., "99-110" or "99")'
     )
     parser.add_argument(
+        "--sample",
+        type=int,
+        help="Sample N evenly distributed steps across the entire trip (useful for testing across countries)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("output"),
@@ -115,8 +125,11 @@ def main():
 
     print(f"Found {len(all_steps)} total steps")
 
-    # Filter steps by range
-    if args.steps:
+    # Filter steps by range or sample
+    if args.sample:
+        steps = get_steps_distributed(all_steps, args.sample)
+        print(f"Sampled {len(steps)} steps evenly across the trip")
+    elif args.steps:
         start, end = parse_step_range(args.steps)
         steps = get_steps_in_range(all_steps, start, end)
         print(f"Filtered to steps {start}-{end}: {len(steps)} steps")

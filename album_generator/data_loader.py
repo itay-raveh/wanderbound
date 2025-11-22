@@ -149,3 +149,27 @@ def get_steps_in_range(all_steps: List[Step], start: int, end: int) -> List[Step
     start_idx = max(0, start - 1)
     end_idx = min(len(all_steps), end)
     return all_steps[start_idx:end_idx]
+
+
+def get_steps_distributed(all_steps: List[Step], count: int) -> List[Step]:
+    """Get evenly distributed steps across the entire trip."""
+    if not all_steps or count <= 0:
+        return []
+    if count >= len(all_steps):
+        return all_steps
+    
+    # Calculate step indices to sample
+    step_indices = []
+    for i in range(count):
+        idx = int((i / (count - 1)) * (len(all_steps) - 1)) if count > 1 else 0
+        step_indices.append(idx)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    result = []
+    for idx in step_indices:
+        if idx not in seen:
+            seen.add(idx)
+            result.append(all_steps[idx])
+    
+    return result

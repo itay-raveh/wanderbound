@@ -117,13 +117,13 @@
       .map-coords-container {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 12px;
+        gap: 10px;
+        margin-bottom: 14px;
       }
 
       .map-icon {
-        width: 60px;
-        height: 60px;
+        width: 75px;
+        height: 75px;
         background: transparent;
         display: flex;
         align-items: center;
@@ -132,12 +132,29 @@
         flex-shrink: 0;
       }
 
-      .map-icon img,
-      .map-icon svg {
+      .map-icon > img {
         width: 100%;
         height: 100%;
         object-fit: contain;
         filter: var(--map-filter);
+      }
+
+      .map-svg-container {
+        position: relative;
+        display: inline-block;
+        width: fit-content;
+        height: fit-content;
+        max-width: 75px;
+        max-height: 75px;
+      }
+
+      .map-svg-container svg {
+        display: block;
+        filter: var(--map-filter);
+        max-width: 75px;
+        max-height: 75px;
+        width: auto;
+        height: auto;
       }
 
       .map-location-dot {
@@ -152,22 +169,22 @@
       }
 
       .coordinates {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--text-coords);
-        line-height: 1.6;
+        line-height: 1.5;
         flex: 1;
       }
 
       .country {
         font-family: "Renner", sans-serif;
-        font-size: 16px;
+        font-size: 13px;
         font-weight: bold;
         text-transform: uppercase;
         letter-spacing: 1px;
-        margin-bottom: 6px;
+        margin-bottom: 10px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
 
       .country-icon {
@@ -178,8 +195,8 @@
       }
 
       .country-flag {
-        width: 20px;
-        height: 15px;
+        width: 18px;
+        height: 13px;
         object-fit: cover;
         border-radius: 2px;
       }
@@ -191,6 +208,7 @@
         text-transform: uppercase;
         letter-spacing: 2px;
         margin-bottom: 15px;
+        line-height: 1.2;
       }
 
       .description {
@@ -278,6 +296,7 @@
       .progress-container {
         position: relative;
         margin-bottom: 10px;
+        overflow: visible !important;
       }
 
       .progress-bar {
@@ -285,6 +304,7 @@
         height: 2px;
         background: var(--progress-bg);
         position: relative;
+        overflow: visible !important;
       }
 
       .progress-fill {
@@ -295,10 +315,13 @@
       .day-counter-wrapper {
         position: absolute;
         top: 10px;
-        transform: translateX(-50%);
-        display: flex;
+        /* display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start;
+        width: 20%;
+        max-width: 20%;
+        overflow: visible;
+        min-width: 0; */
       }
 
       .day-counter-arrow {
@@ -308,6 +331,12 @@
         border-right: 6px solid transparent;
         border-bottom: 6px solid #ff4444;
         margin-bottom: -1px;
+        flex-shrink: 0;
+      }
+
+      .day-counter-arrow {
+        position: absolute;
+        top: 4px;
       }
 
       .day-counter {
@@ -315,9 +344,11 @@
         font-size: 12px;
         font-weight: bold;
         text-transform: uppercase;
-        color: white;
+        color: var(--text-primary);
         padding: 4px 12px;
         border-radius: 2px;
+        white-space: nowrap;
+        min-width: fit-content;
       }
 
       .right-panel {
@@ -349,11 +380,12 @@
       .step-page.has-two-columns .left-panel {
         width: 100%;
         height: auto;
-        min-height: 120px;
+        min-height: auto;
         flex-direction: row;
         justify-content: space-between;
-        align-items: flex-start;
-        padding: 25px 30px;
+        align-items: center;
+        padding: 30px;
+        gap: 40px;
       }
 
       .step-page.has-two-columns .location-section {
@@ -365,6 +397,7 @@
         flex-shrink: 0;
         width: auto;
         min-width: 300px;
+        margin-top: 0;
       }
 
       .step-page.has-two-columns .right-panel {
@@ -433,7 +466,17 @@
         <div class="location-section">
           <div class="map-coords-container">
             <div class="map-icon">
-              {% if step.country_map_data_uri %}
+              {% if step.country_map_svg %}
+              <div class="map-svg-container">
+                {{ step.country_map_svg | safe }}
+                {% if step.map_dot_x is not none and step.map_dot_y is not none %}
+                <div
+                  class="map-location-dot"
+                  style="left: {{ step.map_dot_x }}%; top: {{ step.map_dot_y }}%; background: {{ step.accent_color }};"
+                ></div>
+                {% endif %}
+              </div>
+              {% elif step.country_map_data_uri %}
               <img
                 src="{{ step.country_map_data_uri }}"
                 alt="{{ step.country }} map"
@@ -443,7 +486,8 @@
                 class="map-location-dot"
                 style="left: {{ step.map_dot_x }}%; top: {{ step.map_dot_y }}%; background: {{ step.accent_color }};"
               ></div>
-              {% endif %} {% else %} 🗺️ {% endif %}
+              {% endif %}
+              {% else %} 🗺️ {% endif %}
             </div>
             <div class="coordinates">
               {{ step.coords_lat }}<br />
@@ -500,13 +544,13 @@
               ></div>
             </div>
             <div
+              class="day-counter-arrow"
+              style="border-bottom-color: {{ step.accent_color }}; left: {{ step.day_counter_arrow_position }}%; transform: translateX(-55%);"
+            ></div>
+            <div
               class="day-counter-wrapper"
-              style="left: {{ step.progress_percent }}%;"
+              style="left: {{ step.day_counter_box_position }}%; transform: translateX(-55%);"
             >
-              <div
-                class="day-counter-arrow"
-                style="border-bottom-color: {{ step.accent_color }};"
-              ></div>
               <div
                 class="day-counter"
                 style="background: {{ step.accent_color }};"
