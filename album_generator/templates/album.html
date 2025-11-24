@@ -137,9 +137,9 @@
           {%- if step.description_full -%}{{- step.description_full -}}{%- endif
           -%}
         </div>
-        {% elif step.cover_image_data_uri %}
+        {% elif step.cover_image_path %}
         <img
-          src="{{ step.cover_image_data_uri }}"
+          src="{{ step.cover_image_path }}"
           alt="{{ step.city }}"
           class="main-image"
         />
@@ -153,10 +153,10 @@
     in step.photo_pages %}
     <div class="step-page photo-page">
       <div class="photo-page-container">
-        {% for photo_data_uri in photo_page %}
+        {% for photo_path in photo_page %}
         <div class="photo-item">
           <img
-            src="{{ photo_data_uri }}"
+            src="{{ photo_path }}"
             alt="{{ step.city }} photo"
             class="photo-image"
           />

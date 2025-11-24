@@ -1,6 +1,5 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
-import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -39,18 +38,42 @@ logger = get_logger(__name__)
 console = get_console()
 
 
-def image_to_data_uri(image_path: Path) -> str:
-    """Convert image to data URI for embedding in HTML."""
-    import mimetypes
+def copy_image_to_assets(
+    image_path: Path, output_dir: Path, step_name: str, photo_index: int
+) -> str:
+    """Copy image to assets directory and return relative path.
 
-    mime_type, _ = mimetypes.guess_type(str(image_path))
-    if not mime_type:
-        mime_type = "image/jpeg"
+    Args:
+        image_path: Path to source image file
+        output_dir: Output directory (parent of assets/)
+        step_name: Step name (e.g., "Buenos Aires (Argentina)") - matches photos_by_pages.txt
+        photo_index: Photo index within the step (matches photos_by_pages.txt)
 
-    with open(image_path, "rb") as f:
-        image_data = base64.b64encode(f.read()).decode("utf-8")
+    Returns:
+        Relative path to copied image (e.g., "assets/images/Buenos_Aires_Argentina_photo_0.jpg")
+    """
+    import re
+    import shutil
 
-    return f"data:{mime_type};base64,{image_data}"
+    assets_dir = output_dir / "assets"
+    images_dir = assets_dir / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sanitize step name for filesystem: replace spaces, parentheses, colons with underscores
+    sanitized_name = re.sub(r"[^\w\-]", "_", step_name)
+    sanitized_name = re.sub(r"_+", "_", sanitized_name)  # Collapse multiple underscores
+    sanitized_name = sanitized_name.strip("_")  # Remove leading/trailing underscores
+
+    # Get file extension from source
+    ext = image_path.suffix.lower() or ".jpg"
+    output_filename = f"{sanitized_name}_photo_{photo_index}{ext}"
+    output_path = images_dir / output_filename
+
+    # Copy image if it doesn't exist
+    if not output_path.exists() and image_path.exists():
+        shutil.copy2(image_path, output_path)
+
+    return f"assets/images/{output_filename}"
 
 
 def copy_assets(font_path: Path, output_dir: Path, light_mode: bool = False) -> str:
@@ -246,7 +269,7 @@ def prepare_step_data(
     weather_data: WeatherData,
     flag_data: tuple[str | None, str | None] | None,
     map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
-    cover_image_data_uri: str | None,
+    cover_image_path: str | None,
     light_mode: bool = False,
 ) -> dict[str, Any]:
     """Prepare all data needed for rendering a step in the HTML template.
@@ -262,7 +285,7 @@ def prepare_step_data(
         weather_data: WeatherData object containing temperatures, feels like temperatures, and icons
         flag_data: Tuple of (country_flag_data_uri, accent_color) or None
         map_data: Tuple of (country_map_data_uri, country_map_svg, (map_dot_x, map_dot_y)) or None
-        cover_image_data_uri: Base64-encoded cover image data URI or None
+        cover_image_path: Relative path to cover image file or None
         light_mode: If True, use light mode color scheme; if False, use dark mode
 
     Returns:
@@ -380,7 +403,7 @@ def prepare_step_data(
         "progress_percent": progress_percent,
         "day_counter_box_position": box_center_position,
         "day_counter_arrow_position": arrow_bar_position,
-        "cover_image_data_uri": cover_image_data_uri,
+        "cover_image_path": cover_image_path,
         "country_flag_data_uri": country_flag_data_uri,
         "country_map_data_uri": country_map_data_uri,
         "country_map_svg": country_map_svg,
@@ -499,10 +522,10 @@ def generate_album_html(
         map_progress.update(task_id, description="Processing maps")
     logger.debug(f"Processed {len(map_data_list)} maps")
 
-    # Batch convert cover images to data URIs
-    logger.debug("Converting cover images to data URIs...")
+    # Batch copy cover images to assets directory
+    logger.debug("Copying cover images to assets...")
     image_progress = create_progress("Processing images")
-    cover_image_data_uri_list: list[str | None] = []
+    cover_image_path_list: list[str | None] = []
     with image_progress:
         task_id = image_progress.add_task("Processing images", total=len(steps))
         for _idx, step in enumerate(image_progress.track(steps, task_id=task_id)):
@@ -510,7 +533,7 @@ def generate_album_html(
                 task_id, description=f"Processing images: {step.city}"
             )
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
-            # Check if we need two columns (determines if we need image data URI)
+            # Check if we need two columns (determines if we need image)
             # Match the logic from prepare_step_data
             description = _clean_description(step.description or "")
             use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
@@ -519,11 +542,19 @@ def generate_album_html(
                 or use_three_columns
             )
             if cover_photo and cover_photo.path.exists() and not use_two_columns:
-                cover_image_data_uri_list.append(image_to_data_uri(cover_photo.path))
+                step_name = step.get_name_for_photos_export()
+                cover_image_path_list.append(
+                    copy_image_to_assets(
+                        cover_photo.path,
+                        output_path.parent,
+                        step_name,
+                        cover_photo.index,
+                    )
+                )
             else:
-                cover_image_data_uri_list.append(None)
+                cover_image_path_list.append(None)
         image_progress.update(task_id, description="Processing images")
-    logger.debug(f"Processed {len(cover_image_data_uri_list)} cover images")
+    logger.debug(f"Processed {len(cover_image_path_list)} cover images")
 
     # Prepare template environment
     template_dir = Path(__file__).parent / "templates"
@@ -544,7 +575,7 @@ def generate_album_html(
             weather_data,
             flag_data,
             map_data,
-            cover_image_data_uri,
+            cover_image_path,
         ) in enumerate(
             progress.track(
                 zip(
@@ -553,7 +584,7 @@ def generate_album_html(
                     weather_data_list,
                     flag_data_list,
                     map_data_list,
-                    cover_image_data_uri_list,
+                    cover_image_path_list,
                     strict=True,
                 ),
                 task_id=task_id,
@@ -565,15 +596,20 @@ def generate_album_html(
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
 
-            # Convert photo pages to data URIs for template
-            photo_pages_data_uris: list[list[str]] = []
+            # Copy photo pages images to assets directory
+            photo_pages_paths: list[list[str]] = []
+            step_name = step.get_name_for_photos_export()
             for page in photo_pages:
-                page_data_uris: list[str] = []
+                page_paths: list[str] = []
                 for photo in page:
                     if photo.path.exists():
-                        page_data_uris.append(image_to_data_uri(photo.path))
-                if page_data_uris:
-                    photo_pages_data_uris.append(page_data_uris)
+                        page_paths.append(
+                            copy_image_to_assets(
+                                photo.path, output_path.parent, step_name, photo.index
+                            )
+                        )
+                if page_paths:
+                    photo_pages_paths.append(page_paths)
 
             step_data = prepare_step_data(
                 step,
@@ -586,11 +622,11 @@ def generate_album_html(
                 weather_data,
                 flag_data,
                 map_data,
-                cover_image_data_uri,
+                cover_image_path,
                 light_mode,
             )
             # Add photo pages to step data
-            step_data["photo_pages"] = photo_pages_data_uris
+            step_data["photo_pages"] = photo_pages_paths
             step_data_list.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
