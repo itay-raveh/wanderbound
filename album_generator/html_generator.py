@@ -18,6 +18,7 @@ from .apis import (
     get_country_map_dot_position,
     get_country_map_svg,
 )
+from .apis.weather import WeatherData, get_weather_data
 from .constants import (
     DESCRIPTION_THREE_COLUMNS_THRESHOLD,
     DESCRIPTION_TWO_COLUMNS_THRESHOLD,
@@ -189,6 +190,10 @@ def prepare_step_data(
     trip_data: TripData,
     use_step_range: bool,
     elevation: float | None,
+    weather_data: WeatherData,
+    flag_data: tuple[str | None, str | None] | None,
+    map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
+    image_data_uri: str | None,
     light_mode: bool = False,
 ) -> dict[str, Any]:
     """Prepare all data needed for rendering a step in the HTML template.
@@ -201,6 +206,10 @@ def prepare_step_data(
         trip_data: Trip metadata including start/end dates and timezone
         use_step_range: If True, calculate progress based on step range; if False, use trip days
         elevation: Altitude in meters for this step's location, or None if unavailable
+        weather_data: WeatherData object containing temperatures, feels like temperatures, and icons
+        flag_data: Tuple of (country_flag_data_uri, accent_color) or None
+        map_data: Tuple of (country_map_data_uri, country_map_svg, (map_dot_x, map_dot_y)) or None
+        image_data_uri: Base64-encoded image data URI or None
         light_mode: If True, use light mode color scheme; if False, use dark mode
 
     Returns:
@@ -225,35 +234,85 @@ def prepare_step_data(
     arrow_bar_position = max(1.0, min(99.0, progress_percent))
     box_center_position = max(9.0, min(91.0, progress_percent))
 
+    # Extract map data (already fetched in batch)
     map_dot_x, map_dot_y = None, None
-    if step.country_code:
-        dot_pos = get_country_map_dot_position(
-            step.country_code, step.location.lat, step.location.lon
-        )
+    country_map_data_uri = None
+    country_map_svg = None
+    if map_data:
+        country_map_data_uri, country_map_svg, dot_pos = map_data
         if dot_pos:
             map_dot_x, map_dot_y = dot_pos
 
-    weather_icon_url = None
-    if step.weather_condition:
-        # Use basmilius weather-icons with semantic names (e.g., "clear-day", "partly-cloudy-day")
-        # Normalize condition name: lowercase and replace underscores with hyphens
-        icon_name = step.weather_condition.lower().replace("_", "-")
-
-        settings = get_settings()
-        weather_icon_url = f"{settings.weather_icon_base_url}/{icon_name}.svg"
-        logger.debug(
-            f"Weather condition '{step.weather_condition}' using icon '{icon_name}'"
-        )
-
-    country_flag_data_uri = (
-        get_country_flag_data_uri(step.country_code) if step.country_code else None
-    )
-    accent_color = extract_prominent_color_from_flag(
-        country_flag_data_uri, step.country_code, light_mode
-    )
+    # Extract weather data (already fetched in batch)
+    day_temp_api = weather_data.day_temp
+    night_temp = weather_data.night_temp
+    day_feels_like = weather_data.day_feels_like
+    night_feels_like = weather_data.night_feels_like
+    day_icon_api = weather_data.day_icon
+    night_icon = weather_data.night_icon
 
     date_data = format_date(step.start_time, step.timezone_id)
     coords_data = format_coordinates(step.location.lat, step.location.lon)
+
+    # Compare API day temperature with trip data temperature
+    use_trip_data = False
+    if day_temp_api is not None and step.weather_temperature is not None:
+        temp_diff = abs(day_temp_api - step.weather_temperature)
+        if temp_diff > 1.0:
+            logger.warning(
+                f"Temperature mismatch for {step.city} on {date_data['month']} {date_data['day']}: "
+                f"API reports {day_temp_api:.1f}°C, trip data has {step.weather_temperature:.1f}°C "
+                f"(difference: {temp_diff:.1f}°C). Using trip data."
+            )
+            use_trip_data = True
+
+    # Use trip data if there's a mismatch, otherwise use API data
+    if use_trip_data:
+        # Use trip data for day weather
+        day_icon_name = None
+        if step.weather_condition:
+            day_icon_name = step.weather_condition.lower().replace("_", "-")
+    else:
+        # Use API day icon if available, otherwise fall back to trip data weather condition
+        day_icon_name = day_icon_api
+        if not day_icon_name and step.weather_condition:
+            # Fallback to trip data weather condition
+            day_icon_name = step.weather_condition.lower().replace("_", "-")
+
+    # Generate icon URLs
+    settings = get_settings()
+    day_weather_icon_url = None
+    night_weather_icon_url = None
+
+    if day_icon_name:
+        day_weather_icon_url = settings.weather_icon_url.format(icon_name=day_icon_name)
+    if night_icon:
+        night_weather_icon_url = settings.weather_icon_url.format(icon_name=night_icon)
+
+    # Extract flag data (already fetched in batch)
+    country_flag_data_uri = None
+    accent_color = None
+    if flag_data:
+        country_flag_data_uri, accent_color = flag_data
+
+    # Format day temperature with feels like if available
+    day_temp_display = step.weather_temperature if use_trip_data else day_temp_api
+    if day_temp_display is not None:
+        if day_feels_like is not None and abs(day_feels_like - day_temp_display) >= 1.0:
+            temp_str = f"{int(day_temp_display)}°C ({int(day_feels_like)}°C)"
+        else:
+            temp_str = f"{int(day_temp_display)}°C"
+    else:
+        temp_str = "N/A"
+
+    # Format night temperature with feels like if available
+    if night_temp is not None:
+        if night_feels_like is not None and abs(night_feels_like - night_temp) >= 1.0:
+            temp_night_str = f"{int(night_temp)}°C ({int(night_feels_like)}°C)"
+        else:
+            temp_night_str = f"{int(night_temp)}°C"
+    else:
+        temp_night_str = "N/A"
 
     return {
         "city": step.city,
@@ -264,33 +323,19 @@ def prepare_step_data(
         "date_month": date_data["month"],
         "date_day": date_data["day"],
         "weather": format_weather_condition(step.weather_condition),
-        "weather_icon_url": weather_icon_url,
-        "temp_str": (
-            f"{int(step.weather_temperature)}°C" if step.weather_temperature else "N/A"
-        ),
+        "day_weather_icon_url": day_weather_icon_url,
+        "night_weather_icon_url": night_weather_icon_url,
+        "temp_str": temp_str,
+        "temp_night_str": temp_night_str,
         "altitude_str": format_altitude(elevation),
         "day_num": day_num,
         "progress_percent": progress_percent,
         "day_counter_box_position": box_center_position,
         "day_counter_arrow_position": arrow_bar_position,
-        "image_data_uri": (
-            image_to_data_uri(image_path)
-            if image_path and image_path.exists() and not use_two_columns
-            else None
-        ),
+        "image_data_uri": image_data_uri,
         "country_flag_data_uri": country_flag_data_uri,
-        "country_map_data_uri": (
-            get_country_map_data_uri(
-                step.country_code, step.location.lat, step.location.lon
-            )
-            if step.country_code
-            else None
-        ),
-        "country_map_svg": (
-            get_country_map_svg(step.country_code, step.location.lat, step.location.lon)
-            if step.country_code
-            else None
-        ),
+        "country_map_data_uri": country_map_data_uri,
+        "country_map_svg": country_map_svg,
         "map_dot_x": map_dot_x,
         "map_dot_y": map_dot_y,
         "accent_color": accent_color,
@@ -336,6 +381,98 @@ def generate_album_html(
         elevations = get_altitude_batch(locations)
     logger.debug(f"Fetched {len(elevations)} altitude values")
 
+    # Batch fetch weather data
+    logger.debug("Fetching weather data...")
+    weather_progress = create_progress("Fetching weather data")
+    weather_data_list = []
+    with weather_progress:
+        task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
+        for step in weather_progress.track(steps, task_id=task_id):
+            weather_progress.update(
+                task_id, description=f"Fetching weather data: {step.city}"
+            )
+            weather_data = get_weather_data(
+                step.location.lat,
+                step.location.lon,
+                step.start_time,
+                step.timezone_id,
+            )
+            weather_data_list.append(weather_data)
+        weather_progress.update(task_id, description="Fetching weather data")
+    logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
+
+    # Batch fetch flags and accent colors
+    logger.debug("Fetching flags and extracting colors...")
+    flag_progress = create_progress("Processing flags")
+    flag_data_list = []
+    with flag_progress:
+        task_id = flag_progress.add_task("Processing flags", total=len(steps))
+        for step in flag_progress.track(steps, task_id=task_id):
+            flag_progress.update(
+                task_id, description=f"Processing flags: {step.country}"
+            )
+            country_flag_data_uri = (
+                get_country_flag_data_uri(step.country_code)
+                if step.country_code
+                else None
+            )
+            accent_color = extract_prominent_color_from_flag(
+                country_flag_data_uri, step.country_code, light_mode
+            )
+            flag_data_list.append((country_flag_data_uri, accent_color))
+        flag_progress.update(task_id, description="Processing flags")
+    logger.debug(f"Processed {len(flag_data_list)} flags")
+
+    # Batch fetch maps and calculate dot positions
+    logger.debug("Fetching maps and calculating positions...")
+    map_progress = create_progress("Processing maps")
+    map_data_list = []
+    with map_progress:
+        task_id = map_progress.add_task("Processing maps", total=len(steps))
+        for step in map_progress.track(steps, task_id=task_id):
+            map_progress.update(task_id, description=f"Processing maps: {step.country}")
+            if step.country_code:
+                country_map_data_uri = get_country_map_data_uri(
+                    step.country_code, step.location.lat, step.location.lon
+                )
+                country_map_svg = get_country_map_svg(
+                    step.country_code, step.location.lat, step.location.lon
+                )
+                dot_pos = get_country_map_dot_position(
+                    step.country_code, step.location.lat, step.location.lon
+                )
+                map_data_list.append((country_map_data_uri, country_map_svg, dot_pos))
+            else:
+                map_data_list.append((None, None, None))
+        map_progress.update(task_id, description="Processing maps")
+    logger.debug(f"Processed {len(map_data_list)} maps")
+
+    # Batch convert images to data URIs
+    logger.debug("Converting images to data URIs...")
+    image_progress = create_progress("Processing images")
+    image_data_uri_list: list[str | None] = []
+    with image_progress:
+        task_id = image_progress.add_task("Processing images", total=len(steps))
+        for _idx, step in enumerate(image_progress.track(steps, task_id=task_id)):
+            image_progress.update(
+                task_id, description=f"Processing images: {step.city}"
+            )
+            image_path = step_images.get(step.id) if step.id else None
+            # Check if we need two columns (determines if we need image data URI)
+            # Match the logic from prepare_step_data
+            description = _clean_description(step.description or "")
+            use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
+            use_two_columns = (
+                len(description) > DESCRIPTION_TWO_COLUMNS_THRESHOLD
+                or use_three_columns
+            )
+            if image_path and image_path.exists() and not use_two_columns:
+                image_data_uri_list.append(image_to_data_uri(image_path))
+            else:
+                image_data_uri_list.append(None)
+        image_progress.update(task_id, description="Processing images")
+    logger.debug(f"Processed {len(image_data_uri_list)} images")
+
     # Prepare template environment
     template_dir = Path(__file__).parent / "templates"
     env = Environment(loader=FileSystemLoader(str(template_dir)))
@@ -349,8 +486,26 @@ def generate_album_html(
 
     with progress:
         task_id = progress.add_task("Preparing steps", total=len(steps))
-        for idx, (step, elevation) in enumerate(
-            progress.track(zip(steps, elevations, strict=True), task_id=task_id)
+        for idx, (
+            step,
+            elevation,
+            weather_data,
+            flag_data,
+            map_data,
+            image_data_uri,
+        ) in enumerate(
+            progress.track(
+                zip(
+                    steps,
+                    elevations,
+                    weather_data_list,
+                    flag_data_list,
+                    map_data_list,
+                    image_data_uri_list,
+                    strict=True,
+                ),
+                task_id=task_id,
+            )
         ):
             logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
             progress.update(task_id, description=f"Preparing steps: {step.city}")
@@ -364,6 +519,10 @@ def generate_album_html(
                 trip_data,
                 use_step_range,
                 elevation,
+                weather_data,
+                flag_data,
+                map_data,
+                image_data_uri,
                 light_mode,
             )
             step_data_list.append(step_data)

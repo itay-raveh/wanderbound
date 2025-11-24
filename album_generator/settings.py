@@ -9,19 +9,29 @@ class Settings(BaseSettings):
     # Debug mode (set via DEBUG environment variable)
     debug: bool = False
 
-    # API URLs
-    flag_cdn_base_url: str = "https://flagcdn.com/w40"
-    opentopodata_api_url: str = "https://api.opentopodata.org/v1/aster30m"
+    # API URL templates (use .format() with placeholders)
+    flag_cdn_url: str = "https://flagcdn.com/w40/{country_code}.png"
+    opentopodata_api_url: str = (
+        "https://api.opentopodata.org/v1/aster30m?locations={locations}"
+    )
     natural_earth_geojson_url: str = (
         "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
         "ne_50m_admin_0_countries.geojson"
     )
-    mapsicon_base_url: str = (
-        "https://raw.githubusercontent.com/djaiss/mapsicon/master/all"
+    mapsicon_url: str = (
+        "https://raw.githubusercontent.com/djaiss/mapsicon/master/all/{country_code}/vector.svg"
     )
-    weather_icon_base_url: str = (
-        "https://basmilius.github.io/weather-icons/production/fill/all"
+    weather_icon_url: str = (
+        "https://basmilius.github.io/weather-icons/production/fill/all/{icon_name}.svg"
     )
+    visual_crossing_api_url: str = (
+        "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/"
+        "{location}/{date}?key={key}&unitGroup=metric&include=hours&elements={elements}"
+    )
+
+    # Weather API key (optional - set via VISUAL_CROSSING_API_KEY environment variable)
+    # Get a free key at https://www.visualcrossing.com/weather-api
+    visual_crossing_api_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import requests
 from lxml import etree
 
 try:
@@ -24,8 +23,12 @@ except ImportError:
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import CACHE_DIR, get_cached, set_cached
+from .rate_limit import fetch_text_with_retry
 
 logger = get_logger(__name__)
+
+# Maps API rate limit: Conservative rate for GitHub raw URLs
+MAPS_API_CALLS_PER_SECOND = 2
 
 _COUNTRY_BOUNDS: dict[str, Any] | None = None
 _SVG_VIEWBOXES: dict[str, list[float]] = {}
@@ -178,7 +181,7 @@ def _extract_path_bounds(root: etree._Element) -> dict[str, float] | None:
 
 
 def _svg_to_string(root: etree._Element) -> str:
-    """Convert SVG element tree back to string."""
+    """Convert SVG element tree to string."""
     return etree.tostring(root, encoding="unicode", pretty_print=False)
 
 
@@ -219,7 +222,7 @@ def _load_natural_earth_data(country_code: str) -> Any | None:
         world.to_file(str(cache_file), driver="GeoJSON")
         logger.debug(f"Cached Natural Earth data to {cache_file}")
         return world
-    except (requests.exceptions.RequestException, OSError) as e:
+    except OSError as e:
         logger.error(f"Failed to download Natural Earth 50m data: {e}", exc_info=True)
         return None
 
@@ -428,86 +431,84 @@ def get_country_map_svg(
             return svg_data
 
     settings = get_settings()
-    svg_url = f"{settings.mapsicon_base_url}/{country_code.lower()}/vector.svg"
+    svg_url = settings.mapsicon_url.format(country_code=country_code.lower())
 
     try:
-        response = requests.get(svg_url, timeout=10)
-        response.raise_for_status()
-        if response.status_code == 200:
-            svg_data = response.text
+        svg_data = fetch_text_with_retry(
+            svg_url,
+            calls_per_second=MAPS_API_CALLS_PER_SECOND,
+        )
 
-            # Parse SVG with lxml
-            root = _parse_svg_with_lxml(svg_data)
-            if root is None:
-                return None
+        # Parse SVG with lxml
+        root = _parse_svg_with_lxml(svg_data)
+        if root is None:
+            return None
 
-            # Extract viewBox
-            viewbox = _get_svg_viewbox(root)
-            if viewbox and len(viewbox) == 4:
-                _SVG_VIEWBOXES[country_code.lower()] = viewbox
+        # Extract viewBox
+        viewbox = _get_svg_viewbox(root)
+        if viewbox and len(viewbox) == 4:
+            _SVG_VIEWBOXES[country_code.lower()] = viewbox
 
-            # Extract transform from root or first group element (handle namespaces)
-            transform_elem = root
-            group_raw = root.xpath('.//*[local-name()="g"][@transform]')
-            if isinstance(group_raw, list) and len(group_raw) > 0:
-                first_elem = group_raw[0]
-                if isinstance(first_elem, etree._Element):
-                    transform_elem = first_elem
-                else:
-                    transform_elem = root
+        # Extract transform from root or first group element (handle namespaces)
+        transform_elem = root
+        group_raw = root.xpath('.//*[local-name()="g"][@transform]')
+        if isinstance(group_raw, list) and len(group_raw) > 0:
+            first_elem = group_raw[0]
+            if isinstance(first_elem, etree._Element):
+                transform_elem = first_elem
             else:
                 transform_elem = root
+        else:
+            transform_elem = root
 
-            transform_str = transform_elem.get("transform", "")
-            if transform_str:
-                transform_data = _parse_transform(transform_str)
-                _SVG_TRANSFORMS[country_code.lower()] = transform_data
+        transform_str = transform_elem.get("transform", "")
+        if transform_str:
+            transform_data = _parse_transform(transform_str)
+            _SVG_TRANSFORMS[country_code.lower()] = transform_data
 
-            path_bounds = _extract_path_bounds(root)
-            if path_bounds:
-                _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds  # type: ignore[assignment]
+        path_bounds = _extract_path_bounds(root)
+        if path_bounds:
+            _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds  # type: ignore[assignment]
 
-                transform = _SVG_TRANSFORMS.get(country_code.lower())
-                if transform and viewbox and len(viewbox) == 4:
-                    scale_x = transform["scale_x"]
-                    scale_y = transform["scale_y"]
-                    translate_x = transform["translate_x"]
-                    translate_y = transform["translate_y"]
+            transform = _SVG_TRANSFORMS.get(country_code.lower())
+            if transform and viewbox and len(viewbox) == 4:
+                scale_x = transform["scale_x"]
+                scale_y = transform["scale_y"]
+                translate_x = transform["translate_x"]
+                translate_y = transform["translate_y"]
 
-                    rendered_min_x = path_bounds["min_x"] * scale_x + translate_x
-                    rendered_max_x = path_bounds["max_x"] * scale_x + translate_x
-                    rendered_min_y = path_bounds["min_y"] * scale_y + translate_y
-                    rendered_max_y = path_bounds["max_y"] * scale_y + translate_y
+                rendered_min_x = path_bounds["min_x"] * scale_x + translate_x
+                rendered_max_x = path_bounds["max_x"] * scale_x + translate_x
+                rendered_min_y = path_bounds["min_y"] * scale_y + translate_y
+                rendered_max_y = path_bounds["max_y"] * scale_y + translate_y
 
-                    _SVG_PATH_BOUNDS[country_code.lower()]["rendered"] = {
-                        "min_x": rendered_min_x,
-                        "max_x": rendered_max_x,
-                        "min_y": rendered_min_y,
-                        "max_y": rendered_max_y,
-                    }
+                _SVG_PATH_BOUNDS[country_code.lower()]["rendered"] = {
+                    "min_x": rendered_min_x,
+                    "max_x": rendered_max_x,
+                    "min_y": rendered_min_y,
+                    "max_y": rendered_max_y,
+                }
 
-            # Set fills to white
-            for elem in root.iter():
-                if (
-                    elem.tag.endswith("path")
-                    or elem.tag.endswith("polygon")
-                    or elem.tag.endswith("circle")
-                    or elem.tag.endswith("rect")
-                ):
-                    fill = elem.get("fill", "")
-                    if fill == "#000000" or fill == "black":
-                        elem.set("fill", "#ffffff")
-                elif "fill" in elem.attrib:
-                    if elem.get("fill") == "#000000" or elem.get("fill") == "black":
-                        elem.set("fill", "#ffffff")
+        # Set fills to white
+        for elem in root.iter():
+            if (
+                elem.tag.endswith("path")
+                or elem.tag.endswith("polygon")
+                or elem.tag.endswith("circle")
+                or elem.tag.endswith("rect")
+            ):
+                fill = elem.get("fill", "")
+                if fill == "#000000" or fill == "black":
+                    elem.set("fill", "#ffffff")
+            elif "fill" in elem.attrib:
+                if elem.get("fill") == "#000000" or elem.get("fill") == "black":
+                    elem.set("fill", "#ffffff")
 
-            svg_data = _svg_to_string(root)
-            set_cached(cache_key_svg, svg_data)
-            return svg_data
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Failed to get map for {country_code}: {e}")
+        svg_data = _svg_to_string(root)
+        set_cached(cache_key_svg, svg_data)
+        return svg_data
     except Exception as e:
-        logger.error(f"Error processing map for {country_code}: {e}", exc_info=True)
+        logger.warning(f"Failed to get map for {country_code}: {e}")
 
     return None
 

@@ -4,7 +4,6 @@ import base64
 import io
 from collections import Counter
 
-import requests
 from colormath.color_conversions import convert_color
 from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
@@ -23,8 +22,12 @@ from ..constants import (
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import get_cached, set_cached
+from .rate_limit import fetch_content_with_retry
 
 logger = get_logger(__name__)
+
+# Flag CDN rate limit: Conservative rate to avoid overwhelming the CDN
+FLAG_API_CALLS_PER_SECOND = 2
 
 _COUNTRY_COLORS: dict[str, str] = {}
 
@@ -41,18 +44,18 @@ def get_country_flag_data_uri(country_code: str) -> str | None:
 
     try:
         settings = get_settings()
-        url = f"{settings.flag_cdn_base_url}/{country_code.lower()}.png"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        if response.status_code == 200:
-            image_data = base64.b64encode(response.content).decode("utf-8")
-            data_uri = f"data:image/png;base64,{image_data}"
-            set_cached(cache_key, data_uri)
-            return data_uri
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Failed to get flag for {country_code}: {e}")
+        url = settings.flag_cdn_url.format(country_code=country_code.lower())
+        content = fetch_content_with_retry(
+            url,
+            timeout=5,
+            calls_per_second=FLAG_API_CALLS_PER_SECOND,
+        )
+        image_data = base64.b64encode(content).decode("utf-8")
+        data_uri = f"data:image/png;base64,{image_data}"
+        set_cached(cache_key, data_uri)
+        return data_uri
     except Exception as e:
-        logger.error(f"Error processing flag for {country_code}: {e}", exc_info=True)
+        logger.warning(f"Failed to get flag for {country_code}: {e}")
 
     return None
 

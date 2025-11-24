@@ -261,6 +261,10 @@
         align-items: flex-end;
       }
 
+      .metadata-item:nth-child(2) {
+        align-items: center;
+      }
+
       .metadata-label {
         font-size: 9px;
         text-transform: uppercase;
@@ -273,6 +277,10 @@
         white-space: nowrap;
         line-height: 1.2;
         height: 14px;
+      }
+
+      .metadata-item:nth-child(2) .metadata-label {
+        justify-content: center;
       }
 
       .weather-icon {
@@ -291,6 +299,20 @@
         line-height: 1;
         margin-top: 0;
         padding-top: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .metadata-item:nth-child(2) .metadata-value {
+        justify-content: center;
+      }
+
+      .metadata-value .weather-icon {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        object-fit: contain;
       }
 
       .progress-container {
@@ -468,8 +490,8 @@
             <div class="map-icon">
               {% if step.country_map_svg %}
               <div class="map-svg-container">
-                {{ step.country_map_svg | safe }}
-                {% if step.map_dot_x is not none and step.map_dot_y is not none %}
+                {{ step.country_map_svg | safe }} {% if step.map_dot_x is not
+                none and step.map_dot_y is not none %}
                 <div
                   class="map-location-dot"
                   style="left: {{ step.map_dot_x }}%; top: {{ step.map_dot_y }}%; background: {{ step.accent_color }};"
@@ -486,8 +508,7 @@
                 class="map-location-dot"
                 style="left: {{ step.map_dot_x }}%; top: {{ step.map_dot_y }}%; background: {{ step.accent_color }};"
               ></div>
-              {% endif %}
-              {% else %} 🗺️ {% endif %}
+              {% endif %} {% else %} 🗺️ {% endif %}
             </div>
             <div class="coordinates">
               {{ step.coords_lat }}<br />
@@ -521,18 +542,26 @@
             </div>
             <div class="metadata-item">
               <div class="metadata-label">
-                {% if step.weather_icon_url %}
+                {% if step.night_weather_icon_url %}
                 <img
-                  src="{{ step.weather_icon_url }}"
-                  alt="{{ step.weather }}"
+                  src="{{ step.night_weather_icon_url }}"
+                  alt="Night weather"
                   class="weather-icon"
                 />
-                {% endif %} {{ step.weather }}
+                {% endif %} {{ step.temp_night_str }}
               </div>
-              <div class="metadata-value">{{ step.temp_str }}</div>
+              <div class="metadata-value">
+                {% if step.day_weather_icon_url %}
+                <img
+                  src="{{ step.day_weather_icon_url }}"
+                  alt="Day weather"
+                  class="weather-icon"
+                />
+                {% endif %} {{ step.temp_str }}
+              </div>
             </div>
             <div class="metadata-item">
-              <div class="metadata-label">ALTITUDE</div>
+              <div class="metadata-label">m.a.s.l</div>
               <div class="metadata-value">{{ step.altitude_str }}</div>
             </div>
           </div>
