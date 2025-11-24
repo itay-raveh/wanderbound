@@ -49,7 +49,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
 def _fetch_weather_data_with_retry(
     url: str, lat: float, lon: float, date_str: str
 ) -> dict[str, Any]:
-    """Fetch weather data from API with automatic retry on rate limits.
+    """Fetch weather data from API with automatic retry on errors (but not 429).
 
     Args:
         url: API URL to fetch
@@ -61,17 +61,15 @@ def _fetch_weather_data_with_retry(
         JSON response data
 
     Raises:
-        RateLimitError: If rate limited and max retries reached
+        RateLimitError: If rate limited (429) - this is NOT retried
+        requests.exceptions.RequestException: On other HTTP errors (these ARE retried)
     """
-    try:
-        return fetch_json_with_retry(
-            url,
-            calls_per_second=API_CALLS_PER_SECOND,
-            check_rate_limit=True,
-        )
-    except RateLimitError:
-        logger.warning(f"Rate limited (429) for {lat},{lon} on {date_str}. Retrying...")
-        raise
+    return fetch_json_with_retry(
+        url,
+        calls_per_second=API_CALLS_PER_SECOND,
+        check_rate_limit=True,
+        max_attempts=3,  # Explicitly set to 3 retries for non-429 errors
+    )
 
 
 def _find_night_hours(
@@ -310,9 +308,9 @@ def get_weather_data(
         try:
             data = _fetch_weather_data_with_retry(url, lat, lon, date_str)
         except RateLimitError:
-            logger.error(
-                f"Rate limited (429) for {lat},{lon} on {date_str}. "
-                f"Max retries reached. Skipping."
+            # 429 errors are not retried - skip immediately
+            logger.warning(
+                f"Rate limited (429) for {lat},{lon} on {date_str}. Skipping."
             )
             return WeatherData()
 
@@ -403,14 +401,22 @@ def get_weather_data_batch(
         locations_with_dates: List of (lat, lon, timestamp, timezone_id) tuples
 
     Returns:
-        List of WeatherData objects
+        List of WeatherData objects. If rate limited (429), remaining items will be empty WeatherData.
     """
     results: list[WeatherData] = []
 
     for lat, lon, timestamp, timezone_id in locations_with_dates:
-        weather_data = get_weather_data(lat, lon, timestamp, timezone_id)
-        results.append(weather_data)
-        # Rate limiting is handled by @limits decorator on _fetch_weather_data_with_retry
+        try:
+            weather_data = get_weather_data(lat, lon, timestamp, timezone_id)
+            results.append(weather_data)
+        except RateLimitError:
+            # On 429, stop processing and return empty WeatherData for remaining items
+            logger.warning(
+                f"Rate limited (429) for weather API. Skipping remaining {len(locations_with_dates) - len(results)} requests."
+            )
+            # Fill remaining with empty WeatherData
+            results.extend([WeatherData()] * (len(locations_with_dates) - len(results)))
+            break
 
     return results
 

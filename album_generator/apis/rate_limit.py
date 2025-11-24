@@ -67,16 +67,25 @@ def _fetch_with_retry(
     extract_response: Callable[[requests.Response], Any],
 ) -> Any:
     """Internal helper to fetch data with rate limiting and retry logic."""
+    # For 429 errors, don't retry - they indicate we're rate limited
+    # For other errors, retry up to max_attempts times
+    retry_on: type[Exception] | tuple[type[Exception], ...] = (
+        requests.exceptions.RequestException
+    )
+    if not check_rate_limit:
+        # If not checking rate limits, also retry on RateLimitError (shouldn't happen)
+        retry_on = (RateLimitError, requests.exceptions.RequestException)
 
     @with_rate_limit_and_retry(
         calls_per_second=calls_per_second,
         max_attempts=max_attempts,
-        retry_on=(RateLimitError, requests.exceptions.RequestException),
+        retry_on=retry_on,
     )
     def _fetch() -> Any:
         response = requests.get(url, timeout=timeout)
 
         if check_rate_limit and response.status_code == 429:
+            # Don't retry 429 errors - raise immediately
             raise RateLimitError("Rate limited by API")
 
         response.raise_for_status()
