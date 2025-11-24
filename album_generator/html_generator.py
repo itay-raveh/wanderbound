@@ -134,6 +134,23 @@ def _clean_description(description: str) -> str:
     return "\n".join(cleaned_lines).strip().lstrip()
 
 
+def _format_temperature(temp: float | None, feels_like: float | None) -> str:
+    """Format temperature string with feels like if significantly different.
+
+    Args:
+        temp: Actual temperature in Celsius
+        feels_like: "Feels like" temperature in Celsius
+
+    Returns:
+        Formatted temperature string (e.g., "25°C" or "25°C (27°C)" or "N/A")
+    """
+    if temp is None:
+        return "N/A"
+    if feels_like is not None and abs(feels_like - temp) >= 1.0:
+        return f"{int(temp)}°C ({int(feels_like)}°C)"
+    return f"{int(temp)}°C"
+
+
 def _calculate_progress(
     step: Step,
     step_index: int,
@@ -295,24 +312,10 @@ def prepare_step_data(
     if flag_data:
         country_flag_data_uri, accent_color = flag_data
 
-    # Format day temperature with feels like if available
+    # Format temperatures with feels like if available
     day_temp_display = step.weather_temperature if use_trip_data else day_temp_api
-    if day_temp_display is not None:
-        if day_feels_like is not None and abs(day_feels_like - day_temp_display) >= 1.0:
-            temp_str = f"{int(day_temp_display)}°C ({int(day_feels_like)}°C)"
-        else:
-            temp_str = f"{int(day_temp_display)}°C"
-    else:
-        temp_str = "N/A"
-
-    # Format night temperature with feels like if available
-    if night_temp is not None:
-        if night_feels_like is not None and abs(night_feels_like - night_temp) >= 1.0:
-            temp_night_str = f"{int(night_temp)}°C ({int(night_feels_like)}°C)"
-        else:
-            temp_night_str = f"{int(night_temp)}°C"
-    else:
-        temp_night_str = "N/A"
+    temp_str = _format_temperature(day_temp_display, day_feels_like)
+    temp_night_str = _format_temperature(night_temp, night_feels_like)
 
     return {
         "city": step.city,
