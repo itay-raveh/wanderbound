@@ -1,0 +1,87 @@
+.step-page {
+  width: var(--page-width);
+  height: var(--page-height);
+  min-height: var(--page-height);
+  max-height: var(--page-height);
+  display: flex;
+  overflow: hidden;
+  page-break-after: always;
+  page-break-inside: avoid;
+  break-after: page;
+  break-inside: avoid;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: var(--bg-primary);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.left-panel {
+  flex: 1;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-color);
+  padding-top: var(--spacing-xxl);
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+  padding-bottom: var(--spacing-bottom);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.right-panel {
+  height: var(--page-height);
+  aspect-ratio: var(--cover-aspect-ratio);
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.main-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: transparent;
+  margin: auto;
+}
+
+/* Two-column text spans entire page */
+.step-page.has-two-columns {
+  flex-direction: column;
+}
+
+.step-page.has-two-columns .left-panel {
+  width: 100%;
+  height: auto;
+  min-height: auto;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xl);
+  gap: var(--spacing-xxxl);
+}
+
+.step-page.has-two-columns .location-section {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.step-page.has-two-columns .metadata-section {
+  flex-shrink: 0;
+  width: var(--left-panel-width); /* Same width as regular left panel metadata section */
+  margin-top: 0;
+}
+
+.step-page.has-two-columns .right-panel {
+  width: 100%;
+  height: calc(var(--page-height) - 120px);
+  background: var(--bg-primary);
+}

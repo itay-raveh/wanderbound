@@ -53,17 +53,44 @@ def image_to_data_uri(image_path: Path) -> str:
     return f"data:{mime_type};base64,{image_data}"
 
 
-def copy_assets(font_path: Path, output_dir: Path) -> str:
-    """Copy assets (fonts, etc.) to output directory and return font path."""
+def copy_assets(font_path: Path, output_dir: Path, light_mode: bool = False) -> str:
+    """Copy assets (fonts, CSS, etc.) to output directory and return font path."""
     import shutil
 
     assets_dir = output_dir / "assets"
     fonts_dir = assets_dir / "fonts"
+    css_dir = assets_dir / "css"
     fonts_dir.mkdir(parents=True, exist_ok=True)
+    css_dir.mkdir(parents=True, exist_ok=True)
 
+    # Copy font
     output_font = fonts_dir / "Renner.ttf"
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)
+
+    # Copy and render CSS files
+    # Note: variables.css is a Jinja2 template that uses {{ font_path }} and {% if light_mode %}
+    static_dir = Path(__file__).parent / "static" / "css"
+    css_files = [
+        "variables.css",  # Jinja2 template - contains font_path and light_mode conditionals
+        "reset.css",
+        "layout.css",
+        "components.css",
+        "typography.css",
+        "photos.css",
+    ]
+
+    # Create Jinja2 environment for CSS templates
+    # All CSS files are processed as templates (even if they don't use template syntax)
+    env = Environment(loader=FileSystemLoader(str(static_dir)))
+
+    for css_file in css_files:
+        template = env.get_template(css_file)
+        rendered_css = template.render(
+            font_path="../fonts/Renner.ttf", light_mode=light_mode
+        )
+        output_css = css_dir / css_file
+        output_css.write_text(rendered_css, encoding="utf-8")
 
     return "assets/fonts/Renner.ttf"
 
@@ -388,7 +415,7 @@ def generate_album_html(
     Returns:
         Path to the generated HTML file
     """
-    font_rel_path = copy_assets(font_path, output_path.parent)
+    font_rel_path = copy_assets(font_path, output_path.parent, light_mode)
 
     # Batch fetch altitudes
     with console.status("[bold blue]Fetching altitudes..."):

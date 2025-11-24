@@ -1,0 +1,69 @@
+/* This file is a Jinja2 template - it will be rendered with font_path and light_mode variables */
+@font-face {
+  font-family: "Renner";
+  src: url("{{ font_path }}") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+:root {
+  /* Page dimensions (A4 landscape) - can be changed for other sizes */
+  --page-width: 297mm;
+  --page-height: 210mm;
+
+  /* Cover photo aspect ratio */
+  --cover-aspect-ratio: 4 / 5;
+
+  /* Calculated panel widths */
+  --right-panel-width: calc(var(--page-height) * var(--cover-aspect-ratio));
+  --left-panel-width: calc(var(--page-width) - var(--right-panel-width));
+
+  /* Spacing */
+  --spacing-xs: 6px;
+  --spacing-sm: 10px;
+  --spacing-md: 14px;
+  --spacing-lg: 25px;
+  --spacing-xl: 30px;
+  --spacing-xxl: 35px;
+  --spacing-xxxl: 40px;
+  --spacing-huge: 50px;
+  --spacing-bottom: 75px;
+
+  /* Icon sizes */
+  --icon-size-small: 12px;
+  --icon-size-medium: 16px;
+  --icon-size-large: 24px;
+  --map-icon-size: 75px;
+  --flag-width: 18px;
+  --flag-height: 13px;
+
+  {% if light_mode %}
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-panel: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #333;
+  --text-muted: #666;
+  --text-coords: #666;
+  --border-color: #e0e0e0;
+  --progress-bg: #e0e0e0;
+  --map-filter: brightness(0) saturate(0) opacity(0.4);
+  --dot-shadow-1: rgba(255, 255, 255, 0.8);
+  --dot-shadow-2: rgba(255, 255, 255, 0.5);
+  --dot-drop-shadow: rgba(255, 255, 255, 0.6);
+  {% else %}
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #212121;
+  --bg-panel: #212121;
+  --text-primary: white;
+  --text-secondary: #e0e0e0;
+  --text-muted: #999;
+  --text-coords: #ccc;
+  --border-color: #333;
+  --progress-bg: #333;
+  --map-filter: brightness(0) invert(1);
+  --dot-shadow-1: rgba(0, 0, 0, 0.5);
+  --dot-shadow-2: rgba(0, 0, 0, 0.4);
+  --dot-drop-shadow: rgba(0, 0, 0, 0.4);
+  {% endif %}
+}
