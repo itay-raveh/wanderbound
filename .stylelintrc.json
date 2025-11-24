@@ -1,0 +1,20 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "no-duplicate-selectors": null,
+    "color-hex-length": null,
+    "color-named": "never",
+    "selector-max-id": 0,
+    "selector-attribute-quotes": "always",
+    "declaration-no-important": null,
+    "value-keyword-case": null,
+    "font-family-name-quotes": "always-unless-keyword",
+    "font-weight-notation": null,
+    "no-descending-specificity": null,
+    "property-no-deprecated": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "rule-empty-line-before": null
+  },
+  "ignoreFiles": ["**/*.min.css", "**/variables.css"]
+}
+

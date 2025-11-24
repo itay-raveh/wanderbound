@@ -32,7 +32,8 @@
   grid-template-columns: 2fr 1fr;
   grid-template-rows: 1fr 1fr;
 }
-.photo-page-container:has(.photo-item:nth-child(3):last-child) .photo-item:first-child {
+.photo-page-container:has(.photo-item:nth-child(3):last-child)
+  .photo-item:first-child {
   grid-row: 1 / 3;
 }
 
@@ -47,7 +48,8 @@
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
 }
-.photo-page-container:has(.photo-item:nth-child(5):last-child) .photo-item:first-child {
+.photo-page-container:has(.photo-item:nth-child(5):last-child)
+  .photo-item:first-child {
   grid-row: 1 / 3;
 }
 
@@ -56,7 +58,8 @@
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
 }
-.photo-page-container:has(.photo-item:nth-child(6):last-child) .photo-item:first-child {
+.photo-page-container:has(.photo-item:nth-child(6):last-child)
+  .photo-item:first-child {
   grid-row: 1 / 4;
 }
 

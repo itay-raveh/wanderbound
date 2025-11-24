@@ -76,7 +76,7 @@
 
 .step-page.has-two-columns .metadata-section {
   flex-shrink: 0;
-  width: var(--left-panel-width); /* Same width as regular left panel metadata section */
+  width: var(--left-panel-width);
   margin-top: 0;
 }
 

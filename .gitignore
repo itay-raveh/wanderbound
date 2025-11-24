@@ -42,6 +42,10 @@ diskcache.core/
 *.cache
 .polarsteps_album_cache/
 
+# Node.js
+node_modules/
+package-lock.json
+
 # OS
 .DS_Store
 Thumbs.db
