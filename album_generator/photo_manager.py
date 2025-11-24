@@ -4,14 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .constants import (
+    COVER_PHOTO_PREFIX,
+    PHOTOS_BY_PAGES_FILE,
+    PHOTOS_MAPPING_FILE,
+)
 from .logger import get_logger
 from .models import Photo, Step
 
 logger = get_logger(__name__)
-
-PHOTOS_BY_PAGES_FILE_NAME = "photos_by_pages.txt"
-PHOTOS_MAPPING_FILE_NAME = "photos_mapping.json"
-COVER_PHOTO_TEXT_IN_FILE = "Cover photo: "
 
 
 class PhotoManager:
@@ -87,9 +88,7 @@ class PhotoManager:
             # Write cover photo
             cover_photo = steps_cover_photos.get(step_id)
             if cover_photo:
-                export_line_by_line.append(
-                    COVER_PHOTO_TEXT_IN_FILE + str(cover_photo.index)
-                )
+                export_line_by_line.append(COVER_PHOTO_PREFIX + str(cover_photo.index))
 
             # Write photo pages
             photo_pages = steps_photo_pages.get(step_id, [])
@@ -100,12 +99,12 @@ class PhotoManager:
             export_line_by_line.append("")
 
         # Save photos mapping JSON
-        mapping_path = save_path / PHOTOS_MAPPING_FILE_NAME
+        mapping_path = save_path / PHOTOS_MAPPING_FILE
         with open(mapping_path, "w", encoding="utf-8") as f:
             json.dump(export_photos_mapping_json, f, indent=4)
 
         # Save photos by pages text file
-        pages_path = save_path / PHOTOS_BY_PAGES_FILE_NAME
+        pages_path = save_path / PHOTOS_BY_PAGES_FILE
         with open(pages_path, "w", encoding="utf-8") as f:
             f.write("\n".join(export_line_by_line))
 
@@ -126,8 +125,8 @@ class PhotoManager:
         Returns:
             Dictionary mapping step IDs to photo configuration, or None if files don't exist
         """
-        mapping_path = save_path / PHOTOS_MAPPING_FILE_NAME
-        pages_path = save_path / PHOTOS_BY_PAGES_FILE_NAME
+        mapping_path = save_path / PHOTOS_MAPPING_FILE
+        pages_path = save_path / PHOTOS_BY_PAGES_FILE
 
         if not mapping_path.exists() or not pages_path.exists():
             logger.debug("No photo configuration files found, using defaults")
@@ -176,9 +175,9 @@ class PhotoManager:
 
                 # Parse cover photo
                 cover_photo_index: int | None = None
-                if photos_by_pages[i].startswith(COVER_PHOTO_TEXT_IN_FILE):
+                if photos_by_pages[i].startswith(COVER_PHOTO_PREFIX):
                     cover_photo_str = photos_by_pages[i].removeprefix(
-                        COVER_PHOTO_TEXT_IN_FILE
+                        COVER_PHOTO_PREFIX
                     )
                     try:
                         cover_photo_index = int(cover_photo_str)

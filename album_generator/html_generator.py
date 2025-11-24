@@ -18,6 +18,15 @@ from .apis import (
     get_country_map_svg,
 )
 from .apis.weather import WeatherData, get_weather_data
+from .constants import (
+    CSS_DIR,
+    FONT_FILE,
+    PROGRESS_BOX_MAX_POSITION,
+    PROGRESS_BOX_MIN_POSITION,
+    PROGRESS_MAX_POSITION,
+    PROGRESS_MIN_POSITION,
+    STATIC_DIR,
+)
 from .data_loader import (
     calculate_day_number,
     format_coordinates,
@@ -49,8 +58,10 @@ def copy_image_to_assets(
     import re
     import shutil
 
-    assets_dir = output_dir / "assets"
-    images_dir = assets_dir / "images"
+    from .constants import ASSETS_DIR, IMAGES_DIR
+
+    assets_dir = output_dir / ASSETS_DIR
+    images_dir = assets_dir / IMAGES_DIR
     images_dir.mkdir(parents=True, exist_ok=True)
 
     # Sanitize step name for filesystem: replace spaces, parentheses, colons with underscores
@@ -67,7 +78,9 @@ def copy_image_to_assets(
     if not output_path.exists() and image_path.exists():
         shutil.copy2(image_path, output_path)
 
-    return f"assets/images/{output_filename}"
+    from .constants import ASSETS_DIR
+
+    return f"{ASSETS_DIR}/{IMAGES_DIR}/{output_filename}"
 
 
 def copy_assets(font_path: Path, output_dir: Path) -> None:
@@ -81,12 +94,12 @@ def copy_assets(font_path: Path, output_dir: Path) -> None:
     css_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy font
-    output_font = fonts_dir / "Renner.ttf"
+    output_font = fonts_dir / FONT_FILE
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)
 
     # Copy CSS files (no longer need templating - using CSS media queries and classes)
-    static_dir = Path(__file__).parent / "static" / "css"
+    static_dir = Path(__file__).parent / STATIC_DIR / CSS_DIR
     css_files = [
         "variables.css",
         "reset.css",
@@ -295,15 +308,17 @@ def prepare_step_data(
         step, step_index, steps, trip_data, use_step_range
     )
 
-    arrow_bar_position = max(1.0, min(99.0, progress_percent))
+    arrow_bar_position = max(
+        PROGRESS_MIN_POSITION, min(PROGRESS_MAX_POSITION, progress_percent)
+    )
     # For very low progress (first day), position box at a safe minimum
     # The translateX(-55%) moves it left by 55% of its width, so we need enough margin
     # Estimate box width ~60px, container ~400px, so need ~6% minimum to avoid going negative
     # For high progress (final day), cap at 95% to ensure box doesn't go off right edge
-    if progress_percent < 6.0:
-        box_center_position = 6.0
-    elif progress_percent > 95.0:
-        box_center_position = 95.0
+    if progress_percent < PROGRESS_BOX_MIN_POSITION:
+        box_center_position = PROGRESS_BOX_MIN_POSITION
+    elif progress_percent > PROGRESS_BOX_MAX_POSITION:
+        box_center_position = PROGRESS_BOX_MAX_POSITION
     else:
         box_center_position = progress_percent
 

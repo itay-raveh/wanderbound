@@ -1,0 +1,52 @@
+"""Application constants and configuration values."""
+
+# PDF generation constants
+PDF_VIEWPORT_WIDTH = 1123
+PDF_VIEWPORT_HEIGHT = 794
+
+# Photo aspect ratio matching
+ASPECT_RATIO_TOLERANCE = 0.1
+IDEAL_COVER_ASPECT_RATIO = 4 / 5  # 4:5 portrait
+
+# Photo layout constants
+MAX_PHOTOS_TO_TEST = 9
+PHOTO_COUNT_FOR_SPECIAL_LAYOUTS = 3
+MULTI_ROW_LAYOUT_COUNTS = (5, 6)
+
+# Photo scoring constants
+SCORE_THREE_PORTRAITS_BONUS = 100.0
+SCORE_PORTRAIT_FIRST_BONUS = 10.0
+SCORE_LAYOUT_BONUS_THREE_PORTRAITS = 15000.0
+SCORE_UNIFORM_ASPECT_RATIO_BONUS = 2000.0
+SCORE_PORTRAIT_LANDSCAPE_SPLIT_BONUS = 5000.0
+SCORE_PHOTO_COUNT_MULTIPLIER = 10000.0
+
+# Photo area calculation constants
+PHOTO_AREA_FULL_PAGE = 100.0
+PHOTO_AREA_THREE_PORTRAITS = PHOTO_AREA_FULL_PAGE / 3
+PHOTO_AREA_PORTRAIT_LEFT = 50.0
+PHOTO_AREA_LANDSCAPE_RIGHT = 25.0
+
+# Progress bar positioning
+PROGRESS_MIN_POSITION = 1.0
+PROGRESS_MAX_POSITION = 99.0
+PROGRESS_BOX_MIN_POSITION = 6.0
+PROGRESS_BOX_MAX_POSITION = 95.0
+
+# File and path constants
+PHOTOS_MAPPING_FILE = "photos_mapping.json"
+PHOTOS_BY_PAGES_FILE = "photos_by_pages.txt"
+COVER_PHOTO_PREFIX = "Cover photo: "
+ALBUM_HTML_FILE = "album.html"
+ALBUM_PDF_FILE = "album.pdf"
+FONT_FILE = "Renner.ttf"
+
+# Directory names
+ASSETS_DIR = "assets"
+IMAGES_DIR = "images"
+FONTS_DIR = "fonts"
+CSS_DIR = "css"
+STATIC_DIR = "static"
+
+# Aspect ratio tolerance for uniform photos
+UNIFORM_ASPECT_RATIO_TOLERANCE = 0.05
