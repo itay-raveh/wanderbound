@@ -35,11 +35,6 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
     try:
         from playwright.sync_api import sync_playwright
 
-        # Suppress Wayland display warnings on Linux
-        # Playwright will fallback to X11 automatically
-        if "WAYLAND_DISPLAY" in os.environ:
-            os.environ.pop("WAYLAND_DISPLAY", None)
-
         logger.info("Generating PDF from HTML...")
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -204,7 +199,12 @@ def main() -> None:
         logger.info(f"Generated: {pdf_path}", extra={"success": True})
         # Open PDF with default application
         try:
+            # Suppress Wayland display warnings on Linux
+            # webbrowser will fallback to X11 automatically
+            wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
             webbrowser.open(f"file://{pdf_path.absolute()}")
+            if wayland_display:
+                os.environ["WAYLAND_DISPLAY"] = wayland_display
             logger.info("Opened PDF in default application", extra={"success": True})
         except Exception as e:
             logger.warning(f"Failed to open PDF: {e}")
@@ -212,7 +212,12 @@ def main() -> None:
         logger.info("Album generated successfully!", extra={"success": True})
         # Open HTML in default browser
         try:
+            # Suppress Wayland display warnings on Linux
+            # webbrowser will fallback to X11 automatically
+            wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
             webbrowser.open(f"file://{html_path.absolute()}")
+            if wayland_display:
+                os.environ["WAYLAND_DISPLAY"] = wayland_display
             logger.info("Opened HTML in default browser", extra={"success": True})
         except Exception as e:
             logger.warning(f"Failed to open HTML: {e}")
