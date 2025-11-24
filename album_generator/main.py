@@ -197,30 +197,25 @@ def main() -> None:
         with console.status("[bold blue]Generating PDF..."):
             generate_pdf(html_path, pdf_path)
         logger.info(f"Generated: {pdf_path}", extra={"success": True})
-        # Open PDF with default application
-        try:
-            # Suppress Wayland display warnings on Linux
-            # webbrowser will fallback to X11 automatically
-            wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
-            webbrowser.open(f"file://{pdf_path.absolute()}")
-            if wayland_display:
-                os.environ["WAYLAND_DISPLAY"] = wayland_display
-            logger.info("Opened PDF in default application", extra={"success": True})
-        except Exception as e:
-            logger.warning(f"Failed to open PDF: {e}")
+        file_to_open = pdf_path
     else:
         logger.info("Album generated successfully!", extra={"success": True})
-        # Open HTML in default browser
-        try:
-            # Suppress Wayland display warnings on Linux
-            # webbrowser will fallback to X11 automatically
-            wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
-            webbrowser.open(f"file://{html_path.absolute()}")
-            if wayland_display:
-                os.environ["WAYLAND_DISPLAY"] = wayland_display
-            logger.info("Opened HTML in default browser", extra={"success": True})
-        except Exception as e:
-            logger.warning(f"Failed to open HTML: {e}")
+        file_to_open = html_path
+
+    # Open file with default application
+    # Suppress Wayland display warnings on Linux (webbrowser will fallback to X11)
+    try:
+        wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
+        webbrowser.open(f"file://{file_to_open.absolute()}")
+        if wayland_display:
+            os.environ["WAYLAND_DISPLAY"] = wayland_display
+        file_type = "PDF" if args.pdf else "HTML"
+        logger.info(
+            f"Opened {file_type} in default application", extra={"success": True}
+        )
+    except Exception as e:
+        file_type = "PDF" if args.pdf else "HTML"
+        logger.warning(f"Failed to open {file_type}: {e}")
 
 
 if __name__ == "__main__":
