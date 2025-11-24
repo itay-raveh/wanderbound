@@ -285,9 +285,16 @@ def prepare_step_data(
     )
 
     arrow_bar_position = max(1.0, min(99.0, progress_percent))
-    # Ensure box doesn't go off the left edge (accounting for translateX(-55%))
-    # Box needs more margin than arrow since it's wider, so use higher minimum
-    box_center_position = max(12.0, min(91.0, progress_percent))
+    # For very low progress (first day), position box at a safe minimum
+    # The translateX(-55%) moves it left by 55% of its width, so we need enough margin
+    # Estimate box width ~60px, container ~400px, so need ~6% minimum to avoid going negative
+    # For high progress (final day), cap at 95% to ensure box doesn't go off right edge
+    if progress_percent < 6.0:
+        box_center_position = 6.0
+    elif progress_percent > 95.0:
+        box_center_position = 95.0
+    else:
+        box_center_position = progress_percent
 
     # Extract map data (already fetched in batch)
     map_dot_x, map_dot_y = None, None
