@@ -31,7 +31,7 @@ from .image_selector import (
 )
 from .logger import create_progress, get_console, get_logger
 from .models import Photo
-from .photo_manager import PhotoManager
+from .photo_manager import load_photos_config, save_photos_config
 
 logger = get_logger(__name__)
 console = get_console()
@@ -58,9 +58,7 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
             page = browser.new_page()
             page.goto(f"file://{html_path.absolute()}")
             page.wait_for_load_state("networkidle")
-            page.set_viewport_size(
-                {"width": PDF_VIEWPORT_WIDTH, "height": PDF_VIEWPORT_HEIGHT}
-            )
+            page.set_viewport_size({"width": PDF_VIEWPORT_WIDTH, "height": PDF_VIEWPORT_HEIGHT})
 
             page.pdf(
                 path=str(pdf_path),
@@ -72,15 +70,11 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
             browser.close()
         logger.info(f"PDF generated: {pdf_path}", extra={"success": True})
     except ImportError:
-        logger.warning(
-            "Playwright not installed. Install with: playwright install chromium"
-        )
+        logger.warning("Playwright not installed. Install with: playwright install chromium")
         logger.info("Skipping PDF generation.")
     except Exception as e:
         logger.error(f"Failed to generate PDF: {e}", exc_info=True)
-        logger.info(
-            "You can still open the HTML file in your browser and print to PDF manually."
-        )
+        logger.info("You can still open the HTML file in your browser and print to PDF manually.")
 
 
 def main() -> None:
@@ -136,9 +130,6 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Output directory: {args.output}")
 
-    # Initialize photo manager
-    photo_manager = PhotoManager()
-
     # Clear photos cache if requested
     if args.clear_photos_cache:
         logger.info("Clearing photos cache...")
@@ -152,7 +143,7 @@ def main() -> None:
             logger.debug(f"Deleted {photos_pages_path}")
 
     # Load photo configuration if it exists
-    photo_config = photo_manager.load_photos_config(steps, args.output)
+    photo_config = load_photos_config(steps, args.output)
 
     # Load all photos for each step
     steps_with_photos: dict[int, list[Photo]] = {}
@@ -197,14 +188,10 @@ def main() -> None:
                 # Use saved cover photo if available
                 cover_photo_index = config.get("cover_photo_index")
                 if cover_photo_index:
-                    cover_photo = next(
-                        (p for p in photos if p.index == cover_photo_index), None
-                    )
+                    cover_photo = next((p for p in photos if p.index == cover_photo_index), None)
                     steps_cover_photos[step.id] = cover_photo if use_cover else None
                 else:
-                    steps_cover_photos[step.id] = (
-                        select_cover_photo(photos) if use_cover else None
-                    )
+                    steps_cover_photos[step.id] = select_cover_photo(photos) if use_cover else None
 
                 # Use saved photo pages if available
                 photo_pages_indices = config.get("photo_pages", [])
@@ -215,9 +202,7 @@ def main() -> None:
                     for page_indices in photo_pages_indices:
                         # Preserve the order from saved indices
                         page_photos = [
-                            photos_by_index[idx]
-                            for idx in page_indices
-                            if idx in photos_by_index
+                            photos_by_index[idx] for idx in page_indices if idx in photos_by_index
                         ]
                         if page_photos:
                             photo_pages.append(page_photos)
@@ -236,9 +221,7 @@ def main() -> None:
                     # Ensure flags match the number of pages, or compute them if missing
                     if len(saved_is_three_portraits) == len(photo_pages):
                         steps_photo_page_layouts[step.id] = saved_is_three_portraits
-                        logger.debug(
-                            f"Using saved is_three_portraits flags for step {step.city}"
-                        )
+                        logger.debug(f"Using saved is_three_portraits flags for step {step.city}")
                     else:
                         # Compute flags from photo pages
                         from .image_selector import (
@@ -270,8 +253,7 @@ def main() -> None:
                         computed_is_portrait_landscape_split: list[bool] = []
                         for page in photo_pages:
                             computed_is_portrait_landscape_split.append(
-                                len(page) == 3
-                                and _is_one_portrait_two_landscapes(tuple(page))
+                                len(page) == 3 and _is_one_portrait_two_landscapes(tuple(page))
                             )
                         steps_photo_page_portrait_split_layouts[step.id] = (
                             computed_is_portrait_landscape_split
@@ -282,9 +264,7 @@ def main() -> None:
                 else:
                     # Use default layout strategy
                     cover = steps_cover_photos[step.id]
-                    with console.status(
-                        f"[bold blue]Computing photo layout: {step.city}"
-                    ):
+                    with console.status(f"[bold blue]Computing photo layout: {step.city}"):
                         pages, layouts, split_layouts = compute_default_photos_by_pages(
                             photos, cover
                         )
@@ -307,7 +287,7 @@ def main() -> None:
         progress.update(task_id, description="Loading photos")
 
     # Save photo configuration for manual editing
-    photo_manager.save_photos_config(
+    save_photos_config(
         steps,
         steps_with_photos,
         steps_cover_photos,
@@ -356,9 +336,7 @@ def main() -> None:
         if wayland_display:
             os.environ["WAYLAND_DISPLAY"] = wayland_display
         file_type = "PDF" if args.pdf else "HTML"
-        logger.info(
-            f"Opened {file_type} in default application", extra={"success": True}
-        )
+        logger.info(f"Opened {file_type} in default application", extra={"success": True})
     except Exception as e:
         file_type = "PDF" if args.pdf else "HTML"
         logger.warning(f"Failed to open {file_type}: {e}")

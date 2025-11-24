@@ -15,215 +15,204 @@ from .models import Photo, Step
 logger = get_logger(__name__)
 
 
-class PhotoManager:
-    """Manages photo loading, saving, and organization for steps."""
+def save_photos_config(
+    steps: list[Step],
+    steps_with_photos: dict[int, list[Photo]],
+    steps_cover_photos: dict[int, Photo | None],
+    steps_photo_pages: dict[int, list[list[Photo]]],
+    save_path: Path,
+    steps_photo_page_layouts: dict[int, list[bool]] | None = None,
+    steps_photo_page_portrait_split_layouts: dict[int, list[bool]] | None = None,
+) -> None:
+    """Save photo configuration to files for manual editing.
 
-    def save_photos_config(
-        self,
-        steps: list[Step],
-        steps_with_photos: dict[int, list[Photo]],
-        steps_cover_photos: dict[int, Photo | None],
-        steps_photo_pages: dict[int, list[list[Photo]]],
-        save_path: Path,
-        steps_photo_page_layouts: dict[int, list[bool]] | None = None,
-        steps_photo_page_portrait_split_layouts: dict[int, list[bool]] | None = None,
-    ) -> None:
-        """Save photo configuration to files for manual editing.
+    Args:
+        steps: List of Step objects
+        steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
+        steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
+        steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
+        save_path: Directory where config files should be saved
+        steps_photo_page_layouts: Dictionary mapping step IDs to lists of is_three_portraits flags
+        steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
+    """
+    export_photos_mapping_json: dict[str, dict[str, Any]] = {}
+    export_line_by_line: list[str] = []
 
-        Args:
-            steps: List of Step objects
-            steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
-            steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
-            steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
-            save_path: Directory where config files should be saved
-            steps_photo_page_layouts: Dictionary mapping step IDs to lists of is_three_portraits flags
-            steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
-        """
-        export_photos_mapping_json: dict[str, dict[str, Any]] = {}
-        export_line_by_line: list[str] = []
+    # Create step ID to step mapping
+    step_by_id: dict[int, Step] = {step.id: step for step in steps}
 
-        # Create step ID to step mapping
-        step_by_id: dict[int, Step] = {step.id: step for step in steps}
+    for step_id, photos in steps_with_photos.items():
+        step = step_by_id.get(step_id)
+        if not step:
+            continue
 
-        for step_id, photos in steps_with_photos.items():
-            step = step_by_id.get(step_id)
-            if not step:
-                continue
+        step_name = step.get_name_for_photos_export()
+        export_line_by_line.append(step_name)
 
-            step_name = step.get_name_for_photos_export()
-            export_line_by_line.append(step_name)
+        step_photos_mapping: dict[str, dict[str, Any]] = {}
+        for photo in photos:
+            step_photos_mapping[str(photo.index)] = photo.to_dict()
 
-            step_photos_mapping: dict[str, dict[str, Any]] = {}
-            for photo in photos:
-                step_photos_mapping[str(photo.index)] = photo.to_dict()
-
-            # Add layout flags to the mapping
-            step_config: dict[str, Any] = {"photos": step_photos_mapping}
-            # Always include layout flags, even if empty lists
-            photo_pages = steps_photo_pages.get(step_id, [])
-            num_pages = len(photo_pages)
-            if steps_photo_page_layouts and step_id in steps_photo_page_layouts:
-                flags = steps_photo_page_layouts[step_id]
-                if len(flags) == num_pages:
-                    step_config["is_three_portraits"] = flags
-                else:
-                    step_config["is_three_portraits"] = [False] * num_pages
+        # Add layout flags to the mapping
+        step_config: dict[str, Any] = {"photos": step_photos_mapping}
+        # Always include layout flags, even if empty lists
+        photo_pages = steps_photo_pages.get(step_id, [])
+        num_pages = len(photo_pages)
+        if steps_photo_page_layouts and step_id in steps_photo_page_layouts:
+            flags = steps_photo_page_layouts[step_id]
+            if len(flags) == num_pages:
+                step_config["is_three_portraits"] = flags
             else:
                 step_config["is_three_portraits"] = [False] * num_pages
+        else:
+            step_config["is_three_portraits"] = [False] * num_pages
 
-            if (
-                steps_photo_page_portrait_split_layouts
-                and step_id in steps_photo_page_portrait_split_layouts
-            ):
-                flags = steps_photo_page_portrait_split_layouts[step_id]
-                if len(flags) == num_pages:
-                    step_config["is_portrait_landscape_split"] = flags
-                else:
-                    step_config["is_portrait_landscape_split"] = [False] * num_pages
+        if (
+            steps_photo_page_portrait_split_layouts
+            and step_id in steps_photo_page_portrait_split_layouts
+        ):
+            flags = steps_photo_page_portrait_split_layouts[step_id]
+            if len(flags) == num_pages:
+                step_config["is_portrait_landscape_split"] = flags
             else:
                 step_config["is_portrait_landscape_split"] = [False] * num_pages
+        else:
+            step_config["is_portrait_landscape_split"] = [False] * num_pages
 
-            export_photos_mapping_json[str(step_id)] = step_config
+        export_photos_mapping_json[str(step_id)] = step_config
 
-            # Write cover photo
-            cover_photo = steps_cover_photos.get(step_id)
-            if cover_photo:
-                export_line_by_line.append(COVER_PHOTO_PREFIX + str(cover_photo.index))
+        # Write cover photo
+        cover_photo = steps_cover_photos.get(step_id)
+        if cover_photo:
+            export_line_by_line.append(COVER_PHOTO_PREFIX + str(cover_photo.index))
 
-            # Write photo pages
-            photo_pages = steps_photo_pages.get(step_id, [])
-            for page in photo_pages:
-                photo_indices = [str(photo.index) for photo in page]
-                export_line_by_line.append(" ".join(photo_indices))
+        # Write photo pages
+        photo_pages = steps_photo_pages.get(step_id, [])
+        for page in photo_pages:
+            photo_indices = [str(photo.index) for photo in page]
+            export_line_by_line.append(" ".join(photo_indices))
 
-            export_line_by_line.append("")
+        export_line_by_line.append("")
 
-        # Save photos mapping JSON
-        mapping_path = save_path / PHOTOS_MAPPING_FILE
-        with open(mapping_path, "w", encoding="utf-8") as f:
-            json.dump(export_photos_mapping_json, f, indent=4)
+    # Save photos mapping JSON
+    mapping_path = save_path / PHOTOS_MAPPING_FILE
+    with open(mapping_path, "w", encoding="utf-8") as f:
+        json.dump(export_photos_mapping_json, f, indent=4)
 
-        # Save photos by pages text file
-        pages_path = save_path / PHOTOS_BY_PAGES_FILE
-        with open(pages_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(export_line_by_line))
+    # Save photos by pages text file
+    pages_path = save_path / PHOTOS_BY_PAGES_FILE
+    with open(pages_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(export_line_by_line))
 
-        logger.info(
-            f"Saved photo configuration to {mapping_path} and {pages_path}",
-            extra={"success": True},
-        )
+    logger.info(
+        f"Saved photo configuration to {mapping_path} and {pages_path}",
+        extra={"success": True},
+    )
 
-    def load_photos_config(
-        self, steps: list[Step], save_path: Path
-    ) -> dict[int, dict[str, Any]] | None:
-        """Load photo configuration from files.
 
-        Args:
-            steps: List of Step objects
-            save_path: Directory where config files are located
+def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str, Any]] | None:
+    """Load photo configuration from files.
 
-        Returns:
-            Dictionary mapping step IDs to photo configuration, or None if files don't exist
-        """
-        mapping_path = save_path / PHOTOS_MAPPING_FILE
-        pages_path = save_path / PHOTOS_BY_PAGES_FILE
+    Args:
+        steps: List of Step objects
+        save_path: Directory where config files are located
 
-        if not mapping_path.exists() or not pages_path.exists():
-            logger.debug("No photo configuration files found, using defaults")
-            return None
+    Returns:
+        Dictionary mapping step IDs to photo configuration, or None if files don't exist
+    """
+    mapping_path = save_path / PHOTOS_MAPPING_FILE
+    pages_path = save_path / PHOTOS_BY_PAGES_FILE
 
-        try:
-            with open(mapping_path, encoding="utf-8") as f:
-                photos_mapping = json.load(f)
+    if not mapping_path.exists() or not pages_path.exists():
+        logger.debug("No photo configuration files found, using defaults")
+        return None
 
-            with open(pages_path, encoding="utf-8") as f:
-                photos_by_pages = f.read().splitlines()
+    try:
+        with open(mapping_path, encoding="utf-8") as f:
+            photos_mapping = json.load(f)
 
-            # Create step name to step mapping
-            step_by_name: dict[str, Step] = {}
-            for step_obj in steps:
-                step_by_name[step_obj.get_name_for_photos_export()] = step_obj
+        with open(pages_path, encoding="utf-8") as f:
+            photos_by_pages = f.read().splitlines()
 
-            config: dict[int, dict[str, Any]] = {}
+        # Create step name to step mapping
+        step_by_name: dict[str, Step] = {}
+        for step_obj in steps:
+            step_by_name[step_obj.get_name_for_photos_export()] = step_obj
 
-            i = 0
-            while i < len(photos_by_pages):
-                line = photos_by_pages[i].strip()
-                if not line:
-                    i += 1
-                    continue
+        config: dict[int, dict[str, Any]] = {}
 
-                # Find matching step
-                matched_step: Step | None = None
-                for step_name, step_obj in step_by_name.items():
-                    if line == step_name:
-                        matched_step = step_obj
-                        break
-
-                if matched_step is None:
-                    logger.warning(
-                        f"Step '{line}' in photos config not found in trip data, skipping"
-                    )
-                    # Skip to next empty line
-                    while i < len(photos_by_pages) and photos_by_pages[i].strip():
-                        i += 1
-                    continue
-
+        i = 0
+        while i < len(photos_by_pages):
+            line = photos_by_pages[i].strip()
+            if not line:
                 i += 1
-                if i >= len(photos_by_pages):
+                continue
+
+            # Find matching step
+            matched_step: Step | None = None
+            for step_name, step_obj in step_by_name.items():
+                if line == step_name:
+                    matched_step = step_obj
                     break
 
-                # Parse cover photo
-                cover_photo_index: int | None = None
-                if photos_by_pages[i].startswith(COVER_PHOTO_PREFIX):
-                    cover_photo_str = photos_by_pages[i].removeprefix(
-                        COVER_PHOTO_PREFIX
-                    )
-                    try:
-                        cover_photo_index = int(cover_photo_str)
-                    except ValueError:
-                        logger.warning(
-                            f"Invalid cover photo index '{cover_photo_str}' for step {matched_step.city}"
-                        )
-                    i += 1
-
-                # Parse photo pages
-                photo_pages: list[list[int]] = []
+            if matched_step is None:
+                logger.warning(f"Step '{line}' in photos config not found in trip data, skipping")
+                # Skip to next empty line
                 while i < len(photos_by_pages) and photos_by_pages[i].strip():
-                    page_line = photos_by_pages[i].strip()
-                    photo_indices = [int(idx) for idx in page_line.split() if idx]
-                    if photo_indices:
-                        photo_pages.append(photo_indices)
                     i += 1
+                continue
 
-                # Reconstruct Photo objects from mapping
-                step_config_data = photos_mapping.get(str(matched_step.id), {})
-                step_photos_mapping = step_config_data.get("photos", {})
-                is_three_portraits = step_config_data.get("is_three_portraits", [])
-                is_portrait_landscape_split = step_config_data.get(
-                    "is_portrait_landscape_split", []
-                )
+            i += 1
+            if i >= len(photos_by_pages):
+                break
 
-                reconstructed_photos: list[Photo] = []
-                for photo_idx_str, photo_data in step_photos_mapping.items():
-                    try:
-                        photo = Photo.from_dict(photo_data)
-                        reconstructed_photos.append(photo)
-                    except Exception as e:
-                        logger.warning(
-                            f"Error reconstructing photo {photo_idx_str} for step {matched_step.city}: {e}"
-                        )
+            # Parse cover photo
+            cover_photo_index: int | None = None
+            if photos_by_pages[i].startswith(COVER_PHOTO_PREFIX):
+                cover_photo_str = photos_by_pages[i].removeprefix(COVER_PHOTO_PREFIX)
+                try:
+                    cover_photo_index = int(cover_photo_str)
+                except ValueError:
+                    logger.warning(
+                        f"Invalid cover photo index '{cover_photo_str}' for step {matched_step.city}"
+                    )
+                i += 1
 
-                config[matched_step.id] = {
-                    "cover_photo_index": cover_photo_index,
-                    "photo_pages": photo_pages,
-                    "photos": reconstructed_photos,
-                    "is_three_portraits": is_three_portraits,
-                    "is_portrait_landscape_split": is_portrait_landscape_split,
-                }
+            # Parse photo pages
+            photo_pages: list[list[int]] = []
+            while i < len(photos_by_pages) and photos_by_pages[i].strip():
+                page_line = photos_by_pages[i].strip()
+                photo_indices = [int(idx) for idx in page_line.split() if idx]
+                if photo_indices:
+                    photo_pages.append(photo_indices)
+                i += 1
 
-            return config if config else None
+            # Reconstruct Photo objects from mapping
+            step_config_data = photos_mapping.get(str(matched_step.id), {})
+            step_photos_mapping = step_config_data.get("photos", {})
+            is_three_portraits = step_config_data.get("is_three_portraits", [])
+            is_portrait_landscape_split = step_config_data.get("is_portrait_landscape_split", [])
 
-        except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Error loading photo configuration: {e}")
-            return None
+            reconstructed_photos: list[Photo] = []
+            for photo_idx_str, photo_data in step_photos_mapping.items():
+                try:
+                    photo = Photo.from_dict(photo_data)
+                    reconstructed_photos.append(photo)
+                except Exception as e:
+                    logger.warning(
+                        f"Error reconstructing photo {photo_idx_str} for step {matched_step.city}: {e}"
+                    )
+
+            config[matched_step.id] = {
+                "cover_photo_index": cover_photo_index,
+                "photo_pages": photo_pages,
+                "photos": reconstructed_photos,
+                "is_three_portraits": is_three_portraits,
+                "is_portrait_landscape_split": is_portrait_landscape_split,
+            }
+
+        return config if config else None
+
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Error loading photo configuration: {e}")
+        return None
