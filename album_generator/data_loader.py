@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 
 import pytz
-from geopy import Point
 
 from .exceptions import DataLoadError
 from .logger import get_logger
@@ -79,47 +78,6 @@ def get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
     return None
 
 
-def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
-    """Format timestamp into month name and day using built-in datetime formatting."""
-    if not timestamp:
-        return {"month": "", "day": ""}
-
-    try:
-        tz = pytz.timezone(timezone_id)
-        dt = datetime.fromtimestamp(timestamp, tz=tz)
-
-        # Format month name in uppercase using strftime
-        month = dt.strftime("%B").upper()
-        day = str(dt.day)
-
-        return {"month": month, "day": day}
-    except Exception as e:
-        logger.warning(f"Error formatting date: {e}", exc_info=True)
-        # Fallback to manual formatting
-        try:
-            tz = pytz.timezone(timezone_id)
-            dt = datetime.fromtimestamp(timestamp, tz=tz)
-            month_names = [
-                "JANUARY",
-                "FEBRUARY",
-                "MARCH",
-                "APRIL",
-                "MAY",
-                "JUNE",
-                "JULY",
-                "AUGUST",
-                "SEPTEMBER",
-                "OCTOBER",
-                "NOVEMBER",
-                "DECEMBER",
-            ]
-            month = month_names[dt.month - 1]
-            day = str(dt.day)
-            return {"month": month, "day": day}
-        except Exception:
-            return {"month": "", "day": ""}
-
-
 def calculate_day_number(
     step_start: float | None, trip_start: float | None, timezone_id: str
 ) -> int:
@@ -133,77 +91,6 @@ def calculate_day_number(
 
     delta = step_dt.date() - trip_dt.date()
     return delta.days + 1
-
-
-def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
-    """Format coordinates into degrees, minutes, seconds using geopy."""
-    if lat is None or lon is None:
-        return {"lat": "", "lon": ""}
-
-    try:
-        point = Point(lat, lon)
-        # Format using format_unicode which gives us the degree symbol format
-        # Returns format like "37° 46′ 29.64″ N, 122° 25′ 9.84″ W"
-        formatted = point.format_unicode()
-
-        # Split into latitude and longitude parts
-        parts = formatted.split(", ")
-        if len(parts) == 2:
-            lat_part = parts[0].strip()
-            lon_part = parts[1].strip()
-        else:
-            # Fallback if format is unexpected
-            raise ValueError("Unexpected format from geopy")
-
-        # Round seconds to integer and convert unicode primes to regular quotes
-        import re
-
-        def round_seconds(dms_str: str) -> str:
-            # Match pattern: number″ (using unicode prime) or number" (regular quote)
-            match = re.search(r'(\d+\.\d+)[″"]', dms_str)
-            if match:
-                seconds = int(round(float(match.group(1))))
-                # Replace both unicode and regular quote versions
-                dms_str = re.sub(r"\d+\.\d+″", f"{seconds}″", dms_str)
-                dms_str = re.sub(r'\d+\.\d+"', f'{seconds}"', dms_str)
-            # Convert unicode primes to regular quotes for consistency
-            dms_str = dms_str.replace("°", "°").replace("′", "'").replace("″", '"')
-            return dms_str
-
-        lat_dms = round_seconds(lat_part)
-        lon_dms = round_seconds(lon_part)
-
-        return {"lat": lat_dms, "lon": lon_dms}
-    except (AttributeError, ValueError, TypeError) as e:
-        # Fallback to simple format if geopy fails
-        logger.warning(f"Error formatting coordinates with geopy: {e}", exc_info=True)
-        lat_dir = "N" if lat >= 0 else "S"
-        lon_dir = "E" if lon >= 0 else "W"
-        return {
-            "lat": f"{abs(int(lat))}° {lat_dir}",
-            "lon": f"{abs(int(lon))}° {lon_dir}",
-        }
-
-
-def format_weather_condition(condition: str | None) -> str:
-    """Format weather condition code to display text."""
-    if not condition:
-        return "UNKNOWN"
-
-    condition_map = {
-        "clear-day": "CLEAR",
-        "clear-night": "CLEAR",
-        "rain": "RAIN",
-        "snow": "SNOW",
-        "sleet": "SLEET",
-        "wind": "WIND",
-        "fog": "FOG",
-        "cloudy": "CLOUDY",
-        "partly-cloudy-day": "PARTLY CLOUDY",
-        "partly-cloudy-night": "PARTLY CLOUDY",
-    }
-
-    return condition_map.get(condition, condition.upper().replace("-", " "))
 
 
 def get_steps_in_range(all_steps: list[Step], start: int, end: int) -> list[Step]:

@@ -27,12 +27,8 @@ from .constants import (
     PROGRESS_MIN_POSITION,
     STATIC_DIR,
 )
-from .data_loader import (
-    calculate_day_number,
-    format_coordinates,
-    format_date,
-    format_weather_condition,
-)
+from .data_loader import calculate_day_number
+from .formatters import format_coordinates, format_date, format_weather_condition
 from .logger import create_progress, get_console, get_logger
 from .models import Photo, Step, TripData
 from .settings import get_settings
