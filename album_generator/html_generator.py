@@ -284,7 +284,9 @@ def prepare_step_data(
         step, step_index, steps, trip_data, use_step_range
     )
 
-    arrow_bar_position = max(1.0, min(99.0, progress_percent))
+    # Ensure arrow doesn't go off the left edge (accounting for translateX(-55%))
+    # Arrow is ~12px wide (6px border-left + 6px border-right), so we need at least ~2% margin
+    arrow_bar_position = max(2.0, min(99.0, progress_percent))
     box_center_position = max(9.0, min(91.0, progress_percent))
 
     # Extract map data (already fetched in batch)
