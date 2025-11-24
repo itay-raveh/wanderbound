@@ -135,18 +135,22 @@ def _clean_description(description: str) -> str:
 
 
 def _format_temperature(temp: float | None, feels_like: float | None) -> str:
-    """Format temperature string with feels like if significantly different.
+    """Format temperature string with feels like if meaningfully different.
+
+    Only shows "feels like" if the difference is >= 3°C, as smaller differences
+    are not meaningful to users.
 
     Args:
         temp: Actual temperature in Celsius
         feels_like: "Feels like" temperature in Celsius
 
     Returns:
-        Formatted temperature string (e.g., "25°C" or "25°C (27°C)" or "N/A")
+        Formatted temperature string (e.g., "25°C" or "25°C (28°C)" or "N/A")
     """
     if temp is None:
         return "N/A"
-    if feels_like is not None and abs(feels_like - temp) >= 1.0:
+    # Only show feels like if difference is meaningful (>= 3°C)
+    if feels_like is not None and abs(feels_like - temp) >= 3.0:
         return f"{int(temp)}°C ({int(feels_like)}°C)"
     return f"{int(temp)}°C"
 
