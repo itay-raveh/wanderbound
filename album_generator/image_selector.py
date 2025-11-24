@@ -6,9 +6,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from .constants import DESCRIPTION_MAX_CHAR_COVER_PHOTO, MIN_PHOTO_SIZE_PERCENT
 from .logger import get_logger
 from .models import Photo
+from .settings import get_settings
 
 logger = get_logger(__name__)
 
@@ -92,7 +92,10 @@ def should_use_cover_photo(description: str | None) -> bool:
     Returns:
         True if cover photo should be used (description is None or short)
     """
-    return not description or len(description) < DESCRIPTION_MAX_CHAR_COVER_PHOTO
+    settings = get_settings()
+    return (
+        not description or len(description) < settings.description_max_char_cover_photo
+    )
 
 
 def select_cover_photo(photos: list[Photo]) -> Photo | None:
@@ -332,15 +335,16 @@ def compute_default_photos_by_pages(
 
     photos_by_pages: list[list[Photo]] = []
     remaining = candidates.copy()
+    settings = get_settings()
 
     # Calculate maximum photos per page based on min size constraint
-    max_photos_per_page = _get_max_photos_for_page(MIN_PHOTO_SIZE_PERCENT)
+    max_photos_per_page = _get_max_photos_for_page(settings.min_photo_size_percent)
 
     # Pack photos into pages using bin-packing algorithm
     while remaining:
         # Find the best combination of photos for this page
         best_combo = _find_best_photo_combination(
-            remaining, max_photos_per_page, MIN_PHOTO_SIZE_PERCENT
+            remaining, max_photos_per_page, settings.min_photo_size_percent
         )
 
         if best_combo:

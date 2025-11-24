@@ -9,16 +9,6 @@ from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
 from PIL import Image
 
-from ..constants import (
-    BRIGHTNESS_THRESHOLD_HIGH,
-    BRIGHTNESS_THRESHOLD_LOW,
-    COLOR_CONFLICT_THRESHOLD,
-    COLOR_COUNT_MIN_RATIO,
-    DARK_MODE_TARGET_BRIGHTNESS,
-    DEFAULT_ACCENT_COLOR,
-    LIGHT_MODE_TARGET_BRIGHTNESS,
-    MAX_BLEND_FACTOR,
-)
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import get_cached, set_cached
@@ -126,25 +116,26 @@ def _adjust_color_for_contrast(color: str, light_mode: bool) -> str:
     g = int(color[3:5], 16)
     b = int(color[5:7], 16)
 
+    settings = get_settings()
     if light_mode:
-        target_brightness = LIGHT_MODE_TARGET_BRIGHTNESS
+        target_brightness = settings.light_mode_target_brightness
         if brightness < target_brightness:
             blend_factor = (
                 (target_brightness - brightness) / (1.0 - brightness)
                 if brightness < 1.0
                 else 0
             )
-            blend_factor = min(MAX_BLEND_FACTOR, blend_factor)
+            blend_factor = min(settings.max_blend_factor, blend_factor)
             r = int(r + (255 - r) * blend_factor)
             g = int(g + (255 - g) * blend_factor)
             b = int(b + (255 - b) * blend_factor)
     else:
-        target_brightness = DARK_MODE_TARGET_BRIGHTNESS
+        target_brightness = settings.dark_mode_target_brightness
         if brightness > target_brightness:
             blend_factor = (
                 (brightness - target_brightness) / brightness if brightness > 0 else 0
             )
-            blend_factor = min(MAX_BLEND_FACTOR, blend_factor)
+            blend_factor = min(settings.max_blend_factor, blend_factor)
             r = int(r * (1 - blend_factor))
             g = int(g * (1 - blend_factor))
             b = int(b * (1 - blend_factor))
@@ -166,7 +157,8 @@ def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code:
             dist = _color_distance(color, other_color)
-            if dist < COLOR_CONFLICT_THRESHOLD:
+            settings = get_settings()
+            if dist < settings.color_conflict_threshold:
                 import hashlib
 
                 hash_val = int(hashlib.md5(country_code.encode()).hexdigest(), 16)
@@ -212,13 +204,14 @@ def _load_and_filter_flag_pixels(
         image_obj = Image.open(io.BytesIO(image_bytes))
         image = image_obj.convert("RGB") if image_obj.mode != "RGB" else image_obj
 
-        pixels = list(image.getdata())
+        pixels: list[tuple[int, int, int]] = list(image.getdata())
         filtered_pixels = []
+        settings = get_settings()
         for r, g, b in pixels:
             brightness = (r + g + b) / 3
             if (
-                brightness > BRIGHTNESS_THRESHOLD_HIGH
-                or brightness < BRIGHTNESS_THRESHOLD_LOW
+                brightness > settings.brightness_threshold_high
+                or brightness < settings.brightness_threshold_low
             ):
                 continue
             filtered_pixels.append((r, g, b))
@@ -240,10 +233,11 @@ def _has_color_conflict(candidate_color: str, country_code: str) -> bool:
         True if color conflicts with another country, False otherwise
     """
     country_code_lower = country_code.lower()
+    settings = get_settings()
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code_lower:
             dist = _color_distance(candidate_color, other_color)
-            if dist < COLOR_CONFLICT_THRESHOLD:
+            if dist < settings.color_conflict_threshold:
                 return True
     return False
 
@@ -267,9 +261,10 @@ def _find_best_color_from_candidates(
         return None
 
     most_common_count = color_counts[0][1]
+    settings = get_settings()
 
     for color_tuple, count in color_counts:
-        if count < most_common_count * COLOR_COUNT_MIN_RATIO:
+        if count < most_common_count * settings.color_count_min_ratio:
             break
 
         r, g, b = color_tuple
@@ -301,13 +296,14 @@ def extract_prominent_color_from_flag(
     Returns:
         Hex color code (e.g., "#ff0000") or default accent color if extraction fails
     """
+    settings = get_settings()
     if not flag_data_uri or not isinstance(flag_data_uri, str):
         logger.debug("No flag data URI provided, using default accent color")
-        return DEFAULT_ACCENT_COLOR
+        return settings.default_accent_color
 
     if not flag_data_uri.startswith("data:image"):
         logger.debug("Invalid flag data URI format, using default accent color")
-        return DEFAULT_ACCENT_COLOR
+        return settings.default_accent_color
 
     try:
         filtered_pixels = _load_and_filter_flag_pixels(flag_data_uri)
@@ -315,12 +311,12 @@ def extract_prominent_color_from_flag(
             logger.debug(
                 "No suitable pixels found after filtering, using default accent color"
             )
-            return DEFAULT_ACCENT_COLOR
+            return settings.default_accent_color
 
         color_counts = Counter(filtered_pixels).most_common(5)
         if not color_counts:
             logger.debug("No color counts found, using default accent color")
-            return DEFAULT_ACCENT_COLOR
+            return settings.default_accent_color
 
         # Try to find a color without conflicts
         best_color = _find_best_color_from_candidates(
@@ -345,4 +341,5 @@ def extract_prominent_color_from_flag(
 
     except Exception as e:
         logger.error(f"Error extracting color from flag: {e}", exc_info=True)
-        return DEFAULT_ACCENT_COLOR
+        settings = get_settings()
+        return settings.default_accent_color

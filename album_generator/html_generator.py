@@ -18,12 +18,6 @@ from .apis import (
     get_country_map_svg,
 )
 from .apis.weather import WeatherData, get_weather_data
-from .constants import (
-    DESCRIPTION_THREE_COLUMNS_THRESHOLD,
-    DESCRIPTION_TWO_COLUMNS_THRESHOLD,
-    FEELS_LIKE_DISPLAY_THRESHOLD,
-    TEMPERATURE_MISMATCH_THRESHOLD,
-)
 from .data_loader import (
     calculate_day_number,
     format_coordinates,
@@ -188,17 +182,18 @@ def _format_temperature(temp: float | None, feels_like: float | None) -> str:
         feels_like: "Feels like" temperature in Celsius
 
     Returns:
-        Formatted temperature string (e.g., "25°C" or "25°C (28°C)" or "N/A")
+        Formatted temperature string (e.g., "25°" or "25° (28°)" or "N/A")
     """
     if temp is None:
         return "N/A"
     # Only show feels like if difference is meaningful
+    settings = get_settings()
     if (
         feels_like is not None
-        and abs(feels_like - temp) >= FEELS_LIKE_DISPLAY_THRESHOLD
+        and abs(feels_like - temp) >= settings.feels_like_display_threshold
     ):
-        return f"{int(temp)}°C ({int(feels_like)}°C)"
-    return f"{int(temp)}°C"
+        return f"{int(temp)}° ({int(feels_like)}°)"
+    return f"{int(temp)}°"
 
 
 def _calculate_progress(
@@ -285,9 +280,11 @@ def prepare_step_data(
     description = _clean_description(step.description or "")
 
     is_hebrew = _is_hebrew(description)
-    use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
+    settings = get_settings()
+    use_three_columns = len(description) > settings.description_three_columns_threshold
     use_two_columns = (
-        len(description) > DESCRIPTION_TWO_COLUMNS_THRESHOLD or use_three_columns
+        len(description) > settings.description_two_columns_threshold
+        or use_three_columns
     )
 
     desc_col1, desc_col2, desc_col3 = _split_description(
@@ -330,30 +327,23 @@ def prepare_step_data(
     date_data = format_date(step.start_time, step.timezone_id)
     coords_data = format_coordinates(step.location.lat, step.location.lon)
 
-    # Compare API day temperature with trip data temperature
-    use_trip_data = False
+    # Compare API day temperature with trip data temperature (for logging only)
+    # Always use API data as it's more accurate
+    settings = get_settings()
     if day_temp_api is not None and step.weather_temperature is not None:
         temp_diff = abs(day_temp_api - step.weather_temperature)
-        if temp_diff > TEMPERATURE_MISMATCH_THRESHOLD:
+        if temp_diff > settings.temperature_mismatch_threshold:
             logger.warning(
                 f"Temperature mismatch for {step.city} on {date_data['month']} {date_data['day']}: "
                 f"API reports {day_temp_api:.1f}°C, trip data has {step.weather_temperature:.1f}°C "
-                f"(difference: {temp_diff:.1f}°C). Using trip data."
+                f"(difference: {temp_diff:.1f}°C). Using API data."
             )
-            use_trip_data = True
 
-    # Use trip data if there's a mismatch, otherwise use API data
-    if use_trip_data:
-        # Use trip data for day weather
-        day_icon_name = None
-        if step.weather_condition:
-            day_icon_name = step.weather_condition.lower().replace("_", "-")
-    else:
-        # Use API day icon if available, otherwise fall back to trip data weather condition
-        day_icon_name = day_icon_api
-        if not day_icon_name and step.weather_condition:
-            # Fallback to trip data weather condition
-            day_icon_name = step.weather_condition.lower().replace("_", "-")
+    # Always use API day icon if available, otherwise fall back to trip data weather condition
+    day_icon_name = day_icon_api
+    if not day_icon_name and step.weather_condition:
+        # Fallback to trip data weather condition
+        day_icon_name = step.weather_condition.lower().replace("_", "-")
 
     # Generate icon URLs
     settings = get_settings()
@@ -372,7 +362,8 @@ def prepare_step_data(
         country_flag_data_uri, accent_color = flag_data
 
     # Format temperatures with feels like if available
-    day_temp_display = step.weather_temperature if use_trip_data else day_temp_api
+    # Always use API temperature (more accurate)
+    day_temp_display = day_temp_api
     temp_str = _format_temperature(day_temp_display, day_feels_like)
     temp_night_str = _format_temperature(night_temp, night_feels_like)
 
@@ -527,9 +518,12 @@ def generate_album_html(
             # Check if we need two columns (determines if we need image)
             # Match the logic from prepare_step_data
             description = _clean_description(step.description or "")
-            use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
+            settings = get_settings()
+            use_three_columns = (
+                len(description) > settings.description_three_columns_threshold
+            )
             use_two_columns = (
-                len(description) > DESCRIPTION_TWO_COLUMNS_THRESHOLD
+                len(description) > settings.description_two_columns_threshold
                 or use_three_columns
             )
             if cover_photo and cover_photo.path.exists() and not use_two_columns:

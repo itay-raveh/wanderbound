@@ -107,35 +107,6 @@ def _find_night_hours(
     return night_hours
 
 
-def _calculate_night_feels_like(
-    night_temp: float | None, night_hours: list[dict[str, Any]]
-) -> float | None:
-    """Calculate night feels like temperature from night hours.
-
-    Args:
-        night_temp: Night temperature
-        night_hours: List of night hour data dictionaries
-
-    Returns:
-        Night feels like temperature, or None if unavailable
-    """
-    night_heat_indexes: list[float] = [
-        float(h["heatindex"])
-        for h in night_hours
-        if h.get("heatindex") is not None and isinstance(h["heatindex"], (int, float))
-    ]
-    night_wind_chills: list[float] = [
-        float(h["windchill"])
-        for h in night_hours
-        if h.get("windchill") is not None and isinstance(h["windchill"], (int, float))
-    ]
-
-    night_heat_index = max(night_heat_indexes) if night_heat_indexes else None
-    night_wind_chill = min(night_wind_chills) if night_wind_chills else None
-
-    return _calculate_feels_like(night_temp, night_heat_index, night_wind_chill)
-
-
 def _get_night_icon(
     night_hours: list[dict[str, Any]] | None,
     all_hours: list[dict[str, Any]],
@@ -188,11 +159,9 @@ def _parse_day_weather_data(
     day_temp = day_data.get("tempmax")
     night_temp = day_data.get("tempmin")
 
-    day_heat_index_max = day_data.get("heatindexmax")
-    day_wind_chill_min = day_data.get("windchillmin")
-    day_feels_like = _calculate_feels_like(
-        day_temp, day_heat_index_max, day_wind_chill_min
-    )
+    # Use feelslikemax and feelslikemin directly from daily data
+    day_feels_like = day_data.get("feelslikemax")
+    night_feels_like = day_data.get("feelslikemin")
 
     day_icon_raw = day_data.get("icon")
     day_icon = _normalize_icon_name(day_icon_raw)
@@ -205,54 +174,11 @@ def _parse_day_weather_data(
         day_temp=day_temp,
         night_temp=night_temp,
         day_feels_like=day_feels_like,
+        night_feels_like=night_feels_like,
         day_icon=day_icon,
     )
 
     return (weather, hours)
-
-
-def _calculate_feels_like(
-    temp: float | None,
-    heat_index: float | None,
-    wind_chill: float | None,
-) -> float | None:
-    """Calculate "feels like" temperature from heat index and wind chill.
-
-    Uses heat index for warm temperatures (>27°C), wind chill for cold temperatures
-    (<10°C), and the more significant value for moderate temperatures.
-
-    Args:
-        temp: Actual temperature in Celsius
-        heat_index: Heat index in Celsius (accounts for humidity)
-        wind_chill: Wind chill in Celsius (accounts for wind)
-
-    Returns:
-        "Feels like" temperature in Celsius, or None if unavailable
-    """
-    if temp is None:
-        return None
-
-    # For hot weather (>27°C), prefer heat index
-    if temp > 27.0 and heat_index is not None:
-        return heat_index
-
-    # For cold weather (<10°C), prefer wind chill
-    if temp < 10.0 and wind_chill is not None:
-        return wind_chill
-
-    # For moderate temperatures, use whichever is more significant (further from actual temp)
-    if heat_index is not None and wind_chill is not None:
-        heat_diff = abs(heat_index - temp)
-        wind_diff = abs(wind_chill - temp)
-        return heat_index if heat_diff > wind_diff else wind_chill
-
-    # Fallback to whichever is available
-    if heat_index is not None:
-        return heat_index
-    if wind_chill is not None:
-        return wind_chill
-
-    return None
 
 
 def get_weather_data(
@@ -296,11 +222,11 @@ def get_weather_data(
         # Visual Crossing API (free tier: 1000 records/day)
         # Request only the daily fields we need to minimize record cost:
         # - tempmax, tempmin (temperatures)
-        # - heatindexmax, windchillmin (for feels like)
+        # - feelslikemax, feelslikemin (for feels like temperatures)
         # - icon (weather condition)
-        # Note: include=hours is needed for night feels like and icon, but we can't
+        # Note: include=hours is needed for night icon, but we can't
         # specify which hourly fields to return, so all hourly fields will be included
-        elements = "tempmax,tempmin,heatindexmax,windchillmin,icon"
+        elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
         url = settings.visual_crossing_api_url.format(
             location=f"{lat},{lon}",
             date=date_str,
@@ -317,22 +243,46 @@ def get_weather_data(
             )
             return WeatherData()
 
+        # Debug: Print full API response for first call to inspect structure
+        if logger.isEnabledFor(10):  # DEBUG level
+            import json
+
+            logger.debug(
+                f"Full API response for {lat},{lon} on {date_str}:\n"
+                f"{json.dumps(data, indent=2, default=str)}"
+            )
+
         # Extract weather data from API response
         weather = WeatherData()
 
         if "days" in data and len(data["days"]) > 0:
             day_data = data["days"][0]
+
+            # Debug: Print daily data fields
+            if logger.isEnabledFor(10):  # DEBUG level
+                logger.debug(
+                    f"Daily data fields for {lat},{lon} on {date_str}:\n"
+                    f"Keys: {list(day_data.keys())}\n"
+                    f"feelslikemax: {day_data.get('feelslikemax')}\n"
+                    f"feelslikemin: {day_data.get('feelslikemin')}"
+                )
+
             weather, hours = _parse_day_weather_data(day_data)
 
-            # Process night data from hourly data
+            # Process night icon from hourly data (feels like is already set from daily data)
             if hours:
                 night_hours = _find_night_hours(hours, tz)
-                weather.night_feels_like = _calculate_night_feels_like(
-                    weather.night_temp, night_hours
-                )
                 weather.night_icon = _get_night_icon(
                     night_hours, hours, weather.day_icon
                 )
+
+                # Debug logging for feels like temperatures
+                if weather.day_feels_like is None and weather.night_feels_like is None:
+                    logger.debug(
+                        f"No feels like data for {lat},{lon} on {date_str}. "
+                        f"feelslikemax: {day_data.get('feelslikemax')}, "
+                        f"feelslikemin: {day_data.get('feelslikemin')}"
+                    )
 
         # Cache using Pydantic's model_dump() for proper serialization
         set_cached(cache_key, weather.model_dump())
