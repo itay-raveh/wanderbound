@@ -1,58 +1,60 @@
 """Pydantic models for trip data validation."""
+
 from pydantic import BaseModel, Field
-from typing import Optional, List
 
 
 class Location(BaseModel):
     """Location data for a step."""
+
     id: int
-    name: Optional[str] = None
-    detail: Optional[str] = None
-    full_detail: Optional[str] = None
+    name: str | None = None
+    detail: str | None = None
+    full_detail: str | None = None
     country_code: str
     lat: float
     lon: float
-    venue: Optional[str] = None
-    uuid: Optional[str] = None
+    venue: str | None = None
+    uuid: str | None = None
 
 
 class Step(BaseModel):
     """Step data from trip."""
+
     id: int
-    trip_id: Optional[int] = None
-    name: Optional[str] = None
+    trip_id: int | None = None
+    name: str | None = None
     display_name: str
-    slug: Optional[str] = None
-    display_slug: Optional[str] = None
-    description: Optional[str] = None
+    slug: str | None = None
+    display_slug: str | None = None
+    description: str | None = None
     location: Location
-    location_id: Optional[int] = None
+    location_id: int | None = None
     start_time: float
-    end_time: Optional[float] = None
+    end_time: float | None = None
     timezone_id: str
-    weather_condition: Optional[str] = None
-    weather_temperature: Optional[float] = None
-    main_media_item_path: Optional[str] = None
-    comment_count: Optional[int] = None
-    views: Optional[int] = None
-    is_deleted: Optional[bool] = None
-    type: Optional[str | int] = None  # Can be string or int in the data
-    supertype: Optional[str] = None
-    creation_time: Optional[float] = None
-    fb_publish_status: Optional[str] = None
-    open_graph_id: Optional[str] = None
-    uuid: Optional[str] = None
-    
+    weather_condition: str | None = None
+    weather_temperature: float | None = None
+    main_media_item_path: str | None = None
+    comment_count: int | None = None
+    views: int | None = None
+    is_deleted: bool | None = None
+    type: str | int | None = None  # Can be string or int in the data
+    supertype: str | None = None
+    creation_time: float | None = None
+    fb_publish_status: str | None = None
+    open_graph_id: str | None = None
+    uuid: str | None = None
+
     @property
     def city(self) -> str:
         """Get city name."""
         return self.display_name or self.name or "Unknown"
-    
+
     @property
     def country(self) -> str:
         """Get country name."""
         return self.location.detail or self.location.full_detail or ""
-    
+
     @property
     def country_code(self) -> str:
         """Get country code."""
@@ -61,11 +63,12 @@ class Step(BaseModel):
 
 class TripData(BaseModel):
     """Trip metadata."""
-    id: Optional[int] = None
-    name: Optional[str] = None
-    start_date: Optional[float] = None
-    end_date: Optional[float] = None
+
+    id: int | None = None
+    name: str | None = None
+    start_date: float | None = None
+    end_date: float | None = None
     timezone_id: str = "UTC"
-    all_steps: List[Step] = Field(default_factory=list)
-    total_km: Optional[float] = None
-    step_count: Optional[int] = None
+    all_steps: list[Step] = Field(default_factory=list)
+    total_km: float | None = None
+    step_count: int | None = None

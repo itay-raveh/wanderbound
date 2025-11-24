@@ -1,21 +1,24 @@
 """Caching utilities for API responses."""
 
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Any
+
 import diskcache
-from more_itertools import chunked
+
 from ..logger import get_logger
 
 logger = get_logger(__name__)
 
-CACHE_DIR = Path.home() / ".polarsteps_album_cache"
+CACHE_DIR = Path.home() / ".cache" / "polarsteps-album-generator"
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Create diskcache instance with 24-hour TTL
-_cache = diskcache.Cache(str(CACHE_DIR), size_limit=2**30, eviction_policy="least-recently-used")
+_cache = diskcache.Cache(
+    str(CACHE_DIR), size_limit=2**30, eviction_policy="least-recently-used"
+)
 
 
-def get_cached(key: str) -> Optional[Any]:
+def get_cached(key: str) -> Any | None:
     """Get cached API response."""
     try:
         return _cache.get(key, default=None)
@@ -24,7 +27,7 @@ def get_cached(key: str) -> Optional[Any]:
         return None
 
 
-def set_cached(key: str, value: Any):
+def set_cached(key: str, value: Any) -> None:
     """Cache API response."""
     try:
         _cache.set(key, value, expire=86400)

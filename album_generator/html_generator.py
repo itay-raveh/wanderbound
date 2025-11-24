@@ -1,38 +1,39 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
-from pathlib import Path
-from typing import Optional
 import base64
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 import pytz
 from jinja2 import Environment, FileSystemLoader
-from langdetect import detect, LangDetectException
+from langdetect import LangDetectException, detect
 
-from .models import Step, TripData
-from .logger import get_logger, DEBUG_MODE, create_progress, get_console
+from .apis import (
+    extract_prominent_color_from_flag,
+    format_altitude,
+    get_altitude_batch,
+    get_country_flag_data_uri,
+    get_country_map_data_uri,
+    get_country_map_dot_position,
+    get_country_map_svg,
+)
 from .constants import (
     DESCRIPTION_THREE_COLUMNS_THRESHOLD,
     DESCRIPTION_TWO_COLUMNS_THRESHOLD,
-    WEATHER_ICON_BASE_URL,
 )
-
-logger = get_logger(__name__)
-console = get_console()
 from .data_loader import (
+    calculate_day_number,
     format_coordinates,
     format_date,
     format_weather_condition,
-    calculate_day_number,
 )
-from .apis import (
-    get_altitude_batch,
-    format_altitude,
-    get_country_flag_data_uri,
-    get_country_map_data_uri,
-    get_country_map_svg,
-    get_country_map_dot_position,
-    extract_prominent_color_from_flag,
-)
+from .logger import create_progress, get_console, get_logger
+from .models import Step, TripData
+from .settings import get_settings
+
+logger = get_logger(__name__)
+console = get_console()
 
 
 def image_to_data_uri(image_path: Path) -> str:
@@ -71,15 +72,14 @@ def _is_hebrew(text: str) -> bool:
 
     # Fast Unicode range check first (instant, no network)
     has_hebrew_chars = any("\u0590" <= char <= "\u05ff" for char in text)
-    if has_hebrew_chars:
-        # If we found Hebrew characters, it's likely Hebrew text
-        # Only use langdetect for very short texts that might be ambiguous
-        if len(text.strip()) > 10:
-            return True
+    # If we found Hebrew characters, it's likely Hebrew text
+    # Only use langdetect for very short texts that might be ambiguous
+    if has_hebrew_chars and len(text.strip()) > 10:
+        return True
 
     # Use langdetect for mixed content or short texts
     try:
-        detected_lang = detect(text)
+        detected_lang: str = str(detect(text))
         return detected_lang == "he"
     except (LangDetectException, Exception):
         # Fallback to Unicode check if langdetect fails
@@ -109,6 +109,30 @@ def _split_description(
     return (full_text, "", "")
 
 
+def _clean_description(description: str) -> str:
+    """Clean and normalize step description text.
+
+    Args:
+        description: Raw description text
+
+    Returns:
+        Cleaned description with normalized whitespace
+    """
+    if not description:
+        return ""
+
+    description = description.lstrip()
+    lines = description.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        cleaned = line.lstrip()
+        if cleaned:
+            cleaned_lines.append(cleaned)
+        elif cleaned_lines and cleaned_lines[-1]:
+            cleaned_lines.append("")
+    return "\n".join(cleaned_lines).strip().lstrip()
+
+
 def _calculate_progress(
     step: Step,
     step_index: int,
@@ -116,7 +140,19 @@ def _calculate_progress(
     trip_data: TripData,
     use_step_range: bool,
 ) -> tuple[int, float]:
-    """Calculate day number and progress percentage."""
+    """Calculate day number and progress percentage for a step.
+
+    Args:
+        step: The step to calculate progress for
+        step_index: Zero-based index of this step in the steps list
+        steps: Complete list of all steps being rendered
+        trip_data: Trip metadata including start/end dates and timezone
+        use_step_range: If True, calculate based on step range (1 to len(steps));
+                       if False, calculate based on trip days from start_date
+
+    Returns:
+        Tuple of (day_number, progress_percent) where progress_percent is 0-100
+    """
     if use_step_range:
         if not steps:
             return (1, 0)
@@ -147,27 +183,30 @@ def _calculate_progress(
 
 def prepare_step_data(
     step: Step,
-    image_path: Optional[Path],
+    image_path: Path | None,
     step_index: int,
     steps: list[Step],
     trip_data: TripData,
     use_step_range: bool,
-    elevation: Optional[float],
+    elevation: float | None,
     light_mode: bool = False,
-) -> dict:
-    """Prepare all data needed for rendering a step."""
-    description = step.description or ""
-    if description:
-        description = description.lstrip()
-        lines = description.split("\n")
-        cleaned_lines = []
-        for line in lines:
-            cleaned = line.lstrip()
-            if cleaned:
-                cleaned_lines.append(cleaned)
-            elif cleaned_lines and cleaned_lines[-1]:
-                cleaned_lines.append("")
-        description = "\n".join(cleaned_lines).strip().lstrip()
+) -> dict[str, Any]:
+    """Prepare all data needed for rendering a step in the HTML template.
+
+    Args:
+        step: The step to prepare data for
+        image_path: Path to the selected image for this step, or None if no image found
+        step_index: Zero-based index of this step in the steps list
+        steps: Complete list of all steps being rendered
+        trip_data: Trip metadata including start/end dates and timezone
+        use_step_range: If True, calculate progress based on step range; if False, use trip days
+        elevation: Altitude in meters for this step's location, or None if unavailable
+        light_mode: If True, use light mode color scheme; if False, use dark mode
+
+    Returns:
+        Dictionary containing all template variables for rendering this step
+    """
+    description = _clean_description(step.description or "")
 
     is_hebrew = _is_hebrew(description)
     use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
@@ -196,12 +235,12 @@ def prepare_step_data(
 
     weather_icon_url = None
     if step.weather_condition:
-        # Use basmilius weather-icons - they use semantic names matching weather conditions
-        # Direct mapping: condition name -> icon filename (no mapping dict needed)
-        # Just normalize the condition name (lowercase, replace underscores with hyphens)
+        # Use basmilius weather-icons with semantic names (e.g., "clear-day", "partly-cloudy-day")
+        # Normalize condition name: lowercase and replace underscores with hyphens
         icon_name = step.weather_condition.lower().replace("_", "-")
 
-        weather_icon_url = f"{WEATHER_ICON_BASE_URL}/{icon_name}.svg"
+        settings = get_settings()
+        weather_icon_url = f"{settings.weather_icon_base_url}/{icon_name}.svg"
         logger.debug(
             f"Weather condition '{step.weather_condition}' using icon '{icon_name}'"
         )
@@ -213,14 +252,17 @@ def prepare_step_data(
         country_flag_data_uri, step.country_code, light_mode
     )
 
+    date_data = format_date(step.start_time, step.timezone_id)
+    coords_data = format_coordinates(step.location.lat, step.location.lon)
+
     return {
         "city": step.city,
         "country": step.country,
         "country_code": step.country_code,
-        "coords_lat": format_coordinates(step.location.lat, step.location.lon)["lat"],
-        "coords_lon": format_coordinates(step.location.lat, step.location.lon)["lon"],
-        "date_month": format_date(step.start_time, step.timezone_id)["month"],
-        "date_day": format_date(step.start_time, step.timezone_id)["day"],
+        "coords_lat": coords_data["lat"],
+        "coords_lon": coords_data["lon"],
+        "date_month": date_data["month"],
+        "date_day": date_data["day"],
         "weather": format_weather_condition(step.weather_condition),
         "weather_icon_url": weather_icon_url,
         "temp_str": (
@@ -263,14 +305,28 @@ def prepare_step_data(
 
 def generate_album_html(
     steps: list[Step],
-    step_images: dict[int, Optional[Path]],
+    step_images: dict[int, Path | None],
     trip_data: TripData,
     font_path: Path,
     output_path: Path,
     use_step_range: bool = False,
     light_mode: bool = False,
 ) -> Path:
-    """Generate a single HTML file with all steps."""
+    """Generate HTML album file from trip data and step images.
+
+    Args:
+        steps: List of steps to include in the album
+        step_images: Dictionary mapping step IDs to image file paths (or None if no image)
+        trip_data: Trip metadata including start/end dates, timezone, and all steps
+        font_path: Path to the font file to use for titles
+        output_path: Path where the HTML file should be written
+        use_step_range: If True, progress bars use step range (1 to len(steps));
+                       if False, progress bars use trip days from start_date
+        light_mode: If True, use light mode color scheme; if False, use dark mode
+
+    Returns:
+        Path to the generated HTML file
+    """
     font_rel_path = copy_assets(font_path, output_path.parent)
 
     # Batch fetch altitudes
@@ -294,7 +350,7 @@ def generate_album_html(
     with progress:
         task_id = progress.add_task("Preparing steps", total=len(steps))
         for idx, (step, elevation) in enumerate(
-            progress.track(zip(steps, elevations), task_id=task_id)
+            progress.track(zip(steps, elevations, strict=True), task_id=task_id)
         ):
             logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
             progress.update(task_id, description=f"Preparing steps: {step.city}")
@@ -322,7 +378,6 @@ def generate_album_html(
     )
 
     # Write to file
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    output_path.write_text(html, encoding="utf-8")
 
     return output_path

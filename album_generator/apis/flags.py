@@ -1,34 +1,35 @@
 """Country flag API and color extraction."""
 
-import requests
 import base64
-from typing import Optional
-from PIL import Image
 import io
 from collections import Counter
-from colormath.color_objects import sRGBColor, LabColor
+
+import requests
 from colormath.color_conversions import convert_color
 from colormath.color_diff import delta_e_cie2000
+from colormath.color_objects import LabColor, sRGBColor
+from PIL import Image
 
-from .cache import get_cached, set_cached
-from ..logger import get_logger
 from ..constants import (
-    DEFAULT_ACCENT_COLOR,
     BRIGHTNESS_THRESHOLD_HIGH,
     BRIGHTNESS_THRESHOLD_LOW,
-    COLOR_COUNT_MIN_RATIO,
     COLOR_CONFLICT_THRESHOLD,
-    LIGHT_MODE_TARGET_BRIGHTNESS,
+    COLOR_COUNT_MIN_RATIO,
     DARK_MODE_TARGET_BRIGHTNESS,
+    DEFAULT_ACCENT_COLOR,
+    LIGHT_MODE_TARGET_BRIGHTNESS,
     MAX_BLEND_FACTOR,
 )
+from ..logger import get_logger
+from ..settings import get_settings
+from .cache import get_cached, set_cached
 
 logger = get_logger(__name__)
 
-_COUNTRY_COLORS = {}
+_COUNTRY_COLORS: dict[str, str] = {}
 
 
-def get_country_flag_data_uri(country_code: str) -> Optional[str]:
+def get_country_flag_data_uri(country_code: str) -> str | None:
     """Get country flag image as data URI."""
     if not country_code:
         return None
@@ -36,10 +37,11 @@ def get_country_flag_data_uri(country_code: str) -> Optional[str]:
     cache_key = f"flag_{country_code.lower()}"
     cached = get_cached(cache_key)
     if cached is not None and isinstance(cached, str):
-        return cached
+        return str(cached)
 
     try:
-        url = f"https://flagcdn.com/w40/{country_code.lower()}.png"
+        settings = get_settings()
+        url = f"{settings.flag_cdn_base_url}/{country_code.lower()}.png"
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         if response.status_code == 200:
@@ -82,7 +84,7 @@ def _color_distance(color1: str, color2: str) -> float:
 
         # Normalize: Delta E > 50 is very different, normalize to 0-1
         # Using 50 as max reasonable difference for normalization
-        return min(delta_e / 50.0, 1.0)
+        return float(min(delta_e / 50.0, 1.0))
     except Exception:
         # Fallback to simple RGB distance if conversion fails
         r1 = int(color1[1:3], 16)
@@ -92,7 +94,7 @@ def _color_distance(color1: str, color2: str) -> float:
         g2 = int(color2[3:5], 16)
         b2 = int(color2[5:7], 16)
         dist = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-        return dist / (255 * (3**0.5))
+        return float(dist / (255 * (3**0.5)))
 
 
 def _get_color_brightness(color: str) -> float:
@@ -190,39 +192,126 @@ def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
     return color
 
 
+def _load_and_filter_flag_pixels(
+    flag_data_uri: str,
+) -> list[tuple[int, int, int]] | None:
+    """Load flag image and filter pixels by brightness.
+
+    Args:
+        flag_data_uri: Base64-encoded data URI of the flag image
+
+    Returns:
+        List of filtered pixel tuples (r, g, b), or None if loading fails
+    """
+    try:
+        base64_data = flag_data_uri.split(",")[1]
+        image_bytes = base64.b64decode(base64_data)
+        image_obj = Image.open(io.BytesIO(image_bytes))
+        image = image_obj.convert("RGB") if image_obj.mode != "RGB" else image_obj
+
+        pixels = list(image.getdata())
+        filtered_pixels = []
+        for r, g, b in pixels:
+            brightness = (r + g + b) / 3
+            if (
+                brightness > BRIGHTNESS_THRESHOLD_HIGH
+                or brightness < BRIGHTNESS_THRESHOLD_LOW
+            ):
+                continue
+            filtered_pixels.append((r, g, b))
+
+        return filtered_pixels if filtered_pixels else None
+    except Exception as e:
+        logger.debug(f"Error loading flag image: {e}")
+        return None
+
+
+def _has_color_conflict(candidate_color: str, country_code: str) -> bool:
+    """Check if a candidate color conflicts with existing country colors.
+
+    Args:
+        candidate_color: Hex color code to check
+        country_code: ISO country code to exclude from conflict check
+
+    Returns:
+        True if color conflicts with another country, False otherwise
+    """
+    country_code_lower = country_code.lower()
+    for other_code, other_color in _COUNTRY_COLORS.items():
+        if other_code != country_code_lower:
+            dist = _color_distance(candidate_color, other_color)
+            if dist < COLOR_CONFLICT_THRESHOLD:
+                return True
+    return False
+
+
+def _find_best_color_from_candidates(
+    color_counts: list[tuple[tuple[int, int, int], int]],
+    country_code: str | None,
+    light_mode: bool,
+) -> str | None:
+    """Find the best color from candidate color counts, avoiding conflicts if country_code provided.
+
+    Args:
+        color_counts: List of (color_tuple, count) tuples from Counter.most_common()
+        country_code: Optional ISO country code for conflict detection
+        light_mode: If True, adjust color for light mode contrast
+
+    Returns:
+        Hex color code if a suitable color is found, None otherwise
+    """
+    if not color_counts:
+        return None
+
+    most_common_count = color_counts[0][1]
+
+    for color_tuple, count in color_counts:
+        if count < most_common_count * COLOR_COUNT_MIN_RATIO:
+            break
+
+        r, g, b = color_tuple
+        candidate_color = f"#{r:02x}{g:02x}{b:02x}"
+
+        if country_code and _has_color_conflict(candidate_color, country_code):
+            continue
+
+        color = _adjust_color_for_contrast(candidate_color, light_mode)
+        if country_code:
+            _COUNTRY_COLORS[country_code.lower()] = color
+        return color
+
+    return None
+
+
 def extract_prominent_color_from_flag(
-    flag_data_uri: Optional[str],
-    country_code: Optional[str] = None,
+    flag_data_uri: str | None,
+    country_code: str | None = None,
     light_mode: bool = False,
 ) -> str:
-    """Extract the most common non-white/black color from a country flag image."""
+    """Extract the most common non-white/black color from a country flag image.
+
+    Args:
+        flag_data_uri: Base64-encoded data URI of the flag image, or None
+        country_code: ISO country code for conflict detection with other countries
+        light_mode: If True, adjust color for light mode contrast; if False, for dark mode
+
+    Returns:
+        Hex color code (e.g., "#ff0000") or default accent color if extraction fails
+    """
     if not flag_data_uri or not isinstance(flag_data_uri, str):
         logger.debug("No flag data URI provided, using default accent color")
         return DEFAULT_ACCENT_COLOR
 
+    if not flag_data_uri.startswith("data:image"):
+        logger.debug("Invalid flag data URI format, using default accent color")
+        return DEFAULT_ACCENT_COLOR
+
     try:
-        if not flag_data_uri.startswith("data:image"):
-            logger.debug("Invalid flag data URI format, using default accent color")
-            return DEFAULT_ACCENT_COLOR
-
-        base64_data = flag_data_uri.split(",")[1]
-        image_bytes = base64.b64decode(base64_data)
-        image = Image.open(io.BytesIO(image_bytes))
-
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
-        pixels = list(image.getdata())
-
-        filtered_pixels = []
-        for r, g, b in pixels:
-            brightness = (r + g + b) / 3
-            if brightness > BRIGHTNESS_THRESHOLD_HIGH or brightness < BRIGHTNESS_THRESHOLD_LOW:
-                continue
-            filtered_pixels.append((r, g, b))
-
+        filtered_pixels = _load_and_filter_flag_pixels(flag_data_uri)
         if not filtered_pixels:
-            logger.debug("No suitable pixels found after filtering, using default accent color")
+            logger.debug(
+                "No suitable pixels found after filtering, using default accent color"
+            )
             return DEFAULT_ACCENT_COLOR
 
         color_counts = Counter(filtered_pixels).most_common(5)
@@ -230,33 +319,14 @@ def extract_prominent_color_from_flag(
             logger.debug("No color counts found, using default accent color")
             return DEFAULT_ACCENT_COLOR
 
-        total_pixels = len(filtered_pixels)
-        most_common_count = color_counts[0][1]
+        # Try to find a color without conflicts
+        best_color = _find_best_color_from_candidates(
+            color_counts, country_code, light_mode
+        )
+        if best_color:
+            return best_color
 
-        for color_tuple, count in color_counts:
-            if count < most_common_count * COLOR_COUNT_MIN_RATIO:
-                break
-
-            r, g, b = color_tuple
-            candidate_color = f"#{r:02x}{g:02x}{b:02x}"
-
-            if country_code:
-                has_conflict = False
-                for other_code, other_color in _COUNTRY_COLORS.items():
-                    if other_code != country_code.lower():
-                        dist = _color_distance(candidate_color, other_color)
-                        if dist < COLOR_CONFLICT_THRESHOLD:
-                            has_conflict = True
-                            break
-
-                if not has_conflict:
-                    color = _adjust_color_for_contrast(candidate_color, light_mode)
-                    _COUNTRY_COLORS[country_code.lower()] = color
-                    return color
-            else:
-                color = _adjust_color_for_contrast(candidate_color, light_mode)
-                return color
-
+        # Fallback to most common color, nudging if needed to avoid conflicts
         r, g, b = color_counts[0][0]
         color = f"#{r:02x}{g:02x}{b:02x}"
 

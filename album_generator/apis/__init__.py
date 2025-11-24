@@ -1,12 +1,12 @@
 """API integrations for altitude, country maps, and flags."""
 
+from .altitude import format_altitude, get_altitude, get_altitude_batch
 from .cache import get_cached, set_cached
-from .altitude import get_altitude_batch, get_altitude, format_altitude
-from .flags import get_country_flag_data_uri, extract_prominent_color_from_flag
+from .flags import extract_prominent_color_from_flag, get_country_flag_data_uri
 from .maps import (
-    get_country_map_svg,
     get_country_map_data_uri,
     get_country_map_dot_position,
+    get_country_map_svg,
 )
 
 __all__ = [

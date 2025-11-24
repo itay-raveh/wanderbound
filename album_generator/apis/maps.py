@@ -1,12 +1,12 @@
 """Country map generation and dot positioning."""
 
+import base64
 import json
 import re
-import base64
-import requests
-from typing import Optional, Tuple
 from pathlib import Path
-from io import BytesIO
+from typing import Any
+
+import requests
 from lxml import etree
 
 try:
@@ -21,18 +21,19 @@ try:
 except ImportError:
     HAS_GEO = False
 
-from .cache import get_cached, set_cached, CACHE_DIR
 from ..logger import get_logger
+from ..settings import get_settings
+from .cache import CACHE_DIR, get_cached, set_cached
 
 logger = get_logger(__name__)
 
-_COUNTRY_BOUNDS = None
-_SVG_VIEWBOXES = {}
-_SVG_PATH_BOUNDS = {}
-_SVG_TRANSFORMS = {}
+_COUNTRY_BOUNDS: dict[str, Any] | None = None
+_SVG_VIEWBOXES: dict[str, list[float]] = {}
+_SVG_PATH_BOUNDS: dict[str, dict[str, float | dict[str, float]]] = {}
+_SVG_TRANSFORMS: dict[str, dict[str, float]] = {}
 
 
-def _parse_svg_with_lxml(svg_data: str) -> Optional[etree.Element]:
+def _parse_svg_with_lxml(svg_data: str) -> etree._Element | None:
     """Parse SVG string using lxml."""
     try:
         # Remove XML declaration and DOCTYPE if present (to avoid DTD fetching)
@@ -72,17 +73,21 @@ def _parse_svg_with_lxml(svg_data: str) -> Optional[etree.Element]:
         root = etree.fromstring(svg_clean.encode("utf-8"), parser=parser)
 
         # Register SVG namespace if not already registered
-        if root is not None and hasattr(root, "nsmap") and root.nsmap:
-            if "http://www.w3.org/2000/svg" not in root.nsmap.values():
-                etree.register_namespace("svg", "http://www.w3.org/2000/svg")
+        if (
+            root is not None
+            and hasattr(root, "nsmap")
+            and root.nsmap
+            and "http://www.w3.org/2000/svg" not in root.nsmap.values()
+        ):
+            etree.register_namespace("svg", "http://www.w3.org/2000/svg")
 
         return root
-    except Exception as e:
+    except (etree.XMLSyntaxError, etree.ParseError, ValueError) as e:
         logger.error(f"Error parsing SVG with lxml: {e}", exc_info=True)
         return None
 
 
-def _get_svg_viewbox(root: etree.Element) -> Optional[list]:
+def _get_svg_viewbox(root: etree._Element) -> list[float] | None:
     """Extract viewBox from SVG root element."""
     viewbox_str = root.get("viewBox")
     if viewbox_str:
@@ -95,10 +100,12 @@ def _get_svg_viewbox(root: etree.Element) -> Optional[list]:
     return None
 
 
-def _parse_transform(transform_str: str) -> dict:
+def _parse_transform(transform_str: str) -> dict[str, float]:
     """Parse SVG transform string into translate and scale values."""
-    translate_x, translate_y = 0, 0
-    scale_x, scale_y = 1, 1
+    translate_x: float = 0.0
+    translate_y: float = 0.0
+    scale_x: float = 1.0
+    scale_y: float = 1.0
 
     if not transform_str:
         return {
@@ -109,6 +116,7 @@ def _parse_transform(transform_str: str) -> dict:
         }
 
     # Parse translate
+    # Extract translate and scale from SVG transform string
     translate_match = re.search(r"translate\(([^)]+)\)", transform_str)
     if translate_match:
         translate_parts = [
@@ -117,7 +125,6 @@ def _parse_transform(transform_str: str) -> dict:
         if len(translate_parts) >= 2:
             translate_x, translate_y = translate_parts[0], translate_parts[1]
 
-    # Parse scale
     scale_match = re.search(r"scale\(([^)]+)\)", transform_str)
     if scale_match:
         scale_parts = [float(x.strip()) for x in scale_match.group(1).split(",")]
@@ -134,14 +141,19 @@ def _parse_transform(transform_str: str) -> dict:
     }
 
 
-def _extract_path_bounds(root: etree.Element) -> Optional[dict]:
+def _extract_path_bounds(root: etree._Element) -> dict[str, float] | None:
     """Extract bounding box from all path elements in SVG."""
     all_x = []
     all_y = []
 
     # Find all path elements (handle both namespaced and non-namespaced)
-    paths = root.xpath('.//*[local-name()="path"][@d]')
-    for path in paths:
+    paths_raw = root.xpath('.//*[local-name()="path"][@d]')
+    if not isinstance(paths_raw, list):
+        return None
+    for path_raw in paths_raw:
+        if not isinstance(path_raw, etree._Element):
+            continue
+        path = path_raw
         path_d = path.get("d", "")
         # Extract numbers from path data
         numbers = re.findall(r"-?\d+\.?\d*", path_d)
@@ -165,155 +177,229 @@ def _extract_path_bounds(root: etree.Element) -> Optional[dict]:
     return None
 
 
-def _svg_to_string(root: etree.Element) -> str:
+def _svg_to_string(root: etree._Element) -> str:
     """Convert SVG element tree back to string."""
     return etree.tostring(root, encoding="unicode", pretty_print=False)
 
 
-def _load_country_bounds() -> dict:
+def _load_country_bounds() -> dict[str, Any]:
     """Load country bounds from JSON file (fallback)."""
     global _COUNTRY_BOUNDS
     if _COUNTRY_BOUNDS is None:
         bounds_file = Path(__file__).parent.parent / "country_bounding_boxes.json"
-        with open(bounds_file, "r") as f:
+        with open(bounds_file) as f:
             _COUNTRY_BOUNDS = json.load(f)
+    assert _COUNTRY_BOUNDS is not None
     return _COUNTRY_BOUNDS
+
+
+def _load_natural_earth_data(country_code: str) -> Any | None:
+    """Load Natural Earth GeoJSON data from cache or download it.
+
+    Args:
+        country_code: ISO country code (for logging purposes)
+
+    Returns:
+        GeoDataFrame with Natural Earth data, or None if loading fails
+    """
+    settings = get_settings()
+    ne_50m_url = settings.natural_earth_geojson_url
+    cache_key_data = "ne_50m_admin_0_countries"
+
+    cache_file = CACHE_DIR / f"{cache_key_data}.geojson"
+    if cache_file.exists():
+        try:
+            return gpd.read_file(str(cache_file))
+        except (OSError, ValueError) as e:
+            logger.debug(f"Failed to read cached Natural Earth data: {e}")
+
+    try:
+        logger.info(f"Downloading Natural Earth 50m data for {country_code}...")
+        world = gpd.read_file(ne_50m_url)
+        world.to_file(str(cache_file), driver="GeoJSON")
+        logger.debug(f"Cached Natural Earth data to {cache_file}")
+        return world
+    except (requests.exceptions.RequestException, OSError) as e:
+        logger.error(f"Failed to download Natural Earth 50m data: {e}", exc_info=True)
+        return None
+
+
+def _find_country_in_geodataframe(world: Any, country_code_lower: str) -> Any | None:
+    """Find country GeoDataFrame by ISO code or name.
+
+    Args:
+        world: GeoDataFrame with Natural Earth data
+        country_code_lower: Lowercase ISO country code
+
+    Returns:
+        GeoDataFrame for the country, or None if not found
+    """
+    # Try to find country by ISO_A2 code first (most reliable)
+    if "ISO_A2" in world.columns:
+        country_gdf = world[world["ISO_A2"] == country_code_lower.upper()]
+        if not country_gdf.empty:
+            return country_gdf
+
+    # Fallback to ADMIN name matching
+    fallback_names: dict[str, str] = {
+        "gf": "France",  # French Guiana is part of France in Natural Earth
+        "fk": "Falkland Islands",
+    }
+    country_name = fallback_names.get(country_code_lower)
+    if country_name and "ADMIN" in world.columns:
+        country_gdf = world[world["ADMIN"] == country_name]
+        if country_gdf.empty:
+            country_gdf = world[
+                world["ADMIN"].str.contains(country_name, case=False, na=False)
+            ]
+        if not country_gdf.empty:
+            return country_gdf
+
+    # Try direct ADMIN match with country code as fallback
+    if "ADMIN" in world.columns:
+        country_gdf = world[
+            world["ADMIN"].str.contains(country_code_lower, case=False, na=False)
+        ]
+        if not country_gdf.empty:
+            return country_gdf
+
+    return None
+
+
+def _generate_svg_plot(
+    gdf: Any, width: int, height: int
+) -> tuple[str, list[float], Any]:
+    """Generate SVG plot from GeoDataFrame.
+
+    Args:
+        gdf: GeoDataFrame for the country
+        width: Output SVG width in pixels
+        height: Output SVG height in pixels
+
+    Returns:
+        Tuple of (svg_data, actual_bounds, local_crs)
+    """
+    local_crs = gdf.estimate_utm_crs()
+    gdf_proj = gdf.to_crs(local_crs)
+    bounds_proj = gdf_proj.total_bounds
+
+    fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
+    ax.set_xlim(bounds_proj[0], bounds_proj[2])
+    ax.set_ylim(bounds_proj[1], bounds_proj[3])
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    gdf_proj.plot(ax=ax, color="white", edgecolor="none", linewidth=0)
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    actual_bounds = [xlim[0], ylim[0], xlim[1], ylim[1]]
+
+    from io import StringIO
+
+    svg_buffer = StringIO()
+    fig.savefig(
+        svg_buffer,
+        format="svg",
+        bbox_inches="tight",
+        pad_inches=0,
+        transparent=True,
+    )
+    svg_data = svg_buffer.getvalue()
+    plt.close(fig)
+
+    return svg_data, actual_bounds, local_crs
+
+
+def _process_svg_with_geo_attributes(
+    root: etree._Element,
+    min_lon: float,
+    min_lat: float,
+    max_lon: float,
+    max_lat: float,
+    actual_bounds: list[float],
+    local_crs: Any,
+) -> str:
+    """Add geo-calibration attributes to SVG and set all fills to white.
+
+    Args:
+        root: SVG root element
+        min_lon: Minimum longitude
+        min_lat: Minimum latitude
+        max_lon: Maximum longitude
+        max_lat: Maximum latitude
+        actual_bounds: Projected bounds [min_x, min_y, max_x, max_y]
+        local_crs: Coordinate reference system
+
+    Returns:
+        SVG string with geo attributes
+    """
+    # Get or set viewBox
+    viewbox_vals = _get_svg_viewbox(root)
+    if viewbox_vals is None:
+        root.set("viewBox", "0 0 100 100")
+
+    # Add custom geo-calibration attributes
+    root.set("data-geo-bounds", f"{min_lon},{min_lat},{max_lon},{max_lat}")
+    root.set(
+        "data-proj-bounds",
+        f"{actual_bounds[0]},{actual_bounds[1]},{actual_bounds[2]},{actual_bounds[3]}",
+    )
+    root.set("data-crs", local_crs.to_string())
+
+    # Set all fills to white
+    for elem in root.iter():
+        if (
+            elem.tag.endswith("path")
+            or elem.tag.endswith("polygon")
+            or elem.tag.endswith("circle")
+            or elem.tag.endswith("rect")
+        ) or "fill" in elem.attrib:
+            elem.set("fill", "#ffffff")
+
+    return _svg_to_string(root)
 
 
 def _generate_geo_calibrated_svg(
     country_code: str, width: int = 1024, height: int = 1024
-) -> Optional[str]:
-    """Generate a geo-calibrated SVG map of a country using geopandas and Natural Earth Data."""
+) -> str | None:
+    """Generate a geo-calibrated SVG map of a country using geopandas and Natural Earth Data.
+
+    Args:
+        country_code: ISO country code (e.g., "us", "fr")
+        width: Output SVG width in pixels (default: 1024)
+        height: Output SVG height in pixels (default: 1024)
+
+    Returns:
+        SVG string with geo-calibrated viewBox, or None if generation fails
+    """
     if not HAS_GEO:
         return None
 
     country_code_lower = country_code.lower()
 
     try:
-        ne_50m_url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
-        cache_key_data = "ne_50m_admin_0_countries"
-
-        cache_file = CACHE_DIR / f"{cache_key_data}.geojson"
-        if cache_file.exists():
-            try:
-                world = gpd.read_file(str(cache_file))
-            except:
-                world = None
-        else:
-            world = None
-
+        world = _load_natural_earth_data(country_code)
         if world is None:
-            try:
-                logger.info(f"Downloading Natural Earth 50m data for {country_code}...")
-                world = gpd.read_file(ne_50m_url)
-                world.to_file(str(cache_file), driver="GeoJSON")
-                logger.debug(f"Cached Natural Earth data to {cache_file}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to download Natural Earth 50m data: {e}", exc_info=True
-                )
-                return None
-
-        country_names = {
-            "cl": "Chile",
-            "ar": "Argentina",
-            "pe": "Peru",
-            "bo": "Bolivia",
-            "br": "Brazil",
-            "us": "United States of America",
-            "ca": "Canada",
-            "mx": "Mexico",
-            "co": "Colombia",
-            "ec": "Ecuador",
-            "uy": "Uruguay",
-            "py": "Paraguay",
-            "ve": "Venezuela",
-            "gy": "Guyana",
-            "sr": "Suriname",
-            "gf": "French Guiana",
-            "fk": "Falkland Islands",
-        }
-        country_name = country_names.get(country_code_lower)
-
-        if not country_name:
             return None
 
-        country_gdf = world[world["ADMIN"] == country_name]
-
-        if country_gdf.empty:
-            country_gdf = world[
-                world["ADMIN"].str.contains(country_name, case=False, na=False)
-            ]
-
-        if country_gdf.empty:
+        country_gdf = _find_country_in_geodataframe(world, country_code_lower)
+        if country_gdf is None or country_gdf.empty:
             return None
 
         gdf = country_gdf.iloc[[0]]
-
         bounds = gdf.total_bounds
         min_lon, min_lat, max_lon, max_lat = bounds[0], bounds[1], bounds[2], bounds[3]
 
-        local_crs = gdf.estimate_utm_crs()
-        gdf_proj = gdf.to_crs(local_crs)
-        bounds_proj = gdf_proj.total_bounds
+        svg_data, actual_bounds, local_crs = _generate_svg_plot(gdf, width, height)
 
-        fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
-        ax.set_xlim(bounds_proj[0], bounds_proj[2])
-        ax.set_ylim(bounds_proj[1], bounds_proj[3])
-        ax.set_aspect("equal")
-        ax.axis("off")
-
-        gdf_proj.plot(ax=ax, color="white", edgecolor="none", linewidth=0)
-
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-        actual_bounds = [xlim[0], ylim[0], xlim[1], ylim[1]]
-
-        from io import StringIO
-
-        svg_buffer = StringIO()
-        fig.savefig(
-            svg_buffer,
-            format="svg",
-            bbox_inches="tight",
-            pad_inches=0,
-            transparent=True,
-        )
-        svg_data = svg_buffer.getvalue()
-        plt.close(fig)
-
-        # Parse SVG with lxml
         root = _parse_svg_with_lxml(svg_data)
         if root is None:
             return None
 
-        # Get viewBox
-        viewbox_vals = _get_svg_viewbox(root)
-        if viewbox_vals is None:
-            viewbox_vals = [0, 0, 100, 100]
-            root.set("viewBox", "0 0 100 100")
-
-        # Add custom attributes
-        root.set("data-geo-bounds", f"{min_lon},{min_lat},{max_lon},{max_lat}")
-        root.set(
-            "data-proj-bounds",
-            f"{actual_bounds[0]},{actual_bounds[1]},{actual_bounds[2]},{actual_bounds[3]}",
+        return _process_svg_with_geo_attributes(
+            root, min_lon, min_lat, max_lon, max_lat, actual_bounds, local_crs
         )
-        root.set("data-crs", local_crs.to_string())
-
-        # Set all fills to white
-        for elem in root.iter():
-            if (
-                elem.tag.endswith("path")
-                or elem.tag.endswith("polygon")
-                or elem.tag.endswith("circle")
-                or elem.tag.endswith("rect")
-            ):
-                elem.set("fill", "#ffffff")
-            elif "fill" in elem.attrib:
-                elem.set("fill", "#ffffff")
-
-        return _svg_to_string(root)
 
     except Exception as e:
         logger.error(
@@ -324,8 +410,8 @@ def _generate_geo_calibrated_svg(
 
 
 def get_country_map_svg(
-    country_code: str, lat: Optional[float] = None, lon: Optional[float] = None
-) -> Optional[str]:
+    country_code: str, lat: float | None = None, lon: float | None = None
+) -> str | None:
     """Get country map/silhouette as raw SVG string."""
     if not country_code:
         return None
@@ -333,7 +419,7 @@ def get_country_map_svg(
     cache_key_svg = f"map_svg_{country_code.lower()}"
     cached_svg = get_cached(cache_key_svg)
     if cached_svg is not None and isinstance(cached_svg, str):
-        return cached_svg
+        return str(cached_svg)
 
     if HAS_GEO:
         svg_data = _generate_geo_calibrated_svg(country_code)
@@ -341,7 +427,8 @@ def get_country_map_svg(
             set_cached(cache_key_svg, svg_data)
             return svg_data
 
-    svg_url = f"https://raw.githubusercontent.com/djaiss/mapsicon/master/all/{country_code.lower()}/vector.svg"
+    settings = get_settings()
+    svg_url = f"{settings.mapsicon_base_url}/{country_code.lower()}/vector.svg"
 
     try:
         response = requests.get(svg_url, timeout=10)
@@ -359,22 +446,26 @@ def get_country_map_svg(
             if viewbox and len(viewbox) == 4:
                 _SVG_VIEWBOXES[country_code.lower()] = viewbox
 
-            # Extract transform from root or first group
+            # Extract transform from root or first group element (handle namespaces)
             transform_elem = root
-            # Try to find a group element with transform (handle namespaces)
-            group = root.xpath('.//*[local-name()="g"][@transform]')
-            if group:
-                transform_elem = group[0]
+            group_raw = root.xpath('.//*[local-name()="g"][@transform]')
+            if isinstance(group_raw, list) and len(group_raw) > 0:
+                first_elem = group_raw[0]
+                if isinstance(first_elem, etree._Element):
+                    transform_elem = first_elem
+                else:
+                    transform_elem = root
+            else:
+                transform_elem = root
 
             transform_str = transform_elem.get("transform", "")
             if transform_str:
                 transform_data = _parse_transform(transform_str)
                 _SVG_TRANSFORMS[country_code.lower()] = transform_data
 
-            # Extract path bounds
             path_bounds = _extract_path_bounds(root)
             if path_bounds:
-                _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds
+                _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds  # type: ignore[assignment]
 
                 transform = _SVG_TRANSFORMS.get(country_code.lower())
                 if transform and viewbox and len(viewbox) == 4:
@@ -422,16 +513,16 @@ def get_country_map_svg(
 
 
 def get_country_map_data_uri(
-    country_code: str, lat: Optional[float] = None, lon: Optional[float] = None
-) -> Optional[str]:
+    country_code: str, lat: float | None = None, lon: float | None = None
+) -> str | None:
     """Get country map/silhouette image as data URI."""
     if not country_code:
         return None
 
     cache_key = f"map_{country_code.lower()}"
     cached = get_cached(cache_key)
-    if cached is not None:
-        return cached
+    if cached is not None and isinstance(cached, str):
+        return str(cached)
 
     svg_data = get_country_map_svg(country_code, lat, lon)
     if svg_data:
@@ -445,8 +536,17 @@ def get_country_map_data_uri(
 
 def get_country_map_dot_position(
     country_code: str, lat: float, lon: float
-) -> Optional[Tuple[float, float]]:
-    """Calculate the relative position (0-100%) of a location dot within a country map."""
+) -> tuple[float, float] | None:
+    """Calculate the relative position (0-100%) of a location dot within a country map.
+
+    Args:
+        country_code: ISO country code (e.g., "us", "fr")
+        lat: Latitude of the location point
+        lon: Longitude of the location point
+
+    Returns:
+        Tuple of (x_percent, y_percent) where values are 0-100, or None if calculation fails
+    """
     country_code_lower = country_code.lower()
 
     if not country_code:
@@ -480,8 +580,8 @@ def get_country_map_dot_position(
                                     )
                                     point_proj = point_geo.to_crs(crs_str)
 
-                                    proj_x = point_proj.geometry.iloc[0].x
-                                    proj_y = point_proj.geometry.iloc[0].y
+                                    proj_x = point_proj.geometry.iloc[0].x  # type: ignore[attr-defined]
+                                    proj_y = point_proj.geometry.iloc[0].y  # type: ignore[attr-defined]
 
                                     proj_min_x, proj_min_y, proj_max_x, proj_max_y = (
                                         proj_bounds
@@ -504,7 +604,7 @@ def get_country_map_dot_position(
 
                         if viewbox and len(viewbox) == 4:
                             viewbox_min_lon = viewbox[0]
-                            viewbox_min_lat = viewbox[1]
+                            viewbox[1]
                             viewbox_width = viewbox[2]
                             viewbox_height = viewbox[3]
 
@@ -518,10 +618,16 @@ def get_country_map_dot_position(
                 except (ValueError, AttributeError):
                     pass
 
-    rendered_bounds = _SVG_PATH_BOUNDS.get(country_code_lower, {}).get("rendered")
+    rendered_bounds_raw = _SVG_PATH_BOUNDS.get(country_code_lower, {}).get("rendered")
     viewbox = _SVG_VIEWBOXES.get(country_code_lower)
 
-    if rendered_bounds and viewbox and len(viewbox) == 4:
+    if (
+        rendered_bounds_raw
+        and isinstance(rendered_bounds_raw, dict)
+        and viewbox
+        and len(viewbox) == 4
+    ):
+        rendered_bounds: dict[str, float] = rendered_bounds_raw
         country_bounds = _load_country_bounds()
         if country_code_lower in country_bounds:
             bbox = country_bounds[country_code_lower]

@@ -18,6 +18,5 @@ MAX_BLEND_FACTOR = 0.25  # Maximum blending factor for color adjustment
 DESCRIPTION_THREE_COLUMNS_THRESHOLD = 2000  # Characters
 DESCRIPTION_TWO_COLUMNS_THRESHOLD = 500  # Characters
 
-# Weather icon provider (using basmilius weather-icons - colorful, elegant, with proper sun design)
-# Uses semantic names matching weather conditions (e.g., clear-day, partly-cloudy-day)
-WEATHER_ICON_BASE_URL = "https://basmilius.github.io/weather-icons/production/fill/all"
+# Note: API URLs and DEBUG setting have been moved to settings.py (Pydantic settings)
+# These constants remain for backward compatibility but should use settings.get_settings() instead

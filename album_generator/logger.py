@@ -1,27 +1,28 @@
 """Logging configuration for the album generator using Rich."""
 
 import logging
-import os
-from typing import Optional
 
-from rich.logging import RichHandler
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
-    TimeElapsedColumn,
     TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
 )
+
+from .settings import get_settings
 
 # Default log level
 DEFAULT_LOG_LEVEL = logging.INFO
 
-# Check for DEBUG environment variable
-DEBUG_MODE = os.getenv("DEBUG", "0") in ("1", "true", "True", "TRUE")
+# Get settings
+_settings = get_settings()
+DEBUG_MODE = _settings.debug
 
-# Set log level based on DEBUG environment variable
+# Set log level based on DEBUG setting
 LOG_LEVEL = logging.DEBUG if DEBUG_MODE else DEFAULT_LOG_LEVEL
 
 # Global console instance with markup enabled
@@ -42,7 +43,7 @@ class PrettyCLIHandler(logging.Handler):
             logging.DEBUG: "•",
         }
 
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record: logging.LogRecord) -> None:
         """Format and emit a log record."""
         try:
             message = self.format(record)
@@ -55,10 +56,7 @@ class PrettyCLIHandler(logging.Handler):
                 level_icon = self.level_map.get(record.levelno, "•")
 
             # Just add icon and print as normal string - let Rich handle everything else
-            if level_icon:
-                output = f"{level_icon} {message}"
-            else:
-                output = message
+            output = f"{level_icon} {message}" if level_icon else message
 
             # Apply colors based on log level
             if is_success and record.levelno == logging.INFO:
@@ -83,7 +81,7 @@ def setup_logging(name: str = "album_generator") -> logging.Logger:
 
         if DEBUG_MODE:
             # Debug mode: use RichHandler with its default automatic colors
-            handler = RichHandler(
+            handler: logging.Handler = RichHandler(
                 console=_console,
                 show_path=True,
                 show_time=True,
@@ -117,7 +115,7 @@ def get_console() -> Console:
 
 
 def create_progress(
-    description: str = "Processing", total: Optional[int] = None
+    description: str = "Processing", total: int | None = None
 ) -> Progress:
     """Create a Rich progress bar for loops."""
     return Progress(

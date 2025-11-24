@@ -1,25 +1,24 @@
 """Main CLI application for generating photo albums."""
 
 import argparse
-from pathlib import Path
-from typing import Tuple
 import sys
+from pathlib import Path
 
 from .data_loader import (
-    load_trip_data,
     get_step_photo_dir,
-    get_steps_in_range,
     get_steps_distributed,
+    get_steps_in_range,
+    load_trip_data,
 )
-from .image_selector import select_step_image
 from .html_generator import generate_album_html
-from .logger import get_logger, get_console, create_progress
+from .image_selector import select_step_image
+from .logger import create_progress, get_console, get_logger
 
 logger = get_logger(__name__)
 console = get_console()
 
 
-def parse_step_range(range_str: str) -> Tuple[int, int]:
+def parse_step_range(range_str: str) -> tuple[int, int]:
     """Parse step range string like '99-110' or '99'."""
     if "-" in range_str:
         start, end = range_str.split("-", 1)
@@ -29,7 +28,7 @@ def parse_step_range(range_str: str) -> Tuple[int, int]:
         return step_num, step_num
 
 
-def generate_pdf(html_path: Path, pdf_path: Path):
+def generate_pdf(html_path: Path, pdf_path: Path) -> None:
     """Generate PDF from HTML using Playwright."""
     try:
         from playwright.sync_api import sync_playwright
@@ -63,7 +62,7 @@ def generate_pdf(html_path: Path, pdf_path: Path):
         )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate HTML photo album from Polarsteps trip data"
     )
@@ -148,7 +147,7 @@ def main():
     logger.debug(f"Output directory: {args.output}")
 
     # Collect images for each step
-    step_images = {}
+    step_images: dict[int, Path | None] = {}
     progress = create_progress("Processing steps")
 
     with progress:
