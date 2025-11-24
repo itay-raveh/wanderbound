@@ -7,6 +7,7 @@ from pathlib import Path
 import pytz
 from geopy import Point
 
+from .exceptions import DataLoadError
 from .logger import get_logger
 from .models import Location, Step, TripData
 
@@ -14,8 +15,24 @@ logger = get_logger(__name__)
 
 
 def load_trip_data(trip_path: Path) -> TripData:
-    """Load trip data from trip.json file and validate with Pydantic."""
-    data = json.loads(trip_path.read_text(encoding="utf-8"))
+    """Load trip data from trip.json file and validate with Pydantic.
+
+    Args:
+        trip_path: Path to trip.json file
+
+    Returns:
+        TripData object with validated trip information
+
+    Raises:
+        DataLoadError: If file cannot be read or JSON is invalid
+    """
+    try:
+        data = json.loads(trip_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        raise DataLoadError(
+            f"Failed to load trip data from {trip_path}: {e}",
+            file_path=str(trip_path),
+        ) from e
 
     # Parse steps with Pydantic - let Pydantic handle validation
     steps = []

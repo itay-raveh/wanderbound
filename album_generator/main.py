@@ -1,7 +1,6 @@
 """Main CLI application for generating photo albums."""
 
 import os
-import sys
 import webbrowser
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from .data_loader import (
     get_steps_in_range,
     load_trip_data,
 )
+from .exceptions import DataLoadError, ValidationError
 from .html_generator import generate_album_html
 from .image_selector import (
     compute_default_photos_by_pages,
@@ -89,14 +89,20 @@ def main() -> None:
     # Validate inputs
     trip_json = args.trip_dir / "trip.json"
     if not trip_json.exists():
-        logger.error(f"trip.json not found at {trip_json}")
-        sys.exit(1)
+        raise DataLoadError(
+            f"trip.json not found at {trip_json}. "
+            f"Please ensure the trip directory contains trip.json",
+            file_path=str(trip_json),
+        )
 
     # Get font path (internal to package)
     font_path = Path(__file__).parent / STATIC_DIR / FONT_FILE
     if not font_path.exists():
-        logger.error(f"Font file not found at {font_path}")
-        sys.exit(1)
+        raise ValidationError(
+            f"Font file not found at {font_path}. "
+            f"This is an internal package file and should always be present.",
+            field="font_path",
+        )
 
     # Load trip data
     with console.status("[bold blue]Loading trip data..."):
@@ -106,8 +112,11 @@ def main() -> None:
     all_steps = trip_data.all_steps
 
     if not all_steps:
-        logger.error("No steps found in trip data")
-        sys.exit(1)
+        raise DataLoadError(
+            "No steps found in trip data. "
+            f"Please check that {trip_json} contains valid step data.",
+            file_path=str(trip_json),
+        )
 
     logger.info(f"Found {len(all_steps)} total steps")
 
