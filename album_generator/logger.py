@@ -12,7 +12,6 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-from rich.table import Column
 
 from .settings import get_settings
 
@@ -119,13 +118,10 @@ def create_progress(
     description: str = "Processing", total: int | None = None
 ) -> Progress:
     """Create a Rich progress bar for loops with aligned descriptions."""
-    # Use fixed-width column (200 chars) to align all progress bars regardless of title length
+    # Use fixed-width format (150 chars) to align all progress bars regardless of title length
     return Progress(
         SpinnerColumn(),
-        TextColumn(
-            "[progress.description]{task.description}",
-            table_column=Column(width=200, no_wrap=True),
-        ),
+        TextColumn("[progress.description]{task.description:150}"),
         BarColumn(),
         TaskProgressColumn(),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
