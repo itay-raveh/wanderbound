@@ -6,6 +6,9 @@ from typing import Optional, List, Tuple
 from more_itertools import chunked
 
 from .cache import _get_elevation_cache
+from ..logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[float]]:
@@ -30,7 +33,7 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
 
     for batch in chunked(locations_to_query, max_locations_per_request):
         if calls_made >= max_calls_per_day:
-            print("⚠️ Reached maximum API calls for today. Using cached data only.")
+            logger.warning("Reached maximum API calls for today. Using cached data only.")
             all_elevations.extend([None] * len(batch))
             continue
 
@@ -38,6 +41,7 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
         url = f"https://api.opentopodata.org/v1/aster30m?locations={locations_param}"
 
         try:
+            logger.debug(f"Fetching elevation for batch of {len(batch)} locations (call {calls_made + 1})")
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
@@ -50,17 +54,19 @@ def get_altitude_batch(locations: List[Tuple[float, float]]) -> List[Optional[fl
 
                     key = f"{lat},{lon}"
                     elevation_cache.set(key, elevation)
+                logger.debug(f"Cached {len(batch)} elevations")
             else:
+                logger.warning(f"No results in elevation API response for batch")
                 all_elevations.extend([None] * len(batch))
 
             calls_made += 1
             time.sleep(1)
 
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ Failed to get elevation for batch: {e}")
+            logger.warning(f"Failed to get elevation for batch: {e}")
             all_elevations.extend([None] * len(batch))
         except (KeyError, ValueError) as e:
-            print(f"⚠️ Error parsing elevation response: {e}")
+            logger.error(f"Error parsing elevation response: {e}", exc_info=True)
             all_elevations.extend([None] * len(batch))
 
     return all_elevations

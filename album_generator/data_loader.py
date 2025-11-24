@@ -9,6 +9,9 @@ from geopy import Point
 from babel.dates import format_date as babel_format_date
 
 from .models import TripData, Step, Location
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_trip_data(trip_path: Path) -> TripData:
@@ -28,7 +31,7 @@ def load_trip_data(trip_path: Path) -> TripData:
             steps.append(step)
         except Exception as e:
             # Log error but continue with other steps
-            print(f"Warning: Failed to parse step {step_data.get('id')}: {e}")
+            logger.warning(f"Failed to parse step {step_data.get('id')}: {e}", exc_info=True)
             continue
 
     # Create TripData model - let Pydantic handle defaults
@@ -75,7 +78,7 @@ def format_date(timestamp: Optional[float], timezone_id: str) -> dict[str, str]:
         return {"month": month, "day": day}
     except Exception as e:
         # Fallback to manual formatting if babel fails
-        print(f"⚠️ Error formatting date with babel: {e}")
+        logger.warning(f"Error formatting date with babel: {e}", exc_info=True)
         tz = pytz.timezone(timezone_id)
         dt = datetime.fromtimestamp(timestamp, tz=tz)
         
@@ -144,7 +147,7 @@ def format_coordinates(lat: Optional[float], lon: Optional[float]) -> dict[str, 
         return {"lat": lat_dms, "lon": lon_dms}
     except Exception as e:
         # Fallback to simple format if geopy fails
-        print(f"⚠️ Error formatting coordinates with geopy: {e}")
+        logger.warning(f"Error formatting coordinates with geopy: {e}", exc_info=True)
         lat_dir = "N" if lat >= 0 else "S"
         lon_dir = "E" if lon >= 0 else "W"
         return {

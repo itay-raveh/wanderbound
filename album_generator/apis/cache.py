@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Optional, Any, List
 import diskcache
 from more_itertools import chunked
+from ..logger import get_logger
+
+logger = get_logger(__name__)
 
 CACHE_DIR = Path.home() / ".polarsteps_album_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -16,7 +19,8 @@ def get_cached(key: str) -> Optional[Any]:
     """Get cached API response."""
     try:
         return _cache.get(key, default=None)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Error getting cached value for key '{key}': {e}")
         return None
 
 
@@ -24,8 +28,8 @@ def set_cached(key: str, value: Any):
     """Cache API response."""
     try:
         _cache.set(key, value, expire=86400)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Error setting cached value for key '{key}': {e}")
 
 
 def _get_elevation_cache() -> diskcache.Cache:

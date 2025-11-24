@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Optional
 from enum import Enum
 from PIL import Image
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class PhotoRatio(Enum):
@@ -53,7 +56,8 @@ def select_step_image(photo_dir: Path) -> Optional[Path]:
                     aspect = width / height
                     if abs(aspect - (4/3)) < 0.1:
                         return img_path
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error processing image {img_path}: {e}")
             continue
     
     for img_path in image_files:
@@ -66,7 +70,8 @@ def select_step_image(photo_dir: Path) -> Optional[Path]:
                     aspect = width / height
                     if abs(aspect - (16/9)) < 0.1:
                         return img_path
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error processing image {img_path}: {e}")
             continue
     
     for img_path in image_files:
@@ -77,7 +82,8 @@ def select_step_image(photo_dir: Path) -> Optional[Path]:
                 
                 if ratio == PhotoRatio.PORTRAIT:
                     return img_path
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error processing image {img_path}: {e}")
             continue
     
     for img_path in image_files:
@@ -86,7 +92,8 @@ def select_step_image(photo_dir: Path) -> Optional[Path]:
                 width, height = img.size
                 if width > height:
                     return img_path
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error processing image {img_path}: {e}")
             continue
     
     return image_files[0] if image_files else None

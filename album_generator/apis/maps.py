@@ -22,6 +22,9 @@ except ImportError:
     HAS_GEO = False
 
 from .cache import get_cached, set_cached, CACHE_DIR
+from ..logger import get_logger
+
+logger = get_logger(__name__)
 
 _COUNTRY_BOUNDS = None
 _SVG_VIEWBOXES = {}
@@ -75,7 +78,7 @@ def _parse_svg_with_lxml(svg_data: str) -> Optional[etree.Element]:
 
         return root
     except Exception as e:
-        print(f"⚠️ Error parsing SVG with lxml: {e}")
+        logger.error(f"Error parsing SVG with lxml: {e}", exc_info=True)
         return None
 
 
@@ -201,11 +204,14 @@ def _generate_geo_calibrated_svg(
 
         if world is None:
             try:
-                print(f"Downloading Natural Earth 50m data for {country_code}...")
+                logger.info(f"Downloading Natural Earth 50m data for {country_code}...")
                 world = gpd.read_file(ne_50m_url)
                 world.to_file(str(cache_file), driver="GeoJSON")
+                logger.debug(f"Cached Natural Earth data to {cache_file}")
             except Exception as e:
-                print(f"⚠️ Failed to download Natural Earth 50m data: {e}")
+                logger.error(
+                    f"Failed to download Natural Earth 50m data: {e}", exc_info=True
+                )
                 return None
 
         country_names = {
@@ -310,7 +316,10 @@ def _generate_geo_calibrated_svg(
         return _svg_to_string(root)
 
     except Exception as e:
-        print(f"⚠️ Error generating geo-calibrated SVG for {country_code}: {e}")
+        logger.error(
+            f"Error generating geo-calibrated SVG for {country_code}: {e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -405,9 +414,9 @@ def get_country_map_svg(
             set_cached(cache_key_svg, svg_data)
             return svg_data
     except requests.exceptions.RequestException as e:
-        print(f"⚠️ Failed to get map for {country_code}: {e}")
+        logger.warning(f"Failed to get map for {country_code}: {e}")
     except Exception as e:
-        print(f"⚠️ Error processing map for {country_code}: {e}")
+        logger.error(f"Error processing map for {country_code}: {e}", exc_info=True)
 
     return None
 

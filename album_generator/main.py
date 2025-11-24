@@ -13,6 +13,10 @@ from .data_loader import (
 )
 from .image_selector import select_step_image
 from .html_generator import generate_album_html
+from .logger import get_logger, get_console, create_progress
+
+logger = get_logger(__name__)
+console = get_console()
 
 
 def parse_step_range(range_str: str) -> Tuple[int, int]:
@@ -30,7 +34,7 @@ def generate_pdf(html_path: Path, pdf_path: Path):
     try:
         from playwright.sync_api import sync_playwright
 
-        print(f"Generating PDF from HTML...")
+        logger.info("Generating PDF from HTML...")
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page()
@@ -46,15 +50,15 @@ def generate_pdf(html_path: Path, pdf_path: Path):
                 prefer_css_page_size=True,
             )
             browser.close()
-        print(f"PDF generated: {pdf_path}")
+        logger.info(f"PDF generated: {pdf_path}", extra={"success": True})
     except ImportError:
-        print(
-            "Warning: Playwright not installed. Install with: playwright install chromium"
+        logger.warning(
+            "Playwright not installed. Install with: playwright install chromium"
         )
-        print("Skipping PDF generation.")
+        logger.info("Skipping PDF generation.")
     except Exception as e:
-        print(f"Warning: Failed to generate PDF: {e}")
-        print(
+        logger.error(f"Failed to generate PDF: {e}", exc_info=True)
+        logger.info(
             "You can still open the HTML file in your browser and print to PDF manually."
         )
 
@@ -105,88 +109,97 @@ def main():
     # Validate inputs
     trip_json = args.trip_dir / "trip.json"
     if not trip_json.exists():
-        print(f"Error: trip.json not found at {trip_json}", file=sys.stderr)
+        logger.error(f"trip.json not found at {trip_json}")
         sys.exit(1)
 
     # Get font path (internal to package)
     font_path = Path(__file__).parent / "static" / "Renner.ttf"
     if not font_path.exists():
-        print(f"Error: Font file not found at {font_path}", file=sys.stderr)
+        logger.error(f"Font file not found at {font_path}")
         sys.exit(1)
 
     # Load trip data
-    print(f"Loading trip data from {trip_json}...")
-    import sys
-    sys.stdout.flush()
-    trip_data = load_trip_data(trip_json)
-    print(f"Trip data loaded")
-    sys.stdout.flush()
+    with console.status("[bold blue]Loading trip data..."):
+        logger.debug(f"Loading trip data from {trip_json}")
+        trip_data = load_trip_data(trip_json)
+        logger.debug("Trip data loaded successfully")
     all_steps = trip_data.all_steps
 
     if not all_steps:
-        print("Error: No steps found in trip data", file=sys.stderr)
+        logger.error("No steps found in trip data")
         sys.exit(1)
 
-    print(f"Found {len(all_steps)} total steps")
+    logger.info(f"Found {len(all_steps)} total steps")
 
     # Filter steps by range or sample
     if args.sample:
         steps = get_steps_distributed(all_steps, args.sample)
-        print(f"Sampled {len(steps)} steps evenly across the trip")
+        logger.info(f"Sampled {len(steps)} steps evenly across the trip")
     elif args.steps:
         start, end = parse_step_range(args.steps)
         steps = get_steps_in_range(all_steps, start, end)
-        print(f"Filtered to steps {start}-{end}: {len(steps)} steps")
+        logger.info(f"Filtered to steps {start}-{end}: {len(steps)} steps")
     else:
         steps = all_steps
-        print(f"Using all {len(steps)} steps")
+        logger.info(f"Using all {len(steps)} steps")
 
     # Create output directory
     args.output.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Output directory: {args.output}")
 
     # Collect images for each step
     step_images = {}
-    for step in steps:
-        print(f"Processing step: {step.city}...")
+    progress = create_progress("Processing steps")
 
-        # Get photo directory
-        photo_dir = get_step_photo_dir(args.trip_dir, step)
-        if not photo_dir:
-            print(f"  Warning: No photo directory found")
-            step_images[step.id] = None
-        else:
-            # Select image
-            image_path = select_step_image(photo_dir)
-            if image_path:
-                print(f"  Selected image: {image_path.name}")
-                step_images[step.id] = image_path
-            else:
-                print(f"  Warning: No suitable image found")
+    with progress:
+        task_id = progress.add_task("Processing steps", total=len(steps))
+        for step in progress.track(steps, task_id=task_id):
+            logger.debug(f"Processing step: {step.city}")
+            progress.update(task_id, description=f"Processing steps: {step.city}")
+
+            # Get photo directory
+            photo_dir = get_step_photo_dir(args.trip_dir, step)
+            if not photo_dir:
+                logger.warning(f"No photo directory found for step {step.city}")
                 step_images[step.id] = None
+            else:
+                # Select image
+                image_path = select_step_image(photo_dir)
+                if image_path:
+                    logger.debug(f"Selected image: {image_path.name}")
+                    step_images[step.id] = image_path
+                else:
+                    logger.warning(f"No suitable image found for step {step.city}")
+                    step_images[step.id] = None
+
+        progress.update(task_id, description="Processing steps")
 
     # Generate single HTML file with all steps
     html_path = args.output / "album.html"
     use_step_range = args.progress_mode == "step-range"
-    print(f"\nGenerating album HTML...")
-    generate_album_html(
-        steps,
-        step_images,
-        trip_data,
-        font_path,
-        html_path,
-        use_step_range,
-        args.light_mode,
-    )
-    print(f"Generated: {html_path}")
+    with console.status("[bold blue]Generating album HTML..."):
+        logger.debug("Generating album HTML...")
+        generate_album_html(
+            steps,
+            step_images,
+            trip_data,
+            font_path,
+            html_path,
+            use_step_range,
+            args.light_mode,
+        )
+    logger.info(f"Generated: {html_path}", extra={"success": True})
 
     # Generate PDF if requested
     if args.pdf:
         pdf_path = args.output / "album.pdf"
-        generate_pdf(html_path, pdf_path)
+        with console.status("[bold blue]Generating PDF..."):
+            generate_pdf(html_path, pdf_path)
+        logger.info(f"Generated: {pdf_path}", extra={"success": True})
     else:
-        print(f"\nAlbum generated successfully!")
-        print(f"Open {html_path} in your browser to view the album.")
-        print(f"Use --pdf flag to generate a PDF file automatically.")
+        logger.info("Album generated successfully!", extra={"success": True})
+        logger.info(f"Open {html_path} in your browser to view the album.")
+        logger.info("Use --pdf flag to generate a PDF file automatically.")
 
 
 if __name__ == "__main__":

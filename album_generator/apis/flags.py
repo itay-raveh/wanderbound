@@ -11,6 +11,19 @@ from colormath.color_conversions import convert_color
 from colormath.color_diff import delta_e_cie2000
 
 from .cache import get_cached, set_cached
+from ..logger import get_logger
+from ..constants import (
+    DEFAULT_ACCENT_COLOR,
+    BRIGHTNESS_THRESHOLD_HIGH,
+    BRIGHTNESS_THRESHOLD_LOW,
+    COLOR_COUNT_MIN_RATIO,
+    COLOR_CONFLICT_THRESHOLD,
+    LIGHT_MODE_TARGET_BRIGHTNESS,
+    DARK_MODE_TARGET_BRIGHTNESS,
+    MAX_BLEND_FACTOR,
+)
+
+logger = get_logger(__name__)
 
 _COUNTRY_COLORS = {}
 
@@ -35,9 +48,9 @@ def get_country_flag_data_uri(country_code: str) -> Optional[str]:
             set_cached(cache_key, data_uri)
             return data_uri
     except requests.exceptions.RequestException as e:
-        print(f"⚠️ Failed to get flag for {country_code}: {e}")
+        logger.warning(f"Failed to get flag for {country_code}: {e}")
     except Exception as e:
-        print(f"⚠️ Error processing flag for {country_code}: {e}")
+        logger.error(f"Error processing flag for {country_code}: {e}", exc_info=True)
 
     return None
 
@@ -109,24 +122,24 @@ def _adjust_color_for_contrast(color: str, light_mode: bool) -> str:
     b = int(color[5:7], 16)
 
     if light_mode:
-        target_brightness = 0.55
+        target_brightness = LIGHT_MODE_TARGET_BRIGHTNESS
         if brightness < target_brightness:
             blend_factor = (
                 (target_brightness - brightness) / (1.0 - brightness)
                 if brightness < 1.0
                 else 0
             )
-            blend_factor = min(0.25, blend_factor)
+            blend_factor = min(MAX_BLEND_FACTOR, blend_factor)
             r = int(r + (255 - r) * blend_factor)
             g = int(g + (255 - g) * blend_factor)
             b = int(b + (255 - b) * blend_factor)
     else:
-        target_brightness = 0.45
+        target_brightness = DARK_MODE_TARGET_BRIGHTNESS
         if brightness > target_brightness:
             blend_factor = (
                 (brightness - target_brightness) / brightness if brightness > 0 else 0
             )
-            blend_factor = min(0.25, blend_factor)
+            blend_factor = min(MAX_BLEND_FACTOR, blend_factor)
             r = int(r * (1 - blend_factor))
             g = int(g * (1 - blend_factor))
             b = int(b * (1 - blend_factor))
@@ -145,11 +158,10 @@ def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
     g = int(color[3:5], 16)
     b = int(color[5:7], 16)
 
-    conflict_threshold = 0.10
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code:
             dist = _color_distance(color, other_color)
-            if dist < conflict_threshold:
+            if dist < COLOR_CONFLICT_THRESHOLD:
                 import hashlib
 
                 hash_val = int(hashlib.md5(country_code.encode()).hexdigest(), 16)
@@ -185,11 +197,13 @@ def extract_prominent_color_from_flag(
 ) -> str:
     """Extract the most common non-white/black color from a country flag image."""
     if not flag_data_uri or not isinstance(flag_data_uri, str):
-        return "#ff69b4"
+        logger.debug("No flag data URI provided, using default accent color")
+        return DEFAULT_ACCENT_COLOR
 
     try:
         if not flag_data_uri.startswith("data:image"):
-            return "#ff69b4"
+            logger.debug("Invalid flag data URI format, using default accent color")
+            return DEFAULT_ACCENT_COLOR
 
         base64_data = flag_data_uri.split(",")[1]
         image_bytes = base64.b64decode(base64_data)
@@ -203,22 +217,24 @@ def extract_prominent_color_from_flag(
         filtered_pixels = []
         for r, g, b in pixels:
             brightness = (r + g + b) / 3
-            if brightness > 240 or brightness < 15:
+            if brightness > BRIGHTNESS_THRESHOLD_HIGH or brightness < BRIGHTNESS_THRESHOLD_LOW:
                 continue
             filtered_pixels.append((r, g, b))
 
         if not filtered_pixels:
-            return "#ff69b4"
+            logger.debug("No suitable pixels found after filtering, using default accent color")
+            return DEFAULT_ACCENT_COLOR
 
         color_counts = Counter(filtered_pixels).most_common(5)
         if not color_counts:
-            return "#ff69b4"
+            logger.debug("No color counts found, using default accent color")
+            return DEFAULT_ACCENT_COLOR
 
         total_pixels = len(filtered_pixels)
         most_common_count = color_counts[0][1]
 
         for color_tuple, count in color_counts:
-            if count < most_common_count * 0.3:
+            if count < most_common_count * COLOR_COUNT_MIN_RATIO:
                 break
 
             r, g, b = color_tuple
@@ -226,11 +242,10 @@ def extract_prominent_color_from_flag(
 
             if country_code:
                 has_conflict = False
-                conflict_threshold = 0.10
                 for other_code, other_color in _COUNTRY_COLORS.items():
                     if other_code != country_code.lower():
                         dist = _color_distance(candidate_color, other_color)
-                        if dist < conflict_threshold:
+                        if dist < COLOR_CONFLICT_THRESHOLD:
                             has_conflict = True
                             break
 
@@ -256,5 +271,5 @@ def extract_prominent_color_from_flag(
         return color
 
     except Exception as e:
-        print(f"⚠️ Error extracting color from flag: {e}")
-        return "#ff69b4"
+        logger.error(f"Error extracting color from flag: {e}", exc_info=True)
+        return DEFAULT_ACCENT_COLOR

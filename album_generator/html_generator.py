@@ -9,6 +9,15 @@ from jinja2 import Environment, FileSystemLoader
 from langdetect import detect, LangDetectException
 
 from .models import Step, TripData
+from .logger import get_logger, DEBUG_MODE, create_progress, get_console
+from .constants import (
+    DESCRIPTION_THREE_COLUMNS_THRESHOLD,
+    DESCRIPTION_TWO_COLUMNS_THRESHOLD,
+    WEATHER_ICON_BASE_URL,
+)
+
+logger = get_logger(__name__)
+console = get_console()
 from .data_loader import (
     format_coordinates,
     format_date,
@@ -59,7 +68,7 @@ def _is_hebrew(text: str) -> bool:
     """Check if text is Hebrew using fast Unicode check first, then langdetect if needed."""
     if not text or not text.strip():
         return False
-    
+
     # Fast Unicode range check first (instant, no network)
     has_hebrew_chars = any("\u0590" <= char <= "\u05ff" for char in text)
     if has_hebrew_chars:
@@ -67,11 +76,11 @@ def _is_hebrew(text: str) -> bool:
         # Only use langdetect for very short texts that might be ambiguous
         if len(text.strip()) > 10:
             return True
-    
+
     # Use langdetect for mixed content or short texts
     try:
         detected_lang = detect(text)
-        return detected_lang == 'he'
+        return detected_lang == "he"
     except (LangDetectException, Exception):
         # Fallback to Unicode check if langdetect fails
         return has_hebrew_chars
@@ -161,8 +170,10 @@ def prepare_step_data(
         description = "\n".join(cleaned_lines).strip().lstrip()
 
     is_hebrew = _is_hebrew(description)
-    use_three_columns = len(description) > 2000
-    use_two_columns = len(description) > 500 or use_three_columns
+    use_three_columns = len(description) > DESCRIPTION_THREE_COLUMNS_THRESHOLD
+    use_two_columns = (
+        len(description) > DESCRIPTION_TWO_COLUMNS_THRESHOLD or use_three_columns
+    )
 
     desc_col1, desc_col2, desc_col3 = _split_description(
         description, is_hebrew, use_three_columns
@@ -185,29 +196,15 @@ def prepare_step_data(
 
     weather_icon_url = None
     if step.weather_condition:
-        condition_lower = step.weather_condition.lower()
-        weather_map = {
-            "clear-day": "01d",
-            "clear-night": "01n",
-            "clear": "01d",
-            "sunny": "01d",
-            "partly-cloudy-day": "02d",
-            "partly-cloudy-night": "02n",
-            "partly-cloudy": "02d",
-            "partlycloudy": "02d",
-            "cloudy": "03d",
-            "overcast": "04d",
-            "rain": "09d",
-            "rainy": "10d",
-            "thunderstorm": "11d",
-            "snow": "13d",
-            "mist": "50d",
-            "fog": "50d",
-            "wind": "50d",
-            "sleet": "13d",
-        }
-        icon_code = weather_map.get(condition_lower, "01d")
-        weather_icon_url = f"https://openweathermap.org/img/wn/{icon_code}@2x.png"
+        # Use basmilius weather-icons - they use semantic names matching weather conditions
+        # Direct mapping: condition name -> icon filename (no mapping dict needed)
+        # Just normalize the condition name (lowercase, replace underscores with hyphens)
+        icon_name = step.weather_condition.lower().replace("_", "-")
+
+        weather_icon_url = f"{WEATHER_ICON_BASE_URL}/{icon_name}.svg"
+        logger.debug(
+            f"Weather condition '{step.weather_condition}' using icon '{icon_name}'"
+        )
 
     country_flag_data_uri = (
         get_country_flag_data_uri(step.country_code) if step.country_code else None
@@ -248,9 +245,7 @@ def prepare_step_data(
             else None
         ),
         "country_map_svg": (
-            get_country_map_svg(
-                step.country_code, step.location.lat, step.location.lon
-            )
+            get_country_map_svg(step.country_code, step.location.lat, step.location.lon)
             if step.country_code
             else None
         ),
@@ -279,10 +274,11 @@ def generate_album_html(
     font_rel_path = copy_assets(font_path, output_path.parent)
 
     # Batch fetch altitudes
-    print("  Fetching altitudes...")
-    locations = [(step.location.lat, step.location.lon) for step in steps]
-    elevations = get_altitude_batch(locations)
-    print(f"  Fetched {len(elevations)} elevations")
+    with console.status("[bold blue]Fetching altitudes..."):
+        logger.debug("Fetching altitudes...")
+        locations = [(step.location.lat, step.location.lon) for step in steps]
+        elevations = get_altitude_batch(locations)
+    logger.debug(f"Fetched {len(elevations)} altitude values")
 
     # Prepare template environment
     template_dir = Path(__file__).parent / "templates"
@@ -290,27 +286,35 @@ def generate_album_html(
     template = env.get_template("album.html")
 
     # Prepare step data
-    print("  Preparing step data...")
+    logger.debug("Preparing step data...")
     step_data_list = []
-    for idx, (step, elevation) in enumerate(zip(steps, elevations)):
-        print(f"    Processing step {idx + 1}/{len(steps)}: {step.city}...")
-        import sys
-        sys.stdout.flush()
-        image_path = step_images.get(step.id) if step.id else None
-        step_data = prepare_step_data(
-            step,
-            image_path,
-            idx,
-            steps,
-            trip_data,
-            use_step_range,
-            elevation,
-            light_mode,
-        )
-        step_data_list.append(step_data)
-        print(f"      Step {idx + 1} completed")
-        sys.stdout.flush()
-    print("  Step data prepared")
+
+    progress = create_progress("Preparing steps")
+
+    with progress:
+        task_id = progress.add_task("Preparing steps", total=len(steps))
+        for idx, (step, elevation) in enumerate(
+            progress.track(zip(steps, elevations), task_id=task_id)
+        ):
+            logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
+            progress.update(task_id, description=f"Preparing steps: {step.city}")
+
+            image_path = step_images.get(step.id) if step.id else None
+            step_data = prepare_step_data(
+                step,
+                image_path,
+                idx,
+                steps,
+                trip_data,
+                use_step_range,
+                elevation,
+                light_mode,
+            )
+            step_data_list.append(step_data)
+
+        progress.update(task_id, description="Preparing steps")
+
+    logger.debug("Step data prepared")
 
     # Render template
     html = template.render(
