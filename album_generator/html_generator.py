@@ -22,6 +22,8 @@ from .apis.weather import WeatherData, get_weather_data
 from .constants import (
     DESCRIPTION_THREE_COLUMNS_THRESHOLD,
     DESCRIPTION_TWO_COLUMNS_THRESHOLD,
+    FEELS_LIKE_DISPLAY_THRESHOLD,
+    TEMPERATURE_MISMATCH_THRESHOLD,
 )
 from .data_loader import (
     calculate_day_number,
@@ -149,8 +151,11 @@ def _format_temperature(temp: float | None, feels_like: float | None) -> str:
     """
     if temp is None:
         return "N/A"
-    # Only show feels like if difference is meaningful (>= 3°C)
-    if feels_like is not None and abs(feels_like - temp) >= 3.0:
+    # Only show feels like if difference is meaningful
+    if (
+        feels_like is not None
+        and abs(feels_like - temp) >= FEELS_LIKE_DISPLAY_THRESHOLD
+    ):
         return f"{int(temp)}°C ({int(feels_like)}°C)"
     return f"{int(temp)}°C"
 
@@ -279,7 +284,7 @@ def prepare_step_data(
     use_trip_data = False
     if day_temp_api is not None and step.weather_temperature is not None:
         temp_diff = abs(day_temp_api - step.weather_temperature)
-        if temp_diff > 1.0:
+        if temp_diff > TEMPERATURE_MISMATCH_THRESHOLD:
             logger.warning(
                 f"Temperature mismatch for {step.city} on {date_data['month']} {date_data['day']}: "
                 f"API reports {day_temp_api:.1f}°C, trip data has {step.weather_temperature:.1f}°C "
