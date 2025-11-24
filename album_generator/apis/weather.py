@@ -5,6 +5,7 @@ from typing import Any
 
 import pytz
 import requests
+from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from ..logger import get_logger
@@ -91,15 +92,16 @@ def _find_night_hours(
             continue
 
         try:
-            # Parse hour from datetime string (format: "HH:00:00" or ISO format)
-            if "T" in hour_str:
-                hour_part = hour_str.split("T")[1].split(":")[0]
-            else:
-                hour_part = hour_str.split(":")[0]
-            hour_num = int(hour_part)
+            # Parse datetime string using dateutil.parser (handles various formats)
+            # Visual Crossing API returns ISO format like "2024-01-15T14:00:00" or "14:00:00"
+            dt = date_parser.parse(hour_str, default=datetime.now(timezone))
+            # Ensure timezone-aware datetime
+            dt = timezone.localize(dt) if dt.tzinfo is None else dt.astimezone(timezone)
+
+            hour_num = dt.hour
             if hour_num >= 20 or hour_num < 4:
                 night_hours.append(hour_data)
-        except (ValueError, IndexError):
+        except (ValueError, TypeError, AttributeError, date_parser.ParserError):
             continue
 
     return night_hours
