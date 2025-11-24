@@ -147,7 +147,7 @@ def select_cover_photo(photos: list[Photo]) -> Photo | None:
 _GRID_LAYOUTS: dict[int, tuple[list[float], list[float], int]] = {
     1: ([1.0], [1.0], 1),
     2: ([1.0, 1.0], [1.0], 1),
-    3: ([2.0, 1.0], [1.0, 1.0], 2),  # First photo spans 2 rows
+    3: ([1.0, 1.0], [1.0, 1.0], 2),  # First photo spans 2 rows
     4: ([1.0, 1.0], [1.0, 1.0], 1),
     5: ([2.0, 1.0, 1.0], [1.0, 1.0], 2),  # First photo spans 2 rows
     6: ([2.0, 1.0, 1.0], [1.0, 1.0, 1.0], 3),  # First photo spans 3 rows
@@ -281,6 +281,14 @@ def _find_best_photo_combination(
 
     best_combination: list[Photo] = []
     best_coverage = 0.0
+    best_has_portrait_first = False
+
+    # For layouts where first photo spans rows, check if we have portrait photos available
+    layouts_with_portrait_preference = (3, 5, 6)
+    has_portrait_photos = any(
+        get_photo_ratio(p.width or 0, p.height or 0) == PhotoRatio.PORTRAIT
+        for p in candidates
+    )
 
     # Try combinations from largest to smallest (greedy: prefer more photos)
     for count in range(max_count, 0, -1):
@@ -288,13 +296,48 @@ def _find_best_photo_combination(
         if not _validate_photo_combination(count, min_size_percent):
             continue
 
+        # For layouts where first photo spans rows, prefer portrait for first position
+        prefer_portrait_first = (
+            count in layouts_with_portrait_preference and has_portrait_photos
+        )
+
         # Try all combinations of this size
         for combo in combinations(candidates, count):
+            # Check if first photo is portrait (if we prefer it)
+            has_portrait_first = False
+            if prefer_portrait_first:
+                first_photo = combo[0]
+                first_ratio = get_photo_ratio(
+                    first_photo.width or 0, first_photo.height or 0
+                )
+                has_portrait_first = first_ratio == PhotoRatio.PORTRAIT
+
             # Calculate total coverage for this combination
             total_coverage = _calculate_total_coverage(count)
-            if total_coverage > best_coverage:
+
+            # Prefer combinations with portrait first if we're looking for that
+            # But only if we haven't found a better combination yet, or if this one
+            # also has portrait first and better/equal coverage
+            should_update = False
+            if prefer_portrait_first:
+                # If we already have a combination with portrait first, only update
+                # if this one also has portrait first and better coverage
+                if best_has_portrait_first:
+                    if has_portrait_first and total_coverage > best_coverage:
+                        should_update = True
+                # If we don't have one with portrait first yet, prefer this one
+                # If no portrait first found yet, accept any combination
+                elif has_portrait_first or not best_combination:
+                    should_update = True
+            else:
+                # No preference, just use best coverage
+                if total_coverage > best_coverage:
+                    should_update = True
+
+            if should_update:
                 best_coverage = total_coverage
                 best_combination = list(combo)
+                best_has_portrait_first = has_portrait_first
 
         # Early termination: if we found a valid combination, use it
         # (greedy approach: prefer larger combinations)

@@ -32,7 +32,6 @@
 .step-data {
   flex: 1;
   background: var(--bg-panel);
-  border-right: 1px solid var(--border-color);
   padding-top: var(--spacing-xxl);
   padding-left: var(--spacing-lg);
   padding-right: var(--spacing-lg);
