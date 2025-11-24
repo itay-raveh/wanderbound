@@ -1,5 +1,8 @@
 """Pydantic models for trip data validation."""
 
+from pathlib import Path
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -60,6 +63,10 @@ class Step(BaseModel):
         """Get country code."""
         return self.location.country_code
 
+    def get_name_for_photos_export(self) -> str:
+        """Get step name for photos export file (similar to reference implementation)."""
+        return f"{self.city} ({self.country})"
+
 
 class TripData(BaseModel):
     """Trip metadata."""
@@ -72,3 +79,48 @@ class TripData(BaseModel):
     all_steps: list[Step] = Field(default_factory=list)
     total_km: float | None = None
     step_count: int | None = None
+
+
+class WeatherData(BaseModel):
+    """Structured weather data from API."""
+
+    day_temp: float | None = None
+    night_temp: float | None = None
+    day_feels_like: float | None = None
+    night_feels_like: float | None = None
+    day_icon: str | None = None
+    night_icon: str | None = None
+
+
+class Photo(BaseModel):
+    """Photo metadata for a step."""
+
+    id: str  # Filename
+    index: int  # Order index (1-based)
+    path: Path  # Full path to photo file
+    width: int | None = None
+    height: int | None = None
+    aspect_ratio: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert photo to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "index": self.index,
+            "path": str(self.path),
+            "width": self.width,
+            "height": self.height,
+            "aspect_ratio": self.aspect_ratio,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Photo":
+        """Create Photo from dictionary."""
+        return cls(
+            id=data["id"],
+            index=data["index"],
+            path=Path(data["path"]),
+            width=data.get("width"),
+            height=data.get("height"),
+            aspect_ratio=data.get("aspect_ratio"),
+        )

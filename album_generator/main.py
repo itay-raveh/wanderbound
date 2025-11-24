@@ -13,8 +13,15 @@ from .data_loader import (
     load_trip_data,
 )
 from .html_generator import generate_album_html
-from .image_selector import select_step_image
+from .image_selector import (
+    compute_default_photos_by_pages,
+    load_step_photos,
+    select_cover_photo,
+    should_use_cover_photo,
+)
 from .logger import create_progress, get_console, get_logger
+from .models import Photo
+from .photo_manager import PhotoManager
 
 logger = get_logger(__name__)
 console = get_console()
@@ -148,32 +155,96 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Output directory: {args.output}")
 
-    # Collect images for each step
-    step_images: dict[int, Path | None] = {}
-    progress = create_progress("Processing steps")
+    # Initialize photo manager
+    photo_manager = PhotoManager()
+
+    # Load photo configuration if it exists
+    photo_config = photo_manager.load_photos_config(steps, args.output)
+
+    # Load all photos for each step
+    steps_with_photos: dict[int, list[Photo]] = {}
+    steps_cover_photos: dict[int, Photo | None] = {}
+    steps_photo_pages: dict[int, list[list[Photo]]] = {}
+
+    progress = create_progress("Loading photos")
 
     with progress:
-        task_id = progress.add_task("Processing steps", total=len(steps))
+        task_id = progress.add_task("Loading photos", total=len(steps))
         for step in progress.track(steps, task_id=task_id):
-            logger.debug(f"Processing step: {step.city}")
-            progress.update(task_id, description=f"Processing steps: {step.city}")
+            logger.debug(f"Loading photos for step: {step.city}")
+            progress.update(task_id, description=f"Loading photos: {step.city}")
 
             # Get photo directory
             photo_dir = get_step_photo_dir(args.trip_dir, step)
             if not photo_dir:
                 logger.warning(f"No photo directory found for step {step.city}")
-                step_images[step.id] = None
-            else:
-                # Select image
-                image_path = select_step_image(photo_dir)
-                if image_path:
-                    logger.debug(f"Selected image: {image_path.name}")
-                    step_images[step.id] = image_path
-                else:
-                    logger.warning(f"No suitable image found for step {step.city}")
-                    step_images[step.id] = None
+                steps_with_photos[step.id] = []
+                steps_cover_photos[step.id] = None
+                steps_photo_pages[step.id] = []
+                continue
 
-        progress.update(task_id, description="Processing steps")
+            # Load all photos
+            photos = load_step_photos(photo_dir)
+            steps_with_photos[step.id] = photos
+
+            if not photos:
+                logger.warning(f"No photos found for step {step.city}")
+                steps_cover_photos[step.id] = None
+                steps_photo_pages[step.id] = []
+                continue
+
+            # Determine if we should use cover photo based on description length
+            use_cover = should_use_cover_photo(step.description)
+
+            # Check if we have saved configuration for this step
+            if photo_config and step.id in photo_config:
+                config = photo_config[step.id]
+                # Use saved cover photo if available
+                cover_photo_index = config.get("cover_photo_index")
+                if cover_photo_index:
+                    cover_photo = next(
+                        (p for p in photos if p.index == cover_photo_index), None
+                    )
+                    steps_cover_photos[step.id] = cover_photo if use_cover else None
+                else:
+                    steps_cover_photos[step.id] = (
+                        select_cover_photo(photos) if use_cover else None
+                    )
+
+                # Use saved photo pages if available
+                photo_pages_indices = config.get("photo_pages", [])
+                if photo_pages_indices:
+                    photo_pages: list[list[Photo]] = []
+                    for page_indices in photo_pages_indices:
+                        page_photos = [p for p in photos if p.index in page_indices]
+                        if page_photos:
+                            photo_pages.append(page_photos)
+                    steps_photo_pages[step.id] = photo_pages
+                else:
+                    # Use default layout strategy
+                    cover = steps_cover_photos[step.id]
+                    with console.status(
+                        f"[bold blue]Computing photo layout: {step.city}"
+                    ):
+                        steps_photo_pages[step.id] = compute_default_photos_by_pages(
+                            photos, cover
+                        )
+            else:
+                # No saved config: use automatic selection
+                cover_photo = select_cover_photo(photos) if use_cover else None
+                steps_cover_photos[step.id] = cover_photo
+                # Use default layout strategy
+                with console.status(f"[bold blue]Computing photo layout: {step.city}"):
+                    steps_photo_pages[step.id] = compute_default_photos_by_pages(
+                        photos, cover_photo
+                    )
+
+        progress.update(task_id, description="Loading photos")
+
+    # Save photo configuration for manual editing
+    photo_manager.save_photos_config(
+        steps, steps_with_photos, steps_cover_photos, steps_photo_pages, args.output
+    )
 
     # Generate single HTML file with all steps
     html_path = args.output / "album.html"
@@ -182,7 +253,9 @@ def main() -> None:
         logger.debug("Generating album HTML...")
         generate_album_html(
             steps,
-            step_images,
+            steps_with_photos,
+            steps_cover_photos,
+            steps_photo_pages,
             trip_data,
             font_path,
             html_path,

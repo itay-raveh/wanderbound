@@ -32,7 +32,7 @@ from .data_loader import (
     format_weather_condition,
 )
 from .logger import create_progress, get_console, get_logger
-from .models import Step, TripData
+from .models import Photo, Step, TripData
 from .settings import get_settings
 
 logger = get_logger(__name__)
@@ -210,7 +210,7 @@ def _calculate_progress(
 
 def prepare_step_data(
     step: Step,
-    image_path: Path | None,
+    cover_photo: Photo | None,
     step_index: int,
     steps: list[Step],
     trip_data: TripData,
@@ -219,14 +219,14 @@ def prepare_step_data(
     weather_data: WeatherData,
     flag_data: tuple[str | None, str | None] | None,
     map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
-    image_data_uri: str | None,
+    cover_image_data_uri: str | None,
     light_mode: bool = False,
 ) -> dict[str, Any]:
     """Prepare all data needed for rendering a step in the HTML template.
 
     Args:
         step: The step to prepare data for
-        image_path: Path to the selected image for this step, or None if no image found
+        cover_photo: Cover Photo object for this step, or None if no cover photo
         step_index: Zero-based index of this step in the steps list
         steps: Complete list of all steps being rendered
         trip_data: Trip metadata including start/end dates and timezone
@@ -235,7 +235,7 @@ def prepare_step_data(
         weather_data: WeatherData object containing temperatures, feels like temperatures, and icons
         flag_data: Tuple of (country_flag_data_uri, accent_color) or None
         map_data: Tuple of (country_map_data_uri, country_map_svg, (map_dot_x, map_dot_y)) or None
-        image_data_uri: Base64-encoded image data URI or None
+        cover_image_data_uri: Base64-encoded cover image data URI or None
         light_mode: If True, use light mode color scheme; if False, use dark mode
 
     Returns:
@@ -344,7 +344,7 @@ def prepare_step_data(
         "progress_percent": progress_percent,
         "day_counter_box_position": box_center_position,
         "day_counter_arrow_position": arrow_bar_position,
-        "image_data_uri": image_data_uri,
+        "cover_image_data_uri": cover_image_data_uri,
         "country_flag_data_uri": country_flag_data_uri,
         "country_map_data_uri": country_map_data_uri,
         "country_map_svg": country_map_svg,
@@ -362,18 +362,22 @@ def prepare_step_data(
 
 def generate_album_html(
     steps: list[Step],
-    step_images: dict[int, Path | None],
+    steps_with_photos: dict[int, list[Photo]],
+    steps_cover_photos: dict[int, Photo | None],
+    steps_photo_pages: dict[int, list[list[Photo]]],
     trip_data: TripData,
     font_path: Path,
     output_path: Path,
     use_step_range: bool = False,
     light_mode: bool = False,
 ) -> Path:
-    """Generate HTML album file from trip data and step images.
+    """Generate HTML album file from trip data and photos.
 
     Args:
         steps: List of steps to include in the album
-        step_images: Dictionary mapping step IDs to image file paths (or None if no image)
+        steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
+        steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
+        steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
         trip_data: Trip metadata including start/end dates, timezone, and all steps
         font_path: Path to the font file to use for titles
         output_path: Path where the HTML file should be written
@@ -459,17 +463,17 @@ def generate_album_html(
         map_progress.update(task_id, description="Processing maps")
     logger.debug(f"Processed {len(map_data_list)} maps")
 
-    # Batch convert images to data URIs
-    logger.debug("Converting images to data URIs...")
+    # Batch convert cover images to data URIs
+    logger.debug("Converting cover images to data URIs...")
     image_progress = create_progress("Processing images")
-    image_data_uri_list: list[str | None] = []
+    cover_image_data_uri_list: list[str | None] = []
     with image_progress:
         task_id = image_progress.add_task("Processing images", total=len(steps))
         for _idx, step in enumerate(image_progress.track(steps, task_id=task_id)):
             image_progress.update(
                 task_id, description=f"Processing images: {step.city}"
             )
-            image_path = step_images.get(step.id) if step.id else None
+            cover_photo = steps_cover_photos.get(step.id) if step.id else None
             # Check if we need two columns (determines if we need image data URI)
             # Match the logic from prepare_step_data
             description = _clean_description(step.description or "")
@@ -478,12 +482,12 @@ def generate_album_html(
                 len(description) > DESCRIPTION_TWO_COLUMNS_THRESHOLD
                 or use_three_columns
             )
-            if image_path and image_path.exists() and not use_two_columns:
-                image_data_uri_list.append(image_to_data_uri(image_path))
+            if cover_photo and cover_photo.path.exists() and not use_two_columns:
+                cover_image_data_uri_list.append(image_to_data_uri(cover_photo.path))
             else:
-                image_data_uri_list.append(None)
+                cover_image_data_uri_list.append(None)
         image_progress.update(task_id, description="Processing images")
-    logger.debug(f"Processed {len(image_data_uri_list)} images")
+    logger.debug(f"Processed {len(cover_image_data_uri_list)} cover images")
 
     # Prepare template environment
     template_dir = Path(__file__).parent / "templates"
@@ -504,7 +508,7 @@ def generate_album_html(
             weather_data,
             flag_data,
             map_data,
-            image_data_uri,
+            cover_image_data_uri,
         ) in enumerate(
             progress.track(
                 zip(
@@ -513,7 +517,7 @@ def generate_album_html(
                     weather_data_list,
                     flag_data_list,
                     map_data_list,
-                    image_data_uri_list,
+                    cover_image_data_uri_list,
                     strict=True,
                 ),
                 task_id=task_id,
@@ -522,10 +526,22 @@ def generate_album_html(
             logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
             progress.update(task_id, description=f"Preparing steps: {step.city}")
 
-            image_path = step_images.get(step.id) if step.id else None
+            cover_photo = steps_cover_photos.get(step.id) if step.id else None
+            photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
+
+            # Convert photo pages to data URIs for template
+            photo_pages_data_uris: list[list[str]] = []
+            for page in photo_pages:
+                page_data_uris: list[str] = []
+                for photo in page:
+                    if photo.path.exists():
+                        page_data_uris.append(image_to_data_uri(photo.path))
+                if page_data_uris:
+                    photo_pages_data_uris.append(page_data_uris)
+
             step_data = prepare_step_data(
                 step,
-                image_path,
+                cover_photo,
                 idx,
                 steps,
                 trip_data,
@@ -534,9 +550,11 @@ def generate_album_html(
                 weather_data,
                 flag_data,
                 map_data,
-                image_data_uri,
+                cover_image_data_uri,
                 light_mode,
             )
+            # Add photo pages to step data
+            step_data["photo_pages"] = photo_pages_data_uris
             step_data_list.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
