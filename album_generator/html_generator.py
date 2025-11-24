@@ -18,7 +18,7 @@ from .apis import (
     get_country_map_dot_position,
     get_country_map_svg,
 )
-from .apis.weather import WeatherData
+from .apis.weather import WeatherData, get_weather_data
 from .constants import (
     DESCRIPTION_THREE_COLUMNS_THRESHOLD,
     DESCRIPTION_TWO_COLUMNS_THRESHOLD,
@@ -356,7 +356,6 @@ def generate_album_html(
     output_path: Path,
     use_step_range: bool = False,
     light_mode: bool = False,
-    weather_data_list: list[WeatherData] | None = None,
 ) -> Path:
     """Generate HTML album file from trip data and step images.
 
@@ -382,10 +381,25 @@ def generate_album_html(
         elevations = get_altitude_batch(locations)
     logger.debug(f"Fetched {len(elevations)} altitude values")
 
-    # Use provided weather data or create empty list
-    if weather_data_list is None:
-        logger.warning("No weather data provided, using empty list")
-        weather_data_list = []
+    # Batch fetch weather data
+    logger.debug("Fetching weather data...")
+    weather_progress = create_progress("Fetching weather data")
+    weather_data_list: list[WeatherData] = []
+    with weather_progress:
+        task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
+        for step in weather_progress.track(steps, task_id=task_id):
+            weather_progress.update(
+                task_id, description=f"Fetching weather data: {step.city}"
+            )
+            weather_data = get_weather_data(
+                step.location.lat,
+                step.location.lon,
+                step.start_time,
+                step.timezone_id,
+            )
+            weather_data_list.append(weather_data)
+        weather_progress.update(task_id, description="Fetching weather data")
+    logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
 
     # Batch fetch flags and accent colors
     logger.debug("Fetching flags and extracting colors...")

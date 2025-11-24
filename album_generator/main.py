@@ -5,7 +5,6 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from .apis.weather import WeatherData, get_weather_data
 from .data_loader import (
     get_step_photo_dir,
     get_steps_distributed,
@@ -175,26 +174,6 @@ def main() -> None:
 
         progress.update(task_id, description="Processing steps")
 
-    # Batch fetch weather data (before HTML generation)
-    logger.debug("Fetching weather data...")
-    weather_progress = create_progress("Fetching weather data")
-    weather_data_list: list[WeatherData] = []
-    with weather_progress:
-        task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
-        for step in weather_progress.track(steps, task_id=task_id):
-            weather_progress.update(
-                task_id, description=f"Fetching weather data: {step.city}"
-            )
-            weather_data = get_weather_data(
-                step.location.lat,
-                step.location.lon,
-                step.start_time,
-                step.timezone_id,
-            )
-            weather_data_list.append(weather_data)
-        weather_progress.update(task_id, description="Fetching weather data")
-    logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
-
     # Generate single HTML file with all steps
     html_path = args.output / "album.html"
     use_step_range = args.progress_mode == "step-range"
@@ -208,7 +187,6 @@ def main() -> None:
             html_path,
             use_step_range,
             args.light_mode,
-            weather_data_list,
         )
     logger.info(f"Generated: {html_path}", extra={"success": True})
 
