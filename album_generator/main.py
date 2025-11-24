@@ -1,6 +1,7 @@
 """Main CLI application for generating photo albums."""
 
 import argparse
+import os
 import sys
 import webbrowser
 from pathlib import Path
@@ -33,6 +34,11 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
     """Generate PDF from HTML using Playwright."""
     try:
         from playwright.sync_api import sync_playwright
+
+        # Suppress Wayland display warnings on Linux
+        # Playwright will fallback to X11 automatically
+        if "WAYLAND_DISPLAY" in os.environ:
+            os.environ.pop("WAYLAND_DISPLAY", None)
 
         logger.info("Generating PDF from HTML...")
         with sync_playwright() as p:
