@@ -200,10 +200,11 @@ def _parse_day_weather_data(
     hours = day_data.get("hours", [])
 
     # Create WeatherData with day data (night data will be filled later)
+    # Let Pydantic handle type conversions (int -> float, None handling, etc.)
     weather = WeatherData(
-        day_temp=float(day_temp) if day_temp is not None else None,
-        night_temp=float(night_temp) if night_temp is not None else None,
-        day_feels_like=float(day_feels_like) if day_feels_like is not None else None,
+        day_temp=day_temp,
+        night_temp=night_temp,
+        day_feels_like=day_feels_like,
         day_icon=day_icon,
     )
 
