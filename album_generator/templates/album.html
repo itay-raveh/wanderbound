@@ -152,8 +152,10 @@
     {# Photo pages for this step #} {% if step.photo_pages %} {% for photo_page
     in step.photo_pages %}
     <div class="step-page photo-page">
-      <div class="photo-page-container">
-        {% for photo_path in photo_page %}
+      <div
+        class="photo-page-container{% if photo_page.is_three_portraits %} three-portraits{% endif %}{% if photo_page.is_portrait_landscape_split %} portrait-landscape-split{% endif %}"
+      >
+        {% for photo_path in photo_page.photos %}
         <div class="photo-item">
           <img
             src="{{ photo_path }}"

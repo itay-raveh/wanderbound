@@ -406,6 +406,8 @@ def generate_album_html(
     steps_with_photos: dict[int, list[Photo]],
     steps_cover_photos: dict[int, Photo | None],
     steps_photo_pages: dict[int, list[list[Photo]]],
+    steps_photo_page_layouts: dict[int, list[bool]],
+    steps_photo_page_portrait_split_layouts: dict[int, list[bool]],
     trip_data: TripData,
     font_path: Path,
     output_path: Path,
@@ -419,6 +421,8 @@ def generate_album_html(
         steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
         steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
         steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
+        steps_photo_page_layouts: Dictionary mapping step IDs to lists of layout flags (True for 3-portrait layout)
+        steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of layout flags (True for portrait-landscape split layout)
         trip_data: Trip metadata including start/end dates, timezone, and all steps
         font_path: Path to the font file to use for titles
         output_path: Path where the HTML file should be written
@@ -580,11 +584,19 @@ def generate_album_html(
 
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
+            photo_page_layouts = (
+                steps_photo_page_layouts.get(step.id, []) if step.id else []
+            )
+            photo_page_portrait_split_layouts = (
+                steps_photo_page_portrait_split_layouts.get(step.id, [])
+                if step.id
+                else []
+            )
 
             # Copy photo pages images to assets directory
-            photo_pages_paths: list[list[str]] = []
+            photo_pages_paths: list[dict[str, Any]] = []
             step_name = step.get_name_for_photos_export()
-            for page in photo_pages:
+            for page_idx, page in enumerate(photo_pages):
                 page_paths: list[str] = []
                 for photo in page:
                     if photo.path.exists():
@@ -594,7 +606,56 @@ def generate_album_html(
                             )
                         )
                 if page_paths:
-                    photo_pages_paths.append(page_paths)
+                    # Get the layout flags for this page
+                    # photo_page_layouts should have the same length as photo_pages
+                    is_three_portraits = False
+                    is_portrait_landscape_split = False
+                    if page_idx < len(photo_page_layouts):
+                        is_three_portraits = photo_page_layouts[page_idx]
+                    if page_idx < len(photo_page_portrait_split_layouts):
+                        is_portrait_landscape_split = photo_page_portrait_split_layouts[
+                            page_idx
+                        ]
+
+                    # Safety check: if we have exactly 3 photos, double-check the layout
+                    # This ensures the flag is set even if there was a mismatch in the layout array
+                    if len(page) == 3:
+                        from .image_selector import (
+                            _is_one_portrait_two_landscapes,
+                            _is_three_portraits,
+                            get_photo_ratio,
+                        )
+
+                        if _is_three_portraits(tuple(page)):
+                            is_three_portraits = True
+                            is_portrait_landscape_split = False
+                            logger.debug(
+                                f"Detected 3 portraits in html_generator, forcing layout for step {step.id} page {page_idx}"
+                            )
+                        elif _is_one_portrait_two_landscapes(tuple(page)):
+                            is_three_portraits = False
+                            is_portrait_landscape_split = True
+                            logger.debug(
+                                f"Detected 1 portrait + 2 landscapes in html_generator, forcing split layout for step {step.id} page {page_idx}"
+                            )
+                        else:
+                            # Check what we actually have
+                            ratios = [
+                                get_photo_ratio(p.width or 0, p.height or 0)
+                                for p in page
+                            ]
+                            logger.debug(
+                                f"Page with 3 photos but no special layout in html_generator. Step {step.id} page {page_idx}, "
+                                f"ratios: {[r.name for r in ratios]}, dimensions: {[(p.width, p.height) for p in page]}"
+                            )
+
+                    photo_pages_paths.append(
+                        {
+                            "photos": page_paths,
+                            "is_three_portraits": is_three_portraits,
+                            "is_portrait_landscape_split": is_portrait_landscape_split,
+                        }
+                    )
 
             step_data = prepare_step_data(
                 step,

@@ -111,6 +111,11 @@ def main() -> None:
         action="store_true",
         help="Use light mode instead of dark mode (default: dark mode)",
     )
+    parser.add_argument(
+        "--clear-photos-cache",
+        action="store_true",
+        help="Clear cached photo layout configuration and regenerate from scratch",
+    )
 
     args = parser.parse_args()
 
@@ -158,6 +163,18 @@ def main() -> None:
     # Initialize photo manager
     photo_manager = PhotoManager()
 
+    # Clear photos cache if requested
+    if args.clear_photos_cache:
+        logger.info("Clearing photos cache...")
+        photos_config_path = args.output / "photos_mapping.json"
+        photos_pages_path = args.output / "photos_by_pages.txt"
+        if photos_config_path.exists():
+            photos_config_path.unlink()
+            logger.debug(f"Deleted {photos_config_path}")
+        if photos_pages_path.exists():
+            photos_pages_path.unlink()
+            logger.debug(f"Deleted {photos_pages_path}")
+
     # Load photo configuration if it exists
     photo_config = photo_manager.load_photos_config(steps, args.output)
 
@@ -165,6 +182,8 @@ def main() -> None:
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
+    steps_photo_page_layouts: dict[int, list[bool]] = {}
+    steps_photo_page_portrait_split_layouts: dict[int, list[bool]] = {}
 
     progress = create_progress("Loading photos")
 
@@ -215,35 +234,111 @@ def main() -> None:
                 photo_pages_indices = config.get("photo_pages", [])
                 if photo_pages_indices:
                     photo_pages: list[list[Photo]] = []
+                    # Create a mapping from photo index to Photo object for quick lookup
+                    photos_by_index = {p.index: p for p in photos}
                     for page_indices in photo_pages_indices:
-                        page_photos = [p for p in photos if p.index in page_indices]
+                        # Preserve the order from saved indices
+                        page_photos = [
+                            photos_by_index[idx]
+                            for idx in page_indices
+                            if idx in photos_by_index
+                        ]
                         if page_photos:
                             photo_pages.append(page_photos)
                     steps_photo_pages[step.id] = photo_pages
+                    # Load layout flags
+                    saved_is_three_portraits = config.get("is_three_portraits", [])
+                    saved_is_portrait_landscape_split = config.get(
+                        "is_portrait_landscape_split", []
+                    )
+                    logger.debug(
+                        f"Loading layout flags for step {step.city}: "
+                        f"is_three_portraits={saved_is_three_portraits}, "
+                        f"is_portrait_landscape_split={saved_is_portrait_landscape_split}, "
+                        f"num_pages={len(photo_pages)}"
+                    )
+                    # Ensure flags match the number of pages, or compute them if missing
+                    if len(saved_is_three_portraits) == len(photo_pages):
+                        steps_photo_page_layouts[step.id] = saved_is_three_portraits
+                        logger.debug(
+                            f"Using saved is_three_portraits flags for step {step.city}"
+                        )
+                    else:
+                        # Compute flags from photo pages
+                        from .image_selector import (
+                            _is_one_portrait_two_landscapes,
+                            _is_three_portraits,
+                        )
+
+                        computed_is_three_portraits: list[bool] = []
+                        for page in photo_pages:
+                            computed_is_three_portraits.append(
+                                len(page) == 3 and _is_three_portraits(tuple(page))
+                            )
+                        steps_photo_page_layouts[step.id] = computed_is_three_portraits
+                        logger.debug(
+                            f"Computed is_three_portraits flags for step {step.city}: {computed_is_three_portraits}"
+                        )
+
+                    if len(saved_is_portrait_landscape_split) == len(photo_pages):
+                        steps_photo_page_portrait_split_layouts[step.id] = (
+                            saved_is_portrait_landscape_split
+                        )
+                        logger.debug(
+                            f"Using saved is_portrait_landscape_split flags for step {step.city}: {saved_is_portrait_landscape_split}"
+                        )
+                    else:
+                        # Compute flags from photo pages
+                        from .image_selector import _is_one_portrait_two_landscapes
+
+                        computed_is_portrait_landscape_split: list[bool] = []
+                        for page in photo_pages:
+                            computed_is_portrait_landscape_split.append(
+                                len(page) == 3
+                                and _is_one_portrait_two_landscapes(tuple(page))
+                            )
+                        steps_photo_page_portrait_split_layouts[step.id] = (
+                            computed_is_portrait_landscape_split
+                        )
+                        logger.debug(
+                            f"Computed is_portrait_landscape_split flags for step {step.city}: {computed_is_portrait_landscape_split}"
+                        )
                 else:
                     # Use default layout strategy
                     cover = steps_cover_photos[step.id]
                     with console.status(
                         f"[bold blue]Computing photo layout: {step.city}"
                     ):
-                        steps_photo_pages[step.id] = compute_default_photos_by_pages(
+                        pages, layouts, split_layouts = compute_default_photos_by_pages(
                             photos, cover
                         )
+                        steps_photo_pages[step.id] = pages
+                        steps_photo_page_layouts[step.id] = layouts
+                        steps_photo_page_portrait_split_layouts[step.id] = split_layouts
             else:
                 # No saved config: use automatic selection
                 cover_photo = select_cover_photo(photos) if use_cover else None
                 steps_cover_photos[step.id] = cover_photo
                 # Use default layout strategy
                 with console.status(f"[bold blue]Computing photo layout: {step.city}"):
-                    steps_photo_pages[step.id] = compute_default_photos_by_pages(
+                    pages, layouts, split_layouts = compute_default_photos_by_pages(
                         photos, cover_photo
                     )
+                    steps_photo_pages[step.id] = pages
+                    steps_photo_page_layouts[step.id] = layouts
+                    steps_photo_page_portrait_split_layouts[step.id] = split_layouts
 
         progress.update(task_id, description="Loading photos")
 
     # Save photo configuration for manual editing
     photo_manager.save_photos_config(
-        steps, steps_with_photos, steps_cover_photos, steps_photo_pages, args.output
+        steps,
+        steps_with_photos,
+        steps_cover_photos,
+        steps_photo_pages,
+        args.output,
+        steps_photo_page_layouts,
+        steps_photo_page_portrait_split_layouts,
     )
 
     # Generate single HTML file with all steps
@@ -256,6 +351,8 @@ def main() -> None:
             steps_with_photos,
             steps_cover_photos,
             steps_photo_pages,
+            steps_photo_page_layouts,
+            steps_photo_page_portrait_split_layouts,
             trip_data,
             font_path,
             html_path,

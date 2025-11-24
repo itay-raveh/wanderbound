@@ -24,6 +24,8 @@ class PhotoManager:
         steps_cover_photos: dict[int, Photo | None],
         steps_photo_pages: dict[int, list[list[Photo]]],
         save_path: Path,
+        steps_photo_page_layouts: dict[int, list[bool]] | None = None,
+        steps_photo_page_portrait_split_layouts: dict[int, list[bool]] | None = None,
     ) -> None:
         """Save photo configuration to files for manual editing.
 
@@ -33,6 +35,8 @@ class PhotoManager:
             steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
             steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
             save_path: Directory where config files should be saved
+            steps_photo_page_layouts: Dictionary mapping step IDs to lists of is_three_portraits flags
+            steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
         """
         export_photos_mapping_json: dict[str, dict[str, Any]] = {}
         export_line_by_line: list[str] = []
@@ -52,7 +56,33 @@ class PhotoManager:
             for photo in photos:
                 step_photos_mapping[str(photo.index)] = photo.to_dict()
 
-            export_photos_mapping_json[str(step_id)] = step_photos_mapping
+            # Add layout flags to the mapping
+            step_config: dict[str, Any] = {"photos": step_photos_mapping}
+            # Always include layout flags, even if empty lists
+            photo_pages = steps_photo_pages.get(step_id, [])
+            num_pages = len(photo_pages)
+            if steps_photo_page_layouts and step_id in steps_photo_page_layouts:
+                flags = steps_photo_page_layouts[step_id]
+                if len(flags) == num_pages:
+                    step_config["is_three_portraits"] = flags
+                else:
+                    step_config["is_three_portraits"] = [False] * num_pages
+            else:
+                step_config["is_three_portraits"] = [False] * num_pages
+
+            if (
+                steps_photo_page_portrait_split_layouts
+                and step_id in steps_photo_page_portrait_split_layouts
+            ):
+                flags = steps_photo_page_portrait_split_layouts[step_id]
+                if len(flags) == num_pages:
+                    step_config["is_portrait_landscape_split"] = flags
+                else:
+                    step_config["is_portrait_landscape_split"] = [False] * num_pages
+            else:
+                step_config["is_portrait_landscape_split"] = [False] * num_pages
+
+            export_photos_mapping_json[str(step_id)] = step_config
 
             # Write cover photo
             cover_photo = steps_cover_photos.get(step_id)
@@ -168,7 +198,13 @@ class PhotoManager:
                     i += 1
 
                 # Reconstruct Photo objects from mapping
-                step_photos_mapping = photos_mapping.get(str(matched_step.id), {})
+                step_config_data = photos_mapping.get(str(matched_step.id), {})
+                step_photos_mapping = step_config_data.get("photos", {})
+                is_three_portraits = step_config_data.get("is_three_portraits", [])
+                is_portrait_landscape_split = step_config_data.get(
+                    "is_portrait_landscape_split", []
+                )
+
                 reconstructed_photos: list[Photo] = []
                 for photo_idx_str, photo_data in step_photos_mapping.items():
                     try:
@@ -183,6 +219,8 @@ class PhotoManager:
                     "cover_photo_index": cover_photo_index,
                     "photo_pages": photo_pages,
                     "photos": reconstructed_photos,
+                    "is_three_portraits": is_three_portraits,
+                    "is_portrait_landscape_split": is_portrait_landscape_split,
                 }
 
             return config if config else None
