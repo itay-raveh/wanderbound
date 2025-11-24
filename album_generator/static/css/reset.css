@@ -7,7 +7,7 @@
 }
 
 @page {
-  size: var(--page-width) var(--page-height);
+  size: 297mm 210mm; /* A4 landscape for print */
   margin: 0;
   padding: 0;
 }

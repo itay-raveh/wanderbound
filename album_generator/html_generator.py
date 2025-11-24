@@ -76,8 +76,8 @@ def copy_image_to_assets(
     return f"assets/images/{output_filename}"
 
 
-def copy_assets(font_path: Path, output_dir: Path, light_mode: bool = False) -> str:
-    """Copy assets (fonts, CSS, etc.) to output directory and return font path."""
+def copy_assets(font_path: Path, output_dir: Path) -> None:
+    """Copy assets (fonts, CSS, etc.) to output directory."""
     import shutil
 
     assets_dir = output_dir / "assets"
@@ -91,11 +91,10 @@ def copy_assets(font_path: Path, output_dir: Path, light_mode: bool = False) -> 
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)
 
-    # Copy and render CSS files
-    # Note: variables.css is a Jinja2 template that uses {{ font_path }} and {% if light_mode %}
+    # Copy CSS files (no longer need templating - using CSS media queries and classes)
     static_dir = Path(__file__).parent / "static" / "css"
     css_files = [
-        "variables.css",  # Jinja2 template - contains font_path and light_mode conditionals
+        "variables.css",
         "reset.css",
         "layout.css",
         "components.css",
@@ -103,19 +102,11 @@ def copy_assets(font_path: Path, output_dir: Path, light_mode: bool = False) -> 
         "photos.css",
     ]
 
-    # Create Jinja2 environment for CSS templates
-    # All CSS files are processed as templates (even if they don't use template syntax)
-    env = Environment(loader=FileSystemLoader(str(static_dir)))
-
     for css_file in css_files:
-        template = env.get_template(css_file)
-        rendered_css = template.render(
-            font_path="../fonts/Renner.ttf", light_mode=light_mode
-        )
+        source_css = static_dir / css_file
         output_css = css_dir / css_file
-        output_css.write_text(rendered_css, encoding="utf-8")
-
-    return "assets/fonts/Renner.ttf"
+        if source_css.exists():
+            shutil.copy2(source_css, output_css)
 
 
 def _is_hebrew(text: str) -> bool:
@@ -447,7 +438,7 @@ def generate_album_html(
     Returns:
         Path to the generated HTML file
     """
-    font_rel_path = copy_assets(font_path, output_path.parent, light_mode)
+    copy_assets(font_path, output_path.parent)
 
     # Batch fetch altitudes
     with console.status("[bold blue]Fetching altitudes..."):
@@ -634,9 +625,7 @@ def generate_album_html(
     logger.debug("Step data prepared")
 
     # Render template
-    html = template.render(
-        steps=step_data_list, font_path=font_rel_path, light_mode=light_mode
-    )
+    html = template.render(steps=step_data_list, light_mode=light_mode)
 
     # Write to file
     output_path.write_text(html, encoding="utf-8")

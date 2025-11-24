@@ -17,12 +17,12 @@
     <link rel="stylesheet" href="assets/css/typography.css" />
     <link rel="stylesheet" href="assets/css/photos.css" />
   </head>
-  <body>
+  <body{% if light_mode %} class="light-mode"{% endif %}>
     {% for step in steps %}
     <div
       class="step-page {% if step.use_two_columns %}has-two-columns{% endif %}"
     >
-      <div class="left-panel">
+      <div class="step-data">
         <div class="location-section">
           <div class="map-coords-container">
             <div class="map-icon">
@@ -129,7 +129,7 @@
         </div>
       </div>
 
-      <div class="right-panel">
+      <div class="step-content">
         {% if step.use_two_columns %}
         <div
           class="two-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}"
