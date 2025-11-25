@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import pytz
-from jinja2 import Environment, FileSystemLoader
 from langdetect import LangDetectException, detect
 
 from .apis import (
@@ -23,6 +22,7 @@ from .formatters import format_coordinates, format_date, format_weather_conditio
 from .logger import create_progress, get_console, get_logger
 from .models import Photo, Step, TripData
 from .settings import get_settings
+from .template_renderer import create_template_environment, render_album_template
 
 logger = get_logger(__name__)
 console = get_console()
@@ -512,9 +512,9 @@ def generate_album_html(
     logger.debug(f"Processed {len(cover_image_path_list)} cover images")
 
     # Prepare template environment
-    template_dir = Path(__file__).parent / "templates"
-    env = Environment(loader=FileSystemLoader(str(template_dir)))
-    template = env.get_template("album.html")
+    env = create_template_environment()
+    settings = get_settings()
+    template = env.get_template(settings.file.album_html_file)
 
     # Prepare step data
     logger.debug("Preparing step data...")
@@ -637,7 +637,7 @@ def generate_album_html(
     logger.debug("Step data prepared")
 
     # Render template
-    html = template.render(steps=step_data_list, light_mode=light_mode)
+    html = render_album_template(template, step_data_list, light_mode)
 
     # Write to file
     output_path.write_text(html, encoding="utf-8")
