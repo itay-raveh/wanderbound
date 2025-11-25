@@ -1,6 +1,7 @@
 """Formatting functions for dates, coordinates, and weather conditions."""
 
 from datetime import datetime
+from functools import lru_cache
 
 import pytz
 from geopy import Point
@@ -115,6 +116,7 @@ def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
         }
 
 
+@lru_cache(maxsize=128)
 def format_weather_condition(condition: str | None) -> str:
     """Format weather condition code to display text.
 

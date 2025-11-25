@@ -143,18 +143,12 @@ def get_steps_distributed(all_steps: list[Step], count: int) -> list[Step]:
     if count >= len(all_steps):
         return all_steps
 
-    # Calculate step indices to sample
+    # Calculate step indices to sample evenly across the trip
     step_indices = []
     for i in range(count):
         idx = int((i / (count - 1)) * (len(all_steps) - 1)) if count > 1 else 0
         step_indices.append(idx)
 
-    # Remove duplicates while preserving order
-    seen = set()
-    result = []
-    for idx in step_indices:
-        if idx not in seen:
-            seen.add(idx)
-            result.append(all_steps[idx])
-
-    return result
+    # Remove duplicates while preserving order using dict.fromkeys()
+    unique_indices = list(dict.fromkeys(step_indices))
+    return [all_steps[idx] for idx in unique_indices]
