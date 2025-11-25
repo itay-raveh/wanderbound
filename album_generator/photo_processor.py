@@ -1,5 +1,6 @@
 """Photo processing and layout computation for steps."""
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -63,57 +64,101 @@ def process_step_photos(
 
     use_cover = should_use_cover_photo(step.description)
 
+    # Determine cover photo
+    cover_photo = _get_cover_photo(step, photos, photo_config, use_cover)
+
     # Check if we have saved configuration for this step
+    if photo_config and step.id in photo_config:
+        config = photo_config[step.id]
+        photo_pages_indices = config.get("photo_pages", [])
+        if photo_pages_indices:
+            photo_pages = _reconstruct_photo_pages(photos, photo_pages_indices)
+            is_three_portraits = _compute_layout_flags(
+                photo_pages,
+                config.get("is_three_portraits", []),
+                lambda p: len(p) == 3 and _is_three_portraits(tuple(p)),
+            )
+            is_portrait_landscape_split = _compute_layout_flags(
+                photo_pages,
+                config.get("is_portrait_landscape_split", []),
+                lambda p: len(p) == 3 and _is_one_portrait_two_landscapes(tuple(p)),
+            )
+            return photos, cover_photo, photo_pages, is_three_portraits, is_portrait_landscape_split
+
+    # Use default layout strategy (no saved config or no saved pages)
+    pages, layouts, split_layouts = compute_default_photos_by_pages(photos, cover_photo)
+    return photos, cover_photo, pages, layouts, split_layouts
+
+
+def _get_cover_photo(
+    step: Step,
+    photos: list[Photo],
+    photo_config: dict[int, dict[str, Any]] | None,
+    use_cover: bool,
+) -> Photo | None:
+    """Get cover photo from config or auto-select.
+
+    Args:
+        step: Step object.
+        photos: List of available photos.
+        photo_config: Optional saved photo configuration.
+        use_cover: Whether to use a cover photo.
+
+    Returns:
+        Cover photo or None.
+    """
+    if not use_cover:
+        return None
+
     if photo_config and step.id in photo_config:
         config = photo_config[step.id]
         cover_photo_index = config.get("cover_photo_index")
         if cover_photo_index:
-            cover_photo = next((p for p in photos if p.index == cover_photo_index), None)
-            cover_photo = cover_photo if use_cover else None
-        else:
-            cover_photo = select_cover_photo(photos) if use_cover else None
+            return next((p for p in photos if p.index == cover_photo_index), None)
 
-        photo_pages_indices = config.get("photo_pages", [])
-        if photo_pages_indices:
-            photo_pages: list[list[Photo]] = []
-            photos_by_index = {p.index: p for p in photos}
-            for page_indices in photo_pages_indices:
-                page_photos = [
-                    photos_by_index[idx] for idx in page_indices if idx in photos_by_index
-                ]
-                if page_photos:
-                    photo_pages.append(page_photos)
+    return select_cover_photo(photos)
 
-            saved_is_three_portraits = config.get("is_three_portraits", [])
-            saved_is_portrait_landscape_split = config.get("is_portrait_landscape_split", [])
 
-            if len(saved_is_three_portraits) == len(photo_pages):
-                is_three_portraits = saved_is_three_portraits
-            else:
-                computed_is_three_portraits: list[bool] = []
-                for page in photo_pages:
-                    computed_is_three_portraits.append(
-                        len(page) == 3 and _is_three_portraits(tuple(page))
-                    )
-                is_three_portraits = computed_is_three_portraits
+def _reconstruct_photo_pages(
+    photos: list[Photo], photo_pages_indices: list[list[int]]
+) -> list[list[Photo]]:
+    """Reconstruct photo pages from saved indices.
 
-            if len(saved_is_portrait_landscape_split) == len(photo_pages):
-                is_portrait_landscape_split = saved_is_portrait_landscape_split
-            else:
-                computed_is_portrait_landscape_split: list[bool] = []
-                for page in photo_pages:
-                    computed_is_portrait_landscape_split.append(
-                        len(page) == 3 and _is_one_portrait_two_landscapes(tuple(page))
-                    )
-                is_portrait_landscape_split = computed_is_portrait_landscape_split
+    Args:
+        photos: List of available Photo objects.
+        photo_pages_indices: List of page indices from saved config.
 
-            return photos, cover_photo, photo_pages, is_three_portraits, is_portrait_landscape_split
-        else:
-            # Use default layout strategy
-            pages, layouts, split_layouts = compute_default_photos_by_pages(photos, cover_photo)
-            return photos, cover_photo, pages, layouts, split_layouts
-    else:
-        # No saved config: use automatic selection
-        cover_photo = select_cover_photo(photos) if use_cover else None
-        pages, layouts, split_layouts = compute_default_photos_by_pages(photos, cover_photo)
-        return photos, cover_photo, pages, layouts, split_layouts
+    Returns:
+        List of photo pages, each page is a list of Photo objects.
+    """
+    photo_pages: list[list[Photo]] = []
+    photos_by_index = {p.index: p for p in photos}
+    for page_indices in photo_pages_indices:
+        page_photos = [photos_by_index[idx] for idx in page_indices if idx in photos_by_index]
+        if page_photos:
+            photo_pages.append(page_photos)
+    return photo_pages
+
+
+def _compute_layout_flags(
+    photo_pages: list[list[Photo]],
+    saved_flags: list[bool],
+    compute_fn: Callable[[list[Photo]], bool],
+) -> list[bool]:
+    """Compute layout flags, using saved flags if they match page count.
+
+    Args:
+        photo_pages: List of photo pages.
+        saved_flags: Saved layout flags from config.
+        compute_fn: Function to compute flag for a single page.
+
+    Returns:
+        List of layout flags, one per page.
+    """
+    if len(saved_flags) == len(photo_pages):
+        return saved_flags
+
+    computed_flags: list[bool] = []
+    for page in photo_pages:
+        computed_flags.append(compute_fn(page))
+    return computed_flags

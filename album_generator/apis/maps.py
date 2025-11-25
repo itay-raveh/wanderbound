@@ -36,35 +36,39 @@ _SVG_PATH_BOUNDS: dict[str, dict[str, float | dict[str, float]]] = {}
 _SVG_TRANSFORMS: dict[str, dict[str, float]] = {}
 
 
+def _remove_xml_declarations(svg_data: str) -> str:
+    """Remove XML declaration and DOCTYPE from SVG to avoid DTD fetching.
+
+    Args:
+        svg_data: Raw SVG string.
+
+    Returns:
+        Cleaned SVG string without XML declarations.
+    """
+    lines = svg_data.split("\n")
+    cleaned_lines = []
+    skip_doctype = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("<?xml"):
+            continue
+        if stripped.startswith("<!DOCTYPE"):
+            skip_doctype = True
+            continue
+        if skip_doctype:
+            if ">" in line:
+                skip_doctype = False
+            continue
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)
+
+
 def _parse_svg_with_lxml(svg_data: str) -> etree._Element | None:
     """Parse SVG string using lxml."""
     try:
-        # Remove XML declaration and DOCTYPE if present (to avoid DTD fetching)
-        svg_clean = svg_data
-        lines = svg_clean.split("\n")
-        cleaned_lines = []
-        skip_doctype = False
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("<?xml"):
-                continue  # Skip XML declaration
-            elif stripped.startswith("<!DOCTYPE"):
-                skip_doctype = True
-                continue  # Skip DOCTYPE line
-            elif skip_doctype and ">" in line and not stripped.startswith("<"):
-                # Skip continuation of DOCTYPE if it spans multiple lines
-                if ">" in line:
-                    skip_doctype = False
-                continue
-            elif skip_doctype:
-                # Still in DOCTYPE block
-                if ">" in line:
-                    skip_doctype = False
-                continue
-            else:
-                cleaned_lines.append(line)
-
-        svg_clean = "\n".join(cleaned_lines)
+        svg_clean = _remove_xml_declarations(svg_data)
 
         # Use parser that doesn't fetch external DTDs
         parser = etree.XMLParser(
