@@ -1,11 +1,15 @@
 """Template rendering utilities for HTML generation."""
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader
 
 from .logger import get_logger
+from .types import StepData
+
+if TYPE_CHECKING:
+    from jinja2 import Template
 
 logger = get_logger(__name__)
 
@@ -23,7 +27,7 @@ def create_template_environment() -> Environment:
 
 
 def render_album_template(
-    template: Any, step_data_list: list[dict[str, Any]], light_mode: bool = False
+    template: "Template", step_data_list: list[StepData], light_mode: bool = False
 ) -> str:
     """Render the album HTML template with step data.
 

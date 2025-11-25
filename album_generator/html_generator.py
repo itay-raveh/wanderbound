@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import pytz
 from langdetect import LangDetectException, detect
@@ -23,6 +22,7 @@ from .logger import create_progress, get_console, get_logger
 from .models import Photo, Step, TripData
 from .settings import get_settings
 from .template_renderer import create_template_environment, render_album_template
+from .types import PhotoPageData, StepData
 
 logger = get_logger(__name__)
 console = get_console()
@@ -246,7 +246,7 @@ def prepare_step_data(
     map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
     cover_image_path: str | None,
     light_mode: bool = False,
-) -> dict[str, Any]:
+) -> StepData:
     """Prepare all data needed for rendering a step in the HTML template.
 
     Args:
@@ -518,7 +518,7 @@ def generate_album_html(
 
     # Prepare step data
     logger.debug("Preparing step data...")
-    step_data_list = []
+    step_data_list: list[StepData] = []
 
     progress = create_progress("Preparing steps")
 
@@ -556,7 +556,7 @@ def generate_album_html(
             )
 
             # Copy photo pages images to assets directory
-            photo_pages_paths: list[dict[str, Any]] = []
+            photo_pages_paths: list[PhotoPageData] = []
             step_name = step.get_name_for_photos_export()
             for page_idx, page in enumerate(photo_pages):
                 page_paths: list[str] = []
@@ -607,11 +607,11 @@ def generate_album_html(
                             )
 
                     photo_pages_paths.append(
-                        {
-                            "photos": page_paths,
-                            "is_three_portraits": is_three_portraits,
-                            "is_portrait_landscape_split": is_portrait_landscape_split,
-                        }
+                        PhotoPageData(
+                            photos=page_paths,
+                            is_three_portraits=is_three_portraits,
+                            is_portrait_landscape_split=is_portrait_landscape_split,
+                        )
                     )
 
             step_data = prepare_step_data(

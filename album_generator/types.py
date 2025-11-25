@@ -2,41 +2,50 @@
 
 from typing import Any, TypedDict
 
-from .models import Photo, Step
+
+class PhotoPageData(TypedDict):
+    """Represents a single photo page with its layout flags."""
+
+    photos: list[str]
+    is_three_portraits: bool
+    is_portrait_landscape_split: bool
 
 
-class StepDataDict(TypedDict, total=False):
+class StepData(TypedDict, total=False):
     """Dictionary structure for step data passed to templates."""
 
-    step: Step
-    cover_photo: Photo | None
-    cover_image_path: str | None
-    date_data: dict[str, str]
-    coords_data: dict[str, str]
-    day_num: int
-    progress_percent: float
-    arrow_bar_position: float
-    box_center_position: float
-    elevation: float | None
-    day_temp_display: str
-    night_temp_display: str
+    city: str
+    country: str
+    country_code: str
+    coords_lat: str
+    coords_lon: str
+    date_month: str
+    date_day: str
+    weather: str
     day_weather_icon_url: str | None
     night_weather_icon_url: str | None
+    temp_str: str
+    temp_night_str: str
+    altitude_str: str
+    day_num: int
+    progress_percent: float
+    day_counter_box_position: float
+    day_counter_arrow_position: float
+    cover_image_path: str | None
     country_flag_data_uri: str | None
-    accent_color: str | None
     country_map_data_uri: str | None
     country_map_svg: str | None
     map_dot_x: float | None
     map_dot_y: float | None
-    desc_col1: str
-    desc_col2: str
-    desc_col3: str
-    is_hebrew: bool
+    accent_color: str | None
+    description: str | None
+    description_full: str
+    desc_dir: str
+    desc_align: str
     use_two_columns: bool
     use_three_columns: bool
-    photo_pages: list[list[Photo]]
-    photo_page_layouts: list[bool]
-    photo_page_portrait_split_layouts: list[bool]
+    photo_pages: list[PhotoPageData]
+    light_mode: bool
 
 
 class PhotoConfigDict(TypedDict, total=False):
@@ -49,4 +58,4 @@ class PhotoConfigDict(TypedDict, total=False):
     is_portrait_landscape_split: list[bool]
 
 
-__all__ = ["StepDataDict", "PhotoConfigDict"]
+__all__ = ["StepData", "PhotoPageData", "PhotoConfigDict"]
