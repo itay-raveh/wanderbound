@@ -12,7 +12,7 @@ from PIL import Image
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import get_cached, set_cached
-from .rate_limit import fetch_content_with_retry
+from .helpers import fetch_and_cache_content
 
 logger = get_logger(__name__)
 
@@ -35,11 +35,15 @@ def get_country_flag_data_uri(country_code: str) -> str | None:
     try:
         settings = get_settings()
         url = settings.flag_cdn_url.format(country_code=country_code.lower())
-        content = fetch_content_with_retry(
-            url,
+        content = fetch_and_cache_content(
+            cache_key=f"flag_raw_{country_code.lower()}",
+            url=url,
             timeout=5,
             calls_per_second=FLAG_API_CALLS_PER_SECOND,
         )
+        if content is None:
+            return None
+
         image_data = base64.b64encode(content).decode("utf-8")
         data_uri = f"data:image/png;base64,{image_data}"
         set_cached(cache_key, data_uri)
