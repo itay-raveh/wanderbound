@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Location(BaseModel):
@@ -18,6 +18,22 @@ class Location(BaseModel):
     lon: float
     venue: str | None = None
     uuid: str | None = None
+
+    @field_validator("lat")
+    @classmethod
+    def validate_latitude(cls, v: float) -> float:
+        """Validate latitude is in valid range."""
+        if not -90 <= v <= 90:
+            raise ValueError(f"Latitude must be between -90 and 90, got {v}")
+        return v
+
+    @field_validator("lon")
+    @classmethod
+    def validate_longitude(cls, v: float) -> float:
+        """Validate longitude is in valid range."""
+        if not -180 <= v <= 180:
+            raise ValueError(f"Longitude must be between -180 and 180, got {v}")
+        return v
 
 
 class Step(BaseModel):
@@ -47,6 +63,24 @@ class Step(BaseModel):
     fb_publish_status: str | None = None
     open_graph_id: str | None = None
     uuid: str | None = None
+
+    @field_validator("start_time")
+    @classmethod
+    def validate_start_time(cls, v: float) -> float:
+        """Validate start_time is positive (Unix timestamp)."""
+        if v <= 0:
+            raise ValueError(f"start_time must be a positive Unix timestamp, got {v}")
+        return v
+
+    @field_validator("end_time")
+    @classmethod
+    def validate_end_time(cls, v: float | None, info: Any) -> float | None:
+        """Validate end_time is after start_time if both exist."""
+        if v is not None:
+            start_time = info.data.get("start_time")
+            if start_time and v < start_time:
+                raise ValueError(f"end_time ({v}) must be >= start_time ({start_time})")
+        return v
 
     @property
     def city(self) -> str:
@@ -91,6 +125,15 @@ class WeatherData(BaseModel):
     day_icon: str | None = None
     night_icon: str | None = None
 
+    @field_validator("day_temp", "night_temp", "day_feels_like", "night_feels_like")
+    @classmethod
+    def validate_temperature(cls, v: float | None) -> float | None:
+        """Validate temperature is in reasonable range (Celsius)."""
+        # Reasonable range: -100°C to 100°C (covers all Earth temperatures)
+        if v is not None and not -100 <= v <= 100:
+            raise ValueError(f"Temperature must be between -100 and 100°C, got {v}")
+        return v
+
 
 class Photo(BaseModel):
     """Photo metadata for a step."""
@@ -101,6 +144,30 @@ class Photo(BaseModel):
     width: int | None = None
     height: int | None = None
     aspect_ratio: float | None = None
+
+    @field_validator("index")
+    @classmethod
+    def validate_index(cls, v: int) -> int:
+        """Validate index is positive."""
+        if v <= 0:
+            raise ValueError(f"Photo index must be positive, got {v}")
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def validate_dimensions(cls, v: int | None) -> int | None:
+        """Validate dimensions are positive if provided."""
+        if v is not None and v <= 0:
+            raise ValueError(f"Photo dimensions must be positive, got {v}")
+        return v
+
+    @field_validator("aspect_ratio")
+    @classmethod
+    def validate_aspect_ratio(cls, v: float | None) -> float | None:
+        """Validate aspect_ratio is positive if provided."""
+        if v is not None and v <= 0:
+            raise ValueError(f"Aspect ratio must be positive, got {v}")
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert photo to dictionary for JSON serialization."""
