@@ -20,6 +20,8 @@ __all__ = [
     "select_cover_photo",
     "compute_default_photos_by_pages",
     "select_step_image",
+    "_is_three_portraits",
+    "_is_one_portrait_two_landscapes",
 ]
 
 
