@@ -12,6 +12,14 @@ from .models import Location, Step, TripData
 
 logger = get_logger(__name__)
 
+__all__ = [
+    "load_trip_data",
+    "get_step_photo_dir",
+    "calculate_day_number",
+    "get_steps_in_range",
+    "get_steps_distributed",
+]
+
 
 def load_trip_data(trip_path: Path) -> TripData:
     """Load trip data from trip.json file and validate with Pydantic.
@@ -27,11 +35,36 @@ def load_trip_data(trip_path: Path) -> TripData:
     """
     try:
         data = json.loads(trip_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+    except FileNotFoundError as e:
         raise DataLoadError(
-            f"Failed to load trip data from {trip_path}: {e}",
+            f"Trip file not found at {trip_path}. Please ensure the file exists.",
             file_path=str(trip_path),
         ) from e
+    except json.JSONDecodeError as e:
+        raise DataLoadError(
+            f"Invalid JSON in trip file {trip_path}: {e}. "
+            f"Please check that the file is valid JSON.",
+            file_path=str(trip_path),
+        ) from e
+
+    if not isinstance(data, dict):
+        raise DataLoadError(
+            f"Trip data must be a JSON object, got {type(data).__name__}",
+            file_path=str(trip_path),
+        )
+
+    if "all_steps" not in data:
+        raise DataLoadError(
+            f"Trip data missing required 'all_steps' field. "
+            f"Please check that {trip_path} contains valid trip data.",
+            file_path=str(trip_path),
+        )
+
+    if not isinstance(data.get("all_steps"), list):
+        raise DataLoadError(
+            f"Trip data 'all_steps' must be a list, got {type(data.get('all_steps')).__name__}",
+            file_path=str(trip_path),
+        )
 
     # Parse steps with Pydantic - let Pydantic handle validation
     steps = []
@@ -44,9 +77,11 @@ def load_trip_data(trip_path: Path) -> TripData:
             step = Step(**step_data)
             steps.append(step)
         except (KeyError, TypeError, ValueError) as e:
-            # Log error but continue with other steps
+            step_id = step_data.get("id", "unknown")
             logger.warning(
-                f"Failed to parse step {step_data.get('id')}: {e}", exc_info=True
+                f"Failed to parse step {step_id} in {trip_path}: {e}. "
+                f"Skipping this step and continuing with others.",
+                exc_info=True,
             )
             continue
 

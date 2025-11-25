@@ -54,3 +54,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+
+
+__all__ = ["parse_args"]

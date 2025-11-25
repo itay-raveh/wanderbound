@@ -114,9 +114,7 @@ def get_console() -> Console:
     return _console
 
 
-def create_progress(
-    description: str = "Processing", total: int | None = None
-) -> Progress:
+def create_progress(description: str = "Processing", total: int | None = None) -> Progress:
     """Create a Rich progress bar for loops with aligned descriptions."""
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(

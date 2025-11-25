@@ -24,9 +24,7 @@ def with_rate_limit_and_retry(
     max_attempts: int = 3,
     min_wait: float = 1.0,
     max_wait: float = 10.0,
-    retry_on: (
-        type[Exception] | tuple[type[Exception], ...]
-    ) = requests.exceptions.RequestException,
+    retry_on: type[Exception] | tuple[type[Exception], ...] = requests.exceptions.RequestException,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Create a decorator that adds rate limiting and retry logic to a function.
 
@@ -69,9 +67,7 @@ def _fetch_with_retry(
     """Internal helper to fetch data with rate limiting and retry logic."""
     # For 429 errors, don't retry - they indicate we're rate limited
     # For other errors, retry up to max_attempts times
-    retry_on: type[Exception] | tuple[type[Exception], ...] = (
-        requests.exceptions.RequestException
-    )
+    retry_on: type[Exception] | tuple[type[Exception], ...] = requests.exceptions.RequestException
     if not check_rate_limit:
         # If not checking rate limits, also retry on RateLimitError (shouldn't happen)
         retry_on = (RateLimitError, requests.exceptions.RequestException)

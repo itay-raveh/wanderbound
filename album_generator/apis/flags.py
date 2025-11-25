@@ -121,9 +121,7 @@ def _adjust_color_for_contrast(color: str, light_mode: bool) -> str:
         target_brightness = settings.light_mode_target_brightness
         if brightness < target_brightness:
             blend_factor = (
-                (target_brightness - brightness) / (1.0 - brightness)
-                if brightness < 1.0
-                else 0
+                (target_brightness - brightness) / (1.0 - brightness) if brightness < 1.0 else 0
             )
             blend_factor = min(settings.max_blend_factor, blend_factor)
             r = int(r + (255 - r) * blend_factor)
@@ -132,17 +130,13 @@ def _adjust_color_for_contrast(color: str, light_mode: bool) -> str:
     else:
         target_brightness = settings.dark_mode_target_brightness
         if brightness > target_brightness:
-            blend_factor = (
-                (brightness - target_brightness) / brightness if brightness > 0 else 0
-            )
+            blend_factor = (brightness - target_brightness) / brightness if brightness > 0 else 0
             blend_factor = min(settings.max_blend_factor, blend_factor)
             r = int(r * (1 - blend_factor))
             g = int(g * (1 - blend_factor))
             b = int(b * (1 - blend_factor))
 
-    return (
-        f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
-    )
+    return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
 
 
 def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
@@ -308,9 +302,7 @@ def extract_prominent_color_from_flag(
     try:
         filtered_pixels = _load_and_filter_flag_pixels(flag_data_uri)
         if not filtered_pixels:
-            logger.debug(
-                "No suitable pixels found after filtering, using default accent color"
-            )
+            logger.debug("No suitable pixels found after filtering, using default accent color")
             return settings.default_accent_color
 
         color_counts = Counter(filtered_pixels).most_common(5)
@@ -319,9 +311,7 @@ def extract_prominent_color_from_flag(
             return settings.default_accent_color
 
         # Try to find a color without conflicts
-        best_color = _find_best_color_from_candidates(
-            color_counts, country_code, light_mode
-        )
+        best_color = _find_best_color_from_candidates(color_counts, country_code, light_mode)
         if best_color:
             return best_color
 

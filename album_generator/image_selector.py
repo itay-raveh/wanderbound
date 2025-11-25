@@ -12,6 +12,16 @@ from .settings import get_settings
 
 logger = get_logger(__name__)
 
+__all__ = [
+    "PhotoRatio",
+    "get_photo_ratio",
+    "load_step_photos",
+    "should_use_cover_photo",
+    "select_cover_photo",
+    "compute_default_photos_by_pages",
+    "select_step_image",
+]
+
 
 class PhotoRatio(Enum):
     """Photo aspect ratio categories."""

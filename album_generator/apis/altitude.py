@@ -43,9 +43,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
         task_id = progress.add_task("Fetching elevations", total=num_batches)
         for batch in chunked(locations_to_query, max_locations_per_request):
             if calls_made >= max_calls_per_day:
-                logger.warning(
-                    "Reached maximum API calls for today. Using cached data only."
-                )
+                logger.warning("Reached maximum API calls for today. Using cached data only.")
                 all_elevations.extend([None] * len(batch))
                 progress.advance(task_id)
                 continue
@@ -61,9 +59,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 )
                 progress.update(
                     task_id,
-                    description=(
-                        f"Fetching elevations: batch {calls_made + 1}/{num_batches}"
-                    ),
+                    description=(f"Fetching elevations: batch {calls_made + 1}/{num_batches}"),
                 )
                 data = fetch_json_with_retry(url, calls_per_second=API_CALLS_PER_SECOND)
 
@@ -73,8 +69,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                         elevation_raw = result.get("elevation")
                         elevation: float | None = (
                             float(elevation_raw)
-                            if elevation_raw is not None
-                            and isinstance(elevation_raw, (int, float))
+                            if elevation_raw is not None and isinstance(elevation_raw, (int, float))
                             else None
                         )
                         all_elevations.append(elevation)

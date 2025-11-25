@@ -10,6 +10,8 @@ from .settings import get_settings
 
 logger = get_logger(__name__)
 
+__all__ = ["save_photos_config", "load_photos_config"]
+
 
 def save_photos_config(
     steps: list[Step],
@@ -172,7 +174,8 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
                     cover_photo_index = int(cover_photo_str)
                 except ValueError:
                     logger.warning(
-                        f"Invalid cover photo index '{cover_photo_str}' for step {matched_step.city}"
+                        f"Invalid cover photo index '{cover_photo_str}' for step '{matched_step.city}'. "
+                        f"Expected a number. Skipping cover photo for this step."
                     )
                 i += 1
 
@@ -198,7 +201,8 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
                     reconstructed_photos.append(photo)
                 except Exception as e:
                     logger.warning(
-                        f"Error reconstructing photo {photo_idx_str} for step {matched_step.city}: {e}"
+                        f"Error reconstructing photo {photo_idx_str} for step '{matched_step.city}': {e}. "
+                        f"Skipping this photo and continuing."
                     )
 
             config[matched_step.id] = {
@@ -211,6 +215,21 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
 
         return config if config else None
 
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"Error loading photo configuration: {e}")
+    except FileNotFoundError as e:
+        logger.warning(
+            f"Photo configuration file not found: {e}. "
+            f"Will generate new configuration from photos."
+        )
+        return None
+    except json.JSONDecodeError as e:
+        logger.warning(
+            f"Invalid JSON in photo configuration file {mapping_path}: {e}. "
+            f"Please check the file format. Will generate new configuration."
+        )
+        return None
+    except ValueError as e:
+        logger.warning(
+            f"Error parsing photo configuration: {e}. "
+            f"Will generate new configuration from photos."
+        )
         return None

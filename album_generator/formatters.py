@@ -9,6 +9,8 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
+__all__ = ["format_date", "format_coordinates", "format_weather_condition"]
+
 
 def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
     """Format timestamp into month name and day.
@@ -32,7 +34,10 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
 
         return {"month": month, "day": day}
     except Exception as e:
-        logger.warning(f"Error formatting date: {e}", exc_info=True)
+        logger.warning(
+            f"Error formatting date for timestamp {timestamp} in timezone {timezone_id}: {e}",
+            exc_info=True,
+        )
         try:
             tz = pytz.timezone(timezone_id)
             dt = datetime.fromtimestamp(timestamp, tz=tz)
@@ -97,7 +102,11 @@ def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
 
         return {"lat": lat_dms, "lon": lon_dms}
     except (AttributeError, ValueError, TypeError) as e:
-        logger.warning(f"Error formatting coordinates with geopy: {e}", exc_info=True)
+        logger.warning(
+            f"Error formatting coordinates ({lat}, {lon}) with geopy: {e}. "
+            f"Using simplified format.",
+            exc_info=True,
+        )
         lat_dir = "N" if lat >= 0 else "S"
         lon_dir = "E" if lon >= 0 else "W"
         return {

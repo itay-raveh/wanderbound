@@ -13,9 +13,7 @@ CACHE_DIR = Path.home() / ".cache" / "polarsteps-album-generator"
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Create diskcache instance with LRU eviction policy
-_cache = diskcache.Cache(
-    str(CACHE_DIR), size_limit=2**30, eviction_policy="least-recently-used"
-)
+_cache = diskcache.Cache(str(CACHE_DIR), size_limit=2**30, eviction_policy="least-recently-used")
 
 
 def get_cached(key: str) -> Any | None:

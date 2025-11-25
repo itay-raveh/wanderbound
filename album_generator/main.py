@@ -160,7 +160,11 @@ def main() -> None:
             # Get photo directory
             photo_dir = get_step_photo_dir(args.trip_dir, step)
             if not photo_dir:
-                logger.warning(f"No photo directory found for step {step.city}")
+                logger.warning(
+                    f"No photo directory found for step '{step.city}' (ID: {step.id}). "
+                    f"Expected directory pattern: {step.slug or step.display_slug}_{step.id}/photos "
+                    f"in {args.trip_dir}"
+                )
                 steps_with_photos[step.id] = []
                 steps_cover_photos[step.id] = None
                 steps_photo_pages[step.id] = []
@@ -171,7 +175,10 @@ def main() -> None:
             steps_with_photos[step.id] = photos
 
             if not photos:
-                logger.warning(f"No photos found for step {step.city}")
+                logger.warning(
+                    f"No photos found in {photo_dir} for step '{step.city}'. "
+                    f"Expected image files (.jpg, .jpeg, .png)"
+                )
                 steps_cover_photos[step.id] = None
                 steps_photo_pages[step.id] = []
                 continue

@@ -28,9 +28,7 @@ class APIError(AlbumGeneratorError):
         status_code: Optional HTTP status code if available
     """
 
-    def __init__(
-        self, message: str, api_name: str, status_code: int | None = None
-    ) -> None:
+    def __init__(self, message: str, api_name: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.api_name = api_name
         self.status_code = status_code
@@ -63,3 +61,12 @@ class PhotoProcessingError(AlbumGeneratorError):
         super().__init__(message)
         self.photo_path = photo_path
         self.message = message
+
+
+__all__ = [
+    "AlbumGeneratorError",
+    "ValidationError",
+    "APIError",
+    "DataLoadError",
+    "PhotoProcessingError",
+]

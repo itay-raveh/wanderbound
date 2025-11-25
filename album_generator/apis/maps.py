@@ -122,9 +122,7 @@ def _parse_transform(transform_str: str) -> dict[str, float]:
     # Extract translate and scale from SVG transform string
     translate_match = re.search(r"translate\(([^)]+)\)", transform_str)
     if translate_match:
-        translate_parts = [
-            float(x.strip()) for x in translate_match.group(1).split(",")
-        ]
+        translate_parts = [float(x.strip()) for x in translate_match.group(1).split(",")]
         if len(translate_parts) >= 2:
             translate_x, translate_y = translate_parts[0], translate_parts[1]
 
@@ -252,26 +250,20 @@ def _find_country_in_geodataframe(world: Any, country_code_lower: str) -> Any | 
     if country_name and "ADMIN" in world.columns:
         country_gdf = world[world["ADMIN"] == country_name]
         if country_gdf.empty:
-            country_gdf = world[
-                world["ADMIN"].str.contains(country_name, case=False, na=False)
-            ]
+            country_gdf = world[world["ADMIN"].str.contains(country_name, case=False, na=False)]
         if not country_gdf.empty:
             return country_gdf
 
     # Try direct ADMIN match with country code as fallback
     if "ADMIN" in world.columns:
-        country_gdf = world[
-            world["ADMIN"].str.contains(country_code_lower, case=False, na=False)
-        ]
+        country_gdf = world[world["ADMIN"].str.contains(country_code_lower, case=False, na=False)]
         if not country_gdf.empty:
             return country_gdf
 
     return None
 
 
-def _generate_svg_plot(
-    gdf: Any, width: int, height: int
-) -> tuple[str, list[float], Any]:
+def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[float], Any]:
     """Generate SVG plot from GeoDataFrame.
 
     Args:
@@ -454,10 +446,7 @@ def get_country_map_svg(
         group_raw = root.xpath('.//*[local-name()="g"][@transform]')
         if isinstance(group_raw, list) and len(group_raw) > 0:
             first_elem = group_raw[0]
-            if isinstance(first_elem, etree._Element):
-                transform_elem = first_elem
-            else:
-                transform_elem = root
+            transform_elem = first_elem if isinstance(first_elem, etree._Element) else root
         else:
             transform_elem = root
 
@@ -572,9 +561,7 @@ def get_country_map_dot_position(
 
                         if viewbox and proj_bounds_str and crs_str:
                             try:
-                                proj_bounds = [
-                                    float(x) for x in proj_bounds_str.split(",")
-                                ]
+                                proj_bounds = [float(x) for x in proj_bounds_str.split(",")]
                                 if len(viewbox) == 4 and len(proj_bounds) == 4:
                                     point_geo = gpd.GeoDataFrame(
                                         geometry=[Point(lon, lat)], crs="EPSG:4326"
@@ -584,9 +571,7 @@ def get_country_map_dot_position(
                                     proj_x = point_proj.geometry.iloc[0].x  # type: ignore[attr-defined]
                                     proj_y = point_proj.geometry.iloc[0].y  # type: ignore[attr-defined]
 
-                                    proj_min_x, proj_min_y, proj_max_x, proj_max_y = (
-                                        proj_bounds
-                                    )
+                                    proj_min_x, proj_min_y, proj_max_x, proj_max_y = proj_bounds
                                     proj_width = proj_max_x - proj_min_x
                                     proj_height = proj_max_y - proj_min_y
 

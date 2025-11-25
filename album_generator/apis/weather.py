@@ -181,9 +181,7 @@ def _parse_day_weather_data(
     return (weather, hours)
 
 
-def get_weather_data(
-    lat: float, lon: float, timestamp: float, timezone_id: str
-) -> WeatherData:
+def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str) -> WeatherData:
     """Get day and night temperatures, feels like temperatures, and weather conditions.
 
     Args:
@@ -238,9 +236,7 @@ def get_weather_data(
             data = _fetch_weather_data_with_retry(url, lat, lon, date_str)
         except RateLimitError:
             # 429 errors are not retried - skip immediately
-            logger.warning(
-                f"Rate limited (429) for {lat},{lon} on {date_str}. Skipping."
-            )
+            logger.warning(f"Rate limited (429) for {lat},{lon} on {date_str}. Skipping.")
             return WeatherData()
 
         # Debug: Print full API response for first call to inspect structure
@@ -272,9 +268,7 @@ def get_weather_data(
             # Process night icon from hourly data (feels like is already set from daily data)
             if hours:
                 night_hours = _find_night_hours(hours, tz)
-                weather.night_icon = _get_night_icon(
-                    night_hours, hours, weather.day_icon
-                )
+                weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
 
                 # Debug logging for feels like temperatures
                 if weather.day_feels_like is None and weather.night_feels_like is None:
@@ -295,8 +289,7 @@ def get_weather_data(
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
             logger.warning(
-                f"Authentication failed for weather API. Please check your API key. "
-                f"Error: {e}"
+                f"Authentication failed for weather API. Please check your API key. " f"Error: {e}"
             )
         else:
             logger.warning(f"HTTP error getting weather data: {e}")
