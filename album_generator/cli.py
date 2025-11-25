@@ -19,9 +19,7 @@ def parse_args() -> argparse.Namespace:
         default=Path("trip"),
         help="Directory containing trip.json and step folders (default: trip)",
     )
-    parser.add_argument(
-        "--steps", type=str, help='Step range to include (e.g., "99-110" or "99")'
-    )
+    parser.add_argument("--steps", type=str, help='Step range to include (e.g., "99-110" or "99")')
     parser.add_argument(
         "--sample",
         type=int,

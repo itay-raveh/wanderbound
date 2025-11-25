@@ -18,15 +18,6 @@ from .apis import (
     get_country_map_svg,
 )
 from .apis.weather import WeatherData, get_weather_data
-from .constants import (
-    CSS_DIR,
-    FONT_FILE,
-    PROGRESS_BOX_MAX_POSITION,
-    PROGRESS_BOX_MIN_POSITION,
-    PROGRESS_MAX_POSITION,
-    PROGRESS_MIN_POSITION,
-    STATIC_DIR,
-)
 from .data_loader import calculate_day_number
 from .formatters import format_coordinates, format_date, format_weather_condition
 from .logger import create_progress, get_console, get_logger
@@ -54,10 +45,10 @@ def copy_image_to_assets(
     import re
     import shutil
 
-    from .constants import ASSETS_DIR, IMAGES_DIR
+    settings = get_settings()
 
-    assets_dir = output_dir / ASSETS_DIR
-    images_dir = assets_dir / IMAGES_DIR
+    assets_dir = output_dir / settings.file.assets_dir
+    images_dir = assets_dir / settings.file.images_dir
     images_dir.mkdir(parents=True, exist_ok=True)
 
     # Sanitize step name for filesystem: replace spaces, parentheses, colons with underscores
@@ -74,28 +65,29 @@ def copy_image_to_assets(
     if not output_path.exists() and image_path.exists():
         shutil.copy2(image_path, output_path)
 
-    from .constants import ASSETS_DIR
-
-    return f"{ASSETS_DIR}/{IMAGES_DIR}/{output_filename}"
+    settings = get_settings()
+    return f"{settings.file.assets_dir}/{settings.file.images_dir}/{output_filename}"
 
 
 def copy_assets(font_path: Path, output_dir: Path) -> None:
     """Copy assets (fonts, CSS, etc.) to output directory."""
     import shutil
 
-    assets_dir = output_dir / "assets"
-    fonts_dir = assets_dir / "fonts"
-    css_dir = assets_dir / "css"
+    settings = get_settings()
+
+    assets_dir = output_dir / settings.file.assets_dir
+    fonts_dir = assets_dir / settings.file.fonts_dir
+    css_dir = assets_dir / settings.file.css_dir
     fonts_dir.mkdir(parents=True, exist_ok=True)
     css_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy font
-    output_font = fonts_dir / FONT_FILE
+    output_font = fonts_dir / settings.file.font_file
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)
 
     # Copy CSS files (no longer need templating - using CSS media queries and classes)
-    static_dir = Path(__file__).parent / STATIC_DIR / CSS_DIR
+    static_dir = Path(__file__).parent / settings.file.static_dir / settings.file.css_dir
     css_files = [
         "variables.css",
         "reset.css",
@@ -197,10 +189,7 @@ def _format_temperature(temp: float | None, feels_like: float | None) -> str:
         return "N/A"
     # Only show feels like if difference is meaningful
     settings = get_settings()
-    if (
-        feels_like is not None
-        and abs(feels_like - temp) >= settings.feels_like_display_threshold
-    ):
+    if feels_like is not None and abs(feels_like - temp) >= settings.feels_like_display_threshold:
         return f"{int(temp)}° ({int(feels_like)}°)"
     return f"{int(temp)}°"
 
@@ -239,9 +228,7 @@ def _calculate_progress(
         last_date = datetime.fromtimestamp(last_step.start_time, tz=tz).date()
         total_days = max(1, (last_date - first_date).days + 1)
     else:
-        day_num = calculate_day_number(
-            step.start_time, trip_data.start_date, trip_data.timezone_id
-        )
+        day_num = calculate_day_number(step.start_time, trip_data.start_date, trip_data.timezone_id)
         total_days = 1
         if trip_data.start_date and trip_data.end_date:
             tz = pytz.timezone(trip_data.timezone_id)
@@ -292,29 +279,27 @@ def prepare_step_data(
     settings = get_settings()
     use_three_columns = len(description) > settings.description_three_columns_threshold
     use_two_columns = (
-        len(description) > settings.description_two_columns_threshold
-        or use_three_columns
+        len(description) > settings.description_two_columns_threshold or use_three_columns
     )
 
-    desc_col1, desc_col2, desc_col3 = _split_description(
-        description, is_hebrew, use_three_columns
-    )
+    desc_col1, desc_col2, desc_col3 = _split_description(description, is_hebrew, use_three_columns)
 
     day_num, progress_percent = _calculate_progress(
         step, step_index, steps, trip_data, use_step_range
     )
 
+    settings = get_settings()
     arrow_bar_position = max(
-        PROGRESS_MIN_POSITION, min(PROGRESS_MAX_POSITION, progress_percent)
+        settings.progress.min_position, min(settings.progress.max_position, progress_percent)
     )
     # For very low progress (first day), position box at a safe minimum
     # The translateX(-55%) moves it left by 55% of its width, so we need enough margin
     # Estimate box width ~60px, container ~400px, so need ~6% minimum to avoid going negative
     # For high progress (final day), cap at 95% to ensure box doesn't go off right edge
-    if progress_percent < PROGRESS_BOX_MIN_POSITION:
-        box_center_position = PROGRESS_BOX_MIN_POSITION
-    elif progress_percent > PROGRESS_BOX_MAX_POSITION:
-        box_center_position = PROGRESS_BOX_MAX_POSITION
+    if progress_percent < settings.progress.box_min_position:
+        box_center_position = settings.progress.box_min_position
+    elif progress_percent > settings.progress.box_max_position:
+        box_center_position = settings.progress.box_max_position
     else:
         box_center_position = progress_percent
 
@@ -460,9 +445,7 @@ def generate_album_html(
     with weather_progress:
         task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
         for step in weather_progress.track(steps, task_id=task_id):
-            weather_progress.update(
-                task_id, description=f"Fetching weather data: {step.city}"
-            )
+            weather_progress.update(task_id, description=f"Fetching weather data: {step.city}")
             weather_data = get_weather_data(
                 step.location.lat,
                 step.location.lon,
@@ -480,13 +463,9 @@ def generate_album_html(
     with flag_progress:
         task_id = flag_progress.add_task("Processing flags", total=len(steps))
         for step in flag_progress.track(steps, task_id=task_id):
-            flag_progress.update(
-                task_id, description=f"Processing flags: {step.country}"
-            )
+            flag_progress.update(task_id, description=f"Processing flags: {step.country}")
             country_flag_data_uri = (
-                get_country_flag_data_uri(step.country_code)
-                if step.country_code
-                else None
+                get_country_flag_data_uri(step.country_code) if step.country_code else None
             )
             accent_color = extract_prominent_color_from_flag(
                 country_flag_data_uri, step.country_code, light_mode
@@ -526,20 +505,15 @@ def generate_album_html(
     with image_progress:
         task_id = image_progress.add_task("Processing images", total=len(steps))
         for _idx, step in enumerate(image_progress.track(steps, task_id=task_id)):
-            image_progress.update(
-                task_id, description=f"Processing images: {step.city}"
-            )
+            image_progress.update(task_id, description=f"Processing images: {step.city}")
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             # Check if we need two columns (determines if we need image)
             # Match the logic from prepare_step_data
             description = _clean_description(step.description or "")
             settings = get_settings()
-            use_three_columns = (
-                len(description) > settings.description_three_columns_threshold
-            )
+            use_three_columns = len(description) > settings.description_three_columns_threshold
             use_two_columns = (
-                len(description) > settings.description_two_columns_threshold
-                or use_three_columns
+                len(description) > settings.description_two_columns_threshold or use_three_columns
             )
             if cover_photo and cover_photo.path.exists() and not use_two_columns:
                 step_name = step.get_name_for_photos_export()
@@ -595,13 +569,9 @@ def generate_album_html(
 
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
-            photo_page_layouts = (
-                steps_photo_page_layouts.get(step.id, []) if step.id else []
-            )
+            photo_page_layouts = steps_photo_page_layouts.get(step.id, []) if step.id else []
             photo_page_portrait_split_layouts = (
-                steps_photo_page_portrait_split_layouts.get(step.id, [])
-                if step.id
-                else []
+                steps_photo_page_portrait_split_layouts.get(step.id, []) if step.id else []
             )
 
             # Copy photo pages images to assets directory
@@ -624,9 +594,7 @@ def generate_album_html(
                     if page_idx < len(photo_page_layouts):
                         is_three_portraits = photo_page_layouts[page_idx]
                     if page_idx < len(photo_page_portrait_split_layouts):
-                        is_portrait_landscape_split = photo_page_portrait_split_layouts[
-                            page_idx
-                        ]
+                        is_portrait_landscape_split = photo_page_portrait_split_layouts[page_idx]
 
                     # Safety check: if we have exactly 3 photos, double-check the layout
                     # This ensures the flag is set even if there was a mismatch in the layout array
@@ -651,10 +619,7 @@ def generate_album_html(
                             )
                         else:
                             # Check what we actually have
-                            ratios = [
-                                get_photo_ratio(p.width or 0, p.height or 0)
-                                for p in page
-                            ]
+                            ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in page]
                             logger.debug(
                                 f"Page with 3 photos but no special layout in html_generator. Step {step.id} page {page_idx}, "
                                 f"ratios: {[r.name for r in ratios]}, dimensions: {[(p.width, p.height) for p in page]}"

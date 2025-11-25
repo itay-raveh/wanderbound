@@ -6,23 +6,6 @@ from pathlib import Path
 
 from PIL import Image
 
-from .constants import (
-    ASPECT_RATIO_TOLERANCE,
-    IDEAL_COVER_ASPECT_RATIO,
-    MAX_PHOTOS_TO_TEST,
-    MULTI_ROW_LAYOUT_COUNTS,
-    PHOTO_AREA_FULL_PAGE,
-    PHOTO_AREA_LANDSCAPE_RIGHT,
-    PHOTO_AREA_PORTRAIT_LEFT,
-    PHOTO_AREA_THREE_PORTRAITS,
-    PHOTO_COUNT_FOR_SPECIAL_LAYOUTS,
-    SCORE_LAYOUT_BONUS_THREE_PORTRAITS,
-    SCORE_PHOTO_COUNT_MULTIPLIER,
-    SCORE_PORTRAIT_FIRST_BONUS,
-    SCORE_PORTRAIT_LANDSCAPE_SPLIT_BONUS,
-    SCORE_THREE_PORTRAITS_BONUS,
-    SCORE_UNIFORM_ASPECT_RATIO_BONUS,
-)
 from .logger import get_logger
 from .models import Photo
 from .settings import get_settings
@@ -40,20 +23,19 @@ class PhotoRatio(Enum):
 
 def get_photo_ratio(width: int, height: int) -> PhotoRatio:
     """Get photo ratio category."""
+    settings = get_settings()
     aspect_ratio = width / height if height > 0 else 0
 
     for photo_ratio in PhotoRatio:
         if photo_ratio == PhotoRatio.UNKNOWN:
             continue
         ratio_list = (
-            list(photo_ratio.value)
-            if isinstance(photo_ratio.value, tuple)
-            else photo_ratio.value
+            list(photo_ratio.value) if isinstance(photo_ratio.value, tuple) else photo_ratio.value
         )
         for ratio_tuple in ratio_list:
             ratio_width, ratio_height = ratio_tuple
             target_ratio = ratio_width / ratio_height
-            if abs(aspect_ratio - target_ratio) < ASPECT_RATIO_TOLERANCE:
+            if abs(aspect_ratio - target_ratio) < settings.photo.aspect_ratio_tolerance:
                 return photo_ratio
 
     return PhotoRatio.UNKNOWN
@@ -110,9 +92,7 @@ def should_use_cover_photo(description: str | None) -> bool:
         True if cover photo should be used (description is None or short)
     """
     settings = get_settings()
-    return (
-        not description or len(description) < settings.description_max_char_cover_photo
-    )
+    return not description or len(description) < settings.description_max_char_cover_photo
 
 
 def select_cover_photo(photos: list[Photo]) -> Photo | None:
@@ -131,11 +111,12 @@ def select_cover_photo(photos: list[Photo]) -> Photo | None:
         return None
 
     # Prefer 4:5 portrait (ideal for cover)
+    settings = get_settings()
     for photo in photos:
         if (
             photo.aspect_ratio
-            and abs(photo.aspect_ratio - IDEAL_COVER_ASPECT_RATIO)
-            < ASPECT_RATIO_TOLERANCE
+            and abs(photo.aspect_ratio - settings.photo.ideal_cover_aspect_ratio)
+            < settings.photo.aspect_ratio_tolerance
         ):
             ratio = get_photo_ratio(photo.width or 0, photo.height or 0)
             if ratio == PhotoRatio.PORTRAIT:
@@ -195,22 +176,26 @@ def _calculate_photo_area_percent(
     Returns:
         Percentage of page area (0-100)
     """
+    settings = get_settings()
     if photo_count == 1:
-        return PHOTO_AREA_FULL_PAGE
+        return settings.photo.photo_area_full_page
 
     # Special case: 3 portraits side by side
-    if photo_count == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS and is_three_portraits:
+    if photo_count == settings.photo.photo_count_for_special_layouts and is_three_portraits:
         # 3 equal columns, 1 row
-        return round(PHOTO_AREA_THREE_PORTRAITS, 1)
+        return round(settings.photo.photo_area_three_portraits, 1)
 
     # Special case: 1 portrait + 2 landscapes (portrait on left, landscapes stacked on right)
-    if photo_count == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS and is_portrait_landscape_split:
+    if (
+        photo_count == settings.photo.photo_count_for_special_layouts
+        and is_portrait_landscape_split
+    ):
         if photo_index == 0:
             # Portrait on left: takes 50% of width, 100% of height
-            return PHOTO_AREA_PORTRAIT_LEFT
+            return settings.photo.photo_area_portrait_left
         else:
             # Landscapes on right: each takes 50% of width, 50% of height
-            return PHOTO_AREA_LANDSCAPE_RIGHT
+            return settings.photo.photo_area_landscape_right
 
     # Use predefined grid layouts for known configurations
     if photo_count in _GRID_LAYOUTS:
@@ -226,9 +211,7 @@ def _calculate_photo_area_percent(
             # Other photos: placed in remaining columns/rows
             # For layouts with first photo spanning rows, other photos fill remaining cells
             # Calculate which column and row this photo occupies
-            cells_per_row = (
-                len(columns_fr) - 1
-            )  # Exclude first column (used by first photo)
+            cells_per_row = len(columns_fr) - 1  # Exclude first column (used by first photo)
 
             if cells_per_row == 0:
                 # Only one column available (shouldn't happen with our layouts)
@@ -240,16 +223,18 @@ def _calculate_photo_area_percent(
 
             row_span = 1
 
+        settings = get_settings()
         area_percent = (
             (column_span / total_columns)
             * (row_span / total_rows)
-            * PHOTO_AREA_FULL_PAGE
+            * settings.photo.photo_area_full_page
         )
         return round(area_percent, 1)
 
     # For more than 6 photos, estimate conservatively
     # Assume worst case: all photos share space equally
-    return round(PHOTO_AREA_FULL_PAGE / photo_count, 1)
+    settings = get_settings()
+    return round(settings.photo.photo_area_full_page / photo_count, 1)
 
 
 def _validate_photo_combination(
@@ -288,8 +273,9 @@ def _get_max_photos_for_page(min_size_percent: float) -> int:
     """
     # Test each photo count to find the maximum valid count
     # Check both regular and 3-portrait layouts for count 3
-    for count in range(1, MAX_PHOTOS_TO_TEST + 1):
-        if count == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+    settings = get_settings()
+    for count in range(1, settings.photo.max_photos_to_test + 1):
+        if count == settings.photo.photo_count_for_special_layouts:
             # For 3 photos, check both layouts
             if not _validate_photo_combination(
                 count, min_size_percent, False
@@ -298,7 +284,8 @@ def _get_max_photos_for_page(min_size_percent: float) -> int:
         else:
             if not _validate_photo_combination(count, min_size_percent, False):
                 return count - 1
-    return MAX_PHOTOS_TO_TEST
+    settings = get_settings()
+    return settings.photo.max_photos_to_test
 
 
 def _calculate_total_coverage(
@@ -332,12 +319,10 @@ def _is_three_portraits(combo: tuple[Photo, ...]) -> bool:
     Returns:
         True if exactly 3 photos and all are portrait
     """
-    if len(combo) != PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+    settings = get_settings()
+    if len(combo) != settings.photo.photo_count_for_special_layouts:
         return False
-    return all(
-        get_photo_ratio(p.width or 0, p.height or 0) == PhotoRatio.PORTRAIT
-        for p in combo
-    )
+    return all(get_photo_ratio(p.width or 0, p.height or 0) == PhotoRatio.PORTRAIT for p in combo)
 
 
 def _is_one_portrait_two_landscapes(combo: tuple[Photo, ...]) -> bool:
@@ -349,7 +334,8 @@ def _is_one_portrait_two_landscapes(combo: tuple[Photo, ...]) -> bool:
     Returns:
         True if exactly 3 photos: 1 portrait and 2 landscapes (or 1 portrait + 2 non-portrait)
     """
-    if len(combo) != PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+    settings = get_settings()
+    if len(combo) != settings.photo.photo_count_for_special_layouts:
         return False
     ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in combo]
     portrait_count = ratios.count(PhotoRatio.PORTRAIT)
@@ -360,9 +346,7 @@ def _is_one_portrait_two_landscapes(combo: tuple[Photo, ...]) -> bool:
 
     # The other 2 should be landscapes OR have landscape-like aspect ratios (width > height)
     non_portrait_photos = [
-        p
-        for p, ratio in zip(combo, ratios, strict=True)
-        if ratio != PhotoRatio.PORTRAIT
+        p for p, ratio in zip(combo, ratios, strict=True) if ratio != PhotoRatio.PORTRAIT
     ]
     if len(non_portrait_photos) != 2:
         return False
@@ -394,19 +378,20 @@ def _calculate_visual_score(combo: tuple[Photo, ...], count: int) -> float:
     Returns:
         Visual score (higher is better)
     """
+    settings = get_settings()
     score = 0.0
 
     # Large bonus for 3 portraits side by side (special layout)
     if _is_three_portraits(combo):
-        score += SCORE_THREE_PORTRAITS_BONUS
+        score += settings.photo.score_three_portraits_bonus
 
     # For multi-row layouts (5, 6 photos), prefer portrait in first position
     # Note: 3 photos with portrait first is handled by the 3-portrait layout above
-    if count in MULTI_ROW_LAYOUT_COUNTS and combo:
+    if count in settings.photo.multi_row_layout_counts and combo:
         first_photo = combo[0]
         first_ratio = get_photo_ratio(first_photo.width or 0, first_photo.height or 0)
         if first_ratio == PhotoRatio.PORTRAIT:
-            score += SCORE_PORTRAIT_FIRST_BONUS
+            score += settings.photo.score_portrait_first_bonus
 
     return score
 
@@ -450,8 +435,9 @@ def _find_best_photo_combination(
     # This ensures priority 2 (more photos) > priority 3 (coverage) > priority 4 (visual)
     for count in range(max_count, 0, -1):
         # Check all special layouts for count 3
+        settings = get_settings()
         layouts_to_check = []
-        if count == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+        if count == settings.photo.photo_count_for_special_layouts:
             layouts_to_check = [
                 (True, False, "three_portraits"),
                 (False, True, "portrait_landscape_split"),
@@ -478,9 +464,7 @@ def _find_best_photo_combination(
                     continue
 
                 # For portrait-landscape split layout, only consider if 1 portrait + 2 landscapes
-                if is_portrait_landscape_split and not _is_one_portrait_two_landscapes(
-                    combo
-                ):
+                if is_portrait_landscape_split and not _is_one_portrait_two_landscapes(combo):
                     continue
 
                 # Calculate total coverage for this combination
@@ -493,36 +477,31 @@ def _find_best_photo_combination(
 
                 # Combined score: prioritize photo count, then coverage, then visual
                 # Use large multiplier for count to ensure it's the primary factor
+                settings = get_settings()
                 layout_bonus = 0.0
 
                 if is_three_portraits and _is_three_portraits(combo):
                     # Bonus must be >10000 to overcome the difference between 3 and 4 photos
                     # (4 photos = 40000 base, 3 photos = 30000 base, difference = 10000)
-                    layout_bonus = SCORE_LAYOUT_BONUS_THREE_PORTRAITS
+                    layout_bonus = settings.photo.score_layout_bonus_three_portraits
 
                     # Extra bonus if all 3 portraits have the same aspect ratio (more uniform)
-                    if len(combo) == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+                    if len(combo) == settings.photo.photo_count_for_special_layouts:
                         aspect_ratios = [
-                            (
-                                (p.width or 0) / (p.height or 1)
-                                if (p.height or 0) > 0
-                                else 0
-                            )
+                            ((p.width or 0) / (p.height or 1) if (p.height or 0) > 0 else 0)
                             for p in combo
                         ]
                         # Check if all aspect ratios are approximately the same
                         rounded_ratios = {round(ar, 2) for ar in aspect_ratios}
                         if len(rounded_ratios) == 1:
-                            layout_bonus += SCORE_UNIFORM_ASPECT_RATIO_BONUS
+                            layout_bonus += settings.photo.score_uniform_aspect_ratio_bonus
 
-                elif is_portrait_landscape_split and _is_one_portrait_two_landscapes(
-                    combo
-                ):
+                elif is_portrait_landscape_split and _is_one_portrait_two_landscapes(combo):
                     # Bonus for portrait-landscape split layout (prefer over default 3-photo layout)
-                    layout_bonus = SCORE_PORTRAIT_LANDSCAPE_SPLIT_BONUS
+                    layout_bonus = settings.photo.score_portrait_landscape_split_bonus
 
                 score = (
-                    (count * SCORE_PHOTO_COUNT_MULTIPLIER)
+                    (count * settings.photo.score_photo_count_multiplier)
                     + total_coverage
                     + visual_score
                     + layout_bonus
@@ -531,9 +510,7 @@ def _find_best_photo_combination(
                 if score > best_score:
                     best_score = score
                     # For portrait-landscape split, ensure portrait is first (left side)
-                    if is_portrait_landscape_split and _is_one_portrait_two_landscapes(
-                        combo
-                    ):
+                    if is_portrait_landscape_split and _is_one_portrait_two_landscapes(combo):
                         # Sort: portrait first, then landscapes
                         sorted_combo = sorted(
                             combo,
@@ -596,15 +573,14 @@ def compute_default_photos_by_pages(
     # Pack photos into pages using bin-packing algorithm
     while remaining:
         # Find the best combination of photos for this page
-        best_combo, is_three_portraits, is_portrait_landscape_split = (
-            _find_best_photo_combination(
-                remaining, max_photos_per_page, settings.min_photo_size_percent
-            )
+        best_combo, is_three_portraits, is_portrait_landscape_split = _find_best_photo_combination(
+            remaining, max_photos_per_page, settings.min_photo_size_percent
         )
 
         if best_combo:
             # ALWAYS force correct layout if we have matching photos, regardless of algorithm choice
-            if len(best_combo) == PHOTO_COUNT_FOR_SPECIAL_LAYOUTS:
+            settings = get_settings()
+            if len(best_combo) == settings.photo.photo_count_for_special_layouts:
                 is_three_portraits_forced = _is_three_portraits(tuple(best_combo))
                 is_portrait_landscape_split_forced = _is_one_portrait_two_landscapes(
                     tuple(best_combo)
@@ -612,9 +588,7 @@ def compute_default_photos_by_pages(
                 if is_three_portraits_forced:
                     is_three_portraits = True
                     is_portrait_landscape_split = False
-                    logger.debug(
-                        "FORCING 3-portrait layout for page with 3 portrait photos"
-                    )
+                    logger.debug("FORCING 3-portrait layout for page with 3 portrait photos")
                 elif is_portrait_landscape_split_forced:
                     is_three_portraits = False
                     is_portrait_landscape_split = True
@@ -623,9 +597,7 @@ def compute_default_photos_by_pages(
                     )
                 else:
                     # Check what we actually have
-                    ratios = [
-                        get_photo_ratio(p.width or 0, p.height or 0) for p in best_combo
-                    ]
+                    ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in best_combo]
                     logger.debug(
                         f"Page with 3 photos but no special layout detected. Ratios: {[r.name for r in ratios]}"
                     )

@@ -4,13 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .constants import (
-    COVER_PHOTO_PREFIX,
-    PHOTOS_BY_PAGES_FILE,
-    PHOTOS_MAPPING_FILE,
-)
 from .logger import get_logger
 from .models import Photo, Step
+from .settings import get_settings
 
 logger = get_logger(__name__)
 
@@ -35,6 +31,7 @@ def save_photos_config(
         steps_photo_page_layouts: Dictionary mapping step IDs to lists of is_three_portraits flags
         steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
     """
+    settings = get_settings()
     export_photos_mapping_json: dict[str, dict[str, Any]] = {}
     export_line_by_line: list[str] = []
 
@@ -84,7 +81,7 @@ def save_photos_config(
         # Write cover photo
         cover_photo = steps_cover_photos.get(step_id)
         if cover_photo:
-            export_line_by_line.append(COVER_PHOTO_PREFIX + str(cover_photo.index))
+            export_line_by_line.append(settings.file.cover_photo_prefix + str(cover_photo.index))
 
         # Write photo pages
         photo_pages = steps_photo_pages.get(step_id, [])
@@ -95,12 +92,12 @@ def save_photos_config(
         export_line_by_line.append("")
 
     # Save photos mapping JSON
-    mapping_path = save_path / PHOTOS_MAPPING_FILE
+    mapping_path = save_path / settings.file.photos_mapping_file
     with open(mapping_path, "w", encoding="utf-8") as f:
         json.dump(export_photos_mapping_json, f, indent=4)
 
     # Save photos by pages text file
-    pages_path = save_path / PHOTOS_BY_PAGES_FILE
+    pages_path = save_path / settings.file.photos_by_pages_file
     with open(pages_path, "w", encoding="utf-8") as f:
         f.write("\n".join(export_line_by_line))
 
@@ -120,8 +117,9 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
     Returns:
         Dictionary mapping step IDs to photo configuration, or None if files don't exist
     """
-    mapping_path = save_path / PHOTOS_MAPPING_FILE
-    pages_path = save_path / PHOTOS_BY_PAGES_FILE
+    settings = get_settings()
+    mapping_path = save_path / settings.file.photos_mapping_file
+    pages_path = save_path / settings.file.photos_by_pages_file
 
     if not mapping_path.exists() or not pages_path.exists():
         logger.debug("No photo configuration files found, using defaults")
@@ -168,8 +166,8 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
 
             # Parse cover photo
             cover_photo_index: int | None = None
-            if photos_by_pages[i].startswith(COVER_PHOTO_PREFIX):
-                cover_photo_str = photos_by_pages[i].removeprefix(COVER_PHOTO_PREFIX)
+            if photos_by_pages[i].startswith(settings.file.cover_photo_prefix):
+                cover_photo_str = photos_by_pages[i].removeprefix(settings.file.cover_photo_prefix)
                 try:
                     cover_photo_index = int(cover_photo_str)
                 except ValueError:

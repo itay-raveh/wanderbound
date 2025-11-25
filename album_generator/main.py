@@ -5,16 +5,6 @@ import webbrowser
 from pathlib import Path
 
 from .cli import parse_args
-from .constants import (
-    ALBUM_HTML_FILE,
-    ALBUM_PDF_FILE,
-    FONT_FILE,
-    PDF_VIEWPORT_HEIGHT,
-    PDF_VIEWPORT_WIDTH,
-    PHOTOS_BY_PAGES_FILE,
-    PHOTOS_MAPPING_FILE,
-    STATIC_DIR,
-)
 from .data_loader import (
     get_step_photo_dir,
     get_steps_distributed,
@@ -32,6 +22,7 @@ from .image_selector import (
 from .logger import create_progress, get_console, get_logger
 from .models import Photo
 from .photo_manager import load_photos_config, save_photos_config
+from .settings import get_settings
 
 logger = get_logger(__name__)
 console = get_console()
@@ -58,7 +49,10 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
             page = browser.new_page()
             page.goto(f"file://{html_path.absolute()}")
             page.wait_for_load_state("networkidle")
-            page.set_viewport_size({"width": PDF_VIEWPORT_WIDTH, "height": PDF_VIEWPORT_HEIGHT})
+            settings = get_settings()
+            page.set_viewport_size(
+                {"width": settings.pdf.viewport_width, "height": settings.pdf.viewport_height}
+            )
 
             page.pdf(
                 path=str(pdf_path),
@@ -90,7 +84,8 @@ def main() -> None:
         )
 
     # Get font path (internal to package)
-    font_path = Path(__file__).parent / STATIC_DIR / FONT_FILE
+    settings = get_settings()
+    font_path = Path(__file__).parent / settings.file.static_dir / settings.file.font_file
     if not font_path.exists():
         raise ValidationError(
             f"Font file not found at {font_path}. "
@@ -133,8 +128,8 @@ def main() -> None:
     # Clear photos cache if requested
     if args.clear_photos_cache:
         logger.info("Clearing photos cache...")
-        photos_config_path = args.output / PHOTOS_MAPPING_FILE
-        photos_pages_path = args.output / PHOTOS_BY_PAGES_FILE
+        photos_config_path = args.output / settings.file.photos_mapping_file
+        photos_pages_path = args.output / settings.file.photos_by_pages_file
         if photos_config_path.exists():
             photos_config_path.unlink()
             logger.debug(f"Deleted {photos_config_path}")
@@ -298,7 +293,7 @@ def main() -> None:
     )
 
     # Generate single HTML file with all steps
-    html_path = args.output / ALBUM_HTML_FILE
+    html_path = args.output / settings.file.album_html_file
     use_step_range = args.progress_mode == "step-range"
     with console.status("[bold blue]Generating album HTML..."):
         logger.debug("Generating album HTML...")
@@ -319,7 +314,7 @@ def main() -> None:
 
     # Generate PDF if requested
     if args.pdf:
-        pdf_path = args.output / ALBUM_PDF_FILE
+        pdf_path = args.output / settings.file.album_pdf_file
         with console.status("[bold blue]Generating PDF..."):
             generate_pdf(html_path, pdf_path)
         logger.info(f"Generated: {pdf_path}", extra={"success": True})
