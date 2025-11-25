@@ -66,11 +66,9 @@ def load_trip_data(trip_path: Path) -> TripData:
             file_path=str(trip_path),
         )
 
-    # Parse steps with Pydantic - let Pydantic handle validation
     steps = []
     for step_data in data.get("all_steps", []):
         try:
-            # Handle location data - Pydantic will validate required fields
             if "location" in step_data and step_data["location"]:
                 step_data["location"] = Location(**step_data["location"])
 
@@ -85,7 +83,6 @@ def load_trip_data(trip_path: Path) -> TripData:
             )
             continue
 
-    # Create TripData model - let Pydantic handle defaults
     trip_data = TripData(**data)
     trip_data.all_steps = steps  # Replace with validated steps
 
@@ -143,12 +140,10 @@ def get_steps_distributed(all_steps: list[Step], count: int) -> list[Step]:
     if count >= len(all_steps):
         return all_steps
 
-    # Calculate step indices to sample evenly across the trip
     step_indices = []
     for i in range(count):
         idx = int((i / (count - 1)) * (len(all_steps) - 1)) if count > 1 else 0
         step_indices.append(idx)
 
-    # Remove duplicates while preserving order using dict.fromkeys()
     unique_indices = list(dict.fromkeys(step_indices))
     return [all_steps[idx] for idx in unique_indices]

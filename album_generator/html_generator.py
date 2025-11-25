@@ -53,12 +53,10 @@ def copy_image_to_assets(
 
     sanitized_name = sanitize_filename(step_name)
 
-    # Get file extension from source
     ext = image_path.suffix.lower() or ".jpg"
     output_filename = f"{sanitized_name}_photo_{photo_index}{ext}"
     output_path = images_dir / output_filename
 
-    # Copy image if it doesn't exist
     if not output_path.exists() and image_path.exists():
         shutil.copy2(image_path, output_path)
 
@@ -78,12 +76,10 @@ def copy_assets(font_path: Path, output_dir: Path) -> None:
     fonts_dir.mkdir(parents=True, exist_ok=True)
     css_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy font
     output_font = fonts_dir / settings.file.font_file
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)
 
-    # Copy CSS files (no longer need templating - using CSS media queries and classes)
     static_dir = Path(__file__).parent / settings.file.static_dir / settings.file.css_dir
     css_files = [
         "variables.css",

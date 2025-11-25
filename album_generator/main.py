@@ -83,7 +83,6 @@ def main() -> None:
             file_path=str(trip_json),
         )
 
-    # Get font path (internal to package)
     from .utils.paths import get_font_path
 
     font_path = get_font_path()
@@ -94,7 +93,6 @@ def main() -> None:
             field="font_path",
         )
 
-    # Load trip data
     with console.status("[bold blue]Loading trip data..."):
         logger.debug(f"Loading trip data from {trip_json}")
         trip_data = load_trip_data(trip_json)
@@ -122,7 +120,6 @@ def main() -> None:
         steps = all_steps
         logger.info(f"Using all {len(steps)} steps")
 
-    # Create output directory
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Output directory: {args.output}")
 
@@ -139,10 +136,7 @@ def main() -> None:
             photos_pages_path.unlink()
             logger.debug(f"Deleted {photos_pages_path}")
 
-    # Load photo configuration if it exists
     photo_config = load_photos_config(steps, args.output)
-
-    # Load all photos for each step
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
@@ -157,7 +151,6 @@ def main() -> None:
             logger.debug(f"Loading photos for step: {step.city}")
             progress.update(task_id, description=f"Loading photos: {step.city}")
 
-            # Get photo directory
             photo_dir = get_step_photo_dir(args.trip_dir, step)
             if not photo_dir:
                 logger.warning(
@@ -170,7 +163,6 @@ def main() -> None:
                 steps_photo_pages[step.id] = []
                 continue
 
-            # Load all photos
             photos = load_step_photos(photo_dir)
             steps_with_photos[step.id] = photos
 

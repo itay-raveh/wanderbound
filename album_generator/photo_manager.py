@@ -37,7 +37,6 @@ def save_photos_config(
     export_photos_mapping_json: dict[str, dict[str, Any]] = {}
     export_line_by_line: list[str] = []
 
-    # Create step ID to step mapping
     step_by_id: dict[int, Step] = {step.id: step for step in steps}
 
     for step_id, photos in steps_with_photos.items():
@@ -52,7 +51,6 @@ def save_photos_config(
         for photo in photos:
             step_photos_mapping[str(photo.index)] = photo.to_dict()
 
-        # Add layout flags to the mapping
         step_config: dict[str, Any] = {"photos": step_photos_mapping}
         # Always include layout flags, even if empty lists
         photo_pages = steps_photo_pages.get(step_id, [])
@@ -80,12 +78,10 @@ def save_photos_config(
 
         export_photos_mapping_json[str(step_id)] = step_config
 
-        # Write cover photo
         cover_photo = steps_cover_photos.get(step_id)
         if cover_photo:
             export_line_by_line.append(settings.file.cover_photo_prefix + str(cover_photo.index))
 
-        # Write photo pages
         photo_pages = steps_photo_pages.get(step_id, [])
         for page in photo_pages:
             photo_indices = [str(photo.index) for photo in page]
@@ -93,12 +89,10 @@ def save_photos_config(
 
         export_line_by_line.append("")
 
-    # Save photos mapping JSON
     mapping_path = save_path / settings.file.photos_mapping_file
     with open(mapping_path, "w", encoding="utf-8") as f:
         json.dump(export_photos_mapping_json, f, indent=4)
 
-    # Save photos by pages text file
     pages_path = save_path / settings.file.photos_by_pages_file
     with open(pages_path, "w", encoding="utf-8") as f:
         f.write("\n".join(export_line_by_line))
@@ -134,7 +128,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
         with open(pages_path, encoding="utf-8") as f:
             photos_by_pages = f.read().splitlines()
 
-        # Create step name to step mapping
         step_by_name: dict[str, Step] = {}
         for step_obj in steps:
             step_by_name[step_obj.get_name_for_photos_export()] = step_obj
@@ -148,7 +141,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
                 i += 1
                 continue
 
-            # Find matching step
             matched_step: Step | None = None
             for step_name, step_obj in step_by_name.items():
                 if line == step_name:
@@ -166,7 +158,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
             if i >= len(photos_by_pages):
                 break
 
-            # Parse cover photo
             cover_photo_index: int | None = None
             if photos_by_pages[i].startswith(settings.file.cover_photo_prefix):
                 cover_photo_str = photos_by_pages[i].removeprefix(settings.file.cover_photo_prefix)
@@ -179,7 +170,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
                     )
                 i += 1
 
-            # Parse photo pages
             photo_pages: list[list[int]] = []
             while i < len(photos_by_pages) and photos_by_pages[i].strip():
                 page_line = photos_by_pages[i].strip()
