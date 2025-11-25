@@ -84,8 +84,9 @@ def main() -> None:
         )
 
     # Get font path (internal to package)
-    settings = get_settings()
-    font_path = Path(__file__).parent / settings.file.static_dir / settings.file.font_file
+    from .utils.paths import get_font_path
+
+    font_path = get_font_path()
     if not font_path.exists():
         raise ValidationError(
             f"Font file not found at {font_path}. "
@@ -128,6 +129,7 @@ def main() -> None:
     # Clear photos cache if requested
     if args.clear_photos_cache:
         logger.info("Clearing photos cache...")
+        settings = get_settings()
         photos_config_path = args.output / settings.file.photos_mapping_file
         photos_pages_path = args.output / settings.file.photos_by_pages_file
         if photos_config_path.exists():
@@ -293,6 +295,7 @@ def main() -> None:
     )
 
     # Generate single HTML file with all steps
+    settings = get_settings()
     html_path = args.output / settings.file.album_html_file
     use_step_range = args.progress_mode == "step-range"
     with console.status("[bold blue]Generating album HTML..."):
@@ -314,6 +317,7 @@ def main() -> None:
 
     # Generate PDF if requested
     if args.pdf:
+        settings = get_settings()
         pdf_path = args.output / settings.file.album_pdf_file
         with console.status("[bold blue]Generating PDF..."):
             generate_pdf(html_path, pdf_path)

@@ -42,19 +42,16 @@ def copy_image_to_assets(
     Returns:
         Relative path to copied image (e.g., "assets/images/Buenos_Aires_Argentina_photo_0.jpg")
     """
-    import re
     import shutil
 
-    settings = get_settings()
+    from .utils.files import sanitize_filename
+    from .utils.paths import get_assets_path
 
-    assets_dir = output_dir / settings.file.assets_dir
-    images_dir = assets_dir / settings.file.images_dir
+    settings = get_settings()
+    images_dir = get_assets_path(output_dir, settings.file.images_dir)
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    # Sanitize step name for filesystem: replace spaces, parentheses, colons with underscores
-    sanitized_name = re.sub(r"[^\w\-]", "_", step_name)
-    sanitized_name = re.sub(r"_+", "_", sanitized_name)  # Collapse multiple underscores
-    sanitized_name = sanitized_name.strip("_")  # Remove leading/trailing underscores
+    sanitized_name = sanitize_filename(step_name)
 
     # Get file extension from source
     ext = image_path.suffix.lower() or ".jpg"
