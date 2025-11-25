@@ -5,6 +5,18 @@ class AlbumGeneratorError(Exception):
     """Base exception for all album generator errors."""
 
 
+class ConfigurationError(AlbumGeneratorError):
+    """Raised when there is an issue with application configuration.
+
+    Args:
+        message: Error message describing the configuration issue.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 class ValidationError(AlbumGeneratorError):
     """Raised when input validation fails.
 
@@ -65,6 +77,7 @@ class PhotoProcessingError(AlbumGeneratorError):
 
 __all__ = [
     "AlbumGeneratorError",
+    "ConfigurationError",
     "ValidationError",
     "APIError",
     "DataLoadError",

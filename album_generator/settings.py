@@ -144,8 +144,26 @@ _settings: Settings | None = None
 
 
 def get_settings() -> Settings:
-    """Get or create the global settings instance."""
+    """Get or create the global settings instance.
+
+    Settings are loaded from environment variables and .env file.
+    Missing optional settings use sensible defaults.
+
+    Returns:
+        Settings: Validated settings instance.
+
+    Raises:
+        ValidationError: If required settings are missing or invalid.
+    """
     global _settings
     if _settings is None:
-        _settings = Settings()
+        try:
+            _settings = Settings()
+        except Exception as e:
+            from .exceptions import ConfigurationError
+
+            raise ConfigurationError(
+                f"Failed to load application settings: {e}. "
+                f"Please check your .env file and environment variables."
+            ) from e
     return _settings

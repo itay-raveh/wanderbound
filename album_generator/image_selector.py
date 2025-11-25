@@ -66,11 +66,17 @@ def load_step_photos(photo_dir: Path) -> list[Photo]:
     """Load all photos from a step's photo directory.
 
     Args:
-        photo_dir: Directory containing photos for a step
+        photo_dir: Directory containing photos for a step. Must be a Path object.
 
     Returns:
-        List of Photo objects sorted by filename
+        List of Photo objects sorted by filename. Empty list if directory doesn't exist.
+
+    Raises:
+        TypeError: If photo_dir is not a Path object.
     """
+    if not isinstance(photo_dir, Path):
+        raise TypeError(f"photo_dir must be a Path object, got {type(photo_dir).__name__}")
+
     if not photo_dir.exists():
         return []
 

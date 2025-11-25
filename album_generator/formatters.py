@@ -17,12 +17,18 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
     """Format timestamp into month name and day.
 
     Args:
-        timestamp: Unix timestamp
-        timezone_id: Timezone identifier (e.g., 'America/New_York')
+        timestamp: Unix timestamp, or None for empty date.
+        timezone_id: Timezone identifier (e.g., 'America/New_York'). Must be valid.
 
     Returns:
-        Dictionary with 'month' and 'day' keys
+        Dictionary with 'month' and 'day' keys. Empty strings if timestamp is None.
+
+    Raises:
+        TypeError: If timezone_id is not a string.
     """
+    if not isinstance(timezone_id, str):
+        raise TypeError(f"timezone_id must be a string, got {type(timezone_id).__name__}")
+
     if not timestamp:
         return {"month": "", "day": ""}
 
@@ -67,12 +73,21 @@ def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
     """Format coordinates into degrees, minutes, seconds.
 
     Args:
-        lat: Latitude
-        lon: Longitude
+        lat: Latitude in decimal degrees, or None.
+        lon: Longitude in decimal degrees, or None.
 
     Returns:
-        Dictionary with 'lat' and 'lon' keys containing formatted strings
+        Dictionary with 'lat' and 'lon' keys containing formatted strings.
+        Empty strings if coordinates are None.
+
+    Raises:
+        TypeError: If lat or lon are provided but not numeric.
     """
+    if lat is not None and not isinstance(lat, (int, float)):
+        raise TypeError(f"lat must be numeric or None, got {type(lat).__name__}")
+    if lon is not None and not isinstance(lon, (int, float)):
+        raise TypeError(f"lon must be numeric or None, got {type(lon).__name__}")
+
     if lat is None or lon is None:
         return {"lat": "", "lon": ""}
 

@@ -11,7 +11,7 @@ from .data_loader import (
     get_steps_in_range,
     load_trip_data,
 )
-from .exceptions import DataLoadError, ValidationError
+from .exceptions import DataLoadError
 from .html_generator import generate_album_html
 from .image_selector import (
     compute_default_photos_by_pages,
@@ -33,10 +33,15 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
 
     Args:
         range_str: Step range string in format "start-end" or single step number.
+            Must be a non-empty string.
 
     Returns:
         Tuple of (start, end) step numbers (1-indexed, inclusive).
         If single number provided, both start and end are the same.
+
+    Raises:
+        TypeError: If range_str is not a string.
+        ValueError: If range_str cannot be parsed as integers.
 
     Examples:
         >>> parse_step_range("99-110")
@@ -44,6 +49,11 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
         >>> parse_step_range("99")
         (99, 99)
     """
+    if not isinstance(range_str, str):
+        raise TypeError(f"range_str must be a string, got {type(range_str).__name__}")
+    if not range_str.strip():
+        raise ValueError("range_str cannot be empty")
+
     if "-" in range_str:
         start, end = range_str.split("-", 1)
         return int(start.strip()), int(end.strip())
@@ -126,12 +136,6 @@ def main() -> None:
     from .utils.paths import get_font_path
 
     font_path = get_font_path()
-    if not font_path.exists():
-        raise ValidationError(
-            f"Font file not found at {font_path}. "
-            f"This is an internal package file and should always be present.",
-            field="font_path",
-        )
 
     with console.status("[bold blue]Loading trip data..."):
         logger.debug(f"Loading trip data from {trip_json}")
