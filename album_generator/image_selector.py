@@ -32,7 +32,18 @@ class PhotoRatio(Enum):
 
 
 def get_photo_ratio(width: int, height: int) -> PhotoRatio:
-    """Get photo ratio category."""
+    """Categorize photo aspect ratio into portrait, landscape, or unknown.
+
+    Compares the photo's aspect ratio against known ratios with tolerance
+    to account for slight variations in actual dimensions.
+
+    Args:
+        width: Photo width in pixels.
+        height: Photo height in pixels.
+
+    Returns:
+        PhotoRatio enum value (PORTRAIT, LANDSCAPE, or UNKNOWN).
+    """
     settings = get_settings()
     aspect_ratio = width / height if height > 0 else 0
 
@@ -95,11 +106,15 @@ def load_step_photos(photo_dir: Path) -> list[Photo]:
 def should_use_cover_photo(description: str | None) -> bool:
     """Determine if cover photo should be used based on description length.
 
+    Cover photos are only used when descriptions are short to avoid visual
+    clutter. Long descriptions get full-width layout without cover photo.
+
     Args:
-        description: Step description text or None
+        description: Step description text or None.
 
     Returns:
-        True if cover photo should be used (description is None or short)
+        True if cover photo should be used (description is None or below threshold),
+        False otherwise.
     """
     settings = get_settings()
     return not description or len(description) < settings.description_max_char_cover_photo

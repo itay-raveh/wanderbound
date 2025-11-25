@@ -29,7 +29,21 @@ console = get_console()
 
 
 def parse_step_range(range_str: str) -> tuple[int, int]:
-    """Parse step range string like '99-110' or '99'."""
+    """Parse step range string into start and end step numbers.
+
+    Args:
+        range_str: Step range string in format "start-end" or single step number.
+
+    Returns:
+        Tuple of (start, end) step numbers (1-indexed, inclusive).
+        If single number provided, both start and end are the same.
+
+    Examples:
+        >>> parse_step_range("99-110")
+        (99, 110)
+        >>> parse_step_range("99")
+        (99, 99)
+    """
     if "-" in range_str:
         start, end = range_str.split("-", 1)
         return int(start.strip()), int(end.strip())
@@ -39,7 +53,19 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
 
 
 def generate_pdf(html_path: Path, pdf_path: Path) -> None:
-    """Generate PDF from HTML using Playwright."""
+    """Generate PDF file from HTML using Playwright.
+
+    Opens the HTML file in a headless Chromium browser and exports it as a PDF
+    with A4 landscape format. Requires Playwright to be installed.
+
+    Args:
+        html_path: Path to the input HTML file.
+        pdf_path: Path where the PDF file will be saved.
+
+    Raises:
+        ImportError: If Playwright is not installed (logged as warning).
+        Exception: Any other error during PDF generation (logged as error).
+    """
     try:
         from playwright.sync_api import sync_playwright
 
@@ -72,6 +98,20 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
 
 
 def main() -> None:
+    """Main entry point for the album generator CLI application.
+
+    Orchestrates the entire album generation process:
+    1. Validates input files and directories
+    2. Loads trip data from JSON
+    3. Filters steps based on CLI arguments
+    4. Loads and processes photos for each step
+    5. Generates HTML album
+    6. Optionally generates PDF
+
+    Raises:
+        DataLoadError: If trip.json is missing or invalid.
+        ValidationError: If required internal files (e.g., font) are missing.
+    """
     args = parse_args()
 
     # Validate inputs

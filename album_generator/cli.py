@@ -5,10 +5,18 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments.
+    """Parse command line arguments for the album generator.
 
     Returns:
-        Parsed arguments namespace.
+        argparse.Namespace: Parsed arguments containing:
+            - trip_dir: Path to trip directory (default: "trip")
+            - steps: Step range string (e.g., "99-110" or "99")
+            - sample: Number of evenly distributed steps to sample
+            - output: Output directory path (default: "output")
+            - pdf: Whether to generate PDF
+            - progress_mode: Progress bar mode ("original" or "step-range")
+            - light_mode: Whether to use light mode
+            - clear_photos_cache: Whether to clear cached photo configuration
     """
     parser = argparse.ArgumentParser(
         description="Generate HTML photo album from Polarsteps trip data"

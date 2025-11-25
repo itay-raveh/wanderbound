@@ -90,7 +90,19 @@ def load_trip_data(trip_path: Path) -> TripData:
 
 
 def get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
-    """Get the photo directory for a step."""
+    """Get the photo directory path for a step.
+
+    Searches for photo directories matching common naming patterns:
+    - {slug}_{step_id}/photos
+    - {display_slug}_{step_id}/photos
+
+    Args:
+        trip_dir: Base trip directory containing step folders.
+        step: Step object with slug and ID information.
+
+    Returns:
+        Path to the photo directory if found, None otherwise.
+    """
     slug = step.slug or step.display_slug or ""
 
     if not slug:
@@ -113,7 +125,19 @@ def get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
 def calculate_day_number(
     step_start: float | None, trip_start: float | None, timezone_id: str
 ) -> int:
-    """Calculate the day number of the trip for a step."""
+    """Calculate the day number of the trip for a step.
+
+    Computes the number of days from trip start to step start, accounting for
+    timezone differences. Day 1 is the trip start date.
+
+    Args:
+        step_start: Unix timestamp of step start time, or None.
+        trip_start: Unix timestamp of trip start time, or None.
+        timezone_id: Timezone identifier (e.g., "America/New_York").
+
+    Returns:
+        Day number (1-indexed), or 0 if timestamps are invalid.
+    """
     if not step_start or not trip_start:
         return 0
 
@@ -126,7 +150,16 @@ def calculate_day_number(
 
 
 def get_steps_in_range(all_steps: list[Step], start: int, end: int) -> list[Step]:
-    """Get steps in the specified range (1-indexed, inclusive)."""
+    """Get steps within a specified range.
+
+    Args:
+        all_steps: Complete list of all steps in the trip.
+        start: Start step number (1-indexed, inclusive).
+        end: End step number (1-indexed, inclusive).
+
+    Returns:
+        List of Step objects within the specified range.
+    """
     # Convert to 0-indexed
     start_idx = max(0, start - 1)
     end_idx = min(len(all_steps), end)
@@ -134,7 +167,19 @@ def get_steps_in_range(all_steps: list[Step], start: int, end: int) -> list[Step
 
 
 def get_steps_distributed(all_steps: list[Step], count: int) -> list[Step]:
-    """Get evenly distributed steps across the entire trip."""
+    """Get evenly distributed steps across the entire trip.
+
+    Samples steps at evenly spaced intervals to provide a representative
+    view of the trip. Useful for testing or generating preview albums.
+
+    Args:
+        all_steps: Complete list of all steps in the trip.
+        count: Number of steps to sample.
+
+    Returns:
+        List of Step objects evenly distributed across the trip.
+        Returns all steps if count >= len(all_steps), or empty list if count <= 0.
+    """
     if not all_steps or count <= 0:
         return []
     if count >= len(all_steps):
