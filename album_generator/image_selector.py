@@ -1,6 +1,8 @@
 """Select and manage photos for steps based on aspect ratio and quality."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
+from functools import lru_cache
 from itertools import combinations
 from pathlib import Path
 
@@ -64,8 +66,53 @@ def get_photo_ratio(width: int, height: int) -> PhotoRatio:
     return PhotoRatio.UNKNOWN
 
 
+@lru_cache(maxsize=512)
+def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
+    """Load image metadata (width, height, aspect_ratio) with caching.
+
+    Args:
+        img_path: Path to the image file.
+
+    Returns:
+        Tuple of (width, height, aspect_ratio) or None if loading fails.
+    """
+    try:
+        with Image.open(img_path) as img:
+            width, height = img.size
+            aspect_ratio = width / height if height > 0 else 0
+            return (width, height, aspect_ratio)
+    except Exception as e:
+        logger.debug(f"Error loading image metadata for {img_path}: {e}")
+        return None
+
+
+def _load_single_photo(img_path: Path, index: int) -> Photo | None:
+    """Load a single photo's metadata and create Photo object.
+
+    Args:
+        img_path: Path to the image file.
+        index: Photo index (1-based).
+
+    Returns:
+        Photo object or None if loading fails.
+    """
+    metadata = _load_photo_metadata(img_path)
+    if metadata is None:
+        return None
+
+    width, height, aspect_ratio = metadata
+    return Photo(
+        id=img_path.name,
+        index=index,
+        path=img_path,
+        width=width,
+        height=height,
+        aspect_ratio=aspect_ratio,
+    )
+
+
 def load_step_photos(photo_dir: Path) -> list[Photo]:
-    """Load all photos from a step's photo directory.
+    """Load all photos from a step's photo directory using parallel processing.
 
     Args:
         photo_dir: Directory containing photos for a step. Must be a Path object.
@@ -88,26 +135,27 @@ def load_step_photos(photo_dir: Path) -> list[Photo]:
         + sorted(photo_dir.glob("*.png"))
     )
 
+    if not image_files:
+        return []
+
     photos: list[Photo] = []
-    for index, img_path in enumerate(image_files, start=1):
-        try:
-            with Image.open(img_path) as img:
-                width, height = img.size
-                aspect_ratio = width / height if height > 0 else 0
+    # Use ThreadPoolExecutor for parallel image loading
+    # Max workers set to 4 to avoid overwhelming the system with too many concurrent I/O operations
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        # Submit all photo loading tasks
+        future_to_photo = {
+            executor.submit(_load_single_photo, img_path, index): (img_path, index)
+            for index, img_path in enumerate(image_files, start=1)
+        }
 
-                photo = Photo(
-                    id=img_path.name,
-                    index=index,
-                    path=img_path,
-                    width=width,
-                    height=height,
-                    aspect_ratio=aspect_ratio,
-                )
+        # Collect results as they complete
+        for future in as_completed(future_to_photo):
+            photo = future.result()
+            if photo is not None:
                 photos.append(photo)
-        except Exception as e:
-            logger.debug(f"Error processing image {img_path}: {e}")
-            continue
 
+    # Sort by index to maintain consistent ordering
+    photos.sort(key=lambda p: p.index)
     return photos
 
 
