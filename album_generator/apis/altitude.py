@@ -59,7 +59,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 )
                 progress.update(
                     task_id,
-                    description=(f"Fetching elevations: batch {calls_made + 1}/{num_batches}"),
+                    description=f"Fetching elevations: batch {calls_made + 1}/{num_batches}",
                 )
                 data = fetch_json_with_retry(url, calls_per_second=API_CALLS_PER_SECOND)
 
@@ -92,8 +92,6 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 logger.error(f"Error parsing elevation response: {e}", exc_info=True)
                 all_elevations.extend([None] * len(batch))
                 progress.advance(task_id)
-
-        progress.update(task_id, description="Fetching elevations")
 
     return all_elevations
 

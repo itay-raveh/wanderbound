@@ -433,8 +433,9 @@ def generate_album_html(
     weather_data_list: list[WeatherData] = []
     with weather_progress:
         task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
-        for step in weather_progress.track(steps, task_id=task_id):
-            weather_progress.update(task_id, description=f"Fetching weather data: {step.city}")
+        for step in weather_progress.track(
+            steps, task_id=task_id, description="Fetching weather data"
+        ):
             weather_data = get_weather_data(
                 step.location.lat,
                 step.location.lon,
@@ -442,7 +443,6 @@ def generate_album_html(
                 step.timezone_id,
             )
             weather_data_list.append(weather_data)
-        weather_progress.update(task_id, description="Fetching weather data")
     logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
 
     # Batch fetch flags and accent colors
@@ -451,8 +451,7 @@ def generate_album_html(
     flag_data_list = []
     with flag_progress:
         task_id = flag_progress.add_task("Processing flags", total=len(steps))
-        for step in flag_progress.track(steps, task_id=task_id):
-            flag_progress.update(task_id, description=f"Processing flags: {step.country}")
+        for step in flag_progress.track(steps, task_id=task_id, description="Processing flags"):
             country_flag_data_uri = (
                 get_country_flag_data_uri(step.country_code) if step.country_code else None
             )
@@ -460,7 +459,6 @@ def generate_album_html(
                 country_flag_data_uri, step.country_code, light_mode
             )
             flag_data_list.append((country_flag_data_uri, accent_color))
-        flag_progress.update(task_id, description="Processing flags")
     logger.debug(f"Processed {len(flag_data_list)} flags")
 
     # Batch fetch maps and calculate dot positions
@@ -469,8 +467,7 @@ def generate_album_html(
     map_data_list = []
     with map_progress:
         task_id = map_progress.add_task("Processing maps", total=len(steps))
-        for step in map_progress.track(steps, task_id=task_id):
-            map_progress.update(task_id, description=f"Processing maps: {step.country}")
+        for step in map_progress.track(steps, task_id=task_id, description="Processing maps"):
             if step.country_code:
                 country_map_data_uri = get_country_map_data_uri(
                     step.country_code, step.location.lat, step.location.lon
@@ -484,7 +481,6 @@ def generate_album_html(
                 map_data_list.append((country_map_data_uri, country_map_svg, dot_pos))
             else:
                 map_data_list.append((None, None, None))
-        map_progress.update(task_id, description="Processing maps")
     logger.debug(f"Processed {len(map_data_list)} maps")
 
     # Batch copy cover images to assets directory
@@ -493,11 +489,8 @@ def generate_album_html(
     cover_image_path_list: list[str | None] = []
     with image_progress:
         task_id = image_progress.add_task("Processing images", total=len(steps))
-        for _idx, step in enumerate(image_progress.track(steps, task_id=task_id)):
-            image_progress.update(task_id, description=f"Processing images: {step.city}")
+        for step in image_progress.track(steps, task_id=task_id, description="Processing images"):
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
-            # Check if we need two columns (determines if we need image)
-            # Match the logic from prepare_step_data
             description = _clean_description(step.description or "")
             settings = get_settings()
             use_three_columns = len(description) > settings.description_three_columns_threshold
@@ -516,7 +509,6 @@ def generate_album_html(
                 )
             else:
                 cover_image_path_list.append(None)
-        image_progress.update(task_id, description="Processing images")
     logger.debug(f"Processed {len(cover_image_path_list)} cover images")
 
     # Prepare template environment

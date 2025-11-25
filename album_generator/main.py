@@ -191,9 +191,8 @@ def main() -> None:
 
     with progress:
         task_id = progress.add_task("Loading photos", total=len(steps))
-        for step in progress.track(steps, task_id=task_id):
+        for step in progress.track(steps, task_id=task_id, description="Loading photos"):
             logger.debug(f"Loading photos for step: {step.city}")
-            progress.update(task_id, description=f"Loading photos: {step.city}")
 
             photo_dir = get_step_photo_dir(args.trip_dir, step)
             if not photo_dir:
