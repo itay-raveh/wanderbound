@@ -318,7 +318,6 @@ def prepare_step_data(
 
     # Compare API day temperature with trip data temperature (for logging only)
     # Always use API data as it's more accurate
-    settings = get_settings()
     if day_temp_api is not None and step.weather_temperature is not None:
         temp_diff = abs(day_temp_api - step.weather_temperature)
         if temp_diff > settings.temperature_mismatch_threshold:
@@ -331,18 +330,15 @@ def prepare_step_data(
     # Always use API day icon if available, otherwise fall back to trip data weather condition
     day_icon_name = day_icon_api
     if not day_icon_name and step.weather_condition:
-        # Fallback to trip data weather condition
         day_icon_name = step.weather_condition.lower().replace("_", "-")
 
     # Generate icon URLs
-    settings = get_settings()
-    day_weather_icon_url = None
-    night_weather_icon_url = None
-
-    if day_icon_name:
-        day_weather_icon_url = settings.weather_icon_url.format(icon_name=day_icon_name)
-    if night_icon:
-        night_weather_icon_url = settings.weather_icon_url.format(icon_name=night_icon)
+    day_weather_icon_url = (
+        settings.weather_icon_url.format(icon_name=day_icon_name) if day_icon_name else None
+    )
+    night_weather_icon_url = (
+        settings.weather_icon_url.format(icon_name=night_icon) if night_icon else None
+    )
 
     # Extract flag data (already fetched in batch)
     country_flag_data_uri = None
