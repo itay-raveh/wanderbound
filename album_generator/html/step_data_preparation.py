@@ -4,12 +4,12 @@ from langdetect import LangDetectException, detect
 
 from ..apis import format_altitude
 from ..apis.weather import WeatherData
-from ..data_loader import calculate_day_number
 from ..formatters import format_coordinates, format_date, format_weather_condition
 from ..logger import get_logger
 from ..models import Photo, Step, TripData
 from ..settings import get_settings
 from ..types import StepData
+from ..utils.dates import calculate_day_number
 
 logger = get_logger(__name__)
 

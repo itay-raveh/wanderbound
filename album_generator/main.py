@@ -4,7 +4,7 @@ import os
 import webbrowser
 
 from .cli import parse_args, parse_step_range
-from .data_loader import get_steps_distributed, get_steps_in_range, load_trip_data
+from .data_loader import load_trip_data
 from .exceptions import DataLoadError
 from .html_generator import generate_album_html
 from .logger import create_progress, get_console, get_logger
@@ -13,6 +13,7 @@ from .output.pdf_generator import generate_pdf
 from .photo_manager import load_photos_config, save_photos_config
 from .photo_processor import process_step_photos
 from .settings import get_settings
+from .utils.steps import get_steps_distributed, get_steps_in_range
 
 logger = get_logger(__name__)
 console = get_console()

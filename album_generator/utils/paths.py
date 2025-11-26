@@ -2,7 +2,10 @@
 
 from pathlib import Path
 
+from ..models import Step
 from ..settings import get_settings
+
+__all__ = ["get_font_path", "get_assets_path", "get_step_photo_dir"]
 
 
 def get_font_path() -> Path:
@@ -39,3 +42,36 @@ def get_assets_path(output_dir: Path, subdir: str) -> Path:
     """
     settings = get_settings()
     return output_dir / settings.file.assets_dir / subdir
+
+
+def get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
+    """Get the photo directory path for a step.
+
+    Searches for photo directories matching common naming patterns:
+    - {slug}_{step_id}/photos
+    - {display_slug}_{step_id}/photos
+
+    Args:
+        trip_dir: Base trip directory containing step folders.
+        step: Step object with slug and ID information.
+
+    Returns:
+        Path to the photo directory if found, None otherwise.
+    """
+    slug = step.slug or step.display_slug or ""
+
+    if not slug:
+        return None
+
+    # Try both patterns: slug_id and display_slug_id
+    patterns = [
+        f"{slug}_{step.id}",
+        f"{step.display_slug or slug}_{step.id}",
+    ]
+
+    for pattern in patterns:
+        photo_dir = trip_dir / pattern / "photos"
+        if photo_dir.exists():
+            return photo_dir
+
+    return None

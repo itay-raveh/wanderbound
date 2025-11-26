@@ -42,7 +42,7 @@ def process_step_photos(
             - List of is_three_portraits flags (one per page)
             - List of is_portrait_landscape_split flags (one per page)
     """
-    from .data_loader import get_step_photo_dir
+    from .utils.paths import get_step_photo_dir
 
     photo_dir = get_step_photo_dir(trip_dir, step)
     if not photo_dir:
