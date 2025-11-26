@@ -14,10 +14,10 @@ Generate beautiful HTML photo albums from Polarsteps trip data, matching the des
 
 ## Installation
 
-1. Ensure you have Python 3.13+ and a virtual environment activated
+1. Ensure you have Python 3.10+ and a virtual environment activated
 2. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 3. (Optional) For PDF generation, install Playwright browsers:
    ```bash
