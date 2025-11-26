@@ -10,7 +10,6 @@ from .html_generator import generate_album_html
 from .logger import create_progress, get_console, get_logger
 from .models import Photo
 from .output.pdf_generator import generate_pdf
-from .photo_manager import load_photos_config
 from .photo_processor import process_step_photos
 from .settings import get_settings
 from .utils.steps import get_steps_distributed, get_steps_in_range
@@ -79,7 +78,6 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Output directory: {args.output}")
 
-    photo_config = load_photos_config(steps, args.output)
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
@@ -92,9 +90,7 @@ def main() -> None:
             logger.debug(f"Loading photos for step: {step.city}")
 
             with console.status(f"[bold blue]Processing photos: {step.city}"):
-                photos, cover_photo, photo_pages = process_step_photos(
-                    step, args.trip_dir, photo_config
-                )
+                photos, cover_photo, photo_pages = process_step_photos(step, args.trip_dir)
 
             steps_with_photos[step.id] = photos
             steps_cover_photos[step.id] = cover_photo
