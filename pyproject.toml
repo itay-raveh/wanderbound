@@ -23,7 +23,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "requests>=2.31.0",
+    "httpx>=0.25.0",
+    "requests>=2.31.0",  # Keep for backward compatibility during migration
     "Pillow>=10.0.0",
     "pytz>=2024.1",
     "pydantic>=2.0.0",
@@ -76,3 +77,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "album_generator.apis.async_helpers"
+warn_return_any = false

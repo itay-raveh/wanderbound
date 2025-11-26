@@ -1,7 +1,10 @@
-"""Batch fetching of external data for HTML generation."""
+"""Batch fetching of external data for HTML generation using async/await."""
 
+import asyncio
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import httpx
 
 from ..apis import (
     extract_prominent_color_from_flag,
@@ -11,7 +14,11 @@ from ..apis import (
     get_country_map_dot_position,
     get_country_map_svg,
 )
-from ..apis.weather import WeatherData, get_weather_data
+from ..apis.async_helpers import (
+    create_async_client,
+)
+from ..apis.async_weather import get_weather_data_async
+from ..apis.weather import WeatherData
 from ..html.asset_management import copy_image_to_assets
 from ..html.step_data_preparation import _clean_description
 from ..logger import create_progress, get_console, get_logger
@@ -47,8 +54,35 @@ def fetch_altitudes(steps: list[Step]) -> list[float | None]:
     return elevations
 
 
+async def _fetch_weather_single(
+    client: httpx.AsyncClient, step: Step, index: int
+) -> tuple[int, WeatherData | None]:
+    """Fetch weather data for a single step (async helper).
+
+    Args:
+        client: httpx AsyncClient instance
+        step: Step to fetch weather data for
+        index: Step index for ordering
+
+    Returns:
+        Tuple of (index, WeatherData or None)
+    """
+    try:
+        weather_data = await get_weather_data_async(
+            client,
+            step.location.lat,
+            step.location.lon,
+            step.start_time,
+            step.timezone_id,
+        )
+        return (index, weather_data)
+    except Exception as e:
+        logger.warning(f"Failed to fetch weather data for step {index}: {e}")
+        return (index, None)
+
+
 def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherData | None]:
-    """Fetch weather data for all steps in parallel.
+    """Fetch weather data for all steps in parallel using async/await.
 
     Args:
         steps: List of steps to fetch weather data for
@@ -59,28 +93,30 @@ def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherData | None]:
     logger.debug("Fetching weather data...")
     weather_progress = create_progress("Fetching weather data")
     weather_data_list: list[WeatherData | None] = [None] * len(steps)
+
+    async def _fetch_all() -> None:
+        client = create_async_client()
+        try:
+            tasks = [_fetch_weather_single(client, step, idx) for idx, step in enumerate(steps)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning(f"Error in weather fetch task: {result}")
+                    weather_progress.advance(task_id)
+                elif isinstance(result, tuple) and len(result) == 2:
+                    idx, weather_data = result
+                    weather_data_list[idx] = weather_data
+                    weather_progress.advance(task_id)
+                else:
+                    logger.warning(f"Unexpected result type: {type(result)}")
+                    weather_progress.advance(task_id)
+        finally:
+            await client.aclose()
+
     with weather_progress:
         task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
-        with ThreadPoolExecutor(max_workers=5) as weather_executor:
-            weather_future_to_index: dict[Future[WeatherData | None], int] = {
-                weather_executor.submit(
-                    get_weather_data,
-                    step.location.lat,
-                    step.location.lon,
-                    step.start_time,
-                    step.timezone_id,
-                ): idx
-                for idx, step in enumerate(steps)
-            }
-            for future in as_completed(weather_future_to_index):
-                idx = weather_future_to_index[future]
-                try:
-                    result = future.result()
-                    weather_data_list[idx] = result
-                    weather_progress.advance(task_id)
-                except Exception as e:
-                    logger.warning(f"Failed to fetch weather data for step {idx}: {e}")
-                    weather_progress.advance(task_id)
+        asyncio.run(_fetch_all())
+
     logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
     return weather_data_list
 
