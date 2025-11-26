@@ -55,11 +55,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use light mode instead of dark mode (default: dark mode)",
     )
-    parser.add_argument(
-        "--clear-photos-cache",
-        action="store_true",
-        help="Clear cached photo layout configuration and regenerate from scratch",
-    )
 
     return parser.parse_args()
 

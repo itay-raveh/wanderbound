@@ -10,7 +10,7 @@ from .html_generator import generate_album_html
 from .logger import create_progress, get_console, get_logger
 from .models import Photo
 from .output.pdf_generator import generate_pdf
-from .photo_manager import load_photos_config, save_photos_config
+from .photo_manager import load_photos_config
 from .photo_processor import process_step_photos
 from .settings import get_settings
 from .utils.steps import get_steps_distributed, get_steps_in_range
@@ -79,19 +79,6 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug(f"Output directory: {args.output}")
 
-    # Clear photos cache if requested
-    if args.clear_photos_cache:
-        logger.info("Clearing photos cache...")
-        settings = get_settings()
-        photos_config_path = args.output / settings.file.photos_mapping_file
-        photos_pages_path = args.output / settings.file.photos_by_pages_file
-        if photos_config_path.exists():
-            photos_config_path.unlink()
-            logger.debug(f"Deleted {photos_config_path}")
-        if photos_pages_path.exists():
-            photos_pages_path.unlink()
-            logger.debug(f"Deleted {photos_pages_path}")
-
     photo_config = load_photos_config(steps, args.output)
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
@@ -112,15 +99,6 @@ def main() -> None:
             steps_with_photos[step.id] = photos
             steps_cover_photos[step.id] = cover_photo
             steps_photo_pages[step.id] = photo_pages
-
-    # Save photo configuration for manual editing
-    save_photos_config(
-        steps,
-        steps_with_photos,
-        steps_cover_photos,
-        steps_photo_pages,
-        args.output,
-    )
 
     # Generate single HTML file with all steps
     settings = get_settings()
