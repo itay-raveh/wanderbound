@@ -96,8 +96,6 @@ def main() -> None:
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
-    steps_photo_page_layouts: dict[int, list[bool]] = {}
-    steps_photo_page_portrait_split_layouts: dict[int, list[bool]] = {}
 
     progress = create_progress("Loading photos")
 
@@ -107,19 +105,13 @@ def main() -> None:
             logger.debug(f"Loading photos for step: {step.city}")
 
             with console.status(f"[bold blue]Processing photos: {step.city}"):
-                (
-                    photos,
-                    cover_photo,
-                    photo_pages,
-                    is_three_portraits,
-                    is_portrait_landscape_split,
-                ) = process_step_photos(step, args.trip_dir, photo_config)
+                photos, cover_photo, photo_pages = process_step_photos(
+                    step, args.trip_dir, photo_config
+                )
 
             steps_with_photos[step.id] = photos
             steps_cover_photos[step.id] = cover_photo
             steps_photo_pages[step.id] = photo_pages
-            steps_photo_page_layouts[step.id] = is_three_portraits
-            steps_photo_page_portrait_split_layouts[step.id] = is_portrait_landscape_split
 
     # Save photo configuration for manual editing
     save_photos_config(
@@ -128,8 +120,6 @@ def main() -> None:
         steps_cover_photos,
         steps_photo_pages,
         args.output,
-        steps_photo_page_layouts,
-        steps_photo_page_portrait_split_layouts,
     )
 
     # Generate single HTML file with all steps
@@ -143,8 +133,6 @@ def main() -> None:
             steps_with_photos,
             steps_cover_photos,
             steps_photo_pages,
-            steps_photo_page_layouts,
-            steps_photo_page_portrait_split_layouts,
             trip_data,
             font_path,
             html_path,

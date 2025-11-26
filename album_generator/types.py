@@ -63,8 +63,6 @@ class StepPhotoConfigDict(TypedDict, total=False):
     """Dictionary structure for a step's photo configuration in JSON export."""
 
     photos: dict[str, PhotoDataDict]
-    is_three_portraits: list[bool]
-    is_portrait_landscape_split: list[bool]
 
 
 class PhotoConfigDict(TypedDict, total=False):
@@ -73,8 +71,6 @@ class PhotoConfigDict(TypedDict, total=False):
     cover_photo_index: int | None
     photo_pages: list[list[int]]
     photos: dict[str, PhotoDataDict]
-    is_three_portraits: list[bool]
-    is_portrait_landscape_split: list[bool]
 
 
 __all__ = [

@@ -19,8 +19,6 @@ def save_photos_config(
     steps_cover_photos: dict[int, Photo | None],
     steps_photo_pages: dict[int, list[list[Photo]]],
     save_path: Path,
-    steps_photo_page_layouts: dict[int, list[bool]] | None = None,
-    steps_photo_page_portrait_split_layouts: dict[int, list[bool]] | None = None,
 ) -> None:
     """Save photo configuration to files for manual editing.
 
@@ -30,8 +28,6 @@ def save_photos_config(
         steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
         steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
         save_path: Directory where config files should be saved
-        steps_photo_page_layouts: Dictionary mapping step IDs to lists of is_three_portraits flags
-        steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
     """
     settings = get_settings()
     export_photos_mapping_json: dict[str, StepPhotoConfigDict] = {}
@@ -60,30 +56,6 @@ def save_photos_config(
             )
 
         step_config: StepPhotoConfigDict = {"photos": step_photos_mapping}
-        # Always include layout flags, even if empty lists
-        photo_pages = steps_photo_pages.get(step_id, [])
-        num_pages = len(photo_pages)
-        if steps_photo_page_layouts and step_id in steps_photo_page_layouts:
-            flags = steps_photo_page_layouts[step_id]
-            if len(flags) == num_pages:
-                step_config["is_three_portraits"] = flags
-            else:
-                step_config["is_three_portraits"] = [False] * num_pages
-        else:
-            step_config["is_three_portraits"] = [False] * num_pages
-
-        if (
-            steps_photo_page_portrait_split_layouts
-            and step_id in steps_photo_page_portrait_split_layouts
-        ):
-            flags = steps_photo_page_portrait_split_layouts[step_id]
-            if len(flags) == num_pages:
-                step_config["is_portrait_landscape_split"] = flags
-            else:
-                step_config["is_portrait_landscape_split"] = [False] * num_pages
-        else:
-            step_config["is_portrait_landscape_split"] = [False] * num_pages
-
         export_photos_mapping_json[str(step_id)] = step_config
 
         cover_photo = steps_cover_photos.get(step_id)
@@ -195,10 +167,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, PhotoCon
                     continue
 
                 step_photos_mapping = step_config_data.get("photos", {})
-                is_three_portraits = step_config_data.get("is_three_portraits", [])
-                is_portrait_landscape_split = step_config_data.get(
-                    "is_portrait_landscape_split", []
-                )
 
                 reconstructed_photos: list[Photo] = []
                 for photo_idx_str, photo_data in step_photos_mapping.items():
@@ -228,8 +196,6 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, PhotoCon
                     "cover_photo_index": cover_photo_index,
                     "photo_pages": photo_pages,
                     "photos": photos_dict,
-                    "is_three_portraits": is_three_portraits,
-                    "is_portrait_landscape_split": is_portrait_landscape_split,
                 }
 
         return config if config else None

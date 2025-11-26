@@ -1,6 +1,5 @@
 """Photo processing and layout computation for steps."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 from .image_selector import (
@@ -11,7 +10,6 @@ from .image_selector import (
 )
 from .logger import get_logger
 from .models import Photo, Step
-from .photo.layout import _is_one_portrait_two_landscapes, _is_three_portraits
 from .types import PhotoConfigDict
 
 logger = get_logger(__name__)
@@ -23,7 +21,7 @@ def process_step_photos(
     step: Step,
     trip_dir: Path,
     photo_config: dict[int, PhotoConfigDict] | None,
-) -> tuple[list[Photo], Photo | None, list[list[Photo]], list[bool], list[bool]]:
+) -> tuple[list[Photo], Photo | None, list[list[Photo]]]:
     """Process photos for a single step, including loading, selection, and layout.
 
     Handles both saved configuration and automatic photo selection/layout.
@@ -39,8 +37,6 @@ def process_step_photos(
             - List of Photo objects for the step
             - Cover photo (Photo or None)
             - List of photo pages (each page is a list of Photo objects)
-            - List of is_three_portraits flags (one per page)
-            - List of is_portrait_landscape_split flags (one per page)
     """
     from .utils.paths import get_step_photo_dir
 
@@ -51,7 +47,7 @@ def process_step_photos(
             f"Expected directory pattern: {step.slug or step.display_slug}_{step.id}/photos "
             f"in {trip_dir}"
         )
-        return [], None, [], [], []
+        return [], None, []
 
     photos = load_step_photos(photo_dir)
     if not photos:
@@ -59,7 +55,7 @@ def process_step_photos(
             f"No photos found in {photo_dir} for step '{step.city}'. "
             f"Expected image files (.jpg, .jpeg, .png)"
         )
-        return [], None, [], [], []
+        return [], None, []
 
     use_cover = should_use_cover_photo(step.description)
 
@@ -72,21 +68,11 @@ def process_step_photos(
         photo_pages_indices = config.get("photo_pages", [])
         if photo_pages_indices:
             photo_pages = _reconstruct_photo_pages(photos, photo_pages_indices)
-            is_three_portraits = _compute_layout_flags(
-                photo_pages,
-                config.get("is_three_portraits", []),
-                lambda p: len(p) == 3 and _is_three_portraits(tuple(p)),
-            )
-            is_portrait_landscape_split = _compute_layout_flags(
-                photo_pages,
-                config.get("is_portrait_landscape_split", []),
-                lambda p: len(p) == 3 and _is_one_portrait_two_landscapes(tuple(p)),
-            )
-            return photos, cover_photo, photo_pages, is_three_portraits, is_portrait_landscape_split
+            return photos, cover_photo, photo_pages
 
     # Use default layout strategy (no saved config or no saved pages)
-    pages, layouts, split_layouts = compute_default_photos_by_pages(photos, cover_photo)
-    return photos, cover_photo, pages, layouts, split_layouts
+    pages, _, _ = compute_default_photos_by_pages(photos, cover_photo)
+    return photos, cover_photo, pages
 
 
 def _get_cover_photo(
@@ -137,27 +123,3 @@ def _reconstruct_photo_pages(
         if page_photos:
             photo_pages.append(page_photos)
     return photo_pages
-
-
-def _compute_layout_flags(
-    photo_pages: list[list[Photo]],
-    saved_flags: list[bool],
-    compute_fn: Callable[[list[Photo]], bool],
-) -> list[bool]:
-    """Compute layout flags, using saved flags if they match page count.
-
-    Args:
-        photo_pages: List of photo pages.
-        saved_flags: Saved layout flags from config.
-        compute_fn: Function to compute flag for a single page.
-
-    Returns:
-        List of layout flags, one per page.
-    """
-    if len(saved_flags) == len(photo_pages):
-        return saved_flags
-
-    computed_flags: list[bool] = []
-    for page in photo_pages:
-        computed_flags.append(compute_fn(page))
-    return computed_flags

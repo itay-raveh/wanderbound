@@ -27,8 +27,6 @@ def generate_album_html(
     steps_with_photos: dict[int, list[Photo]],
     steps_cover_photos: dict[int, Photo | None],
     steps_photo_pages: dict[int, list[list[Photo]]],
-    steps_photo_page_layouts: dict[int, list[bool]],
-    steps_photo_page_portrait_split_layouts: dict[int, list[bool]],
     trip_data: TripData,
     font_path: Path,
     output_path: Path,
@@ -42,8 +40,6 @@ def generate_album_html(
         steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
         steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
         steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
-        steps_photo_page_layouts: Dictionary mapping step IDs to lists of layout flags (True for 3-portrait layout)
-        steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of layout flags (True for portrait-landscape split layout)
         trip_data: Trip metadata including start/end dates, timezone, and all steps
         font_path: Path to the font file to use for titles
         output_path: Path where the HTML file should be written
@@ -109,17 +105,11 @@ def generate_album_html(
 
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
-            photo_page_layouts = steps_photo_page_layouts.get(step.id, []) if step.id else []
-            photo_page_portrait_split_layouts = (
-                steps_photo_page_portrait_split_layouts.get(step.id, []) if step.id else []
-            )
 
             # Copy photo pages images to assets directory
             step_name = step.get_name_for_photos_export()
             photo_pages_paths = process_photo_pages(
                 photo_pages,
-                photo_page_layouts,
-                photo_page_portrait_split_layouts,
                 step_name,
                 output_path.parent,
             )
