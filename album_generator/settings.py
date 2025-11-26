@@ -56,9 +56,6 @@ class FileSettings(BaseModel):
     """File and directory name settings."""
 
     # File names
-    photos_mapping_file: str = "photos_mapping.json"
-    photos_by_pages_file: str = "photos_by_pages.txt"
-    cover_photo_prefix: str = "Cover photo: "
     album_html_file: str = "album.html"
     album_pdf_file: str = "album.pdf"
     font_file: str = "Renner.ttf"

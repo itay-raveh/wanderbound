@@ -48,35 +48,7 @@ class StepData(TypedDict, total=False):
     light_mode: bool
 
 
-class PhotoDataDict(TypedDict):
-    """Dictionary structure for a single photo's data in JSON export."""
-
-    id: str
-    index: int
-    path: str
-    width: int | None
-    height: int | None
-    aspect_ratio: float | None
-
-
-class StepPhotoConfigDict(TypedDict, total=False):
-    """Dictionary structure for a step's photo configuration in JSON export."""
-
-    photos: dict[str, PhotoDataDict]
-
-
-class PhotoConfigDict(TypedDict, total=False):
-    """Dictionary structure for photo configuration loaded from files."""
-
-    cover_photo_index: int | None
-    photo_pages: list[list[int]]
-    photos: dict[str, PhotoDataDict]
-
-
 __all__ = [
     "StepData",
     "PhotoPageData",
-    "PhotoConfigDict",
-    "PhotoDataDict",
-    "StepPhotoConfigDict",
 ]
