@@ -17,6 +17,7 @@ __all__ = [
     "_calculate_total_coverage",
     "_calculate_visual_score",
     "_find_best_photo_combination",
+    "compute_default_photos_by_pages",
 ]
 
 # CSS Grid layout definitions matching album.html template
@@ -352,3 +353,97 @@ def _find_best_photo_combination(
                     best_is_portrait_landscape_split = is_portrait_landscape_split
 
     return best_combination, best_is_three_portraits, best_is_portrait_landscape_split
+
+
+def compute_default_photos_by_pages(
+    photos: list[Photo], cover_photo: Photo | None
+) -> tuple[list[list[Photo]], list[bool], list[bool]]:
+    """Compute default photo page layout using optimized bin-packing algorithm.
+
+    Strategy:
+    1. All photos (except cover) are processed through the bin-packing algorithm
+    2. Priorities (in order):
+       a. Respect minimum size constraint (hard requirement - no photo < MIN_PHOTO_SIZE_PERCENT)
+       b. Maximize number of photos per page (within size constraints)
+       c. Maximize page coverage (fill as much space as possible)
+       d. Visual balance (prefer portrait in first position for multi-row layouts, aspect ratio diversity)
+       e. Minimize total pages (byproduct of maximizing per-page efficiency)
+
+    Uses a combination-based approach that evaluates all valid combinations to find
+    the truly optimal one, rather than using greedy early termination.
+
+    Args:
+        photos: List of all Photo objects for the step
+        cover_photo: Cover photo to exclude from pages (or None)
+
+    Returns:
+        Tuple of (list of photo pages, list of is_three_portraits flags, list of is_portrait_landscape_split flags)
+        Each page is a list of Photo objects, and flags indicate which layout to use
+    """
+    # Filter out cover photo
+    candidates = [p for p in photos if p != cover_photo]
+
+    if not candidates:
+        return [], [], []
+
+    photos_by_pages: list[list[Photo]] = []
+    is_three_portraits_flags: list[bool] = []
+    is_portrait_landscape_split_flags: list[bool] = []
+    remaining = candidates.copy()
+    settings = get_settings()
+
+    # Calculate maximum photos per page based on min size constraint
+    max_photos_per_page = _get_max_photos_for_page(settings.min_photo_size_percent)
+
+    # Pack photos into pages using bin-packing algorithm
+    while remaining:
+        # Find the best combination of photos for this page
+        best_combo, is_three_portraits, is_portrait_landscape_split = _find_best_photo_combination(
+            remaining, max_photos_per_page, settings.min_photo_size_percent
+        )
+
+        if best_combo:
+            # ALWAYS force correct layout if we have matching photos, regardless of algorithm choice
+            settings = get_settings()
+            if len(best_combo) == settings.photo.photo_count_for_special_layouts:
+                is_three_portraits_forced = _is_three_portraits(tuple(best_combo))
+                is_portrait_landscape_split_forced = _is_one_portrait_two_landscapes(
+                    tuple(best_combo)
+                )
+                if is_three_portraits_forced:
+                    is_three_portraits = True
+                    is_portrait_landscape_split = False
+                    logger.debug("FORCING 3-portrait layout for page with 3 portrait photos")
+                elif is_portrait_landscape_split_forced:
+                    is_three_portraits = False
+                    is_portrait_landscape_split = True
+                    logger.debug(
+                        "FORCING portrait-landscape split layout for page with 1 portrait + 2 landscapes"
+                    )
+                else:
+                    # Check what we actually have
+                    ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in best_combo]
+                    logger.debug(
+                        f"Page with 3 photos but no special layout detected. Ratios: {[r.name for r in ratios]}"
+                    )
+            photos_by_pages.append(best_combo)
+            is_three_portraits_flags.append(is_three_portraits)
+            is_portrait_landscape_split_flags.append(is_portrait_landscape_split)
+            ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in best_combo]
+            logger.debug(
+                f"Page with {len(best_combo)} photos, is_three_portraits={is_three_portraits}, "
+                f"is_portrait_landscape_split={is_portrait_landscape_split}, "
+                f"photo ratios: {[r.name for r in ratios]}, "
+                f"dimensions: {[(p.width, p.height) for p in best_combo]}"
+            )
+            # Remove used photos from remaining
+            for photo in best_combo:
+                remaining.remove(photo)
+        else:
+            # Fallback: if no valid combination found, add single photo
+            # This should only happen if min_size_percent is unreasonably high
+            photos_by_pages.append([remaining.pop(0)])
+            is_three_portraits_flags.append(False)
+            is_portrait_landscape_split_flags.append(False)
+
+    return photos_by_pages, is_three_portraits_flags, is_portrait_landscape_split_flags
