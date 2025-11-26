@@ -4,8 +4,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .image_selector import (
-    _is_one_portrait_two_landscapes,
-    _is_three_portraits,
     compute_default_photos_by_pages,
     load_step_photos,
     select_cover_photo,
@@ -13,6 +11,7 @@ from .image_selector import (
 )
 from .logger import get_logger
 from .models import Photo, Step
+from .photo.layout import _is_one_portrait_two_landscapes, _is_three_portraits
 from .types import PhotoConfigDict
 
 logger = get_logger(__name__)

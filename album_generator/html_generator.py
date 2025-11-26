@@ -138,10 +138,10 @@ def generate_album_html(
                     # Safety check: if we have exactly 3 photos, double-check the layout
                     # This ensures the flag is set even if there was a mismatch in the layout array
                     if len(page) == 3:
-                        from .image_selector import (
+                        from .image_selector import get_photo_ratio
+                        from .photo.layout import (
                             _is_one_portrait_two_landscapes,
                             _is_three_portraits,
-                            get_photo_ratio,
                         )
 
                         if _is_three_portraits(tuple(page)):
