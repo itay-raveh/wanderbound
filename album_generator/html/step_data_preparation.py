@@ -56,33 +56,34 @@ def _split_description(
 ) -> tuple[str, str, str]:
     """Split description into columns. Returns full text for CSS column handling.
 
+    The CSS handles the actual column layout, so we return the full cleaned text
+    in the first column and empty strings for the others.
+
     Args:
         description: Description text to split
         is_hebrew: Whether the text is Hebrew (affects splitting logic)
         use_three_columns: Whether to use three columns
 
     Returns:
-        Tuple of (col1, col2, col3) text
+        Tuple of (col1, col2, col3) text where col1 contains the full cleaned text
     """
     if not description:
         return ("", "", "")
 
     parts = description.split("\n\n")
-    if len(parts) == 1:
-        return (description, "", "")
-    elif len(parts) == 2:
-        return (parts[0], parts[1], "")
-    else:
-        if use_three_columns:
-            if is_hebrew:
-                return (parts[0], parts[1], "\n\n".join(parts[2:]))
-            else:
-                return ("\n\n".join(parts[:-2]), parts[-2], parts[-1])
-        else:
-            if is_hebrew:
-                return (parts[0], "\n\n".join(parts[1:]), "")
-            else:
-                return ("\n\n".join(parts[:-1]), parts[-1], "")
+    paragraphs = []
+    for p in parts:
+        cleaned = p.strip()
+        if cleaned:
+            paragraphs.append(cleaned)
+        elif paragraphs and paragraphs[-1]:
+            paragraphs.append("")
+
+    if not paragraphs:
+        return ("", "", "")
+
+    full_text = "\n\n".join(paragraphs).strip().lstrip()
+    return (full_text, "", "")
 
 
 def _clean_description(description: str) -> str:
