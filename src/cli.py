@@ -88,9 +88,8 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
     if "-" in range_str:
         start, end = range_str.split("-", 1)
         return int(start.strip()), int(end.strip())
-    else:
-        step_num = int(range_str.strip())
-        return step_num, step_num
+    step_num = int(range_str.strip())
+    return step_num, step_num
 
 
 __all__ = ["parse_args"]

@@ -76,10 +76,10 @@ class PhotoProcessingError(AlbumGeneratorError):
 
 
 __all__ = [
+    "APIError",
     "AlbumGeneratorError",
     "ConfigurationError",
-    "ValidationError",
-    "APIError",
     "DataLoadError",
     "PhotoProcessingError",
+    "ValidationError",
 ]

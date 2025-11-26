@@ -10,7 +10,7 @@ from ..models import Photo
 
 logger = get_logger(__name__)
 
-__all__ = ["load_step_photos", "_load_photo_metadata"]
+__all__ = ["_load_photo_metadata", "load_step_photos"]
 
 
 @lru_cache(maxsize=512)

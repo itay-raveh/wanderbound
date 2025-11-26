@@ -3,7 +3,7 @@
 from ..models import Photo
 from ..settings import get_settings
 
-__all__ = ["should_use_cover_photo", "select_cover_photo"]
+__all__ = ["select_cover_photo", "should_use_cover_photo"]
 
 
 def should_use_cover_photo(description: str | None) -> bool:

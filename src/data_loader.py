@@ -64,7 +64,7 @@ def load_trip_data(trip_path: Path) -> TripData:
     steps = []
     for step_data in data.get("all_steps", []):
         try:
-            if "location" in step_data and step_data["location"]:
+            if step_data.get("location"):
                 step_data["location"] = Location(**step_data["location"])
 
             step = Step(**step_data)

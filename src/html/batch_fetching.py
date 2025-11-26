@@ -26,9 +26,9 @@ console = get_console()
 
 __all__ = [
     "fetch_altitudes",
-    "fetch_weather_data_batch",
     "fetch_flags_batch",
     "fetch_maps_batch",
+    "fetch_weather_data_batch",
     "process_cover_images_batch",
 ]
 

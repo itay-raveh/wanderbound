@@ -9,12 +9,12 @@ from .maps import (
 )
 
 __all__ = [
-    "get_cached",
-    "set_cached",
-    "get_altitude_batch",
-    "get_altitude",
-    "format_altitude",
     "extract_prominent_color_from_flag",
-    "get_country_map_svg",
+    "format_altitude",
+    "get_altitude",
+    "get_altitude_batch",
+    "get_cached",
     "get_country_map_dot_position",
+    "get_country_map_svg",
+    "set_cached",
 ]

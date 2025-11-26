@@ -26,7 +26,8 @@ _COUNTRY_COLORS: dict[str, str] = {}
 def _color_distance(color1: str, color2: str) -> float:
     """Calculate perceptual color distance using Delta E (CIE 2000).
     Returns normalized distance (0-1 scale, 0 = identical).
-    Delta E values > 2.3 are considered perceptually different."""
+    Delta E values > 2.3 are considered perceptually different.
+    """
     if not color1.startswith("#") or not color2.startswith("#"):
         return 1.0
 

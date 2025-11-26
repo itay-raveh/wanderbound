@@ -204,7 +204,7 @@ def _geometry_to_svg_path(geometry: Any) -> str:
 
         return " ".join(path_parts)
 
-    elif isinstance(geometry, MultiPolygon):
+    if isinstance(geometry, MultiPolygon):
         # Combine all polygons
         paths = []
         for poly in geometry.geoms:
@@ -213,20 +213,19 @@ def _geometry_to_svg_path(geometry: Any) -> str:
                 paths.append(path)
         return " ".join(paths)
 
-    else:
-        # Fallback: try to get coordinates
-        try:
-            coords = list(geometry.coords)
-            if len(coords) < 2:
-                return ""
-            path_parts = [f"M {coords[0][0]},{coords[0][1]}"]
-            for coord in coords[1:]:
-                path_parts.append(f"L {coord[0]},{coord[1]}")
-            if geometry.is_closed:
-                path_parts.append("Z")
-            return " ".join(path_parts)
-        except (AttributeError, TypeError):
+    # Fallback: try to get coordinates
+    try:
+        coords = list(geometry.coords)
+        if len(coords) < 2:
             return ""
+        path_parts = [f"M {coords[0][0]},{coords[0][1]}"]
+        for coord in coords[1:]:
+            path_parts.append(f"L {coord[0]},{coord[1]}")
+        if geometry.is_closed:
+            path_parts.append("Z")
+        return " ".join(path_parts)
+    except (AttributeError, TypeError):
+        return ""
 
 
 def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[float], Any]:
@@ -505,8 +504,7 @@ def get_country_map_dot_position(
         lat_percentage = max(5, min(95, lat_percentage))
 
         return (lon_percentage, lat_percentage)
-    else:
-        return (50.0, 50.0)
+    return (50.0, 50.0)
 
 
 async def get_country_map_svg_async(

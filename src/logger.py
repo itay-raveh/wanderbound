@@ -130,8 +130,8 @@ def create_progress(description: str = "Processing", total: int | None = None) -
 
 # Export DEBUG_MODE for use in other modules
 __all__ = [
-    "get_logger",
-    "get_console",
-    "create_progress",
     "DEBUG_MODE",
+    "create_progress",
+    "get_console",
+    "get_logger",
 ]

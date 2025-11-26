@@ -7,7 +7,7 @@ from ..settings import get_settings
 from ..utils.files import sanitize_filename
 from ..utils.paths import get_assets_path
 
-__all__ = ["copy_image_to_assets", "copy_assets"]
+__all__ = ["copy_assets", "copy_image_to_assets"]
 
 
 def copy_image_to_assets(

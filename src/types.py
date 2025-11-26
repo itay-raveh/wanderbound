@@ -49,6 +49,6 @@ class StepData(TypedDict, total=False):
 
 
 __all__ = [
-    "StepData",
     "PhotoPageData",
+    "StepData",
 ]

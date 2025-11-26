@@ -5,7 +5,7 @@ from pathlib import Path
 from ..models import Step
 from ..settings import get_settings
 
-__all__ = ["get_font_path", "get_assets_path", "get_step_photo_dir"]
+__all__ = ["get_assets_path", "get_font_path", "get_step_photo_dir"]
 
 
 def get_font_path() -> Path:

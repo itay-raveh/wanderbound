@@ -3,7 +3,7 @@
 from ..models import Photo
 from .ratio import PhotoRatio, get_photo_ratio
 
-__all__ = ["_is_three_portraits", "_is_one_portrait_two_landscapes"]
+__all__ = ["_is_one_portrait_two_landscapes", "_is_three_portraits"]
 
 
 def _is_three_portraits(combo: tuple[Photo, ...] | list[Photo]) -> bool:

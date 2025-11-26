@@ -19,14 +19,14 @@ from .photo.scorer import compute_default_photos_by_pages
 
 __all__ = [
     "PhotoRatio",
+    "_is_one_portrait_two_landscapes",
+    "_is_three_portraits",
+    "compute_default_photos_by_pages",
     "get_photo_ratio",
     "load_step_photos",
-    "should_use_cover_photo",
     "select_cover_photo",
-    "compute_default_photos_by_pages",
     "select_step_image",
-    "_is_three_portraits",
-    "_is_one_portrait_two_landscapes",
+    "should_use_cover_photo",
 ]
 
 

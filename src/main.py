@@ -56,8 +56,7 @@ def main() -> None:
 
     if not all_steps:
         raise DataLoadError(
-            "No steps found in trip data. "
-            f"Please check that {trip_json} contains valid step data.",
+            f"No steps found in trip data. Please check that {trip_json} contains valid step data.",
             file_path=str(trip_json),
         )
 

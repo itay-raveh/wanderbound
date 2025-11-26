@@ -12,11 +12,11 @@ logger = get_logger(__name__)
 
 __all__ = [
     "_calculate_photo_area_percent",
-    "_validate_photo_combination",
-    "_get_max_photos_for_page",
     "_calculate_total_coverage",
     "_calculate_visual_score",
     "_find_best_photo_combination",
+    "_get_max_photos_for_page",
+    "_validate_photo_combination",
     "compute_default_photos_by_pages",
 ]
 
@@ -70,9 +70,8 @@ def _calculate_photo_area_percent(
         if photo_index == 0:
             # Portrait on left: takes 50% of width, 100% of height
             return settings.photo.photo_area_portrait_left
-        else:
-            # Landscapes on right: each takes 50% of width, 50% of height
-            return settings.photo.photo_area_landscape_right
+        # Landscapes on right: each takes 50% of width, 50% of height
+        return settings.photo.photo_area_landscape_right
 
     # Use predefined grid layouts for known configurations
     if photo_count in _GRID_LAYOUTS:
@@ -159,9 +158,8 @@ def _get_max_photos_for_page(min_size_percent: float) -> int:
                 count, min_size_percent, False, False
             ) and not _validate_photo_combination(count, min_size_percent, True, False):
                 return count - 1
-        else:
-            if not _validate_photo_combination(count, min_size_percent, False, False):
-                return count - 1
+        elif not _validate_photo_combination(count, min_size_percent, False, False):
+            return count - 1
     settings = get_settings()
     return settings.photo.max_photos_to_test
 

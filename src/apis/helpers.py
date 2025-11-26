@@ -12,10 +12,10 @@ from .rate_limit import fetch_content_with_retry
 logger = get_logger(__name__)
 
 __all__ = [
-    "fetch_and_cache_content",
-    "fetch_and_cache_json_async",
-    "fetch_and_cache_content_async",
     "create_async_client",
+    "fetch_and_cache_content",
+    "fetch_and_cache_content_async",
+    "fetch_and_cache_json_async",
 ]
 
 

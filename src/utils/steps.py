@@ -2,7 +2,7 @@
 
 from ..models import Step
 
-__all__ = ["get_steps_in_range", "get_steps_distributed"]
+__all__ = ["get_steps_distributed", "get_steps_in_range"]
 
 
 def get_steps_in_range(all_steps: list[Step], start: int, end: int) -> list[Step]:

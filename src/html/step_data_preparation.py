@@ -14,11 +14,11 @@ from ..utils.dates import calculate_day_number
 logger = get_logger(__name__)
 
 __all__ = [
-    "_is_hebrew",
-    "_split_description",
+    "_calculate_progress",
     "_clean_description",
     "_format_temperature",
-    "_calculate_progress",
+    "_is_hebrew",
+    "_split_description",
     "prepare_step_data",
 ]
 
@@ -154,21 +154,18 @@ def _calculate_progress(
     if use_step_range:
         day_num = step_index + 1
         progress_percent = (day_num / len(steps)) * 100 if steps else 0
+    elif trip_data.start_date is None:
+        progress_percent = 0
+        day_num = 1
     else:
-        if trip_data.start_date is None:
-            progress_percent = 0
-            day_num = 1
-        else:
-            day_num = calculate_day_number(
-                step.start_time, trip_data.start_date, trip_data.timezone_id
+        day_num = calculate_day_number(step.start_time, trip_data.start_date, trip_data.timezone_id)
+        if trip_data.end_date is not None:
+            total_days = calculate_day_number(
+                trip_data.end_date, trip_data.start_date, trip_data.timezone_id
             )
-            if trip_data.end_date is not None:
-                total_days = calculate_day_number(
-                    trip_data.end_date, trip_data.start_date, trip_data.timezone_id
-                )
-                progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
-            else:
-                progress_percent = 0
+            progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
+        else:
+            progress_percent = 0
 
     return day_num, progress_percent
 

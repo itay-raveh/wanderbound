@@ -290,7 +290,7 @@ def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 401:
             logger.warning(
-                f"Authentication failed for weather API. Please check your API key. " f"Error: {e}"
+                f"Authentication failed for weather API. Please check your API key. Error: {e}"
             )
         else:
             logger.warning(f"HTTP error getting weather data: {e}")
