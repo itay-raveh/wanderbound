@@ -64,4 +64,38 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def parse_step_range(range_str: str) -> tuple[int, int]:
+    """Parse step range string into start and end step numbers.
+
+    Args:
+        range_str: Step range string in format "start-end" or single step number.
+            Must be a non-empty string.
+
+    Returns:
+        Tuple of (start, end) step numbers (1-indexed, inclusive).
+        If single number provided, both start and end are the same.
+
+    Raises:
+        TypeError: If range_str is not a string.
+        ValueError: If range_str cannot be parsed as integers.
+
+    Examples:
+        >>> parse_step_range("99-110")
+        (99, 110)
+        >>> parse_step_range("99")
+        (99, 99)
+    """
+    if not isinstance(range_str, str):
+        raise TypeError(f"range_str must be a string, got {type(range_str).__name__}")
+    if not range_str.strip():
+        raise ValueError("range_str cannot be empty")
+
+    if "-" in range_str:
+        start, end = range_str.split("-", 1)
+        return int(start.strip()), int(end.strip())
+    else:
+        step_num = int(range_str.strip())
+        return step_num, step_num
+
+
 __all__ = ["parse_args"]

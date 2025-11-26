@@ -2,99 +2,20 @@
 
 import os
 import webbrowser
-from pathlib import Path
 
-from .cli import parse_args
+from .cli import parse_args, parse_step_range
 from .data_loader import get_steps_distributed, get_steps_in_range, load_trip_data
 from .exceptions import DataLoadError
 from .html_generator import generate_album_html
 from .logger import create_progress, get_console, get_logger
 from .models import Photo
+from .output.pdf_generator import generate_pdf
 from .photo_manager import load_photos_config, save_photos_config
 from .photo_processor import process_step_photos
 from .settings import get_settings
 
 logger = get_logger(__name__)
 console = get_console()
-
-
-def parse_step_range(range_str: str) -> tuple[int, int]:
-    """Parse step range string into start and end step numbers.
-
-    Args:
-        range_str: Step range string in format "start-end" or single step number.
-            Must be a non-empty string.
-
-    Returns:
-        Tuple of (start, end) step numbers (1-indexed, inclusive).
-        If single number provided, both start and end are the same.
-
-    Raises:
-        TypeError: If range_str is not a string.
-        ValueError: If range_str cannot be parsed as integers.
-
-    Examples:
-        >>> parse_step_range("99-110")
-        (99, 110)
-        >>> parse_step_range("99")
-        (99, 99)
-    """
-    if not isinstance(range_str, str):
-        raise TypeError(f"range_str must be a string, got {type(range_str).__name__}")
-    if not range_str.strip():
-        raise ValueError("range_str cannot be empty")
-
-    if "-" in range_str:
-        start, end = range_str.split("-", 1)
-        return int(start.strip()), int(end.strip())
-    else:
-        step_num = int(range_str.strip())
-        return step_num, step_num
-
-
-def generate_pdf(html_path: Path, pdf_path: Path) -> None:
-    """Generate PDF file from HTML using Playwright.
-
-    Opens the HTML file in a headless Chromium browser and exports it as a PDF
-    with A4 landscape format. Requires Playwright to be installed.
-
-    Args:
-        html_path: Path to the input HTML file.
-        pdf_path: Path where the PDF file will be saved.
-
-    Raises:
-        ImportError: If Playwright is not installed (logged as warning).
-        Exception: Any other error during PDF generation (logged as error).
-    """
-    try:
-        from playwright.sync_api import sync_playwright
-
-        logger.info("Generating PDF from HTML...")
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            page.goto(f"file://{html_path.absolute()}")
-            page.wait_for_load_state("networkidle")
-            settings = get_settings()
-            page.set_viewport_size(
-                {"width": settings.pdf.viewport_width, "height": settings.pdf.viewport_height}
-            )
-
-            page.pdf(
-                path=str(pdf_path),
-                format="A4",
-                landscape=True,
-                print_background=True,
-                prefer_css_page_size=True,
-            )
-            browser.close()
-        logger.info(f"PDF generated: {pdf_path}", extra={"success": True})
-    except ImportError:
-        logger.warning("Playwright not installed. Install with: playwright install chromium")
-        logger.info("Skipping PDF generation.")
-    except Exception as e:
-        logger.error(f"Failed to generate PDF: {e}", exc_info=True)
-        logger.info("You can still open the HTML file in your browser and print to PDF manually.")
 
 
 def main() -> None:
