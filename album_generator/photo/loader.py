@@ -1,0 +1,85 @@
+"""Photo loading and metadata extraction."""
+
+from functools import lru_cache
+from pathlib import Path
+
+from PIL import Image
+
+from ..logger import get_logger
+from ..models import Photo
+
+logger = get_logger(__name__)
+
+__all__ = ["load_step_photos", "_load_photo_metadata"]
+
+
+@lru_cache(maxsize=512)
+def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
+    """Load image metadata (width, height, aspect_ratio) with caching.
+
+    Args:
+        img_path: Path to the image file.
+
+    Returns:
+        Tuple of (width, height, aspect_ratio) or None if loading fails.
+    """
+    try:
+        with Image.open(img_path) as img:
+            width, height = img.size
+            aspect_ratio = width / height if height > 0 else 0
+            return (width, height, aspect_ratio)
+    except Exception as e:
+        logger.debug(f"Error loading image metadata for {img_path}: {e}")
+        return None
+
+
+def _load_single_photo(img_path: Path, index: int) -> Photo | None:
+    """Load a single photo's metadata and create Photo object.
+
+    Args:
+        img_path: Path to the image file.
+        index: Photo index (1-based).
+
+    Returns:
+        Photo object or None if loading fails.
+    """
+    metadata = _load_photo_metadata(img_path)
+    if metadata is None:
+        return None
+
+    width, height, aspect_ratio = metadata
+    return Photo(
+        id=img_path.name,
+        index=index,
+        path=img_path,
+        width=width,
+        height=height,
+        aspect_ratio=aspect_ratio,
+    )
+
+
+def load_step_photos(photo_dir: Path) -> list[Photo]:
+    """Load all photos from a step's photo directory.
+
+    Args:
+        photo_dir: Directory containing step photos.
+
+    Returns:
+        List of Photo objects sorted by filename.
+    """
+    if not photo_dir.exists():
+        logger.warning(f"Photo directory does not exist: {photo_dir}")
+        return []
+
+    image_extensions = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"}
+    image_files = sorted(
+        [f for f in photo_dir.iterdir() if f.suffix in image_extensions and f.is_file()]
+    )
+
+    photos = []
+    for index, img_path in enumerate(image_files, start=1):
+        photo = _load_single_photo(img_path, index)
+        if photo:
+            photos.append(photo)
+
+    return photos
