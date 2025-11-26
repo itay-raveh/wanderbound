@@ -80,13 +80,13 @@ python main.py --steps 99-110 --output my_album
 
 ```
 .
-├── album_generator/
+├── src/
 │   ├── __init__.py
 │   ├── main.py          # CLI entry point
 │   ├── models.py        # Pydantic data models
 │   ├── data_loader.py   # Load and parse trip data
 │   ├── image_selector.py # Select appropriate images
-│   ├── apis.py          # External API integrations
+│   ├── apis/            # External API integrations
 │   ├── html_generator.py # Generate HTML pages
 │   ├── templates/       # Jinja2 templates
 │   │   └── album.html

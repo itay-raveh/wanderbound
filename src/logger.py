@@ -71,7 +71,7 @@ class PrettyCLIHandler(logging.Handler):
             self.handleError(record)
 
 
-def setup_logging(name: str = "album_generator") -> logging.Logger:
+def setup_logging(name: str = "src") -> logging.Logger:
     """Set up and return a logger instance."""
     logger = logging.getLogger(name)
 
@@ -104,7 +104,7 @@ def setup_logging(name: str = "album_generator") -> logging.Logger:
     return logger
 
 
-def get_logger(name: str = "album_generator") -> logging.Logger:
+def get_logger(name: str = "src") -> logging.Logger:
     """Get a logger instance. Pass __name__ from the calling module."""
     return setup_logging(name)
 
