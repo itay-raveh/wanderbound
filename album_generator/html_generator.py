@@ -1,5 +1,6 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -300,8 +301,10 @@ def prepare_step_data(
     map_dot_x, map_dot_y = None, None
     country_map_data_uri = None
     country_map_svg = None
-    if map_data:
+    if map_data and len(map_data) == 3:
         country_map_data_uri, country_map_svg, dot_pos = map_data
+    else:
+        country_map_data_uri, country_map_svg, dot_pos = None, None, None
         if dot_pos:
             map_dot_x, map_dot_y = dot_pos
 
@@ -427,88 +430,141 @@ def generate_album_html(
         elevations = get_altitude_batch(locations)
     logger.debug(f"Fetched {len(elevations)} altitude values")
 
-    # Batch fetch weather data
+    # Batch fetch weather data in parallel
     logger.debug("Fetching weather data...")
     weather_progress = create_progress("Fetching weather data")
-    weather_data_list: list[WeatherData] = []
+    weather_data_list: list[WeatherData | None] = [None] * len(steps)
     with weather_progress:
         task_id = weather_progress.add_task("Fetching weather data", total=len(steps))
-        for step in weather_progress.track(
-            steps, task_id=task_id, description="Fetching weather data"
-        ):
-            weather_data = get_weather_data(
-                step.location.lat,
-                step.location.lon,
-                step.start_time,
-                step.timezone_id,
-            )
-            weather_data_list.append(weather_data)
+        with ThreadPoolExecutor(max_workers=5) as weather_executor:
+            future_to_index = {
+                weather_executor.submit(
+                    get_weather_data,
+                    step.location.lat,
+                    step.location.lon,
+                    step.start_time,
+                    step.timezone_id,
+                ): idx
+                for idx, step in enumerate(steps)
+            }
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    weather_data_list[idx] = future.result()
+                    weather_progress.advance(task_id)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch weather data for step {idx}: {e}")
+                    weather_progress.advance(task_id)
     logger.debug(f"Fetched {len(weather_data_list)} weather data entries")
 
-    # Batch fetch flags and accent colors
+    # Batch fetch flags and accent colors in parallel
     logger.debug("Fetching flags and extracting colors...")
     flag_progress = create_progress("Processing flags")
-    flag_data_list = []
+    flag_data_list: list[tuple[str | None, str | None] | None] = [None] * len(steps)
     with flag_progress:
         task_id = flag_progress.add_task("Processing flags", total=len(steps))
-        for step in flag_progress.track(steps, task_id=task_id, description="Processing flags"):
+
+        def _process_flag(step: Step) -> tuple[str | None, str | None]:
             country_flag_data_uri = (
                 get_country_flag_data_uri(step.country_code) if step.country_code else None
             )
             accent_color = extract_prominent_color_from_flag(
                 country_flag_data_uri, step.country_code, light_mode
             )
-            flag_data_list.append((country_flag_data_uri, accent_color))
+            return (country_flag_data_uri, accent_color)
+
+        with ThreadPoolExecutor(max_workers=5) as flag_executor:
+            future_to_index = {
+                flag_executor.submit(_process_flag, step): idx  # type: ignore[arg-type]
+                for idx, step in enumerate(steps)
+            }
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    flag_data_list[idx] = future.result()
+                    flag_progress.advance(task_id)
+                except Exception as e:
+                    logger.warning(f"Failed to process flag for step {idx}: {e}")
+                    flag_progress.advance(task_id)
     logger.debug(f"Processed {len(flag_data_list)} flags")
 
-    # Batch fetch maps and calculate dot positions
+    # Batch fetch maps and calculate dot positions in parallel
     logger.debug("Fetching maps and calculating positions...")
     map_progress = create_progress("Processing maps")
-    map_data_list = []
+    map_data_list: list[tuple[str | None, str | None, tuple[float, float] | None]] = [
+        (None, None, None)
+    ] * len(steps)
+
+    def _process_map(step: Step) -> tuple[str | None, str | None, tuple[float, float] | None]:
+        if step.country_code:
+            country_map_data_uri = get_country_map_data_uri(
+                step.country_code, step.location.lat, step.location.lon
+            )
+            country_map_svg = get_country_map_svg(
+                step.country_code, step.location.lat, step.location.lon
+            )
+            dot_pos = get_country_map_dot_position(
+                step.country_code, step.location.lat, step.location.lon
+            )
+            return (country_map_data_uri, country_map_svg, dot_pos)
+        return (None, None, None)
+
     with map_progress:
         task_id = map_progress.add_task("Processing maps", total=len(steps))
-        for step in map_progress.track(steps, task_id=task_id, description="Processing maps"):
-            if step.country_code:
-                country_map_data_uri = get_country_map_data_uri(
-                    step.country_code, step.location.lat, step.location.lon
-                )
-                country_map_svg = get_country_map_svg(
-                    step.country_code, step.location.lat, step.location.lon
-                )
-                dot_pos = get_country_map_dot_position(
-                    step.country_code, step.location.lat, step.location.lon
-                )
-                map_data_list.append((country_map_data_uri, country_map_svg, dot_pos))
-            else:
-                map_data_list.append((None, None, None))
+        with ThreadPoolExecutor(max_workers=5) as map_executor:
+            map_future_to_index: dict[
+                Future[tuple[str | None, str | None, tuple[float, float] | None]], int
+            ] = {map_executor.submit(_process_map, step): idx for idx, step in enumerate(steps)}
+            for future in as_completed(map_future_to_index):
+                idx = map_future_to_index[future]
+                try:
+                    result = future.result()
+                    map_data_list[idx] = result
+                    map_progress.advance(task_id)
+                except Exception as e:
+                    logger.warning(f"Failed to process map for step {idx}: {e}")
+                    map_progress.advance(task_id)
     logger.debug(f"Processed {len(map_data_list)} maps")
 
-    # Batch copy cover images to assets directory
+    # Batch copy cover images to assets directory in parallel
     logger.debug("Copying cover images to assets...")
     image_progress = create_progress("Processing images")
-    cover_image_path_list: list[str | None] = []
+    cover_image_path_list: list[str | None] = [None] * len(steps)
+
+    def _process_cover_image(step: Step) -> str | None:
+        cover_photo = steps_cover_photos.get(step.id) if step.id else None
+        description = _clean_description(step.description or "")
+        settings = get_settings()
+        use_three_columns = len(description) > settings.description_three_columns_threshold
+        use_two_columns = (
+            len(description) > settings.description_two_columns_threshold or use_three_columns
+        )
+        if cover_photo and cover_photo.path.exists() and not use_two_columns:
+            step_name = step.get_name_for_photos_export()
+            return copy_image_to_assets(
+                cover_photo.path,
+                output_path.parent,
+                step_name,
+                cover_photo.index,
+            )
+        return None
+
     with image_progress:
         task_id = image_progress.add_task("Processing images", total=len(steps))
-        for step in image_progress.track(steps, task_id=task_id, description="Processing images"):
-            cover_photo = steps_cover_photos.get(step.id) if step.id else None
-            description = _clean_description(step.description or "")
-            settings = get_settings()
-            use_three_columns = len(description) > settings.description_three_columns_threshold
-            use_two_columns = (
-                len(description) > settings.description_two_columns_threshold or use_three_columns
-            )
-            if cover_photo and cover_photo.path.exists() and not use_two_columns:
-                step_name = step.get_name_for_photos_export()
-                cover_image_path_list.append(
-                    copy_image_to_assets(
-                        cover_photo.path,
-                        output_path.parent,
-                        step_name,
-                        cover_photo.index,
-                    )
-                )
-            else:
-                cover_image_path_list.append(None)
+        with ThreadPoolExecutor(max_workers=5) as image_executor:
+            image_future_to_index: dict[Future[str | None], int] = {
+                image_executor.submit(_process_cover_image, step): idx
+                for idx, step in enumerate(steps)
+            }
+            for future in as_completed(image_future_to_index):
+                idx = image_future_to_index[future]
+                try:
+                    result = future.result()
+                    cover_image_path_list[idx] = result
+                    image_progress.advance(task_id)
+                except Exception as e:
+                    logger.warning(f"Failed to process cover image for step {idx}: {e}")
+                    image_progress.advance(task_id)
     logger.debug(f"Processed {len(cover_image_path_list)} cover images")
 
     # Prepare template environment
@@ -547,6 +603,11 @@ def generate_album_html(
         ):
             logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
             progress.update(task_id, description=f"Preparing steps: {step.city}")
+
+            # Skip steps with missing weather data
+            if weather_data is None:
+                logger.warning(f"Skipping step {idx} ({step.city}) due to missing weather data")
+                continue
 
             cover_photo = steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []

@@ -2,11 +2,11 @@
 
 import json
 from pathlib import Path
-from typing import Any
 
 from .logger import get_logger
 from .models import Photo, Step
 from .settings import get_settings
+from .types import PhotoConfigDict, PhotoDataDict, StepPhotoConfigDict
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ def save_photos_config(
         steps_photo_page_portrait_split_layouts: Dictionary mapping step IDs to lists of is_portrait_landscape_split flags
     """
     settings = get_settings()
-    export_photos_mapping_json: dict[str, dict[str, Any]] = {}
+    export_photos_mapping_json: dict[str, StepPhotoConfigDict] = {}
     export_line_by_line: list[str] = []
 
     step_by_id: dict[int, Step] = {step.id: step for step in steps}
@@ -47,11 +47,19 @@ def save_photos_config(
         step_name = step.get_name_for_photos_export()
         export_line_by_line.append(step_name)
 
-        step_photos_mapping: dict[str, dict[str, Any]] = {}
+        step_photos_mapping: dict[str, PhotoDataDict] = {}
         for photo in photos:
-            step_photos_mapping[str(photo.index)] = photo.to_dict()
+            photo_dict = photo.to_dict()
+            step_photos_mapping[str(photo.index)] = PhotoDataDict(
+                id=photo_dict["id"],
+                index=photo_dict["index"],
+                path=photo_dict["path"],
+                width=photo_dict["width"],
+                height=photo_dict["height"],
+                aspect_ratio=photo_dict["aspect_ratio"],
+            )
 
-        step_config: dict[str, Any] = {"photos": step_photos_mapping}
+        step_config: StepPhotoConfigDict = {"photos": step_photos_mapping}
         # Always include layout flags, even if empty lists
         photo_pages = steps_photo_pages.get(step_id, [])
         num_pages = len(photo_pages)
@@ -103,7 +111,7 @@ def save_photos_config(
     )
 
 
-def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str, Any]] | None:
+def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, PhotoConfigDict] | None:
     """Load photo configuration from files.
 
     Args:
@@ -132,7 +140,7 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
         for step_obj in steps:
             step_by_name[step_obj.get_name_for_photos_export()] = step_obj
 
-        config: dict[int, dict[str, Any]] = {}
+        config: dict[int, PhotoConfigDict] = {}
 
         i = 0
         while i < len(photos_by_pages):
@@ -178,30 +186,51 @@ def load_photos_config(steps: list[Step], save_path: Path) -> dict[int, dict[str
                     photo_pages.append(photo_indices)
                 i += 1
 
-            # Reconstruct Photo objects from mapping
-            step_config_data = photos_mapping.get(str(matched_step.id), {})
-            step_photos_mapping = step_config_data.get("photos", {})
-            is_three_portraits = step_config_data.get("is_three_portraits", [])
-            is_portrait_landscape_split = step_config_data.get("is_portrait_landscape_split", [])
-
-            reconstructed_photos: list[Photo] = []
-            for photo_idx_str, photo_data in step_photos_mapping.items():
-                try:
-                    photo = Photo.from_dict(photo_data)
-                    reconstructed_photos.append(photo)
-                except Exception as e:
+                # Reconstruct Photo objects from mapping
+                step_config_data = photos_mapping.get(str(matched_step.id), {})
+                if not isinstance(step_config_data, dict):
                     logger.warning(
-                        f"Error reconstructing photo {photo_idx_str} for step '{matched_step.city}': {e}. "
-                        f"Skipping this photo and continuing."
+                        f"Invalid photo config data for step '{matched_step.city}', skipping"
+                    )
+                    continue
+
+                step_photos_mapping = step_config_data.get("photos", {})
+                is_three_portraits = step_config_data.get("is_three_portraits", [])
+                is_portrait_landscape_split = step_config_data.get(
+                    "is_portrait_landscape_split", []
+                )
+
+                reconstructed_photos: list[Photo] = []
+                for photo_idx_str, photo_data in step_photos_mapping.items():
+                    try:
+                        if isinstance(photo_data, dict):
+                            photo = Photo.from_dict(photo_data)
+                            reconstructed_photos.append(photo)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error reconstructing photo {photo_idx_str} for step '{matched_step.city}': {e}. "
+                            f"Skipping this photo and continuing."
+                        )
+
+                photos_dict: dict[str, PhotoDataDict] = {}
+                for p in reconstructed_photos:
+                    photo_dict = p.to_dict()
+                    photos_dict[str(p.index)] = PhotoDataDict(
+                        id=photo_dict["id"],
+                        index=photo_dict["index"],
+                        path=photo_dict["path"],
+                        width=photo_dict["width"],
+                        height=photo_dict["height"],
+                        aspect_ratio=photo_dict["aspect_ratio"],
                     )
 
-            config[matched_step.id] = {
-                "cover_photo_index": cover_photo_index,
-                "photo_pages": photo_pages,
-                "photos": reconstructed_photos,
-                "is_three_portraits": is_three_portraits,
-                "is_portrait_landscape_split": is_portrait_landscape_split,
-            }
+                config[matched_step.id] = {
+                    "cover_photo_index": cover_photo_index,
+                    "photo_pages": photo_pages,
+                    "photos": photos_dict,
+                    "is_three_portraits": is_three_portraits,
+                    "is_portrait_landscape_split": is_portrait_landscape_split,
+                }
 
         return config if config else None
 

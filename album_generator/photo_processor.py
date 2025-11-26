@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from .image_selector import (
     _is_one_portrait_two_landscapes,
@@ -14,6 +13,7 @@ from .image_selector import (
 )
 from .logger import get_logger
 from .models import Photo, Step
+from .types import PhotoConfigDict
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,7 @@ __all__ = ["process_step_photos"]
 def process_step_photos(
     step: Step,
     trip_dir: Path,
-    photo_config: dict[int, dict[str, Any]] | None,
+    photo_config: dict[int, PhotoConfigDict] | None,
 ) -> tuple[list[Photo], Photo | None, list[list[Photo]], list[bool], list[bool]]:
     """Process photos for a single step, including loading, selection, and layout.
 
@@ -93,7 +93,7 @@ def process_step_photos(
 def _get_cover_photo(
     step: Step,
     photos: list[Photo],
-    photo_config: dict[int, dict[str, Any]] | None,
+    photo_config: dict[int, PhotoConfigDict] | None,
     use_cover: bool,
 ) -> Photo | None:
     """Get cover photo from config or auto-select.
