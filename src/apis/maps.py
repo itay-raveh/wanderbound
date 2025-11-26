@@ -2,38 +2,20 @@
 
 import base64
 import json
-import re
 from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
 from lxml import etree
-
-try:
-    import geopandas as gpd
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from shapely.geometry import Point
-
-    HAS_GEO = True
-except ImportError:
-    HAS_GEO = False
+from shapely.geometry import MultiPolygon, Point, Polygon
 
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import CACHE_DIR, get_cached, set_cached
-from .rate_limit import fetch_text_with_retry
 
 logger = get_logger(__name__)
 
-# Maps API rate limit: Conservative rate for GitHub raw URLs
-MAPS_API_CALLS_PER_SECOND = 2
-
 _COUNTRY_BOUNDS: dict[str, Any] | None = None
-_SVG_VIEWBOXES: dict[str, list[float]] = {}
-_SVG_PATH_BOUNDS: dict[str, dict[str, float | dict[str, float]]] = {}
-_SVG_TRANSFORMS: dict[str, dict[str, float]] = {}
 
 
 def _remove_xml_declarations(svg_data: str) -> str:
@@ -105,86 +87,6 @@ def _get_svg_viewbox(root: etree._Element) -> list[float] | None:
         except (ValueError, AttributeError):
             pass
     return None
-
-
-def _parse_transform(transform_str: str) -> dict[str, float]:
-    """Parse SVG transform string into translate and scale values."""
-    translate_x: float = 0.0
-    translate_y: float = 0.0
-    scale_x: float = 1.0
-    scale_y: float = 1.0
-
-    if not transform_str:
-        return {
-            "translate_x": translate_x,
-            "translate_y": translate_y,
-            "scale_x": scale_x,
-            "scale_y": scale_y,
-        }
-
-    # Parse translate
-    # Extract translate and scale from SVG transform string
-    translate_match = re.search(r"translate\(([^)]+)\)", transform_str)
-    if translate_match:
-        translate_parts = [float(x.strip()) for x in translate_match.group(1).split(",")]
-        if len(translate_parts) >= 2:
-            translate_x, translate_y = translate_parts[0], translate_parts[1]
-
-    scale_match = re.search(r"scale\(([^)]+)\)", transform_str)
-    if scale_match:
-        scale_parts = [float(x.strip()) for x in scale_match.group(1).split(",")]
-        if len(scale_parts) >= 2:
-            scale_x, scale_y = scale_parts[0], scale_parts[1]
-        elif len(scale_parts) == 1:
-            scale_x = scale_y = scale_parts[0]
-
-    return {
-        "translate_x": translate_x,
-        "translate_y": translate_y,
-        "scale_x": scale_x,
-        "scale_y": scale_y,
-    }
-
-
-def _extract_path_bounds(root: etree._Element) -> dict[str, float] | None:
-    """Extract bounding box from all path elements in SVG."""
-    all_x = []
-    all_y = []
-
-    # Find all path elements (handle both namespaced and non-namespaced)
-    paths_raw = root.xpath('.//*[local-name()="path"][@d]')
-    if not isinstance(paths_raw, list):
-        return None
-    for path_raw in paths_raw:
-        if not isinstance(path_raw, etree._Element):
-            continue
-        path = path_raw
-        path_d = path.get("d", "")
-        # Extract numbers from path data
-        numbers = re.findall(r"-?\d+\.?\d*", path_d)
-        for i, num_str in enumerate(numbers):
-            try:
-                num = float(num_str)
-                if i % 2 == 0:
-                    all_x.append(num)
-                else:
-                    all_y.append(num)
-            except ValueError:
-                continue
-
-    if all_x and all_y:
-        return {
-            "min_x": min(all_x),
-            "max_x": max(all_x),
-            "min_y": min(all_y),
-            "max_y": max(all_y),
-        }
-    return None
-
-
-def _svg_to_string(root: etree._Element) -> str:
-    """Convert SVG element tree to string."""
-    return etree.tostring(root, encoding="unicode", pretty_print=False)
 
 
 def _load_country_bounds() -> dict[str, Any]:
@@ -267,8 +169,67 @@ def _find_country_in_geodataframe(world: Any, country_code_lower: str) -> Any | 
     return None
 
 
+def _geometry_to_svg_path(geometry: Any) -> str:
+    """Convert Shapely geometry to SVG path data string.
+
+    Args:
+        geometry: Shapely geometry (Polygon, MultiPolygon, etc.)
+
+    Returns:
+        SVG path data string (d attribute value)
+    """
+    if geometry.is_empty:
+        return ""
+
+    if isinstance(geometry, Polygon):
+        # Exterior ring
+        coords = list(geometry.exterior.coords)
+        if len(coords) < 2:
+            return ""
+
+        path_parts = [f"M {coords[0][0]},{coords[0][1]}"]
+        for coord in coords[1:]:
+            path_parts.append(f"L {coord[0]},{coord[1]}")
+        path_parts.append("Z")
+
+        # Interior rings (holes)
+        for interior in geometry.interiors:
+            coords = list(interior.coords)
+            if len(coords) >= 2:
+                path_parts.append(f"M {coords[0][0]},{coords[0][1]}")
+                for coord in coords[1:]:
+                    path_parts.append(f"L {coord[0]},{coord[1]}")
+                path_parts.append("Z")
+
+        return " ".join(path_parts)
+
+    elif isinstance(geometry, MultiPolygon):
+        # Combine all polygons
+        paths = []
+        for poly in geometry.geoms:
+            path = _geometry_to_svg_path(poly)
+            if path:
+                paths.append(path)
+        return " ".join(paths)
+
+    else:
+        # Fallback: try to get coordinates
+        try:
+            coords = list(geometry.coords)
+            if len(coords) < 2:
+                return ""
+            path_parts = [f"M {coords[0][0]},{coords[0][1]}"]
+            for coord in coords[1:]:
+                path_parts.append(f"L {coord[0]},{coord[1]}")
+            if geometry.is_closed:
+                path_parts.append("Z")
+            return " ".join(path_parts)
+        except (AttributeError, TypeError):
+            return ""
+
+
 def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[float], Any]:
-    """Generate SVG plot from GeoDataFrame.
+    """Generate SVG plot from GeoDataFrame without matplotlib.
 
     Args:
         gdf: GeoDataFrame for the country
@@ -282,30 +243,41 @@ def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[flo
     gdf_proj = gdf.to_crs(local_crs)
     bounds_proj = gdf_proj.total_bounds
 
-    fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=100)
-    ax.set_xlim(bounds_proj[0], bounds_proj[2])
-    ax.set_ylim(bounds_proj[1], bounds_proj[3])
-    ax.set_aspect("equal")
-    ax.axis("off")
+    # Calculate actual bounds (same as what matplotlib would produce)
+    min_x, min_y, max_x, max_y = bounds_proj
+    actual_bounds = [min_x, min_y, max_x, max_y]
 
-    gdf_proj.plot(ax=ax, color="white", edgecolor="none", linewidth=0)
+    # Calculate viewBox dimensions
+    viewbox_width = max_x - min_x
+    viewbox_height = max_y - min_y
 
-    xlim = ax.get_xlim()
-    ylim = ax.get_ylim()
-    actual_bounds = [xlim[0], ylim[0], xlim[1], ylim[1]]
+    # Create SVG root element
+    svg_ns = "http://www.w3.org/2000/svg"
+    root = etree.Element(f"{{{svg_ns}}}svg", nsmap={None: svg_ns})
+    root.set("width", str(width))
+    root.set("height", str(height))
+    root.set("viewBox", f"{min_x} {min_y} {viewbox_width} {viewbox_height}")
+    root.set("xmlns", svg_ns)
 
-    from io import StringIO
+    # Create group for paths
+    group = etree.SubElement(root, f"{{{svg_ns}}}g")
+    group.set("fill", "#ffffff")
+    group.set("stroke", "none")
 
-    svg_buffer = StringIO()
-    fig.savefig(
-        svg_buffer,
-        format="svg",
-        bbox_inches="tight",
-        pad_inches=0,
-        transparent=True,
-    )
-    svg_data = svg_buffer.getvalue()
-    plt.close(fig)
+    # Convert each geometry to SVG path
+    for _idx, row in gdf_proj.iterrows():
+        geometry = row.geometry
+        if geometry is None or geometry.is_empty:
+            continue
+
+        path_data = _geometry_to_svg_path(geometry)
+        if path_data:
+            path_elem = etree.SubElement(group, f"{{{svg_ns}}}path")
+            path_elem.set("d", path_data)
+
+    # Convert to string
+    svg_data_str = etree.tostring(root, encoding="unicode", pretty_print=False)
+    svg_data: str = str(svg_data_str)  # Ensure it's a string for type checking
 
     return svg_data, actual_bounds, local_crs
 
@@ -356,7 +328,8 @@ def _process_svg_with_geo_attributes(
         ) or "fill" in elem.attrib:
             elem.set("fill", "#ffffff")
 
-    return _svg_to_string(root)
+    svg_str = etree.tostring(root, encoding="unicode", pretty_print=False)
+    return str(svg_str)
 
 
 def _generate_geo_calibrated_svg(
@@ -372,9 +345,6 @@ def _generate_geo_calibrated_svg(
     Returns:
         SVG string with geo-calibrated viewBox, or None if generation fails
     """
-    if not HAS_GEO:
-        return None
-
     country_code_lower = country_code.lower()
 
     try:
@@ -420,89 +390,13 @@ def get_country_map_svg(
     if cached_svg is not None and isinstance(cached_svg, str):
         return str(cached_svg)
 
-    if HAS_GEO:
-        svg_data = _generate_geo_calibrated_svg(country_code)
-        if svg_data:
-            set_cached(cache_key_svg, svg_data)
-            return svg_data
-
-    settings = get_settings()
-    svg_url = settings.mapsicon_url.format(country_code=country_code.lower())
-
-    try:
-        svg_data = fetch_text_with_retry(
-            svg_url,
-            calls_per_second=MAPS_API_CALLS_PER_SECOND,
-        )
-
-        # Parse SVG with lxml
-        root = _parse_svg_with_lxml(svg_data)
-        if root is None:
-            return None
-
-        # Extract viewBox
-        viewbox = _get_svg_viewbox(root)
-        if viewbox and len(viewbox) == 4:
-            _SVG_VIEWBOXES[country_code.lower()] = viewbox
-
-        # Extract transform from root or first group element (handle namespaces)
-        transform_elem = root
-        group_raw = root.xpath('.//*[local-name()="g"][@transform]')
-        if isinstance(group_raw, list) and len(group_raw) > 0:
-            first_elem = group_raw[0]
-            transform_elem = first_elem if isinstance(first_elem, etree._Element) else root
-        else:
-            transform_elem = root
-
-        transform_str = transform_elem.get("transform", "")
-        if transform_str:
-            transform_data = _parse_transform(transform_str)
-            _SVG_TRANSFORMS[country_code.lower()] = transform_data
-
-        path_bounds = _extract_path_bounds(root)
-        if path_bounds:
-            _SVG_PATH_BOUNDS[country_code.lower()] = path_bounds  # type: ignore[assignment]
-
-            transform = _SVG_TRANSFORMS.get(country_code.lower())
-            if transform and viewbox and len(viewbox) == 4:
-                scale_x = transform["scale_x"]
-                scale_y = transform["scale_y"]
-                translate_x = transform["translate_x"]
-                translate_y = transform["translate_y"]
-
-                rendered_min_x = path_bounds["min_x"] * scale_x + translate_x
-                rendered_max_x = path_bounds["max_x"] * scale_x + translate_x
-                rendered_min_y = path_bounds["min_y"] * scale_y + translate_y
-                rendered_max_y = path_bounds["max_y"] * scale_y + translate_y
-
-                _SVG_PATH_BOUNDS[country_code.lower()]["rendered"] = {
-                    "min_x": rendered_min_x,
-                    "max_x": rendered_max_x,
-                    "min_y": rendered_min_y,
-                    "max_y": rendered_max_y,
-                }
-
-        # Set fills to white
-        for elem in root.iter():
-            if (
-                elem.tag.endswith("path")
-                or elem.tag.endswith("polygon")
-                or elem.tag.endswith("circle")
-                or elem.tag.endswith("rect")
-            ):
-                fill = elem.get("fill", "")
-                if fill == "#000000" or fill == "black":
-                    elem.set("fill", "#ffffff")
-            elif "fill" in elem.attrib:
-                if elem.get("fill") == "#000000" or elem.get("fill") == "black":
-                    elem.set("fill", "#ffffff")
-
-        svg_data = _svg_to_string(root)
+    # Generate geo-calibrated SVG
+    svg_data = _generate_geo_calibrated_svg(country_code)
+    if svg_data:
         set_cached(cache_key_svg, svg_data)
         return svg_data
-    except Exception as e:
-        logger.warning(f"Failed to get map for {country_code}: {e}")
 
+    logger.warning(f"Failed to generate geo-calibrated SVG for {country_code}")
     return None
 
 
@@ -572,8 +466,8 @@ def get_country_map_dot_position(
                                     )
                                     point_proj = point_geo.to_crs(crs_str)
 
-                                    proj_x = point_proj.geometry.iloc[0].x  # type: ignore[attr-defined]
-                                    proj_y = point_proj.geometry.iloc[0].y  # type: ignore[attr-defined]
+                                    proj_x = point_proj.geometry.iloc[0].x
+                                    proj_y = point_proj.geometry.iloc[0].y
 
                                     proj_min_x, proj_min_y, proj_max_x, proj_max_y = proj_bounds
                                     proj_width = proj_max_x - proj_min_x
@@ -608,48 +502,7 @@ def get_country_map_dot_position(
                 except (ValueError, AttributeError):
                     pass
 
-    rendered_bounds_raw = _SVG_PATH_BOUNDS.get(country_code_lower, {}).get("rendered")
-    viewbox = _SVG_VIEWBOXES.get(country_code_lower)
-
-    if (
-        rendered_bounds_raw
-        and isinstance(rendered_bounds_raw, dict)
-        and viewbox
-        and len(viewbox) == 4
-    ):
-        rendered_bounds: dict[str, float] = rendered_bounds_raw
-        country_bounds = _load_country_bounds()
-        if country_code_lower in country_bounds:
-            bbox = country_bounds[country_code_lower]
-            if "sw" in bbox and "ne" in bbox:
-                sw = bbox["sw"]
-                ne = bbox["ne"]
-
-                lat_range = ne["lat"] - sw["lat"]
-                lon_range = ne["lon"] - sw["lon"]
-
-                if lat_range > 0 and lon_range > 0:
-                    geo_x = (lon - sw["lon"]) / lon_range
-                    geo_y = (ne["lat"] - lat) / lat_range
-
-                    rendered_x = rendered_bounds["min_x"] + geo_x * (
-                        rendered_bounds["max_x"] - rendered_bounds["min_x"]
-                    )
-                    rendered_y = rendered_bounds["min_y"] + geo_y * (
-                        rendered_bounds["max_y"] - rendered_bounds["min_y"]
-                    )
-
-                    viewbox_width = viewbox[2] - viewbox[0]
-                    viewbox_height = viewbox[3] - viewbox[1]
-
-                    x_percent = ((rendered_x - viewbox[0]) / viewbox_width) * 100
-                    y_percent = ((rendered_y - viewbox[1]) / viewbox_height) * 100
-
-                    x_percent = max(0, min(100, x_percent))
-                    y_percent = max(0, min(100, y_percent))
-
-                    return (x_percent, y_percent)
-
+    # Fallback to country bounds if geo-calibrated data is not available
     country_bounds = _load_country_bounds()
     if country_code_lower not in country_bounds:
         return (50.0, 50.0)

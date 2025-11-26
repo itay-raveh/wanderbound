@@ -3,17 +3,9 @@
 import httpx
 
 from ..logger import get_logger
-from ..settings import get_settings
-from .async_helpers import fetch_and_cache_text_async
 from .cache import get_cached
-from .maps import (
-    _parse_svg_with_lxml,
-)
 
 logger = get_logger(__name__)
-
-# Maps API rate limit: Conservative rate for GitHub raw URLs
-MAPS_API_CALLS_PER_SECOND = 2
 
 
 async def get_country_map_svg_async(
@@ -41,46 +33,17 @@ async def get_country_map_svg_async(
     if cached_svg is not None and isinstance(cached_svg, str):
         return str(cached_svg)
 
-    # Try geo-calibrated SVG first (if geopandas is available)
+    # Generate geo-calibrated SVG
     try:
         from .cache import set_cached
-        from .maps import HAS_GEO, _generate_geo_calibrated_svg
+        from .maps import _generate_geo_calibrated_svg
 
-        if HAS_GEO:
-            svg_data = _generate_geo_calibrated_svg(country_code)
-            if svg_data:
-                set_cached(cache_key_svg, svg_data)
-                return svg_data
+        svg_data = _generate_geo_calibrated_svg(country_code)
+        if svg_data:
+            set_cached(cache_key_svg, svg_data)
+            return svg_data
     except Exception as e:
-        logger.debug(f"Geo-calibrated SVG generation failed: {e}")
-
-    # Fallback to fetching from mapsicon URL
-    settings = get_settings()
-    svg_url = settings.mapsicon_url.format(country_code=country_code.lower())
-
-    try:
-        svg_data = await fetch_and_cache_text_async(
-            client, cache_key_svg, svg_url, timeout=10.0, max_attempts=3
-        )
-
-        if not svg_data:
-            return None
-
-        # Parse SVG with lxml
-        root = _parse_svg_with_lxml(svg_data)
-        if root is None:
-            return None
-
-        # Convert back to string
-        from lxml import etree
-
-        svg_string = etree.tostring(root, encoding="unicode", pretty_print=False)
-        from .cache import set_cached
-
-        set_cached(cache_key_svg, svg_string)
-        return svg_string
-    except Exception as e:
-        logger.warning(f"Failed to get map SVG for {country_code}: {e}")
+        logger.warning(f"Failed to generate geo-calibrated SVG for {country_code}: {e}")
 
     return None
 
