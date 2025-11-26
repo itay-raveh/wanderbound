@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .html.asset_management import copy_assets, copy_image_to_assets
+from .html.asset_management import copy_assets
 from .html.batch_fetching import (
     fetch_altitudes,
     fetch_flags_batch,
@@ -10,12 +10,13 @@ from .html.batch_fetching import (
     fetch_weather_data_batch,
     process_cover_images_batch,
 )
+from .html.photo_pages import process_photo_pages
 from .html.step_data_preparation import prepare_step_data
 from .logger import create_progress, get_console, get_logger
 from .models import Photo, Step, TripData
 from .settings import get_settings
 from .template_renderer import create_template_environment, render_album_template
-from .types import PhotoPageData, StepData
+from .types import StepData
 
 logger = get_logger(__name__)
 console = get_console()
@@ -114,63 +115,14 @@ def generate_album_html(
             )
 
             # Copy photo pages images to assets directory
-            photo_pages_paths: list[PhotoPageData] = []
             step_name = step.get_name_for_photos_export()
-            for page_idx, page in enumerate(photo_pages):
-                page_paths: list[str] = []
-                for photo in page:
-                    if photo.path.exists():
-                        page_paths.append(
-                            copy_image_to_assets(
-                                photo.path, output_path.parent, step_name, photo.index
-                            )
-                        )
-                if page_paths:
-                    # Get the layout flags for this page
-                    # photo_page_layouts should have the same length as photo_pages
-                    is_three_portraits = False
-                    is_portrait_landscape_split = False
-                    if page_idx < len(photo_page_layouts):
-                        is_three_portraits = photo_page_layouts[page_idx]
-                    if page_idx < len(photo_page_portrait_split_layouts):
-                        is_portrait_landscape_split = photo_page_portrait_split_layouts[page_idx]
-
-                    # Safety check: if we have exactly 3 photos, double-check the layout
-                    # This ensures the flag is set even if there was a mismatch in the layout array
-                    if len(page) == 3:
-                        from .photo.layout import (
-                            _is_one_portrait_two_landscapes,
-                            _is_three_portraits,
-                        )
-                        from .photo.ratio import get_photo_ratio
-
-                        if _is_three_portraits(tuple(page)):
-                            is_three_portraits = True
-                            is_portrait_landscape_split = False
-                            logger.debug(
-                                f"Detected 3 portraits in html_generator, forcing layout for step {step.id} page {page_idx}"
-                            )
-                        elif _is_one_portrait_two_landscapes(tuple(page)):
-                            is_three_portraits = False
-                            is_portrait_landscape_split = True
-                            logger.debug(
-                                f"Detected 1 portrait + 2 landscapes in html_generator, forcing split layout for step {step.id} page {page_idx}"
-                            )
-                        else:
-                            # Check what we actually have
-                            ratios = [get_photo_ratio(p.width or 0, p.height or 0) for p in page]
-                            logger.debug(
-                                f"Page with 3 photos but no special layout in html_generator. Step {step.id} page {page_idx}, "
-                                f"ratios: {[r.name for r in ratios]}, dimensions: {[(p.width, p.height) for p in page]}"
-                            )
-
-                    photo_pages_paths.append(
-                        PhotoPageData(
-                            photos=page_paths,
-                            is_three_portraits=is_three_portraits,
-                            is_portrait_landscape_split=is_portrait_landscape_split,
-                        )
-                    )
+            photo_pages_paths = process_photo_pages(
+                photo_pages,
+                photo_page_layouts,
+                photo_page_portrait_split_layouts,
+                step_name,
+                output_path.parent,
+            )
 
             step_data = prepare_step_data(
                 step,
