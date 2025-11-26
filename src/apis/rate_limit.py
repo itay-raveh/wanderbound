@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-import requests
+import httpx
 from ratelimit import limits, sleep_and_retry
 from tenacity import (
     retry,
@@ -24,7 +24,7 @@ def with_rate_limit_and_retry(
     max_attempts: int = 3,
     min_wait: float = 1.0,
     max_wait: float = 10.0,
-    retry_on: type[Exception] | tuple[type[Exception], ...] = requests.exceptions.RequestException,
+    retry_on: type[Exception] | tuple[type[Exception], ...] = httpx.RequestError,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Create a decorator that adds rate limiting and retry logic to a function.
 
@@ -62,15 +62,15 @@ def _fetch_with_retry(
     calls_per_second: int,
     max_attempts: int,
     check_rate_limit: bool,
-    extract_response: Callable[[requests.Response], Any],
+    extract_response: Callable[[httpx.Response], Any],
 ) -> Any:
     """Internal helper to fetch data with rate limiting and retry logic."""
     # For 429 errors, don't retry - they indicate we're rate limited
     # For other errors, retry up to max_attempts times
-    retry_on: type[Exception] | tuple[type[Exception], ...] = requests.exceptions.RequestException
+    retry_on: type[Exception] | tuple[type[Exception], ...] = httpx.RequestError
     if not check_rate_limit:
         # If not checking rate limits, also retry on RateLimitError (shouldn't happen)
-        retry_on = (RateLimitError, requests.exceptions.RequestException)
+        retry_on = (RateLimitError, httpx.RequestError)
 
     @with_rate_limit_and_retry(
         calls_per_second=calls_per_second,
@@ -78,7 +78,7 @@ def _fetch_with_retry(
         retry_on=retry_on,
     )
     def _fetch() -> Any:
-        response = requests.get(url, timeout=timeout)
+        response = httpx.get(url, timeout=timeout)
 
         if check_rate_limit and response.status_code == 429:
             # Don't retry 429 errors - raise immediately
@@ -111,7 +111,7 @@ def fetch_json_with_retry(
 
     Raises:
         RateLimitError: If check_rate_limit is True and status code is 429
-        requests.exceptions.RequestException: On other HTTP errors
+        httpx.RequestError: On HTTP or network errors
     """
     result = _fetch_with_retry(
         url,
@@ -143,7 +143,7 @@ def fetch_content_with_retry(
         Response content as bytes
 
     Raises:
-        requests.exceptions.RequestException: On HTTP errors
+        httpx.HTTPError: On HTTP errors
     """
     result = _fetch_with_retry(
         url, timeout, calls_per_second, max_attempts, False, lambda r: r.content
@@ -170,7 +170,7 @@ def fetch_text_with_retry(
         Response content as text
 
     Raises:
-        requests.exceptions.RequestException: On HTTP errors
+        httpx.HTTPError: On HTTP errors
     """
     result = _fetch_with_retry(
         url, timeout, calls_per_second, max_attempts, False, lambda r: r.text

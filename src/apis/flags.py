@@ -4,6 +4,7 @@ import base64
 import io
 from collections import Counter
 
+import httpx
 from colormath.color_conversions import convert_color
 from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
@@ -12,7 +13,7 @@ from PIL import Image
 from ..logger import get_logger
 from ..settings import get_settings
 from .cache import get_cached, set_cached
-from .helpers import fetch_and_cache_content
+from .helpers import fetch_and_cache_content_async
 
 logger = get_logger(__name__)
 
@@ -20,38 +21,6 @@ logger = get_logger(__name__)
 FLAG_API_CALLS_PER_SECOND = 2
 
 _COUNTRY_COLORS: dict[str, str] = {}
-
-
-def get_country_flag_data_uri(country_code: str) -> str | None:
-    """Get country flag image as data URI."""
-    if not country_code:
-        return None
-
-    cache_key = f"flag_{country_code.lower()}"
-    cached = get_cached(cache_key)
-    if cached is not None and isinstance(cached, str):
-        return str(cached)
-
-    try:
-        settings = get_settings()
-        url = settings.flag_cdn_url.format(country_code=country_code.lower())
-        content = fetch_and_cache_content(
-            cache_key=f"flag_raw_{country_code.lower()}",
-            url=url,
-            timeout=5,
-            calls_per_second=FLAG_API_CALLS_PER_SECOND,
-        )
-        if content is None:
-            return None
-
-        image_data = base64.b64encode(content).decode("utf-8")
-        data_uri = f"data:image/png;base64,{image_data}"
-        set_cached(cache_key, data_uri)
-        return data_uri
-    except Exception as e:
-        logger.warning(f"Failed to get flag for {country_code}: {e}")
-
-    return None
 
 
 def _color_distance(color1: str, color2: str) -> float:
@@ -337,3 +306,46 @@ def extract_prominent_color_from_flag(
         logger.error(f"Error extracting color from flag: {e}", exc_info=True)
         settings = get_settings()
         return settings.default_accent_color
+
+
+async def get_country_flag_data_uri_async(
+    client: httpx.AsyncClient, country_code: str
+) -> str | None:
+    """Get country flag image as data URI (async).
+
+    Args:
+        client: httpx AsyncClient instance
+        country_code: ISO country code (e.g., "us", "fr")
+
+    Returns:
+        Data URI string for the flag image, or None if fetch fails
+    """
+    if not country_code:
+        return None
+
+    cache_key = f"flag_{country_code.lower()}"
+    cached = get_cached(cache_key)
+    if cached is not None and isinstance(cached, str):
+        return str(cached)
+
+    try:
+        settings = get_settings()
+        url = settings.flag_cdn_url.format(country_code=country_code.lower())
+        content = await fetch_and_cache_content_async(
+            client,
+            cache_key=f"flag_raw_{country_code.lower()}",
+            url=url,
+            timeout=5.0,
+            max_attempts=3,
+        )
+        if content is None:
+            return None
+
+        image_data = base64.b64encode(content).decode("utf-8")
+        data_uri = f"data:image/png;base64,{image_data}"
+        set_cached(cache_key, data_uri)
+        return data_uri
+    except Exception as e:
+        logger.warning(f"Failed to get flag for {country_code}: {e}")
+
+    return None

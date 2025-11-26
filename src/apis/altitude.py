@@ -1,6 +1,6 @@
 """Altitude/elevation API integration."""
 
-import requests
+import httpx
 from more_itertools import chunked
 
 from ..logger import create_progress, get_logger
@@ -84,7 +84,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 calls_made += 1
                 progress.advance(task_id)
 
-            except requests.exceptions.RequestException as e:
+            except httpx.RequestError as e:
                 logger.warning(f"Failed to get elevation for batch: {e}")
                 all_elevations.extend([None] * len(batch))
                 progress.advance(task_id)

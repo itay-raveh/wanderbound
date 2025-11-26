@@ -11,11 +11,10 @@ from ..apis import (
     get_altitude_batch,
     get_country_map_dot_position,
 )
-from ..apis.async_flags import get_country_flag_data_uri_async
-from ..apis.async_helpers import create_async_client
-from ..apis.async_maps import get_country_map_data_uri_async, get_country_map_svg_async
-from ..apis.async_weather import get_weather_data_async
-from ..apis.weather import WeatherData
+from ..apis.flags import get_country_flag_data_uri_async
+from ..apis.helpers import create_async_client
+from ..apis.maps import get_country_map_data_uri_async, get_country_map_svg_async
+from ..apis.weather import WeatherData, get_weather_data_async
 from ..html.asset_management import copy_image_to_assets
 from ..html.step_data_preparation import _clean_description
 from ..logger import create_progress, get_console, get_logger
