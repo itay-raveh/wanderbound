@@ -96,7 +96,7 @@ python main.py --steps 99-110 --output my_album
 │   ├── trip.json        # Trip metadata
 │   └── [step_folders]/  # Step photo directories
 ├── main.py              # Entry point
-└── requirements.txt     # Python dependencies
+└── pyproject.toml       # Python package configuration and dependencies
 ```
 
 ## Notes
