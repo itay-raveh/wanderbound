@@ -20,6 +20,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+keywords = [
+    "polarsteps",
+    "photo-album",
+    "travel",
+    "html-generator",
+    "pdf-generator",
+]
 dependencies = [
     "httpx>=0.25.0",
     "requests>=2.31.0",         # Keep for backward compatibility during migration
@@ -29,11 +36,13 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "jinja2>=3.1.0",
     "playwright>=1.40.0",
-    "pyproj>=3.6.0",
     "diskcache>=5.6.0",
     "colormath>=3.0.0",
     "lxml>=5.0.0",
     "geopy>=2.4.0",
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "matplotlib>=3.7.0",
     "more-itertools>=10.0.0",
     "langdetect>=1.0.9",
     "rich>=13.0.0",
