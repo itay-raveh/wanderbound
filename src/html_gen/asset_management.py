@@ -3,9 +3,9 @@
 import shutil
 from pathlib import Path
 
-from ..settings import get_settings
-from ..utils.files import sanitize_filename
-from ..utils.paths import get_assets_path
+from src.settings import settings
+from src.utils.files import sanitize_filename
+from src.utils.paths import get_assets_path, get_font_path
 
 __all__ = ["copy_assets", "copy_image_to_assets"]
 
@@ -24,7 +24,7 @@ def copy_image_to_assets(
     Returns:
         Relative path to copied image (e.g., "assets/images/Buenos_Aires_Argentina_photo_0.jpg")
     """
-    settings = get_settings()
+    # Using module-level settings
     images_dir = get_assets_path(output_dir, settings.file.images_dir)
     images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -40,14 +40,13 @@ def copy_image_to_assets(
     return f"{settings.file.assets_dir}/{settings.file.images_dir}/{output_filename}"
 
 
-def copy_assets(font_path: Path, output_dir: Path) -> None:
+def copy_assets(output_dir: Path) -> None:
     """Copy assets (fonts, CSS, etc.) to output directory.
 
     Args:
-        font_path: Path to font file to copy
         output_dir: Output directory where assets should be copied
     """
-    settings = get_settings()
+    # Using module-level settings
 
     assets_dir = output_dir / settings.file.assets_dir
     fonts_dir = assets_dir / settings.file.fonts_dir
@@ -55,6 +54,7 @@ def copy_assets(font_path: Path, output_dir: Path) -> None:
     fonts_dir.mkdir(parents=True, exist_ok=True)
     css_dir.mkdir(parents=True, exist_ok=True)
 
+    font_path = get_font_path()
     output_font = fonts_dir / settings.file.font_file
     if not output_font.exists() and font_path.exists():
         shutil.copy2(font_path, output_font)

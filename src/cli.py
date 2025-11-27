@@ -31,7 +31,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sample",
         type=int,
-        help="Sample N evenly distributed steps across the entire trip (useful for testing across countries)",
+        help=(
+            "Sample N evenly distributed steps across the entire trip "
+            "(useful for testing across countries)"
+        ),
     )
     parser.add_argument(
         "--output",
@@ -48,7 +51,10 @@ def parse_args() -> argparse.Namespace:
         "--progress-mode",
         choices=["original", "step-range"],
         default="step-range",
-        help="Progress bar mode: 'original' uses trip days, 'step-range' uses step range (default: step-range)",
+        help=(
+            "Progress bar mode: 'original' uses trip days, "
+            "'step-range' uses step range (default: step-range)"
+        ),
     )
     parser.add_argument(
         "--light-mode",
@@ -80,8 +86,6 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
         >>> parse_step_range("99")
         (99, 99)
     """
-    if not isinstance(range_str, str):
-        raise TypeError(f"range_str must be a string, got {type(range_str).__name__}")
     if not range_str.strip():
         raise ValueError("range_str cannot be empty")
 

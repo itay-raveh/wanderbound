@@ -13,6 +13,11 @@ class ConfigurationError(AlbumGeneratorError):
     """
 
     def __init__(self, message: str) -> None:
+        """Initialize configuration error.
+
+        Args:
+            message: Error message describing the configuration issue.
+        """
         super().__init__(message)
         self.message = message
 
@@ -26,6 +31,12 @@ class ValidationError(AlbumGeneratorError):
     """
 
     def __init__(self, message: str, field: str | None = None) -> None:
+        """Initialize validation error.
+
+        Args:
+            message: Error message describing what validation failed
+            field: Optional field name that failed validation
+        """
         super().__init__(message)
         self.field = field
         self.message = message
@@ -41,6 +52,13 @@ class APIError(AlbumGeneratorError):
     """
 
     def __init__(self, message: str, api_name: str, status_code: int | None = None) -> None:
+        """Initialize API error.
+
+        Args:
+            message: Error message describing the API failure
+            api_name: Name of the API that failed
+            status_code: Optional HTTP status code if available
+        """
         super().__init__(message)
         self.api_name = api_name
         self.status_code = status_code
@@ -56,6 +74,12 @@ class DataLoadError(AlbumGeneratorError):
     """
 
     def __init__(self, message: str, file_path: str | None = None) -> None:
+        """Initialize data load error.
+
+        Args:
+            message: Error message describing the data loading failure
+            file_path: Optional path to the file that failed to load
+        """
         super().__init__(message)
         self.file_path = file_path
         self.message = message
@@ -70,6 +94,12 @@ class PhotoProcessingError(AlbumGeneratorError):
     """
 
     def __init__(self, message: str, photo_path: str | None = None) -> None:
+        """Initialize photo processing error.
+
+        Args:
+            message: Error message describing the photo processing failure
+            photo_path: Optional path to the photo that failed
+        """
         super().__init__(message)
         self.photo_path = photo_path
         self.message = message

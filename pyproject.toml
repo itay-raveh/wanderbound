@@ -1,24 +1,20 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "polarsteps-album-generator"
 version = "0.1.0"
-description = "Generate beautiful HTML photo albums from Polarsteps trip data"
+description = "Generate photo albums from Polarsteps trip data"
 readme = "README.md"
-requires-python = ">=3.10"
-license = { text = "MIT" }
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = [
     "polarsteps",
@@ -35,7 +31,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "jinja2>=3.1.0",
     "playwright>=1.40.0",
-    "diskcache>=5.6.0",
+    "typed-diskcache[asyncio]>=0.6.0",
     "colormath>=3.0.0",
     "lxml>=5.0.0",
     "geopy>=2.4.0",
@@ -51,39 +47,125 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black>=23.0.0",
-    "isort>=5.12.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pylint>=3.0.0",
     "vulture>=2.10",
+    "deptry>=0.24.0",
+    "djlint>=1.36.4",
+    "taskipy>=1.14.0",
+    "pre-commit>=4.5.0",
 ]
 
 [project.scripts]
 polarsteps-album = "src.main:main"
 
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
 [tool.setuptools]
 packages = ["src"]
 
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312", "py313"]
-
-[tool.isort]
-profile = "black"
-line_length = 100
+[tool.taskipy.tasks]
+format = "ruff format ."
+check = "ruff check . --fix --unsafe-fixes"
+types = "mypy ."
+deps = "deptry ."
+dead = "vulture src"
+html = "djlint **/*.jinja --lint --reformat "
+lint = "task format && task check && task types && task deps && task dead && task html"
 
 [tool.ruff]
+target-version = "py311"
 line-length = 100
-target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+ignore = [
+    "D203",    # 1-blank-line-before-class (conflicts with D211)
+    "D213",    # Multi-line docstring summary at second line (conflicts with D212)
+    "COM812",  # Missing trailing comma (conflicts with formatter)
+    "ISC001",  # Single line implicit string concatenation (conflicts with formatter)
+    "FIX002",  # Fails if "TODO" is present (blocks development too hard)
+    "TD003",   # Missing issue link for TODO (too bureaucratic)
+    "EM101",   # Exception must not use a string literal
+    "EM102",   # Exception must not use an f-string literal
+    "PLR2004", # Magic numbers - many are acceptable (HTTP codes, common values)
+    "TRY003",  # Long exception messages - acceptable for user-facing errors
+    "ANN401",  # Any types - acceptable for generic cache functions
+    "S324",    # MD5 hash - acceptable for non-cryptographic use (color selection)
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10 # Flag functions that are too nested/complex
+
 
 [tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-ignore_missing_imports = true
+strict = true
+ignore_missing_imports = false
+warn_unused_ignores = true
+show_error_codes = true
+warn_unreachable = true
+pretty = true
 
 [[tool.mypy.overrides]]
-module = "src.apis.helpers"
-warn_return_any = false
+module = [
+    "pytz.*",
+    "geopy.*",
+    "ratelimit.*",
+    "geopandas.*",
+    "lxml.*",
+    "shapely.*",
+    "colormath.*",
+    "langdetect.*",
+    "dateutil.*",
+]
+ignore_missing_imports = true
+
+[tool.vulture]
+min_confidence = 80
+sort_by_size = true
+
+
+[tool.deptry]
+# Ignore dev dependencies that are imported in tests but not main code
+ignore_notebooks = true
+
+[tool.deptry.per_rule_ignores]
+# DEP002 = "Unused dependency"
+# We ignore these because they are CLI tools, not libraries we import.
+DEP002 = [
+    "pre-commit",
+    "taskipy",
+    "playwright",
+    "ruff",
+    "mypy",
+    "pylint",
+    "vulture",
+    "deptry",
+    "djlint",
+]
+
+
+[tool.djlint]
+profile = "jinja"
+# H006: img tags missing height/width (often impossible in dynamic templates)
+# H031: meta keywords missing (outdated SEO rule)
+ignore = "H006,H031"
+
+[tool.djlint.js]
+# Formats JS inside <script> tags
+indent_size = 2
+
+[tool.djlint.css]
+# Formats CSS inside <style> tags
+indent_size = 4

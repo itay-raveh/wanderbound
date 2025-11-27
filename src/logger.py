@@ -13,14 +13,13 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from .settings import get_settings
+from .settings import settings
 
 # Default log level
 DEFAULT_LOG_LEVEL = logging.INFO
 
 # Get settings
-_settings = get_settings()
-DEBUG_MODE = _settings.debug
+DEBUG_MODE = settings.debug
 
 # Set log level based on DEBUG setting
 LOG_LEVEL = logging.DEBUG if DEBUG_MODE else DEFAULT_LOG_LEVEL
@@ -32,7 +31,7 @@ _console = Console(markup=True)
 class PrettyCLIHandler(logging.Handler):
     """Custom handler that formats log messages as pretty CLI output (non-debug mode)."""
 
-    def __init__(self, console: Console):
+    def __init__(self, console: Console) -> None:
         super().__init__()
         self.console = console
         self.level_map = {
@@ -61,13 +60,17 @@ class PrettyCLIHandler(logging.Handler):
             # Apply colors based on log level
             if is_success and record.levelno == logging.INFO:
                 output = f"[green]{output}[/green]"
-            elif record.levelno == logging.ERROR or record.levelno == logging.CRITICAL:
-                output = f"[red]{output}[/red]"
             elif record.levelno == logging.WARNING:
                 output = f"[yellow]{output}[/yellow]"
+            elif record.levelno >= logging.ERROR:
+                output = f"[red]{output}[/red]"
 
             self.console.print(output, markup=True)
-        except Exception:
+        except (
+            OSError,
+            ValueError,
+            AttributeError,
+        ):  # Rich console can raise these on output errors
             self.handleError(record)
 
 
@@ -114,7 +117,7 @@ def get_console() -> Console:
     return _console
 
 
-def create_progress(description: str = "Processing", total: int | None = None) -> Progress:
+def create_progress(_description: str = "Processing", _total: int | None = None) -> Progress:
     """Create a Rich progress bar for loops with aligned descriptions."""
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(

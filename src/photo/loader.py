@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from ..logger import get_logger
-from ..models import Photo
+from src.logger import get_logger
+from src.models import Photo
 
 logger = get_logger(__name__)
 
@@ -28,8 +28,8 @@ def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
             width, height = img.size
             aspect_ratio = width / height if height > 0 else 0
             return (width, height, aspect_ratio)
-    except Exception as e:
-        logger.debug(f"Error loading image metadata for {img_path}: {e}")
+    except (OSError, ValueError, AttributeError, TypeError) as e:
+        logger.debug("Error loading image metadata for %s: %s", img_path, e)
         return None
 
 
@@ -68,7 +68,7 @@ def load_step_photos(photo_dir: Path) -> list[Photo]:
         List of Photo objects sorted by filename.
     """
     if not photo_dir.exists():
-        logger.warning(f"Photo directory does not exist: {photo_dir}")
+        logger.warning("Photo directory does not exist: %s", photo_dir)
         return []
 
     image_extensions = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"}

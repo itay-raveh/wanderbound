@@ -3,8 +3,9 @@
 import httpx
 from more_itertools import chunked
 
-from ..logger import create_progress, get_logger
-from ..settings import get_settings
+from src.logger import create_progress, get_logger
+from src.settings import settings
+
 from .cache import get_cached, set_cached
 from .rate_limit import fetch_json_with_retry
 
@@ -49,7 +50,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 continue
 
             locations_param = "|".join([f"{lat},{lon}" for lat, lon in batch])
-            url = get_settings().opentopodata_api_url.format(locations=locations_param)
+            url = settings.opentopodata_api_url.format(locations=locations_param)
 
             try:
                 logger.debug(
@@ -76,7 +77,7 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
 
                         cache_key = f"elevation_{lat},{lon}"
                         set_cached(cache_key, elevation)
-                    logger.debug(f"Cached {len(batch)} elevations")
+                    logger.debug("Cached %d elevations", len(batch))
                 else:
                     logger.warning("No results in elevation API response for batch")
                     all_elevations.extend([None] * len(batch))
@@ -85,11 +86,11 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
                 progress.advance(task_id)
 
             except httpx.RequestError as e:
-                logger.warning(f"Failed to get elevation for batch: {e}")
+                logger.warning("Failed to get elevation for batch: %s", e)
                 all_elevations.extend([None] * len(batch))
                 progress.advance(task_id)
-            except (KeyError, ValueError) as e:
-                logger.error(f"Error parsing elevation response: {e}", exc_info=True)
+            except (KeyError, ValueError):
+                logger.exception("Error parsing elevation response")
                 all_elevations.extend([None] * len(batch))
                 progress.advance(task_id)
 
@@ -107,5 +108,5 @@ def format_altitude(altitude: float | None) -> str:
     if altitude is None:
         return "N/A"
 
-    meters = int(round(altitude))
+    meters = round(altitude)
     return f"{meters:,}"

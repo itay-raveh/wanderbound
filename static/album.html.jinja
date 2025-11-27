@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description"
+              content="Photo album generated from Polarsteps trip data" />
+        <title>Polarsteps Album</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;500;600&display=swap"
+              rel="stylesheet" />
+        <link rel="stylesheet" href="assets/css/variables.css" />
+        <link rel="stylesheet" href="assets/css/reset.css" />
+        <link rel="stylesheet" href="assets/css/layout.css" />
+        <link rel="stylesheet" href="assets/css/components.css" />
+        <link rel="stylesheet" href="assets/css/typography.css" />
+        <link rel="stylesheet" href="assets/css/photos.css" />
+    </head>
+    <body {% if light_mode %}class="light-mode"{% endif %}>
+        {% for step in steps %}
+            <div class="step-page {% if step.use_two_columns %}has-two-columns{% endif %}">
+                <div class="step-data">
+                    <div class="location-section">
+                        <div class="map-coords-container">
+                            <div class="map-icon">
+                                {% if step.country_map_svg %}
+                                    <div class="map-svg-container">
+                                        {{ step.country_map_svg | safe }}
+                                        {% if step.map_dot_x is not
+                                            none and step.map_dot_y is not none %}
+                                            <div class="map-location-dot"
+                                                 style="left: {{ step.map_dot_x }}%;
+                                                        top: {{ step.map_dot_y }}%;
+                                                        background: {{ step.accent_color }}"></div>
+                                        {% endif %}
+                                    </div>
+                                {% elif step.country_map_data_uri %}
+                                    <img src="{{ step.country_map_data_uri }}" alt="{{ step.country }} map" />
+                                    {% if step.map_dot_x is not none and step.map_dot_y is not none %}
+                                        <div class="map-location-dot"
+                                             style="left: {{ step.map_dot_x }}%;
+                                                    top: {{ step.map_dot_y }}%;
+                                                    background: {{ step.accent_color }}"></div>
+                                    {% endif %}
+                                {% else %}
+                                    🗺️
+                                {% endif %}
+                            </div>
+                            <div class="coordinates">
+                                {{ step.coords_lat }}
+                                <br />
+                                {{ step.coords_lon }}
+                            </div>
+                        </div>
+                        <div class="country">
+                            {% if step.country_flag_data_uri %}
+                                <img src="{{ step.country_flag_data_uri }}"
+                                     alt="{{ step.country }} flag"
+                                     class="country-flag" />
+                            {% else %}
+                                <span class="country-icon"></span>
+                            {% endif %}
+                            {{ step.country | upper }}
+                        </div>
+                        <div class="city">{{ step.city | upper }}</div>
+                        {%- if step.description and not step.use_two_columns -%}
+                            <div class="description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+                        {%- endif -%}
+                    </div>
+                    <div class="metadata-section">
+                        <div class="metadata">
+                            <div class="metadata-item">
+                                <div class="metadata-label">{{ step.date_month }}</div>
+                                <div class="metadata-value">{{ step.date_day }}</div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">
+                                    {% if step.night_weather_icon_url %}
+                                        <img src="{{ step.night_weather_icon_url }}"
+                                             alt="Night weather"
+                                             class="weather-icon" />
+                                    {% endif %}
+                                    {{ step.temp_night_str }}
+                                </div>
+                                <div class="metadata-value">
+                                    {% if step.day_weather_icon_url %}
+                                        <img src="{{ step.day_weather_icon_url }}"
+                                             alt="Day weather"
+                                             class="weather-icon" />
+                                    {% endif %}
+                                    {{ step.temp_str }}
+                                </div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">m.a.s.l</div>
+                                <div class="metadata-value">{{ step.altitude_str }}</div>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill"
+                                     style="width: {{ step.progress_percent }}%;
+                                            background: {{ step.accent_color }}"></div>
+                            </div>
+                            <div class="day-counter-arrow"
+                                 style="border-bottom-color: {{ step.accent_color }};
+                                        left: {{ step.day_counter_arrow_position }}%;
+                                        transform: translateX(-55%)"></div>
+                            <div class="day-counter-wrapper"
+                                 style="left: {{ step.day_counter_box_position }}%;
+                                        transform: translateX(-55%)">
+                                <div class="day-counter" style="background: {{ step.accent_color }};">DAY {{ step.day_num }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="step-content">
+                    {% if step.use_two_columns %}
+                        <div class="two-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}">
+                            {%- if step.description_full -%}{{- step.description_full -}}{%- endif
+                                -%}
+                            </div>
+                        {% elif step.cover_image_path %}
+                            <img src="{{ step.cover_image_path }}"
+                                 alt="{{ step.city }}"
+                                 class="main-image" />
+                        {% else %}
+                            <div class="no-image-message">No image available</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {# Photo pages for this step #}
+                {% if step.photo_pages %}
+                    {% for photo_page
+                        in step.photo_pages %}
+                        <div class="step-page photo-page">
+                            <div class="photo-page-container{% if photo_page.is_three_portraits %} three-portraits{% endif %}{% if photo_page.is_portrait_landscape_split %} portrait-landscape-split{% endif %}">
+                                {% for photo_path in photo_page.photos %}
+                                    <div class="photo-item">
+                                        <img src="{{ photo_path }}"
+                                             alt="{{ step.city }} photo"
+                                             class="photo-image" />
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </body>
+    </html>

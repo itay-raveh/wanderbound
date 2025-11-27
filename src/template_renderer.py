@@ -1,15 +1,11 @@
 """Template rendering utilities for HTML generation."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 from .logger import get_logger
-from .types import StepData
-
-if TYPE_CHECKING:
-    from jinja2 import Template
+from .type_definitions import StepData
 
 logger = get_logger(__name__)
 
@@ -22,12 +18,16 @@ def create_template_environment() -> Environment:
     Returns:
         Configured Jinja2 Environment instance.
     """
-    template_dir = Path(__file__).parent / "templates"
-    return Environment(loader=FileSystemLoader(str(template_dir)))
+    # Template is in static/ folder at project root
+    # From src/template_renderer.py: parent=src/, parent.parent=project root
+    template_dir = Path(__file__).parent.parent / "static"
+    return Environment(
+        loader=FileSystemLoader(str(template_dir)), autoescape=select_autoescape(["html", "xml"])
+    )
 
 
 def render_album_template(
-    template: "Template", step_data_list: list[StepData], light_mode: bool = False
+    template: Template, step_data_list: list[StepData], *, light_mode: bool = False
 ) -> str:
     """Render the album HTML template with step data.
 

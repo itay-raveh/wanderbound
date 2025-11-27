@@ -10,6 +10,7 @@ from .image_selector import (
 )
 from .logger import get_logger
 from .models import Photo, Step
+from .utils.paths import get_step_photo_dir
 
 logger = get_logger(__name__)
 
@@ -34,22 +35,25 @@ def process_step_photos(
             - Cover photo (Photo or None)
             - List of photo pages (each page is a list of Photo objects)
     """
-    from .utils.paths import get_step_photo_dir
-
     photo_dir = get_step_photo_dir(trip_dir, step)
     if not photo_dir:
         logger.warning(
-            f"No photo directory found for step '{step.city}' (ID: {step.id}). "
-            f"Expected directory pattern: {step.slug or step.display_slug}_{step.id}/photos "
-            f"in {trip_dir}"
+            "No photo directory found for step '%s' (ID: %s). "
+            "Expected directory pattern: %s_%s/photos in %s",
+            step.city,
+            step.id,
+            step.slug or step.display_slug,
+            step.id,
+            trip_dir,
         )
         return [], None, []
 
     photos = load_step_photos(photo_dir)
     if not photos:
         logger.warning(
-            f"No photos found in {photo_dir} for step '{step.city}'. "
-            f"Expected image files (.jpg, .jpeg, .png)"
+            "No photos found in %s for step '%s'. Expected image files (.jpg, .jpeg, .png)",
+            photo_dir,
+            step.city,
         )
         return [], None, []
 

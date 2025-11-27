@@ -1,6 +1,10 @@
 """Type aliases and TypedDict definitions for commonly used data structures."""
 
-from typing import TypedDict
+from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from src.models import Photo, Step, TripData
 
 
 class PhotoPageData(TypedDict):
@@ -48,7 +52,45 @@ class StepData(TypedDict, total=False):
     light_mode: bool
 
 
+class StepExternalData(TypedDict, total=False):
+    """External data for a step (elevation, weather, flags, maps, etc.)."""
+
+    elevation: float | None
+    weather_data: object  # WeatherData Pydantic model
+    flag_data: tuple[str | None, str | None] | None
+    map_data: tuple[str | None, str | None, tuple[float, float] | None] | None
+    cover_image_path: str | None
+
+
+class AlbumPhotoData(TypedDict):
+    """Photo data dictionaries for album generation."""
+
+    steps_with_photos: dict[int, list["Photo"]]
+    steps_cover_photos: dict[int, "Photo | None"]
+    steps_photo_pages: dict[int, list[list["Photo"]]]
+
+
+class AlbumGenerationConfig(TypedDict):
+    """Configuration for album generation."""
+
+    trip_data: "TripData"
+    output_dir: Path
+
+
+class StepContext(TypedDict):
+    """Context data for step preparation."""
+
+    step: "Step"
+    step_index: int
+    steps: list["Step"]
+    trip_data: "TripData"
+
+
 __all__ = [
+    "AlbumGenerationConfig",
+    "AlbumPhotoData",
     "PhotoPageData",
+    "StepContext",
     "StepData",
+    "StepExternalData",
 ]

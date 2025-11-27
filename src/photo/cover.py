@@ -1,7 +1,9 @@
 """Cover photo selection logic."""
 
-from ..models import Photo
-from ..settings import get_settings
+from src.models import Photo
+from src.settings import settings
+
+from .ratio import PhotoRatio, get_photo_ratio
 
 __all__ = ["select_cover_photo", "should_use_cover_photo"]
 
@@ -21,7 +23,6 @@ def should_use_cover_photo(description: str | None) -> bool:
     if not description:
         return True
 
-    settings = get_settings()
     return len(description) <= settings.description_max_char_cover_photo
 
 
@@ -39,8 +40,6 @@ def select_cover_photo(photos: list[Photo]) -> Photo | None:
     """
     if not photos:
         return None
-
-    from .ratio import PhotoRatio, get_photo_ratio
 
     # Prefer 4:5 portrait photos (ideal aspect ratio for cover)
     ideal_portraits = [

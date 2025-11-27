@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytz
 
-from ..logger import get_logger
+from src.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -36,12 +36,9 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
 
         month = dt.strftime("%B").upper()
         day = str(dt.day)
-
-        return {"month": month, "day": day}
-    except Exception as e:
-        logger.warning(
-            f"Error formatting date for timestamp {timestamp} in timezone {timezone_id}: {e}",
-            exc_info=True,
+    except (pytz.UnknownTimeZoneError, OSError, ValueError, OverflowError):
+        logger.exception(
+            "Error formatting date for timestamp %s in timezone %s", timestamp, timezone_id
         )
         try:
             tz = pytz.timezone(timezone_id)
@@ -62,6 +59,9 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
             ]
             month = month_names[dt.month - 1]
             day = str(dt.day)
-            return {"month": month, "day": day}
-        except Exception:
+        except (pytz.UnknownTimeZoneError, OSError, ValueError, OverflowError, IndexError):
             return {"month": "", "day": ""}
+        else:
+            return {"month": month, "day": day}
+    else:
+        return {"month": month, "day": day}

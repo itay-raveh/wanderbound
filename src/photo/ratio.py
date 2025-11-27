@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-from ..settings import get_settings
+from src.settings import settings
 
 __all__ = ["PhotoRatio", "get_photo_ratio"]
 
@@ -10,8 +10,8 @@ __all__ = ["PhotoRatio", "get_photo_ratio"]
 class PhotoRatio(Enum):
     """Photo aspect ratio categories."""
 
-    PORTRAIT = [(4, 5), (9, 16), (3, 4)]  # 4:5 (5:4 portrait) is ideal for cover photos
-    LANDSCAPE = [(16, 9), (4, 3)]
+    PORTRAIT = [(4, 5), (9, 16), (3, 4)]  # noqa: RUF012  # 4:5 (5:4 portrait) is ideal for cover photos
+    LANDSCAPE = [(16, 9), (4, 3)]  # noqa: RUF012
     UNKNOWN = None  # Sentinel value
 
 
@@ -28,7 +28,6 @@ def get_photo_ratio(width: int, height: int) -> PhotoRatio:
     Returns:
         PhotoRatio enum value (PORTRAIT, LANDSCAPE, or UNKNOWN).
     """
-    settings = get_settings()
     aspect_ratio = width / height if height > 0 else 0
 
     for photo_ratio in PhotoRatio:

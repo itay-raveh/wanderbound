@@ -103,7 +103,7 @@ polarsteps-album --steps 99-110 --output my_album
 
 ## Project Structure
 
-```
+```text
 .
 ├── src/                 # Main source code
 │   ├── main.py          # CLI entry point

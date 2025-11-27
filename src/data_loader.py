@@ -69,12 +69,12 @@ def load_trip_data(trip_path: Path) -> TripData:
 
             step = Step(**step_data)
             steps.append(step)
-        except (KeyError, TypeError, ValueError) as e:
+        except (KeyError, TypeError, ValueError):
             step_id = step_data.get("id", "unknown")
-            logger.warning(
-                f"Failed to parse step {step_id} in {trip_path}: {e}. "
-                f"Skipping this step and continuing with others.",
-                exc_info=True,
+            logger.exception(
+                "Failed to parse step %s in %s. Skipping this step and continuing with others.",
+                step_id,
+                trip_path,
             )
             continue
 

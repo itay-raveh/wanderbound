@@ -1,6 +1,6 @@
 """Step filtering and selection utility functions."""
 
-from ..models import Step
+from src.models import Step
 
 __all__ = ["get_steps_distributed", "get_steps_in_range"]
 

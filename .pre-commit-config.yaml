@@ -1,0 +1,55 @@
+repos:
+  # ==========================================================================
+  # 1. RUFF (Linter & Formatter)
+  # Uses the official hook for maximum speed.
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.6  # Check for newer versions occasionally
+    hooks:
+      # Run the linter and auto-fix simple issues
+      - id: ruff-check
+        args: [ --fix ]
+      # Run the formatter
+      - id: ruff-format
+
+  # ==========================================================================
+  # 2. LOCAL TOOLS (Mypy, Deptry, Vulture)
+  # We run these as "system" hooks so they use your active virtual environment.
+  # ==========================================================================
+  - repo: local
+    hooks:
+      # Static Type Checking
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: false  # Run on the whole project to resolve types correctly
+
+      # Dependency Health Check
+      - id: deptry
+        name: deptry
+        entry: deptry
+        language: system
+        types: [python]
+        pass_filenames: false  # Must scan all files to know what is used
+
+      # Dead Code Detection
+      - id: vulture
+        name: vulture
+        entry: vulture
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: ["--exclude", "pyproject.toml"]
+
+        # HTML & CSS
+      - id: djlint
+        name: djlint
+        entry: djlint
+        language: system
+        # Scan HTML files AND plain text files (to catch weirdly named templates)
+        types_or: [html, text] 
+        # Only look at files with these extensions to avoid linting README.md
+        files: \.(html|j2|jinja)$
+        args: ["--lint", "--reformat"]

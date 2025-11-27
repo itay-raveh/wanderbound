@@ -1,6 +1,7 @@
 """Layout detection for photo pages."""
 
-from ..models import Photo
+from src.models import Photo
+
 from .ratio import PhotoRatio, get_photo_ratio
 
 __all__ = ["_is_one_portrait_two_landscapes", "_is_three_portraits"]

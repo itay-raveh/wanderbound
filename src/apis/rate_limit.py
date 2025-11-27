@@ -1,7 +1,7 @@
 """Rate limiting and retry utilities for API calls."""
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypedDict, TypeVar
 
 import httpx
 from ratelimit import limits, sleep_and_retry
@@ -13,6 +13,14 @@ from tenacity import (
 )
 
 T = TypeVar("T")
+
+
+class FetchConfig(TypedDict, total=False):
+    """Configuration for fetch operations with retry logic."""
+
+    timeout: int
+    calls_per_second: int
+    max_attempts: int
 
 
 class RateLimitError(Exception):
@@ -58,13 +66,16 @@ def with_rate_limit_and_retry(
 
 def _fetch_with_retry(
     url: str,
-    timeout: int,
-    calls_per_second: int,
-    max_attempts: int,
+    config: FetchConfig,
+    *,
     check_rate_limit: bool,
     extract_response: Callable[[httpx.Response], Any],
 ) -> Any:
     """Internal helper to fetch data with rate limiting and retry logic."""
+    timeout = config.get("timeout", 10)
+    calls_per_second = config.get("calls_per_second", 1)
+    max_attempts = config.get("max_attempts", 3)
+
     # For 429 errors, don't retry - they indicate we're rate limited
     # For other errors, retry up to max_attempts times
     retry_on: type[Exception] | tuple[type[Exception], ...] = httpx.RequestError
@@ -82,7 +93,8 @@ def _fetch_with_retry(
 
         if check_rate_limit and response.status_code == 429:
             # Don't retry 429 errors - raise immediately
-            raise RateLimitError("Rate limited by API")
+            msg = "Rate limited by API"
+            raise RateLimitError(msg)
 
         response.raise_for_status()
         return extract_response(response)
@@ -95,6 +107,7 @@ def fetch_json_with_retry(
     timeout: int = 10,
     calls_per_second: int = 1,
     max_attempts: int = 3,
+    *,
     check_rate_limit: bool = False,
 ) -> dict[str, Any]:
     """Fetch JSON data from URL with rate limiting and retry logic.
@@ -113,15 +126,16 @@ def fetch_json_with_retry(
         RateLimitError: If check_rate_limit is True and status code is 429
         httpx.RequestError: On HTTP or network errors
     """
+    config: FetchConfig = {
+        "timeout": timeout,
+        "calls_per_second": calls_per_second,
+        "max_attempts": max_attempts,
+    }
     result = _fetch_with_retry(
-        url,
-        timeout,
-        calls_per_second,
-        max_attempts,
-        check_rate_limit,
-        lambda r: r.json(),
+        url, config, check_rate_limit=check_rate_limit, extract_response=lambda r: r.json()
     )
-    assert isinstance(result, dict)
+    if not isinstance(result, dict):
+        raise TypeError(f"Expected dict from JSON response, got {type(result).__name__}")
     return result
 
 
@@ -146,34 +160,11 @@ def fetch_content_with_retry(
         httpx.HTTPError: On HTTP errors
     """
     result = _fetch_with_retry(
-        url, timeout, calls_per_second, max_attempts, False, lambda r: r.content
+        url,
+        {"timeout": timeout, "calls_per_second": calls_per_second, "max_attempts": max_attempts},
+        check_rate_limit=False,
+        extract_response=lambda r: r.content,
     )
-    assert isinstance(result, bytes)
-    return result
-
-
-def fetch_text_with_retry(
-    url: str,
-    timeout: int = 10,
-    calls_per_second: int = 1,
-    max_attempts: int = 3,
-) -> str:
-    """Fetch text content from URL with rate limiting and retry logic.
-
-    Args:
-        url: URL to fetch
-        timeout: Request timeout in seconds
-        calls_per_second: Maximum number of API calls per second
-        max_attempts: Maximum number of retry attempts
-
-    Returns:
-        Response content as text
-
-    Raises:
-        httpx.HTTPError: On HTTP errors
-    """
-    result = _fetch_with_retry(
-        url, timeout, calls_per_second, max_attempts, False, lambda r: r.text
-    )
-    assert isinstance(result, str)
+    if not isinstance(result, bytes):
+        raise TypeError(f"Expected bytes from content response, got {type(result).__name__}")
     return result

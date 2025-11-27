@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
-from ..logger import get_logger
-from ..models import Photo
-from ..photo.layout import _is_one_portrait_two_landscapes, _is_three_portraits
-from ..types import PhotoPageData
+from src.logger import get_logger
+from src.models import Photo
+from src.photo.layout import _is_one_portrait_two_landscapes, _is_three_portraits
+from src.type_definitions import PhotoPageData
+
 from .asset_management import copy_image_to_assets
 
 logger = get_logger(__name__)
@@ -33,12 +34,11 @@ def process_photo_pages(
     photo_pages_paths: list[PhotoPageData] = []
 
     for page in photo_pages:
-        page_paths: list[str] = []
-        for photo in page:
-            if photo.path.exists():
-                page_paths.append(
-                    copy_image_to_assets(photo.path, output_dir, step_name, photo.index)
-                )
+        page_paths: list[str] = [
+            copy_image_to_assets(photo.path, output_dir, step_name, photo.index)
+            for photo in page
+            if photo.path.exists()
+        ]
 
         if page_paths:
             # Calculate layout flags on-the-fly based on photo aspect ratios

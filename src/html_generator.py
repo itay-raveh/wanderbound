@@ -1,22 +1,28 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
+import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from .html.asset_management import copy_assets
-from .html.batch_fetching import (
+from .html_gen.batch_fetching import (
     fetch_altitudes,
     fetch_flags_batch,
     fetch_maps_batch,
     fetch_weather_data_batch,
     process_cover_images_batch,
 )
-from .html.photo_pages import process_photo_pages
-from .html.step_data_preparation import prepare_step_data
+from .html_gen.photo_pages import process_photo_pages
+from .html_gen.step_data_preparation import prepare_step_data
 from .logger import create_progress, get_console, get_logger
-from .models import Photo, Step, TripData
-from .settings import get_settings
+from .models import Step
+from .settings import settings
 from .template_renderer import create_template_environment, render_album_template
-from .types import StepData
+from .type_definitions import AlbumGenerationConfig, AlbumPhotoData, StepContext
+
+if TYPE_CHECKING:
+    from src.type_definitions import StepExternalData
+
+    from .type_definitions import StepData
 
 logger = get_logger(__name__)
 console = get_console()
@@ -24,12 +30,9 @@ console = get_console()
 
 def generate_album_html(
     steps: list[Step],
-    steps_with_photos: dict[int, list[Photo]],
-    steps_cover_photos: dict[int, Photo | None],
-    steps_photo_pages: dict[int, list[list[Photo]]],
-    trip_data: TripData,
-    font_path: Path,
-    output_path: Path,
+    photo_data: AlbumPhotoData,
+    config: AlbumGenerationConfig,
+    *,
     use_step_range: bool = False,
     light_mode: bool = False,
 ) -> Path:
@@ -37,12 +40,9 @@ def generate_album_html(
 
     Args:
         steps: List of steps to include in the album
-        steps_with_photos: Dictionary mapping step IDs to lists of Photo objects
-        steps_cover_photos: Dictionary mapping step IDs to cover Photo (or None)
-        steps_photo_pages: Dictionary mapping step IDs to lists of photo pages (each page is a list of Photos)
-        trip_data: Trip metadata including start/end dates, timezone, and all steps
-        font_path: Path to the font file to use for titles
-        output_path: Path where the HTML file should be written
+        photo_data: Dictionary containing steps_with_photos, steps_cover_photos,
+            and steps_photo_pages
+        config: Configuration dictionary with trip_data and output_dir
         use_step_range: If True, progress bars use step range (1 to len(steps));
                        if False, progress bars use trip days from start_date
         light_mode: If True, use light mode color scheme; if False, use dark mode
@@ -50,21 +50,36 @@ def generate_album_html(
     Returns:
         Path to the generated HTML file
     """
-    copy_assets(font_path, output_path.parent)
+    trip_data = config["trip_data"]
+    output_dir = Path(config["output_dir"])
+    steps_cover_photos = photo_data["steps_cover_photos"]
+    steps_photo_pages = photo_data["steps_photo_pages"]
+
+    # Copy entire static folder to output directory
+    # From src/html_generator.py: parent=src/, parent.parent=project root
+    static_dir = Path(__file__).parent.parent / "static"
+    if static_dir.exists():
+        # Copy all contents of static/ to output/
+        for item in static_dir.iterdir():
+            if item.name == "album.html.jinja":
+                # Skip template - will be replaced with rendered HTML
+                continue
+            dest = output_dir / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest)
 
     # Batch fetch all external data in parallel
     elevations = fetch_altitudes(steps)
     weather_data_list = fetch_weather_data_batch(steps)
-    flag_data_list = fetch_flags_batch(steps, light_mode)
+    flag_data_list = fetch_flags_batch(steps, light_mode=light_mode)
     map_data_list = fetch_maps_batch(steps)
-    cover_image_path_list = process_cover_images_batch(
-        steps, steps_cover_photos, output_path.parent
-    )
+    cover_image_path_list = process_cover_images_batch(steps, steps_cover_photos, output_dir)
 
     # Prepare template environment
     env = create_template_environment()
-    settings = get_settings()
-    template = env.get_template(settings.file.album_html_file)
+    template = env.get_template("album.html.jinja")
 
     # Prepare step data
     logger.debug("Preparing step data...")
@@ -95,15 +110,15 @@ def generate_album_html(
                 task_id=task_id,
             )
         ):
-            logger.debug(f"Processing step {idx + 1}/{len(steps)}: {step.city}")
+            logger.debug("Processing step %d/%d: %s", idx + 1, len(steps), step.city)
             progress.update(task_id, description=f"Preparing steps: {step.city}")
 
             # Skip steps with missing weather data
             if weather_data is None:
-                logger.warning(f"Skipping step {idx} ({step.city}) due to missing weather data")
+                logger.warning("Skipping step %d (%s) due to missing weather data", idx, step.city)
                 continue
 
-            cover_photo = steps_cover_photos.get(step.id) if step.id else None
+            steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
 
             # Copy photo pages images to assets directory
@@ -111,22 +126,27 @@ def generate_album_html(
             photo_pages_paths = process_photo_pages(
                 photo_pages,
                 step_name,
-                output_path.parent,
+                output_dir,
             )
 
+            external_data: StepExternalData = {
+                "elevation": elevation,
+                "weather_data": weather_data,
+                "flag_data": flag_data,
+                "map_data": map_data,
+                "cover_image_path": cover_image_path,
+            }
+            step_context: StepContext = {
+                "step": step,
+                "step_index": idx,
+                "steps": steps,
+                "trip_data": trip_data,
+            }
             step_data = prepare_step_data(
-                step,
-                cover_photo,
-                idx,
-                steps,
-                trip_data,
-                use_step_range,
-                elevation,
-                weather_data,
-                flag_data,
-                map_data,
-                cover_image_path,
-                light_mode,
+                step_context,
+                external_data,
+                use_step_range=use_step_range,
+                light_mode=light_mode,
             )
             # Add photo pages to step data
             step_data["photo_pages"] = photo_pages_paths
@@ -137,9 +157,11 @@ def generate_album_html(
     logger.debug("Step data prepared")
 
     # Render template
-    html = render_album_template(template, step_data_list, light_mode)
+    html = render_album_template(template, step_data_list, light_mode=light_mode)
 
-    # Write to file
+    # Write rendered HTML to output directory (replacing the template)
+    # Using module-level settings
+    output_path = output_dir / settings.file.album_html_file
     output_path.write_text(html, encoding="utf-8")
 
     return output_path

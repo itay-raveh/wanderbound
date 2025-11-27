@@ -225,3 +225,8 @@
   white-space: nowrap;
   min-width: fit-content;
 }
+
+.no-image-message {
+  color: #666;
+  text-align: center;
+}

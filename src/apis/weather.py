@@ -1,5 +1,6 @@
 """Historical weather API integration for temperature data."""
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -8,8 +9,9 @@ import pytz
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from ..logger import get_logger
-from ..settings import get_settings
+from src.logger import get_logger
+from src.settings import settings
+
 from .cache import get_cached, set_cached
 from .helpers import fetch_and_cache_json_async
 from .rate_limit import RateLimitError, fetch_json_with_retry
@@ -49,7 +51,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
 
 
 def _fetch_weather_data_with_retry(
-    url: str, lat: float, lon: float, date_str: str
+    url: str, _lat: float, _lon: float, _date_str: str
 ) -> dict[str, Any]:
     """Fetch weather data from API with automatic retry on errors (but not 429).
 
@@ -146,6 +148,41 @@ def _get_night_icon(
     return None
 
 
+def _parse_cached_weather_data(cached: dict[str, Any], tz: Any) -> WeatherData | None:
+    """Parse cached weather data (either WeatherData dict or raw API response).
+
+    Args:
+        cached: Cached dictionary (WeatherData dict or raw API response)
+        tz: Timezone object for night hour calculations
+
+    Returns:
+        WeatherData object or None if parsing fails
+    """
+    # Check if it's a WeatherData dict from model_dump()
+    if "day_temp" in cached or "day_icon" in cached:
+        try:
+            return WeatherData.model_validate(cached)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning("Error parsing cached WeatherData: %s", e)
+            return None
+
+    # It's a raw API response dict
+    try:
+        days = cached.get("days", [])
+        if days:
+            day_data = days[0]
+            weather, hours = _parse_day_weather_data(day_data)
+            # Process night icon from hourly data
+            if hours:
+                night_hours = _find_night_hours(hours, tz)
+                weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
+            return weather
+    except (KeyError, ValueError, TypeError) as e:
+        logger.warning("Error parsing cached weather data: %s", e)
+
+    return None
+
+
 def _parse_day_weather_data(
     day_data: dict[str, Any],
 ) -> tuple[WeatherData, list[dict[str, Any]]]:
@@ -182,6 +219,155 @@ def _parse_day_weather_data(
     return (weather, hours)
 
 
+def _build_weather_api_url(lat: float, lon: float, date_str: str) -> str:
+    """Build Visual Crossing API URL.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+        date_str: Date string in YYYY-MM-DD format
+
+    Returns:
+        API URL string
+    """
+    elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
+    return settings.visual_crossing_api_url.format(
+        location=f"{lat},{lon}",
+        date=date_str,
+        key=settings.visual_crossing_api_key,
+        elements=elements,
+    )
+
+
+def _process_weather_api_response(
+    data: dict[str, Any], tz: Any, lat: float, lon: float, date_str: str
+) -> WeatherData:
+    """Process API response and extract weather data.
+
+    Args:
+        data: API response dictionary
+        tz: Timezone object
+        lat: Latitude
+        lon: Longitude
+        date_str: Date string
+
+    Returns:
+        WeatherData object
+    """
+    weather = WeatherData()
+
+    if "days" in data and len(data["days"]) > 0:
+        day_data = data["days"][0]
+
+        # Debug logging
+        if logger.isEnabledFor(10):  # DEBUG level
+            logger.debug(
+                "Daily data fields:\nKeys: %s\nfeelslikemax: %s\nfeelslikemin: %s",
+                list(day_data.keys()),
+                day_data.get("feelslikemax"),
+                day_data.get("feelslikemin"),
+            )
+
+        weather, hours = _parse_day_weather_data(day_data)
+
+        # Process night icon from hourly data
+        if hours:
+            night_hours = _find_night_hours(hours, tz)
+            weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
+
+            # Debug logging for feels like temperatures
+            if weather.day_feels_like is None and weather.night_feels_like is None:
+                logger.debug(
+                    "No feels like data for %s,%s on %s. feelslikemax: %s, feelslikemin: %s",
+                    lat,
+                    lon,
+                    date_str,
+                    day_data.get("feelslikemax"),
+                    day_data.get("feelslikemin"),
+                )
+
+    return weather
+
+
+def _check_weather_cache(cache_key: str) -> WeatherData | None:
+    """Check cache for weather data.
+
+    Args:
+        cache_key: Cache key for weather data
+
+    Returns:
+        WeatherData if found in cache, None otherwise
+    """
+    cached_data = get_cached(cache_key)
+    if cached_data is not None and isinstance(cached_data, dict):
+        return WeatherData.model_validate(cached_data)
+    return None
+
+
+def _fetch_weather_data_safely(lat: float, lon: float, date_str: str) -> dict[str, Any] | None:
+    """Fetch weather data from API with safety checks.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+        date_str: Date string in YYYY-MM-DD format
+
+    Returns:
+        API response data or None if fetch fails
+    """
+    if not settings.visual_crossing_api_key:
+        logger.warning(
+            "No Visual Crossing API key configured. Set VISUAL_CROSSING_API_KEY "
+            "environment variable to fetch temperatures. "
+            "Get a free key at https://www.visualcrossing.com/weather-api"
+        )
+        return None
+
+    url = _build_weather_api_url(lat, lon, date_str)
+
+    try:
+        data = _fetch_weather_data_with_retry(url, lat, lon, date_str)
+    except RateLimitError:
+        logger.warning("Rate limited (429) for %s,%s on %s. Skipping.", lat, lon, date_str)
+        return None
+
+    # Debug: Print full API response
+    if logger.isEnabledFor(10):  # DEBUG level
+        logger.debug(
+            "Full API response for %s,%s on %s:\n%s",
+            lat,
+            lon,
+            date_str,
+            json.dumps(data, indent=2, default=str),
+        )
+
+    return data
+
+
+def _handle_weather_errors(e: Exception) -> WeatherData:
+    """Handle errors when fetching weather data.
+
+    Args:
+        e: Exception that occurred
+
+    Returns:
+        Default WeatherData object
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        if e.response.status_code == 401:
+            logger.warning(
+                "Authentication failed for weather API. Please check your API key. Error: %s", e
+            )
+        else:
+            logger.warning("HTTP error getting weather data: %s", e)
+    elif isinstance(e, httpx.RequestError):
+        logger.warning("Failed to get weather data: %s", e)
+    elif isinstance(e, (KeyError, ValueError, TypeError)):
+        logger.warning("Error parsing weather response: %s", e)
+
+    return WeatherData()
+
+
 def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str) -> WeatherData:
     """Get day and night temperatures, feels like temperatures, and weather conditions.
 
@@ -203,104 +389,28 @@ def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str)
     cache_key = f"weather_{lat}_{lon}_{date_str}"
 
     # Check cache first
-    cached_data = get_cached(cache_key)
-    if cached_data is not None and isinstance(cached_data, dict):
-        return WeatherData.model_validate(cached_data)
+    cached_weather = _check_weather_cache(cache_key)
+    if cached_weather is not None:
+        return cached_weather
+
+    default_weather = WeatherData()
 
     try:
-        settings = get_settings()
+        data = _fetch_weather_data_safely(lat, lon, date_str)
+        if data is None:
+            return default_weather
 
-        if not settings.visual_crossing_api_key:
-            logger.warning(
-                "No Visual Crossing API key configured. Set VISUAL_CROSSING_API_KEY "
-                "environment variable to fetch temperatures. "
-                "Get a free key at https://www.visualcrossing.com/weather-api"
-            )
-            return WeatherData()
-
-        # Visual Crossing API (free tier: 1000 records/day)
-        # Request only the daily fields we need to minimize record cost:
-        # - tempmax, tempmin (temperatures)
-        # - feelslikemax, feelslikemin (for feels like temperatures)
-        # - icon (weather condition)
-        # Note: include=hours is needed for night icon, but we can't
-        # specify which hourly fields to return, so all hourly fields will be included
-        elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
-        url = settings.visual_crossing_api_url.format(
-            location=f"{lat},{lon}",
-            date=date_str,
-            key=settings.visual_crossing_api_key,
-            elements=elements,
-        )
-
-        try:
-            data = _fetch_weather_data_with_retry(url, lat, lon, date_str)
-        except RateLimitError:
-            # 429 errors are not retried - skip immediately
-            logger.warning(f"Rate limited (429) for {lat},{lon} on {date_str}. Skipping.")
-            return WeatherData()
-
-        # Debug: Print full API response for first call to inspect structure
-        if logger.isEnabledFor(10):  # DEBUG level
-            import json
-
-            logger.debug(
-                f"Full API response for {lat},{lon} on {date_str}:\n"
-                f"{json.dumps(data, indent=2, default=str)}"
-            )
-
-        # Extract weather data from API response
-        weather = WeatherData()
-
-        if "days" in data and len(data["days"]) > 0:
-            day_data = data["days"][0]
-
-            # Debug: Print daily data fields
-            if logger.isEnabledFor(10):  # DEBUG level
-                logger.debug(
-                    f"Daily data fields for {lat},{lon} on {date_str}:\n"
-                    f"Keys: {list(day_data.keys())}\n"
-                    f"feelslikemax: {day_data.get('feelslikemax')}\n"
-                    f"feelslikemin: {day_data.get('feelslikemin')}"
-                )
-
-            weather, hours = _parse_day_weather_data(day_data)
-
-            # Process night icon from hourly data (feels like is already set from daily data)
-            if hours:
-                night_hours = _find_night_hours(hours, tz)
-                weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
-
-                # Debug logging for feels like temperatures
-                if weather.day_feels_like is None and weather.night_feels_like is None:
-                    logger.debug(
-                        f"No feels like data for {lat},{lon} on {date_str}. "
-                        f"feelslikemax: {day_data.get('feelslikemax')}, "
-                        f"feelslikemin: {day_data.get('feelslikemin')}"
-                    )
+        weather = _process_weather_api_response(data, tz, lat, lon, date_str)
 
         # Cache using Pydantic's model_dump() for proper serialization
         set_cached(cache_key, weather.model_dump())
 
         if weather.day_temp is None and weather.night_temp is None:
-            logger.debug(f"No weather data found for {lat},{lon} on {date_str}")
-
+            logger.debug("No weather data found for %s,%s on %s", lat, lon, date_str)
+    except (httpx.HTTPStatusError, httpx.RequestError, KeyError, ValueError, TypeError) as e:
+        return _handle_weather_errors(e)
+    else:
         return weather
-
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 401:
-            logger.warning(
-                f"Authentication failed for weather API. Please check your API key. Error: {e}"
-            )
-        else:
-            logger.warning(f"HTTP error getting weather data: {e}")
-        return WeatherData()
-    except httpx.RequestError as e:
-        logger.warning(f"Failed to get weather data: {e}")
-        return WeatherData()
-    except (KeyError, ValueError, TypeError) as e:
-        logger.warning(f"Error parsing weather response: {e}")
-        return WeatherData()
 
 
 def get_temperatures(
@@ -339,56 +449,6 @@ def get_night_temperature(
     return night_temp
 
 
-def get_weather_data_batch(
-    locations_with_dates: list[tuple[float, float, float, str]],
-) -> list[WeatherData]:
-    """Get weather data for multiple locations and dates.
-
-    Args:
-        locations_with_dates: List of (lat, lon, timestamp, timezone_id) tuples
-
-    Returns:
-        List of WeatherData objects. If rate limited (429), remaining items will be empty WeatherData.
-    """
-    results: list[WeatherData] = []
-
-    for lat, lon, timestamp, timezone_id in locations_with_dates:
-        try:
-            weather_data = get_weather_data(lat, lon, timestamp, timezone_id)
-            results.append(weather_data)
-        except RateLimitError:
-            # On 429, stop processing and return empty WeatherData for remaining items
-            logger.warning(
-                f"Rate limited (429) for weather API. Skipping remaining {len(locations_with_dates) - len(results)} requests."
-            )
-            # Fill remaining with empty WeatherData
-            results.extend([WeatherData()] * (len(locations_with_dates) - len(results)))
-            break
-
-    return results
-
-
-def get_night_temperature_batch(
-    locations_with_dates: list[tuple[float, float, float, str]],
-) -> list[float | None]:
-    """Get night temperatures for multiple locations and dates.
-
-    Args:
-        locations_with_dates: List of (lat, lon, timestamp, timezone_id) tuples
-
-    Returns:
-        List of night temperatures in Celsius, or None for unavailable data
-    """
-    results: list[float | None] = []
-
-    for lat, lon, timestamp, timezone_id in locations_with_dates:
-        temp = get_night_temperature(lat, lon, timestamp, timezone_id)
-        results.append(temp)
-        # Rate limiting is handled by @limits decorator on _fetch_weather_data_with_retry
-
-    return results
-
-
 async def get_weather_data_async(
     client: httpx.AsyncClient,
     lat: float,
@@ -419,32 +479,11 @@ async def get_weather_data_async(
     # Check cache first
     cached = get_cached(cache_key)
     if cached is not None and isinstance(cached, dict):
-        # Cache might be a dict (raw API response) or a WeatherData dict (from model_dump)
-        # Check if it's a WeatherData dict (has day_temp, night_temp, etc.)
-        if "day_temp" in cached or "day_icon" in cached:
-            # It's a WeatherData dict from model_dump()
-            try:
-                return WeatherData.model_validate(cached)
-            except Exception as e:
-                logger.warning(f"Error parsing cached WeatherData: {e}")
-        else:
-            # It's a raw API response dict
-            try:
-                days = cached.get("days", [])
-                if days:
-                    day_data = days[0]
-                    weather, hours = _parse_day_weather_data(day_data)
-                    # Process night icon from hourly data
-                    if hours:
-                        night_hours = _find_night_hours(hours, tz)
-                        weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
-                    return weather
-            except (KeyError, ValueError, TypeError) as e:
-                logger.warning(f"Error parsing cached weather data: {e}")
+        cached_weather = _parse_cached_weather_data(cached, tz)
+        if cached_weather is not None:
+            return cached_weather
 
     # Build API URL
-    settings = get_settings()
-
     if not settings.visual_crossing_api_key:
         logger.warning(
             "No Visual Crossing API key configured. Set VISUAL_CROSSING_API_KEY "
@@ -453,45 +492,23 @@ async def get_weather_data_async(
         )
         return WeatherData()
 
-    # Visual Crossing API (free tier: 1000 records/day)
-    # Request only the daily fields we need to minimize record cost:
-    # - tempmax, tempmin (temperatures)
-    # - feelslikemax, feelslikemin (for feels like temperatures)
-    # - icon (weather condition)
-    # Note: include=hours is needed for night icon, but we can't
-    # specify which hourly fields to return, so all hourly fields will be included
-    elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
-    url = settings.visual_crossing_api_url.format(
-        location=f"{lat},{lon}",
-        date=date_str,
-        key=settings.visual_crossing_api_key,
-        elements=elements,
-    )
+    url = _build_weather_api_url(lat, lon, date_str)
 
     # Fetch with async helper
-    data = await fetch_and_cache_json_async(client, cache_key, url, timeout=10.0, max_attempts=3)
+    data = await fetch_and_cache_json_async(
+        client, cache_key, url, request_timeout=10.0, max_attempts=3
+    )
 
     if not data:
         return WeatherData()
 
     try:
-        # Parse response similar to synchronous version
-        days = data.get("days", [])
-        if not days:
-            return WeatherData()
-
-        day_data = days[0]
-        weather, hours = _parse_day_weather_data(day_data)
-
-        # Process night icon from hourly data
-        if hours:
-            night_hours = _find_night_hours(hours, tz)
-            weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
+        weather = _process_weather_api_response(data, tz, lat, lon, date_str)
 
         # Cache using Pydantic's model_dump() for proper serialization
         set_cached(cache_key, weather.model_dump())
-
-        return weather
     except (KeyError, ValueError, TypeError) as e:
-        logger.warning(f"Error parsing weather response: {e}")
+        logger.warning("Error parsing weather response: %s", e)
         return WeatherData()
+    else:
+        return weather
