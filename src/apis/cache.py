@@ -29,7 +29,7 @@ def get_cached(key: str) -> Any | None:
     except (OSError, PermissionError, AttributeError) as e:
         logger.debug("Error getting cached value for key '%s': %s", key, e)
         return None
-    except Exception as e:  # noqa: BLE001  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         # Handle SQLAlchemy errors from typed_diskcache without importing sqlalchemy directly
         # (sqlalchemy is a transitive dependency via typed_diskcache)
         error_type_name = type(e).__name__
@@ -53,7 +53,7 @@ def set_cached(key: str, value: Any) -> None:
         _cache.set(key, value)
     except (OSError, PermissionError) as e:
         logger.debug("Error setting cached value for key '%s': %s", key, e)
-    except Exception as e:  # noqa: BLE001  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         # Handle SQLAlchemy errors from typed_diskcache without importing sqlalchemy directly
         # (sqlalchemy is a transitive dependency via typed_diskcache)
         error_type_name = type(e).__name__
