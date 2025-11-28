@@ -97,6 +97,14 @@ ignore = [
     "TRY003",  # Long exception messages - acceptable for user-facing errors
     "ANN401",  # Any types - acceptable for generic cache functions
     "S324",    # MD5 hash - acceptable for non-cryptographic use (color selection)
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+    "D106",    # Missing docstring in public nested class
+    "D107",    # Missing docstring in __init__
 ]
 
 [tool.ruff.lint.isort]

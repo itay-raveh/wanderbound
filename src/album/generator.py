@@ -57,7 +57,7 @@ def generate_album_html(
     steps_photo_pages = photo_data["steps_photo_pages"]
 
     # Copy entire static folder to output directory
-    # From src/html_generator.py: parent=src/, parent.parent=project root
+    # From src/album/generator.py: parent=src/, parent.parent=project root
     static_dir = Path(__file__).parent.parent.parent.parent / "static"
     if static_dir.exists():
         # Copy all contents of static/ to output/

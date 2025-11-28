@@ -5,15 +5,15 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from src.album.generator import generate_album_html
 from src.core.exceptions import DataLoadError
 from src.core.logger import create_progress, get_console, get_logger
 from src.core.settings import settings
 from src.core.types import AlbumGenerationConfig, AlbumPhotoData
 from src.data.loader import load_trip_data
 from src.data.models import Step
-from src.features.html.generator import generate_album_html
-from src.features.photos.processor import process_step_photos
-from src.output.pdf_generator import generate_pdf
+from src.pdf.generator import generate_pdf
+from src.photos.processor import process_step_photos
 from src.utils.steps import get_steps_distributed, get_steps_in_range
 
 from .args import parse_args, parse_step_range

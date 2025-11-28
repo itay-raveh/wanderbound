@@ -4,11 +4,11 @@ from typing import Any
 
 from langdetect import LangDetectException, detect
 
+from src.core.formatting import format_coordinates, format_date, format_weather_condition
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import StepContext, StepData, StepExternalData
 from src.data.models import Step, TripData
-from src.formatters import format_coordinates, format_date, format_weather_condition
 from src.services.altitude import format_altitude
 from src.services.weather import WeatherData
 from src.utils.dates import calculate_day_number

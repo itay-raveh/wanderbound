@@ -7,7 +7,7 @@ from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import PhotoPageData
 from src.data.models import Photo
-from src.features.photos.layout_engine import (
+from src.photos.layout_engine import (
     is_one_portrait_two_landscapes,
     is_three_portraits,
 )
@@ -53,7 +53,7 @@ def copy_assets(output_dir: Path) -> None:
 
     # Note: This path might need adjustment depending on where this file is located
     # relative to static dir
-    # Current location: src/features/html/assets.py
+    # Current location: src/album/assets.py
     # Project root: ../../../
     # Static dir: ../../../static
     project_root = Path(__file__).parent.parent.parent.parent
