@@ -16,8 +16,6 @@ __all__ = [
 
 
 class PhotoRatio(Enum):
-    """Photo aspect ratio categories."""
-
     PORTRAIT = (
         (4, 5),
         (9, 16),
@@ -28,7 +26,6 @@ class PhotoRatio(Enum):
 
 
 def get_photo_ratio(width: int, height: int) -> PhotoRatio:
-    """Categorize photo aspect ratio into portrait, landscape, or unknown."""
     aspect_ratio = width / height if height > 0 else 0
 
     for photo_ratio in PhotoRatio:
@@ -47,14 +44,12 @@ def get_photo_ratio(width: int, height: int) -> PhotoRatio:
 
 
 def should_use_cover_photo(description: str | None) -> bool:
-    """Determine if a step should use a cover photo."""
     if not description:
         return True
     return len(description) <= settings.description_max_char_cover_photo
 
 
 def select_cover_photo(photos: list[Photo]) -> Photo | None:
-    """Select the best cover photo from a list of photos."""
     if not photos:
         return None
 
@@ -84,7 +79,6 @@ def select_cover_photo(photos: list[Photo]) -> Photo | None:
 
 
 def is_three_portraits(combo: tuple[Photo, ...] | list[Photo]) -> bool:
-    """Check if a combination of photos consists of three portrait photos."""
     if len(combo) != 3:
         return False
 
@@ -99,7 +93,6 @@ def is_three_portraits(combo: tuple[Photo, ...] | list[Photo]) -> bool:
 
 
 def is_one_portrait_two_landscapes(combo: tuple[Photo, ...] | list[Photo]) -> bool:
-    """Check if a combination consists of one portrait and two landscape photos."""
     if len(combo) != 3:
         return False
 

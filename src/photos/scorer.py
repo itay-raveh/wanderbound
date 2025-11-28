@@ -45,20 +45,7 @@ def _calculate_photo_area_percent(
     is_three_portraits: bool = False,
     is_portrait_landscape_split: bool = False,
 ) -> float:
-    """Calculate what percentage of page area a photo would occupy in a layout.
-
-    Calculates based on actual CSS grid layouts defined in album.html template.
-    Formula: Area = (column_span / total_columns) * (row_span / total_rows)
-
-    Args:
-        photo_count: Total number of photos on the page
-        photo_index: Index of this photo (0-based)
-        is_three_portraits: If True, use 3-portrait side-by-side layout
-        is_portrait_landscape_split: If True, use portrait-left, landscapes-right stacked layout
-
-    Returns:
-        Percentage of page area (0-100)
-    """
+    """Calculate what percentage of page area a photo would occupy in a layout."""
     if photo_count == 1:
         return settings.photo.photo_area_full_page
 
@@ -123,17 +110,7 @@ def _validate_photo_combination(
     is_three_portraits: bool = False,
     is_portrait_landscape_split: bool = False,
 ) -> bool:
-    """Check if a photo combination respects the minimum size constraint.
-
-    Args:
-        photo_count: Number of photos in the combination
-        min_size_percent: Minimum percentage of page area each photo must occupy
-        is_three_portraits: If True, use 3-portrait side-by-side layout
-        is_portrait_landscape_split: If True, use portrait-landscape split layout
-
-    Returns:
-        True if all photos in this combination would be above minimum size
-    """
+    """Check if a photo combination respects the minimum size constraint."""
     return all(
         _calculate_photo_area_percent(
             photo_count,
@@ -147,14 +124,7 @@ def _validate_photo_combination(
 
 
 def _get_max_photos_for_page(min_size_percent: float) -> int:
-    """Calculate maximum number of photos that can fit on a page while respecting min size.
-
-    Args:
-        min_size_percent: Minimum percentage of page area each photo must occupy
-
-    Returns:
-        Maximum number of photos that can fit
-    """
+    """Calculate maximum number of photos that can fit on a page while respecting min size."""
     # Test each photo count to find the maximum valid count
     # Check both regular and 3-portrait layouts for count 3
     for count in range(1, settings.photo.max_photos_to_test + 1):
@@ -179,16 +149,7 @@ def _calculate_total_coverage(
     is_three_portraits: bool = False,
     is_portrait_landscape_split: bool = False,
 ) -> float:
-    """Calculate total page coverage for a given number of photos.
-
-    Args:
-        photo_count: Number of photos on the page
-        is_three_portraits: If True, use 3-portrait side-by-side layout
-        is_portrait_landscape_split: If True, use portrait-landscape split layout
-
-    Returns:
-        Total coverage percentage (may exceed 100% due to layout constraints)
-    """
+    """Calculate total page coverage for a given number of photos."""
     return sum(
         _calculate_photo_area_percent(
             photo_count,
@@ -201,19 +162,7 @@ def _calculate_total_coverage(
 
 
 def _calculate_visual_score(combo: tuple[Photo, ...], count: int) -> float:
-    """Calculate a visual balance score for a photo combination.
-
-    Higher scores indicate better visual balance:
-    - Large bonus for 3 portraits side by side (special layout)
-    - Prefers portrait photos in first position for multi-row layouts (5, 6 photos)
-
-    Args:
-        combo: Photo combination to score
-        count: Number of photos in the combination
-
-    Returns:
-        Visual score (higher is better)
-    """
+    """Calculate a visual balance score for a photo combination."""
     score = 0.0
 
     # Large bonus for 3 portraits side by side (special layout)
@@ -232,14 +181,7 @@ def _calculate_visual_score(combo: tuple[Photo, ...], count: int) -> float:
 
 
 def _get_layouts_to_check(count: int) -> list[tuple[bool, bool, str]]:
-    """Get list of layouts to check for a given photo count.
-
-    Args:
-        count: Number of photos
-
-    Returns:
-        List of (is_three_portraits, is_portrait_landscape_split, layout_name) tuples
-    """
+    """Get list of layouts to check for a given photo count."""
     if count == settings.photo.photo_count_for_special_layouts:
         return [
             (True, False, "three_portraits"),
@@ -255,16 +197,7 @@ def _calculate_layout_bonus(
     layout_is_three_portraits: bool,
     layout_is_portrait_landscape_split: bool,
 ) -> float:
-    """Calculate layout bonus score for a combination.
-
-    Args:
-        combo: Photo combination
-        layout_is_three_portraits: Whether this is a three-portrait layout
-        layout_is_portrait_landscape_split: Whether this is a portrait-landscape split layout
-
-    Returns:
-        Layout bonus score
-    """
+    """Calculate layout bonus score for a combination."""
     layout_bonus = 0.0
 
     if layout_is_three_portraits and is_three_portraits(combo):
@@ -288,15 +221,7 @@ def _calculate_layout_bonus(
 def _sort_combo_for_layout(
     combo: tuple[Photo, ...], *, is_portrait_landscape_split: bool
 ) -> list[Photo]:
-    """Sort photo combination for layout requirements.
-
-    Args:
-        combo: Photo combination
-        is_portrait_landscape_split: Whether this is a portrait-landscape split layout
-
-    Returns:
-        Sorted list of photos
-    """
+    """Sort photo combination for layout requirements."""
     if is_portrait_landscape_split and is_one_portrait_two_landscapes(combo):
         # Sort: portrait first, then landscapes
         return sorted(
@@ -315,17 +240,7 @@ def _evaluate_combination(
     is_three_portraits: bool,
     is_portrait_landscape_split: bool,
 ) -> float:
-    """Evaluate and score a photo combination.
-
-    Args:
-        combo: Photo combination
-        count: Number of photos
-        is_three_portraits: Whether this is a three-portrait layout
-        is_portrait_landscape_split: Whether this is a portrait-landscape split layout
-
-    Returns:
-        Score for this combination
-    """
+    """Evaluate and score a photo combination."""
     total_coverage = _calculate_total_coverage(
         count,
         is_three_portraits=is_three_portraits,
@@ -359,19 +274,6 @@ def _find_best_photo_combination(
 
     Evaluates all valid combinations to find the truly optimal one, rather than
     using early termination.
-
-    Args:
-        candidates: Available photos to choose from
-        max_count: Maximum number of photos to include
-        min_size_percent: Minimum percentage of page area each photo must occupy
-
-    Returns:
-        Tuple of (
-            best combination of photos,
-            is_three_portraits flag,
-            is_portrait_landscape_split flag,
-        )
-        Returns (empty list, False, False) if no valid combination exists
     """
     if not candidates:
         return [], False, False
@@ -443,18 +345,6 @@ def compute_default_photos_by_pages(
 
     Uses a combination-based approach that evaluates all valid combinations to find
     the truly optimal one, rather than using greedy early termination.
-
-    Args:
-        photos: List of all Photo objects for the step
-        cover_photo: Cover photo to exclude from pages (or None)
-
-    Returns:
-        Tuple of (
-            list of photo pages,
-            list of is_three_portraits flags,
-            list of is_portrait_landscape_split flags,
-        )
-        Each page is a list of Photo objects, and flags indicate which layout to use
     """
     # Filter out cover photo
     candidates = [p for p in photos if p != cover_photo]

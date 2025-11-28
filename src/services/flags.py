@@ -25,11 +25,7 @@ _COUNTRY_COLORS: dict[str, str] = {}
 
 
 def _color_distance(color1: str, color2: str) -> float:
-    """Calculate perceptual color distance using Delta E (CIE 2000).
-
-    Returns normalized distance (0-1 scale, 0 = identical).
-    Delta E values > 2.3 are considered perceptually different.
-    """
+    """Calculate perceptual color distance using Delta E (CIE 2000)."""
     if not color1.startswith("#") or not color2.startswith("#"):
         return 1.0
 
@@ -67,7 +63,6 @@ def _color_distance(color1: str, color2: str) -> float:
 
 
 def _get_color_brightness(color: str) -> float:
-    """Calculate relative luminance/brightness of a color (0-1, 0 = black, 1 = white)."""
     if not color or not color.startswith("#"):
         return 0.5
 
@@ -83,7 +78,6 @@ def _get_color_brightness(color: str) -> float:
 
 
 def _adjust_color_for_contrast(color: str, *, light_mode: bool) -> str:
-    """Adjust color brightness to ensure good contrast with text."""
     if not color or not color.startswith("#"):
         return color
 
@@ -115,7 +109,6 @@ def _adjust_color_for_contrast(color: str, *, light_mode: bool) -> str:
 
 
 def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
-    """Nudge a color to avoid conflicts with other countries."""
     if not color or not color.startswith("#"):
         return color
 
@@ -156,14 +149,7 @@ def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
 def _load_and_filter_flag_pixels(
     flag_data_uri: str,
 ) -> list[tuple[int, int, int]] | None:
-    """Load flag image and filter pixels by brightness.
-
-    Args:
-        flag_data_uri: Base64-encoded data URI of the flag image
-
-    Returns:
-        List of filtered pixel tuples (r, g, b), or None if loading fails
-    """
+    """Load flag image and filter pixels by brightness."""
     try:
         base64_data = flag_data_uri.split(",")[1]
         image_bytes = base64.b64decode(base64_data)
@@ -188,15 +174,7 @@ def _load_and_filter_flag_pixels(
 
 
 def _has_color_conflict(candidate_color: str, country_code: str) -> bool:
-    """Check if a candidate color conflicts with existing country colors.
-
-    Args:
-        candidate_color: Hex color code to check
-        country_code: ISO country code to exclude from conflict check
-
-    Returns:
-        True if color conflicts with another country, False otherwise
-    """
+    """Check if a candidate color conflicts with existing country colors."""
     country_code_lower = country_code.lower()
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code_lower:
@@ -212,16 +190,6 @@ def _find_best_color_from_candidates(
     *,
     light_mode: bool,
 ) -> str | None:
-    """Find the best color from candidate color counts, avoiding conflicts if country_code provided.
-
-    Args:
-        color_counts: List of (color_tuple, count) tuples from Counter.most_common()
-        country_code: Optional ISO country code for conflict detection
-        light_mode: If True, adjust color for light mode contrast
-
-    Returns:
-        Hex color code if a suitable color is found, None otherwise
-    """
     if not color_counts:
         return None
 
@@ -251,16 +219,7 @@ def extract_prominent_color_from_flag(
     *,
     light_mode: bool = False,
 ) -> str:
-    """Extract the most common non-white/black color from a country flag image.
-
-    Args:
-        flag_data_uri: Base64-encoded data URI of the flag image, or None
-        country_code: ISO country code for conflict detection with other countries
-        light_mode: If True, adjust color for light mode contrast; if False, for dark mode
-
-    Returns:
-        Hex color code (e.g., "#ff0000") or default accent color if extraction fails
-    """
+    """Extract the most common non-white/black color from a country flag image."""
     default_color = settings.default_accent_color
 
     if (
@@ -310,15 +269,7 @@ def extract_prominent_color_from_flag(
 async def get_country_flag_data_uri_async(
     client: httpx.AsyncClient, country_code: str
 ) -> str | None:
-    """Get country flag image as data URI (async).
-
-    Args:
-        client: httpx AsyncClient instance
-        country_code: ISO country code (e.g., "us", "fr")
-
-    Returns:
-        Data URI string for the flag image, or None if fetch fails
-    """
+    """Get country flag image as data URI (async)."""
     if not country_code:
         return None
 

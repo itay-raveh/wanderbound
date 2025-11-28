@@ -15,14 +15,6 @@ def generate_pdf(html_path: Path, pdf_path: Path) -> None:
 
     Opens the HTML file in a headless Chromium browser and exports it as a PDF
     with A4 landscape format. Requires Playwright to be installed.
-
-    Args:
-        html_path: Path to the input HTML file.
-        pdf_path: Path where the PDF file will be saved.
-
-    Raises:
-        ImportError: If Playwright is not installed (logged as warning).
-        Exception: Any other error during PDF generation (logged as error).
     """
     try:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415

@@ -28,17 +28,6 @@ API_CALLS_PER_SECOND = 5  # 5 calls per second = 0.2s between calls
 
 
 class WeatherData(BaseModel):
-    """Weather data for a location and date.
-
-    Attributes:
-        day_temp: Day temperature in Celsius (maximum temperature)
-        night_temp: Night temperature in Celsius (minimum temperature)
-        day_feels_like: "Feels like" temperature during the day in Celsius
-        night_feels_like: "Feels like" temperature at night in Celsius
-        day_icon: Icon name for basmilius weather-icons for day (e.g., "clear-day")
-        night_icon: Icon name for basmilius weather-icons for night (e.g., "clear-night")
-    """
-
     day_temp: float | None = None
     night_temp: float | None = None
     day_feels_like: float | None = None
@@ -48,7 +37,6 @@ class WeatherData(BaseModel):
 
 
 def _normalize_icon_name(icon: str | None) -> str | None:
-    """Normalize icon name to basmilius weather-icons format."""
     if not icon:
         return None
     return icon.lower().replace("_", "-")
@@ -57,21 +45,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
 def _fetch_weather_data_with_retry(
     url: str, _lat: float, _lon: float, _date_str: str
 ) -> dict[str, Any]:
-    """Fetch weather data from API with automatic retry on errors (but not 429).
-
-    Args:
-        url: API URL to fetch
-        lat: Latitude (for logging)
-        lon: Longitude (for logging)
-        date_str: Date string (for logging)
-
-    Returns:
-        JSON response data
-
-    Raises:
-        RateLimitError: If rate limited (429) - this is NOT retried
-        httpx.RequestError: On HTTP or network errors (these ARE retried)
-    """
+    """Fetch weather data from API with automatic retry on errors (but not 429)."""
     return fetch_json_with_retry(
         url,
         calls_per_second=API_CALLS_PER_SECOND,
@@ -83,15 +57,7 @@ def _fetch_weather_data_with_retry(
 def _find_night_hours(
     hours: list[dict[str, Any]], timezone: pytz.BaseTzInfo
 ) -> list[dict[str, Any]]:
-    """Find hours that are nighttime (evening 20-23 or early morning 0-3).
-
-    Args:
-        hours: List of hourly data dictionaries
-        timezone: Timezone for parsing datetime
-
-    Returns:
-        List of night hour dictionaries
-    """
+    """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
     night_hours = []
     for hour_data in hours:
         hour_str = hour_data.get("datetime", "")
@@ -119,16 +85,7 @@ def _get_night_icon(
     all_hours: list[dict[str, Any]],
     day_icon: str | None,
 ) -> str | None:
-    """Get night icon from night hours or fallback to day icon variant.
-
-    Args:
-        night_hours: List of night hour dictionaries, or None
-        all_hours: All hourly data (for fallback)
-        day_icon: Day icon name (for fallback conversion)
-
-    Returns:
-        Night icon name, or None if unavailable
-    """
+    """Get night icon from night hours or fallback to day icon variant."""
     if night_hours:
         night_icon_raw = night_hours[0].get("icon")
         return _normalize_icon_name(night_icon_raw)
@@ -153,15 +110,7 @@ def _get_night_icon(
 
 
 def _parse_cached_weather_data(cached: dict[str, Any], tz: Any) -> WeatherData | None:
-    """Parse cached weather data (either WeatherData dict or raw API response).
-
-    Args:
-        cached: Cached dictionary (WeatherData dict or raw API response)
-        tz: Timezone object for night hour calculations
-
-    Returns:
-        WeatherData object or None if parsing fails
-    """
+    """Parse cached weather data (either WeatherData dict or raw API response)."""
     # Check if it's a WeatherData dict from model_dump()
     if "day_temp" in cached or "day_icon" in cached:
         try:
@@ -190,14 +139,7 @@ def _parse_cached_weather_data(cached: dict[str, Any], tz: Any) -> WeatherData |
 def _parse_day_weather_data(
     day_data: dict[str, Any],
 ) -> tuple[WeatherData, list[dict[str, Any]]]:
-    """Parse day weather data from API response.
-
-    Args:
-        day_data: Daily weather data dictionary
-
-    Returns:
-        Tuple of (WeatherData with day data, hours list)
-    """
+    """Parse day weather data from API response."""
     day_temp = day_data.get("tempmax")
     night_temp = day_data.get("tempmin")
 
@@ -224,16 +166,7 @@ def _parse_day_weather_data(
 
 
 def _build_weather_api_url(lat: float, lon: float, date_str: str) -> str:
-    """Build Visual Crossing API URL.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        date_str: Date string in YYYY-MM-DD format
-
-    Returns:
-        API URL string
-    """
+    """Build Visual Crossing API URL."""
     elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
     return settings.visual_crossing_api_url.format(
         location=f"{lat},{lon}",
@@ -246,18 +179,7 @@ def _build_weather_api_url(lat: float, lon: float, date_str: str) -> str:
 def _process_weather_api_response(
     data: dict[str, Any], tz: Any, lat: float, lon: float, date_str: str
 ) -> WeatherData:
-    """Process API response and extract weather data.
-
-    Args:
-        data: API response dictionary
-        tz: Timezone object
-        lat: Latitude
-        lon: Longitude
-        date_str: Date string
-
-    Returns:
-        WeatherData object
-    """
+    """Process API response and extract weather data."""
     weather = WeatherData()
 
     if "days" in data and len(data["days"]) > 0:
@@ -294,14 +216,7 @@ def _process_weather_api_response(
 
 
 def _check_weather_cache(cache_key: str) -> WeatherData | None:
-    """Check cache for weather data.
-
-    Args:
-        cache_key: Cache key for weather data
-
-    Returns:
-        WeatherData if found in cache, None otherwise
-    """
+    """Check cache for weather data."""
     cached_data = get_cached(cache_key)
     if cached_data is not None and isinstance(cached_data, dict):
         return WeatherData.model_validate(cached_data)
@@ -309,16 +224,7 @@ def _check_weather_cache(cache_key: str) -> WeatherData | None:
 
 
 def _fetch_weather_data_safely(lat: float, lon: float, date_str: str) -> dict[str, Any] | None:
-    """Fetch weather data from API with safety checks.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        date_str: Date string in YYYY-MM-DD format
-
-    Returns:
-        API response data or None if fetch fails
-    """
+    """Fetch weather data from API with safety checks."""
     if not settings.visual_crossing_api_key:
         logger.warning(
             "No Visual Crossing API key configured. Set VISUAL_CROSSING_API_KEY "
@@ -349,14 +255,7 @@ def _fetch_weather_data_safely(lat: float, lon: float, date_str: str) -> dict[st
 
 
 def _handle_weather_errors(e: Exception) -> WeatherData:
-    """Handle errors when fetching weather data.
-
-    Args:
-        e: Exception that occurred
-
-    Returns:
-        Default WeatherData object
-    """
+    """Handle errors when fetching weather data."""
     if isinstance(e, httpx.HTTPStatusError):
         if e.response.status_code == 401:
             logger.warning(
@@ -373,17 +272,7 @@ def _handle_weather_errors(e: Exception) -> WeatherData:
 
 
 def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str) -> WeatherData:
-    """Get day and night temperatures, feels like temperatures, and weather conditions.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        timestamp: Unix timestamp for the date
-        timezone_id: Timezone ID (e.g., "America/New_York")
-
-    Returns:
-        WeatherData object containing temperatures, feels like temperatures, and icons
-    """
+    """Get day and night temperatures, feels like temperatures, and weather conditions."""
     # Convert timestamp to date in the location's timezone
     tz = pytz.timezone(timezone_id)
     dt = datetime.fromtimestamp(timestamp, tz=tz)
@@ -420,17 +309,7 @@ def get_weather_data(lat: float, lon: float, timestamp: float, timezone_id: str)
 def get_temperatures(
     lat: float, lon: float, timestamp: float, timezone_id: str
 ) -> tuple[float | None, float | None]:
-    """Get day and night temperatures for a location and date using Visual Crossing API.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        timestamp: Unix timestamp for the date
-        timezone_id: Timezone ID (e.g., "America/New_York")
-
-    Returns:
-        Tuple of (day_temp, night_temp) in Celsius, or (None, None) if unavailable
-    """
+    """Get day and night temperatures for a location and date using Visual Crossing API."""
     weather = get_weather_data(lat, lon, timestamp, timezone_id)
     return (weather.day_temp, weather.night_temp)
 
@@ -438,17 +317,7 @@ def get_temperatures(
 def get_night_temperature(
     lat: float, lon: float, timestamp: float, timezone_id: str
 ) -> float | None:
-    """Get night temperature for a location and date using Visual Crossing API.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        timestamp: Unix timestamp for the date
-        timezone_id: Timezone ID (e.g., "America/New_York")
-
-    Returns:
-        Night temperature in Celsius, or None if unavailable
-    """
+    """Get night temperature for a location and date using Visual Crossing API."""
     _, night_temp = get_temperatures(lat, lon, timestamp, timezone_id)
     return night_temp
 
@@ -460,18 +329,7 @@ async def get_weather_data_async(
     timestamp: float,
     timezone_id: str,
 ) -> WeatherData:
-    """Get day and night temperatures, feels like temperatures, and weather conditions (async).
-
-    Args:
-        client: httpx AsyncClient instance
-        lat: Latitude
-        lon: Longitude
-        timestamp: Unix timestamp for the date
-        timezone_id: Timezone ID (e.g., "America/New_York")
-
-    Returns:
-        WeatherData object containing temperatures, feels like temperatures, and icons
-    """
+    """Get day and night temperatures, feels like temperatures, and weather conditions (async)."""
     # Convert timestamp to date in the location's timezone
     tz = pytz.timezone(timezone_id)
     dt = datetime.fromtimestamp(timestamp, tz=tz)

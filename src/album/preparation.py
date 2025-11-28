@@ -29,14 +29,6 @@ __all__ = [
 
 
 def _is_hebrew(text: str) -> bool:
-    """Check if text is Hebrew using fast Unicode check first, then langdetect if needed.
-
-    Args:
-        text: Text to check
-
-    Returns:
-        True if text is Hebrew, False otherwise
-    """
     if not text or not text.strip():
         return False
 
@@ -60,19 +52,7 @@ def _is_hebrew(text: str) -> bool:
 def _split_description(
     description: str, *, _is_hebrew: bool, _use_three_columns: bool = False
 ) -> tuple[str, str, str]:
-    """Split description into columns. Returns full text for CSS column handling.
-
-    The CSS handles the actual column layout, so we return the full cleaned text
-    in the first column and empty strings for the others.
-
-    Args:
-        description: Description text to split
-        _is_hebrew: Whether the text is Hebrew (currently unused - CSS handles layout)
-        _use_three_columns: Whether to use three columns (currently unused - CSS handles layout)
-
-    Returns:
-        Tuple of (col1, col2, col3) text where col1 contains the full cleaned text
-    """
+    """Split description into columns. Returns full text for CSS column handling."""
     if not description:
         return ("", "", "")
 
@@ -93,14 +73,6 @@ def _split_description(
 
 
 def _clean_description(description: str) -> str:
-    """Clean and normalize step description text.
-
-    Args:
-        description: Raw description text
-
-    Returns:
-        Cleaned description with normalized whitespace
-    """
     if not description:
         return ""
 
@@ -117,18 +89,6 @@ def _clean_description(description: str) -> str:
 
 
 def _format_temperature(temp: float | None, feels_like: float | None) -> str:
-    """Format temperature string with feels like if meaningfully different.
-
-    Only shows "feels like" if the difference is >= 3°C, as smaller differences
-    are not meaningful to users.
-
-    Args:
-        temp: Actual temperature in Celsius
-        feels_like: "Feels like" temperature in Celsius
-
-    Returns:
-        Formatted temperature string (e.g., "25°" or "25° (28°)" or "N/A")
-    """
     if temp is None:
         return "N/A"
     # Only show feels like if difference is meaningful
@@ -146,18 +106,6 @@ def _calculate_progress(
     *,
     use_step_range: bool,
 ) -> tuple[int, float]:
-    """Calculate day number and progress percentage for a step.
-
-    Args:
-        step: Step to calculate progress for
-        step_index: Zero-based index of step in steps list
-        steps: Complete list of all steps
-        trip_data: Trip metadata
-        use_step_range: If True, use step range (1 to len(steps)); if False, use trip days
-
-    Returns:
-        Tuple of (day_num, progress_percent)
-    """
     if use_step_range:
         day_num = step_index + 1
         progress_percent = (day_num / len(steps)) * 100 if steps else 0
@@ -178,14 +126,6 @@ def _calculate_progress(
 
 
 def _calculate_progress_positions(progress_percent: float) -> tuple[float, float]:
-    """Calculate arrow and box positions for progress bar.
-
-    Args:
-        progress_percent: Progress percentage (0-100)
-
-    Returns:
-        Tuple of (box_center_position, arrow_bar_position)
-    """
     # Using module-level settings
     arrow_bar_position = max(
         settings.progress.min_position, min(settings.progress.max_position, progress_percent)
@@ -202,14 +142,6 @@ def _calculate_progress_positions(progress_percent: float) -> tuple[float, float
 def _extract_map_data(
     map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
 ) -> tuple[str | None, str | None, float | None, float | None]:
-    """Extract map data components.
-
-    Args:
-        map_data: Map data tuple or None
-
-    Returns:
-        Tuple of (country_map_data_uri, country_map_svg, map_dot_x, map_dot_y)
-    """
     if map_data and isinstance(map_data, tuple) and len(map_data) == 3:
         country_map_data_uri, country_map_svg, dot_pos = map_data
         map_dot_x, map_dot_y = dot_pos if dot_pos else (None, None)
@@ -220,16 +152,6 @@ def _extract_map_data(
 def _extract_weather_icons(
     weather_data: WeatherData, step: Step, settings: Any
 ) -> tuple[str | None, str | None]:
-    """Extract and generate weather icon URLs.
-
-    Args:
-        weather_data: WeatherData object
-        step: Step object
-        settings: Settings object
-
-    Returns:
-        Tuple of (day_weather_icon_url, night_weather_icon_url)
-    """
     day_icon_api = weather_data.day_icon
     night_icon = weather_data.night_icon
 
@@ -253,18 +175,6 @@ def prepare_step_data(
     use_step_range: bool,
     light_mode: bool = False,
 ) -> StepData:
-    """Prepare all data needed for rendering a step in the HTML template.
-
-    Args:
-        context: Dictionary containing step, step_index, steps, and trip_data
-        external_data: Dictionary containing elevation, weather_data, flag_data,
-            map_data, and cover_image_path
-        use_step_range: If True, calculate progress based on step range; if False, use trip days
-        light_mode: If True, use light mode color scheme; if False, use dark mode
-
-    Returns:
-        Dictionary containing all template variables for rendering this step
-    """
     step = context["step"]
     step_index = context["step_index"]
     steps = context["steps"]

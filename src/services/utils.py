@@ -29,7 +29,6 @@ _cache = diskcache.Cache(str(CACHE_DIR), size_limit=2**30, eviction_policy="leas
 
 
 def get_cached(key: str) -> Any | None:
-    """Get cached API response."""
     try:
         result = _cache.get(key, default=None)
     except (OSError, PermissionError, AttributeError) as e:
@@ -49,7 +48,6 @@ def get_cached(key: str) -> Any | None:
 
 
 def set_cached(key: str, value: Any) -> None:
-    """Cache API response."""
     try:
         _cache.set(key, value)
     except (OSError, PermissionError) as e:
@@ -74,15 +72,13 @@ BACKOFF_BASE = 2
 
 
 class FetchConfig(TypedDict, total=False):
-    """Configuration for fetch operations with retry logic."""
-
     timeout: int
     calls_per_second: int
     max_attempts: int
 
 
 class RateLimitError(Exception):
-    """Raised when API returns 429 Too Many Requests."""
+    pass
 
 
 def with_rate_limit_and_retry(
@@ -92,8 +88,6 @@ def with_rate_limit_and_retry(
     max_wait: float = 10.0,
     retry_on: type[Exception] | tuple[type[Exception], ...] = httpx.RequestError,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """Create a decorator that adds rate limiting and retry logic to a function."""
-
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @sleep_and_retry  # type: ignore[misc]
         @limits(calls=calls_per_second, period=1)  # type: ignore[misc]
@@ -118,7 +112,6 @@ def _fetch_with_retry(
     check_rate_limit: bool,
     extract_response: Callable[[httpx.Response], Any],
 ) -> Any:
-    """Internal helper to fetch data with rate limiting and retry logic."""
     timeout = config.get("timeout", 10)
     calls_per_second = config.get("calls_per_second", 1)
     max_attempts = config.get("max_attempts", 3)
@@ -153,7 +146,6 @@ def fetch_json_with_retry(
     *,
     check_rate_limit: bool = False,
 ) -> dict[str, Any]:
-    """Fetch JSON data from URL with rate limiting and retry logic."""
     config: FetchConfig = {
         "timeout": timeout,
         "calls_per_second": calls_per_second,
@@ -173,7 +165,6 @@ def fetch_content_with_retry(
     calls_per_second: int = 1,
     max_attempts: int = 3,
 ) -> bytes:
-    """Fetch binary content from URL with rate limiting and retry logic."""
     result = _fetch_with_retry(
         url,
         {"timeout": timeout, "calls_per_second": calls_per_second, "max_attempts": max_attempts},
@@ -189,7 +180,6 @@ def fetch_content_with_retry(
 
 
 def create_async_client(limits: httpx.Limits | None = None) -> httpx.AsyncClient:
-    """Create an httpx AsyncClient with appropriate limits."""
     if limits is None:
         limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
     return httpx.AsyncClient(limits=limits, timeout=30.0)
@@ -203,7 +193,6 @@ async def fetch_and_cache_json_async(
     request_timeout: float = 10.0,
     max_attempts: int = 3,
 ) -> dict[str, Any] | None:
-    """Fetch JSON from URL with caching and async rate limiting."""
     cached = get_cached(cache_key)
     if cached is not None and isinstance(cached, dict):
         return cast("dict[str, Any]", cached)
@@ -246,7 +235,6 @@ async def fetch_and_cache_content_async(
     request_timeout: float = 10.0,
     max_attempts: int = 3,
 ) -> bytes | None:
-    """Fetch binary content from URL with caching and async rate limiting."""
     cached = get_cached(cache_key)
     if cached is not None and isinstance(cached, bytes):
         return cast("bytes", cached)
@@ -286,7 +274,6 @@ def fetch_and_cache_content(
     timeout: int = 10,
     max_attempts: int = 3,
 ) -> bytes | None:
-    """Fetch binary content from URL with caching and rate limiting."""
     cached = get_cached(cache_key)
     if cached is not None and isinstance(cached, bytes):
         return cast("bytes", cached)

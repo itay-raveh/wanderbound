@@ -22,16 +22,6 @@ def process_step_photos(
     """Process photos for a single step, including loading, selection, and layout.
 
     Returns empty lists/None if no photos are found.
-
-    Args:
-        step: Step object to process photos for.
-        trip_dir: Base trip directory containing step folders.
-
-    Returns:
-        Tuple of:
-            - List of Photo objects for the step
-            - Cover photo (Photo or None)
-            - List of photo pages (each page is a list of Photo objects)
     """
     photo_dir = get_step_photo_dir(trip_dir, step)
     if not photo_dir:

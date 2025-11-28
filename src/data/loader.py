@@ -14,19 +14,6 @@ __all__ = ["load_trip_data"]
 
 
 def load_trip_data(trip_path: Path) -> TripData:
-    """Load trip data from trip.json file and validate with Pydantic.
-
-    Args:
-        trip_path: Path to trip.json file. Must exist and be readable.
-
-    Returns:
-        TripData object with validated trip information.
-
-    Raises:
-        DataLoadError: If file cannot be read, JSON is invalid, or required
-            fields are missing.
-        TypeError: If trip_path is not a Path object.
-    """
     if not isinstance(trip_path, Path):
         raise TypeError(f"trip_path must be a Path object, got {type(trip_path).__name__}")
     try:

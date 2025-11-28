@@ -15,19 +15,6 @@ __all__ = ["format_coordinates", "format_date", "format_weather_condition"]
 
 
 def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
-    """Format coordinates into degrees, minutes, seconds.
-
-    Args:
-        lat: Latitude in decimal degrees, or None.
-        lon: Longitude in decimal degrees, or None.
-
-    Returns:
-        Dictionary with 'lat' and 'lon' keys containing formatted strings.
-        Empty strings if coordinates are None.
-
-    Raises:
-        TypeError: If lat or lon are provided but not numeric.
-    """
     if lat is not None and not isinstance(lat, (int, float)):
         raise TypeError(f"lat must be numeric or None, got {type(lat).__name__}")
     if lon is not None and not isinstance(lon, (int, float)):
@@ -75,18 +62,6 @@ def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
 
 
 def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
-    """Format timestamp into month name and day.
-
-    Args:
-        timestamp: Unix timestamp, or None for empty date.
-        timezone_id: Timezone identifier (e.g., 'America/New_York'). Must be valid.
-
-    Returns:
-        Dictionary with 'month' and 'day' keys. Empty strings if timestamp is None.
-
-    Raises:
-        TypeError: If timezone_id is not a string.
-    """
     if not isinstance(timezone_id, str):
         raise TypeError(f"timezone_id must be a string, got {type(timezone_id).__name__}")
 
@@ -132,14 +107,6 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
 
 @lru_cache(maxsize=128)
 def format_weather_condition(condition: str | None) -> str:
-    """Format weather condition code to display text.
-
-    Args:
-        condition: Weather condition code (e.g., 'clear-day', 'rain')
-
-    Returns:
-        Formatted weather condition string in uppercase
-    """
     if not condition:
         return "UNKNOWN"
 

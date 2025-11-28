@@ -19,14 +19,7 @@ logger = get_logger(__name__)
 
 
 def _remove_xml_declarations(svg_data: str) -> str:
-    """Remove XML declaration and DOCTYPE from SVG to avoid DTD fetching.
-
-    Args:
-        svg_data: Raw SVG string.
-
-    Returns:
-        Cleaned SVG string without XML declarations.
-    """
+    """Remove XML declaration and DOCTYPE from SVG to avoid DTD fetching."""
     lines = svg_data.split("\n")
     cleaned_lines = []
     skip_doctype = False
@@ -48,7 +41,6 @@ def _remove_xml_declarations(svg_data: str) -> str:
 
 
 def _parse_svg_with_lxml(svg_data: str) -> etree._Element | None:
-    """Parse SVG string using lxml."""
     try:
         svg_clean = _remove_xml_declarations(svg_data)
 
@@ -77,7 +69,6 @@ def _parse_svg_with_lxml(svg_data: str) -> etree._Element | None:
 
 
 def _get_svg_viewbox(root: etree._Element) -> list[float] | None:
-    """Extract viewBox from SVG root element."""
     viewbox_str = root.get("viewBox")
     if viewbox_str:
         try:
@@ -95,14 +86,7 @@ _COUNTRY_BOUNDS: dict[str, Any] | None = None
 
 
 def _load_country_bounds() -> dict[str, Any]:
-    """Load country bounds from JSON file (fallback).
-
-    Returns:
-        Dictionary mapping country codes to bounding boxes.
-
-    Raises:
-        RuntimeError: If bounds file cannot be loaded.
-    """
+    """Load country bounds from JSON file (fallback)."""
     global _COUNTRY_BOUNDS  # noqa: PLW0603
     if _COUNTRY_BOUNDS is None:
         bounds_file = Path(__file__).parent.parent / "country_bounding_boxes.json"
@@ -114,14 +98,7 @@ def _load_country_bounds() -> dict[str, Any]:
 
 
 def _load_natural_earth_data(country_code: str) -> Any | None:
-    """Load Natural Earth GeoJSON data from cache or download it.
-
-    Args:
-        country_code: ISO country code (for logging purposes)
-
-    Returns:
-        GeoDataFrame with Natural Earth data, or None if loading fails
-    """
+    """Load Natural Earth GeoJSON data from cache or download it."""
     ne_50m_url = settings.natural_earth_geojson_url
     cache_key_data = "ne_50m_admin_0_countries"
 
@@ -145,15 +122,7 @@ def _load_natural_earth_data(country_code: str) -> Any | None:
 
 
 def _find_country_in_geodataframe(world: Any, country_code_lower: str) -> Any | None:
-    """Find country GeoDataFrame by ISO code or name.
-
-    Args:
-        world: GeoDataFrame with Natural Earth data
-        country_code_lower: Lowercase ISO country code
-
-    Returns:
-        GeoDataFrame for the country, or None if not found
-    """
+    """Find country GeoDataFrame by ISO code or name."""
     # Try to find country by ISO_A2 code first (most reliable)
     if "ISO_A2" in world.columns:
         country_gdf = world[world["ISO_A2"] == country_code_lower.upper()]
@@ -188,16 +157,7 @@ def _coords_to_svg_path(
     closed: bool = False,
     flip_y: tuple[float, float] | None = None,
 ) -> str:
-    """Convert coordinate list to SVG path commands.
-
-    Args:
-        coords: List of (x, y) coordinate tuples
-        closed: Whether to close the path with Z
-        flip_y: Tuple of (min_y, max_y) to flip Y coordinates around center if provided
-
-    Returns:
-        SVG path string
-    """
+    """Convert coordinate list to SVG path commands."""
     if len(coords) < 2:
         return ""
 
@@ -218,15 +178,7 @@ def _coords_to_svg_path(
 
 
 def _polygon_to_svg_path(polygon: Polygon, flip_y: tuple[float, float] | None = None) -> str:
-    """Convert Polygon geometry to SVG path.
-
-    Args:
-        polygon: Shapely Polygon
-        flip_y: Tuple of (min_y, max_y) to flip Y coordinates around center if provided
-
-    Returns:
-        SVG path string
-    """
+    """Convert Polygon geometry to SVG path."""
     path_parts = []
     # Exterior ring
     exterior_coords = list(polygon.exterior.coords)
@@ -245,15 +197,7 @@ def _polygon_to_svg_path(polygon: Polygon, flip_y: tuple[float, float] | None = 
 def _multipolygon_to_svg_path(
     multipolygon: MultiPolygon, flip_y: tuple[float, float] | None = None
 ) -> str:
-    """Convert MultiPolygon geometry to SVG path.
-
-    Args:
-        multipolygon: Shapely MultiPolygon
-        flip_y: Tuple of (min_y, max_y) to flip Y coordinates around center if provided
-
-    Returns:
-        SVG path string
-    """
+    """Convert MultiPolygon geometry to SVG path."""
     paths = []
     for poly in multipolygon.geoms:
         path = _polygon_to_svg_path(poly, flip_y=flip_y)
@@ -263,15 +207,7 @@ def _multipolygon_to_svg_path(
 
 
 def _geometry_to_svg_path(geometry: Any, flip_y: tuple[float, float] | None = None) -> str:
-    """Convert Shapely geometry to SVG path data string.
-
-    Args:
-        geometry: Shapely geometry (Polygon, MultiPolygon, etc.)
-        flip_y: Tuple of (min_y, max_y) to flip Y coordinates around center if provided
-
-    Returns:
-        SVG path data string (d attribute value)
-    """
+    """Convert Shapely geometry to SVG path data string."""
     if geometry.is_empty:
         return ""
 
@@ -291,16 +227,7 @@ def _geometry_to_svg_path(geometry: Any, flip_y: tuple[float, float] | None = No
 
 
 def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[float], Any]:
-    """Generate SVG plot from GeoDataFrame without matplotlib.
-
-    Args:
-        gdf: GeoDataFrame for the country
-        width: Output SVG width in pixels
-        height: Output SVG height in pixels
-
-    Returns:
-        Tuple of (svg_data, actual_bounds, local_crs)
-    """
+    """Generate SVG plot from GeoDataFrame without matplotlib."""
     local_crs = gdf.estimate_utm_crs()
     gdf_proj = gdf.to_crs(local_crs)
     bounds_proj = gdf_proj.total_bounds
@@ -357,17 +284,7 @@ def _process_svg_with_geo_attributes(
     actual_bounds: list[float],
     local_crs: Any,
 ) -> str:
-    """Add geo-calibration attributes to SVG and set all fills to white.
-
-    Args:
-        root: SVG root element
-        geo_bounds: Tuple of (min_lon, min_lat, max_lon, max_lat)
-        actual_bounds: Projected bounds [min_x, min_y, max_x, max_y]
-        local_crs: Coordinate reference system
-
-    Returns:
-        SVG string with geo attributes
-    """
+    """Add geo-calibration attributes to SVG and set all fills to white."""
     min_lon, min_lat, max_lon, max_lat = geo_bounds
 
     # Get or set viewBox
@@ -404,14 +321,6 @@ def _generate_geo_calibrated_svg(
 
     The SVG dimensions are adjusted to match the country's aspect ratio to prevent
     dots from spreading across empty space for narrow countries.
-
-    Args:
-        country_code: ISO country code (e.g., "us", "fr")
-        width: Maximum SVG width in pixels (default: 1024)
-        height: Maximum SVG height in pixels (default: 1024)
-
-    Returns:
-        SVG data string or None if generation fails
     """
     country_code_lower = country_code.lower()
 
@@ -491,17 +400,7 @@ def get_country_map_svg(
 def _calculate_position_from_projected_bounds(
     lat: float, lon: float, proj_bounds: list[float], crs_str: str
 ) -> tuple[float, float] | None:
-    """Calculate position using projected bounds and CRS.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        proj_bounds: Projected bounds [min_x, min_y, max_x, max_y]
-        crs_str: Coordinate reference system string
-
-    Returns:
-        Tuple of (x_percent, y_percent) or None
-    """
+    """Calculate position using projected bounds and CRS."""
     try:
         point_geo = gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
         point_proj = point_geo.to_crs(crs_str)
@@ -530,17 +429,7 @@ def _calculate_position_from_projected_bounds(
 def _calculate_position_from_viewbox(
     lat: float, lon: float, max_lat: float, viewbox: list[float]
 ) -> tuple[float, float] | None:
-    """Calculate position using viewbox coordinates.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        max_lat: Maximum latitude
-        viewbox: Viewbox [min_x, min_y, width, height]
-
-    Returns:
-        Tuple of (x_percent, y_percent) or None
-    """
+    """Calculate position using viewbox coordinates."""
     if len(viewbox) != 4:
         return None
 
@@ -563,16 +452,7 @@ def _calculate_position_from_viewbox(
 def _calculate_position_from_svg_root(
     root: Any, lat: float, lon: float
 ) -> tuple[float, float] | None:
-    """Calculate position from SVG root element.
-
-    Args:
-        root: SVG root element
-        lat: Latitude
-        lon: Longitude
-
-    Returns:
-        Tuple of (x_percent, y_percent) or None
-    """
+    """Calculate position from SVG root element."""
     geo_bounds_str = root.get("data-geo-bounds")
     if not geo_bounds_str:
         return None
@@ -613,16 +493,7 @@ def _calculate_position_from_svg_root(
 def _calculate_position_from_bounds(
     lat: float, lon: float, bounding_box: dict[str, Any]
 ) -> tuple[float, float] | None:
-    """Calculate position from country bounding box.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        bounding_box: Bounding box dictionary with 'sw' and 'ne' keys
-
-    Returns:
-        Tuple of (x_percent, y_percent) or None if calculation fails
-    """
+    """Calculate position from country bounding box."""
     if "sw" not in bounding_box or "ne" not in bounding_box:
         return None
 
@@ -647,17 +518,7 @@ def _calculate_position_from_bounds(
 def get_country_map_dot_position(
     country_code: str, lat: float, lon: float, svg_data: str | None = None
 ) -> tuple[float, float] | None:
-    """Calculate the relative position (0-100%) of a location dot within a country map.
-
-    Args:
-        country_code: ISO country code (e.g., "us", "fr")
-        lat: Latitude of the location point
-        lon: Longitude of the location point
-        svg_data: Optional pre-fetched SVG data to avoid re-fetching
-
-    Returns:
-        Tuple of (x_percent, y_percent) where values are 0-100, or None if calculation fails
-    """
+    """Calculate the relative position (0-100%) of a location dot within a country map."""
     if not country_code:
         return (50.0, 50.0)
 
@@ -688,17 +549,7 @@ async def get_country_map_svg_async(
     _lat: float | None = None,
     _lon: float | None = None,
 ) -> str | None:
-    """Get country map/silhouette as raw SVG string (async).
-
-    Args:
-        client: httpx AsyncClient instance
-        country_code: ISO country code (e.g., "us", "fr")
-        lat: Optional latitude (for geo-calibrated SVG)
-        lon: Optional longitude (for geo-calibrated SVG)
-
-    Returns:
-        SVG string, or None if fetch/processing fails
-    """
+    """Get country map/silhouette as raw SVG string (async)."""
     if not country_code:
         return None
 
@@ -725,17 +576,7 @@ async def get_country_map_data_uri_async(
     lat: float | None = None,
     lon: float | None = None,
 ) -> str | None:
-    """Get country map/silhouette image as data URI (async).
-
-    Args:
-        client: httpx AsyncClient instance
-        country_code: ISO country code (e.g., "us", "fr")
-        lat: Optional latitude
-        lon: Optional longitude
-
-    Returns:
-        Data URI string for the map image, or None if fetch fails
-    """
+    """Get country map/silhouette image as data URI (async)."""
     svg_data = await get_country_map_svg_async(client, country_code, lat, lon)
     if svg_data:
         cache_key = f"map_{country_code.lower()}"

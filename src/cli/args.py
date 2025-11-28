@@ -5,19 +5,6 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments for the album generator.
-
-    Returns:
-        argparse.Namespace: Parsed arguments containing:
-            - trip_dir: Path to trip directory (default: "trip")
-            - steps: Step range string (e.g., "99-110" or "99")
-            - sample: Number of evenly distributed steps to sample
-            - output: Output directory path (default: "output")
-            - pdf: Whether to generate PDF
-            - progress_mode: Progress bar mode ("original" or "step-range")
-            - light_mode: Whether to use light mode
-            - clear_photos_cache: Whether to clear cached photo configuration
-    """
     parser = argparse.ArgumentParser(
         description="Generate HTML photo album from Polarsteps trip data"
     )
@@ -71,26 +58,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_step_range(range_str: str) -> tuple[int, int]:
-    """Parse step range string into start and end step numbers.
-
-    Args:
-        range_str: Step range string in format "start-end" or single step number.
-            Must be a non-empty string.
-
-    Returns:
-        Tuple of (start, end) step numbers (1-indexed, inclusive).
-        If single number provided, both start and end are the same.
-
-    Raises:
-        TypeError: If range_str is not a string.
-        ValueError: If range_str cannot be parsed as integers.
-
-    Examples:
-        >>> parse_step_range("99-110")
-        (99, 110)
-        >>> parse_step_range("99")
-        (99, 99)
-    """
     if not range_str.strip():
         raise ValueError("range_str cannot be empty")
 

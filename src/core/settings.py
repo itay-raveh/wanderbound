@@ -7,15 +7,11 @@ from .exceptions import ConfigurationError
 
 
 class PDFSettings(BaseModel):
-    """PDF generation settings."""
-
     viewport_width: int = 1123
     viewport_height: int = 794
 
 
 class PhotoSettings(BaseModel):
-    """Photo selection and layout settings."""
-
     # Aspect ratio matching
     aspect_ratio_tolerance: float = 0.1
     ideal_cover_aspect_ratio: float = 4 / 5  # 4:5 portrait
@@ -41,13 +37,10 @@ class PhotoSettings(BaseModel):
 
     @property
     def photo_area_three_portraits(self) -> float:
-        """Calculate three portraits area."""
         return self.photo_area_full_page / 3
 
 
 class ProgressSettings(BaseModel):
-    """Progress bar positioning settings."""
-
     min_position: float = 1.0
     max_position: float = 99.0
     box_min_position: float = 6.0
@@ -55,8 +48,6 @@ class ProgressSettings(BaseModel):
 
 
 class FileSettings(BaseModel):
-    """File and directory name settings."""
-
     # File names
     album_html_file: str = "album.html"
     album_pdf_file: str = "album.pdf"
@@ -71,8 +62,6 @@ class FileSettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
-
     # Debug mode (set via DEBUG environment variable)
     debug: bool = False
 

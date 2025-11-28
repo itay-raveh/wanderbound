@@ -37,20 +37,6 @@ def generate_album_html(
     use_step_range: bool = False,
     light_mode: bool = False,
 ) -> Path:
-    """Generate HTML album file from trip data and photos.
-
-    Args:
-        steps: List of steps to include in the album
-        photo_data: Dictionary containing steps_with_photos, steps_cover_photos,
-            and steps_photo_pages
-        config: Configuration dictionary with trip_data and output_dir
-        use_step_range: If True, progress bars use step range (1 to len(steps));
-                       if False, progress bars use trip days from start_date
-        light_mode: If True, use light mode color scheme; if False, use dark mode
-
-    Returns:
-        Path to the generated HTML file
-    """
     trip_data = config["trip_data"]
     output_dir = Path(config["output_dir"])
     steps_cover_photos = photo_data["steps_cover_photos"]

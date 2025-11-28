@@ -22,7 +22,6 @@ __all__ = ["copy_assets", "copy_image_to_assets", "process_photo_pages"]
 def copy_image_to_assets(
     image_path: Path, output_dir: Path, step_name: str, photo_index: int
 ) -> str:
-    """Copy image to assets directory and return relative path."""
     images_dir = get_assets_path(output_dir, settings.file.images_dir)
     images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -39,7 +38,6 @@ def copy_image_to_assets(
 
 
 def copy_assets(output_dir: Path) -> None:
-    """Copy assets (fonts, CSS, etc.) to output directory."""
     assets_dir = output_dir / settings.file.assets_dir
     fonts_dir = assets_dir / settings.file.fonts_dir
     css_dir = assets_dir / settings.file.css_dir
@@ -80,10 +78,6 @@ def process_photo_pages(
     step_name: str,
     output_dir: Path,
 ) -> list[PhotoPageData]:
-    """Process photo pages and copy images to assets directory.
-
-    Calculates layout flags on-the-fly based on photo aspect ratios.
-    """
     photo_pages_paths: list[PhotoPageData] = []
 
     for page in photo_pages:

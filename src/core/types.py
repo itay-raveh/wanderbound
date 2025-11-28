@@ -8,16 +8,12 @@ if TYPE_CHECKING:
 
 
 class PhotoPageData(TypedDict):
-    """Represents a single photo page with its layout flags."""
-
     photos: list[str]
     is_three_portraits: bool
     is_portrait_landscape_split: bool
 
 
 class StepData(TypedDict, total=False):
-    """Dictionary structure for step data passed to templates."""
-
     city: str
     country: str
     country_code: str
@@ -53,8 +49,6 @@ class StepData(TypedDict, total=False):
 
 
 class StepExternalData(TypedDict, total=False):
-    """External data for a step (elevation, weather, flags, maps, etc.)."""
-
     elevation: float | None
     weather_data: object  # WeatherData Pydantic model
     flag_data: tuple[str | None, str | None] | None
@@ -63,23 +57,17 @@ class StepExternalData(TypedDict, total=False):
 
 
 class AlbumPhotoData(TypedDict):
-    """Photo data dictionaries for album generation."""
-
     steps_with_photos: dict[int, list["Photo"]]
     steps_cover_photos: dict[int, "Photo | None"]
     steps_photo_pages: dict[int, list[list["Photo"]]]
 
 
 class AlbumGenerationConfig(TypedDict):
-    """Configuration for album generation."""
-
     trip_data: "TripData"
     output_dir: Path
 
 
 class StepContext(TypedDict):
-    """Context data for step preparation."""
-
     step: "Step"
     step_index: int
     steps: list["Step"]

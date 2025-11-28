@@ -38,14 +38,6 @@ __all__ = [
 
 
 def fetch_altitudes(steps: list[Step]) -> list[float | None]:
-    """Fetch altitudes for all steps in batch.
-
-    Args:
-        steps: List of steps to fetch altitudes for
-
-    Returns:
-        List of altitude values (in meters) or None for each step
-    """
     with console.status("[bold blue]Fetching altitudes..."):
         logger.debug("Fetching altitudes...")
         locations = [(step.location.lat, step.location.lon) for step in steps]
@@ -57,16 +49,6 @@ def fetch_altitudes(steps: list[Step]) -> list[float | None]:
 async def _fetch_weather_single(
     client: httpx.AsyncClient, step: Step, index: int
 ) -> tuple[int, WeatherData | None]:
-    """Fetch weather data for a single step (async helper).
-
-    Args:
-        client: httpx AsyncClient instance
-        step: Step to fetch weather data for
-        index: Step index for ordering
-
-    Returns:
-        Tuple of (index, WeatherData or None)
-    """
     try:
         weather_data = await get_weather_data_async(
             client,
@@ -83,14 +65,6 @@ async def _fetch_weather_single(
 
 
 def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherData | None]:
-    """Fetch weather data for all steps in parallel using async/await.
-
-    Args:
-        steps: List of steps to fetch weather data for
-
-    Returns:
-        List of WeatherData objects or None for each step
-    """
     logger.debug("Fetching weather data...")
     weather_progress = create_progress("Fetching weather data")
     weather_data_list: list[WeatherData | None] = [None] * len(steps)
@@ -125,17 +99,6 @@ def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherData | None]:
 async def _fetch_flag_single(
     client: httpx.AsyncClient, step: Step, index: int, *, light_mode: bool
 ) -> tuple[int, tuple[str | None, str | None] | None]:
-    """Fetch flag and extract accent color for a single step (async helper).
-
-    Args:
-        client: httpx AsyncClient instance
-        step: Step to fetch flag for
-        index: Step index for ordering
-        light_mode: If True, use light mode color scheme
-
-    Returns:
-        Tuple of (index, (country_flag_data_uri, accent_color) or None)
-    """
     try:
         country_flag_data_uri = (
             await get_country_flag_data_uri_async(client, step.country_code)
@@ -155,15 +118,6 @@ async def _fetch_flag_single(
 def fetch_flags_batch(
     steps: list[Step], *, light_mode: bool
 ) -> list[tuple[str | None, str | None] | None]:
-    """Fetch flags and extract accent colors for all steps in parallel using async/await.
-
-    Args:
-        steps: List of steps to fetch flags for
-        light_mode: If True, use light mode color scheme
-
-    Returns:
-        List of tuples (country_flag_data_uri, accent_color) or None for each step
-    """
     logger.debug("Fetching flags and extracting colors...")
     flag_progress = create_progress("Processing flags")
     flag_data_list: list[tuple[str | None, str | None] | None] = [None] * len(steps)
@@ -201,16 +155,6 @@ def fetch_flags_batch(
 async def _fetch_map_single(
     client: httpx.AsyncClient, step: Step, index: int
 ) -> tuple[int, tuple[str | None, str | None, tuple[float, float] | None] | None]:
-    """Fetch map and calculate dot position for a single step (async helper).
-
-    Args:
-        client: httpx AsyncClient instance
-        step: Step to fetch map for
-        index: Step index for ordering
-
-    Returns:
-        Tuple of (index, (country_map_data_uri, country_map_svg, (map_dot_x, map_dot_y)) or None)
-    """
     try:
         if step.country_code:
             country_map_data_uri = await get_country_map_data_uri_async(
@@ -235,15 +179,6 @@ async def _fetch_map_single(
 def fetch_maps_batch(
     steps: list[Step],
 ) -> list[tuple[str | None, str | None, tuple[float, float] | None] | None]:
-    """Fetch maps and calculate dot positions for all steps in parallel using async/await.
-
-    Args:
-        steps: List of steps to fetch maps for
-
-    Returns:
-        List of tuples (country_map_data_uri, country_map_svg, (map_dot_x, map_dot_y))
-        or None for each step
-    """
     logger.debug("Fetching maps and calculating positions...")
     map_progress = create_progress("Processing maps")
     map_data_list: list[tuple[str | None, str | None, tuple[float, float] | None] | None] = [
@@ -282,16 +217,6 @@ def process_cover_images_batch(
     steps_cover_photos: dict[int, Photo | None],
     output_dir: Path,
 ) -> list[str | None]:
-    """Process and copy cover images for all steps in parallel.
-
-    Args:
-        steps: List of steps to process cover images for
-        steps_cover_photos: Dictionary mapping step IDs to cover Photo objects
-        output_dir: Output directory (parent of assets/)
-
-    Returns:
-        List of relative paths to cover images or None for each step
-    """
     logger.debug("Copying cover images to assets...")
     image_progress = create_progress("Processing images")
     cover_image_path_list: list[str | None] = [None] * len(steps)

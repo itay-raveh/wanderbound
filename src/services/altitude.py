@@ -16,7 +16,6 @@ API_CALLS_PER_SECOND = 1
 
 
 def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | None]:
-    """Get altitude for multiple coordinates using OpenTopoData API with batching."""
     all_elevations: list[float | None] = []
     locations_to_query: list[tuple[float, float]] = []
 
@@ -97,13 +96,11 @@ def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | Non
 
 
 def get_altitude(lat: float, lon: float) -> float | None:
-    """Get altitude for a single coordinate."""
     results = get_altitude_batch([(lat, lon)])
     return results[0] if results else None
 
 
 def format_altitude(altitude: float | None) -> str:
-    """Format altitude in meters with proper formatting."""
     if altitude is None:
         return "N/A"
 

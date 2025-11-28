@@ -15,14 +15,6 @@ __all__ = ["_load_photo_metadata", "load_step_photos"]
 
 @lru_cache(maxsize=512)
 def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
-    """Load image metadata (width, height, aspect_ratio) with caching.
-
-    Args:
-        img_path: Path to the image file.
-
-    Returns:
-        Tuple of (width, height, aspect_ratio) or None if loading fails.
-    """
     try:
         with Image.open(img_path) as img:
             width, height = img.size
@@ -34,15 +26,6 @@ def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
 
 
 def _load_single_photo(img_path: Path, index: int) -> Photo | None:
-    """Load a single photo's metadata and create Photo object.
-
-    Args:
-        img_path: Path to the image file.
-        index: Photo index (1-based).
-
-    Returns:
-        Photo object or None if loading fails.
-    """
     metadata = _load_photo_metadata(img_path)
     if metadata is None:
         return None
@@ -59,14 +42,6 @@ def _load_single_photo(img_path: Path, index: int) -> Photo | None:
 
 
 def load_step_photos(photo_dir: Path) -> list[Photo]:
-    """Load all photos from a step's photo directory.
-
-    Args:
-        photo_dir: Directory containing step photos.
-
-    Returns:
-        List of Photo objects sorted by filename.
-    """
     if not photo_dir.exists():
         logger.warning("Photo directory does not exist: %s", photo_dir)
         return []

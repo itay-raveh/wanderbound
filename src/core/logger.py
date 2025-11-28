@@ -29,8 +29,6 @@ _console = Console(markup=True)
 
 
 class PrettyCLIHandler(logging.Handler):
-    """Custom handler that formats log messages as pretty CLI output (non-debug mode)."""
-
     def __init__(self, console: Console) -> None:
         super().__init__()
         self.console = console
@@ -43,7 +41,6 @@ class PrettyCLIHandler(logging.Handler):
         }
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Format and emit a log record."""
         try:
             message = self.format(record)
 
@@ -75,7 +72,6 @@ class PrettyCLIHandler(logging.Handler):
 
 
 def setup_logging(name: str = "src") -> logging.Logger:
-    """Set up and return a logger instance."""
     logger = logging.getLogger(name)
 
     # Only configure if not already configured
@@ -108,17 +104,14 @@ def setup_logging(name: str = "src") -> logging.Logger:
 
 
 def get_logger(name: str = "src") -> logging.Logger:
-    """Get a logger instance. Pass __name__ from the calling module."""
     return setup_logging(name)
 
 
 def get_console() -> Console:
-    """Get the global console instance."""
     return _console
 
 
 def create_progress(_description: str = "Processing", _total: int | None = None) -> Progress:
-    """Create a Rich progress bar for loops with aligned descriptions."""
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(
         SpinnerColumn(),

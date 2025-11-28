@@ -10,14 +10,6 @@ __all__ = ["get_assets_path", "get_font_path", "get_step_photo_dir"]
 
 
 def get_font_path() -> Path:
-    """Get the path to the font file (internal to package).
-
-    Returns:
-        Path to the Renner.ttf font file.
-
-    Raises:
-        ConfigurationError: If settings cannot be loaded.
-    """
     font_path = (
         Path(__file__).parent.parent.parent / settings.file.static_dir / settings.file.font_file
     )
@@ -31,32 +23,10 @@ def get_font_path() -> Path:
 
 
 def get_assets_path(output_dir: Path, subdir: str) -> Path:
-    """Get path to an assets subdirectory.
-
-    Args:
-        output_dir: Base output directory
-        subdir: Subdirectory name (e.g., 'images', 'fonts', 'css')
-
-    Returns:
-        Path to the assets subdirectory
-    """
     return output_dir / settings.file.assets_dir / subdir
 
 
 def get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
-    """Get the photo directory path for a step.
-
-    Searches for photo directories matching common naming patterns:
-    - {slug}_{step_id}/photos
-    - {display_slug}_{step_id}/photos
-
-    Args:
-        trip_dir: Base trip directory containing step folders.
-        step: Step object with slug and ID information.
-
-    Returns:
-        Path to the photo directory if found, None otherwise.
-    """
     slug = step.slug or step.display_slug or ""
 
     if not slug:

@@ -26,14 +26,6 @@ console = get_console()
 
 
 def _validate_inputs(args: Any) -> Path:
-    """Validate input files and directories.
-
-    Args:
-        args: Parsed command-line arguments
-
-    Returns:
-        Path to trip.json file
-    """
     trip_json = Path(args.trip_dir) / "trip.json"
     if not trip_json.exists():
         raise DataLoadError(
@@ -45,15 +37,6 @@ def _validate_inputs(args: Any) -> Path:
 
 
 def _filter_steps(all_steps: list[Step], args: Any) -> list[Step]:
-    """Filter steps based on CLI arguments.
-
-    Args:
-        all_steps: All available steps
-        args: Parsed command-line arguments
-
-    Returns:
-        Filtered list of steps
-    """
     if args.sample:
         steps = get_steps_distributed(all_steps, args.sample)
         logger.info("Sampled %d steps evenly across the trip", len(steps))
@@ -70,15 +53,6 @@ def _filter_steps(all_steps: list[Step], args: Any) -> list[Step]:
 def _load_step_photos(
     steps: list[Step], trip_dir: Path
 ) -> tuple[dict[int, list["Photo"]], dict[int, "Photo | None"], dict[int, list[list["Photo"]]]]:
-    """Load and process photos for all steps.
-
-    Args:
-        steps: List of steps to process
-        trip_dir: Trip directory path
-
-    Returns:
-        Tuple of (steps_with_photos, steps_cover_photos, steps_photo_pages)
-    """
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
@@ -104,19 +78,6 @@ def _generate_html_album(
     use_step_range: bool,
     light_mode: bool,
 ) -> Path:
-    """Generate HTML album file.
-
-    Args:
-        steps: List of steps to include
-        photo_data: Dictionary containing steps_with_photos, steps_cover_photos,
-            and steps_photo_pages
-        config: Configuration dictionary with trip_data and output_dir
-        use_step_range: Whether to use step range for progress
-        light_mode: Whether to use light mode
-
-    Returns:
-        Path to generated HTML file
-    """
     with console.status("[bold blue]Generating album HTML..."):
         logger.debug("Generating album HTML...")
         html_path = generate_album_html(
@@ -131,12 +92,6 @@ def _generate_html_album(
 
 
 def _open_file(file_path: Path, file_type: str) -> None:
-    """Open file with default application.
-
-    Args:
-        file_path: Path to file to open
-        file_type: Type of file ("PDF" or "HTML")
-    """
     try:
         wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
         webbrowser.open(f"file://{file_path.absolute()}")
@@ -148,20 +103,6 @@ def _open_file(file_path: Path, file_type: str) -> None:
 
 
 def main() -> None:
-    """Main entry point for the album generator CLI application.
-
-    Orchestrates the entire album generation process:
-    1. Validates input files and directories
-    2. Loads trip data from JSON
-    3. Filters steps based on CLI arguments
-    4. Loads and processes photos for each step
-    5. Generates HTML album
-    6. Optionally generates PDF
-
-    Raises:
-        DataLoadError: If trip.json is missing or invalid.
-        ValidationError: If required internal files (e.g., font) are missing.
-    """
     args = parse_args()
     trip_json = _validate_inputs(args)
 
