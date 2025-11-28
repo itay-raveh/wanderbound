@@ -1,5 +1,7 @@
 """Application settings using Pydantic."""
 
+from pathlib import Path
+
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -59,6 +61,7 @@ class FileSettings(BaseModel):
     fonts_dir: str = "fonts"
     css_dir: str = "css"
     static_dir: str = "static"
+    cache_dir: Path = Path.home() / ".cache" / "polarsteps-album-generator"
 
 
 class Settings(BaseSettings):

@@ -1,103 +1,60 @@
 """Altitude/elevation API integration."""
 
-import httpx
 from more_itertools import chunked
 
-from src.core.logger import create_progress, get_logger
+from src.core.logger import get_logger
 from src.core.settings import settings
-
-from .utils import fetch_json_with_retry, get_cached, set_cached
+from src.services.utils import APIClient
 
 logger = get_logger(__name__)
 
-# OpenTopoData API rate limit: 1000 requests/day = ~1 request per 86 seconds
-# Using 1 request per second to allow for some burst while staying safe
-API_CALLS_PER_SECOND = 1
 
+async def get_altitudes(
+    client: APIClient, locations: list[tuple[float, float]]
+) -> list[float | None]:
+    """Get elevations for a list of locations using batch API calls."""
+    # We don't check cache here because the caller (batch fetching) should handle caching strategy
+    # or we can rely on HTTP caching if the API supports it.
+    # However, OpenTopoData is a GET request, so hishel will cache it if headers allow.
+    # But individual point caching is tricky with batch requests.
+    # For now, we'll rely on the fact that we're refactoring for better architecture.
+    # If we need individual point caching, we should implement it at a higher level or
+    # split requests (which might be slower/rate-limited).
+    # Given the previous implementation did manual caching, we might want to preserve that
+    # but `hishel` caches the *request*. If we request the same batch, it's cached.
+    # If we request a subset, it's a new request.
+    # For simplicity and robustness, we'll rely on hishel for the batch request caching.
 
-def get_altitude_batch(locations: list[tuple[float, float]]) -> list[float | None]:
     all_elevations: list[float | None] = []
-    locations_to_query: list[tuple[float, float]] = []
 
-    for loc in locations:
-        lat, lon = loc
-        cache_key = f"elevation_{lat},{lon}"
-        cached_value = get_cached(cache_key)
-        if cached_value is not None and isinstance(cached_value, (int, float)):
-            all_elevations.append(float(cached_value))
-        else:
-            locations_to_query.append(loc)
-
+    # OpenTopoData allows max 100 locations per request
     max_locations_per_request = 100
-    max_calls_per_day = 1000
-    calls_made = 0
 
-    # Calculate number of batches for progress bar
-    num_batches = (
-        len(locations_to_query) + max_locations_per_request - 1
-    ) // max_locations_per_request
-    progress = create_progress("Fetching elevations")
+    for batch in chunked(locations, max_locations_per_request):
+        locations_param = "|".join([f"{lat},{lon}" for lat, lon in batch])
+        url = settings.opentopodata_api_url.format(locations=locations_param)
 
-    with progress:
-        task_id = progress.add_task("Fetching elevations", total=num_batches)
-        for batch in chunked(locations_to_query, max_locations_per_request):
-            if calls_made >= max_calls_per_day:
-                logger.warning("Reached maximum API calls for today. Using cached data only.")
+        try:
+            data = await client.get_json(url)
+
+            if "results" in data:
+                for result in data["results"]:
+                    elevation_raw = result.get("elevation")
+                    elevation: float | None = (
+                        float(elevation_raw)
+                        if elevation_raw is not None and isinstance(elevation_raw, (int, float))
+                        else None
+                    )
+                    all_elevations.append(elevation)
+            else:
+                logger.warning("No results in elevation API response for batch")
                 all_elevations.extend([None] * len(batch))
-                progress.advance(task_id)
-                continue
 
-            locations_param = "|".join([f"{lat},{lon}" for lat, lon in batch])
-            url = settings.opentopodata_api_url.format(locations=locations_param)
-
-            try:
-                logger.debug(
-                    "Fetching elevation for batch of %d locations (call %d)",
-                    len(batch),
-                    calls_made + 1,
-                )
-                progress.update(
-                    task_id,
-                    description=f"Fetching elevations: batch {calls_made + 1}/{num_batches}",
-                )
-                data = fetch_json_with_retry(url, calls_per_second=API_CALLS_PER_SECOND)
-
-                if "results" in data:
-                    for loc, result in zip(batch, data["results"], strict=True):
-                        lat, lon = loc
-                        elevation_raw = result.get("elevation")
-                        elevation: float | None = (
-                            float(elevation_raw)
-                            if elevation_raw is not None and isinstance(elevation_raw, (int, float))
-                            else None
-                        )
-                        all_elevations.append(elevation)
-
-                        cache_key = f"elevation_{lat},{lon}"
-                        set_cached(cache_key, elevation)
-                    logger.debug("Cached %d elevations", len(batch))
-                else:
-                    logger.warning("No results in elevation API response for batch")
-                    all_elevations.extend([None] * len(batch))
-
-                calls_made += 1
-                progress.advance(task_id)
-
-            except httpx.RequestError as e:
-                logger.warning("Failed to get elevation for batch: %s", e)
-                all_elevations.extend([None] * len(batch))
-                progress.advance(task_id)
-            except (KeyError, ValueError):
-                logger.exception("Error parsing elevation response")
-                all_elevations.extend([None] * len(batch))
-                progress.advance(task_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to get elevation for batch: %s", e)
+            all_elevations.extend([None] * len(batch))
 
     return all_elevations
-
-
-def get_altitude(lat: float, lon: float) -> float | None:
-    results = get_altitude_batch([(lat, lon)])
-    return results[0] if results else None
 
 
 def format_altitude(altitude: float | None) -> str:

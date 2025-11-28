@@ -31,7 +31,6 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "jinja2>=3.1.0",
     "playwright>=1.40.0",
-    "typed-diskcache[asyncio]>=0.6.0",
     "colormath>=3.0.0",
     "lxml>=5.0.0",
     "geopy>=2.4.0",
@@ -41,8 +40,10 @@ dependencies = [
     "langdetect>=1.0.9",
     "rich>=13.0.0",
     "tenacity>=8.2.0",
-    "ratelimit>=2.2.1",
     "python-dateutil>=2.8.0",
+    "hishel[httpx]>=0.0.30",
+    "aiolimiter>=1.1.0",
+    "diskcache>=5.6.0",
 ]
 
 [project.optional-dependencies]
@@ -125,18 +126,9 @@ show_error_codes = true
 warn_unreachable = true
 pretty = true
 
+
 [[tool.mypy.overrides]]
-module = [
-    "pytz.*",
-    "geopy.*",
-    "ratelimit.*",
-    "geopandas.*",
-    "lxml.*",
-    "shapely.*",
-    "colormath.*",
-    "langdetect.*",
-    "dateutil.*",
-]
+module = ["geopy.*", "colormath.*", "langdetect.*", "diskcache.*"]
 ignore_missing_imports = true
 
 [tool.vulture]

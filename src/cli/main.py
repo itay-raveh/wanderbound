@@ -12,7 +12,6 @@ from src.core.settings import settings
 from src.core.types import AlbumGenerationConfig, AlbumPhotoData
 from src.data.loader import load_trip_data
 from src.data.models import Step
-from src.pdf.generator import generate_pdf
 from src.photos.processor import process_step_photos
 from src.utils.steps import get_steps_distributed, get_steps_in_range
 
@@ -23,17 +22,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 console = get_console()
-
-
-def _validate_inputs(args: Any) -> Path:
-    trip_json = Path(args.trip_dir) / "trip.json"
-    if not trip_json.exists():
-        raise DataLoadError(
-            f"trip.json not found at {trip_json}. "
-            f"Please ensure the trip directory contains trip.json",
-            file_path=str(trip_json),
-        )
-    return trip_json
 
 
 def _filter_steps(all_steps: list[Step], args: Any) -> list[Step]:
@@ -102,24 +90,70 @@ def _open_file(file_path: Path, file_type: str) -> None:
         logger.warning("Failed to open %s: %s", file_type, e)
 
 
+def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
+    """Generate PDF file from HTML using Playwright.
+
+    Opens the HTML file in a headless Chromium browser and exports it as a PDF
+    with A4 landscape format. Requires Playwright to be installed.
+    """
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: PLC0415
+
+        logger.info("Generating PDF from HTML...")
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(f"file://{html_path.absolute()}")
+            page.wait_for_load_state("networkidle")
+            # Using module-level settings
+            page.set_viewport_size(
+                {"width": settings.pdf.viewport_width, "height": settings.pdf.viewport_height}
+            )
+
+            page.pdf(
+                path=str(pdf_path),
+                format="A4",
+                landscape=True,
+                print_background=True,
+                prefer_css_page_size=True,
+            )
+            browser.close()
+        logger.info("PDF generated: %s", pdf_path, extra={"success": True})
+    except ImportError:
+        logger.warning("Playwright not installed. Install with: playwright install chromium")
+        logger.info("Skipping PDF generation.")
+    except Exception:
+        logger.exception("Failed to generate PDF")
+        logger.info("You can still open the HTML file in your browser and print to PDF manually.")
+
+
 def main() -> None:
     args = parse_args()
-    trip_json = _validate_inputs(args)
 
-    with console.status("[bold blue]Loading trip data..."):
-        logger.debug("Loading trip data from %s", trip_json)
-        trip_data = load_trip_data(trip_json)
-        logger.debug("Trip data loaded successfully")
-
-    all_steps = trip_data.all_steps
-    if not all_steps:
+    trip_json_path = Path(args.trip_dir) / "trip.json"
+    if not trip_json_path.exists():
         raise DataLoadError(
-            f"No steps found in trip data. Please check that {trip_json} contains valid step data.",
-            file_path=str(trip_json),
+            f"trip.json not found at {trip_json_path}. "
+            f"Please ensure the trip directory contains trip.json",
+            file_path=str(trip_json_path),
         )
 
-    logger.info("Found %d total steps", len(all_steps))
-    steps = _filter_steps(all_steps, args)
+    logger.info("Found trip.json at %s", trip_json_path)
+
+    with console.status("[bold blue]Loading trip data..."):
+        logger.debug("Loading trip data from %s", trip_json_path)
+        trip_data = load_trip_data(trip_json_path)
+        logger.debug("Trip data loaded successfully")
+
+    if not trip_data.all_steps:
+        raise DataLoadError(
+            "No steps found in trip data."
+            f"Please check that {trip_json_path} contains valid step data.",
+            file_path=str(trip_json_path),
+        )
+
+    logger.info("Found %d total steps", len(trip_data.all_steps))
+    steps = _filter_steps(trip_data.all_steps, args)
 
     args.output.mkdir(parents=True, exist_ok=True)
     logger.debug("Output directory: %s", args.output)
@@ -150,7 +184,7 @@ def main() -> None:
         # Using module-level settings
         pdf_path = args.output / settings.file.album_pdf_file
         with console.status("[bold blue]Generating PDF..."):
-            generate_pdf(html_path, pdf_path)
+            _generate_pdf(html_path, pdf_path)
         logger.info("Generated: %s", pdf_path, extra={"success": True})
         if not args.no_open:
             _open_file(pdf_path, "PDF")

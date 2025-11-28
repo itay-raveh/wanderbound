@@ -1,12 +1,14 @@
 """Asset management and photo page processing for HTML generation."""
 
 import shutil
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from src.core.logger import get_logger
+from src.album.preparation import _clean_description
+from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.core.types import PhotoPageData
-from src.data.models import Photo
+from src.data.models import Photo, Step
 from src.photos.layout_engine import (
     is_one_portrait_two_landscapes,
     is_three_portraits,
@@ -16,7 +18,12 @@ from src.utils.paths import get_assets_path, get_font_path
 
 logger = get_logger(__name__)
 
-__all__ = ["copy_assets", "copy_image_to_assets", "process_photo_pages"]
+__all__ = [
+    "copy_assets",
+    "copy_image_to_assets",
+    "process_cover_images_batch",
+    "process_photo_pages",
+]
 
 
 def copy_image_to_assets(
@@ -109,3 +116,50 @@ def process_photo_pages(
             )
 
     return photo_pages_paths
+
+
+def process_cover_images_batch(
+    steps: list[Step],
+    steps_cover_photos: dict[int, Photo | None],
+    output_dir: Path,
+) -> list[str | None]:
+    logger.debug("Copying cover images to assets...")
+    image_progress = create_progress("Processing images")
+    cover_image_path_list: list[str | None] = [None] * len(steps)
+
+    def _process_cover_image(step: Step) -> str | None:
+        cover_photo = steps_cover_photos.get(step.id) if step.id else None
+        description = _clean_description(step.description or "")
+        # Using module-level settings
+        use_three_columns = len(description) > settings.description_three_columns_threshold
+        use_two_columns = (
+            len(description) > settings.description_two_columns_threshold or use_three_columns
+        )
+        if cover_photo and cover_photo.path.exists() and not use_two_columns:
+            step_name = step.get_name_for_photos_export()
+            return copy_image_to_assets(
+                cover_photo.path,
+                output_dir,
+                step_name,
+                cover_photo.index,
+            )
+        return None
+
+    with image_progress:
+        task_id = image_progress.add_task("Processing images", total=len(steps))
+        with ThreadPoolExecutor(max_workers=5) as image_executor:
+            image_future_to_index: dict[Future[str | None], int] = {
+                image_executor.submit(_process_cover_image, step): idx
+                for idx, step in enumerate(steps)
+            }
+            for future in as_completed(image_future_to_index):
+                idx = image_future_to_index[future]
+                try:
+                    result = future.result()
+                    cover_image_path_list[idx] = result
+                    image_progress.advance(task_id)
+                except (OSError, ValueError, AttributeError) as e:
+                    logger.warning("Failed to process cover image for step %d: %s", idx, e)
+                    image_progress.advance(task_id)
+    logger.debug("Processed %d cover images", len(cover_image_path_list))
+    return cover_image_path_list

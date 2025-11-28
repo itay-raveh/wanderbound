@@ -1,10 +1,10 @@
-"""Type aliases and TypedDict definitions for commonly used data structures."""
+"""Type aliases and Pydantic models for commonly used data structures."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
-    from src.data.models import Photo, Step, TripData
+    from src.data.models import FlagResult, MapResult, Photo, Step, TripData, WeatherResult
 
 
 class PhotoPageData(TypedDict):
@@ -13,7 +13,7 @@ class PhotoPageData(TypedDict):
     is_portrait_landscape_split: bool
 
 
-class StepData(TypedDict, total=False):
+class StepData(TypedDict):
     city: str
     country: str
     country_code: str
@@ -48,11 +48,11 @@ class StepData(TypedDict, total=False):
     light_mode: bool
 
 
-class StepExternalData(TypedDict, total=False):
+class StepExternalData(TypedDict):
     elevation: float | None
-    weather_data: object  # WeatherData Pydantic model
-    flag_data: tuple[str | None, str | None] | None
-    map_data: tuple[str | None, str | None, tuple[float, float] | None] | None
+    weather_data: "WeatherResult | None"
+    flag_data: "FlagResult | None"
+    map_data: "MapResult | None"
     cover_image_path: str | None
 
 

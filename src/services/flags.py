@@ -5,7 +5,6 @@ import hashlib
 import io
 from collections import Counter
 
-import httpx
 from colormath.color_conversions import convert_color
 from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
@@ -13,8 +12,8 @@ from PIL import Image
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-
-from .utils import fetch_and_cache_content_async, get_cached, set_cached
+from src.data.models import FlagResult
+from src.services.utils import APIClient
 
 logger = get_logger(__name__)
 
@@ -266,35 +265,25 @@ def extract_prominent_color_from_flag(
         return color
 
 
-async def get_country_flag_data_uri_async(
-    client: httpx.AsyncClient, country_code: str
-) -> str | None:
-    """Get country flag image as data URI (async)."""
+async def get_flag_data(
+    client: APIClient, country_code: str, step_index: int, *, light_mode: bool
+) -> FlagResult:
+    """Get country flag image and extracted accent color."""
     if not country_code:
-        return None
+        return FlagResult(step_index=step_index)
 
-    cache_key = f"flag_{country_code.lower()}"
-    cached = get_cached(cache_key)
-    if cached is not None and isinstance(cached, str):
-        return str(cached)
+    url = settings.flag_cdn_url.format(country_code=country_code.lower())
 
     try:
-        url = settings.flag_cdn_url.format(country_code=country_code.lower())
-        content = await fetch_and_cache_content_async(
-            client,
-            cache_key=f"flag_raw_{country_code.lower()}",
-            url=url,
-            request_timeout=5.0,
-            max_attempts=3,
-        )
-        if content is None:
-            return None
-
+        content = await client.get_content(url)
         image_data = base64.b64encode(content).decode("utf-8")
-        data_uri = f"data:image/png;base64,{image_data}"
-        set_cached(cache_key, data_uri)
-    except (httpx.RequestError, httpx.HTTPStatusError, ValueError, KeyError) as e:
+        flag_url = f"data:image/png;base64,{image_data}"
+
+        accent_color = extract_prominent_color_from_flag(
+            flag_url, country_code, light_mode=light_mode
+        )
+
+        return FlagResult(step_index=step_index, flag_url=flag_url, accent_color=accent_color)
+    except Exception as e:  # noqa: BLE001
         logger.warning("Failed to get flag for %s: %s", country_code, e)
-        return None
-    else:
-        return data_uri
+        return FlagResult(step_index=step_index)

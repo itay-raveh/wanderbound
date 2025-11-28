@@ -1,5 +1,6 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
+import asyncio
 import shutil
 from pathlib import Path
 
@@ -12,21 +13,37 @@ from src.core.types import (
     StepData,
     StepExternalData,
 )
-from src.data.models import Step
-
-from .assets import process_photo_pages
-from .batch_fetching import (
+from src.data.models import FlagResult, MapResult, Step, WeatherResult
+from src.services.batch import (
     fetch_altitudes,
     fetch_flags_batch,
     fetch_maps_batch,
     fetch_weather_data_batch,
-    process_cover_images_batch,
 )
+
+from .assets import process_cover_images_batch, process_photo_pages
 from .preparation import prepare_step_data
 from .renderer import create_template_environment, render_album_template
 
 logger = get_logger(__name__)
 console = get_console()
+
+
+async def _fetch_all_data(
+    steps: list[Step], *, light_mode: bool
+) -> tuple[
+    list[float | None],
+    list[WeatherResult],
+    list[FlagResult],
+    list[MapResult],
+]:
+    """Fetch all external data concurrently."""
+    return await asyncio.gather(
+        fetch_altitudes(steps),
+        fetch_weather_data_batch(steps),
+        fetch_flags_batch(steps, light_mode=light_mode),
+        fetch_maps_batch(steps),
+    )
 
 
 def generate_album_html(
@@ -58,10 +75,15 @@ def generate_album_html(
                 shutil.copy2(item, dest)
 
     # Batch fetch all external data in parallel
-    elevations = fetch_altitudes(steps)
-    weather_data_list = fetch_weather_data_batch(steps)
-    flag_data_list = fetch_flags_batch(steps, light_mode=light_mode)
-    map_data_list = fetch_maps_batch(steps)
+    # We run the async fetcher in a synchronous context
+    (
+        elevations,
+        weather_data_list,
+        flag_data_list,
+        map_data_list,
+    ) = asyncio.run(_fetch_all_data(steps, light_mode=light_mode))
+
+    # Process cover images (CPU bound, uses ThreadPoolExecutor internally)
     cover_image_path_list = process_cover_images_batch(steps, steps_cover_photos, output_dir)
 
     # Prepare template environment
@@ -79,9 +101,9 @@ def generate_album_html(
         for idx, (
             step,
             elevation,
-            weather_data,
-            flag_data,
-            map_data,
+            weather_result,
+            flag_result,
+            map_result,
             cover_image_path,
         ) in enumerate(
             progress.track(
@@ -100,10 +122,10 @@ def generate_album_html(
             logger.debug("Processing step %d/%d: %s", idx + 1, len(steps), step.city)
             progress.update(task_id, description=f"Preparing steps: {step.city}")
 
-            # Skip steps with missing weather data
-            if weather_data is None:
-                logger.warning("Skipping step %d (%s) due to missing weather data", idx, step.city)
-                continue
+            # Skip steps with missing weather data if critical, but here we just log
+            # The preparation logic handles missing data gracefully
+            if weather_result.data is None:
+                logger.debug("Missing weather data for step %d (%s)", idx, step.city)
 
             steps_cover_photos.get(step.id) if step.id else None
             photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
@@ -118,11 +140,12 @@ def generate_album_html(
 
             external_data: StepExternalData = {
                 "elevation": elevation,
-                "weather_data": weather_data,
-                "flag_data": flag_data,
-                "map_data": map_data,
+                "weather_data": weather_result,
+                "flag_data": flag_result,
+                "map_data": map_result,
                 "cover_image_path": cover_image_path,
             }
+
             step_context: StepContext = {
                 "step": step,
                 "step_index": idx,

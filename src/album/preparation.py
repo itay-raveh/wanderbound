@@ -8,7 +8,7 @@ from src.core.formatting import format_coordinates, format_date, format_weather_
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import StepContext, StepData, StepExternalData
-from src.data.models import Step, TripData
+from src.data.models import MapResult, Step, TripData
 from src.services.altitude import format_altitude
 from src.services.weather import WeatherData
 from src.utils.dates import calculate_day_number
@@ -109,18 +109,12 @@ def _calculate_progress(
     if use_step_range:
         day_num = step_index + 1
         progress_percent = (day_num / len(steps)) * 100 if steps else 0
-    elif trip_data.start_date is None:
-        progress_percent = 0
-        day_num = 1
     else:
         day_num = calculate_day_number(step.start_time, trip_data.start_date, trip_data.timezone_id)
-        if trip_data.end_date is not None:
-            total_days = calculate_day_number(
-                trip_data.end_date, trip_data.start_date, trip_data.timezone_id
-            )
-            progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
-        else:
-            progress_percent = 0
+        total_days = calculate_day_number(
+            trip_data.end_date, trip_data.start_date, trip_data.timezone_id
+        )
+        progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
 
     return day_num, progress_percent
 
@@ -140,12 +134,11 @@ def _calculate_progress_positions(progress_percent: float) -> tuple[float, float
 
 
 def _extract_map_data(
-    map_data: tuple[str | None, str | None, tuple[float, float] | None] | None,
+    map_result: MapResult | None,
 ) -> tuple[str | None, str | None, float | None, float | None]:
-    if map_data and isinstance(map_data, tuple) and len(map_data) == 3:
-        country_map_data_uri, country_map_svg, dot_pos = map_data
-        map_dot_x, map_dot_y = dot_pos if dot_pos else (None, None)
-        return country_map_data_uri, country_map_svg, map_dot_x, map_dot_y
+    if map_result:
+        map_dot_x, map_dot_y = map_result.dot_position if map_result.dot_position else (None, None)
+        return map_result.map_url, map_result.svg_content, map_dot_x, map_dot_y
     return None, None, None, None
 
 
@@ -181,10 +174,12 @@ def prepare_step_data(
     trip_data = context["trip_data"]
 
     elevation = external_data.get("elevation")
-    weather_data_raw = external_data.get("weather_data")
-    weather_data = weather_data_raw if isinstance(weather_data_raw, WeatherData) else WeatherData()
-    flag_data = external_data.get("flag_data")
-    map_data = external_data.get("map_data")
+
+    weather_result = external_data.get("weather_data")
+    weather_data = weather_result.data if weather_result and weather_result.data else WeatherData()
+
+    flag_result = external_data.get("flag_data")
+    map_result = external_data.get("map_data")
     cover_image_path = external_data.get("cover_image_path")
 
     description = _clean_description(step.description or "")
@@ -206,7 +201,7 @@ def prepare_step_data(
 
     box_center_position, arrow_bar_position = _calculate_progress_positions(progress_percent)
 
-    country_map_data_uri, country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_data)
+    country_map_data_uri, country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_result)
 
     date_data = format_date(step.start_time, step.timezone_id)
     coords_data = format_coordinates(step.location.lat, step.location.lon)
@@ -235,7 +230,8 @@ def prepare_step_data(
         weather_data, step, settings
     )
 
-    country_flag_data_uri, accent_color = flag_data if flag_data else (None, None)
+    country_flag_data_uri = flag_result.flag_url if flag_result else None
+    accent_color = flag_result.accent_color if flag_result else None
 
     day_temp_display = day_temp_api
     temp_str = _format_temperature(day_temp_display, day_feels_like)
@@ -273,4 +269,5 @@ def prepare_step_data(
         "use_two_columns": use_two_columns,
         "use_three_columns": use_three_columns,
         "light_mode": light_mode,
+        "photo_pages": [],  # Will be populated later
     }

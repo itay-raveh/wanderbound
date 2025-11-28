@@ -8,62 +8,41 @@ from pydantic import BaseModel, Field, field_validator
 
 class Location(BaseModel):
     id: int
-    name: str | None = None
+    name: str
     detail: str | None = None
     full_detail: str | None = None
-    country_code: str
-    lat: float
-    lon: float
+    country_code: str = Field(..., min_length=2, max_length=2)
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
     venue: str | None = None
-    uuid: str | None = None
-
-    @field_validator("lat")
-    @classmethod
-    def validate_latitude(cls, v: float) -> float:
-        if not -90 <= v <= 90:
-            raise ValueError(f"Latitude must be between -90 and 90, got {v}")
-        return v
-
-    @field_validator("lon")
-    @classmethod
-    def validate_longitude(cls, v: float) -> float:
-        if not -180 <= v <= 180:
-            raise ValueError(f"Longitude must be between -180 and 180, got {v}")
-        return v
+    uuid: str
 
 
 class Step(BaseModel):
     id: int
-    trip_id: int | None = None
+    trip_id: int
     name: str | None = None
     display_name: str
-    slug: str | None = None
-    display_slug: str | None = None
+    slug: str
+    display_slug: str
     description: str | None = None
     location: Location
-    location_id: int | None = None
-    start_time: float
+    location_id: int
+    start_time: float = Field(..., gt=0)
     end_time: float | None = None
     timezone_id: str
-    weather_condition: str | None = None
-    weather_temperature: float | None = None
+    weather_condition: str
+    weather_temperature: float
     main_media_item_path: str | None = None
-    comment_count: int | None = None
-    views: int | None = None
-    is_deleted: bool | None = None
-    type: str | int | None = None  # Can be string or int in the data
-    supertype: str | None = None
-    creation_time: float | None = None
+    comment_count: int = Field(ge=0)
+    views: int = Field(ge=0)
+    is_deleted: bool
+    type: str | int
+    supertype: str
+    creation_time: float
     fb_publish_status: str | None = None
     open_graph_id: str | None = None
-    uuid: str | None = None
-
-    @field_validator("start_time")
-    @classmethod
-    def validate_start_time(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError(f"start_time must be a positive Unix timestamp, got {v}")
-        return v
+    uuid: str
 
     @field_validator("end_time")
     @classmethod
@@ -91,61 +70,50 @@ class Step(BaseModel):
 
 
 class TripData(BaseModel):
-    id: int | None = None
-    name: str | None = None
-    start_date: float | None = None
-    end_date: float | None = None
+    id: int
+    name: str
+    start_date: float
+    end_date: float
     timezone_id: str = "UTC"
     all_steps: list[Step] = Field(default_factory=list)
-    total_km: float | None = None
-    step_count: int | None = None
+    total_km: float = Field(ge=0)
+    step_count: int = Field(ge=0)
 
 
 class WeatherData(BaseModel):
-    day_temp: float | None = None
-    night_temp: float | None = None
-    day_feels_like: float | None = None
-    night_feels_like: float | None = None
+    day_temp: float | None = Field(default=None, ge=-100, le=100)
+    night_temp: float | None = Field(default=None, ge=-100, le=100)
+    day_feels_like: float | None = Field(default=None, ge=-100, le=100)
+    night_feels_like: float | None = Field(default=None, ge=-100, le=100)
     day_icon: str | None = None
     night_icon: str | None = None
 
-    @field_validator("day_temp", "night_temp", "day_feels_like", "night_feels_like")
-    @classmethod
-    def validate_temperature(cls, v: float | None) -> float | None:
-        # Reasonable range: -100°C to 100°C (covers all Earth temperatures)
-        if v is not None and not -100 <= v <= 100:
-            raise ValueError(f"Temperature must be between -100 and 100°C, got {v}")
-        return v
+
+class WeatherResult(BaseModel):
+    step_index: int
+    data: WeatherData | None = None
+
+
+class FlagResult(BaseModel):
+    step_index: int
+    flag_url: str | None = None
+    accent_color: str | None = None
+
+
+class MapResult(BaseModel):
+    step_index: int
+    map_url: str | None = None
+    svg_content: str | None = None
+    dot_position: tuple[float, float] | None = None
 
 
 class Photo(BaseModel):
-    id: str  # Filename
-    index: int  # Order index (1-based)
-    path: Path  # Full path to photo file
-    width: int | None = None
-    height: int | None = None
-    aspect_ratio: float | None = None
-
-    @field_validator("index")
-    @classmethod
-    def validate_index(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError(f"Photo index must be positive, got {v}")
-        return v
-
-    @field_validator("width", "height")
-    @classmethod
-    def validate_dimensions(cls, v: int | None) -> int | None:
-        if v is not None and v <= 0:
-            raise ValueError(f"Photo dimensions must be positive, got {v}")
-        return v
-
-    @field_validator("aspect_ratio")
-    @classmethod
-    def validate_aspect_ratio(cls, v: float | None) -> float | None:
-        if v is not None and v <= 0:
-            raise ValueError(f"Aspect ratio must be positive, got {v}")
-        return v
+    id: str
+    index: int = Field(..., gt=0)
+    path: Path
+    width: int | None = Field(default=None, gt=0)
+    height: int | None = Field(default=None, gt=0)
+    aspect_ratio: float | None = Field(default=None, gt=0)
 
     def to_dict(self) -> dict[str, Any]:
         return {

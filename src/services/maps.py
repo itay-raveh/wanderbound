@@ -3,17 +3,17 @@
 import base64
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import geopandas as gpd
-import httpx
 from lxml import etree
 from shapely.geometry import MultiPolygon, Point, Polygon
 
+from src.core.cache import DATA_CACHE_DIR, get_cached, set_cached
 from src.core.logger import get_logger
 from src.core.settings import settings
-
-from .utils import CACHE_DIR, get_cached, set_cached
+from src.data.models import MapResult
+from src.services.utils import APIClient
 
 logger = get_logger(__name__)
 
@@ -97,12 +97,12 @@ def _load_country_bounds() -> dict[str, Any]:
     return _COUNTRY_BOUNDS
 
 
-def _load_natural_earth_data(country_code: str) -> Any | None:
+async def _load_natural_earth_data(client: APIClient, country_code: str) -> Any | None:
     """Load Natural Earth GeoJSON data from cache or download it."""
     ne_50m_url = settings.natural_earth_geojson_url
     cache_key_data = "ne_50m_admin_0_countries"
 
-    cache_file = CACHE_DIR / f"{cache_key_data}.geojson"
+    cache_file = DATA_CACHE_DIR / f"{cache_key_data}.geojson"
     if cache_file.exists():
         try:
             return gpd.read_file(str(cache_file))
@@ -111,10 +111,13 @@ def _load_natural_earth_data(country_code: str) -> Any | None:
 
     try:
         logger.info("Downloading Natural Earth 50m data for %s...", country_code)
-        world = gpd.read_file(ne_50m_url)
-        world.to_file(str(cache_file), driver="GeoJSON")
+        content = await client.get_content(ne_50m_url)
+        with cache_file.open("wb") as f:
+            f.write(content)
+
+        world = gpd.read_file(str(cache_file))
         logger.debug("Cached Natural Earth data to %s", cache_file)
-    except OSError:
+    except Exception:
         logger.exception("Failed to download Natural Earth 50m data")
         return None
     else:
@@ -181,13 +184,13 @@ def _polygon_to_svg_path(polygon: Polygon, flip_y: tuple[float, float] | None = 
     """Convert Polygon geometry to SVG path."""
     path_parts = []
     # Exterior ring
-    exterior_coords = list(polygon.exterior.coords)
+    exterior_coords = [(float(c[0]), float(c[1])) for c in polygon.exterior.coords]
     if len(exterior_coords) >= 2:
         path_parts.append(_coords_to_svg_path(exterior_coords, closed=True, flip_y=flip_y))
 
     # Interior rings (holes)
     for interior in polygon.interiors:
-        interior_coords = list(interior.coords)
+        interior_coords = [(float(c[0]), float(c[1])) for c in interior.coords]
         if len(interior_coords) >= 2:
             path_parts.append(_coords_to_svg_path(interior_coords, closed=True, flip_y=flip_y))
 
@@ -219,7 +222,7 @@ def _geometry_to_svg_path(geometry: Any, flip_y: tuple[float, float] | None = No
 
     # Fallback: try to get coordinates
     try:
-        coords = list(geometry.coords)
+        coords = [(float(c[0]), float(c[1])) for c in geometry.coords]
         closed = getattr(geometry, "is_closed", False)
         return _coords_to_svg_path(coords, closed=closed, flip_y=flip_y)
     except (AttributeError, TypeError):
@@ -252,7 +255,7 @@ def _generate_svg_plot(gdf: Any, width: int, height: int) -> tuple[str, list[flo
     # Create group for paths
     # SVG Y-axis increases downward, geographic coordinates increase upward (north)
     # We'll flip Y coordinates directly in path generation around the center
-    group = etree.SubElement(root, f"{{{svg_ns}}}g")
+    group: Any = etree.SubElement(root, f"{{{svg_ns}}}g")
     group.set("fill", "#ffffff")
     group.set("stroke", "none")
 
@@ -302,20 +305,16 @@ def _process_svg_with_geo_attributes(
 
     # Set all fills to white
     for elem in root.iter():
-        if (
-            elem.tag.endswith("path")
-            or elem.tag.endswith("polygon")
-            or elem.tag.endswith("circle")
-            or elem.tag.endswith("rect")
-        ) or "fill" in elem.attrib:
+        tag = str(elem.tag)
+        if (tag.endswith(("path", "polygon", "circle", "rect"))) or "fill" in elem.attrib:
             elem.set("fill", "#ffffff")
 
     svg_str = etree.tostring(root, encoding="unicode", pretty_print=False)
     return str(svg_str)
 
 
-def _generate_geo_calibrated_svg(
-    country_code: str, width: int = 1024, height: int = 1024
+async def _generate_geo_calibrated_svg(
+    client: APIClient, country_code: str, width: int = 1024, height: int = 1024
 ) -> str | None:
     """Generate a geo-calibrated SVG map of a country using geopandas and Natural Earth Data.
 
@@ -325,7 +324,7 @@ def _generate_geo_calibrated_svg(
     country_code_lower = country_code.lower()
 
     try:
-        world = _load_natural_earth_data(country_code)
+        world = await _load_natural_earth_data(client, country_code)
         if world is None:
             return None
 
@@ -375,28 +374,6 @@ def _generate_geo_calibrated_svg(
         return None
 
 
-def get_country_map_svg(
-    country_code: str, _lat: float | None = None, _lon: float | None = None
-) -> str | None:
-    """Get country map/silhouette as raw SVG string."""
-    if not country_code:
-        return None
-
-    cache_key_svg = f"map_svg_{country_code.lower()}"
-    cached_svg = get_cached(cache_key_svg)
-    if cached_svg is not None and isinstance(cached_svg, str):
-        return str(cached_svg)
-
-    # Generate geo-calibrated SVG
-    svg_data = _generate_geo_calibrated_svg(country_code)
-    if svg_data:
-        set_cached(cache_key_svg, svg_data)
-        return svg_data
-
-    logger.warning("Failed to generate geo-calibrated SVG for %s", country_code)
-    return None
-
-
 def _calculate_position_from_projected_bounds(
     lat: float, lon: float, proj_bounds: list[float], crs_str: str
 ) -> tuple[float, float] | None:
@@ -405,8 +382,9 @@ def _calculate_position_from_projected_bounds(
         point_geo = gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
         point_proj = point_geo.to_crs(crs_str)
 
-        proj_x = point_proj.geometry.iloc[0].x
-        proj_y = point_proj.geometry.iloc[0].y
+        geom = cast("Point", point_proj.geometry.iloc[0])
+        proj_x = geom.x
+        proj_y = geom.y
 
         proj_min_x, proj_min_y, proj_max_x, proj_max_y = proj_bounds
         proj_width = proj_max_x - proj_min_x
@@ -522,8 +500,9 @@ def get_country_map_dot_position(
     if not country_code:
         return (50.0, 50.0)
 
-    if svg_data is None:
-        svg_data = get_country_map_svg(country_code.lower())
+    # Note: This function is now synchronous and expects svg_data to be provided
+    # or it will try to load from cache/generate synchronously which might fail if not cached.
+    # In the new architecture, svg_data should be passed from MapResult.
 
     if svg_data:
         root = _parse_svg_with_lxml(svg_data)
@@ -543,50 +522,41 @@ def get_country_map_dot_position(
     return position if position is not None else (50.0, 50.0)
 
 
-async def get_country_map_svg_async(
-    _client: httpx.AsyncClient,
+async def get_map_data(
+    client: APIClient,
     country_code: str,
-    _lat: float | None = None,
-    _lon: float | None = None,
-) -> str | None:
-    """Get country map/silhouette as raw SVG string (async)."""
+    step_index: int,
+    lat: float | None = None,
+    lon: float | None = None,
+) -> MapResult:
+    """Get country map SVG and dot position."""
     if not country_code:
-        return None
+        return MapResult(step_index=step_index)
 
     cache_key_svg = f"map_svg_{country_code.lower()}"
     cached_svg = get_cached(cache_key_svg)
-    if cached_svg is not None and isinstance(cached_svg, str):
-        return str(cached_svg)
 
-    # Generate geo-calibrated SVG
-    try:
-        svg_data = _generate_geo_calibrated_svg(country_code)
+    svg_data: str | None = None
+    if cached_svg is not None and isinstance(cached_svg, str):
+        svg_data = str(cached_svg)
+    else:
+        svg_data = await _generate_geo_calibrated_svg(client, country_code)
         if svg_data:
             set_cached(cache_key_svg, svg_data)
-            return svg_data
-    except (OSError, ValueError, KeyError, AttributeError, TypeError) as e:
-        logger.warning("Failed to generate geo-calibrated SVG for %s: %s", country_code, e)
 
-    return None
+    if not svg_data:
+        return MapResult(step_index=step_index)
 
+    svg_encoded = base64.b64encode(svg_data.encode("utf-8")).decode("utf-8")
+    map_url = f"data:image/svg+xml;base64,{svg_encoded}"
 
-async def get_country_map_data_uri_async(
-    client: httpx.AsyncClient,
-    country_code: str,
-    lat: float | None = None,
-    lon: float | None = None,
-) -> str | None:
-    """Get country map/silhouette image as data URI (async)."""
-    svg_data = await get_country_map_svg_async(client, country_code, lat, lon)
-    if svg_data:
-        cache_key = f"map_{country_code.lower()}"
-        cached = get_cached(cache_key)
-        if cached is not None and isinstance(cached, str):
-            return str(cached)
+    dot_position = None
+    if lat is not None and lon is not None:
+        dot_position = get_country_map_dot_position(country_code, lat, lon, svg_data)
 
-        svg_encoded = base64.b64encode(svg_data.encode("utf-8")).decode("utf-8")
-        data_uri = f"data:image/svg+xml;base64,{svg_encoded}"
-        set_cached(cache_key, data_uri)
-        return data_uri
-
-    return None
+    return MapResult(
+        step_index=step_index,
+        map_url=map_url,
+        svg_content=svg_data,
+        dot_position=dot_position,
+    )
