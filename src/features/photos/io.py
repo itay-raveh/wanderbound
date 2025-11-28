@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from src.logger import get_logger
-from src.models import Photo
+from src.core.logger import get_logger
+from src.data.models import Photo
 
 logger = get_logger(__name__)
 

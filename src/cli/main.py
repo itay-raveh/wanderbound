@@ -5,20 +5,21 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .cli import parse_args, parse_step_range
-from .data_loader import load_trip_data
-from .exceptions import DataLoadError
-from .html_generator import generate_album_html
-from .logger import create_progress, get_console, get_logger
-from .models import Step
-from .output.pdf_generator import generate_pdf
-from .photo_processor import process_step_photos
-from .settings import settings
-from .type_definitions import AlbumGenerationConfig, AlbumPhotoData
-from .utils.steps import get_steps_distributed, get_steps_in_range
+from src.core.exceptions import DataLoadError
+from src.core.logger import create_progress, get_console, get_logger
+from src.core.settings import settings
+from src.core.types import AlbumGenerationConfig, AlbumPhotoData
+from src.data.loader import load_trip_data
+from src.data.models import Step
+from src.features.html.generator import generate_album_html
+from src.features.photos.processor import process_step_photos
+from src.output.pdf_generator import generate_pdf
+from src.utils.steps import get_steps_distributed, get_steps_in_range
+
+from .args import parse_args, parse_step_range
 
 if TYPE_CHECKING:
-    from .models import Photo
+    from src.data.models import Photo
 
 logger = get_logger(__name__)
 console = get_console()
@@ -210,10 +211,12 @@ def main() -> None:
         with console.status("[bold blue]Generating PDF..."):
             generate_pdf(html_path, pdf_path)
         logger.info("Generated: %s", pdf_path, extra={"success": True})
-        _open_file(pdf_path, "PDF")
+        if not args.no_open:
+            _open_file(pdf_path, "PDF")
     else:
         logger.info("Album generated successfully!", extra={"success": True})
-        _open_file(html_path, "HTML")
+        if not args.no_open:
+            _open_file(html_path, "HTML")
 
 
 if __name__ == "__main__":

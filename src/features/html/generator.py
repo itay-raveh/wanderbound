@@ -2,27 +2,28 @@
 
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from .html_gen.batch_fetching import (
+from src.core.logger import create_progress, get_console, get_logger
+from src.core.settings import settings
+from src.core.types import (
+    AlbumGenerationConfig,
+    AlbumPhotoData,
+    StepContext,
+    StepData,
+    StepExternalData,
+)
+from src.data.models import Step
+
+from .assets import process_photo_pages
+from .batch_fetching import (
     fetch_altitudes,
     fetch_flags_batch,
     fetch_maps_batch,
     fetch_weather_data_batch,
     process_cover_images_batch,
 )
-from .html_gen.photo_pages import process_photo_pages
-from .html_gen.step_data_preparation import prepare_step_data
-from .logger import create_progress, get_console, get_logger
-from .models import Step
-from .settings import settings
-from .template_renderer import create_template_environment, render_album_template
-from .type_definitions import AlbumGenerationConfig, AlbumPhotoData, StepContext
-
-if TYPE_CHECKING:
-    from src.type_definitions import StepExternalData
-
-    from .type_definitions import StepData
+from .preparation import prepare_step_data
+from .renderer import create_template_environment, render_album_template
 
 logger = get_logger(__name__)
 console = get_console()
@@ -57,7 +58,7 @@ def generate_album_html(
 
     # Copy entire static folder to output directory
     # From src/html_generator.py: parent=src/, parent.parent=project root
-    static_dir = Path(__file__).parent.parent / "static"
+    static_dir = Path(__file__).parent.parent.parent.parent / "static"
     if static_dir.exists():
         # Copy all contents of static/ to output/
         for item in static_dir.iterdir():

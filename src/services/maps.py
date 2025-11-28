@@ -10,10 +10,10 @@ import httpx
 from lxml import etree
 from shapely.geometry import MultiPolygon, Point, Polygon
 
-from src.logger import get_logger
-from src.settings import settings
+from src.core.logger import get_logger
+from src.core.settings import settings
 
-from .cache import CACHE_DIR, get_cached, set_cached
+from .utils import CACHE_DIR, get_cached, set_cached
 
 logger = get_logger(__name__)
 

@@ -3,11 +3,10 @@
 import httpx
 from more_itertools import chunked
 
-from src.logger import create_progress, get_logger
-from src.settings import settings
+from src.core.logger import create_progress, get_logger
+from src.core.settings import settings
 
-from .cache import get_cached, set_cached
-from .rate_limit import fetch_json_with_retry
+from .utils import fetch_json_with_retry, get_cached, set_cached
 
 logger = get_logger(__name__)
 

@@ -6,20 +6,24 @@ from pathlib import Path
 
 import httpx
 
-from src.apis import (
+from src.core.logger import create_progress, get_console, get_logger
+from src.core.settings import settings
+from src.data.models import Photo, Step
+from src.services.altitude import get_altitude_batch
+from src.services.flags import (
     extract_prominent_color_from_flag,
-    get_altitude_batch,
-    get_country_map_dot_position,
+    get_country_flag_data_uri_async,
 )
-from src.apis.flags import get_country_flag_data_uri_async
-from src.apis.helpers import create_async_client
-from src.apis.maps import get_country_map_data_uri_async, get_country_map_svg_async
-from src.apis.weather import WeatherData, get_weather_data_async
-from src.html_gen.asset_management import copy_image_to_assets
-from src.html_gen.step_data_preparation import _clean_description
-from src.logger import create_progress, get_console, get_logger
-from src.models import Photo, Step
-from src.settings import settings
+from src.services.maps import (
+    get_country_map_data_uri_async,
+    get_country_map_dot_position,
+    get_country_map_svg_async,
+)
+from src.services.utils import create_async_client
+from src.services.weather import WeatherData, get_weather_data_async
+
+from .assets import copy_image_to_assets
+from .preparation import _clean_description
 
 logger = get_logger(__name__)
 console = get_console()

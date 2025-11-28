@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
-    from src.models import Photo, Step, TripData
+    from src.data.models import Photo, Step, TripData
 
 
 class PhotoPageData(TypedDict):

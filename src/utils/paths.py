@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from src.exceptions import ConfigurationError
-from src.models import Step
-from src.settings import settings
+from src.core.exceptions import ConfigurationError
+from src.core.settings import settings
+from src.data.models import Step
 
 __all__ = ["get_assets_path", "get_font_path", "get_step_photo_dir"]
 
@@ -18,7 +18,9 @@ def get_font_path() -> Path:
     Raises:
         ConfigurationError: If settings cannot be loaded.
     """
-    font_path = Path(__file__).parent.parent / settings.file.static_dir / settings.file.font_file
+    font_path = (
+        Path(__file__).parent.parent.parent / settings.file.static_dir / settings.file.font_file
+    )
     if not font_path.exists():
         raise ConfigurationError(
             f"Font file not found at {font_path}. "

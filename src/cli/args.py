@@ -61,6 +61,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use light mode instead of dark mode (default: dark mode)",
     )
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Do not automatically open the generated album in the browser",
+    )
 
     return parser.parse_args()
 

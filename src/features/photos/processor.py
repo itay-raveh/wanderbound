@@ -2,15 +2,13 @@
 
 from pathlib import Path
 
-from .image_selector import (
-    compute_default_photos_by_pages,
-    load_step_photos,
-    select_cover_photo,
-    should_use_cover_photo,
-)
-from .logger import get_logger
-from .models import Photo, Step
-from .utils.paths import get_step_photo_dir
+from src.core.logger import get_logger
+from src.data.models import Photo, Step
+from src.utils.paths import get_step_photo_dir
+
+from .io import load_step_photos
+from .layout_engine import select_cover_photo, should_use_cover_photo
+from .scorer import compute_default_photos_by_pages
 
 logger = get_logger(__name__)
 

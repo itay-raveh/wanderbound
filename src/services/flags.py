@@ -11,11 +11,10 @@ from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
 from PIL import Image
 
-from src.logger import get_logger
-from src.settings import settings
+from src.core.logger import get_logger
+from src.core.settings import settings
 
-from .cache import get_cached, set_cached
-from .helpers import fetch_and_cache_content_async
+from .utils import fetch_and_cache_content_async, get_cached, set_cached
 
 logger = get_logger(__name__)
 

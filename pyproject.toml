@@ -58,7 +58,7 @@ dev = [
 ]
 
 [project.scripts]
-polarsteps-album = "src.main:main"
+polarsteps-album = "src.cli.main:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

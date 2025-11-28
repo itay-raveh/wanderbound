@@ -3,8 +3,9 @@
 import json
 from pathlib import Path
 
-from .exceptions import DataLoadError
-from .logger import get_logger
+from src.core.exceptions import DataLoadError
+from src.core.logger import get_logger
+
 from .models import Location, Step, TripData
 
 logger = get_logger(__name__)

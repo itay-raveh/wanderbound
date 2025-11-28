@@ -4,8 +4,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
-from .logger import get_logger
-from .type_definitions import StepData
+from src.core.logger import get_logger
+from src.core.types import StepData
 
 logger = get_logger(__name__)
 
@@ -20,7 +20,7 @@ def create_template_environment() -> Environment:
     """
     # Template is in static/ folder at project root
     # From src/template_renderer.py: parent=src/, parent.parent=project root
-    template_dir = Path(__file__).parent.parent / "static"
+    template_dir = Path(__file__).parent.parent.parent.parent / "static"
     return Environment(
         loader=FileSystemLoader(str(template_dir)), autoescape=select_autoescape(["html", "xml"])
     )
