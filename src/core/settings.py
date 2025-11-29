@@ -2,22 +2,22 @@
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .exceptions import ConfigurationError
 
 
 class PDFSettings(BaseModel):
-    viewport_width: int = 1123
-    viewport_height: int = 794
+    viewport_width: int = Field(default=1123, gt=0)
+    viewport_height: int = Field(default=794, gt=0)
 
 
 class PhotoSettings(BaseModel):
     # Aspect ratio matching
-    aspect_ratio_tolerance: float = 0.1
-    ideal_cover_aspect_ratio: float = 4 / 5  # 4:5 portrait
-    uniform_aspect_ratio_tolerance: float = 0.05
+    aspect_ratio_tolerance: float = Field(default=0.1, gt=0.0)
+    ideal_cover_aspect_ratio: float = Field(default=4 / 5, gt=0.0)  # 4:5 portrait
+    uniform_aspect_ratio_tolerance: float = Field(default=0.05, gt=0.0)
 
     # Layout constants
     max_photos_to_test: int = 9
@@ -64,6 +64,10 @@ class FileSettings(BaseModel):
     cache_dir: Path = Path.home() / ".cache" / "polarsteps-album-generator"
 
 
+class MapSettings(BaseModel):
+    default_fill_color: str = "#e0e0e0"
+
+
 class Settings(BaseSettings):
     # Debug mode (set via DEBUG environment variable)
     debug: bool = False
@@ -94,33 +98,34 @@ class Settings(BaseSettings):
     default_accent_color: str = "#ff69b4"  # Hot pink fallback color
 
     # Color extraction thresholds
-    brightness_threshold_high: int = 240  # Filter out very bright colors (near white)
-    brightness_threshold_low: int = 15  # Filter out very dark colors (near black)
-    color_count_min_ratio: float = 0.3  # Minimum ratio for color to be considered prominent
-    color_conflict_threshold: float = 0.10  # Minimum color distance to avoid conflicts
+    brightness_threshold_high: int = Field(default=240, ge=0, le=255)
+    brightness_threshold_low: int = Field(default=15, ge=0, le=255)
+    color_count_min_ratio: float = Field(default=0.3, ge=0.0, le=1.0)
+    color_conflict_threshold: float = Field(default=0.10, ge=0.0, le=1.0)
 
     # Color adjustment constants
-    light_mode_target_brightness: float = 0.55
-    dark_mode_target_brightness: float = 0.45
-    max_blend_factor: float = 0.25  # Maximum blending factor for color adjustment
+    light_mode_target_brightness: float = Field(default=0.55, ge=0.0, le=1.0)
+    dark_mode_target_brightness: float = Field(default=0.45, ge=0.0, le=1.0)
+    max_blend_factor: float = Field(default=0.25, ge=0.0, le=1.0)
 
     # Description layout thresholds
-    description_three_columns_threshold: int = 2000  # Characters
-    description_two_columns_threshold: int = 500  # Characters
+    description_three_columns_threshold: int = Field(default=2000, gt=0)
+    description_two_columns_threshold: int = Field(default=500, gt=0)
 
     # Weather temperature thresholds
-    feels_like_display_threshold: float = 3.0  # Only show "feels like" if difference >= 3°C
-    temperature_mismatch_threshold: float = 10.0  # Warn if API and trip data differ by > 10°C
+    feels_like_display_threshold: float = Field(default=3.0, ge=0.0)
+    temperature_mismatch_threshold: float = Field(default=10.0, ge=0.0)
 
     # Photo layout thresholds
-    description_max_char_cover_photo: int = 800  # Max description length to use cover photo
-    min_photo_size_percent: float = 15.0  # Minimum percentage of page area each photo should occupy
+    description_max_char_cover_photo: int = Field(default=800, gt=0)
+    min_photo_size_percent: float = Field(default=15.0, ge=0.0, le=100.0)
 
     # Sub-models for organized constants
     pdf: PDFSettings = PDFSettings()
     photo: PhotoSettings = PhotoSettings()
     progress: ProgressSettings = ProgressSettings()
     file: FileSettings = FileSettings()
+    map: MapSettings = MapSettings()
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -128,6 +133,14 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def check_brightness_thresholds(self) -> "Settings":
+        if self.brightness_threshold_high <= self.brightness_threshold_low:
+            raise ValueError(
+                "brightness_threshold_high must be greater than brightness_threshold_low"
+            )
+        return self
 
 
 # Module-level settings instance

@@ -5,106 +5,17 @@ import hashlib
 import io
 from collections import Counter
 
-from colormath.color_conversions import convert_color
-from colormath.color_diff import delta_e_cie2000
-from colormath.color_objects import LabColor, sRGBColor
 from PIL import Image
 
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.models import FlagResult
 from src.services.utils import APIClient
+from src.utils.colors import adjust_color_for_contrast, get_color_distance
 
 logger = get_logger(__name__)
 
-# Threshold for linear RGB conversion in relative luminance calculation
-_LINEAR_RGB_THRESHOLD = 0.03928
-
 _COUNTRY_COLORS: dict[str, str] = {}
-
-
-def _color_distance(color1: str, color2: str) -> float:
-    """Calculate perceptual color distance using Delta E (CIE 2000)."""
-    if not color1.startswith("#") or not color2.startswith("#"):
-        return 1.0
-
-    try:
-        # Parse hex colors
-        r1 = int(color1[1:3], 16) / 255.0
-        g1 = int(color1[3:5], 16) / 255.0
-        b1 = int(color1[5:7], 16) / 255.0
-        r2 = int(color2[1:3], 16) / 255.0
-        g2 = int(color2[3:5], 16) / 255.0
-        b2 = int(color2[5:7], 16) / 255.0
-
-        # Convert to Lab color space for perceptual distance
-        rgb1 = sRGBColor(r1, g1, b1)
-        rgb2 = sRGBColor(r2, g2, b2)
-        lab1 = convert_color(rgb1, LabColor)
-        lab2 = convert_color(rgb2, LabColor)
-
-        # Calculate Delta E (CIE 2000) - perceptually uniform
-        delta_e = delta_e_cie2000(lab1, lab2)
-
-        # Normalize: Delta E > 50 is very different, normalize to 0-1
-        # Using 50 as max reasonable difference for normalization
-        return float(min(delta_e / 50.0, 1.0))
-    except (ValueError, AttributeError, TypeError):
-        # Fallback to simple RGB distance if conversion fails
-        r1 = int(color1[1:3], 16)
-        g1 = int(color1[3:5], 16)
-        b1 = int(color1[5:7], 16)
-        r2 = int(color2[1:3], 16)
-        g2 = int(color2[3:5], 16)
-        b2 = int(color2[5:7], 16)
-        dist = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-        return float(dist / (255 * (3**0.5)))
-
-
-def _get_color_brightness(color: str) -> float:
-    if not color or not color.startswith("#"):
-        return 0.5
-
-    r = int(color[1:3], 16) / 255.0
-    g = int(color[3:5], 16) / 255.0
-    b = int(color[5:7], 16) / 255.0
-
-    r = r / 12.92 if r <= _LINEAR_RGB_THRESHOLD else ((r + 0.055) / 1.055) ** 2.4
-    g = g / 12.92 if g <= _LINEAR_RGB_THRESHOLD else ((g + 0.055) / 1.055) ** 2.4
-    b = b / 12.92 if b <= _LINEAR_RGB_THRESHOLD else ((b + 0.055) / 1.055) ** 2.4
-
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def _adjust_color_for_contrast(color: str, *, light_mode: bool) -> str:
-    if not color or not color.startswith("#"):
-        return color
-
-    brightness = _get_color_brightness(color)
-    r = int(color[1:3], 16)
-    g = int(color[3:5], 16)
-    b = int(color[5:7], 16)
-
-    if light_mode:
-        target_brightness = settings.light_mode_target_brightness
-        if brightness < target_brightness:
-            blend_factor = (
-                (target_brightness - brightness) / (1.0 - brightness) if brightness < 1.0 else 0
-            )
-            blend_factor = min(settings.max_blend_factor, blend_factor)
-            r = int(r + (255 - r) * blend_factor)
-            g = int(g + (255 - g) * blend_factor)
-            b = int(b + (255 - b) * blend_factor)
-    else:
-        target_brightness = settings.dark_mode_target_brightness
-        if brightness > target_brightness:
-            blend_factor = (brightness - target_brightness) / brightness if brightness > 0 else 0
-            blend_factor = min(settings.max_blend_factor, blend_factor)
-            r = int(r * (1 - blend_factor))
-            g = int(g * (1 - blend_factor))
-            b = int(b * (1 - blend_factor))
-
-    return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
 
 
 def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
@@ -117,7 +28,7 @@ def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
 
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code:
-            dist = _color_distance(color, other_color)
+            dist = get_color_distance(color, other_color)
             if dist < settings.color_conflict_threshold:
                 hash_val = int(hashlib.md5(country_code.encode()).hexdigest(), 16)
 
@@ -177,7 +88,7 @@ def _has_color_conflict(candidate_color: str, country_code: str) -> bool:
     country_code_lower = country_code.lower()
     for other_code, other_color in _COUNTRY_COLORS.items():
         if other_code != country_code_lower:
-            dist = _color_distance(candidate_color, other_color)
+            dist = get_color_distance(candidate_color, other_color)
             if dist < settings.color_conflict_threshold:
                 return True
     return False
@@ -204,7 +115,7 @@ def _find_best_color_from_candidates(
         if country_code and _has_color_conflict(candidate_color, country_code):
             continue
 
-        color = _adjust_color_for_contrast(candidate_color, light_mode=light_mode)
+        color = adjust_color_for_contrast(candidate_color, light_mode=light_mode)
         if country_code:
             _COUNTRY_COLORS[country_code.lower()] = color
         return color
@@ -254,7 +165,7 @@ def extract_prominent_color_from_flag(
         if country_code:
             color = _nudge_color_to_avoid_conflict(color, country_code.lower())
 
-        color = _adjust_color_for_contrast(color, light_mode=light_mode)
+        color = adjust_color_for_contrast(color, light_mode=light_mode)
 
         if country_code:
             _COUNTRY_COLORS[country_code.lower()] = color

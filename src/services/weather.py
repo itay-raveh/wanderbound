@@ -1,7 +1,7 @@
 """Historical weather API integration for temperature data."""
 
 from datetime import datetime
-from typing import Any
+from typing import TypedDict, cast
 
 import pytz
 from dateutil import parser as date_parser
@@ -14,6 +14,24 @@ from src.services.utils import APIClient
 logger = get_logger(__name__)
 
 
+class WeatherHourData(TypedDict, total=False):
+    datetime: str
+    icon: str
+
+
+class WeatherDayData(TypedDict, total=False):
+    tempmax: float | None
+    tempmin: float | None
+    feelslikemax: float | None
+    feelslikemin: float | None
+    icon: str | None
+    hours: list[WeatherHourData]
+
+
+class WeatherApiResponse(TypedDict, total=False):
+    days: list[WeatherDayData]
+
+
 def _normalize_icon_name(icon: str | None) -> str | None:
     if not icon:
         return None
@@ -21,8 +39,8 @@ def _normalize_icon_name(icon: str | None) -> str | None:
 
 
 def _find_night_hours(
-    hours: list[dict[str, Any]], timezone: pytz.BaseTzInfo
-) -> list[dict[str, Any]]:
+    hours: list[WeatherHourData], timezone: pytz.BaseTzInfo
+) -> list[WeatherHourData]:
     """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
     night_hours = []
     for hour_data in hours:
@@ -47,8 +65,8 @@ def _find_night_hours(
 
 
 def _get_night_icon(
-    night_hours: list[dict[str, Any]] | None,
-    all_hours: list[dict[str, Any]],
+    night_hours: list[WeatherHourData] | None,
+    all_hours: list[WeatherHourData],
     day_icon: str | None,
 ) -> str | None:
     """Get night icon from night hours or fallback to day icon variant."""
@@ -76,8 +94,8 @@ def _get_night_icon(
 
 
 def _parse_day_weather_data(
-    day_data: dict[str, Any],
-) -> tuple[WeatherData, list[dict[str, Any]]]:
+    day_data: WeatherDayData,
+) -> tuple[WeatherData, list[WeatherHourData]]:
     """Parse day weather data from API response."""
     day_temp = day_data.get("tempmax")
     night_temp = day_data.get("tempmin")
@@ -105,12 +123,12 @@ def _parse_day_weather_data(
 
 
 def _process_weather_api_response(
-    data: dict[str, Any], tz: Any, lat: float, lon: float, date_str: str
+    data: WeatherApiResponse, tz: pytz.BaseTzInfo, lat: float, lon: float, date_str: str
 ) -> WeatherData:
     """Process API response and extract weather data."""
     weather = WeatherData()
 
-    if "days" in data and len(data["days"]) > 0:
+    if data.get("days"):
         day_data = data["days"][0]
 
         # Debug logging
@@ -170,7 +188,9 @@ async def get_weather_data(  # noqa: PLR0913
 
     try:
         data = await client.get_json(url)
-        weather = _process_weather_api_response(data, tz, lat, lon, date_str)
+        weather = _process_weather_api_response(
+            cast("WeatherApiResponse", data), tz, lat, lon, date_str
+        )
         return WeatherResult(step_index=step_index, data=weather)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to get weather data for step %d: %s", step_index, e)

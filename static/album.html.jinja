@@ -35,14 +35,6 @@
                                                         background: {{ step.accent_color }}"></div>
                                         {% endif %}
                                     </div>
-                                {% elif step.country_map_data_uri %}
-                                    <img src="{{ step.country_map_data_uri }}" alt="{{ step.country }} map" />
-                                    {% if step.map_dot_x is not none and step.map_dot_y is not none %}
-                                        <div class="map-location-dot"
-                                             style="left: {{ step.map_dot_x }}%;
-                                                    top: {{ step.map_dot_y }}%;
-                                                    background: {{ step.accent_color }}"></div>
-                                    {% endif %}
                                 {% else %}
                                     🗺️
                                 {% endif %}

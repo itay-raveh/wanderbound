@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class Location(BaseModel):
@@ -46,7 +46,7 @@ class Step(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_end_time(cls, v: float | None, info: Any) -> float | None:
+    def validate_end_time(cls, v: float | None, info: ValidationInfo) -> float | None:
         if v is not None:
             start_time = info.data.get("start_time")
             if start_time and v < start_time:
@@ -102,7 +102,6 @@ class FlagResult(BaseModel):
 
 class MapResult(BaseModel):
     step_index: int
-    map_url: str | None = None
     svg_content: str | None = None
     dot_position: tuple[float, float] | None = None
 

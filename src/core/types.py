@@ -33,7 +33,6 @@ class StepData(TypedDict):
     day_counter_arrow_position: float
     cover_image_path: str | None
     country_flag_data_uri: str | None
-    country_map_data_uri: str | None
     country_map_svg: str | None
     map_dot_x: float | None
     map_dot_y: float | None

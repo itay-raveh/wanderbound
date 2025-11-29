@@ -128,7 +128,17 @@ pretty = true
 
 
 [[tool.mypy.overrides]]
-module = ["geopy.*", "colormath.*", "langdetect.*", "diskcache.*"]
+module = [
+    "geopy.*",
+    "colormath.*",
+    "langdetect.*",
+    "diskcache.*",
+    "geopandas.*",
+    "lxml.*",
+    "shapely.*",
+    "pytz.*",
+    "dateutil.*",
+]
 ignore_missing_imports = true
 
 [tool.vulture]

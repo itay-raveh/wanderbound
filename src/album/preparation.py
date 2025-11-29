@@ -135,11 +135,11 @@ def _calculate_progress_positions(progress_percent: float) -> tuple[float, float
 
 def _extract_map_data(
     map_result: MapResult | None,
-) -> tuple[str | None, str | None, float | None, float | None]:
+) -> tuple[str | None, float | None, float | None]:
     if map_result:
         map_dot_x, map_dot_y = map_result.dot_position if map_result.dot_position else (None, None)
-        return map_result.map_url, map_result.svg_content, map_dot_x, map_dot_y
-    return None, None, None, None
+        return map_result.svg_content, map_dot_x, map_dot_y
+    return None, None, None
 
 
 def _extract_weather_icons(
@@ -201,7 +201,7 @@ def prepare_step_data(
 
     box_center_position, arrow_bar_position = _calculate_progress_positions(progress_percent)
 
-    country_map_data_uri, country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_result)
+    country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_result)
 
     date_data = format_date(step.start_time, step.timezone_id)
     coords_data = format_coordinates(step.location.lat, step.location.lon)
@@ -257,7 +257,6 @@ def prepare_step_data(
         "day_counter_arrow_position": arrow_bar_position,
         "cover_image_path": cover_image_path,
         "country_flag_data_uri": country_flag_data_uri,
-        "country_map_data_uri": country_map_data_uri,
         "country_map_svg": country_map_svg,
         "map_dot_x": map_dot_x,
         "map_dot_y": map_dot_y,
