@@ -96,7 +96,6 @@ def _get_night_icon(
 def _parse_day_weather_data(
     day_data: WeatherDayData,
 ) -> tuple[WeatherData, list[WeatherHourData]]:
-    """Parse day weather data from API response."""
     day_temp = day_data.get("tempmax")
     night_temp = day_data.get("tempmin")
 
@@ -122,10 +121,9 @@ def _parse_day_weather_data(
     return (weather, hours)
 
 
-def _process_weather_api_response(
+def _parse_weather_api_response(
     data: WeatherApiResponse, tz: pytz.BaseTzInfo, lat: float, lon: float, date_str: str
 ) -> WeatherData:
-    """Process API response and extract weather data."""
     weather = WeatherData()
 
     if data.get("days"):
@@ -169,7 +167,6 @@ async def get_weather_data(  # noqa: PLR0913
     timezone_id: str,
     step_index: int,
 ) -> WeatherResult:
-    """Get weather data for a location and time."""
     if not settings.visual_crossing_api_key:
         return WeatherResult(step_index=step_index, data=None)
 
@@ -188,7 +185,7 @@ async def get_weather_data(  # noqa: PLR0913
 
     try:
         data = await client.get_json(url)
-        weather = _process_weather_api_response(
+        weather = _parse_weather_api_response(
             cast("WeatherApiResponse", data), tz, lat, lon, date_str
         )
         return WeatherResult(step_index=step_index, data=weather)

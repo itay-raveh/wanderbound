@@ -11,7 +11,7 @@ class Location(BaseModel):
     name: str
     detail: str | None = None
     full_detail: str | None = None
-    country_code: str = Field(..., min_length=2, max_length=2)
+    country_code: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Za-z0-9]{2}$")
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
     venue: str | None = None
@@ -31,8 +31,8 @@ class Step(BaseModel):
     start_time: float = Field(..., gt=0)
     end_time: float | None = None
     timezone_id: str
-    weather_condition: str
-    weather_temperature: float
+    weather_condition: str | None = None
+    weather_temperature: float | None = None
     main_media_item_path: str | None = None
     comment_count: int = Field(ge=0)
     views: int = Field(ge=0)

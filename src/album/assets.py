@@ -20,9 +20,9 @@ logger = get_logger(__name__)
 
 __all__ = [
     "copy_assets",
+    "copy_cover_images",
     "copy_image_to_assets",
-    "process_cover_images_batch",
-    "process_photo_pages",
+    "copy_photo_pages",
 ]
 
 
@@ -80,45 +80,48 @@ def copy_assets(output_dir: Path) -> None:
             shutil.copy2(source_css, output_css)
 
 
-def process_photo_pages(
+def copy_photo_pages(
     photo_pages: list[list[Photo]],
     step_name: str,
     output_dir: Path,
 ) -> list[PhotoPageData]:
     photo_pages_paths: list[PhotoPageData] = []
 
-    for page in photo_pages:
-        page_paths: list[str] = [
-            copy_image_to_assets(photo.path, output_dir, step_name, photo.index)
-            for photo in page
-            if photo.path.exists()
-        ]
-
-        if page_paths:
-            # Calculate layout flags on-the-fly based on photo aspect ratios
-            three_portraits = False
-            portrait_landscape_split = False
-
-            if len(page) == 3:
-                if is_three_portraits(tuple(page)):
-                    three_portraits = True
-                    portrait_landscape_split = False
-                elif is_one_portrait_two_landscapes(tuple(page)):
-                    three_portraits = False
-                    portrait_landscape_split = True
-
-            photo_pages_paths.append(
-                PhotoPageData(
-                    photos=page_paths,
-                    is_three_portraits=three_portraits,
-                    is_portrait_landscape_split=portrait_landscape_split,
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        for page in photo_pages:
+            # Submit copy tasks for all photos in the page
+            page_paths = list(
+                executor.map(
+                    lambda p: copy_image_to_assets(p.path, output_dir, step_name, p.index),
+                    [p for p in page if p.path.exists()],
                 )
             )
+
+            if page_paths:
+                # Calculate layout flags on-the-fly based on photo aspect ratios
+                three_portraits = False
+                portrait_landscape_split = False
+
+                if len(page) == 3:
+                    if is_three_portraits(tuple(page)):
+                        three_portraits = True
+                        portrait_landscape_split = False
+                    elif is_one_portrait_two_landscapes(tuple(page)):
+                        three_portraits = False
+                        portrait_landscape_split = True
+
+                photo_pages_paths.append(
+                    PhotoPageData(
+                        photos=page_paths,
+                        is_three_portraits=three_portraits,
+                        is_portrait_landscape_split=portrait_landscape_split,
+                    )
+                )
 
     return photo_pages_paths
 
 
-def process_cover_images_batch(
+def copy_cover_images(
     steps: list[Step],
     steps_cover_photos: dict[int, Photo | None],
     output_dir: Path,

@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not automatically open the generated album in the browser",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Force regeneration of cached data (maps, weather, etc.)",
+    )
 
     return parser.parse_args()
 

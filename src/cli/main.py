@@ -1,11 +1,13 @@
 """Main CLI application for generating photo albums."""
 
+import asyncio
 import os
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.album.generator import generate_album_html
+from src.core.cache import clear_cache
 from src.core.exceptions import DataLoadError
 from src.core.logger import create_progress, get_console, get_logger
 from src.core.settings import settings
@@ -122,8 +124,8 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
     except ImportError:
         logger.warning("Playwright not installed. Install with: playwright install chromium")
         logger.info("Skipping PDF generation.")
-    except Exception:
-        logger.exception("Failed to generate PDF")
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to generate PDF: %s", e)  # noqa: TRY400
         logger.info("You can still open the HTML file in your browser and print to PDF manually.")
 
 
@@ -139,6 +141,10 @@ def main() -> None:
         )
 
     logger.info("Found trip.json at %s", trip_json_path)
+
+    if args.no_cache:
+        logger.info("Clearing cache as requested...")
+        asyncio.run(clear_cache())
 
     with console.status("[bold blue]Loading trip data..."):
         logger.debug("Loading trip data from %s", trip_json_path)

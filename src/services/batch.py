@@ -1,7 +1,9 @@
 """Batch fetching of external data for services."""
 
-from src.core.batch import process_batch
-from src.core.logger import create_progress, get_logger
+from collections.abc import Callable
+
+from src.core.batch import BatchConfig, BatchProcessor
+from src.core.logger import get_logger
 from src.data.models import FlagResult, MapResult, Step, WeatherResult
 from src.services.altitude import get_altitudes
 from src.services.flags import get_flag_data
@@ -12,56 +14,55 @@ from src.services.weather import get_weather_data
 logger = get_logger(__name__)
 
 
-async def fetch_altitudes(steps: list[Step]) -> list[float | None]:
+async def fetch_altitudes(
+    steps: list[Step], progress_callback: Callable[[int], None] | None = None
+) -> list[float | None]:
     """Fetch altitudes for all steps."""
     logger.debug("Fetching altitudes...")
     locations = [(step.location.lat, step.location.lon) for step in steps]
 
-    # Altitudes are fetched in batches within the service, so we don't need process_batch here
-    # unless we want to parallelize the batches themselves, but get_altitudes handles chunking.
-    # However, get_altitudes is now async and uses APIClient.
+    async with APIClient() as client:
+        # get_altitudes handles its own batching/chunking logic for the API
+        # We just wrap it to provide progress feedback if needed
+        elevations = await get_altitudes(client, locations)
 
-    client = APIClient(base_url="")
-    try:
-        with create_progress("Fetching altitudes") as progress:
-            task_id = progress.add_task("Fetching altitudes", total=1)
-            elevations = await get_altitudes(client, locations)
-            progress.advance(task_id)
-    finally:
-        await client.close()
+        if progress_callback:
+            progress_callback(len(steps))
 
     logger.debug("Fetched %d altitude values", len(elevations))
     return elevations
 
 
-async def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherResult]:
+async def fetch_weather_data_batch(
+    steps: list[Step], progress_callback: Callable[[int], None] | None = None
+) -> list[WeatherResult]:
     """Fetch weather data for all steps."""
     logger.debug("Fetching weather data...")
 
-    client = APIClient(base_url="")
+    async with APIClient() as client:
+        # To handle indices, we'll pass tuples of (index, step) to the processor
+        items = list(enumerate(steps))
 
-    async def _process_step(step: Step, index: int) -> WeatherResult:
-        return await get_weather_data(
-            client,
-            step.location.lat,
-            step.location.lon,
-            step.start_time,
-            step.timezone_id,
-            index,
+        async def _process_item(item: tuple[int, Step]) -> WeatherResult:
+            index, step = item
+            return await get_weather_data(
+                client,
+                step.location.lat,
+                step.location.lon,
+                step.start_time,
+                step.timezone_id,
+                index,
+            )
+
+        tuple_processor = BatchProcessor[tuple[int, Step], WeatherResult](
+            BatchConfig(concurrency=10)
         )
 
-    try:
-        with create_progress("Fetching weather data") as progress:
-            task_id = progress.add_task("Fetching weather data", total=len(steps))
-
-            results = await process_batch(
-                steps,
-                _process_step,
-                concurrency=10,
-                progress_callback=lambda _: progress.advance(task_id),
-            )
-    finally:
-        await client.close()
+        results = await tuple_processor.process_batch(
+            items,
+            _process_item,
+            progress_callback=progress_callback,
+        )
 
     # Filter out exceptions and ensure type safety
     weather_results: list[WeatherResult] = []
@@ -76,29 +77,31 @@ async def fetch_weather_data_batch(steps: list[Step]) -> list[WeatherResult]:
     return weather_results
 
 
-async def fetch_flags_batch(steps: list[Step], *, light_mode: bool) -> list[FlagResult]:
+async def fetch_flags_batch(
+    steps: list[Step],
+    *,
+    light_mode: bool,
+    progress_callback: Callable[[int], None] | None = None,
+) -> list[FlagResult]:
     """Fetch flags and extract colors for all steps."""
     logger.debug("Fetching flags and extracting colors...")
 
-    client = APIClient(base_url="")
+    async with APIClient() as client:
+        items = list(enumerate(steps))
 
-    async def _process_step(step: Step, index: int) -> FlagResult:
-        if not step.country_code:
-            return FlagResult(step_index=index)
-        return await get_flag_data(client, step.country_code, index, light_mode=light_mode)
+        async def _process_item(item: tuple[int, Step]) -> FlagResult:
+            index, step = item
+            if not step.country_code:
+                return FlagResult(step_index=index)
+            return await get_flag_data(client, step.country_code, index, light_mode=light_mode)
 
-    try:
-        with create_progress("Processing flags") as progress:
-            task_id = progress.add_task("Processing flags", total=len(steps))
+        processor = BatchProcessor[tuple[int, Step], FlagResult](BatchConfig(concurrency=10))
 
-            results = await process_batch(
-                steps,
-                _process_step,
-                concurrency=10,
-                progress_callback=lambda _: progress.advance(task_id),
-            )
-    finally:
-        await client.close()
+        results = await processor.process_batch(
+            items,
+            _process_item,
+            progress_callback=progress_callback,
+        )
 
     flag_results: list[FlagResult] = []
     for i, res in enumerate(results):
@@ -112,35 +115,34 @@ async def fetch_flags_batch(steps: list[Step], *, light_mode: bool) -> list[Flag
     return flag_results
 
 
-async def fetch_maps_batch(steps: list[Step]) -> list[MapResult]:
+async def fetch_maps_batch(
+    steps: list[Step], progress_callback: Callable[[int], None] | None = None
+) -> list[MapResult]:
     """Fetch maps and calculate dot positions for all steps."""
     logger.debug("Fetching maps and calculating positions...")
 
-    client = APIClient(base_url="")
+    async with APIClient() as client:
+        items = list(enumerate(steps))
 
-    async def _process_step(step: Step, index: int) -> MapResult:
-        if not step.country_code:
-            return MapResult(step_index=index)
-        return await get_map_data(
-            client,
-            step.country_code,
-            index,
-            step.location.lat,
-            step.location.lon,
-        )
-
-    try:
-        with create_progress("Processing maps") as progress:
-            task_id = progress.add_task("Processing maps", total=len(steps))
-
-            results = await process_batch(
-                steps,
-                _process_step,
-                concurrency=10,
-                progress_callback=lambda _: progress.advance(task_id),
+        async def _process_item(item: tuple[int, Step]) -> MapResult:
+            index, step = item
+            if not step.country_code:
+                return MapResult(step_index=index)
+            return await get_map_data(
+                client,
+                step.country_code,
+                index,
+                step.location.lat,
+                step.location.lon,
             )
-    finally:
-        await client.close()
+
+        processor = BatchProcessor[tuple[int, Step], MapResult](BatchConfig(concurrency=10))
+
+        results = await processor.process_batch(
+            items,
+            _process_item,
+            progress_callback=progress_callback,
+        )
 
     map_results: list[MapResult] = []
     for i, res in enumerate(results):

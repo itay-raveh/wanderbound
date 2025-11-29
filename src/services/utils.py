@@ -1,5 +1,6 @@
 """Shared utilities for services: API client and helpers."""
 
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -38,6 +39,17 @@ class APIClient:
 
     async def close(self) -> None:
         await self.client.aclose()
+
+    async def __aenter__(self) -> "APIClient":
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
+    ) -> None:
+        await self.close()
 
     async def get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Fetch JSON data with rate limiting and retries."""

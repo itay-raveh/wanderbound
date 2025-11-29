@@ -1,5 +1,6 @@
 """SVG map generation from Natural Earth data."""
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 
 import geopandas as gpd
@@ -27,7 +28,7 @@ async def _load_natural_earth_data(client: APIClient) -> "GeoDataFrame":
 
     if cache_file.exists():
         try:
-            return gpd.read_file(str(cache_file))
+            return await asyncio.to_thread(gpd.read_file, str(cache_file))
         except Exception as e:  # noqa: BLE001
             logger.warning("Cached map data corrupt, re-downloading: %s", e)
 
@@ -40,14 +41,14 @@ async def _load_natural_earth_data(client: APIClient) -> "GeoDataFrame":
         with cache_file.open("wb") as f:
             f.write(content)
 
-        return gpd.read_file(str(cache_file))
-    except Exception:
-        logger.exception("Failed to download Natural Earth data")
+        return await asyncio.to_thread(gpd.read_file, str(cache_file))
+    except (OSError, ValueError) as e:
+        logger.warning("Failed to download Natural Earth data: %s", e)
         # Fallback to low-res if download fails
         logger.warning("Falling back to low-resolution map data")
         # geopandas.datasets is deprecated but available at runtime.
         datasets = getattr(gpd, "datasets")  # noqa: B009
-        return gpd.read_file(datasets.get_path("naturalearth_lowres"))
+        return await asyncio.to_thread(gpd.read_file, datasets.get_path("naturalearth_lowres"))
 
 
 def _find_country_in_geodataframe(world: "GeoDataFrame", country_code_lower: str) -> "GeoDataFrame":
@@ -143,9 +144,13 @@ def _geometry_to_svg_path(geometry: BaseGeometry, flip_y: tuple[float, float] | 
 
 
 def _generate_svg_plot(
-    gdf: "GeoDataFrame", width: int, height: int
+    gdf: "GeoDataFrame", max_dimension: int
 ) -> tuple[etree._Element, list[float], str]:
     """Generate an SVG plot from a GeoDataFrame.
+
+    Args:
+        gdf: GeoDataFrame containing the country geometry.
+        max_dimension: Maximum dimension (width or height) in pixels.
 
     Returns:
         tuple: (svg_root_element, bounds, crs_string)
@@ -166,32 +171,31 @@ def _generate_svg_plot(
     miny -= padding_y
     maxy += padding_y
 
-    geo_width = maxx - minx
-    geo_height = maxy - miny
+    # Calculate dimensions and scale to fit max_dimension
+    # We want the larger dimension to be exactly max_dimension
+    # and the other dimension to scale accordingly.
+    scale = max_dimension / geo_width if geo_width > geo_height else max_dimension / geo_height
+
+    # Calculate exact pixel dimensions
+    width = scale * geo_width
+    height = scale * geo_height
 
     # Create SVG structure
     svg_ns = "http://www.w3.org/2000/svg"
     nsmap = {None: svg_ns}
     root = etree.Element(f"{{{svg_ns}}}svg", nsmap=nsmap)
 
-    # Set viewBox to match the geo coordinates (but flipped Y)
-    # We'll use a transform to handle the coordinate system
-    # Or simpler: just map the coordinates to the pixel space
+    # Set viewBox to match the exact dimensions
+    root.set("width", f"{width:.2f}")
+    root.set("height", f"{height:.2f}")
+    root.set("viewBox", f"0 0 {width:.2f} {height:.2f}")
 
-    # Let's use the pixel space for the SVG width/height
-    root.set("width", str(width))
-    root.set("height", str(height))
+    # Translation
+    # We want minx * scale + tx = 0  => tx = -minx * scale
+    # We want miny * -scale + ty = height => ty = height + miny * scale
 
-    # We want to map [minx, maxx] -> [0, width]
-    # and [miny, maxy] -> [height, 0] (Y flip)
-
-    scale_x = width / geo_width
-    scale_y = height / geo_height
-    scale = min(scale_x, scale_y)
-
-    # Center the map
-    tx = (width - geo_width * scale) / 2 - minx * scale
-    ty = (height - geo_height * scale) / 2 + maxy * scale
+    tx = -minx * scale
+    ty = height + miny * scale
 
     group = cast("etree._Element", etree.SubElement(root, f"{{{svg_ns}}}g"))  # noqa: SLF001
     group.set("transform", f"translate({tx},{ty}) scale({scale},{-scale})")
@@ -215,23 +219,33 @@ def _generate_svg_plot(
 
 
 async def generate_geo_calibrated_svg(
-    client: APIClient, country_code: str, width: int = 800, height: int = 600
+    client: APIClient, country_code: str, max_dimension: int = 800
 ) -> str:
     """Generate a geo-calibrated SVG map for a country."""
     try:
         world = await _load_natural_earth_data(client)
-        country_gdf = _find_country_in_geodataframe(world, country_code.lower())
 
-        # Generate SVG plot
-        svg_root, bounds, crs = _generate_svg_plot(country_gdf, width, height)
+        # CPU-bound: finding country and generating SVG
+        def _generate() -> str:
+            country_gdf = _find_country_in_geodataframe(world, country_code.lower())
 
-        # Add geo-calibration attributes to the root element
-        svg_root.set("data-geo-bounds", ",".join(map(str, bounds)))
-        svg_root.set("data-proj-bounds", ",".join(map(str, bounds)))  # Same for unprojected
-        svg_root.set("data-crs", crs)
+            # Reproject to Web Mercator for better visual appearance (avoids "squished" look)
+            # EPSG:3857 is standard for web maps
+            if country_gdf.crs:
+                country_gdf = country_gdf.to_crs("EPSG:3857")
 
-        # Serialize to string
-        return str(etree.tostring(svg_root, encoding="unicode", pretty_print=False))
+            # Generate SVG plot
+            svg_root, bounds, crs = _generate_svg_plot(country_gdf, max_dimension=max_dimension)
+
+            # Add geo-calibration attributes to the root element
+            svg_root.set("data-geo-bounds", ",".join(map(str, bounds)))
+            svg_root.set("data-proj-bounds", ",".join(map(str, bounds)))  # Same for unprojected
+            svg_root.set("data-crs", crs)
+
+            # Serialize to string
+            return str(etree.tostring(svg_root, encoding="unicode", pretty_print=False))
+
+        return await asyncio.to_thread(_generate)
 
     except Exception as e:
         logger.exception("Failed to generate map for %s", country_code)

@@ -22,7 +22,7 @@ from src.services.batch import (
     fetch_weather_data_batch,
 )
 
-from .assets import process_cover_images_batch, process_photo_pages
+from .assets import copy_cover_images, copy_photo_pages
 from .preparation import prepare_step_data
 from .renderer import create_template_environment, render_album_template
 
@@ -70,12 +70,37 @@ class FetchedData:
 
 async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
     """Fetch all external data concurrently."""
-    results = await asyncio.gather(
-        fetch_altitudes(context.steps),
-        fetch_weather_data_batch(context.steps),
-        fetch_flags_batch(context.steps, light_mode=context.light_mode),
-        fetch_maps_batch(context.steps),
-    )
+    progress = create_progress("Fetching external data")
+
+    with progress:
+        # Create tasks
+        alt_task = progress.add_task("Fetching altitudes", total=len(context.steps))
+        weather_task = progress.add_task("Fetching weather", total=len(context.steps))
+        flag_task = progress.add_task("Fetching flags", total=len(context.steps))
+        map_task = progress.add_task("Fetching maps", total=len(context.steps))
+
+        # Define callbacks
+        def update_alt(count: int) -> None:
+            progress.update(alt_task, completed=count)
+
+        def update_weather(count: int) -> None:
+            progress.update(weather_task, completed=count)
+
+        def update_flags(count: int) -> None:
+            progress.update(flag_task, completed=count)
+
+        def update_maps(count: int) -> None:
+            progress.update(map_task, completed=count)
+
+        results = await asyncio.gather(
+            fetch_altitudes(context.steps, progress_callback=update_alt),
+            fetch_weather_data_batch(context.steps, progress_callback=update_weather),
+            fetch_flags_batch(
+                context.steps, light_mode=context.light_mode, progress_callback=update_flags
+            ),
+            fetch_maps_batch(context.steps, progress_callback=update_maps),
+        )
+
     return FetchedData(
         elevations=results[0],
         weather_data_list=results[1],
@@ -133,7 +158,7 @@ def _process_steps(
 
             # Copy photo pages images to assets directory
             step_name = step.get_name_for_photos_export()
-            photo_pages_paths = process_photo_pages(
+            photo_pages_paths = copy_photo_pages(
                 photo_pages,
                 step_name,
                 context.output_dir,
@@ -193,7 +218,7 @@ def generate_album_html(
     fetched_data = asyncio.run(_fetch_external_data(context))
 
     # Process cover images
-    cover_image_path_list = process_cover_images_batch(
+    cover_image_path_list = copy_cover_images(
         context.steps, context.photo_data["steps_cover_photos"], context.output_dir
     )
 

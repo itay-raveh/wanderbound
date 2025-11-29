@@ -1,8 +1,17 @@
-"""Generic batch processing utilities with concurrency control."""
+"""Generic batch processing utilities with concurrency control, rate limiting, and retries."""
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from dataclasses import dataclass
+from typing import Generic, TypeVar
+
+from aiolimiter import AsyncLimiter
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.core.logger import get_logger
 
@@ -12,57 +21,87 @@ T = TypeVar("T")
 R = TypeVar("R")
 
 
-async def process_batch(
-    items: list[T],
-    process_func: Callable[[T, int], Awaitable[R]],
-    *,
-    concurrency: int = 5,
-    progress_callback: Callable[[int], None] | None = None,
-    stop_on_error: bool = False,
-) -> list[R | Exception]:
-    """Process a batch of items concurrently with a limit.
+@dataclass
+class BatchConfig:
+    """Configuration for batch processing."""
 
-    Args:
-        items: List of items to process.
-        process_func: Async function that takes (item, index) and returns a result.
-        concurrency: Maximum number of concurrent tasks.
-        progress_callback: Optional callback function called with the number of completed tasks.
-        stop_on_error: If True, stops processing on the first error.
+    concurrency: int = 5
+    rate_limit_calls: int = 0  # 0 means no rate limit
+    rate_limit_period: float = 1.0
+    retry_attempts: int = 3
+    retry_min_wait: float = 1.0
+    retry_max_wait: float = 10.0
+    stop_on_error: bool = False
 
-    Returns:
-        List of results or Exceptions, in the same order as the input items.
-    """
-    semaphore = asyncio.Semaphore(concurrency)
-    results: list[R | Exception] = [None] * len(items)  # type: ignore[list-item]
-    completed_count = 0
 
-    async def _worker(item: T, index: int) -> None:
-        nonlocal completed_count
-        async with semaphore:
+class BatchProcessor(Generic[T, R]):
+    """Process a batch of items concurrently with rate limiting and retries."""
+
+    def __init__(self, config: BatchConfig | None = None) -> None:
+        self.config = config or BatchConfig()
+        self.semaphore = asyncio.Semaphore(self.config.concurrency)
+        self.limiter = (
+            AsyncLimiter(self.config.rate_limit_calls, self.config.rate_limit_period)
+            if self.config.rate_limit_calls > 0
+            else None
+        )
+        self.retrier = AsyncRetrying(
+            stop=stop_after_attempt(self.config.retry_attempts),
+            wait=wait_exponential(min=self.config.retry_min_wait, max=self.config.retry_max_wait),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+
+    async def process_item(
+        self,
+        item: T,
+        _index: int,
+        process_func: Callable[[T], Awaitable[R]],
+    ) -> R:
+        """Process a single item with concurrency control, rate limiting, and retries."""
+        async with self.semaphore:
+            if self.limiter:
+                await self.limiter.acquire()
+
+            async for attempt in self.retrier:
+                with attempt:
+                    return await process_func(item)
+        # Should be unreachable due to reraise=True, but for type safety:
+        raise RuntimeError("Unreachable")
+
+    async def process_batch(
+        self,
+        items: list[T],
+        process_func: Callable[[T], Awaitable[R]],
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> list[R | Exception]:
+        """Process a batch of items."""
+        results: list[R | Exception] = [None] * len(items)  # type: ignore[list-item]
+        completed_count = 0
+
+        async def _worker(item: T, index: int) -> None:
+            nonlocal completed_count
             try:
-                result = await process_func(item, index)
+                result = await self.process_item(item, index, process_func)
                 results[index] = result
             except Exception as e:
                 logger.debug("Error processing item %d: %s", index, e)
                 results[index] = e
-                if stop_on_error:
+                if self.config.stop_on_error:
                     raise
             finally:
                 completed_count += 1
                 if progress_callback:
                     progress_callback(completed_count)
 
-    tasks = [_worker(item, i) for i, item in enumerate(items)]
+        tasks = [_worker(item, i) for i, item in enumerate(items)]
 
-    if stop_on_error:
-        # If stop_on_error is True, gather will raise the first exception
-        # We suppress it here because we return the results list which contains the exception
-        # and we want to return whatever partial results we have.
-        try:
-            await asyncio.gather(*tasks)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("Batch processing stopped due to error: %s", e)
-    else:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        if self.config.stop_on_error:
+            try:
+                await asyncio.gather(*tasks)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Batch processing stopped due to error: %s", e)
+        else:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-    return results
+        return results

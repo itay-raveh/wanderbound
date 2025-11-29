@@ -1,5 +1,6 @@
 """Data caching utilities using diskcache."""
 
+import asyncio
 from typing import Any
 
 from diskcache import Cache
@@ -15,18 +16,27 @@ DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 _cache = Cache(str(DATA_CACHE_DIR))
 
 
-def get_cached(key: str) -> Any | None:
-    """Get value from persistent cache."""
+async def get_cached(key: str) -> Any | None:
+    """Get value from persistent cache asynchronously."""
     try:
-        return _cache.get(key)
+        return await asyncio.to_thread(_cache.get, key)
     except Exception as e:  # noqa: BLE001
         logger.warning("Cache read error for key %s: %s", key, e)
         return None
 
 
-def set_cached(key: str, value: Any, expire: int | None = None) -> None:
-    """Set value in persistent cache."""
+async def set_cached(key: str, value: Any, expire: int | None = None) -> None:
+    """Set value in persistent cache asynchronously."""
     try:
-        _cache.set(key, value, expire=expire)
+        await asyncio.to_thread(_cache.set, key, value, expire=expire)
     except Exception as e:  # noqa: BLE001
         logger.warning("Cache write error for key %s: %s", key, e)
+
+
+async def clear_cache() -> None:
+    """Clear the persistent cache."""
+    try:
+        await asyncio.to_thread(_cache.clear)
+        logger.info("Cache cleared")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to clear cache: %s", e)

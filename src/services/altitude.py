@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 async def get_altitudes(
     client: APIClient, locations: list[tuple[float, float]]
 ) -> list[float | None]:
-    """Get elevations for a list of locations using batch API calls."""
     # We don't check cache here because the caller (batch fetching) should handle caching strategy
     # or we can rely on HTTP caching if the API supports it.
     # However, OpenTopoData is a GET request, so hishel will cache it if headers allow.

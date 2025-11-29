@@ -65,12 +65,12 @@ class FileSettings(BaseModel):
 
 
 class MapSettings(BaseModel):
-    default_fill_color: str = "#e0e0e0"
+    default_fill_color: str = Field(default="#e0e0e0", pattern=r"^#[0-9a-fA-F]{6}$")
 
 
 class Settings(BaseSettings):
     # Debug mode (set via DEBUG environment variable)
-    debug: bool = False
+    debug: bool = Field(default=False)
 
     # API URL templates (use .format() with placeholders)
     flag_cdn_url: str = "https://flagcdn.com/w40/{country_code}.png"
@@ -78,9 +78,6 @@ class Settings(BaseSettings):
     natural_earth_geojson_url: str = (
         "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
         "ne_50m_admin_0_countries.geojson"
-    )
-    mapsicon_url: str = (
-        "https://raw.githubusercontent.com/djaiss/mapsicon/master/all/{country_code}/vector.svg"
     )
     weather_icon_url: str = (
         "https://basmilius.github.io/weather-icons/production/fill/all/{icon_name}.svg"
@@ -95,7 +92,7 @@ class Settings(BaseSettings):
     visual_crossing_api_key: str | None = None
 
     # Color constants
-    default_accent_color: str = "#ff69b4"  # Hot pink fallback color
+    default_accent_color: str = Field(default="#ff69b4", pattern=r"^#[0-9a-fA-F]{6}$")
 
     # Color extraction thresholds
     brightness_threshold_high: int = Field(default=240, ge=0, le=255)
