@@ -6,9 +6,9 @@ from src.core.batch import BatchConfig, BatchProcessor
 from src.core.logger import get_logger
 from src.data.models import FlagResult, MapResult, Step, WeatherResult
 from src.services.altitude import get_altitudes
+from src.services.client import APIClient
 from src.services.flags import get_flag_data
 from src.services.maps import get_map_data
-from src.services.utils import APIClient
 from src.services.weather import get_weather_data
 
 logger = get_logger(__name__)

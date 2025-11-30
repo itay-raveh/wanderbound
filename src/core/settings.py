@@ -61,7 +61,7 @@ class FileSettings(BaseModel):
     fonts_dir: str = "fonts"
     css_dir: str = "css"
     static_dir: str = "static"
-    cache_dir: Path = Path.home() / ".cache" / "polarsteps-album-generator"
+    cache_dir: Path = Path(".cache")  #  Path.home() / ".cache" / "polarsteps-album-generator"
 
 
 class MapSettings(BaseModel):

@@ -109,7 +109,10 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
             page.wait_for_load_state("networkidle")
             # Using module-level settings
             page.set_viewport_size(
-                {"width": settings.pdf.viewport_width, "height": settings.pdf.viewport_height}
+                {
+                    "width": settings.pdf.viewport_width,
+                    "height": settings.pdf.viewport_height,
+                }
             )
 
             page.pdf(

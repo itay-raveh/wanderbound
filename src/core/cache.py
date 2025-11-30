@@ -10,10 +10,8 @@ from src.core.settings import settings
 
 logger = get_logger(__name__)
 
-DATA_CACHE_DIR = settings.file.cache_dir / "data_cache"
-DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-_cache = Cache(str(DATA_CACHE_DIR))
+settings.file.cache_dir.mkdir(parents=True, exist_ok=True)
+_cache = Cache(str(settings.file.cache_dir))
 
 
 async def get_cached(key: str) -> Any | None:

@@ -4,7 +4,11 @@ from typing import Any
 
 from langdetect import LangDetectException, detect
 
-from src.core.formatting import format_coordinates, format_date, format_weather_condition
+from src.core.formatting import (
+    format_coordinates,
+    format_date,
+    format_weather_condition,
+)
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import StepContext, StepData, StepExternalData
@@ -122,7 +126,8 @@ def _calculate_progress(
 def _calculate_progress_positions(progress_percent: float) -> tuple[float, float]:
     # Using module-level settings
     arrow_bar_position = max(
-        settings.progress.min_position, min(settings.progress.max_position, progress_percent)
+        settings.progress.min_position,
+        min(settings.progress.max_position, progress_percent),
     )
     if progress_percent < settings.progress.box_min_position:
         box_center_position = settings.progress.box_min_position

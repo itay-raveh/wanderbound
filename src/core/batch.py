@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
-from aiolimiter import AsyncLimiter
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
@@ -40,11 +39,6 @@ class BatchProcessor(Generic[T, R]):
     def __init__(self, config: BatchConfig | None = None) -> None:
         self.config = config or BatchConfig()
         self.semaphore = asyncio.Semaphore(self.config.concurrency)
-        self.limiter = (
-            AsyncLimiter(self.config.rate_limit_calls, self.config.rate_limit_period)
-            if self.config.rate_limit_calls > 0
-            else None
-        )
         self.retrier = AsyncRetrying(
             stop=stop_after_attempt(self.config.retry_attempts),
             wait=wait_exponential(min=self.config.retry_min_wait, max=self.config.retry_max_wait),
@@ -60,9 +54,6 @@ class BatchProcessor(Generic[T, R]):
     ) -> R:
         """Process a single item with concurrency control, rate limiting, and retries."""
         async with self.semaphore:
-            if self.limiter:
-                await self.limiter.acquire()
-
             async for attempt in self.retrier:
                 with attempt:
                     return await process_func(item)

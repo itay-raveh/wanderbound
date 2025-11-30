@@ -24,7 +24,6 @@ def _calculate_position_from_projected_bounds(
     proj_width = proj_max_x - proj_min_x
     proj_height = proj_max_y - proj_min_y
 
-    # We assume valid bounds with non-zero dimensions
     x_ratio = (proj_x - proj_min_x) / proj_width
     y_ratio = (proj_max_y - proj_y) / proj_height
 
@@ -35,10 +34,9 @@ def _calculate_position_from_projected_bounds(
 
 
 def _calculate_position_from_svg_root(
-    root: etree._Element, lat: float, lon: float
+    root: etree.Element, lat: float, lon: float
 ) -> tuple[float, float]:
     """Calculate position from SVG root element using projected bounds."""
-    # We expect these attributes to be present. If not, KeyError will be raised.
     proj_bounds_str = root.attrib["data-proj-bounds"]
     crs_str = root.attrib["data-crs"]
 
@@ -49,7 +47,6 @@ def _calculate_position_from_svg_root(
 
 def get_country_map_dot_position(lat: float, lon: float, svg_data: str) -> tuple[float, float]:
     """Calculate the relative position (0-100%) of a location dot within a country map."""
-    # We assume svg_data is valid XML/SVG
     root = parse_svg_with_lxml(svg_data)
 
     return _calculate_position_from_svg_root(root, lat, lon)

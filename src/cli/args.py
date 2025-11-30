@@ -73,4 +73,4 @@ def parse_step_range(range_str: str) -> tuple[int, int]:
     return step_num, step_num
 
 
-__all__ = ["parse_args"]
+__all__ = ["parse_args", "parse_step_range"]

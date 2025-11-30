@@ -24,7 +24,7 @@ ENV/
 *~
 
 # Generated output
-/output/
+output/
 
 # Cache
 .polarsteps_album_cache/

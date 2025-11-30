@@ -17,7 +17,8 @@ def create_template_environment() -> Environment:
     # From src/template_renderer.py: parent=src/, parent.parent=project root
     template_dir = Path(__file__).parent.parent.parent / "static"
     return Environment(
-        loader=FileSystemLoader(str(template_dir)), autoescape=select_autoescape(["html", "xml"])
+        loader=FileSystemLoader(str(template_dir)),
+        autoescape=select_autoescape(["html", "xml"]),
     )
 
 

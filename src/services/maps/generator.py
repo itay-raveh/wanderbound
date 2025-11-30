@@ -1,24 +1,27 @@
 """SVG map generation from Natural Earth data."""
 
+from __future__ import annotations
+
 import asyncio
 from typing import TYPE_CHECKING, cast
 
 import geopandas as gpd
 from lxml import etree
 from shapely.geometry import MultiPolygon, Polygon
-from shapely.geometry.base import BaseGeometry
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.services.utils import APIClient
 
 if TYPE_CHECKING:
     from geopandas import GeoDataFrame
+    from shapely.geometry.base import BaseGeometry
+
+    from src.services.client import APIClient
 
 logger = get_logger(__name__)
 
 
-async def _load_natural_earth_data(client: APIClient) -> "GeoDataFrame":
+async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
     """Load Natural Earth GeoJSON data from cache or download it."""
     ne_50m_url = settings.natural_earth_geojson_url
     cache_key_data = "ne_50m_admin_0_countries"
@@ -38,8 +41,7 @@ async def _load_natural_earth_data(client: APIClient) -> "GeoDataFrame":
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         content = await client.get_content(ne_50m_url)
-        with cache_file.open("wb") as f:
-            f.write(content)
+        cache_file.write_bytes(content)
 
         return await asyncio.to_thread(gpd.read_file, str(cache_file))
     except (OSError, ValueError) as e:
@@ -51,7 +53,7 @@ async def _load_natural_earth_data(client: APIClient) -> "GeoDataFrame":
         return await asyncio.to_thread(gpd.read_file, datasets.get_path("naturalearth_lowres"))
 
 
-def _find_country_in_geodataframe(world: "GeoDataFrame", country_code_lower: str) -> "GeoDataFrame":
+def _find_country_in_geodataframe(world: GeoDataFrame, country_code_lower: str) -> GeoDataFrame:
     """Find country geometry in the world dataset."""
     country_code_upper = country_code_lower.upper()
 
@@ -144,7 +146,7 @@ def _geometry_to_svg_path(geometry: BaseGeometry, flip_y: tuple[float, float] | 
 
 
 def _generate_svg_plot(
-    gdf: "GeoDataFrame", max_dimension: int
+    gdf: GeoDataFrame, max_dimension: int
 ) -> tuple[etree._Element, list[float], str]:
     """Generate an SVG plot from a GeoDataFrame.
 

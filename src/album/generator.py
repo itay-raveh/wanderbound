@@ -96,7 +96,9 @@ async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
             fetch_altitudes(context.steps, progress_callback=update_alt),
             fetch_weather_data_batch(context.steps, progress_callback=update_weather),
             fetch_flags_batch(
-                context.steps, light_mode=context.light_mode, progress_callback=update_flags
+                context.steps,
+                light_mode=context.light_mode,
+                progress_callback=update_flags,
             ),
             fetch_maps_batch(context.steps, progress_callback=update_maps),
         )

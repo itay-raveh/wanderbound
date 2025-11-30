@@ -2,7 +2,7 @@
 
 from src.core.cache import get_cached, set_cached
 from src.data.models import MapResult
-from src.services.utils import APIClient
+from src.services.client import APIClient
 
 from .coordinates import get_country_map_dot_position
 from .generator import generate_geo_calibrated_svg
@@ -37,7 +37,6 @@ async def get_map_data(
 
     dot_position = None
     if lat is not None and lon is not None:
-        # This will now raise exception on failure
         dot_position = get_country_map_dot_position(lat, lon, svg_data)
 
     return MapResult(

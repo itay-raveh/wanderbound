@@ -49,7 +49,9 @@ def format_coordinates(lat: float | None, lon: float | None) -> dict[str, str]:
         lon_dms = round_seconds(lon_part)
     except (AttributeError, ValueError, TypeError):
         logger.exception(
-            "Error formatting coordinates (%s, %s) with geopy. Using simplified format.", lat, lon
+            "Error formatting coordinates (%s, %s) with geopy. Using simplified format.",
+            lat,
+            lon,
         )
         lat_dir = "N" if lat >= 0 else "S"
         lon_dir = "E" if lon >= 0 else "W"
@@ -76,7 +78,9 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
         day = str(dt.day)
     except (pytz.UnknownTimeZoneError, OSError, ValueError, OverflowError):
         logger.exception(
-            "Error formatting date for timestamp %s in timezone %s", timestamp, timezone_id
+            "Error formatting date for timestamp %s in timezone %s",
+            timestamp,
+            timezone_id,
         )
         try:
             tz = pytz.timezone(timezone_id)
@@ -97,7 +101,13 @@ def format_date(timestamp: float | None, timezone_id: str) -> dict[str, str]:
             ]
             month = month_names[dt.month - 1]
             day = str(dt.day)
-        except (pytz.UnknownTimeZoneError, OSError, ValueError, OverflowError, IndexError):
+        except (
+            pytz.UnknownTimeZoneError,
+            OSError,
+            ValueError,
+            OverflowError,
+            IndexError,
+        ):
             return {"month": "", "day": ""}
         else:
             return {"month": month, "day": day}

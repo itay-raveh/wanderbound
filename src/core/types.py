@@ -4,7 +4,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
-    from src.data.models import FlagResult, MapResult, Photo, Step, TripData, WeatherResult
+    from src.data.models import (
+        FlagResult,
+        MapResult,
+        Photo,
+        Step,
+        TripData,
+        WeatherResult,
+    )
 
 
 class PhotoPageData(TypedDict):

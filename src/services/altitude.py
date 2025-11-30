@@ -4,7 +4,7 @@ from more_itertools import chunked
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.services.utils import APIClient
+from src.services.client import APIClient
 
 logger = get_logger(__name__)
 
@@ -12,18 +12,6 @@ logger = get_logger(__name__)
 async def get_altitudes(
     client: APIClient, locations: list[tuple[float, float]]
 ) -> list[float | None]:
-    # We don't check cache here because the caller (batch fetching) should handle caching strategy
-    # or we can rely on HTTP caching if the API supports it.
-    # However, OpenTopoData is a GET request, so hishel will cache it if headers allow.
-    # But individual point caching is tricky with batch requests.
-    # For now, we'll rely on the fact that we're refactoring for better architecture.
-    # If we need individual point caching, we should implement it at a higher level or
-    # split requests (which might be slower/rate-limited).
-    # Given the previous implementation did manual caching, we might want to preserve that
-    # but `hishel` caches the *request*. If we request the same batch, it's cached.
-    # If we request a subset, it's a new request.
-    # For simplicity and robustness, we'll rely on hishel for the batch request caching.
-
     all_elevations: list[float | None] = []
 
     # OpenTopoData allows max 100 locations per request

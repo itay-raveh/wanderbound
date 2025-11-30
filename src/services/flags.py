@@ -14,7 +14,7 @@ from PIL import Image
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.models import FlagResult
-from src.services.utils import APIClient
+from src.services.client import APIClient
 
 logger = get_logger(__name__)
 

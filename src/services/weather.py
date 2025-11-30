@@ -9,7 +9,7 @@ from dateutil import parser as date_parser
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.models import WeatherData, WeatherResult
-from src.services.utils import APIClient
+from src.services.client import APIClient
 
 logger = get_logger(__name__)
 
@@ -108,8 +108,6 @@ def _parse_day_weather_data(
 
     hours = day_data.get("hours", [])
 
-    # Create WeatherData with day data (night data will be filled later)
-    # Let Pydantic handle type conversions (int -> float, None handling, etc.)
     weather = WeatherData(
         day_temp=day_temp,
         night_temp=night_temp,
@@ -118,7 +116,7 @@ def _parse_day_weather_data(
         day_icon=day_icon,
     )
 
-    return (weather, hours)
+    return weather, hours
 
 
 def _parse_weather_api_response(
@@ -185,13 +183,14 @@ async def get_weather_data(  # noqa: PLR0913
 
     try:
         data = await client.get_json(url)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to get weather data for step %d: %s", step_index, e)
+        return WeatherResult(step_index=step_index, data=None)
+    else:
         weather = _parse_weather_api_response(
             cast("WeatherApiResponse", data), tz, lat, lon, date_str
         )
         return WeatherResult(step_index=step_index, data=weather)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Failed to get weather data for step %d: %s", step_index, e)
-        return WeatherResult(step_index=step_index, data=None)
 
 
 __all__ = ["WeatherData", "get_weather_data"]
