@@ -1,48 +1,35 @@
 """Main CLI application for generating photo albums."""
 
+from __future__ import annotations
+
 import asyncio
 import os
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from src.album.generator import generate_album_html
 from src.core.cache import clear_cache
 from src.core.exceptions import DataLoadError
 from src.core.logger import create_progress, get_console, get_logger
 from src.core.settings import settings
-from src.core.types import AlbumGenerationConfig, AlbumPhotoData
 from src.data.loader import load_trip_data
-from src.data.models import Step
 from src.photos.processor import process_step_photos
-from src.utils.steps import get_steps_distributed, get_steps_in_range
 
-from .args import parse_args, parse_step_range
+from .args import Args
+from .steps import filter_steps
 
 if TYPE_CHECKING:
-    from src.data.models import Photo
+    from src.core.types import AlbumGenerationConfig, AlbumPhotoData
+    from src.data.models import Photo, Step
 
 logger = get_logger(__name__)
 console = get_console()
 
 
-def _filter_steps(all_steps: list[Step], args: Any) -> list[Step]:
-    if args.sample:
-        steps = get_steps_distributed(all_steps, args.sample)
-        logger.info("Sampled %d steps evenly across the trip", len(steps))
-        return steps
-    if args.steps:
-        start, end = parse_step_range(args.steps)
-        steps = get_steps_in_range(all_steps, start, end)
-        logger.info("Filtered to steps %d-%d: %d steps", start, end, len(steps))
-        return steps
-    logger.info("Using all %d steps", len(all_steps))
-    return all_steps
-
-
 def _load_step_photos(
     steps: list[Step], trip_dir: Path
-) -> tuple[dict[int, list["Photo"]], dict[int, "Photo | None"], dict[int, list[list["Photo"]]]]:
+) -> tuple[dict[int, list[Photo]], dict[int, Photo | None], dict[int, list[list[Photo]]]]:
     steps_with_photos: dict[int, list[Photo]] = {}
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
@@ -133,7 +120,7 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
 
 
 def main() -> None:
-    args = parse_args()
+    args = Args(underscores_to_dashes=True).parse_args()
 
     trip_json_path = Path(args.trip_dir) / "trip.json"
     if not trip_json_path.exists():
@@ -162,10 +149,10 @@ def main() -> None:
         )
 
     logger.info("Found %d total steps", len(trip_data.all_steps))
-    steps = _filter_steps(trip_data.all_steps, args)
+    steps = filter_steps(trip_data.all_steps, args)
 
-    args.output.mkdir(parents=True, exist_ok=True)
-    logger.debug("Output directory: %s", args.output)
+    args.out.mkdir(parents=True, exist_ok=True)
+    logger.debug("Output directory: %s", args.out)
 
     steps_with_photos, steps_cover_photos, steps_photo_pages = _load_step_photos(
         steps, args.trip_dir
@@ -179,7 +166,7 @@ def main() -> None:
     }
     album_config: AlbumGenerationConfig = {
         "trip_data": trip_data,
-        "output_dir": args.output,
+        "output_dir": args.out,
     }
     html_path = _generate_html_album(
         steps,
@@ -191,7 +178,7 @@ def main() -> None:
 
     if args.pdf:
         # Using module-level settings
-        pdf_path = args.output / settings.file.album_pdf_file
+        pdf_path = args.out / settings.file.album_pdf_file
         with console.status("[bold blue]Generating PDF..."):
             _generate_pdf(html_path, pdf_path)
         logger.info("Generated: %s", pdf_path, extra={"success": True})
