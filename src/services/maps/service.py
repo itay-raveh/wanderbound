@@ -37,7 +37,7 @@ async def get_map_data(
 
     dot_position = None
     if lat is not None and lon is not None:
-        dot_position = get_country_map_dot_position(lat, lon, svg_data)
+        dot_position = get_country_map_dot_position(lon, lat, svg_data)
 
     return MapResult(
         step_index=step_index,
