@@ -19,7 +19,7 @@
     </head>
     <body {% if light_mode %}class="light-mode"{% endif %}>
         {% for step in steps %}
-            <div class="step-page {% if step.use_two_columns %}has-two-columns{% endif %}">
+            <div class="step-page {% if step.use_two_columns %}multi-column{% endif %}">
                 <div class="step-data">
                     <div class="location-section">
                         <div class="map-coords-container">
@@ -56,7 +56,7 @@
                             {{ step.country | upper }}
                         </div>
                         <div class="city">{{ step.city | upper }}</div>
-                        {%- if step.description and not step.use_two_columns -%}
+                        {%- if not step.use_two_columns -%}
                             <div class="description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
                         {%- endif -%}
                     </div>
@@ -109,36 +109,35 @@
                 </div>
                 <div class="step-content">
                     {% if step.use_two_columns %}
-                        <div class="two-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}">
-                            {%- if step.description_full -%}{{- step.description_full -}}{%- endif
-                                -%}
-                            </div>
-                        {% elif step.cover_image_path %}
-                            <img src="{{ step.cover_image_path }}"
-                                 alt="{{ step.city }}"
-                                 class="main-image" />
-                        {% else %}
-                            <div class="no-image-message">No image available</div>
-                        {% endif %}
-                    </div>
-                </div>
-                {# Photo pages for this step #}
-                {% if step.photo_pages %}
-                    {% for photo_page
-                        in step.photo_pages %}
-                        <div class="step-page photo-page">
-                            <div class="photo-page-container{% if photo_page.is_three_portraits %} three-portraits{% endif %}{% if photo_page.is_portrait_landscape_split %} portrait-landscape-split{% endif %}">
-                                {% for photo_path in photo_page.photos %}
-                                    <div class="photo-item">
-                                        <img src="{{ photo_path }}"
-                                             alt="{{ step.city }} photo"
-                                             class="photo-image" />
-                                    </div>
-                                {% endfor %}
-                            </div>
+                        <div class="multi-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}">
+                            {{- step.description -}}
                         </div>
-                    {% endfor %}
-                {% endif %}
-            {% endfor %}
-        </body>
-    </html>
+                    {% elif step.cover_image_path %}
+                        <img src="{{ step.cover_image_path }}"
+                             alt="{{ step.city }}"
+                             class="main-image" />
+                    {% else %}
+                        <div class="no-image-message">No image available</div>
+                    {% endif %}
+                </div>
+            </div>
+            {# Photo pages for this step #}
+            {% if step.photo_pages %}
+                {% for photo_page
+                    in step.photo_pages %}
+                    <div class="step-page photo-page">
+                        <div class="photo-page-container{% if photo_page.is_three_portraits %} three-portraits{% endif %}{% if photo_page.is_portrait_landscape_split %} portrait-landscape-split{% endif %}">
+                            {% for photo_path in photo_page.photos %}
+                                <div class="photo-item">
+                                    <img src="{{ photo_path }}"
+                                         alt="{{ step.city }} photo"
+                                         class="photo-image" />
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </body>
+</html>

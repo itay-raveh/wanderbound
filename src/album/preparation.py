@@ -1,8 +1,8 @@
 """Step data preparation for HTML generation."""
 
-from typing import Any
+from datetime import datetime
 
-from langdetect import LangDetectException, detect
+import pytz
 
 from src.core.formatting import (
     format_coordinates,
@@ -15,65 +15,15 @@ from src.core.types import StepContext, StepData, StepExternalData
 from src.data.models import MapResult, Step, TripData
 from src.services.altitude import format_altitude
 from src.services.weather import WeatherData
-from src.utils.dates import calculate_day_number
 
 logger = get_logger(__name__)
 
-__all__ = [
-    "_calculate_progress",
-    "_calculate_progress_positions",
-    "_clean_description",
-    "_extract_map_data",
-    "_extract_weather_icons",
-    "_format_temperature",
-    "_is_hebrew",
-    "_split_description",
-    "prepare_step_data",
-]
+__all__ = ["prepare_step_data"]
 
 
 def _is_hebrew(text: str) -> bool:
-    if not text or not text.strip():
-        return False
-
-    # Fast Unicode range check first (instant, no network)
-    has_hebrew_chars = any("\u0590" <= char <= "\u05ff" for char in text)
-    # If we found Hebrew characters, it's likely Hebrew text
-    # Only use langdetect for very short texts that might be ambiguous
-    if has_hebrew_chars and len(text.strip()) > 10:
-        return True
-
-    # Use langdetect for mixed content or short texts
-    try:
-        detected_lang: str = str(detect(text))
-    except LangDetectException:
-        # Fallback to Unicode check if langdetect fails
-        return has_hebrew_chars
-    else:
-        return detected_lang == "he"
-
-
-def _split_description(
-    description: str, *, _is_hebrew: bool, _use_three_columns: bool = False
-) -> tuple[str, str, str]:
-    """Split description into columns. Returns full text for CSS column handling."""
-    if not description:
-        return ("", "", "")
-
-    parts = description.split("\n\n")
-    paragraphs = []
-    for p in parts:
-        cleaned = p.strip()
-        if cleaned:
-            paragraphs.append(cleaned)
-        elif paragraphs and paragraphs[-1]:
-            paragraphs.append("")
-
-    if not paragraphs:
-        return ("", "", "")
-
-    full_text = "\n\n".join(paragraphs).strip().lstrip()
-    return (full_text, "", "")
+    # https://www.unicode.org/charts/PDF/U0590.pdf
+    return any("\u0590" <= char <= "\u05ff" for char in text)
 
 
 def _clean_description(description: str) -> str:
@@ -114,13 +64,29 @@ def _calculate_progress(
         day_num = step_index + 1
         progress_percent = (day_num / len(steps)) * 100 if steps else 0
     else:
-        day_num = calculate_day_number(step.start_time, trip_data.start_date, trip_data.timezone_id)
-        total_days = calculate_day_number(
+        day_num = _calculate_day_number(
+            step.start_time, trip_data.start_date, trip_data.timezone_id
+        )
+        total_days = _calculate_day_number(
             trip_data.end_date, trip_data.start_date, trip_data.timezone_id
         )
         progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
 
     return day_num, progress_percent
+
+
+def _calculate_day_number(
+    step_start: float | None, trip_start: float | None, timezone_id: str
+) -> int:
+    if not step_start or not trip_start:
+        return 0
+
+    tz = pytz.timezone(timezone_id)
+    step_dt = datetime.fromtimestamp(step_start, tz=tz)
+    trip_dt = datetime.fromtimestamp(trip_start, tz=tz)
+
+    delta = step_dt.date() - trip_dt.date()
+    return delta.days + 1
 
 
 def _calculate_progress_positions(progress_percent: float) -> tuple[float, float]:
@@ -147,9 +113,7 @@ def _extract_map_data(
     return None, None, None
 
 
-def _extract_weather_icons(
-    weather_data: WeatherData, step: Step, settings: Any
-) -> tuple[str | None, str | None]:
+def _extract_weather_icons(weather_data: WeatherData, step: Step) -> tuple[str | None, str | None]:
     day_icon_api = weather_data.day_icon
     night_icon = weather_data.night_icon
 
@@ -192,13 +156,7 @@ def prepare_step_data(
     is_hebrew = _is_hebrew(description)
     # Using module-level settings
     use_three_columns = len(description) > settings.description_three_columns_threshold
-    use_two_columns = (
-        len(description) > settings.description_two_columns_threshold or use_three_columns
-    )
-
-    desc_col1, _desc_col2, _desc_col3 = _split_description(
-        description, _is_hebrew=is_hebrew, _use_three_columns=use_three_columns
-    )
+    use_two_columns = len(description) > settings.description_two_columns_threshold
 
     day_num, progress_percent = _calculate_progress(
         step, step_index, steps, trip_data, use_step_range=use_step_range
@@ -231,9 +189,7 @@ def prepare_step_data(
                 temp_diff,
             )
 
-    day_weather_icon_url, night_weather_icon_url = _extract_weather_icons(
-        weather_data, step, settings
-    )
+    day_weather_icon_url, night_weather_icon_url = _extract_weather_icons(weather_data, step)
 
     country_flag_data_uri = flag_result.flag_url if flag_result else None
     accent_color = flag_result.accent_color if flag_result else None
@@ -266,8 +222,7 @@ def prepare_step_data(
         "map_dot_x": map_dot_x,
         "map_dot_y": map_dot_y,
         "accent_color": accent_color,
-        "description": description if not use_two_columns else None,
-        "description_full": desc_col1.lstrip() if use_two_columns and desc_col1 else "",
+        "description": description,
         "desc_dir": "rtl" if is_hebrew else "ltr",
         "desc_align": "right" if is_hebrew else "left",
         "use_two_columns": use_two_columns,

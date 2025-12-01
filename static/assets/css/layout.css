@@ -80,11 +80,11 @@
 }
 
 /* Two-column text spans entire page */
-.step-page.has-two-columns {
+.step-page.multi-column {
   flex-direction: column;
 }
 
-.step-page.has-two-columns .step-data {
+.step-page.multi-column .step-data {
   width: 100%;
   height: auto;
   min-height: auto;
@@ -95,18 +95,18 @@
   gap: var(--spacing-xxxl);
 }
 
-.step-page.has-two-columns .location-section {
+.step-page.multi-column .location-section {
   margin-bottom: 0;
   flex: 1;
 }
 
-.step-page.has-two-columns .metadata-section {
+.step-page.multi-column .metadata-section {
   flex-shrink: 0;
   width: min(400px, 40%);
   margin-top: 0;
 }
 
-.step-page.has-two-columns .step-content {
+.step-page.multi-column .step-content {
   width: 100%;
   min-height: 300px;
   background: var(--bg-primary);

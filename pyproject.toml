@@ -37,7 +37,6 @@ dependencies = [
     "geopandas>=0.14.0",
     "shapely>=2.0.0",
     "more-itertools>=10.0.0",
-    "langdetect>=1.0.9",
     "rich>=13.0.0",
     "tenacity>=8.2.0",
     "python-dateutil>=2.8.0",

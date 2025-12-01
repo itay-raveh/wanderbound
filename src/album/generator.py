@@ -45,8 +45,7 @@ class GeneratorContext:
 
 def _copy_static_files(context: GeneratorContext) -> None:
     """Copy static files to output directory."""
-    # From src/album/generator.py: parent=src/, parent.parent=project root
-    static_dir = Path(__file__).parent.parent.parent.parent / "static"
+    static_dir = Path(__file__).parent.parent.parent / "static"
     if static_dir.exists():
         for item in static_dir.iterdir():
             if item.name == "album.html.jinja":

@@ -1,9 +1,12 @@
 """Type aliases and Pydantic models for commonly used data structures."""
 
-from pathlib import Path
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from src.data.models import (
         FlagResult,
         MapResult,
@@ -44,8 +47,7 @@ class StepData(TypedDict):
     map_dot_x: float | None
     map_dot_y: float | None
     accent_color: str | None
-    description: str | None
-    description_full: str
+    description: str
     desc_dir: str
     desc_align: str
     use_two_columns: bool
@@ -56,28 +58,28 @@ class StepData(TypedDict):
 
 class StepExternalData(TypedDict):
     elevation: float | None
-    weather_data: "WeatherResult | None"
-    flag_data: "FlagResult | None"
-    map_data: "MapResult | None"
+    weather_data: WeatherResult | None
+    flag_data: FlagResult | None
+    map_data: MapResult | None
     cover_image_path: str | None
 
 
 class AlbumPhotoData(TypedDict):
-    steps_with_photos: dict[int, list["Photo"]]
-    steps_cover_photos: dict[int, "Photo | None"]
-    steps_photo_pages: dict[int, list[list["Photo"]]]
+    steps_with_photos: dict[int, list[Photo]]
+    steps_cover_photos: dict[int, Photo | None]
+    steps_photo_pages: dict[int, list[list[Photo]]]
 
 
 class AlbumGenerationConfig(TypedDict):
-    trip_data: "TripData"
+    trip_data: TripData
     output_dir: Path
 
 
 class StepContext(TypedDict):
-    step: "Step"
+    step: Step
     step_index: int
-    steps: list["Step"]
-    trip_data: "TripData"
+    steps: list[Step]
+    trip_data: TripData
 
 
 __all__ = [
