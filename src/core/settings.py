@@ -51,13 +51,10 @@ class FileSettings(BaseModel):
     # File names
     album_html_file: str = "album.html"
     album_pdf_file: str = "album.pdf"
-    font_file: str = "Renner.ttf"
 
     # Directory names
     assets_dir: str = "assets"
     images_dir: str = "images"
-    fonts_dir: str = "fonts"
-    css_dir: str = "css"
     static_dir: str = "static"
     cache_dir: Path = Path(".cache")  #  Path.home() / ".cache" / "polarsteps-album-generator"
 

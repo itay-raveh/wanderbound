@@ -14,16 +14,9 @@ from src.photos.layout_engine import (
     is_three_portraits,
 )
 from src.utils.files import sanitize_filename
-from src.utils.paths import get_assets_path, get_font_path
+from src.utils.paths import get_assets_path
 
 logger = get_logger(__name__)
-
-__all__ = [
-    "copy_assets",
-    "copy_cover_images",
-    "copy_image_to_assets",
-    "copy_photo_pages",
-]
 
 
 def copy_image_to_assets(
@@ -42,42 +35,6 @@ def copy_image_to_assets(
         shutil.copy2(image_path, output_path)
 
     return f"{settings.file.assets_dir}/{settings.file.images_dir}/{output_filename}"
-
-
-def copy_assets(output_dir: Path) -> None:
-    assets_dir = output_dir / settings.file.assets_dir
-    fonts_dir = assets_dir / settings.file.fonts_dir
-    css_dir = assets_dir / settings.file.css_dir
-    fonts_dir.mkdir(parents=True, exist_ok=True)
-    css_dir.mkdir(parents=True, exist_ok=True)
-
-    font_path = get_font_path()
-    output_font = fonts_dir / settings.file.font_file
-    if not output_font.exists() and font_path.exists():
-        shutil.copy2(font_path, output_font)
-
-    # Note: This path might need adjustment depending on where this file is located
-    # relative to static dir
-    # Current location: src/album/assets.py
-    # Project root: ../../../
-    # Static dir: ../../../static
-    project_root = Path(__file__).parent.parent.parent.parent
-    static_dir = project_root / settings.file.static_dir / settings.file.css_dir
-
-    css_files = [
-        "variables.css",
-        "reset.css",
-        "layout.css",
-        "components.css",
-        "typography.css",
-        "photos.css",
-    ]
-
-    for css_file in css_files:
-        source_css = static_dir / css_file
-        output_css = css_dir / css_file
-        if source_css.exists():
-            shutil.copy2(source_css, output_css)
 
 
 def copy_photo_pages(

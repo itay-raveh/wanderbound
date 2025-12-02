@@ -191,6 +191,3 @@ async def get_weather_data(  # noqa: PLR0913
             cast("WeatherApiResponse", data), tz, lat, lon, date_str
         )
         return WeatherResult(step_index=step_index, data=weather)
-
-
-__all__ = ["WeatherData", "get_weather_data"]

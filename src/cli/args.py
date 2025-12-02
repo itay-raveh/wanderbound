@@ -5,8 +5,6 @@ from typing import Literal
 
 from tap import Tap
 
-__all__ = ["Args"]
-
 
 class Args(Tap):
     trip_dir: Path  # Directory containing unzipped Polarsteps data

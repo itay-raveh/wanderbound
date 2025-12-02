@@ -10,8 +10,6 @@ from .models import Location, Step, TripData
 
 logger = get_logger(__name__)
 
-__all__ = ["load_trip_data"]
-
 
 def load_trip_data(trip_path: Path) -> TripData:
     if not isinstance(trip_path, Path):

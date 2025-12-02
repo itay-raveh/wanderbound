@@ -9,8 +9,6 @@ from src.core.types import StepData
 
 logger = get_logger(__name__)
 
-__all__ = ["create_template_environment", "render_album_template"]
-
 
 def create_template_environment() -> Environment:
     # Template is in static/ folder at project root

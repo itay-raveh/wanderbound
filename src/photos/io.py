@@ -10,8 +10,6 @@ from src.data.models import Photo
 
 logger = get_logger(__name__)
 
-__all__ = ["_load_photo_metadata", "load_step_photos"]
-
 
 @lru_cache(maxsize=512)
 def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:

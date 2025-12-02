@@ -20,9 +20,6 @@ from .strategies import (
 
 logger = get_logger(__name__)
 
-__all__ = [
-    "compute_default_photos_by_pages",
-]
 
 # Instantiate strategies
 _STRATEGIES: list[LayoutStrategy] = [

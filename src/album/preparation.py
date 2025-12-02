@@ -12,13 +12,10 @@ from src.core.formatting import (
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import StepContext, StepData, StepExternalData
-from src.data.models import MapResult, Step, TripData
+from src.data.models import MapResult, Step, TripData, WeatherData
 from src.services.altitude import format_altitude
-from src.services.weather import WeatherData
 
 logger = get_logger(__name__)
-
-__all__ = ["prepare_step_data"]
 
 
 def _is_hebrew(text: str) -> bool:

@@ -66,6 +66,3 @@ class APIClient:
             if response_type == "json":
                 return response.json()
             return response.content
-
-
-__all__ = ["APIClient"]

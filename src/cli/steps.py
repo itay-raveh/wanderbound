@@ -5,8 +5,6 @@ from src.data.models import Step
 
 from .args import Args
 
-__all__ = ["filter_steps"]
-
 logger = get_logger(__name__)
 
 

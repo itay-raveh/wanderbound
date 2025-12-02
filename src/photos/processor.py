@@ -12,8 +12,6 @@ from .scorer import compute_default_photos_by_pages
 
 logger = get_logger(__name__)
 
-__all__ = ["process_step_photos"]
-
 
 def process_step_photos(
     step: Step,
