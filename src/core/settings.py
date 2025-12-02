@@ -16,8 +16,6 @@ class PDFSettings(BaseModel):
 class PhotoSettings(BaseModel):
     # Aspect ratio matching
     aspect_ratio_tolerance: float = Field(default=0.1, gt=0.0)
-    ideal_cover_aspect_ratio: float = Field(default=4 / 5, gt=0.0)  # 4:5 portrait
-    uniform_aspect_ratio_tolerance: float = Field(default=0.05, gt=0.0)
 
     # Layout constants
     max_photos_to_test: int = 9
@@ -132,7 +130,7 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def check_brightness_thresholds(self) -> "Settings":
+    def validate_brightness_thresholds(self) -> "Settings":
         if self.brightness_threshold_high <= self.brightness_threshold_low:
             raise ValueError(
                 "brightness_threshold_high must be greater than brightness_threshold_low"
@@ -140,8 +138,6 @@ class Settings(BaseSettings):
         return self
 
 
-# Module-level settings instance
-# Python modules are singletons, so this ensures only one Settings instance
 try:
     settings = Settings()
 except Exception as e:

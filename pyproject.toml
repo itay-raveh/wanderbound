@@ -79,6 +79,7 @@ lint = "task format && task check && task types && task deps && task dead && tas
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+exclude = ["src/_whitelist.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -123,7 +124,7 @@ warn_unused_ignores = true
 show_error_codes = true
 warn_unreachable = true
 pretty = true
-
+exclude = ["src/_whitelist.py"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -140,8 +141,9 @@ module = [
 ignore_missing_imports = true
 
 [tool.vulture]
-min_confidence = 80
+min_confidence = 60
 sort_by_size = true
+ignore_decorators = ["@model_validator", "@field_validator"]
 
 
 [tool.deptry]

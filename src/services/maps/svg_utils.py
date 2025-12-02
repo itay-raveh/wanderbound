@@ -52,10 +52,3 @@ def parse_svg_with_lxml(svg_data: str) -> etree._Element:
         raise ValueError("Parsed SVG root is None")
 
     return root
-
-
-def get_svg_viewbox(root: etree._Element) -> list[float]:
-    """Get viewBox from SVG root element."""
-    # Assume viewBox exists and is valid
-    viewbox_str = root.attrib["viewBox"]
-    return [float(x) for x in viewbox_str.split()]

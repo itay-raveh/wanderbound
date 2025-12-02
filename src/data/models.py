@@ -1,7 +1,6 @@
 """Pydantic models for trip data validation."""
 
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
@@ -113,24 +112,3 @@ class Photo(BaseModel):
     width: int | None = Field(default=None, gt=0)
     height: int | None = Field(default=None, gt=0)
     aspect_ratio: float | None = Field(default=None, gt=0)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "index": self.index,
-            "path": str(self.path),
-            "width": self.width,
-            "height": self.height,
-            "aspect_ratio": self.aspect_ratio,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Photo":
-        return cls(
-            id=data["id"],
-            index=data["index"],
-            path=Path(data["path"]),
-            width=data.get("width"),
-            height=data.get("height"),
-            aspect_ratio=data.get("aspect_ratio"),
-        )

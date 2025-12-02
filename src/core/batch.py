@@ -25,8 +25,6 @@ class BatchConfig:
     """Configuration for batch processing."""
 
     concurrency: int = 5
-    rate_limit_calls: int = 0  # 0 means no rate limit
-    rate_limit_period: float = 1.0
     retry_attempts: int = 3
     retry_min_wait: float = 1.0
     retry_max_wait: float = 10.0
