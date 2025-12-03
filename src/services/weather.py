@@ -1,10 +1,8 @@
 """Historical weather API integration for temperature data."""
 
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import TypedDict, cast
-
-import pytz
-from dateutil import parser as date_parser
+from zoneinfo import ZoneInfo
 
 from src.core.logger import get_logger
 from src.core.settings import settings
@@ -38,9 +36,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
     return icon.lower().replace("_", "-")
 
 
-def _find_night_hours(
-    hours: list[WeatherHourData], timezone: pytz.BaseTzInfo
-) -> list[WeatherHourData]:
+def _find_night_hours(hours: list[WeatherHourData], timezone: tzinfo) -> list[WeatherHourData]:
     """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
     night_hours = []
     for hour_data in hours:
@@ -49,17 +45,13 @@ def _find_night_hours(
             continue
 
         try:
-            # Parse datetime string using dateutil.parser (handles various formats)
-            # Visual Crossing API returns ISO format like "2024-01-15T14:00:00" or "14:00:00"
-            dt = date_parser.parse(hour_str, default=datetime.now(timezone))
-            # Ensure timezone-aware datetime
-            dt = timezone.localize(dt) if dt.tzinfo is None else dt.astimezone(timezone)
-
-            hour_num = dt.hour
-            if hour_num >= 20 or hour_num < 4:
-                night_hours.append(hour_data)
-        except (ValueError, TypeError, AttributeError, date_parser.ParserError):
+            dt = datetime.fromisoformat(hour_str).astimezone(timezone)
+        except (ValueError, TypeError, AttributeError):
             continue
+
+        hour_num = dt.hour
+        if hour_num >= 20 or hour_num < 4:
+            night_hours.append(hour_data)
 
     return night_hours
 
@@ -120,7 +112,7 @@ def _parse_day_weather_data(
 
 
 def _parse_weather_api_response(
-    data: WeatherApiResponse, tz: pytz.BaseTzInfo, lat: float, lon: float, date_str: str
+    data: WeatherApiResponse, tz: tzinfo, lat: float, lon: float, date_str: str
 ) -> WeatherData:
     weather = WeatherData()
 
@@ -169,7 +161,7 @@ async def get_weather_data(  # noqa: PLR0913
         return WeatherResult(step_index=step_index, data=None)
 
     # Convert timestamp to date in the location's timezone
-    tz = pytz.timezone(timezone_id)
+    tz = ZoneInfo(timezone_id)
     dt = datetime.fromtimestamp(timestamp, tz=tz)
     date_str = dt.strftime("%Y-%m-%d")
 

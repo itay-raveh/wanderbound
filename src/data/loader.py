@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-from src.core.exceptions import DataLoadError
 from src.core.logger import get_logger
 
 from .models import Location, Step, TripData
@@ -68,3 +67,10 @@ def load_trip_data(trip_path: Path) -> TripData:
     trip_data.all_steps = steps  # Replace with validated steps
 
     return trip_data
+
+
+class DataLoadError(Exception):
+    def __init__(self, message: str, file_path: str | None = None) -> None:
+        super().__init__(message)
+        self.file_path = file_path
+        self.message = message

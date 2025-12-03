@@ -1,14 +1,11 @@
 """Step data preparation for HTML generation."""
 
 from datetime import datetime
+from functools import cache
+from zoneinfo import ZoneInfo
 
-import pytz
+from geopy import Point
 
-from src.core.formatting import (
-    format_coordinates,
-    format_date,
-    format_weather_condition,
-)
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.types import StepContext, StepData, StepExternalData
@@ -37,16 +34,6 @@ def _clean_description(description: str) -> str:
         elif cleaned_lines and cleaned_lines[-1]:
             cleaned_lines.append("")
     return "\n".join(cleaned_lines).strip().lstrip()
-
-
-def _format_temperature(temp: float | None, feels_like: float | None) -> str:
-    if temp is None:
-        return "N/A"
-    # Only show feels like if difference is meaningful
-    # Using module-level settings
-    if feels_like is not None and abs(feels_like - temp) >= settings.feels_like_display_threshold:
-        return f"{int(temp)}° ({int(feels_like)}°)"
-    return f"{int(temp)}°"
 
 
 def _calculate_progress(
@@ -78,7 +65,7 @@ def _calculate_day_number(
     if not step_start or not trip_start:
         return 0
 
-    tz = pytz.timezone(timezone_id)
+    tz = ZoneInfo(timezone_id)
     step_dt = datetime.fromtimestamp(step_start, tz=tz)
     trip_dt = datetime.fromtimestamp(trip_start, tz=tz)
 
@@ -163,8 +150,8 @@ def prepare_step_data(
 
     country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_result)
 
-    date_data = format_date(step.start_time, step.timezone_id)
-    coords_data = format_coordinates(step.location.lat, step.location.lon)
+    date = datetime.fromtimestamp(step.start_time, ZoneInfo(step.timezone_id))
+    coords_lat, coords_lon = Point(step.location.lat, step.location.lon).format_unicode().split(",")
 
     day_temp_api = weather_data.day_temp
     night_temp = weather_data.night_temp
@@ -176,11 +163,10 @@ def prepare_step_data(
         temp_diff = abs(day_temp_api - step.weather_temperature)
         if temp_diff > settings.temperature_mismatch_threshold:
             logger.warning(
-                "Temperature mismatch for %s on %s %s: API reports %.1f°C, "
+                "Temperature mismatch for %s on %s: API reports %.1f°C, "
                 "trip data has %.1f°C (difference: %.1f°C). Using API data.",
                 step.city,
-                date_data["month"],
-                date_data["day"],
+                date.strftime("%Y-%m-%d"),
                 day_temp_api,
                 step.weather_temperature,
                 temp_diff,
@@ -199,11 +185,11 @@ def prepare_step_data(
         "city": step.city,
         "country": step.country,
         "country_code": step.country_code,
-        "coords_lat": coords_data["lat"],
-        "coords_lon": coords_data["lon"],
-        "date_month": date_data["month"],
-        "date_day": date_data["day"],
-        "weather": format_weather_condition(step.weather_condition),
+        "coords_lat": coords_lat,
+        "coords_lon": coords_lon,
+        "date_month": date.strftime("%B"),
+        "date_day": str(date.day),
+        "weather": _format_weather_condition(step.weather_condition),
         "day_weather_icon_url": day_weather_icon_url,
         "night_weather_icon_url": night_weather_icon_url,
         "temp_str": temp_str,
@@ -227,3 +213,34 @@ def prepare_step_data(
         "light_mode": light_mode,
         "photo_pages": [],  # Will be populated later
     }
+
+
+@cache
+def _format_weather_condition(condition: str | None) -> str:
+    if not condition:
+        return "UNKNOWN"
+
+    condition_map = {
+        "clear-day": "CLEAR",
+        "clear-night": "CLEAR",
+        "rain": "RAIN",
+        "snow": "SNOW",
+        "sleet": "SLEET",
+        "wind": "WIND",
+        "fog": "FOG",
+        "cloudy": "CLOUDY",
+        "partly-cloudy-day": "PARTLY CLOUDY",
+        "partly-cloudy-night": "PARTLY CLOUDY",
+    }
+
+    return condition_map.get(condition, condition.upper().replace("-", " "))
+
+
+def _format_temperature(temp: float | None, feels_like: float | None) -> str:
+    if temp is None:
+        return "N/A"
+    # Only show feels like if difference is meaningful
+    # Using module-level settings
+    if feels_like is not None and abs(feels_like - temp) >= settings.feels_like_display_threshold:
+        return f"{int(temp)}° ({int(feels_like)}°)"
+    return f"{int(temp)}°"

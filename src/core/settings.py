@@ -5,8 +5,6 @@ from pathlib import Path
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .exceptions import ConfigurationError
-
 
 class PDFSettings(BaseModel):
     viewport_width: int = Field(default=1123, gt=0)
@@ -135,10 +133,4 @@ class Settings(BaseSettings):
         return self
 
 
-try:
-    settings = Settings()
-except Exception as e:
-    raise ConfigurationError(
-        f"Failed to load application settings: {e}. "
-        f"Please check your .env file and environment variables."
-    ) from e
+settings = Settings()

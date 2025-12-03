@@ -1,5 +1,6 @@
 """Asset management and photo page processing for HTML generation."""
 
+import re
 import shutil
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -13,8 +14,6 @@ from src.photos.layout_engine import (
     is_one_portrait_two_landscapes,
     is_three_portraits,
 )
-from src.utils.files import sanitize_filename
-from src.utils.paths import get_assets_path
 
 logger = get_logger(__name__)
 
@@ -22,10 +21,10 @@ logger = get_logger(__name__)
 def copy_image_to_assets(
     image_path: Path, output_dir: Path, step_name: str, photo_index: int
 ) -> str:
-    images_dir = get_assets_path(output_dir, settings.file.images_dir)
+    images_dir = output_dir / settings.file.assets_dir / settings.file.images_dir
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    sanitized_name = sanitize_filename(step_name)
+    sanitized_name = _sanitize_filename(step_name)
 
     ext = image_path.suffix.lower() or ".jpg"
     output_filename = f"{sanitized_name}_photo_{photo_index}{ext}"
@@ -123,3 +122,9 @@ def copy_cover_images(
                     image_progress.advance(task_id)
     logger.debug("Processed %d cover images", len(cover_image_path_list))
     return cover_image_path_list
+
+
+def _sanitize_filename(name: str) -> str:
+    sanitized = re.sub(r"[^\w\-]", "_", name)
+    sanitized = re.sub(r"_+", "_", sanitized)
+    return sanitized.strip("_")

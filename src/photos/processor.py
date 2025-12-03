@@ -4,7 +4,6 @@ from pathlib import Path
 
 from src.core.logger import get_logger
 from src.data.models import Photo, Step
-from src.utils.paths import get_step_photo_dir
 
 from .io import load_step_photos
 from .layout_engine import select_cover_photo, should_use_cover_photo
@@ -21,7 +20,7 @@ def process_step_photos(
 
     Returns empty lists/None if no photos are found.
     """
-    photo_dir = get_step_photo_dir(trip_dir, step)
+    photo_dir = _get_step_photo_dir(trip_dir, step)
     if not photo_dir:
         logger.warning(
             "No photo directory found for step '%s' (ID: %s). "
@@ -51,3 +50,23 @@ def process_step_photos(
     # Use default layout strategy
     pages, _, _ = compute_default_photos_by_pages(photos, cover_photo)
     return photos, cover_photo, pages
+
+
+def _get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
+    slug = step.slug or step.display_slug or ""
+
+    if not slug:
+        return None
+
+    # Try both patterns: slug_id and display_slug_id
+    patterns = [
+        f"{slug}_{step.id}",
+        f"{step.display_slug or slug}_{step.id}",
+    ]
+
+    for pattern in patterns:
+        photo_dir = trip_dir / pattern / "photos"
+        if photo_dir.exists():
+            return photo_dir
+
+    return None

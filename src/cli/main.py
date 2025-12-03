@@ -10,10 +10,9 @@ from typing import TYPE_CHECKING
 
 from src.album.generator import generate_album_html
 from src.core.cache import clear_cache
-from src.core.exceptions import DataLoadError
 from src.core.logger import create_progress, get_console, get_logger
 from src.core.settings import settings
-from src.data.loader import load_trip_data
+from src.data.loader import DataLoadError, load_trip_data
 from src.photos.processor import process_step_photos
 
 from .args import Args
