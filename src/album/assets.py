@@ -83,7 +83,7 @@ def copy_cover_images(
     output_dir: Path,
 ) -> list[str | None]:
     logger.debug("Copying cover images to assets...")
-    image_progress = create_progress("Processing images")
+    image_progress = create_progress()
     cover_image_path_list: list[str | None] = [None] * len(steps)
 
     def _process_cover_image(step: Step) -> str | None:

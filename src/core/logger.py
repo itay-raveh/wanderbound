@@ -2,7 +2,7 @@
 
 import logging
 
-from rich.console import Console
+from rich import print as rprint
 from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
@@ -15,103 +15,62 @@ from rich.progress import (
 
 from .settings import settings
 
-# Default log level
-DEFAULT_LOG_LEVEL = logging.INFO
-
-# Get settings
-DEBUG_MODE = settings.debug
-
-# Set log level based on DEBUG setting
-LOG_LEVEL = logging.DEBUG if DEBUG_MODE else DEFAULT_LOG_LEVEL
-
-# Global console instance with markup enabled
-_console = Console(markup=True)
+_LOG_LEVEL = logging.DEBUG if settings.debug else logging.INFO
 
 
-class PrettyCLIHandler(logging.Handler):
-    def __init__(self, console: Console) -> None:
-        super().__init__()
-        self.console = console
-        self.level_map = {
-            logging.INFO: "",
-            logging.WARNING: "⚠",
-            logging.ERROR: "✗",
-            logging.CRITICAL: "✗",
-            logging.DEBUG: "•",
-        }
-
+class RichPrintHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        try:
-            message = self.format(record)
+        # Check if this is a success message via extra keyword argument
+        is_success = getattr(record, "success", False)
 
-            # Check if this is a success message via extra keyword argument
-            is_success = getattr(record, "success", False)
-            if record.levelno == logging.INFO and is_success:
-                level_icon = "✓"
-            else:
-                level_icon = self.level_map.get(record.levelno, "•")
+        output = self.format(record)
 
-            # Just add icon and print as normal string - let Rich handle everything else
-            output = f"{level_icon} {message}" if level_icon else message
+        # Apply icons
+        if is_success:
+            output = "✓ " + output
+        elif record.levelno == logging.WARNING:
+            output = "⚠ " + output
+        elif record.levelno >= logging.ERROR:
+            output = "✗ " + output
 
-            # Apply colors based on log level
-            if is_success and record.levelno == logging.INFO:
-                output = f"[green]{output}[/green]"
-            elif record.levelno == logging.WARNING:
-                output = f"[yellow]{output}[/yellow]"
-            elif record.levelno >= logging.ERROR:
-                output = f"[red]{output}[/red]"
+        # Apply colors
+        if is_success:
+            output = f"[green]{output}[/green]"
+        elif record.levelno == logging.WARNING:
+            output = f"[yellow]{output}[/yellow]"
+        elif record.levelno >= logging.ERROR:
+            output = f"[red]{output}[/red]"
 
-            self.console.print(output, markup=True)
-        except (
-            OSError,
-            ValueError,
-            AttributeError,
-        ):  # Rich console can raise these on output errors
-            self.handleError(record)
+        rprint(output)
 
 
-def setup_logging(name: str = "src") -> logging.Logger:
+_HANDLER: logging.Handler
+if settings.debug:
+    _HANDLER = RichHandler(
+        rich_tracebacks=True,
+        tracebacks_show_locals=True,
+        markup=True,
+    )
+else:
+    _HANDLER = RichPrintHandler()
+
+_HANDLER.setLevel(_LOG_LEVEL)
+
+
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
-    # Only configure if not already configured
-    if not logger.handlers:
-        logger.setLevel(LOG_LEVEL)
+    if logger.handlers:
+        return logger
 
-        if DEBUG_MODE:
-            # Debug mode: use RichHandler with its default automatic colors
-            handler: logging.Handler = RichHandler(
-                console=_console,
-                show_path=True,
-                show_time=True,
-                show_level=True,
-                rich_tracebacks=True,
-                tracebacks_show_locals=True,
-                markup=True,
-                log_time_format="%H:%M:%S",
-            )
-        else:
-            # Non-debug mode: use custom handler for pretty CLI output
-            handler = PrettyCLIHandler(_console)
-
-        handler.setLevel(LOG_LEVEL)
-        logger.addHandler(handler)
-
-        # Prevent propagation to root logger
-        logger.propagate = False
+    logger.setLevel(_LOG_LEVEL)
+    logger.addHandler(_HANDLER)
+    logger.propagate = False
 
     return logger
 
 
-def get_logger(name: str = "src") -> logging.Logger:
-    return setup_logging(name)
-
-
-def get_console() -> Console:
-    return _console
-
-
-def create_progress(_description: str = "Processing", _total: int | None = None) -> Progress:
+def create_progress() -> Progress:
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(
         SpinnerColumn(),
@@ -120,8 +79,5 @@ def create_progress(_description: str = "Processing", _total: int | None = None)
         TaskProgressColumn(),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeElapsedColumn(),
-        console=_console,
+        transient=True,
     )
-
-
-# Export DEBUG_MODE for use in other modules

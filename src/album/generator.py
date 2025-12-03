@@ -5,7 +5,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.core.logger import create_progress, get_console, get_logger
+from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.core.types import (
     AlbumGenerationConfig,
@@ -27,7 +27,6 @@ from .preparation import prepare_step_data
 from .renderer import create_template_environment, render_album_template
 
 logger = get_logger(__name__)
-console = get_console()
 
 
 @dataclass(frozen=True)
@@ -69,7 +68,7 @@ class FetchedData:
 
 async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
     """Fetch all external data concurrently."""
-    progress = create_progress("Fetching external data")
+    progress = create_progress()
 
     with progress:
         # Create tasks
@@ -121,7 +120,7 @@ def _process_steps(
     steps_photo_pages = context.photo_data["steps_photo_pages"]
     steps_cover_photos = context.photo_data["steps_cover_photos"]
 
-    progress = create_progress("Preparing steps")
+    progress = create_progress()
 
     with progress:
         task_id = progress.add_task("Preparing steps", total=len(context.steps))

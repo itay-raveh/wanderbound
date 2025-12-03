@@ -8,9 +8,11 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rich import get_console
+
 from src.album.generator import generate_album_html
 from src.core.cache import clear_cache
-from src.core.logger import create_progress, get_console, get_logger
+from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.data.loader import DataLoadError, load_trip_data
 from src.photos.processor import process_step_photos
@@ -23,7 +25,6 @@ if TYPE_CHECKING:
     from src.data.models import Photo, Step
 
 logger = get_logger(__name__)
-console = get_console()
 
 
 def _load_step_photos(
@@ -33,12 +34,12 @@ def _load_step_photos(
     steps_cover_photos: dict[int, Photo | None] = {}
     steps_photo_pages: dict[int, list[list[Photo]]] = {}
 
-    progress = create_progress("Loading photos")
+    progress = create_progress()
     with progress:
         task_id = progress.add_task("Loading photos", total=len(steps))
         for step in progress.track(steps, task_id=task_id, description="Loading photos"):
             logger.debug("Loading photos for step: %s", step.city)
-            with console.status(f"[bold blue]Processing photos: {step.city}"):
+            with get_console().status(f"[bold blue]Processing photos: {step.city}"):
                 photos, cover_photo, photo_pages = process_step_photos(step, trip_dir)
             steps_with_photos[step.id] = photos
             steps_cover_photos[step.id] = cover_photo
@@ -54,7 +55,7 @@ def _generate_html_album(
     use_step_range: bool,
     light_mode: bool,
 ) -> Path:
-    with console.status("[bold blue]Generating album HTML..."):
+    with get_console().status("[bold blue]Generating album HTML..."):
         logger.debug("Generating album HTML...")
         html_path = generate_album_html(
             steps,
@@ -135,7 +136,7 @@ def main() -> None:
         logger.info("Clearing cache as requested...")
         asyncio.run(clear_cache())
 
-    with console.status("[bold blue]Loading trip data..."):
+    with get_console().status("[bold blue]Loading trip data..."):
         logger.debug("Loading trip data from %s", trip_json_path)
         trip_data = load_trip_data(trip_json_path)
         logger.debug("Trip data loaded successfully")
@@ -178,7 +179,7 @@ def main() -> None:
     if args.pdf:
         # Using module-level settings
         pdf_path = args.out / settings.file.album_pdf_file
-        with console.status("[bold blue]Generating PDF..."):
+        with get_console().status("[bold blue]Generating PDF..."):
             _generate_pdf(html_path, pdf_path)
         logger.info("Generated: %s", pdf_path, extra={"success": True})
         if not args.no_open:
