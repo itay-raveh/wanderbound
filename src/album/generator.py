@@ -23,6 +23,7 @@ from src.services.altitude import fetch_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flags_batch
 from src.services.maps.service import fetch_maps_batch
+from src.services.summary import calculate_trip_summary
 from src.services.weather import fetch_weather_data_batch
 
 from .assets import copy_cover_images, copy_photo_pages
@@ -234,10 +235,22 @@ async def generate_album_html(
         cover_image_path_list,
     )
 
+    # Calculate trip summary
+    trip_summary = calculate_trip_summary(
+        steps=steps,
+        step_data_list=step_data_list,
+        photo_data=photo_data,
+    )
+
     # Render template
     env = create_template_environment()
     template = env.get_template("album.html.jinja")
-    html = render_album_template(template, step_data_list, light_mode=context.light_mode)
+    html = render_album_template(
+        template,
+        step_data_list,
+        light_mode=context.light_mode,
+        summary=trip_summary,
+    )
 
     # Write output
     output_path = context.output_dir / settings.file.album_html_file

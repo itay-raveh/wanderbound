@@ -1,32 +1,36 @@
-.step-page {
-  /* Responsive sizing: use viewport width, maintain A4 landscape aspect ratio (297:210 ≈ 1.414) */
+.page-container {
   width: 100%;
-  max-width: 297mm;
-  aspect-ratio: 297 / 210;
-  min-height: 210mm;
-  display: flex;
+  max-width: var(--page-width);
+  aspect-ratio: var(--page-aspect-ratio);
+  min-height: var(--page-height);
+  margin: 0 auto;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+
+  /* Page break properties */
   page-break-after: always;
   page-break-inside: avoid;
   break-after: page;
   break-inside: avoid;
-  margin: 0 auto;
+}
+
+@media print {
+  .page-container {
+    width: var(--page-width);
+    height: var(--page-height);
+    max-width: var(--page-width);
+    aspect-ratio: auto;
+  }
+}
+
+.step-page {
   padding: 0;
   border: 0;
   outline: 0;
-  background: var(--bg-primary);
-  box-sizing: border-box;
-  position: relative;
-}
-
-/* For print/PDF, use fixed A4 dimensions */
-@media print {
-  .step-page {
-    width: 297mm;
-    height: 210mm;
-    max-width: 297mm;
-    aspect-ratio: auto;
-  }
 }
 
 .step-data {
@@ -51,7 +55,6 @@
 }
 
 .step-content {
-  /* Responsive: maintain 4:5 aspect ratio, calculate width based on container height */
   aspect-ratio: var(--cover-aspect-ratio);
   background: var(--bg-secondary);
   display: flex;
@@ -63,7 +66,6 @@
   flex-shrink: 0;
 }
 
-/* For print/PDF, use fixed dimensions */
 @media print {
   .step-content {
     width: calc(210mm * var(--cover-aspect-ratio));

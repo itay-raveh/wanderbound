@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     visual_crossing_api_key: str
 
     # Color constants
-    default_accent_color: str = Field(default="#ff69b4", pattern=r"^#[0-9a-fA-F]{6}$")
+    default_accent_color: str = Field(default="#ff4d6d", pattern=r"^#[0-9a-fA-F]{6}$")
 
     # Color extraction thresholds
     brightness_threshold_high: int = Field(default=240, ge=0, le=255)

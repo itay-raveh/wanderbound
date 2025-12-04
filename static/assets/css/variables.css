@@ -1,13 +1,11 @@
-@font-face {
-  font-family: "Renner";
-  src: url("../fonts/Renner.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}
-
 :root {
   /* Cover photo aspect ratio - maintained for responsive design */
   --cover-aspect-ratio: 4 / 5;
+
+  /* Page Dimensions (A4 Landscape) */
+  --page-width: 297mm;
+  --page-height: 210mm;
+  --page-aspect-ratio: 297 / 210;
 
   /* Spacing */
   --spacing-xs: 6px;
@@ -32,6 +30,7 @@
   --bg-primary: #1a1a1a;
   --bg-secondary: #212121;
   --bg-panel: #212121;
+  --bg-sidebar: #002e3d;
   --text-primary: white;
   --text-secondary: #e0e0e0;
   --text-muted: #999;
@@ -42,6 +41,15 @@
   --dot-shadow-1: rgba(0, 0, 0, 0.5);
   --dot-shadow-2: rgba(0, 0, 0, 0.4);
   --dot-drop-shadow: rgba(0, 0, 0, 0.4);
+
+  /* Accent Color (Default) */
+  --accent-color: #ff4d6d;
+
+  /* Font Sizes */
+  --font-size-sm: 0.9rem;
+  --font-size-md: 1.1rem;
+  --font-size-lg: 1.5rem;
+  --font-size-xl: 2.5rem;
 }
 
 /* Light mode override */

@@ -5,7 +5,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 from src.core.logger import get_logger
-from src.data.models import StepData
+from src.data.models import StepData, TripSummary
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,11 @@ def create_template_environment() -> Environment:
 
 
 def render_album_template(
-    template: Template, step_data_list: list[StepData], *, light_mode: bool = False
+    template: Template,
+    step_data_list: list[StepData],
+    *,
+    light_mode: bool = False,
+    summary: TripSummary | None = None,
 ) -> str:
-    result = template.render(steps=step_data_list, light_mode=light_mode)
+    result = template.render(steps=step_data_list, light_mode=light_mode, summary=summary)
     return str(result)

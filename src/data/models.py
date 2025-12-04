@@ -105,6 +105,16 @@ class MapResult(BaseModel):
     dot_position: tuple[float, float] | None = None
 
 
+class TripSummary(BaseModel):
+    countries: list[tuple[str, str | None]]  # (name, flag_url)
+    total_km: int
+    total_days: int
+    step_count: int
+    photo_count: int
+    start_date: str | None = None
+    end_date: str | None = None
+
+
 class Photo(BaseModel):
     id: str
     index: int = Field(..., gt=0)
