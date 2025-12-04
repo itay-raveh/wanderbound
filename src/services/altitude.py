@@ -1,10 +1,17 @@
 """Altitude/elevation API integration."""
 
+from typing import TYPE_CHECKING
+
 from more_itertools import chunked
 
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.services.client import APIClient
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from src.data.models import Step
 
 logger = get_logger(__name__)
 
@@ -50,3 +57,22 @@ def format_altitude(altitude: float | None) -> str:
 
     meters = round(altitude)
     return f"{meters:,}"
+
+
+async def fetch_altitudes(
+    client: APIClient,
+    steps: list["Step"],
+    progress_callback: "Callable[[int], None] | None" = None,
+) -> list[float | None]:
+    """Fetch altitudes for all steps in batches."""
+    logger.debug("Fetching altitudes...")
+
+    locations = [(step.location.lat, step.location.lon) for step in steps]
+
+    elevations = await get_altitudes(client, locations)
+
+    if progress_callback:
+        progress_callback(len(steps))
+
+    logger.debug("Fetched %d altitudes", len(elevations))
+    return elevations

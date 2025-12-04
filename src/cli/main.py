@@ -15,13 +15,13 @@ from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.data.loader import DataLoadError, load_trip_data
+from src.data.models import AlbumGenerationConfig, AlbumPhotoData
 from src.photos.processor import process_step_photos
 
 from .args import Args
 from .steps import filter_steps
 
 if TYPE_CHECKING:
-    from src.core.types import AlbumGenerationConfig, AlbumPhotoData
     from src.data.models import Photo, Step
 
 logger = get_logger(__name__)
@@ -47,7 +47,7 @@ def _load_step_photos(
     return steps_with_photos, steps_cover_photos, steps_photo_pages
 
 
-def _generate_html_album(
+async def _generate_html_album(
     steps: list[Step],
     photo_data: AlbumPhotoData,
     config: AlbumGenerationConfig,
@@ -57,7 +57,7 @@ def _generate_html_album(
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
         logger.debug("Generating album HTML...")
-        html_path = generate_album_html(
+        html_path = await generate_album_html(
             steps,
             photo_data,
             config,
@@ -159,21 +159,23 @@ def main() -> None:
     )
 
     use_step_range = args.progress_mode == "step-range"
-    photo_data: AlbumPhotoData = {
-        "steps_with_photos": steps_with_photos,
-        "steps_cover_photos": steps_cover_photos,
-        "steps_photo_pages": steps_photo_pages,
-    }
-    album_config: AlbumGenerationConfig = {
-        "trip_data": trip_data,
-        "output_dir": args.out,
-    }
-    html_path = _generate_html_album(
-        steps,
-        photo_data,
-        album_config,
-        use_step_range=use_step_range,
-        light_mode=args.light_mode,
+    photo_data = AlbumPhotoData(
+        steps_with_photos=steps_with_photos,
+        steps_cover_photos=steps_cover_photos,
+        steps_photo_pages=steps_photo_pages,
+    )
+    album_config = AlbumGenerationConfig(
+        trip_data=trip_data,
+        output_dir=args.out,
+    )
+    html_path = asyncio.run(
+        _generate_html_album(
+            steps,
+            photo_data,
+            album_config,
+            use_step_range=use_step_range,
+            light_mode=args.light_mode,
+        )
     )
 
     if args.pdf:

@@ -1,33 +1,36 @@
 """Historical weather API integration for temperature data."""
 
+import asyncio
+from collections.abc import Callable
 from datetime import datetime, tzinfo
-from typing import TypedDict, cast
 from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import WeatherData, WeatherResult
+from src.data.models import Step, WeatherData, WeatherResult
 from src.services.client import APIClient
 
 logger = get_logger(__name__)
 
 
-class WeatherHourData(TypedDict, total=False):
+class WeatherHourData(BaseModel):
     datetime: str
     icon: str
 
 
-class WeatherDayData(TypedDict, total=False):
-    tempmax: float | None
-    tempmin: float | None
-    feelslikemax: float | None
-    feelslikemin: float | None
-    icon: str | None
-    hours: list[WeatherHourData]
+class WeatherDayData(BaseModel):
+    tempmax: float | None = None
+    tempmin: float | None = None
+    feelslikemax: float | None = None
+    feelslikemin: float | None = None
+    icon: str | None = None
+    hours: list[WeatherHourData] = []
 
 
-class WeatherApiResponse(TypedDict, total=False):
-    days: list[WeatherDayData]
+class WeatherApiResponse(BaseModel):
+    days: list[WeatherDayData] = []
 
 
 def _normalize_icon_name(icon: str | None) -> str | None:
@@ -40,7 +43,7 @@ def _find_night_hours(hours: list[WeatherHourData], timezone: tzinfo) -> list[We
     """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
     night_hours = []
     for hour_data in hours:
-        hour_str = hour_data.get("datetime", "")
+        hour_str = hour_data.datetime
         if not hour_str:
             continue
 
@@ -63,12 +66,12 @@ def _get_night_icon(
 ) -> str | None:
     """Get night icon from night hours or fallback to day icon variant."""
     if night_hours:
-        night_icon_raw = night_hours[0].get("icon")
+        night_icon_raw = night_hours[0].icon
         return _normalize_icon_name(night_icon_raw)
 
     # Fallback: use last hour's icon
     if all_hours:
-        last_hour_icon_raw = all_hours[-1].get("icon")
+        last_hour_icon_raw = all_hours[-1].icon
         night_icon = _normalize_icon_name(last_hour_icon_raw)
         if night_icon:
             return night_icon
@@ -88,17 +91,17 @@ def _get_night_icon(
 def _parse_day_weather_data(
     day_data: WeatherDayData,
 ) -> tuple[WeatherData, list[WeatherHourData]]:
-    day_temp = day_data.get("tempmax")
-    night_temp = day_data.get("tempmin")
+    day_temp = day_data.tempmax
+    night_temp = day_data.tempmin
 
     # Use feelslikemax and feelslikemin directly from daily data
-    day_feels_like = day_data.get("feelslikemax")
-    night_feels_like = day_data.get("feelslikemin")
+    day_feels_like = day_data.feelslikemax
+    night_feels_like = day_data.feelslikemin
 
-    day_icon_raw = day_data.get("icon")
+    day_icon_raw = day_data.icon
     day_icon = _normalize_icon_name(day_icon_raw)
 
-    hours = day_data.get("hours", [])
+    hours = day_data.hours
 
     weather = WeatherData(
         day_temp=day_temp,
@@ -116,35 +119,34 @@ def _parse_weather_api_response(
 ) -> WeatherData:
     weather = WeatherData()
 
-    if data.get("days"):
-        day_data = data["days"][0]
+    if data.days:
+        day_data = data.days[0]
 
         # Debug logging
         if logger.isEnabledFor(10):  # DEBUG level
             logger.debug(
                 "Daily data fields:\nKeys: %s\nfeelslikemax: %s\nfeelslikemin: %s",
-                list(day_data.keys()),
-                day_data.get("feelslikemax"),
-                day_data.get("feelslikemin"),
+                list(day_data.model_dump().keys()),
+                day_data.feelslikemax,
+                day_data.feelslikemin,
             )
 
         weather, hours = _parse_day_weather_data(day_data)
 
-        # Process night icon from hourly data
-        if hours:
-            night_hours = _find_night_hours(hours, tz)
-            weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
+        # Process night icon (from hourly data or fallback)
+        night_hours = _find_night_hours(hours, tz)
+        weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
 
-            # Debug logging for feels like temperatures
-            if weather.day_feels_like is None and weather.night_feels_like is None:
-                logger.debug(
-                    "No feels like data for %s,%s on %s. feelslikemax: %s, feelslikemin: %s",
-                    lat,
-                    lon,
-                    date_str,
-                    day_data.get("feelslikemax"),
-                    day_data.get("feelslikemin"),
-                )
+        # Debug logging for feels like temperatures
+        if weather.day_feels_like is None and weather.night_feels_like is None:
+            logger.debug(
+                "No feels like data for %s,%s on %s. feelslikemax: %s, feelslikemin: %s",
+                lat,
+                lon,
+                date_str,
+                day_data.feelslikemax,
+                day_data.feelslikemin,
+            )
 
     return weather
 
@@ -165,7 +167,7 @@ async def get_weather_data(  # noqa: PLR0913
     dt = datetime.fromtimestamp(timestamp, tz=tz)
     date_str = dt.strftime("%Y-%m-%d")
 
-    elements = "tempmax,tempmin,feelslikemax,feelslikemin,icon"
+    elements = "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon"
     url = settings.visual_crossing_api_url.format(
         location=f"{lat},{lon}",
         date=date_str,
@@ -180,6 +182,45 @@ async def get_weather_data(  # noqa: PLR0913
         return WeatherResult(step_index=step_index, data=None)
     else:
         weather = _parse_weather_api_response(
-            cast("WeatherApiResponse", data), tz, lat, lon, date_str
+            WeatherApiResponse.model_validate(data), tz, lat, lon, date_str
         )
         return WeatherResult(step_index=step_index, data=weather)
+
+
+async def fetch_weather_data_batch(
+    client: APIClient, steps: list[Step], progress_callback: Callable[[int], None] | None = None
+) -> list[WeatherResult]:
+    """Fetch weather data for all steps."""
+    logger.debug("Fetching weather data...")
+
+    tasks = []
+    for index, step in enumerate(steps):
+        tasks.append(
+            asyncio.create_task(
+                get_weather_data(
+                    client,
+                    step.location.lat,
+                    step.location.lon,
+                    step.start_time,
+                    step.timezone_id,
+                    index,
+                )
+            )
+        )
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    if progress_callback:
+        progress_callback(len(steps))
+
+    # Filter out exceptions and ensure type safety
+    weather_results: list[WeatherResult] = []
+    for i, res in enumerate(results):
+        if isinstance(res, WeatherResult):
+            weather_results.append(res)
+        else:
+            logger.warning("Failed to fetch weather for step %d: %s", i, res)
+            weather_results.append(WeatherResult(step_index=i, data=None))
+
+    logger.debug("Fetched %d weather data entries", len(weather_results))
+    return weather_results

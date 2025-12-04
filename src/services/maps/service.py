@@ -1,11 +1,17 @@
 """Main map service entry point."""
 
+import asyncio
+from collections.abc import Callable
+
 from src.core.cache import get_cached, set_cached
-from src.data.models import MapResult
+from src.core.logger import get_logger
+from src.data.models import MapResult, Step
 from src.services.client import APIClient
 
 from .coordinates import get_country_map_dot_position
 from .generator import generate_geo_calibrated_svg
+
+logger = get_logger(__name__)
 
 
 async def get_map_data(
@@ -44,3 +50,46 @@ async def get_map_data(
         svg_content=svg_data,
         dot_position=dot_position,
     )
+
+
+async def fetch_maps_batch(
+    client: APIClient, steps: list[Step], progress_callback: Callable[[int], None] | None = None
+) -> list[MapResult]:
+    """Fetch maps and calculate dot positions for all steps."""
+    logger.debug("Fetching maps...")
+
+    tasks = []
+    for index, step in enumerate(steps):
+        if not step.country_code:
+            if progress_callback:
+                progress_callback(1)
+            tasks.append(asyncio.create_task(asyncio.sleep(0, result=MapResult(step_index=index))))
+            continue
+
+        tasks.append(
+            asyncio.create_task(
+                get_map_data(
+                    client,
+                    step.country_code,
+                    index,
+                    step.location.lat,
+                    step.location.lon,
+                )
+            )
+        )
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    if progress_callback:
+        progress_callback(len(steps))
+
+    map_results: list[MapResult] = []
+    for i, res in enumerate(results):
+        if isinstance(res, MapResult):
+            map_results.append(res)
+        else:
+            logger.warning("Failed to fetch map for step %d: %s", i, res)
+            map_results.append(MapResult(step_index=i))
+
+    logger.debug("Processed %d maps", len(map_results))
+    return map_results

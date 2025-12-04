@@ -5,7 +5,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 from src.core.logger import get_logger
-from src.core.types import StepData
+from src.data.models import StepData
 
 logger = get_logger(__name__)
 

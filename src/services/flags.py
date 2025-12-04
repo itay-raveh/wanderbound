@@ -1,9 +1,11 @@
 """Country flag API and color extraction."""
 
+import asyncio
 import base64
 import hashlib
 import io
 from collections import Counter
+from collections.abc import Callable
 
 # Color utils imports
 from colormath.color_conversions import convert_color
@@ -13,7 +15,7 @@ from PIL import Image
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import FlagResult
+from src.data.models import FlagResult, Step
 from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -300,3 +302,41 @@ def adjust_color_for_contrast(color: str, *, light_mode: bool) -> str:
             b = int(b * (1 - blend_factor))
 
     return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
+
+
+async def fetch_flags_batch(
+    client: APIClient,
+    steps: list[Step],
+    *,
+    light_mode: bool = False,
+    progress_callback: Callable[[int], None] | None = None,
+) -> list[FlagResult]:
+    """Fetch flags and extract colors for all steps."""
+    logger.debug("Fetching flags...")
+
+    tasks = []
+    for index, step in enumerate(steps):
+        if not step.country_code:
+            if progress_callback:
+                progress_callback(1)
+            tasks.append(asyncio.create_task(asyncio.sleep(0, result=FlagResult(step_index=index))))
+            continue
+
+        tasks.append(
+            asyncio.create_task(
+                get_flag_data(client, step.country_code, index, light_mode=light_mode)
+            )
+        )
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    flag_results: list[FlagResult] = []
+    for i, res in enumerate(results):
+        if isinstance(res, FlagResult):
+            flag_results.append(res)
+        else:
+            logger.warning("Failed to fetch flag for step %d: %s", i, res)
+            flag_results.append(FlagResult(step_index=i))
+
+    logger.debug("Processed %d flags", len(flag_results))
+    return flag_results

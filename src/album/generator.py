@@ -7,20 +7,23 @@ from pathlib import Path
 
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
-from src.core.types import (
+from src.data.models import (
     AlbumGenerationConfig,
     AlbumPhotoData,
+    FlagResult,
+    MapResult,
+    Step,
     StepContext,
     StepData,
     StepExternalData,
+    TripData,
+    WeatherResult,
 )
-from src.data.models import FlagResult, MapResult, Step, TripData, WeatherResult
-from src.services.batch import (
-    fetch_altitudes,
-    fetch_flags_batch,
-    fetch_maps_batch,
-    fetch_weather_data_batch,
-)
+from src.services.altitude import fetch_altitudes
+from src.services.client import APIClient
+from src.services.flags import fetch_flags_batch
+from src.services.maps.service import fetch_maps_batch
+from src.services.weather import fetch_weather_data_batch
 
 from .assets import copy_cover_images, copy_photo_pages
 from .preparation import prepare_step_data
@@ -90,16 +93,18 @@ async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
         def update_maps(count: int) -> None:
             progress.update(map_task, completed=count)
 
-        results = await asyncio.gather(
-            fetch_altitudes(context.steps, progress_callback=update_alt),
-            fetch_weather_data_batch(context.steps, progress_callback=update_weather),
-            fetch_flags_batch(
-                context.steps,
-                light_mode=context.light_mode,
-                progress_callback=update_flags,
-            ),
-            fetch_maps_batch(context.steps, progress_callback=update_maps),
-        )
+        async with APIClient() as client:
+            results = await asyncio.gather(
+                fetch_altitudes(client, context.steps, progress_callback=update_alt),
+                fetch_weather_data_batch(client, context.steps, progress_callback=update_weather),
+                fetch_flags_batch(
+                    client,
+                    context.steps,
+                    light_mode=context.light_mode,
+                    progress_callback=update_flags,
+                ),
+                fetch_maps_batch(client, context.steps, progress_callback=update_maps),
+            )
 
     return FetchedData(
         elevations=results[0],
@@ -109,7 +114,7 @@ async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
     )
 
 
-def _process_steps(
+async def _process_steps(
     context: GeneratorContext,
     fetched_data: FetchedData,
     cover_image_path_list: list[str | None],
@@ -117,8 +122,8 @@ def _process_steps(
     """Process steps and prepare data for rendering."""
     logger.debug("Preparing step data...")
     step_data_list: list[StepData] = []
-    steps_photo_pages = context.photo_data["steps_photo_pages"]
-    steps_cover_photos = context.photo_data["steps_cover_photos"]
+    steps_photo_pages = context.photo_data.steps_photo_pages
+    steps_cover_photos = context.photo_data.steps_cover_photos
 
     progress = create_progress()
 
@@ -158,33 +163,33 @@ def _process_steps(
 
             # Copy photo pages images to assets directory
             step_name = step.get_name_for_photos_export()
-            photo_pages_paths = copy_photo_pages(
+            photo_pages_paths = await copy_photo_pages(
                 photo_pages,
                 step_name,
                 context.output_dir,
             )
 
-            external_data: StepExternalData = {
-                "elevation": elevation,
-                "weather_data": weather_result,
-                "flag_data": flag_result,
-                "map_data": map_result,
-                "cover_image_path": cover_image_path,
-            }
+            external_data = StepExternalData(
+                elevation=elevation,
+                weather_data=weather_result,
+                flag_data=flag_result,
+                map_data=map_result,
+                cover_image_path=cover_image_path,
+            )
 
-            step_context: StepContext = {
-                "step": step,
-                "step_index": idx,
-                "steps": context.steps,
-                "trip_data": context.trip_data,
-            }
+            step_context = StepContext(
+                step=step,
+                step_index=idx,
+                steps=context.steps,
+                trip_data=context.trip_data,
+            )
             step_data = prepare_step_data(
                 step_context,
                 external_data,
                 use_step_range=context.use_step_range,
                 light_mode=context.light_mode,
             )
-            step_data["photo_pages"] = photo_pages_paths
+            step_data.photo_pages = photo_pages_paths
             step_data_list.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
@@ -193,7 +198,7 @@ def _process_steps(
     return step_data_list
 
 
-def generate_album_html(
+async def generate_album_html(
     steps: list[Step],
     photo_data: AlbumPhotoData,
     config: AlbumGenerationConfig,
@@ -206,8 +211,8 @@ def generate_album_html(
         steps=steps,
         photo_data=photo_data,
         config=config,
-        output_dir=Path(config["output_dir"]),
-        trip_data=config["trip_data"],
+        output_dir=config.output_dir,
+        trip_data=config.trip_data,
         use_step_range=use_step_range,
         light_mode=light_mode,
     )
@@ -215,15 +220,15 @@ def generate_album_html(
     _copy_static_files(context)
 
     # Batch fetch all external data
-    fetched_data = asyncio.run(_fetch_external_data(context))
+    fetched_data = await _fetch_external_data(context)
 
     # Process cover images
-    cover_image_path_list = copy_cover_images(
-        context.steps, context.photo_data["steps_cover_photos"], context.output_dir
+    cover_image_path_list = await copy_cover_images(
+        context.steps, context.photo_data.steps_cover_photos, context.output_dir
     )
 
     # Prepare step data
-    step_data_list = _process_steps(
+    step_data_list = await _process_steps(
         context,
         fetched_data,
         cover_image_path_list,

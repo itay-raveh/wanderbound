@@ -16,26 +16,6 @@ class PhotoSettings(BaseModel):
     aspect_ratio_tolerance: float = Field(default=0.1, gt=0.0)
 
     # Layout constants
-    max_photos_to_test: int = 9
-    photo_count_for_special_layouts: int = 3
-    multi_row_layout_counts: tuple[int, ...] = (5, 6)
-
-    # Scoring constants
-    score_three_portraits_bonus: float = 100.0
-    score_portrait_first_bonus: float = 10.0
-    score_layout_bonus_three_portraits: float = 15000.0
-    score_uniform_aspect_ratio_bonus: float = 2000.0
-    score_portrait_landscape_split_bonus: float = 5000.0
-    score_photo_count_multiplier: float = 10000.0
-
-    # Photo area calculation
-    photo_area_full_page: float = 100.0
-    photo_area_portrait_left: float = 50.0
-    photo_area_landscape_right: float = 25.0
-
-    @property
-    def photo_area_three_portraits(self) -> float:
-        return self.photo_area_full_page / 3
 
 
 class ProgressSettings(BaseModel):
@@ -80,9 +60,8 @@ class Settings(BaseSettings):
         "{location}/{date}?key={key}&unitGroup=metric&include=hours&elements={elements}"
     )
 
-    # Weather API key (optional - set via VISUAL_CROSSING_API_KEY environment variable)
     # Get a free key at https://www.visualcrossing.com/weather-api
-    visual_crossing_api_key: str | None = None
+    visual_crossing_api_key: str = Field(..., pattern=r"^[a-zA-Z0-9]{32}$")
 
     # Color constants
     default_accent_color: str = Field(default="#ff69b4", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -108,7 +87,6 @@ class Settings(BaseSettings):
 
     # Photo layout thresholds
     description_max_char_cover_photo: int = Field(default=800, gt=0)
-    min_photo_size_percent: float = Field(default=15.0, ge=0.0, le=100.0)
 
     # Sub-models for organized constants
     pdf: PDFSettings = PDFSettings()

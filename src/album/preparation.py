@@ -8,8 +8,15 @@ from geopy import Point
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.core.types import StepContext, StepData, StepExternalData
-from src.data.models import MapResult, Step, TripData, WeatherData
+from src.data.models import (
+    MapResult,
+    Step,
+    StepContext,
+    StepData,
+    StepExternalData,
+    TripData,
+    WeatherData,
+)
 from src.services.altitude import format_altitude
 
 logger = get_logger(__name__)
@@ -121,19 +128,19 @@ def prepare_step_data(
     use_step_range: bool,
     light_mode: bool = False,
 ) -> StepData:
-    step = context["step"]
-    step_index = context["step_index"]
-    steps = context["steps"]
-    trip_data = context["trip_data"]
+    step = context.step
+    step_index = context.step_index
+    steps = context.steps
+    trip_data = context.trip_data
 
-    elevation = external_data.get("elevation")
+    elevation = external_data.elevation
 
-    weather_result = external_data.get("weather_data")
+    weather_result = external_data.weather_data
     weather_data = weather_result.data if weather_result and weather_result.data else WeatherData()
 
-    flag_result = external_data.get("flag_data")
-    map_result = external_data.get("map_data")
-    cover_image_path = external_data.get("cover_image_path")
+    flag_result = external_data.flag_data
+    map_result = external_data.map_data
+    cover_image_path = external_data.cover_image_path
 
     description = _clean_description(step.description or "")
 
@@ -181,38 +188,38 @@ def prepare_step_data(
     temp_str = _format_temperature(day_temp_display, day_feels_like)
     temp_night_str = _format_temperature(night_temp, night_feels_like)
 
-    return {
-        "city": step.city,
-        "country": step.country,
-        "country_code": step.country_code,
-        "coords_lat": coords_lat,
-        "coords_lon": coords_lon,
-        "date_month": date.strftime("%B"),
-        "date_day": str(date.day),
-        "weather": _format_weather_condition(step.weather_condition),
-        "day_weather_icon_url": day_weather_icon_url,
-        "night_weather_icon_url": night_weather_icon_url,
-        "temp_str": temp_str,
-        "temp_night_str": temp_night_str,
-        "altitude_str": format_altitude(elevation),
-        "day_num": day_num,
-        "progress_percent": progress_percent,
-        "day_counter_box_position": box_center_position,
-        "day_counter_arrow_position": arrow_bar_position,
-        "cover_image_path": cover_image_path,
-        "country_flag_data_uri": country_flag_data_uri,
-        "country_map_svg": country_map_svg,
-        "map_dot_x": map_dot_x,
-        "map_dot_y": map_dot_y,
-        "accent_color": accent_color,
-        "description": description,
-        "desc_dir": "rtl" if is_hebrew else "ltr",
-        "desc_align": "right" if is_hebrew else "left",
-        "use_two_columns": use_two_columns,
-        "use_three_columns": use_three_columns,
-        "light_mode": light_mode,
-        "photo_pages": [],  # Will be populated later
-    }
+    return StepData(
+        city=step.city,
+        country=step.country,
+        country_code=step.country_code,
+        coords_lat=coords_lat,
+        coords_lon=coords_lon,
+        date_month=date.strftime("%B"),
+        date_day=str(date.day),
+        weather=_format_weather_condition(step.weather_condition),
+        day_weather_icon_url=day_weather_icon_url,
+        night_weather_icon_url=night_weather_icon_url,
+        temp_str=temp_str,
+        temp_night_str=temp_night_str,
+        altitude_str=format_altitude(elevation),
+        day_num=day_num,
+        progress_percent=progress_percent,
+        day_counter_box_position=box_center_position,
+        day_counter_arrow_position=arrow_bar_position,
+        cover_image_path=cover_image_path,
+        country_flag_data_uri=country_flag_data_uri,
+        country_map_svg=country_map_svg,
+        map_dot_x=map_dot_x,
+        map_dot_y=map_dot_y,
+        accent_color=accent_color,
+        description=description,
+        desc_dir="rtl" if is_hebrew else "ltr",
+        desc_align="right" if is_hebrew else "left",
+        use_two_columns=use_two_columns,
+        use_three_columns=use_three_columns,
+        light_mode=light_mode,
+        photo_pages=[],  # Will be populated later
+    )
 
 
 @cache
