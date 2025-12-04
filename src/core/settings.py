@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     )
 
     # Get a free key at https://www.visualcrossing.com/weather-api
-    visual_crossing_api_key: str = Field(..., pattern=r"^[a-zA-Z0-9]{32}$")
+    visual_crossing_api_key: str
 
     # Color constants
     default_accent_color: str = Field(default="#ff69b4", pattern=r"^#[0-9a-fA-F]{6}$")
