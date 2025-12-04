@@ -3,15 +3,20 @@
 import asyncio
 from collections.abc import Callable
 
-from src.core.cache import get_cached, set_cached
+from src.core.cache import cache_result
 from src.core.logger import get_logger
 from src.data.models import MapResult, Step
 from src.services.client import APIClient
-
-from .coordinates import get_country_map_dot_position
-from .generator import generate_geo_calibrated_svg
+from src.services.maps.coordinates import get_country_map_dot_position
+from src.services.maps.generator import generate_geo_calibrated_svg
 
 logger = get_logger(__name__)
+
+
+@cache_result()
+async def _get_svg_for_country(client: APIClient, country_code: str) -> str:
+    """Get SVG content for a country, cached by country code."""
+    return await generate_geo_calibrated_svg(client, country_code)
 
 
 async def get_map_data(
@@ -31,15 +36,7 @@ async def get_map_data(
         # This is a valid case where we just don't have a map
         return MapResult(step_index=step_index)
 
-    cache_key_svg = f"map_svg_{country_code.lower()}"
-    cached_svg = await get_cached(cache_key_svg)
-
-    svg_data: str
-    if cached_svg is not None and isinstance(cached_svg, str):
-        svg_data = str(cached_svg)
-    else:
-        svg_data = await generate_geo_calibrated_svg(client, country_code)
-        await set_cached(cache_key_svg, svg_data)
+    svg_data = await _get_svg_for_country(client, country_code)
 
     dot_position = None
     if lat is not None and lon is not None:

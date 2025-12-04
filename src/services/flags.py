@@ -13,6 +13,7 @@ from colormath.color_diff import delta_e_cie2000
 from colormath.color_objects import LabColor, sRGBColor
 from PIL import Image
 
+from src.core.cache import cache_result
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.models import FlagResult, Step
@@ -192,23 +193,31 @@ def extract_prominent_color_from_flag(
         return color
 
 
+@cache_result()
+async def _get_flag_data_cached(
+    client: APIClient, country_code: str, *, light_mode: bool
+) -> tuple[str, str]:
+    """Get flag URL and accent color, cached by country code and mode."""
+    url = settings.flag_cdn_url.format(country_code=country_code.lower())
+
+    content = await client.get_content(url)
+    image_data = base64.b64encode(content).decode("utf-8")
+    flag_url = f"data:image/png;base64,{image_data}"
+
+    accent_color = extract_prominent_color_from_flag(flag_url, country_code, light_mode=light_mode)
+    return flag_url, accent_color
+
+
 async def get_flag_data(
     client: APIClient, country_code: str, step_index: int, *, light_mode: bool
 ) -> FlagResult:
     if not country_code:
         return FlagResult(step_index=step_index)
 
-    url = settings.flag_cdn_url.format(country_code=country_code.lower())
-
     try:
-        content = await client.get_content(url)
-        image_data = base64.b64encode(content).decode("utf-8")
-        flag_url = f"data:image/png;base64,{image_data}"
-
-        accent_color = extract_prominent_color_from_flag(
-            flag_url, country_code, light_mode=light_mode
+        flag_url, accent_color = await _get_flag_data_cached(
+            client, country_code, light_mode=light_mode
         )
-
         return FlagResult(step_index=step_index, flag_url=flag_url, accent_color=accent_color)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to get flag for %s: %s", country_code, e)

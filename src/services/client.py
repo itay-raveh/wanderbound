@@ -45,6 +45,10 @@ class APIClient:
     ) -> None:
         await self.close()
 
+    def __getstate__(self) -> None:
+        """Return None state for pickling to ensure constant cache key."""
+        return
+
     async def get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Fetch JSON data with rate limiting and retries."""
         data = await self._fetch(url, params=params, response_type="json")

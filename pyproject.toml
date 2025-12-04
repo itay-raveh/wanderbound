@@ -38,7 +38,7 @@ dependencies = [
     "more-itertools>=10.0.0",
     "rich>=13.0.0",
     "tenacity>=8.2.0",
-    "diskcache>=5.6.0",
+    "persist-cache>=1.0.0",
     "pyproj>=3.7.2",
     "typed-argument-parser>=1.8.0",
 ]

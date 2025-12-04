@@ -34,15 +34,6 @@ def calculate_trip_summary(
             countries.append((country, flag_url))
             seen_countries.add(country)
 
-    # Re-iterating to be clean or we can do it in one pass if we have access.
-    # The `Step` object in `src/data/models.py` does NOT have elevation.
-    # Elevation is in `fetched_data.elevations`.
-    # `calculate_trip_summary` is called in `generator.py` AFTER `_process_steps`.
-    # But `_process_steps` creates `StepData`.
-    # `calculate_trip_summary` receives `steps: list[Step]`.
-    # We might need to pass `step_data_list` instead of `steps` to get elevation?
-    # Or just use `photo_data` for photos.
-
     # Let's fix photo count first
     for step in steps:
         if step.id in photo_data.steps_with_photos:

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
+from src.core.cache import cache_result
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.models import Step, WeatherData, WeatherResult
@@ -151,6 +152,26 @@ def _parse_weather_api_response(
     return weather
 
 
+@cache_result()
+async def _get_weather_data_cached(
+    client: APIClient, lat: float, lon: float, date_str: str, timezone_id: str
+) -> WeatherData:
+    """Get weather data, cached by location and date."""
+    elements = "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon"
+    url = settings.visual_crossing_api_url.format(
+        location=f"{lat},{lon}",
+        date=date_str,
+        key=settings.visual_crossing_api_key,
+        elements=elements,
+    )
+
+    data = await client.get_json(url)
+    tz = ZoneInfo(timezone_id)
+    return _parse_weather_api_response(
+        WeatherApiResponse.model_validate(data), tz, lat, lon, date_str
+    )
+
+
 async def get_weather_data(  # noqa: PLR0913
     client: APIClient,
     lat: float,
@@ -167,24 +188,12 @@ async def get_weather_data(  # noqa: PLR0913
     dt = datetime.fromtimestamp(timestamp, tz=tz)
     date_str = dt.strftime("%Y-%m-%d")
 
-    elements = "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon"
-    url = settings.visual_crossing_api_url.format(
-        location=f"{lat},{lon}",
-        date=date_str,
-        key=settings.visual_crossing_api_key,
-        elements=elements,
-    )
-
     try:
-        data = await client.get_json(url)
+        weather = await _get_weather_data_cached(client, lat, lon, date_str, timezone_id)
+        return WeatherResult(step_index=step_index, data=weather)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to get weather data for step %d: %s", step_index, e)
         return WeatherResult(step_index=step_index, data=None)
-    else:
-        weather = _parse_weather_api_response(
-            WeatherApiResponse.model_validate(data), tz, lat, lon, date_str
-        )
-        return WeatherResult(step_index=step_index, data=weather)
 
 
 async def fetch_weather_data_batch(
