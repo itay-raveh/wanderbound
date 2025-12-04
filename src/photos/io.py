@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from src.core.logger import get_logger
 from src.data.models import Photo
@@ -15,7 +15,8 @@ logger = get_logger(__name__)
 def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
     try:
         with Image.open(img_path) as img:
-            width, height = img.size
+            img_rotated = ImageOps.exif_transpose(img)
+            width, height = img_rotated.size
             aspect_ratio = width / height if height > 0 else 0
             return (width, height, aspect_ratio)
     except (OSError, ValueError, AttributeError, TypeError) as e:

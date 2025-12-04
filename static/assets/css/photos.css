@@ -43,13 +43,18 @@
 
 /* Three photos: 1 portrait + 2 landscapes (portrait left, landscapes stacked right) */
 .photo-page-container.portrait-landscape-split {
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  column-gap: 5mm;
+  column-gap: 7mm;
   row-gap: 7mm;
 }
 .photo-page-container.portrait-landscape-split .photo-item:first-child {
   grid-row: 1 / 3;
+}
+.photo-page-container.portrait-landscape-split .photo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .photo-page-container.portrait-landscape-split .photo-item:nth-child(2),
 .photo-page-container.portrait-landscape-split .photo-item:nth-child(3) {
@@ -57,13 +62,19 @@
 }
 
 /* Three photos: main (1/2) + 2 tiled (1/2 each) - default layout */
-.photo-page-container:has(.photo-item:nth-child(3):last-child):not(.three-portraits, .portrait-landscape-split) {
+.photo-page-container:has(.photo-item:nth-child(3):last-child):not(
+    .three-portraits,
+    .portrait-landscape-split
+  ) {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   column-gap: 5mm;
   row-gap: 2mm;
 }
-.photo-page-container:has(.photo-item:nth-child(3):last-child):not(.three-portraits, .portrait-landscape-split)
+.photo-page-container:has(.photo-item:nth-child(3):last-child):not(
+    .three-portraits,
+    .portrait-landscape-split
+  )
   .photo-item:first-child {
   grid-row: 1 / 3;
 }
@@ -113,17 +124,5 @@
   max-height: 100%;
   width: auto;
   height: auto;
-  object-fit: contain;
-}
-
-/* For portrait-landscape split, make landscape images fill their cells without cropping */
-.photo-page-container.portrait-landscape-split
-  .photo-item:nth-child(2)
-  .photo-image,
-.photo-page-container.portrait-landscape-split
-  .photo-item:nth-child(3)
-  .photo-image {
-  width: 100%;
-  height: 100%;
   object-fit: contain;
 }

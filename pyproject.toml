@@ -127,14 +127,7 @@ pretty = true
 exclude = ["src/_whitelist.py"]
 
 [[tool.mypy.overrides]]
-module = [
-    "geopy.*",
-    "colormath.*",
-    "diskcache.*",
-    "geopandas.*",
-    "lxml.*",
-    "shapely.*",
-]
+module = ["colormath.*", "diskcache.*", "geopy.*"]
 ignore_missing_imports = true
 
 [tool.vulture]

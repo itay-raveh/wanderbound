@@ -1,6 +1,7 @@
 """Pydantic models for trip data validation."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
@@ -124,10 +125,13 @@ class Photo(BaseModel):
     aspect_ratio: float | None = Field(default=None, gt=0)
 
 
+PhotoLayout = Literal["three-portraits", "portrait-landscape-split"]
+
+
 class PhotoPageData(BaseModel):
     photos: list[str]
-    is_three_portraits: bool
-    is_portrait_landscape_split: bool
+    layout_class: PhotoLayout | None = None
+    grid_style: str | None = None
 
 
 class StepExternalData(BaseModel):

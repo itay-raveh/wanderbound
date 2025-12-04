@@ -57,22 +57,49 @@ async def copy_photo_pages(
 
         if page_paths:
             # Calculate layout flags on-the-fly based on photo aspect ratios
-            three_portraits = False
-            portrait_landscape_split = False
+            layout_class = None
+            grid_style = None
 
             if len(page) == 3:
                 if is_three_portraits(tuple(page)):
-                    three_portraits = True
-                    portrait_landscape_split = False
+                    layout_class = "three-portraits"
                 elif is_one_portrait_two_landscapes(tuple(page)):
-                    three_portraits = False
-                    portrait_landscape_split = True
+                    layout_class = "portrait-landscape-split"
+
+                    # Calculate dynamic grid split accounting for row gap
+                    # Constants from CSS
+                    page_content_width_mm = 272  # 297mm (A4) - 20mm (padding) - 5mm (col gap)
+                    row_gap_mm = 7
+
+                    # Get aspect ratios
+                    # Clamp portrait AR to minimum 0.75 (3:4) to prevent extremely narrow columns
+                    # that cause misalignment for phone screenshots or cropped images.
+                    raw_ar_p = page[0].aspect_ratio or 0.75
+                    ar_p = max(raw_ar_p, 0.75)
+                    ar_l1 = page[1].aspect_ratio or 1.33  # Default to 4:3
+                    ar_l2 = page[2].aspect_ratio or 1.33
+                    ar_l_avg = (ar_l1 + ar_l2) / 2
+
+                    # Formula derived to ensure:
+                    # Height(Left) = Height(Right_Top) + Gap + Height(Right_Bottom)
+                    # W_p / AR_p = (W_l / AR_l) + Gap + (W_l / AR_l)
+                    # W_p / AR_p = (2 * W_l / AR_l) + Gap
+                    # We also know: W_p + W_l = PAGE_CONTENT_WIDTH_MM
+                    # ... solving for W_p (P_p) ...
+
+                    numerator = (2 * page_content_width_mm / ar_l_avg) + row_gap_mm
+                    denominator = (1 / ar_p) + (2 / ar_l_avg)
+
+                    w_p = numerator / denominator
+                    w_l = page_content_width_mm - w_p
+
+                    grid_style = f"grid-template-columns: {w_p:.2f}fr {w_l:.2f}fr;"
 
             photo_pages_paths.append(
                 PhotoPageData(
                     photos=list(page_paths),
-                    is_three_portraits=three_portraits,
-                    is_portrait_landscape_split=portrait_landscape_split,
+                    layout_class=layout_class,
+                    grid_style=grid_style,
                 )
             )
 
