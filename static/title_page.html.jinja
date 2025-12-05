@@ -1,0 +1,14 @@
+<div class="title-page-container">
+    {% if trip.cover_photo_path %}
+        <img src="{{ trip.cover_photo_path }}"
+             class="title-page-cover"
+             alt="Trip Cover Photo">
+    {% endif %}
+    <div class="title-page-overlay">
+        <div class="title-page-content">
+            {% if trip.display_date_range %}<div class="title-page-dates">{{ trip.display_date_range }}</div>{% endif %}
+            <h1 class="title-page-title" dir="{{ trip.title_dir }}">{{ trip.display_title }}</h1>
+            {% if trip.summary %}<div class="title-page-summary" dir="{{ trip.summary_dir }}">{{ trip.summary }}</div>{% endif %}
+        </div>
+    </div>
+</div>

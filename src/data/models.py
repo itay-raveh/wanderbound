@@ -3,7 +3,10 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+)
 
 
 class Location(BaseModel):
@@ -44,15 +47,6 @@ class Step(BaseModel):
     open_graph_id: str | None = None
     uuid: str
 
-    @field_validator("end_time")
-    @classmethod
-    def validate_end_time(cls, v: float | None, info: ValidationInfo) -> float | None:
-        if v is not None:
-            start_time = info.data.get("start_time")
-            if start_time and v < start_time:
-                raise ValueError(f"end_time ({v}) must be >= start_time ({start_time})")
-        return v
-
     @property
     def city(self) -> str:
         return self.display_name or self.name or "Unknown"
@@ -69,22 +63,42 @@ class Step(BaseModel):
         return f"{self.city} ({self.country})"
 
 
+class CoverPhoto(BaseModel):
+    uuid: str | None = None
+    url: str | None = Field(default=None, alias="path")
+
+
 class TripData(BaseModel):
     id: int
     name: str
     start_date: float
     end_date: float
-    timezone_id: str = "UTC"
+    timezone_id: str
     all_steps: list[Step] = Field(default_factory=list)
     total_km: float = Field(ge=0)
     step_count: int = Field(ge=0)
+    title: str | None = None
+    summary: str | None = None
+    cover_photo: CoverPhoto | None = None
+
+
+class TripDisplayData(BaseModel):
+    """Processed trip data for the title page template."""
+
+    display_title: str
+    display_date_range: str | None
+    summary: str | None
+    cover_photo_path: str | None
+    title_dir: str
+    summary_dir: str
+    trip: TripData
 
 
 class WeatherData(BaseModel):
-    day_temp: float | None = Field(default=None, ge=-100, le=100)
-    night_temp: float | None = Field(default=None, ge=-100, le=100)
-    day_feels_like: float | None = Field(default=None, ge=-100, le=100)
-    night_feels_like: float | None = Field(default=None, ge=-100, le=100)
+    day_temp: float | None = Field(None, ge=-100, le=100)
+    night_temp: float | None = Field(None, ge=-100, le=100)
+    day_feels_like: float | None = Field(None, ge=-100, le=100)
+    night_feels_like: float | None = Field(None, ge=-100, le=100)
     day_icon: str | None = None
     night_icon: str | None = None
 
@@ -120,9 +134,9 @@ class Photo(BaseModel):
     id: str
     index: int = Field(..., gt=0)
     path: Path
-    width: int | None = Field(default=None, gt=0)
-    height: int | None = Field(default=None, gt=0)
-    aspect_ratio: float | None = Field(default=None, gt=0)
+    width: int | None = Field(None, gt=0)
+    height: int | None = Field(None, gt=0)
+    aspect_ratio: float | None = Field(None, gt=0)
 
 
 PhotoLayout = Literal["three-portraits", "portrait-landscape-split"]
@@ -183,6 +197,7 @@ class AlbumPhotoData(BaseModel):
 
 class AlbumGenerationConfig(BaseModel):
     trip_data: TripData
+    trip_display_data: TripDisplayData | None = None
     output_dir: Path
 
 

@@ -10,6 +10,8 @@ class Args(Tap):
     trip_dir: Path  # Directory containing unzipped Polarsteps data
     steps: slice | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
     sample: int | None = None  # Sample N evenly distributed steps (for testing across countries)
+    title: str | None = None  # Override trip title
+    cover_photo: Path | None = None  # Override cover photo path
     out: Path = Path("output")  # Output directory for HTML/PDF files
     pdf: bool = False  # Generate PDF file using Playwright (requires playwright install)
     progress_mode: Literal["original", "step-range"] = "step-range"

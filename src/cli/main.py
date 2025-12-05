@@ -12,10 +12,17 @@ from rich import get_console
 
 from src.album.generator import generate_album_html
 from src.core.cache import clear_cache
+from src.core.dates import get_display_date_range
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
-from src.data.loader import DataLoadError, load_trip_data
-from src.data.models import AlbumGenerationConfig, AlbumPhotoData
+from src.core.text import is_hebrew
+from src.data.models import (
+    AlbumGenerationConfig,
+    AlbumPhotoData,
+    Step,
+    TripData,
+    TripDisplayData,
+)
 from src.photos.processor import process_step_photos
 
 from .args import Args
@@ -119,16 +126,40 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
         logger.info("You can still open the HTML file in your browser and print to PDF manually.")
 
 
+def resolve_cover_photo_path(trip_data: TripData, args: Args) -> str | None:
+    """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
+    # 1. CLI Override
+    if args.cover_photo:
+        return str(args.cover_photo.absolute())
+
+    if not trip_data.cover_photo:
+        return None
+
+    # 2. Local File Search
+    if trip_data.cover_photo.uuid:
+        uuid = trip_data.cover_photo.uuid
+        # Search for the file in trip_dir
+        found_photos = list(Path(args.trip_dir).rglob(f"*{uuid}*.jpg"))
+        if not found_photos:
+            found_photos = list(Path(args.trip_dir).rglob(f"*{uuid}*.jpg.jpg"))
+
+        if found_photos:
+            return str(found_photos[0].absolute())
+
+    # 3. Remote URL
+    return trip_data.cover_photo.url
+
+
 def main() -> None:
     args = Args(underscores_to_dashes=True).parse_args()
 
     trip_json_path = Path(args.trip_dir) / "trip.json"
     if not trip_json_path.exists():
-        raise DataLoadError(
-            f"trip.json not found at {trip_json_path}. "
-            f"Please ensure the trip directory contains trip.json",
-            file_path=str(trip_json_path),
+        logger.error(
+            "trip.json not found at %s. Please ensure the trip directory contains trip.json",
+            trip_json_path,
         )
+        return
 
     logger.info("Found trip.json at %s", trip_json_path)
 
@@ -138,22 +169,38 @@ def main() -> None:
 
     with get_console().status("[bold blue]Loading trip data..."):
         logger.debug("Loading trip data from %s", trip_json_path)
-        trip_data = load_trip_data(trip_json_path)
+        trip_data = TripData.model_validate_json(
+            trip_json_path.read_text(encoding="utf-8"),
+        )
+
         logger.debug("Trip data loaded successfully")
 
     if not trip_data.all_steps:
-        raise DataLoadError(
-            "No steps found in trip data."
-            f"Please check that {trip_json_path} contains valid step data.",
-            file_path=str(trip_json_path),
-        )
+        logger.error("No steps found in trip data")
+        return
 
     logger.info("Found %d total steps", len(trip_data.all_steps))
     steps = filter_steps(trip_data.all_steps, args)
 
+    # Prepare display data
+    display_title = args.title or trip_data.title or trip_data.name
+    display_date_range = get_display_date_range(trip_data, steps)
+    cover_photo_path = resolve_cover_photo_path(trip_data, args)
+
+    trip_display = TripDisplayData(
+        display_title=display_title,
+        display_date_range=display_date_range,
+        summary=trip_data.summary,
+        cover_photo_path=cover_photo_path,
+        title_dir="rtl" if is_hebrew(display_title) else "ltr",
+        summary_dir="rtl" if is_hebrew(trip_data.summary or "") else "ltr",
+        trip=trip_data,
+    )
+
     args.out.mkdir(parents=True, exist_ok=True)
     logger.debug("Output directory: %s", args.out)
 
+    # Load photos
     steps_with_photos, steps_cover_photos, steps_photo_pages = _load_step_photos(
         steps, args.trip_dir
     )
@@ -166,6 +213,7 @@ def main() -> None:
     )
     album_config = AlbumGenerationConfig(
         trip_data=trip_data,
+        trip_display_data=trip_display,
         output_dir=args.out,
     )
     html_path = asyncio.run(
@@ -179,7 +227,6 @@ def main() -> None:
     )
 
     if args.pdf:
-        # Using module-level settings
         pdf_path = args.out / settings.file.album_pdf_file
         with get_console().status("[bold blue]Generating PDF..."):
             _generate_pdf(html_path, pdf_path)

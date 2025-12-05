@@ -18,8 +18,10 @@
         <link rel="stylesheet" href="assets/css/typography.css" />
         <link rel="stylesheet" href="assets/css/photos.css" />
         <link rel="stylesheet" href="assets/css/summary.css" />
+        <link rel="stylesheet" href="assets/css/title.css" />
     </head>
     <body {% if light_mode %}class="light-mode"{% endif %}>
+        {% include "title_page.html.jinja" %}
         {% if summary %}
             {% include "trip_summary.html.jinja" %}
         {% endif %}

@@ -250,6 +250,7 @@ async def generate_album_html(
         step_data_list,
         light_mode=context.light_mode,
         summary=trip_summary,
+        trip=context.config.trip_display_data,
     )
 
     # Write output

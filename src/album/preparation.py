@@ -8,6 +8,7 @@ from geopy import Point
 
 from src.core.logger import get_logger
 from src.core.settings import settings
+from src.core.text import is_hebrew
 from src.data.models import (
     MapResult,
     Step,
@@ -20,11 +21,6 @@ from src.data.models import (
 from src.services.altitude import format_altitude
 
 logger = get_logger(__name__)
-
-
-def _is_hebrew(text: str) -> bool:
-    # https://www.unicode.org/charts/PDF/U0590.pdf
-    return any("\u0590" <= char <= "\u05ff" for char in text)
 
 
 def _clean_description(description: str) -> str:
@@ -144,7 +140,7 @@ def prepare_step_data(
 
     description = _clean_description(step.description or "")
 
-    is_hebrew = _is_hebrew(description)
+    is_hebrew_text = is_hebrew(description)
     # Using module-level settings
     use_three_columns = len(description) > settings.description_three_columns_threshold
     use_two_columns = len(description) > settings.description_two_columns_threshold
@@ -213,8 +209,8 @@ def prepare_step_data(
         map_dot_y=map_dot_y,
         accent_color=accent_color,
         description=description,
-        desc_dir="rtl" if is_hebrew else "ltr",
-        desc_align="right" if is_hebrew else "left",
+        desc_dir="rtl" if is_hebrew_text else "ltr",
+        desc_align="right" if is_hebrew_text else "left",
         use_two_columns=use_two_columns,
         use_three_columns=use_three_columns,
         light_mode=light_mode,

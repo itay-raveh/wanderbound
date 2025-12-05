@@ -1,5 +1,5 @@
 .city {
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-primary);
   font-size: 28px;
   font-weight: bold;
   text-transform: uppercase;
