@@ -141,7 +141,6 @@ def prepare_step_data(
     description = _clean_description(step.description or "")
 
     is_hebrew_text = is_hebrew(description)
-    # Using module-level settings
     use_three_columns = len(description) > settings.description_three_columns_threshold
     use_two_columns = len(description) > settings.description_two_columns_threshold
 
@@ -154,14 +153,15 @@ def prepare_step_data(
     country_map_svg, map_dot_x, map_dot_y = _extract_map_data(map_result)
 
     date = datetime.fromtimestamp(step.start_time, ZoneInfo(step.timezone_id))
-    coords_lat, coords_lon = Point(step.location.lat, step.location.lon).format_unicode().split(",")
+    coords_lat, coords_lon = (
+        Point(round(step.location.lat, 4), round(step.location.lon, 4)).format_unicode().split(",")
+    )
 
     day_temp_api = weather_data.day_temp
     night_temp = weather_data.night_temp
     day_feels_like = weather_data.day_feels_like
     night_feels_like = weather_data.night_feels_like
 
-    # Using module-level settings
     if day_temp_api is not None and step.weather_temperature is not None:
         temp_diff = abs(day_temp_api - step.weather_temperature)
         if temp_diff > settings.temperature_mismatch_threshold:
