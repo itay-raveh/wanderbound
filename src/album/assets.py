@@ -119,10 +119,10 @@ async def copy_cover_images(
         description = _clean_description(step.description or "")
         # Using module-level settings
         use_three_columns = len(description) > settings.description_three_columns_threshold
-        use_two_columns = (
-            len(description) > settings.description_two_columns_threshold or use_three_columns
-        )
-        if cover_photo and cover_photo.path.exists() and not use_two_columns:
+        (len(description) > settings.description_two_columns_threshold or use_three_columns)
+        # Always copy the cover photo if it exists, so it's available for the map
+        # independent of the step page layout.
+        if cover_photo and cover_photo.path.exists():
             step_name = step.get_name_for_photos_export()
             try:
                 return await copy_image_to_assets(

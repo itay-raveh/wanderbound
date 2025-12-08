@@ -190,6 +190,8 @@ def prepare_step_data(
         country_code=step.country_code,
         coords_lat=coords_lat,
         coords_lon=coords_lon,
+        lat_val=step.location.lat,
+        lon_val=step.location.lon,
         date_month=date.strftime("%B"),
         date_day=str(date.day),
         weather=_format_weather_condition(step.weather_condition),

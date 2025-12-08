@@ -44,11 +44,19 @@ def process_step_photos(
 
     use_cover = should_use_cover_photo(step.description)
 
-    # Determine cover photo
-    cover_photo = select_cover_photo(photos) if use_cover else None
+    # Determine cover photo (always select one if candidates exist, for map usage)
+    cover_photo = select_cover_photo(photos)
+
+    # Only exclude the cover photo from the photo pages if we are actually using it
+    # as a cover on the step page.
+    excluded_cover = cover_photo if use_cover else None
 
     # Use default layout strategy
-    pages, _, _ = compute_default_photos_by_pages(photos, cover_photo)
+    pages, _, _ = compute_default_photos_by_pages(photos, excluded_cover)
+
+    # If we are NOT using the cover on the step page (use_cover=False),
+    # we still return it as 'cover_photo' so the map can use it,
+    # but 'pages' will include it so it's not lost.
     return photos, cover_photo, pages
 
 

@@ -16,6 +16,7 @@ from src.core.dates import get_display_date_range
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.core.text import is_hebrew
+from src.data.locations import LocationEntry, detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
     AlbumPhotoData,
@@ -150,6 +151,20 @@ def resolve_cover_photo_path(trip_data: TripData, args: Args) -> str | None:
     return trip_data.cover_photo.url
 
 
+def _process_locations(trip_dir: Path, steps: list[Step] | None) -> list[LocationEntry]:
+    """Load and process locations.json data."""
+    locations_path = trip_dir / "locations.json"
+
+    start_time = None
+    end_time = None
+
+    if steps:
+        start_time = steps[0].start_time
+        end_time = steps[-1].end_time or steps[-1].start_time + 86400
+
+    return load_locations(locations_path, min_time=start_time, max_time=end_time)
+
+
 def main() -> None:
     args = Args(underscores_to_dashes=True).parse_args()
 
@@ -187,6 +202,10 @@ def main() -> None:
     display_date_range = get_display_date_range(trip_data, steps)
     cover_photo_path = resolve_cover_photo_path(trip_data, args)
 
+    # Process locations.json
+    path_points = _process_locations(args.trip_dir, steps)
+    path_segments = detect_segments(path_points) if path_points else []
+
     trip_display = TripDisplayData(
         display_title=display_title,
         display_date_range=display_date_range,
@@ -195,6 +214,8 @@ def main() -> None:
         title_dir="rtl" if is_hebrew(display_title) else "ltr",
         summary_dir="rtl" if is_hebrew(trip_data.summary or "") else "ltr",
         trip=trip_data,
+        path_points=path_points,
+        path_segments=path_segments,
     )
 
     args.out.mkdir(parents=True, exist_ok=True)

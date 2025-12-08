@@ -1,0 +1,229 @@
+<div class="map-page-container page-container">
+    <div id="trip-map"></div>
+    <div id="map-loading-text">Map Loading...</div>
+</div>
+<script>
+    // Immediate check
+    console.log("Map script loaded");
+    var debugLoading = document.getElementById('map-loading-text');
+    if (debugLoading) debugLoading.textContent = "Map Loading... Init";
+
+    function initMap() {
+        console.log("Initializing Map Logic");
+        var loadingText = document.getElementById('map-loading-text');
+        if (loadingText) loadingText.textContent = "Map Loading... Starting";
+        
+        if (typeof L === 'undefined') {
+            console.error("Leaflet is undefined");
+            if (loadingText) {
+                loadingText.textContent = "Error: Leaflet JS (L) is not defined. Asset path issue?";
+                loadingText.style.color = "red";
+            }
+            return;
+        }
+
+        try {
+            var map = L.map('trip-map', {
+                zoomSnap: 0,
+                zoomDelta: 0.1,
+                zoomControl: false,
+                attributionControl: false,
+                dragging: false,
+                touchZoom: false,
+                scrollWheelZoom: false,
+                doubleClickZoom: false,
+                boxZoom: false,
+                keyboard: false
+            });
+            
+            // Esri World Imagery
+            var tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            }).addTo(map);
+
+            // 2. Context Overlay (Roads, Borders - Esri)
+            var contextLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+           }).addTo(map);
+
+            
+            if (loadingText) loadingText.textContent = "Map Loading... Tiles";
+            
+            tiles.on('load', function() {
+                if (loadingText) loadingText.style.display = 'none';
+            });
+            
+            // Fallback: hide loading text after 3 seconds anyway if map initialized
+            setTimeout(function() { if (loadingText) loadingText.style.display = 'none'; }, 2000);
+
+            // Force map to update size once everything is loaded
+            setTimeout(function(){ map.invalidateSize(); }, 500);
+
+            // Bezier Curve Logic
+            function getBezierPoint(t, p0, p1, p2) {
+                var x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0];
+                var y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1];
+                return [x, y];
+            }
+
+            function getControlPoint(p0, p1, offsetScale) {
+                var mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+                var dx = p1[0] - p0[0];
+                var dy = p1[1] - p0[1];
+                var dist = Math.sqrt(dx*dx + dy*dy);
+                
+                // Normal vector (-dy, dx)
+                var nx = -dy;
+                var ny = dx;
+                
+                // Normalize and scale
+                // offsetScale determines curve height relative to distance
+                var k = offsetScale * 0.2; 
+                
+                return [mid[0] + nx * k, mid[1] + ny * k];
+            }
+
+            function getAngle(p0, p1) {
+                var dy = p1[0] - p0[0];
+                var dx = p1[1] - p0[1];
+                var theta = Math.atan2(dy, dx); // range (-PI, PI]
+                theta *= 180 / Math.PI; // rads to degs
+                return theta;
+            }
+
+            var allBounds = [];
+            
+            {% if trip.path_segments %}
+                {% for segment in trip.path_segments %}
+                    var segPoints = [];
+                    {% for p in segment.points %}
+                         segPoints.push([{{ p.lat }}, {{ p.lon }}]);
+                    {% endfor %}
+                    
+                    if (segPoints.length > 0) {
+                        // Collect bounds
+                        segPoints.forEach(p => allBounds.push(p));
+
+                        {% if segment.type == 'ground' %}
+                            L.polyline(segPoints, {
+                                color: '#ffffff',
+                                weight: 3,
+                                opacity: 0.9,
+                                dashArray: '5, 10',
+                                lineCap: 'round'
+                            }).addTo(map);
+                        {% else %}
+                            // FLIGHT SEGMENT
+                            var pStart = segPoints[0];
+                            var pEnd = segPoints[segPoints.length - 1];
+                            
+                            // Control point for curve
+                            var control = getControlPoint(pStart, pEnd, 0.5); // 0.5 curvature
+                            
+                            // Sample the Bezier curve
+                            var curvePoints = [];
+                            for (var t = 0; t <= 1; t += 0.05) {
+                                curvePoints.push(getBezierPoint(t, pStart, control, pEnd));
+                            }
+                            
+                            L.polyline(curvePoints, {
+                                color: '#ffffff',
+                                weight: 2,
+                                opacity: 0.8,
+                                dashArray: '4, 8', // Dotted look
+                                lineCap: 'round'
+                            }).addTo(map);
+
+                            // Airplane Icon at midpoint
+                            var midT = 0.5;
+                            var midPos = getBezierPoint(midT, pStart, control, pEnd);
+                            
+                            // Calculate angle at midpoint (approximate derivative)
+                            var tPlus = midT + 0.01;
+                            var posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
+                            var angle = getAngle(midPos, posPlus);
+                            
+                            var planeIcon = L.divIcon({
+                                className: 'plane-icon-container',
+                                html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 24px; height: 24px; transform: rotate(${-angle}deg); display: block;">`,
+                                iconSize: [24, 24],
+                                iconAnchor: [12, 12]
+                            });
+                            
+                            L.marker(midPos, { icon: planeIcon, zIndexOffset: -1000 }).addTo(map);
+
+                        {% endif %}
+                    }
+                {% endfor %}
+            {% else %}
+                // Fallback for non-segmented data
+                 var pathPoints = [];
+                {% for point in trip.path_points %}
+                    {% if point.lat is not none and point.lon is not none %}
+                    pathPoints.push([{{ point.lat }}, {{ point.lon }}]);
+                    allBounds.push([{{ point.lat }}, {{ point.lon }}]);
+                    {% endif %}
+                {% endfor %}
+                 if (pathPoints.length > 0) {
+                    L.polyline(pathPoints, {
+                        color: '#ffffff',
+                        weight: 3,
+                        opacity: 0.9,
+                        dashArray: '5, 10',
+                        lineCap: 'round'
+                    }).addTo(map);
+                }
+            {% endif %}
+
+            if (allBounds.length > 0) {
+                 map.fitBounds(allBounds, {
+                    padding: [100, 100],
+                     maxZoom: 18
+                });
+            }
+
+            // Custom icon for steps
+            var createIcon = function(url) {
+                if (url && url !== 'None' && url !== '') {
+                     return L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div class="custom-marker-inner" style="background-image: url('${url}');">
+                        </div>`,
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20],
+                        popupAnchor: [0, -20]
+                    });
+                } else {
+                    return L.divIcon({
+                        className: 'step-marker-icon',
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    });
+                }
+            };
+
+            // Add markers for steps
+            {% for step in steps %}
+                // Using cover image if available for the marker icon
+                 var markerIcon = createIcon({{ step.cover_image_path | tojson }});
+
+                L.marker([{{ step.lat_val }}, {{ step.lon_val }}], { icon: markerIcon, zIndexOffset: 1000 }).addTo(map);
+            {% endfor %}
+            
+            console.log("Map initialized successfully");
+
+        } catch (e) {
+            console.error("Map initialization error:", e);
+            if (loadingText) {
+                loadingText.textContent = "Error loading map: " + e.message;
+                loadingText.style.color = "red";
+            }
+        }
+    }
+
+    // Interactive check to handle race condition where DOMContentLoaded already fired
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMap);
+    } else {
+        initMap();
+    }
+</script>

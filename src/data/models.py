@@ -8,17 +8,7 @@ from pydantic import (
     Field,
 )
 
-
-class Location(BaseModel):
-    id: int
-    name: str
-    detail: str | None = None
-    full_detail: str | None = None
-    country_code: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Za-z0-9]{2}$")
-    lat: float = Field(..., ge=-90, le=90)
-    lon: float = Field(..., ge=-180, le=180)
-    venue: str | None = None
-    uuid: str
+from src.data.locations import Location, LocationEntry, TravelSegment
 
 
 class Step(BaseModel):
@@ -92,6 +82,8 @@ class TripDisplayData(BaseModel):
     title_dir: str
     summary_dir: str
     trip: TripData
+    path_points: list[LocationEntry] | None = None
+    path_segments: list[TravelSegment] | None = None
 
 
 class WeatherData(BaseModel):
@@ -162,6 +154,8 @@ class StepData(BaseModel):
     country_code: str
     coords_lat: str
     coords_lon: str
+    lat_val: float
+    lon_val: float
     date_month: str
     date_day: str
     weather: str
