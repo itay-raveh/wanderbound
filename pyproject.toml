@@ -38,14 +38,16 @@ dependencies = [
     "more-itertools>=10.0.0",
     "rich>=13.0.0",
     "tenacity>=8.2.0",
-    "persist-cache>=1.0.0",
+    "persist-cache>=0.4.4",
     "pyproj>=3.7.2",
     "typed-argument-parser>=1.8.0",
+    "numpy>=1.26.0",
+    "opencv-python-headless>=4.8.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.14.7",
+    "ruff>=0.14.8",
     "mypy>=1.19.0",
     "vulture>=2.10",
     "deptry>=0.24.0",

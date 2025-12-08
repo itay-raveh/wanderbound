@@ -16,7 +16,7 @@ from src.core.dates import get_display_date_range
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 from src.core.text import is_hebrew
-from src.data.locations import LocationEntry, detect_segments, load_locations
+from src.data.locations import LocationEntry, _detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
     AlbumPhotoData,
@@ -204,7 +204,7 @@ def main() -> None:
 
     # Process locations.json
     path_points = _process_locations(args.trip_dir, steps)
-    path_segments = detect_segments(path_points) if path_points else []
+    path_segments = _detect_segments(path_points) if path_points else []
 
     trip_display = TripDisplayData(
         display_title=display_title,

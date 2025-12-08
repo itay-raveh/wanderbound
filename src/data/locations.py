@@ -53,7 +53,7 @@ class TravelSegment(BaseModel):
     points: list[LocationEntry]
 
 
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate the great circle distance between two points in kilometers."""
     radius_km = 6371.0  # Earth radius in kilometers
 
@@ -66,7 +66,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return radius_km * c
 
 
-def detect_segments(
+def _detect_segments(
     locations: list[LocationEntry],
     min_flight_speed_kmh: float = 250.0,
     min_flight_dist_km: float = 50.0,
@@ -82,7 +82,7 @@ def detect_segments(
         p1 = locations[i]
         p2 = locations[i + 1]
 
-        dist_km = haversine_distance(p1.lat, p1.lon, p2.lat, p2.lon)
+        dist_km = _haversine_distance(p1.lat, p1.lon, p2.lat, p2.lon)
         time_diff_hours = (p2.time - p1.time) / 3600.0
 
         if time_diff_hours <= 0:
@@ -115,7 +115,7 @@ def detect_segments(
     return segments
 
 
-def filter_outliers(
+def _filter_outliers(
     locations: list[LocationEntry], max_speed_kmh: float = 1500.0
 ) -> list[LocationEntry]:
     """Remove points that imply travel speeds greater than max_speed_kmh.
@@ -149,7 +149,7 @@ def filter_outliers(
             removed_count += 1
             continue
 
-        distance_km = haversine_distance(last_valid.lat, last_valid.lon, current.lat, current.lon)
+        distance_km = _haversine_distance(last_valid.lat, last_valid.lon, current.lat, current.lon)
 
         speed = distance_km / time_diff_hours
 
@@ -181,29 +181,15 @@ def load_locations(
     Returns:
         List of LocationEntry objects. Raises on failure.
     """
-    logger.info("Loading locations.json...")
+    start_t = min_time if min_time is not None else -math.inf
+    end_t = max_time if max_time is not None else math.inf
 
-    # Let Pydantic handle parsing and validation structure
-    all_points = LocationList.model_validate_json(locations_path.read_text(encoding="utf-8")).root
-
-    # Sort by time
-    all_points.sort(key=lambda x: x.time)
-
-    # Filter outliers
-    all_points = filter_outliers(all_points)
-
-    # Time range filtering
-    if min_time is not None or max_time is not None:
-        start = min_time if min_time is not None else float("-inf")
-        end = max_time if max_time is not None else float("inf")
-
-        filtered_points = [p for p in all_points if start <= p.time <= end]
-        logger.info(
-            "Processed %d map points (filtered from %d)",
-            len(filtered_points),
-            len(all_points),
-        )
-        return filtered_points
-
-    logger.info("Processed %d map points", len(all_points))
-    return all_points
+    points = LocationList.model_validate_json(locations_path.read_text(encoding="utf-8")).root
+    points.sort(key=lambda x: x.time)
+    points = [p for p in points if start_t <= p.time <= end_t]
+    points = _filter_outliers(points)
+    logger.info(
+        "Processed %d map points",
+        len(points),
+    )
+    return points
