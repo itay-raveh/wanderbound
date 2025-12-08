@@ -5,17 +5,20 @@ from __future__ import annotations
 import asyncio
 import os
 import webbrowser
+from datetime import datetime as dt  # noqa: F401
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich import get_console
 
 from src.album.generator import generate_album_html
+from src.cli.edit import EditorServer
 from src.core.cache import clear_cache
 from src.core.dates import get_display_date_range
-from src.core.logger import create_progress, get_logger
+from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.text import is_hebrew
+from src.data.layout import AlbumLayout
 from src.data.locations import LocationEntry, _detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
@@ -30,29 +33,9 @@ from .args import Args
 from .steps import filter_steps
 
 if TYPE_CHECKING:
-    from src.data.models import Photo, Step
+    from src.data.models import Step
 
 logger = get_logger(__name__)
-
-
-def _load_step_photos(
-    steps: list[Step], trip_dir: Path
-) -> tuple[dict[int, list[Photo]], dict[int, Photo | None], dict[int, list[list[Photo]]]]:
-    steps_with_photos: dict[int, list[Photo]] = {}
-    steps_cover_photos: dict[int, Photo | None] = {}
-    steps_photo_pages: dict[int, list[list[Photo]]] = {}
-
-    progress = create_progress()
-    with progress:
-        task_id = progress.add_task("Loading photos", total=len(steps))
-        for step in progress.track(steps, task_id=task_id, description="Loading photos"):
-            logger.debug("Loading photos for step: %s", step.city)
-            with get_console().status(f"[bold blue]Processing photos: {step.city}"):
-                photos, cover_photo, photo_pages = process_step_photos(step, trip_dir)
-            steps_with_photos[step.id] = photos
-            steps_cover_photos[step.id] = cover_photo
-            steps_photo_pages[step.id] = photo_pages
-    return steps_with_photos, steps_cover_photos, steps_photo_pages
 
 
 async def _generate_html_album(
@@ -165,6 +148,43 @@ def _process_locations(trip_dir: Path, steps: list[Step] | None) -> list[Locatio
     return load_locations(locations_path, min_time=start_time, max_time=end_time)
 
 
+async def _reload_step_data(
+    step_id: int | None,
+    all_steps: list[Step],
+    trip_dir: Path,
+    photo_data: AlbumPhotoData,
+    output_dir: Path,
+) -> None:
+    """Reloads step data, applying any layout overrides from layout.json."""
+    logger.info("Reloading layout data...")
+
+    # Reload layout file
+    layout_file = output_dir / "layout.json"
+    layout_overrides = AlbumLayout(steps={})
+    if layout_file.exists():
+        try:
+            layout_overrides = AlbumLayout.model_validate_json(layout_file.read_text())
+        except (ValueError, TypeError) as e:
+            logger.warning("Failed to load layout.json: %s", e)
+
+    target_steps = [s for s in all_steps if s.id == step_id] if step_id else all_steps
+
+    for step in target_steps:
+        # Check for overrides
+        step_layout = layout_overrides.steps.get(step.id)
+
+        # Reprocess photos with overrides
+        photos, cover_photo, photo_pages, hidden_photos = process_step_photos(
+            step, trip_dir, layout_override=step_layout
+        )
+
+        # Update shared state
+        photo_data.steps_with_photos[step.id] = photos
+        photo_data.steps_cover_photos[step.id] = cover_photo
+        photo_data.steps_photo_pages[step.id] = photo_pages
+        photo_data.steps_hidden_photos[step.id] = hidden_photos
+
+
 def main() -> None:
     args = Args(underscores_to_dashes=True).parse_args()
 
@@ -187,7 +207,6 @@ def main() -> None:
         trip_data = TripData.model_validate_json(
             trip_json_path.read_text(encoding="utf-8"),
         )
-
         logger.debug("Trip data loaded successfully")
 
     if not trip_data.all_steps:
@@ -221,22 +240,31 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     logger.debug("Output directory: %s", args.out)
 
-    # Load photos
-    steps_with_photos, steps_cover_photos, steps_photo_pages = _load_step_photos(
-        steps, args.trip_dir
+    # Initialize photo_data object
+    photo_data = AlbumPhotoData(
+        steps_with_photos={},
+        steps_cover_photos={},
+        steps_photo_pages={},
     )
 
+    # Initial Load
+    # We populate photo_data in-place
+    asyncio.run(_reload_step_data(None, steps, args.trip_dir, photo_data, args.out))
+
     use_step_range = args.progress_mode == "step-range"
-    photo_data = AlbumPhotoData(
-        steps_with_photos=steps_with_photos,
-        steps_cover_photos=steps_cover_photos,
-        steps_photo_pages=steps_photo_pages,
-    )
+
+    # Determine editor mode
+    # If args.edit is True, we enable editor mode in config
+    editor_mode = args.edit or False
+
     album_config = AlbumGenerationConfig(
         trip_data=trip_data,
         trip_display_data=trip_display,
         output_dir=args.out,
+        editor_mode=editor_mode,
     )
+
+    # Initial Generation
     html_path = asyncio.run(
         _generate_html_album(
             steps,
@@ -247,7 +275,27 @@ def main() -> None:
         )
     )
 
-    if args.pdf:
+    if editor_mode:
+        logger.info("Starting Editor Mode...")
+
+        async def regenerate_callback(step_id: int) -> None:
+            logger.info("Regenerating step %s...", step_id)
+            await _reload_step_data(step_id, steps, args.trip_dir, photo_data, args.out)
+            # Re-generate HTML
+            await _generate_html_album(
+                steps,
+                photo_data,
+                album_config,
+                use_step_range=use_step_range,
+                light_mode=args.light_mode,
+            )
+            logger.info("Regeneration complete.")
+
+        server = EditorServer(args.out, regenerate_callback)
+        # Block until user quits
+        server.run(port=8000)
+    # Standard flow
+    elif args.pdf:
         pdf_path = args.out / settings.file.album_pdf_file
         with get_console().status("[bold blue]Generating PDF..."):
             _generate_pdf(html_path, pdf_path)

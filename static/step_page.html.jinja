@@ -1,4 +1,5 @@
-<div class="step-page page-container {% if step.use_two_columns %}multi-column{% endif %}">
+<div class="step-page page-container {% if step.use_two_columns %}multi-column{% endif %}"
+     data-step-id="{{ step.id }}">
     <div class="step-data">
         <div class="location-section">
             <div class="map-coords-container">
@@ -94,9 +95,20 @@
         {% elif step.cover_image_path %}
             <img src="{{ step.cover_image_path }}"
                  alt="{{ step.city }}"
-                 class="main-image" />
+                 class="main-image"
+                 {% if step.cover_photo_id %}data-photo-id="{{ step.cover_photo_id }}"{% endif %} />
         {% else %}
             <div class="no-image-message">No image available</div>
+        {% endif %}
+    </div>
+    {# Hidden photos container (preserved for editor state) #}
+    <div class="hidden-photos-container">
+        {% if step.hidden_photos %}
+            {% for photo in step.hidden_photos %}
+                <div class="photo-item" data-photo-id="{{ photo.id }}">
+                    <img src="{{ photo.path }}" alt="Hidden {{ photo.id }}" />
+                </div>
+            {% endfor %}
         {% endif %}
     </div>
 </div>
@@ -104,12 +116,13 @@
 {% if step.photo_pages %}
     {% for photo_page
         in step.photo_pages %}
-        <div class="step-page photo-page page-container">
+        <div class="step-page photo-page page-container"
+             data-step-id="{{ step.id }}">
             <div class="photo-page-container {{ photo_page.layout_class or '' }}"
                  {% if photo_page.grid_style %}style="{{ photo_page.grid_style }}"{% endif %}>
-                {% for photo_path in photo_page.photos %}
-                    <div class="photo-item">
-                        <img src="{{ photo_path }}"
+                {% for photo in photo_page.photos %}
+                    <div class="photo-item" data-photo-id="{{ photo.id }}">
+                        <img src="{{ photo.path }}"
                              alt="{{ step.city }} photo"
                              class="photo-image" />
                     </div>

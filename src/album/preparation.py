@@ -185,6 +185,7 @@ def prepare_step_data(
     temp_night_str = _format_temperature(night_temp, night_feels_like)
 
     return StepData(
+        id=step.id,
         city=step.city,
         country=step.country,
         country_code=step.country_code,
@@ -205,6 +206,7 @@ def prepare_step_data(
         day_counter_box_position=box_center_position,
         day_counter_arrow_position=arrow_bar_position,
         cover_image_path=cover_image_path,
+        cover_photo_id=external_data.cover_photo_id,
         country_flag_data_uri=country_flag_data_uri,
         country_map_svg=country_map_svg,
         map_dot_x=map_dot_x,

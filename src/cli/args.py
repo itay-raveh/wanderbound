@@ -19,6 +19,7 @@ class Args(Tap):
     light_mode: bool = False  # Use light mode instead of dark mode
     no_open: bool = False  # Do not automatically open the generated album in the browser
     no_cache: bool = False  # Force regeneration of cached data (maps, weather, etc.)
+    edit: bool = False  # Enable manual layout editor
 
     def configure(self) -> None:
         self.add_argument("trip_dir", type=Path)

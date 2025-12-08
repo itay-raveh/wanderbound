@@ -26,7 +26,7 @@ from src.services.maps.service import fetch_maps_batch
 from src.services.summary import calculate_trip_summary
 from src.services.weather import fetch_weather_data_batch
 
-from .assets import copy_cover_images, copy_photo_pages
+from .assets import copy_cover_images, copy_image_to_assets, copy_photo_pages
 from .preparation import prepare_step_data
 from .renderer import create_template_environment, render_album_template
 
@@ -125,6 +125,7 @@ async def _process_steps(
     step_data_list: list[StepData] = []
     steps_photo_pages = context.photo_data.steps_photo_pages
     steps_cover_photos = context.photo_data.steps_cover_photos
+    steps_hidden_photos = context.photo_data.steps_hidden_photos
 
     progress = create_progress()
 
@@ -170,12 +171,24 @@ async def _process_steps(
                 context.output_dir,
             )
 
+            # Copy hidden photos to assets (to ensure valid paths for editor)
+            hidden_photos = steps_hidden_photos.get(step.id, []) if step.id else []
+            hidden_photos_paths = []
+            for photo in hidden_photos:
+                if photo.path.exists():
+                    asset = await copy_image_to_assets(
+                        photo.path, context.output_dir, step_name, photo
+                    )
+                    hidden_photos_paths.append(asset)
+
+            cover_photo = steps_cover_photos.get(step.id) if step.id else None
             external_data = StepExternalData(
                 elevation=elevation,
                 weather_data=weather_result,
                 flag_data=flag_result,
                 map_data=map_result,
                 cover_image_path=cover_image_path,
+                cover_photo_id=cover_photo.id if cover_photo else None,
             )
 
             step_context = StepContext(
@@ -191,6 +204,7 @@ async def _process_steps(
                 light_mode=context.light_mode,
             )
             step_data.photo_pages = photo_pages_paths
+            step_data.hidden_photos = hidden_photos_paths
             step_data_list.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
@@ -248,9 +262,9 @@ async def generate_album_html(
     html = render_album_template(
         template,
         step_data_list,
+        context.config,
         light_mode=context.light_mode,
         summary=trip_summary,
-        trip=context.config.trip_display_data,
     )
 
     # Write output

@@ -134,8 +134,13 @@ class Photo(BaseModel):
 PhotoLayout = Literal["three-portraits", "portrait-landscape-split"]
 
 
+class AssetPhoto(BaseModel):
+    id: str
+    path: str
+
+
 class PhotoPageData(BaseModel):
-    photos: list[str]
+    photos: list[AssetPhoto]
     layout_class: PhotoLayout | None = None
     grid_style: str | None = None
 
@@ -146,9 +151,11 @@ class StepExternalData(BaseModel):
     flag_data: FlagResult | None
     map_data: MapResult | None
     cover_image_path: str | None
+    cover_photo_id: str | None = None
 
 
 class StepData(BaseModel):
+    id: int
     city: str
     country: str
     country_code: str
@@ -169,6 +176,7 @@ class StepData(BaseModel):
     day_counter_box_position: float
     day_counter_arrow_position: float
     cover_image_path: str | None
+    cover_photo_id: str | None = None
     country_flag_data_uri: str | None
     country_map_svg: str | None
     map_dot_x: float | None
@@ -180,6 +188,7 @@ class StepData(BaseModel):
     use_two_columns: bool
     use_three_columns: bool
     photo_pages: list[PhotoPageData]
+    hidden_photos: list[AssetPhoto] = Field(default_factory=list)
     light_mode: bool
 
 
@@ -187,12 +196,14 @@ class AlbumPhotoData(BaseModel):
     steps_with_photos: dict[int, list[Photo]]
     steps_cover_photos: dict[int, Photo | None]
     steps_photo_pages: dict[int, list[list[Photo]]]
+    steps_hidden_photos: dict[int, list[Photo]] = Field(default_factory=dict)
 
 
 class AlbumGenerationConfig(BaseModel):
     trip_data: TripData
     trip_display_data: TripDisplayData | None = None
     output_dir: Path
+    editor_mode: bool = False
 
 
 class StepContext(BaseModel):

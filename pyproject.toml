@@ -57,7 +57,7 @@ dev = [
 ]
 
 [project.scripts]
-polarsteps-album = "src.cli.main:main"
+psagen = "src.cli.main:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -73,7 +73,7 @@ check = "ruff check . --fix --unsafe-fixes"
 types = "mypy ."
 deps = "deptry ."
 dead = "vulture src"
-html = "djlint **/*.jinja --lint --reformat "
+html = "djlint static/*.jinja --lint --reformat "
 lint = "task format && task check && task types && task deps && task dead && task html"
 
 [tool.ruff]

@@ -26,7 +26,7 @@ def compute_dhash(image: Image.Image, hash_size: int = 8) -> int:
     image = image.convert("L")
 
     # Get pixel data
-    pixels = np.array(image.getdata(), dtype=np.int8).reshape((hash_size, hash_size + 1))
+    pixels = np.array(image.getdata(), dtype=np.uint8).reshape((hash_size, hash_size + 1))
 
     # Compute differences between adjacent columns
     diff = pixels[:, :-1] > pixels[:, 1:]

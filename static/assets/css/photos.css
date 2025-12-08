@@ -126,3 +126,7 @@
   height: auto;
   object-fit: contain;
 }
+
+.hidden-photos-container {
+  display: none;
+}

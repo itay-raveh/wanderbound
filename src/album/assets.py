@@ -8,7 +8,7 @@ from pathlib import Path
 from src.album.preparation import _clean_description
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
-from src.data.models import Photo, PhotoPageData, Step
+from src.data.models import AssetPhoto, Photo, PhotoPageData, Step
 from src.photos.layout_engine import (
     is_one_portrait_two_landscapes,
     is_three_portraits,
@@ -18,21 +18,22 @@ logger = get_logger(__name__)
 
 
 async def copy_image_to_assets(
-    image_path: Path, output_dir: Path, step_name: str, photo_index: int
-) -> str:
+    image_path: Path, output_dir: Path, step_name: str, photo: Photo
+) -> AssetPhoto:
     images_dir = output_dir / settings.file.assets_dir / settings.file.images_dir
     images_dir.mkdir(parents=True, exist_ok=True)
 
     sanitized_name = _sanitize_filename(step_name)
 
     ext = image_path.suffix.lower() or ".jpg"
-    output_filename = f"{sanitized_name}_photo_{photo_index}{ext}"
+    output_filename = f"{sanitized_name}_photo_{photo.index}{ext}"
     output_path = images_dir / output_filename
 
     if not output_path.exists() and image_path.exists():
         await asyncio.to_thread(shutil.copy2, image_path, output_path)
 
-    return f"{settings.file.assets_dir}/{settings.file.images_dir}/{output_filename}"
+    rel_path = f"{settings.file.assets_dir}/{settings.file.images_dir}/{output_filename}"
+    return AssetPhoto(id=photo.id, path=rel_path)
 
 
 async def copy_photo_pages(
@@ -45,17 +46,15 @@ async def copy_photo_pages(
     for page in photo_pages:
         # Create tasks for all photos in the page
         copy_tasks = [
-            copy_image_to_assets(p.path, output_dir, step_name, p.index)
-            for p in page
-            if p.path.exists()
+            copy_image_to_assets(p.path, output_dir, step_name, p) for p in page if p.path.exists()
         ]
 
         if not copy_tasks:
             continue
 
-        page_paths = await asyncio.gather(*copy_tasks)
+        asset_photos = await asyncio.gather(*copy_tasks)
 
-        if page_paths:
+        if asset_photos:
             # Calculate layout flags on-the-fly based on photo aspect ratios
             layout_class = None
             grid_style = None
@@ -97,7 +96,7 @@ async def copy_photo_pages(
 
             photo_pages_paths.append(
                 PhotoPageData(
-                    photos=list(page_paths),
+                    photos=list(asset_photos),
                     layout_class=layout_class,
                     grid_style=grid_style,
                 )
@@ -125,15 +124,17 @@ async def copy_cover_images(
         if cover_photo and cover_photo.path.exists():
             step_name = step.get_name_for_photos_export()
             try:
-                return await copy_image_to_assets(
+                asset = await copy_image_to_assets(
                     cover_photo.path,
                     output_dir,
                     step_name,
-                    cover_photo.index,
+                    cover_photo,
                 )
             except (OSError, ValueError, AttributeError) as e:
                 logger.warning("Failed to process cover image for step %s: %s", step.id, e)
                 return None
+            else:
+                return asset.path
         return None
 
     with image_progress:

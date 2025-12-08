@@ -38,5 +38,9 @@
         {% for step in steps %}
             {% include "step_page.html.jinja" %}
         {% endfor %}
+        {% if editor_mode %}
+            <script src="editor.js"></script>
+            <link rel="stylesheet" href="editor.css" />
+        {% endif %}
     </body>
 </html>
