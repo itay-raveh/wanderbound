@@ -9,6 +9,7 @@ from datetime import datetime as dt  # noqa: F401
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
 from rich import get_console
 
 from src.album.generator import generate_album_html
@@ -18,7 +19,7 @@ from src.core.dates import get_display_date_range
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.text import is_hebrew
-from src.data.layout import AlbumLayout
+from src.data.layout import AlbumLayout, PageLayout, StepLayout
 from src.data.locations import LocationEntry, _detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
@@ -28,6 +29,7 @@ from src.data.models import (
     TripDisplayData,
 )
 from src.photos.processor import process_step_photos
+from src.photos.registry import PhotoRegistry
 
 from .args import Args
 from .steps import filter_steps
@@ -158,14 +160,36 @@ async def _reload_step_data(
     """Reloads step data, applying any layout overrides from layout.json."""
     logger.info("Reloading layout data...")
 
-    # Reload layout file
+    # Reload layout file - Always reload from disk to get latest editor changes
     layout_file = output_dir / "layout.json"
     layout_overrides = AlbumLayout(steps={})
+
+    # We must ensure we don't hold onto stale file handles or cache if possible
+    # (Though read_text is atomic enough for this)
     if layout_file.exists():
         try:
-            layout_overrides = AlbumLayout.model_validate_json(layout_file.read_text())
-        except (ValueError, TypeError) as e:
+            content = layout_file.read_text()
+            layout_overrides = AlbumLayout.model_validate_json(content)
+        except (ValueError, TypeError, ValidationError) as e:
             logger.warning("Failed to load layout.json: %s", e)
+
+    # Initialize Global Registry if not already done?
+    # actually, we need to pass strict trip_dir.
+    # We should probably initialize it once in main() and pass it down.
+    # But _reload_step_data logic is standalone-ish.
+
+    photo_registry = PhotoRegistry(trip_dir)
+    photo_registry.scan()
+
+    # Compute Global Used IDs
+    # Iterate all steps in layout_overrides to see what is claimed.
+    global_used_ids = set()
+    for s_layout in layout_overrides.steps.values():
+        if s_layout.cover_photo_id:
+            global_used_ids.add(s_layout.cover_photo_id)
+        global_used_ids.update(s_layout.hidden_photos)
+        for p in s_layout.pages:
+            global_used_ids.update(p.photos)
 
     target_steps = [s for s in all_steps if s.id == step_id] if step_id else all_steps
 
@@ -175,7 +199,7 @@ async def _reload_step_data(
 
         # Reprocess photos with overrides
         photos, cover_photo, photo_pages, hidden_photos = process_step_photos(
-            step, trip_dir, layout_override=step_layout
+            step, trip_dir, photo_registry, global_used_ids, layout_override=step_layout
         )
 
         # Update shared state
@@ -183,6 +207,45 @@ async def _reload_step_data(
         photo_data.steps_cover_photos[step.id] = cover_photo
         photo_data.steps_photo_pages[step.id] = photo_pages
         photo_data.steps_hidden_photos[step.id] = hidden_photos
+
+    # --- Save Layout JSON ---
+    logger.debug("Saving current layout state to layout.json...")
+
+    # Rebuild layout object from processed results to include defaults and overrides
+    new_steps = {}
+
+    for s in target_steps:
+        cover = photo_data.steps_cover_photos.get(s.id)
+        pages = photo_data.steps_photo_pages.get(s.id, [])
+        hidden = photo_data.steps_hidden_photos.get(s.id, [])
+
+        # Convert to PageLayout objects
+        page_layouts = [PageLayout(photos=[p.id for p in p_page]) for p_page in pages]
+
+        new_step_layout = StepLayout(
+            step_id=s.id,
+            name=s.display_name,  # User requested display name
+            pages=page_layouts,
+            hidden_photos=[h.id for h in hidden],
+            cover_photo_id=cover.id if cover else None,
+        )
+        new_steps[s.id] = new_step_layout
+
+    # Merge with existing overrides for steps NOT in target_steps (if partial regen)
+    if step_id:
+        # We only updated one step. Keep others from existing layout_overrides.
+        new_steps.update({sid: sl for sid, sl in layout_overrides.steps.items() if sid != step_id})
+
+    final_layout = AlbumLayout(steps=new_steps)
+
+    try:
+        # Write to disk
+        layout_file.write_text(
+            final_layout.model_dump_json(indent=2, exclude_none=True), encoding="utf-8"
+        )
+        logger.debug("Saved layout.json")
+    except Exception:
+        logger.exception("Failed to save layout.json")
 
 
 def main() -> None:
@@ -291,7 +354,7 @@ def main() -> None:
             )
             logger.info("Regeneration complete.")
 
-        server = EditorServer(args.out, regenerate_callback)
+        server = EditorServer(args.out, Path(args.trip_dir).resolve(), regenerate_callback)
         # Block until user quits
         server.run(port=8000)
     # Standard flow

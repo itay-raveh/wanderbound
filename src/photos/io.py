@@ -26,7 +26,7 @@ def _load_photo_metadata(img_path: Path) -> tuple[int, int, float] | None:
         return None
 
 
-def _load_single_photo(img_path: Path, index: int) -> Photo | None:
+def load_single_photo(img_path: Path, index: int) -> Photo | None:
     metadata = _load_photo_metadata(img_path)
     if metadata is None:
         return None
@@ -51,19 +51,27 @@ def load_step_photos(photo_dir: Path) -> list[Photo]:
     image_files = sorted(
         [f for f in photo_dir.iterdir() if f.suffix in image_extensions and f.is_file()]
     )
+    logger.debug(
+        "Scanning dir: %s. Found %d images: %s",
+        photo_dir.absolute(),
+        len(image_files),
+        [f.name for f in image_files],
+    )
 
     photos = []
     seen_hashes = set()
 
     # Process and hash existing images
     for index, img_path in enumerate(image_files, start=1):
-        photo = _load_single_photo(img_path, index)
+        photo = load_single_photo(img_path, index)
         if photo:
             photos.append(photo)
             # Compute hash for duplicate detection
             h = compute_image_hash(img_path)
             if h is not None:
                 seen_hashes.add(h)
+        else:
+            logger.warning("Failed to load photo: %s", img_path)
 
     _process_step_videos(photo_dir, photos, seen_hashes)
     return photos
@@ -150,7 +158,7 @@ def _process_single_video(
         seen_hashes.add(frame_hash)
 
     # Load as photo
-    photo = _load_single_photo(frame_path, current_index)
+    photo = load_single_photo(frame_path, current_index)
     if photo:
         # Override ID to indicate it's from a video? Or just keep filename
         # Keeping filename is fine, maybe useful to know source

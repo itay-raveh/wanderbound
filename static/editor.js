@@ -10,7 +10,60 @@ function initEditor() {
   console.log("Initializing Editor Mode...");
   makePhotosDraggable();
   injectEditorUI();
+  injectAddPageButtons();
 }
+
+function injectAddPageButtons() {
+  // Find all step groupings.
+  // We can assume steps are sequential blocks defined by data-step-id.
+  const steps = new Set();
+  document.querySelectorAll(".step-page[data-step-id]").forEach((el) => {
+    steps.add(el.dataset.stepId);
+  });
+
+  steps.forEach((stepId) => {
+    // Find the last visible element for this step to append the button after
+    const stepPages = document.querySelectorAll(
+      `.step-page[data-step-id="${stepId}"]`
+    );
+    const lastPage = stepPages[stepPages.length - 1];
+
+    if (lastPage) {
+      const btnContainer = document.createElement("div");
+      btnContainer.className = "add-page-container";
+      btnContainer.innerHTML = `<button class="add-page-btn" title="Add Photo Page" onclick="addPhotoPage('${stepId}', this)">+</button>`;
+      lastPage.insertAdjacentElement("afterend", btnContainer);
+    }
+  });
+}
+
+window.addPhotoPage = function (stepId, btn) {
+  // Determine where to insert: before the button container
+  const btnContainer = btn.closest(".add-page-container");
+
+  // Create new page structure
+  const newPage = document.createElement("div");
+  newPage.className = "step-page photo-page page-container";
+  newPage.dataset.stepId = stepId;
+
+  newPage.innerHTML = `
+        <div class="photo-page-container">
+            <!-- Photos drop here -->
+        </div>
+    `;
+
+  // Insert
+  btnContainer.insertAdjacentElement("beforebegin", newPage);
+
+  // Attach listeners
+  const container = newPage.querySelector(".photo-page-container");
+  container.addEventListener("dragover", handleDragOver);
+  container.addEventListener("drop", handleDrop);
+  container.addEventListener("dragleave", handleDragLeave);
+
+  // Scroll to new page ?
+  newPage.scrollIntoView({ behavior: "smooth" });
+};
 
 function makePhotosDraggable() {
   const photoItems = document.querySelectorAll(".photo-item");
@@ -79,9 +132,15 @@ function injectEditorUI() {
 
 // Drag & Drop Handlers
 let draggedItem = null;
+let draggedSourceStepId = null;
+let draggedSourceStepName = null;
 
 function handleDragStart(e) {
   draggedItem = this;
+  const stepPage = this.closest(".step-page");
+  draggedSourceStepId = stepPage ? stepPage.dataset.stepId : null;
+  draggedSourceStepName = stepPage ? stepPage.dataset.stepName : null;
+
   this.classList.add("dragging");
   e.dataTransfer.effectAllowed = "move";
 }
@@ -106,17 +165,95 @@ function handleDragLeave(e) {
   this.classList.remove("drag-over");
 }
 
-function handleDrop(e) {
+async function handleDrop(e) {
   e.stopPropagation();
   this.classList.remove("drag-over");
 
-  if (draggedItem && this !== draggedItem.parentNode) {
-    this.appendChild(draggedItem);
-    // Find the step ID of this container
-    const stepPage = this.closest(".step-page");
-    if (stepPage) {
-      const stepId = stepPage.dataset.stepId;
-      markStepDirty(stepId);
+  const itemToMove = draggedItem;
+  if (
+    itemToMove &&
+    (this.contains(itemToMove) || this !== itemToMove.parentNode)
+  ) {
+    // Determine Destination Step
+    const destStepPage = this.closest(".step-page");
+    const destStepId = destStepPage ? destStepPage.dataset.stepId : null;
+
+    // Check if Cross-Step Move
+    if (
+      draggedSourceStepId &&
+      destStepId &&
+      draggedSourceStepId !== destStepId
+    ) {
+      const srcName = draggedSourceStepName || draggedSourceStepId;
+      const destName = destStepPage.dataset.stepName || destStepId;
+
+      if (!confirm(`Moving photo from "${srcName}" to "${destName}"?`)) {
+        return false;
+      }
+
+      console.log(
+        `Cross-step move detected: ${draggedSourceStepId} -> ${destStepId}`
+      );
+
+      // Prevent default drop until we confirm move
+      const photoId = itemToMove.dataset.photoId;
+
+      try {
+        const resp = await fetch("/api/move_photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            photo_id: photoId,
+            src_step_id: draggedSourceStepId,
+            dest_step_id: destStepId,
+          }),
+        });
+
+        const result = await resp.json();
+        if (!result.success) {
+          alert("Failed to move photo: " + result.error);
+          return false;
+        }
+
+        // Success: Proceed to move DOM
+        markStepDirty(draggedSourceStepId); // Mark source dirty (removal)
+      } catch (err) {
+        console.error(err);
+        alert("Error moving photo: " + err.message);
+        return false;
+      }
+    }
+
+    // Standard Drop Logic (Reordering or Appending)
+    // Advanced Drop: Reorder support
+    // Check if we dropped ON TOP of another photo item
+    const targetPhoto = e.target.closest(".photo-item");
+
+    if (
+      targetPhoto &&
+      targetPhoto !== itemToMove &&
+      this.contains(targetPhoto)
+    ) {
+      // Determine insertion direction based on mouse position
+      const rect = targetPhoto.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+
+      if (e.clientX < midX) {
+        targetPhoto.parentNode.insertBefore(itemToMove, targetPhoto);
+      } else {
+        targetPhoto.parentNode.insertBefore(
+          itemToMove,
+          targetPhoto.nextSibling
+        );
+      }
+    } else {
+      // Appended to container (empty space)
+      this.appendChild(itemToMove);
+    }
+
+    // Find the step ID of this container (dest) and mark dirty
+    if (destStepId) {
+      markStepDirty(destStepId);
     }
   }
   return false;
@@ -160,43 +297,51 @@ function handleContextMenu(e) {
   };
 
   document.getElementById("ctx-hide").onclick = () => {
-    const stepPage = photoItem.closest(".step-page");
-    if (!stepPage) {
-      console.error("Could not find parent .step-page for photo", photoItem);
-      return;
-    }
-    const stepId = stepPage.dataset.stepId;
-    console.log("Hiding photo", photoId, "for step", stepId);
-
-    // Find the MAIN step page (not photo-page) which holds the hidden container
-    const mainStepPage = document.querySelector(
-      `.step-page[data-step-id="${stepId}"]:not(.photo-page)`
-    );
-    let hiddenContainer = null;
-
-    if (mainStepPage) {
-      hiddenContainer = mainStepPage.querySelector(".hidden-photos-container");
-    }
-
-    if (!hiddenContainer) {
-      // Fallback: create in main page if possible, or just append to main page
-      if (mainStepPage) {
-        hiddenContainer = document.createElement("div");
-        hiddenContainer.className = "hidden-photos-container";
-        mainStepPage.appendChild(hiddenContainer);
-      } else {
-        console.error("Could not find main step page for id", stepId);
+    try {
+      const stepPage = photoItem.closest(".step-page");
+      if (!stepPage) {
+        console.error("Could not find parent .step-page for photo", photoItem);
         return;
       }
-    }
+      const stepId = stepPage.dataset.stepId;
+      console.log("Hiding photo", photoId, "for step", stepId);
 
-    hiddenContainer.appendChild(photoItem);
-    markStepDirty(stepId);
+      // Find the MAIN step page (not photo-page) which holds the hidden container
+      const mainStepPage = document.querySelector(
+        `.step-page[data-step-id="${stepId}"]:not(.photo-page)`
+      );
+      let hiddenContainer = null;
+
+      if (mainStepPage) {
+        hiddenContainer = mainStepPage.querySelector(
+          ".hidden-photos-container"
+        );
+      }
+
+      if (!hiddenContainer) {
+        // Fallback: create in main page if possible, or just append to main page
+        if (mainStepPage) {
+          hiddenContainer = document.createElement("div");
+          hiddenContainer.className = "hidden-photos-container";
+          mainStepPage.appendChild(hiddenContainer);
+        } else {
+          console.error("Could not find main step page for id", stepId);
+          alert("Error: Could not find main step page. Check console.");
+          return;
+        }
+      }
+
+      hiddenContainer.appendChild(photoItem);
+      console.log("Moved photo to hidden container");
+      markStepDirty(stepId);
+      console.log("Marked step dirty");
+    } catch (e) {
+      console.error("Error hiding photo:", e);
+      alert("Error hiding photo: " + e.message);
+    }
   };
 }
 
-// State Management
-// State Management
 const dirtySteps = new Set();
 
 function markStepDirty(stepId) {
@@ -216,11 +361,8 @@ function markStepDirty(stepId) {
   }
 }
 
-async function saveStepLayout(stepId, overrides = {}) {
-  if (!stepId) {
-    console.error("saveStepLayout called with missing stepId");
-    return null;
-  }
+function collectStepData(stepId, overrides = {}) {
+  if (!stepId) return null;
 
   // Gather all photos for this step
   const stepPages = document.querySelectorAll(
@@ -240,7 +382,7 @@ async function saveStepLayout(stepId, overrides = {}) {
 
   // Gather hidden photos
   const hiddenContainer = document.querySelector(
-    `.step-page[data-step-id="${stepId}"] .hidden-photos-container`
+    `.step-page[data-step-id="${stepId}"]:not(.photo-page) .hidden-photos-container`
   );
   const hiddenPhotos = [];
   if (hiddenContainer) {
@@ -261,15 +403,21 @@ async function saveStepLayout(stepId, overrides = {}) {
     }
   }
 
-  const payload = {
+  const stepName = stepPage ? stepPage.dataset.stepName : null;
+
+  return {
     step_id: parseInt(stepId),
+    name: stepName,
     pages: pages,
     hidden_photos: hiddenPhotos,
     cover_photo_id: currentCoverId,
     ...overrides,
   };
+}
 
-  console.log(`Saving layout for step ${stepId}:`, payload);
+async function saveStepLayout(stepId, overrides = {}) {
+  const payload = collectStepData(stepId, overrides);
+  if (!payload) return null;
 
   return fetch("/api/save", {
     method: "POST",
@@ -290,12 +438,21 @@ window.saveAllVisibleSteps = async function () {
   btn.disabled = true;
 
   try {
-    // Save sequentially to avoid race conditions in file writing
+    const allUpdates = [];
     for (const stepId of dirtySteps) {
-      const response = await saveStepLayout(stepId);
-      if (!response || !response.ok) {
-        throw new Error(`Failed to save step ${stepId}`);
-      }
+      const data = collectStepData(stepId);
+      if (data) allUpdates.push(data);
+    }
+
+    const response = await fetch("/api/save_batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates: allUpdates }),
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "Batch save failed");
     }
 
     // Clear dirty state

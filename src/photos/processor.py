@@ -6,8 +6,9 @@ from src.core.logger import get_logger
 from src.data.layout import StepLayout
 from src.data.models import Photo, Step
 
-from .io import load_step_photos
+from .io import load_single_photo, load_step_photos
 from .layout_engine import select_cover_photo, should_use_cover_photo
+from .registry import PhotoRegistry
 from .scorer import compute_default_photos_by_pages
 
 logger = get_logger(__name__)
@@ -16,6 +17,8 @@ logger = get_logger(__name__)
 def process_step_photos(
     step: Step,
     trip_dir: Path,
+    photo_registry: PhotoRegistry,
+    global_used_ids: set[str],
     layout_override: StepLayout | None = None,
 ) -> tuple[list[Photo], Photo | None, list[list[Photo]], list[Photo]]:
     """Process photos for a single step, including loading, selection, and layout.
@@ -23,6 +26,8 @@ def process_step_photos(
     Args:
         step: The step data.
         trip_dir: Path to the trip directory.
+        photo_registry: Registry of all photos in the trip.
+        global_used_ids: Set of photo IDs used in other steps (to prevent orphans).
         layout_override: Optional manual layout configuration.
 
     Returns:
@@ -52,7 +57,7 @@ def process_step_photos(
 
     # --- Manual Layout Override ---
     if layout_override:
-        return _apply_manual_layout(photos, layout_override)
+        return _apply_manual_layout(photos, layout_override, photo_registry, global_used_ids)
 
     # --- Default Layout Logic ---
     use_cover = should_use_cover_photo(step.description)
@@ -75,10 +80,50 @@ def process_step_photos(
 
 
 def _apply_manual_layout(
-    all_photos: list[Photo], layout: StepLayout
+    local_photos: list[Photo],
+    layout: StepLayout,
+    photo_registry: PhotoRegistry,
+    global_used_ids: set[str],
 ) -> tuple[list[Photo], Photo | None, list[list[Photo]], list[Photo]]:
-    """Apply manual layout configuration to the loaded photos."""
-    photo_map = {p.id: p for p in all_photos}
+    """Apply manual layout configuration to the loaded photos.
+
+    In Virtual Move mode:
+    1. 'local_photos' are what is physically in the step folder.
+    2. 'layout' may reference photos from OTHER folders.
+    3. We must resolve those references using 'photo_registry'.
+    """
+    # 1. Build a map of ALL available photos (Local + Registry for layout IDs)
+    photo_map = {p.id: p for p in local_photos}
+
+    # helper to fetch/create photo object from registry if missing locally
+    def get_or_load_photo(p_id: str) -> Photo | None:
+        if p_id in photo_map:
+            return photo_map[p_id]
+
+        path = photo_registry.get(p_id)
+        if path:
+            # Create a transient Photo object
+            # Virtual index (validation requirement)
+            return load_single_photo(path, 9999)
+        return None
+
+    # We actually need to ensure ALL layout IDs are loaded.
+    all_needed_ids = set()
+    if layout.cover_photo_id:
+        all_needed_ids.add(layout.cover_photo_id)
+    all_needed_ids.update(layout.hidden_photos)
+    for page in layout.pages:
+        all_needed_ids.update(page.photos)
+
+    for p_id in all_needed_ids:
+        if p_id not in photo_map:
+            # Try to resolve from registry
+            photo = get_or_load_photo(p_id)
+            if photo:
+                photo_map[p_id] = photo
+
+    # Re-construct all_photos from the map to include virtual ones
+    # (Only matters for passing downstream, but orphans logic uses local_photos)
 
     cover_photo = _resolve_cover_photo(layout, photo_map)
     hidden_photos, used_photo_ids = _resolve_hidden_photos(layout, photo_map)
@@ -87,9 +132,17 @@ def _apply_manual_layout(
         used_photo_ids.add(cover_photo.id)
 
     pages = _build_pages(layout, photo_map, cover_photo, used_photo_ids)
-    _rescue_orphans(all_photos, used_photo_ids, pages, layout.step_id)
 
-    return all_photos, cover_photo, pages, hidden_photos
+    # Rescue Orphans:
+    # Only rescue photos that are physically here (local_photos)
+    # AND are NOT used in this layout
+    # AND represent a file that is NOT used in ANY OTHER step (global check)
+    _rescue_orphans(local_photos, used_photo_ids, pages, layout.step_id, global_used_ids)
+
+    # Combined list for return
+    final_photo_list = list(photo_map.values())
+
+    return final_photo_list, cover_photo, pages, hidden_photos
 
 
 def _resolve_cover_photo(layout: StepLayout, photo_map: dict[str, Photo]) -> Photo | None:
@@ -137,15 +190,33 @@ def _build_pages(
 
 
 def _rescue_orphans(
-    all_photos: list[Photo],
+    local_photos: list[Photo],
     used_photo_ids: set[str],
     pages: list[list[Photo]],
     step_id: int,
+    global_used_ids: set[str],
 ) -> None:
-    orphans = [p for p in all_photos if p.id not in used_photo_ids]
+    # orphan Candidates: Local photos not used in THIS step's layout
+    candidates = [p for p in local_photos if p.id not in used_photo_ids]
+
+    # Filter out candidates that are used in OTHER steps
+    # (If a photo is moved virtualy to Step B, Step B puts it in global_used_ids.
+    #  Step A (here) sees it as orphan candidate.
+    #  We must check if it's currently claimed elsewhere.)
+    orphans = []
+    for p in candidates:
+        if p.id in global_used_ids:
+            # It's used somewhere else (or here, but caught above).
+            # Specifically, if it is in global_used_ids but NOT in used_photo_ids (this step),
+            # it means ANOTHER step is using it.
+            # So we treat it as "Moved Away" -> Do not rescue.
+            continue
+        orphans.append(p)
 
     if orphans:
-        logger.info("Step %s has %d orphan photos; adding to grid.", step_id, len(orphans))
+        logger.warning(
+            "Step %s has %d orphan photos: %s", step_id, len(orphans), [p.id for p in orphans]
+        )
         if not pages:
             pages.append([])
         # Prepend orphans to the first page

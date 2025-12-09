@@ -11,6 +11,7 @@ class StepLayout(BaseModel):
     """Represents the manual layout configuration for a specific step."""
 
     step_id: int
+    name: str | None = None  # Human readable name for manual editing
     cover_photo_id: str | None = None
     pages: list[PageLayout]
     hidden_photos: list[str] = []
