@@ -2,44 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
-import geopandas as gpd
 from lxml import etree
 from shapely.geometry import MultiPolygon, Polygon
 
 from src.core.logger import get_logger
 from src.core.settings import settings
 
-_GEOJSON_PATH = "ne_50m_admin_0_countries.geojson"
-
 if TYPE_CHECKING:
     from geopandas import GeoDataFrame
     from shapely.coords import CoordinateSequence
     from shapely.geometry.base import BaseGeometry
 
-    from src.services.client import APIClient
-
 logger = get_logger(__name__)
-
-
-async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
-    """Load Natural Earth GeoJSON data from cache or download it."""
-    geojson_file = settings.file.cache_dir / _GEOJSON_PATH
-
-    if geojson_file.exists():
-        try:
-            return await asyncio.to_thread(gpd.read_file, str(geojson_file))
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Cached map data corrupt, re-downloading: %s", e)
-
-    logger.info("Downloading Natural Earth 50m data...")
-
-    content = await client.get_content(settings.natural_earth_geojson_url)
-    geojson_file.write_bytes(content)
-
-    return await asyncio.to_thread(gpd.read_file, str(geojson_file))
 
 
 def _coords_to_svg_path(coords: CoordinateSequence) -> str:
@@ -81,7 +57,7 @@ def _geometry_to_svg_path(geometry: BaseGeometry) -> str:
 
 def _generate_svg_plot(
     gdf: GeoDataFrame, max_dimension: int
-) -> tuple[etree.Element, tuple[float, float, float, float]]:
+) -> tuple[etree._Element, tuple[float, float, float, float]]:
     # Get bounds
     min_x, min_y, max_x, max_y = gdf.total_bounds
 
@@ -101,7 +77,7 @@ def _generate_svg_plot(
     # Create SVG structure
     svg_ns = "http://www.w3.org/2000/svg"
     nsmap = {None: svg_ns}
-    root = etree.Element(f"{{{svg_ns}}}svg", nsmap=nsmap)
+    root = etree.Element(f"{{{svg_ns}}}svg", nsmap=nsmap)  # type: ignore[arg-type]
 
     # Set viewBox to match the exact dimensions
     root.set("width", f"{width:.2f}")
@@ -111,7 +87,7 @@ def _generate_svg_plot(
     tx = -min_x * scale
     ty = height + min_y * scale
 
-    group: etree.Element = etree.SubElement(root, f"{{{svg_ns}}}g")
+    group = etree.SubElement(root, f"{{{svg_ns}}}g")
     group.set("transform", f"translate({tx},{ty}) scale({scale},{-scale})")
 
     # Add path
@@ -120,20 +96,18 @@ def _generate_svg_plot(
     for _, row in gdf.iterrows():
         path_d.append(_geometry_to_svg_path(row.geometry))
 
-    path_elem: etree.Element = etree.SubElement(group, f"{{{svg_ns}}}path")
+    path_elem = etree.SubElement(group, f"{{{svg_ns}}}path")
     path_elem.set("d", " ".join(path_d).strip())
-    path_elem.set("fill", settings.map.default_fill_color)
+    path_elem.set("fill", settings.map_fill_color)
     path_elem.set("stroke", "none")
 
     return root, (min_x, min_y, max_x, max_y)
 
 
-async def generate_geo_calibrated_svg(
-    client: APIClient, country_code: str, max_dimension: int = 800
+def generate_geo_calibrated_svg(
+    world: GeoDataFrame, country_code: str, max_dimension: int = 800
 ) -> str:
     """Generate a geo-calibrated SVG map for a country."""
-    world = await _load_natural_earth_data(client)
-
     # Find country by code and project to EPSG:3857 (2D Web Mercator)
     country_gdf = world[world["ISO_A2"] == country_code.upper()].to_crs("EPSG:3857")
 

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from more_itertools import chunked
 
-from src.core.cache import cache_result
+from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.services.client import APIClient
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@cache_result()
+@cache_in_file()
 async def get_altitudes(
     client: APIClient, locations: list[tuple[float, float]]
 ) -> list[float | None]:

@@ -12,7 +12,7 @@ def get_country_map_dot_position(lon: float, lat: float, svg_data: str) -> tuple
     """Calculate the relative position (0-100%) of a location dot within a country map."""
     root = parse_svg_with_lxml(svg_data)
 
-    min_x, min_y, max_x, max_y = [float(x) for x in root.attrib["data-bounds"].split(",")]
+    min_x, min_y, max_x, max_y = [float(x) for x in str(root.attrib["data-bounds"]).split(",")]
 
     x, y = _transformer.transform(lon, lat)
 

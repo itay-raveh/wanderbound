@@ -1,6 +1,6 @@
 <div class="step-page page-container {% if step.use_two_columns %}multi-column{% endif %}"
      data-step-id="{{ step.id }}"
-     data-step-name="{{ step.city }} ({{ step.country }})">
+     data-step-name="{{ step.name }} ({{ step.country }})">
     <div class="step-data">
         <div class="location-section">
             <div class="map-coords-container">
@@ -36,9 +36,9 @@
                 {% endif %}
                 {{ step.country | upper }}
             </div>
-            <div class="city">{{ step.city | upper }}</div>
+            <div class="step-name">{{ step.name | upper }}</div>
             {%- if not step.use_two_columns -%}
-                <div class="description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+                <div class="step-description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
             {%- endif -%}
         </div>
         <div class="metadata-section">
@@ -93,9 +93,9 @@
             <div class="multi-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}">
                 {{- step.description -}}
             </div>
-        {% elif step.cover_image_path %}
-            <img src="{{ step.cover_image_path }}"
-                 alt="{{ step.city }}"
+        {% elif step.cover_photo_path %}
+            <img src="{{ step.cover_photo_path }}"
+                 alt="{{ step.name }}"
                  class="main-image"
                  {% if step.cover_photo_id %}data-photo-id="{{ step.cover_photo_id }}"{% endif %} />
         {% else %}
@@ -124,7 +124,7 @@
                 {% for photo in photo_page.photos %}
                     <div class="photo-item" data-photo-id="{{ photo.id }}">
                         <img src="{{ photo.path }}"
-                             alt="{{ step.city }} photo"
+                             alt="{{ step.name }} photo"
                              class="photo-image" />
                     </div>
                 {% endfor %}

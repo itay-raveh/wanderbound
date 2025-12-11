@@ -24,7 +24,7 @@ def evaluate_frame_quality(frame: np.ndarray[Any, Any]) -> float:
 
         # 2. Brightness evaluation
         # We want to avoid very dark or very bright images
-        mean_brightness = float(np.mean(gray))  # type: ignore[arg-type]
+        mean_brightness = float(np.mean(gray))
 
         # Define approximate optimal brightness (middle gray)
         optimal_brightness = 127.5

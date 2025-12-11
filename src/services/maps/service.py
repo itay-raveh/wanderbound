@@ -1,92 +1,102 @@
 """Main map service entry point."""
 
-import asyncio
-from collections.abc import Callable
+from __future__ import annotations
 
-from src.core.cache import cache_result
+import asyncio
+from asyncio.locks import Lock
+from typing import TYPE_CHECKING
+
+import geopandas as gpd
+from geopandas import GeoDataFrame
+
+from src.core.cache import cache_in_file
 from src.core.logger import get_logger
-from src.data.models import MapResult, Step
-from src.services.client import APIClient
-from src.services.maps.coordinates import get_country_map_dot_position
-from src.services.maps.generator import generate_geo_calibrated_svg
+from src.core.settings import settings
+from src.data.models import MapData, Step
+
+from .coordinates import get_country_map_dot_position
+from .generator import generate_geo_calibrated_svg
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from src.services.client import APIClient
 
 logger = get_logger(__name__)
 
+_NE_GEOJSON = "ne_50m_admin_0_countries.geojson"
 
-@cache_result()
-async def _get_svg_for_country(client: APIClient, country_code: str) -> str:
-    """Get SVG content for a country, cached by country code."""
-    return await generate_geo_calibrated_svg(client, country_code)
+_NE_FETCH_LOCK = Lock()
 
 
-async def get_map_data(
+async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
+    """Load Natural Earth GeoJSON data from cache or download it."""
+    geojson_file = settings.cache_dir / _NE_GEOJSON
+
+    if geojson_file.exists():
+        try:
+            return await asyncio.to_thread(gpd.read_file, str(geojson_file))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Cached map data corrupt, re-downloading: %s", e)
+
+    logger.info("Downloading Natural Earth 50m data...")
+
+    content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
+    geojson_file.write_bytes(content)
+
+    return await asyncio.to_thread(gpd.read_file, str(geojson_file))
+
+
+@cache_in_file()
+async def _get_map_data(
     client: APIClient,
     country_code: str,
-    step_index: int,
-    lat: float | None = None,
-    lon: float | None = None,
-) -> MapResult:
-    """Get country map SVG and dot position.
+    lat: float,
+    lon: float,
+) -> MapData:
+    """Get country map SVG and dot position."""
+    # Only one of the tasks needs to fetch the ne dataset,
+    # the rest should wait for it, and then they can simply use the local file.
+    await _NE_FETCH_LOCK.acquire()
+    world = await _load_natural_earth_data(client)
+    _NE_FETCH_LOCK.release()
 
-    Raises:
-        ValueError: If country code is missing or invalid.
-        RuntimeError: If map generation fails.
-    """
-    if not country_code:
-        # This is a valid case where we just don't have a map
-        return MapResult(step_index=step_index)
+    svg_data = generate_geo_calibrated_svg(world, country_code)
+    dot_position = get_country_map_dot_position(lon, lat, svg_data)
 
-    svg_data = await _get_svg_for_country(client, country_code)
-
-    dot_position = None
-    if lat is not None and lon is not None:
-        dot_position = get_country_map_dot_position(lon, lat, svg_data)
-
-    return MapResult(
-        step_index=step_index,
+    return MapData(
         svg_content=svg_data,
         dot_position=dot_position,
     )
 
 
-async def fetch_maps_batch(
-    client: APIClient, steps: list[Step], progress_callback: Callable[[int], None] | None = None
-) -> list[MapResult]:
+async def fetch_maps(
+    client: APIClient, steps: list[Step], progress_callback: Callable[[int], None]
+) -> list[MapData | None]:
     """Fetch maps and calculate dot positions for all steps."""
-    logger.debug("Fetching maps...")
 
-    tasks = []
-    for index, step in enumerate(steps):
-        if not step.country_code:
-            if progress_callback:
-                progress_callback(1)
-            tasks.append(asyncio.create_task(asyncio.sleep(0, result=MapResult(step_index=index))))
-            continue
-
-        tasks.append(
-            asyncio.create_task(
-                get_map_data(
-                    client,
-                    step.country_code,
-                    index,
-                    step.location.lat,
-                    step.location.lon,
-                )
-            )
+    async def _get_map_data_and_progress(step: Step) -> MapData:
+        map_data = await _get_map_data(
+            client,
+            step.location.country_code,
+            step.location.lat,
+            step.location.lon,
         )
+        progress_callback(1)
+        return map_data
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(
+        *(_get_map_data_and_progress(step) for step in steps),
+        return_exceptions=True,
+    )
 
-    if progress_callback:
-        progress_callback(len(steps))
-
-    map_results: list[MapResult] = []
+    map_results: list[MapData | None] = []
     for i, res in enumerate(results):
-        if isinstance(res, MapResult):
+        if isinstance(res, MapData):
             map_results.append(res)
         else:
+            map_results.append(None)
             logger.warning("Failed to fetch map for step %d: %s", i, res)
-            map_results.append(MapResult(step_index=i))
 
     logger.debug("Processed %d maps", len(map_results))
     return map_results

@@ -1,34 +1,33 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
 import asyncio
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from jinja2 import Environment, FileSystemLoader
+
 from src.core.logger import create_progress, get_logger
-from src.core.settings import settings
+from src.data.context import StepTemplateContext
+from src.data.media import AssetPhoto
 from src.data.models import (
     AlbumGenerationConfig,
     AlbumPhotoData,
-    FlagResult,
-    MapResult,
+    FlagData,
+    MapData,
     Step,
     StepContext,
-    StepData,
     StepExternalData,
-    TripData,
-    WeatherResult,
 )
+from src.data.trip import WeatherData
 from src.services.altitude import fetch_altitudes
 from src.services.client import APIClient
-from src.services.flags import fetch_flags_batch
-from src.services.maps.service import fetch_maps_batch
-from src.services.summary import calculate_trip_summary
-from src.services.weather import fetch_weather_data_batch
+from src.services.flags import fetch_flags
+from src.services.maps.service import fetch_maps
+from src.services.summary import calculate_trip_overview
+from src.services.weather import fetch_weather_data
 
-from .assets import copy_cover_images, copy_image_to_assets, copy_photo_pages
+from .assets import calculate_photo_pages_data
 from .preparation import prepare_step_data
-from .renderer import create_template_environment, render_album_template
 
 logger = get_logger(__name__)
 
@@ -40,24 +39,8 @@ class GeneratorContext:
     steps: list[Step]
     photo_data: AlbumPhotoData
     config: AlbumGenerationConfig
-    output_dir: Path
-    trip_data: TripData
     use_step_range: bool
     light_mode: bool
-
-
-def _copy_static_files(context: GeneratorContext) -> None:
-    """Copy static files to output directory."""
-    static_dir = Path(__file__).parent.parent.parent / "static"
-    if static_dir.exists():
-        for item in static_dir.iterdir():
-            if item.name == "album.html.jinja":
-                continue
-            dest = context.output_dir / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest, dirs_exist_ok=True)
-            else:
-                shutil.copy2(item, dest)
 
 
 @dataclass(frozen=True)
@@ -65,9 +48,9 @@ class FetchedData:
     """External data fetched for all steps."""
 
     elevations: list[float | None]
-    weather_data_list: list[WeatherResult]
-    flag_data_list: list[FlagResult]
-    map_data_list: list[MapResult]
+    weather_data_list: list[WeatherData | None]
+    flag_data_list: list[FlagData | None]
+    map_data_list: list[MapData | None]
 
 
 async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
@@ -97,14 +80,14 @@ async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
         async with APIClient() as client:
             results = await asyncio.gather(
                 fetch_altitudes(client, context.steps, progress_callback=update_alt),
-                fetch_weather_data_batch(client, context.steps, progress_callback=update_weather),
-                fetch_flags_batch(
+                fetch_weather_data(client, context.steps, progress_callback=update_weather),
+                fetch_flags(
                     client,
                     context.steps,
                     light_mode=context.light_mode,
                     progress_callback=update_flags,
                 ),
-                fetch_maps_batch(client, context.steps, progress_callback=update_maps),
+                fetch_maps(client, context.steps, progress_callback=update_maps),
             )
 
     return FetchedData(
@@ -115,18 +98,12 @@ async def _fetch_external_data(context: GeneratorContext) -> FetchedData:
     )
 
 
-async def _process_steps(
+def _process_steps(
     context: GeneratorContext,
     fetched_data: FetchedData,
-    cover_image_path_list: list[str | None],
-) -> list[StepData]:
+) -> list[StepTemplateContext]:
     """Process steps and prepare data for rendering."""
-    logger.debug("Preparing step data...")
-    step_data_list: list[StepData] = []
-    steps_photo_pages = context.photo_data.steps_photo_pages
-    steps_cover_photos = context.photo_data.steps_cover_photos
-    steps_hidden_photos = context.photo_data.steps_hidden_photos
-
+    steps_template_ctx: list[StepTemplateContext] = []
     progress = create_progress()
 
     with progress:
@@ -134,10 +111,9 @@ async def _process_steps(
         for idx, (
             step,
             elevation,
-            weather_result,
-            flag_result,
-            map_result,
-            cover_image_path,
+            weather_data,
+            flag_data,
+            map_data,
         ) in enumerate(
             progress.track(
                 zip(
@@ -146,48 +122,35 @@ async def _process_steps(
                     fetched_data.weather_data_list,
                     fetched_data.flag_data_list,
                     fetched_data.map_data_list,
-                    cover_image_path_list,
                     strict=True,
                 ),
                 task_id=task_id,
             )
         ):
-            logger.debug("Processing step %d/%d: %s", idx + 1, len(context.steps), step.city)
-            progress.update(task_id, description=f"Preparing steps: {step.city}")
+            logger.debug("Processing step %d/%d: %s", idx + 1, len(context.steps), step.name)
+            progress.update(task_id, description=f"Preparing steps: {step.name}")
 
-            if weather_result.data is None:
-                logger.debug("Missing weather data for step %d (%s)", idx, step.city)
-
-            # Ensure cover photo access (side effect check from original code)
-            steps_cover_photos.get(step.id) if step.id else None
-
-            photo_pages = steps_photo_pages.get(step.id, []) if step.id else []
-
-            # Copy photo pages images to assets directory
-            step_name = step.get_name_for_photos_export()
-            photo_pages_paths = await copy_photo_pages(
-                photo_pages,
-                step_name,
-                context.output_dir,
-            )
+            photo_pages = context.photo_data.steps_photo_pages.get(step.id, [])
+            photo_pages_data = calculate_photo_pages_data(photo_pages)
 
             # Copy hidden photos to assets (to ensure valid paths for editor)
-            hidden_photos = steps_hidden_photos.get(step.id, []) if step.id else []
-            hidden_photos_paths = []
-            for photo in hidden_photos:
-                if photo.path.exists():
-                    asset = await copy_image_to_assets(
-                        photo.path, context.output_dir, step_name, photo
-                    )
-                    hidden_photos_paths.append(asset)
+            hidden_photos = context.photo_data.steps_hidden_photos.get(step.id, [])
+            hidden_photos_paths = [
+                AssetPhoto(
+                    id=photo.id,
+                    path=photo.path.absolute(),
+                )
+                for photo in hidden_photos
+                if photo.path.exists()
+            ]
 
-            cover_photo = steps_cover_photos.get(step.id) if step.id else None
+            cover_photo = context.photo_data.steps_cover_photos.get(step.id)
             external_data = StepExternalData(
                 elevation=elevation,
-                weather_data=weather_result,
-                flag_data=flag_result,
-                map_data=map_result,
-                cover_image_path=cover_image_path,
+                weather_data=weather_data,
+                flag_data=flag_data,
+                map_data=map_data,
+                cover_photo_path=cover_photo.path.absolute() if cover_photo else None,
                 cover_photo_id=cover_photo.id if cover_photo else None,
             )
 
@@ -195,7 +158,7 @@ async def _process_steps(
                 step=step,
                 step_index=idx,
                 steps=context.steps,
-                trip_data=context.trip_data,
+                trip=context.config.trip,
             )
             step_data = prepare_step_data(
                 step_context,
@@ -203,14 +166,14 @@ async def _process_steps(
                 use_step_range=context.use_step_range,
                 light_mode=context.light_mode,
             )
-            step_data.photo_pages = photo_pages_paths
+            step_data.photo_pages = photo_pages_data
             step_data.hidden_photos = hidden_photos_paths
-            step_data_list.append(step_data)
+            steps_template_ctx.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
 
     logger.debug("Step data prepared")
-    return step_data_list
+    return steps_template_ctx
 
 
 async def generate_album_html(
@@ -226,49 +189,42 @@ async def generate_album_html(
         steps=steps,
         photo_data=photo_data,
         config=config,
-        output_dir=config.output_dir,
-        trip_data=config.trip_data,
         use_step_range=use_step_range,
         light_mode=light_mode,
     )
 
-    _copy_static_files(context)
-
     # Batch fetch all external data
     fetched_data = await _fetch_external_data(context)
 
-    # Process cover images
-    cover_image_path_list = await copy_cover_images(
-        context.steps, context.photo_data.steps_cover_photos, context.output_dir
-    )
-
     # Prepare step data
-    step_data_list = await _process_steps(
-        context,
-        fetched_data,
-        cover_image_path_list,
-    )
+    steps_template_ctx = _process_steps(context, fetched_data)
 
     # Calculate trip summary
-    trip_summary = calculate_trip_summary(
+    trip_overview = calculate_trip_overview(
         steps=steps,
-        step_data_list=step_data_list,
+        steps_template_ctx=steps_template_ctx,
         photo_data=photo_data,
     )
 
     # Render template
-    env = create_template_environment()
+    template_dir = Path(__file__).parents[2] / "static"
+    env = Environment(
+        loader=FileSystemLoader(str(template_dir)),
+        autoescape=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
     template = env.get_template("album.html.jinja")
-    html = render_album_template(
-        template,
-        step_data_list,
-        context.config,
-        light_mode=context.light_mode,
-        summary=trip_summary,
+    html = template.render(
+        trip=config.trip_template_ctx,
+        steps=steps_template_ctx,
+        light_mode=light_mode,
+        editor_mode=config.editor_mode,
+        overview=trip_overview,
     )
 
     # Write output
-    output_path = context.output_dir / settings.file.album_html_file
+    output_path = config.output_dir / "album.html"
     output_path.write_text(html, encoding="utf-8")
 
     return output_path

@@ -2,21 +2,17 @@
 
 import asyncio
 import base64
-import hashlib
-import io
+import math
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from io import BytesIO
 
-# Color utils imports
-from colormath.color_conversions import convert_color
-from colormath.color_diff import delta_e_cie2000
-from colormath.color_objects import LabColor, sRGBColor
 from PIL import Image
 
-from src.core.cache import cache_result
+from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import FlagResult, Step
+from src.data.models import FlagData, Step
 from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -24,255 +20,48 @@ logger = get_logger(__name__)
 # Threshold for linear RGB conversion in relative luminance calculation
 _LINEAR_RGB_THRESHOLD = 0.03928
 
-_COUNTRY_COLORS: dict[str, str] = {}
+# Color extraction and adjustment constants
+_COLOR_COUNT_MIN_RATIO = 0.3
+_LIGHT_MODE_TARGET_BRIGHTNESS = 0.55
+_DARK_MODE_TARGET_BRIGHTNESS = 0.45
+_MAX_BLEND_FACTOR = 0.25
+
+RGB = tuple[int, int, int]
+
+_FLAGS: dict[str, bytes] = {}
+_COLORS: dict[str, RGB | None] = {}
 
 
-def _nudge_color_to_avoid_conflict(color: str, country_code: str) -> str:
-    """Adjust color slightly if it conflicts with an existing country color.
+def _color_distance(color1: RGB, color2: RGB) -> float:
+    """Calculate the distance between two RGB colors using the 'redmean' approximation.
 
-    Uses a deterministic hash of the country code to nudge RGB values.
-
-    Args:
-        color: The candidate hex color.
-        country_code: The country code.
-
-    Returns:
-        The adjusted hex color.
+    This provides a better approximation of human color perception than standard Euclidean distance
+    without the overhead of converting to CIELAB color space.
     """
-    if not color or not color.startswith("#"):
-        return color
+    r1, g1, b1 = color1
+    r2, g2, b2 = color2
 
-    r = int(color[1:3], 16)
-    g = int(color[3:5], 16)
-    b = int(color[5:7], 16)
+    rmean = (r1 + r2) / 2
+    dr = r1 - r2
+    dg = g1 - g2
+    db = b1 - b2
 
-    for other_code, other_color in _COUNTRY_COLORS.items():
-        if other_code != country_code:
-            dist = get_color_distance(color, other_color)
-            if dist < settings.color_conflict_threshold:
-                hash_val = int(hashlib.md5(country_code.encode()).hexdigest(), 16)
+    # https://www.compuphase.com/cmetric.htm
+    weight_r = 2 + rmean / 256
+    weight_g = 4.0
+    weight_b = 2 + (255 - rmean) / 256
 
-                dominant = max(r, g, b)
-                if dominant == r and r > g + 20 and r > b + 20:
-                    r = max(0, min(255, r + ((hash_val % 16) - 8)))
-                    g = max(0, min(255, g + ((hash_val % 6) - 3)))
-                    b = max(0, min(255, b + ((hash_val % 6) - 3)))
-                elif dominant == g and g > r + 20 and g > b + 20:
-                    g = max(0, min(255, g + ((hash_val % 16) - 8)))
-                    r = max(0, min(255, r + ((hash_val % 6) - 3)))
-                    b = max(0, min(255, b + ((hash_val % 6) - 3)))
-                elif dominant == b and b > r + 20 and b > g + 20:
-                    b = max(0, min(255, b + ((hash_val % 16) - 8)))
-                    r = max(0, min(255, r + ((hash_val % 6) - 3)))
-                    g = max(0, min(255, g + ((hash_val % 6) - 3)))
-                else:
-                    r = max(0, min(255, r + ((hash_val % 10) - 5)))
-                    g = max(0, min(255, g + (((hash_val >> 8) % 10) - 5)))
-                    b = max(0, min(255, b + (((hash_val >> 16) % 10) - 5)))
+    distance = math.sqrt(weight_r * dr * dr + weight_g * dg * dg + weight_b * db * db)
 
-                color = f"#{r:02x}{g:02x}{b:02x}"
-                break
-
-    return color
+    # Normalize to 0-1 range. Max distance (black to white) is approx 764.83
+    return distance / 765.0
 
 
-def _load_and_filter_flag_pixels(
-    flag_data_uri: str,
-) -> list[tuple[int, int, int]] | None:
-    try:
-        base64_data = flag_data_uri.split(",")[1]
-        image_bytes = base64.b64decode(base64_data)
-        image_obj = Image.open(io.BytesIO(image_bytes))
-        image = image_obj.convert("RGB") if image_obj.mode != "RGB" else image_obj
-
-        pixels: list[tuple[int, int, int]] = list(image.getdata())
-        filtered_pixels = []
-        for r, g, b in pixels:
-            brightness = (r + g + b) / 3
-            if (
-                brightness > settings.brightness_threshold_high
-                or brightness < settings.brightness_threshold_low
-            ):
-                continue
-            filtered_pixels.append((r, g, b))
-    except (OSError, ValueError, AttributeError) as e:
-        logger.debug("Error loading flag image: %s", e)
-        return None
-    else:
-        return filtered_pixels if filtered_pixels else None
-
-
-def _has_color_conflict(candidate_color: str, country_code: str) -> bool:
-    country_code_lower = country_code.lower()
-    for other_code, other_color in _COUNTRY_COLORS.items():
-        if other_code != country_code_lower:
-            dist = get_color_distance(candidate_color, other_color)
-            if dist < settings.color_conflict_threshold:
-                return True
-    return False
-
-
-def _find_best_color_from_candidates(
-    color_counts: list[tuple[tuple[int, int, int], int]],
-    country_code: str | None,
-    *,
-    light_mode: bool,
-) -> str | None:
-    if not color_counts:
-        return None
-
-    most_common_count = color_counts[0][1]
-
-    for color_tuple, count in color_counts:
-        if count < most_common_count * settings.color_count_min_ratio:
-            break
-
-        r, g, b = color_tuple
-        candidate_color = f"#{r:02x}{g:02x}{b:02x}"
-
-        if country_code and _has_color_conflict(candidate_color, country_code):
-            continue
-
-        color = adjust_color_for_contrast(candidate_color, light_mode=light_mode)
-        if country_code:
-            _COUNTRY_COLORS[country_code.lower()] = color
-        return color
-
-    return None
-
-
-def extract_prominent_color_from_flag(
-    flag_data_uri: str | None,
-    country_code: str | None = None,
-    *,
-    light_mode: bool = False,
-) -> str:
-    default_color = settings.default_accent_color
-
-    if (
-        not flag_data_uri
-        or not isinstance(flag_data_uri, str)
-        or not flag_data_uri.startswith("data:image")
-    ):
-        if not flag_data_uri or not isinstance(flag_data_uri, str):
-            logger.debug("No flag data URI provided, using default accent color")
-        else:
-            logger.debug("Invalid flag data URI format, using default accent color")
-        return default_color
-
-    try:
-        filtered_pixels = _load_and_filter_flag_pixels(flag_data_uri)
-        color_counts = Counter(filtered_pixels).most_common(5) if filtered_pixels else None
-
-        if not color_counts:
-            logger.debug("No suitable pixels or color counts found, using default accent color")
-            return default_color
-
-        # Try to find a color without conflicts
-        best_color = _find_best_color_from_candidates(
-            color_counts, country_code, light_mode=light_mode
-        )
-        if best_color:
-            return best_color
-
-        # Fallback to most common color, nudging if needed to avoid conflicts
-        r, g, b = color_counts[0][0]
-        color = f"#{r:02x}{g:02x}{b:02x}"
-
-        if country_code:
-            color = _nudge_color_to_avoid_conflict(color, country_code.lower())
-
-        color = adjust_color_for_contrast(color, light_mode=light_mode)
-
-        if country_code:
-            _COUNTRY_COLORS[country_code.lower()] = color
-    except (ValueError, AttributeError, KeyError, TypeError, OSError):
-        logger.exception("Error extracting color from flag")
-        return default_color
-    else:
-        return color
-
-
-@cache_result()
-async def _get_flag_data_cached(
-    client: APIClient, country_code: str, *, light_mode: bool
-) -> tuple[str, str]:
-    """Get flag URL and accent color, cached by country code and mode."""
-    url = settings.flag_cdn_url.format(country_code=country_code.lower())
-
-    content = await client.get_content(url)
-    image_data = base64.b64encode(content).decode("utf-8")
-    flag_url = f"data:image/png;base64,{image_data}"
-
-    accent_color = extract_prominent_color_from_flag(flag_url, country_code, light_mode=light_mode)
-    return flag_url, accent_color
-
-
-async def get_flag_data(
-    client: APIClient, country_code: str, step_index: int, *, light_mode: bool
-) -> FlagResult:
-    if not country_code:
-        return FlagResult(step_index=step_index)
-
-    try:
-        flag_url, accent_color = await _get_flag_data_cached(
-            client, country_code, light_mode=light_mode
-        )
-        return FlagResult(step_index=step_index, flag_url=flag_url, accent_color=accent_color)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Failed to get flag for %s: %s", country_code, e)
-        return FlagResult(step_index=step_index)
-
-
-# --- Color Utilities (formerly src/utils/colors.py) ---
-
-
-def get_color_distance(color1: str, color2: str) -> float:
-    """Calculate perceptual color distance using Delta E (CIE 2000)."""
-    if not color1.startswith("#") or not color2.startswith("#"):
-        return 1.0
-
-    try:
-        # Parse hex colors
-        r1 = int(color1[1:3], 16) / 255.0
-        g1 = int(color1[3:5], 16) / 255.0
-        b1 = int(color1[5:7], 16) / 255.0
-        r2 = int(color2[1:3], 16) / 255.0
-        g2 = int(color2[3:5], 16) / 255.0
-        b2 = int(color2[5:7], 16) / 255.0
-
-        # Convert to Lab color space for perceptual distance
-        rgb1 = sRGBColor(r1, g1, b1)
-        rgb2 = sRGBColor(r2, g2, b2)
-        lab1 = convert_color(rgb1, LabColor)
-        lab2 = convert_color(rgb2, LabColor)
-
-        # Calculate Delta E (CIE 2000) - perceptually uniform
-        delta_e = delta_e_cie2000(lab1, lab2)
-
-        # Normalize: Delta E > 50 is very different, normalize to 0-1
-        # Using 50 as max reasonable difference for normalization
-        return float(min(delta_e / 50.0, 1.0))
-    except (ValueError, AttributeError, TypeError):
-        # Fallback to simple RGB distance if conversion fails
-        r1 = int(color1[1:3], 16)
-        g1 = int(color1[3:5], 16)
-        b1 = int(color1[5:7], 16)
-        r2 = int(color2[1:3], 16)
-        g2 = int(color2[3:5], 16)
-        b2 = int(color2[5:7], 16)
-        dist = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-        return float(dist / (255 * (3**0.5)))
-
-
-def get_color_brightness(color: str) -> float:
+def _color_brightness(color: RGB) -> float:
     """Calculate relative luminance of a hex color."""
-    if not color or not color.startswith("#"):
-        return 0.5
-
-    r = int(color[1:3], 16) / 255.0
-    g = int(color[3:5], 16) / 255.0
-    b = int(color[5:7], 16) / 255.0
+    r = color[0] / 255.0
+    g = color[1] / 255.0
+    b = color[2] / 255.0
 
     r = r / 12.92 if r <= _LINEAR_RGB_THRESHOLD else ((r + 0.055) / 1.055) ** 2.4
     g = g / 12.92 if g <= _LINEAR_RGB_THRESHOLD else ((g + 0.055) / 1.055) ** 2.4
@@ -281,71 +70,139 @@ def get_color_brightness(color: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def adjust_color_for_contrast(color: str, *, light_mode: bool) -> str:
+def _adjust_color_for_contrast(color: RGB, *, light_mode: bool) -> RGB:
     """Adjust color brightness to ensure contrast against background."""
-    if not color or not color.startswith("#"):
-        return color
-
-    brightness = get_color_brightness(color)
-    r = int(color[1:3], 16)
-    g = int(color[3:5], 16)
-    b = int(color[5:7], 16)
+    brightness = _color_brightness(color)
+    r, g, b = color
 
     if light_mode:
-        target_brightness = settings.light_mode_target_brightness
+        target_brightness = _LIGHT_MODE_TARGET_BRIGHTNESS
         if brightness < target_brightness:
             blend_factor = (
                 (target_brightness - brightness) / (1.0 - brightness) if brightness < 1.0 else 0
             )
-            blend_factor = min(settings.max_blend_factor, blend_factor)
+            blend_factor = min(_MAX_BLEND_FACTOR, blend_factor)
             r = int(r + (255 - r) * blend_factor)
             g = int(g + (255 - g) * blend_factor)
             b = int(b + (255 - b) * blend_factor)
     else:
-        target_brightness = settings.dark_mode_target_brightness
+        target_brightness = _DARK_MODE_TARGET_BRIGHTNESS
         if brightness > target_brightness:
             blend_factor = (brightness - target_brightness) / brightness if brightness > 0 else 0
-            blend_factor = min(settings.max_blend_factor, blend_factor)
+            blend_factor = min(_MAX_BLEND_FACTOR, blend_factor)
             r = int(r * (1 - blend_factor))
             g = int(g * (1 - blend_factor))
             b = int(b * (1 - blend_factor))
 
-    return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
+    return max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
 
 
-async def fetch_flags_batch(
+def _brightness_filter(rgb: RGB) -> bool:
+    return 0.1 <= _color_brightness(rgb) <= 0.9
+
+
+def _get_pixels(flag_data: bytes) -> list[RGB]:
+    try:
+        # noinspection PyTypeChecker
+        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()
+    except OSError as e:
+        logger.debug("Error loading flag image: %s", e)
+        return []
+    else:
+        return list(filter(_brightness_filter, pixel_view))
+
+
+def _find_best_color_from_candidates(
+    color_counts: list[tuple[RGB, int]], *, light_mode: bool
+) -> RGB | None:
+    min_allowed_count = color_counts[0][1] * _COLOR_COUNT_MIN_RATIO
+
+    for rgb, count in color_counts:
+        if count < min_allowed_count:
+            return None
+
+        for other in _COLORS.values():
+            if other and _color_distance(rgb, other) < 0.1:
+                break
+        else:
+            return _adjust_color_for_contrast(rgb, light_mode=light_mode)
+
+    return None
+
+
+def _extract_prominent_color(flag_data: bytes, *, light_mode: bool) -> RGB | None:
+    pixels = _get_pixels(flag_data)
+
+    if not pixels:
+        return None
+
+    color_counts = Counter(pixels).most_common(5)
+
+    # Try to find a color without conflicts
+    best_color = _find_best_color_from_candidates(color_counts, light_mode=light_mode)
+    if best_color:
+        return best_color
+
+    # Fallback to most common color, nudging if needed to avoid conflicts
+    return _adjust_color_for_contrast(color_counts[0][0], light_mode=light_mode)
+
+
+@cache_in_file()
+async def _get_flag_uri_and_accent(
+    client: APIClient, country_code: str, *, light_mode: bool
+) -> tuple[str, str]:
+    """Get flag URL and accent color, cached by country code and mode."""
+    if country_code not in _FLAGS:
+        _FLAGS[country_code] = await client.get_content(
+            settings.flag_cdn_url.format(country_code=country_code.lower())
+        )
+
+    if country_code not in _COLORS:
+        _COLORS[country_code] = _extract_prominent_color(
+            _FLAGS[country_code], light_mode=light_mode
+        )
+
+    b64_flag_data = base64.b64encode(_FLAGS[country_code]).decode("utf-8")
+    flag_url = f"data:image/png;base64,{b64_flag_data}"
+
+    if color := _COLORS[country_code]:
+        r, g, b = color
+        return flag_url, f"#{r:02x}{g:02x}{b:02x}"
+
+    logger.debug("No suitable pixels or color counts found, using default accent color")
+    return flag_url, settings.accent_color
+
+
+async def fetch_flags(
     client: APIClient,
     steps: list[Step],
     *,
     light_mode: bool = False,
-    progress_callback: Callable[[int], None] | None = None,
-) -> list[FlagResult]:
+    progress_callback: Callable[[int], None],
+) -> list[FlagData | None]:
     """Fetch flags and extract colors for all steps."""
-    logger.debug("Fetching flags...")
 
-    tasks = []
-    for index, step in enumerate(steps):
-        if not step.country_code:
-            if progress_callback:
-                progress_callback(1)
-            tasks.append(asyncio.create_task(asyncio.sleep(0, result=FlagResult(step_index=index))))
-            continue
-
-        tasks.append(
-            asyncio.create_task(
-                get_flag_data(client, step.country_code, index, light_mode=light_mode)
-            )
+    async def _get_and_update_progress(step: Step) -> FlagData | None:
+        flag_url, accent_color = await _get_flag_uri_and_accent(
+            client, step.location.country_code, light_mode=light_mode
         )
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        progress_callback(1)
 
-    flag_results: list[FlagResult] = []
+        return FlagData(flag_url=flag_url, accent_color=accent_color)
+
+    results = await asyncio.gather(
+        *(_get_and_update_progress(step) for step in steps),
+        return_exceptions=True,
+    )
+
+    flag_results: list[FlagData | None] = []
     for i, res in enumerate(results):
-        if isinstance(res, FlagResult):
+        if isinstance(res, FlagData):
             flag_results.append(res)
         else:
+            flag_results.append(None)
             logger.warning("Failed to fetch flag for step %d: %s", i, res)
-            flag_results.append(FlagResult(step_index=i))
 
     logger.debug("Processed %d flags", len(flag_results))
     return flag_results

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
-    from src.data.models import Step, TripData
+    from datetime import datetime
+
+    from src.data.models import Step
 
 
 def _format_date_range(start: datetime, end: datetime) -> str:
@@ -21,27 +21,12 @@ def _format_date_range(start: datetime, end: datetime) -> str:
     return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
-def get_display_date_range(trip: TripData, steps: list[Step] | None) -> str | None:
+def get_display_date_range(steps: list[Step]) -> str | None:
     """Calculate and format the display date range for the trip."""
-    tz = ZoneInfo(trip.timezone_id)
+    if not steps:
+        return None
 
-    if steps:
-        start_ts = min(s.start_time for s in steps)
-        end_ts = max(s.start_time for s in steps)
+    start_date = min(s.date for s in steps)
+    end_date = max(s.date for s in steps)
 
-        # If last step has end_time, use it
-        last_step = max(steps, key=lambda s: s.start_time)
-        if last_step.end_time:
-            end_ts = last_step.end_time
-
-        start_dt = datetime.fromtimestamp(start_ts, tz=tz)
-        end_dt = datetime.fromtimestamp(end_ts, tz=tz)
-
-        return _format_date_range(start_dt, end_dt)
-
-    if trip.start_date and trip.end_date:
-        start_dt = datetime.fromtimestamp(trip.start_date, tz=tz)
-        end_dt = datetime.fromtimestamp(trip.end_date, tz=tz)
-        return _format_date_range(start_dt, end_dt)
-
-    return None
+    return _format_date_range(start_date, end_date)

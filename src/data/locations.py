@@ -1,34 +1,21 @@
-import logging
 import math
-from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from pydantic import (
     BaseModel,
     Field,
-    RootModel,
-    model_validator,
 )
 
-logger = logging.getLogger(__name__)
+from src.core.logger import get_logger
 
-
-class SegmentType(str, Enum):
-    GROUND = "ground"
-    FLIGHT = "flight"
+logger = get_logger(__name__)
 
 
 class Location(BaseModel):
-    id: int
-    name: str
-    detail: str | None = None
-    full_detail: str | None = None
-    country_code: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Za-z0-9]{2}$")
+    detail: str | None
+    country_code: str = Field(..., pattern=r"^[A-Za-z]{2}|00$")
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
-    venue: str | None = None
-    uuid: str
 
 
 class LocationEntry(BaseModel):
@@ -37,20 +24,13 @@ class LocationEntry(BaseModel):
     time: float
 
 
-class LocationList(RootModel[list[LocationEntry]]):
-    root: list[LocationEntry]
-
-    @model_validator(mode="before")
-    @classmethod
-    def extract_locations(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "locations" in data:
-            return data["locations"]
-        return data
+class LocationEntries(BaseModel):
+    locations: list[LocationEntry]
 
 
 class TravelSegment(BaseModel):
-    type: SegmentType
     points: list[LocationEntry]
+    is_flight: bool
 
 
 def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -98,10 +78,10 @@ def _detect_segments(
             # 1. Close current ground segment if it has points
             if current_points:
                 # If the last point is p1, it's included here
-                segments.append(TravelSegment(type=SegmentType.GROUND, points=current_points))
+                segments.append(TravelSegment(points=current_points, is_flight=False))
 
             # 2. Add the flight segment (p1 -> p2)
-            segments.append(TravelSegment(type=SegmentType.FLIGHT, points=[p1, p2]))
+            segments.append(TravelSegment(points=[p1, p2], is_flight=True))
 
             # 3. Start new ground segment from p2
             current_points = [p2]
@@ -110,7 +90,7 @@ def _detect_segments(
 
     # processing the last segment
     if current_points:
-        segments.append(TravelSegment(type=SegmentType.GROUND, points=current_points))
+        segments.append(TravelSegment(points=current_points, is_flight=False))
 
     return segments
 
@@ -184,12 +164,12 @@ def load_locations(
     start_t = min_time if min_time is not None else -math.inf
     end_t = max_time if max_time is not None else math.inf
 
-    points = LocationList.model_validate_json(locations_path.read_text(encoding="utf-8")).root
+    points = LocationEntries.model_validate_json(
+        locations_path.read_text(encoding="utf-8")
+    ).locations
     points.sort(key=lambda x: x.time)
     points = [p for p in points if start_t <= p.time <= end_t]
     points = _filter_outliers(points)
-    logger.info(
-        "Processed %d map points",
-        len(points),
-    )
+
+    logger.info("Processed %d map points", len(points))
     return points

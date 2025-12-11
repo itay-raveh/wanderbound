@@ -7,10 +7,10 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
-from src.core.cache import cache_result
+from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import Step, WeatherData, WeatherResult
+from src.data.models import Step, WeatherData
 from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -40,7 +40,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
     return icon.lower().replace("_", "-")
 
 
-def _find_night_hours(hours: list[WeatherHourData], timezone: tzinfo) -> list[WeatherHourData]:
+def _find_night_hours(hours: list[WeatherHourData], tz: tzinfo) -> list[WeatherHourData]:
     """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
     night_hours = []
     for hour_data in hours:
@@ -49,7 +49,7 @@ def _find_night_hours(hours: list[WeatherHourData], timezone: tzinfo) -> list[We
             continue
 
         try:
-            dt = datetime.fromisoformat(hour_str).astimezone(timezone)
+            dt = datetime.fromisoformat(hour_str).astimezone(tz)
         except (ValueError, TypeError, AttributeError):
             continue
 
@@ -115,95 +115,59 @@ def _parse_day_weather_data(
     return weather, hours
 
 
-def _parse_weather_api_response(
-    data: WeatherApiResponse, tz: tzinfo, lat: float, lon: float, date_str: str
-) -> WeatherData:
-    weather = WeatherData()
+def _parse_weather_api_response(data: WeatherApiResponse, tz: tzinfo) -> WeatherData:
+    if not data.days:
+        return WeatherData()
 
-    if data.days:
-        day_data = data.days[0]
+    day_data = data.days[0]
+    weather, hours = _parse_day_weather_data(day_data)
 
-        # Debug logging
-        if logger.isEnabledFor(10):  # DEBUG level
-            logger.debug(
-                "Daily data fields:\nKeys: %s\nfeelslikemax: %s\nfeelslikemin: %s",
-                list(day_data.model_dump().keys()),
-                day_data.feelslikemax,
-                day_data.feelslikemin,
-            )
-
-        weather, hours = _parse_day_weather_data(day_data)
-
-        # Process night icon (from hourly data or fallback)
-        night_hours = _find_night_hours(hours, tz)
-        weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
-
-        # Debug logging for feels like temperatures
-        if weather.day_feels_like is None and weather.night_feels_like is None:
-            logger.debug(
-                "No feels like data for %s,%s on %s. feelslikemax: %s, feelslikemin: %s",
-                lat,
-                lon,
-                date_str,
-                day_data.feelslikemax,
-                day_data.feelslikemin,
-            )
+    # Process night icon (from hourly data or fallback)
+    night_hours = _find_night_hours(hours, tz)
+    weather.night_icon = _get_night_icon(night_hours, hours, weather.day_icon)
 
     return weather
 
 
-@cache_result()
+@cache_in_file()
 async def _get_weather_data_cached(
     client: APIClient, lat: float, lon: float, date_str: str, timezone_id: str
 ) -> WeatherData:
     """Get weather data, cached by location and date."""
-    elements = "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon"
     url = settings.visual_crossing_api_url.format(
-        location=f"{lat},{lon}",
+        lat=lat,
+        lon=lon,
         date=date_str,
         key=settings.visual_crossing_api_key,
-        elements=elements,
     )
 
     data = await client.get_json(url)
-    tz = ZoneInfo(timezone_id)
     return _parse_weather_api_response(
-        WeatherApiResponse.model_validate(data), tz, lat, lon, date_str
+        WeatherApiResponse.model_validate(data), ZoneInfo(timezone_id)
     )
 
 
-async def get_weather_data(  # noqa: PLR0913
+async def get_weather_data(
     client: APIClient,
     lat: float,
     lon: float,
     timestamp: float,
     timezone_id: str,
-    step_index: int,
-) -> WeatherResult:
-    if not settings.visual_crossing_api_key:
-        return WeatherResult(step_index=step_index, data=None)
-
+) -> WeatherData:
     # Convert timestamp to date in the location's timezone
-    tz = ZoneInfo(timezone_id)
-    dt = datetime.fromtimestamp(timestamp, tz=tz)
-    date_str = dt.strftime("%Y-%m-%d")
+    date_str = datetime.fromtimestamp(timestamp, tz=(ZoneInfo(timezone_id))).strftime("%Y-%m-%d")
 
-    try:
-        weather = await _get_weather_data_cached(client, lat, lon, date_str, timezone_id)
-        return WeatherResult(step_index=step_index, data=weather)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Failed to get weather data for step %d: %s", step_index, e)
-        return WeatherResult(step_index=step_index, data=None)
+    return await _get_weather_data_cached(client, lat, lon, date_str, timezone_id)
 
 
-async def fetch_weather_data_batch(
+async def fetch_weather_data(
     client: APIClient, steps: list[Step], progress_callback: Callable[[int], None] | None = None
-) -> list[WeatherResult]:
+) -> list[WeatherData | None]:
     """Fetch weather data for all steps."""
     logger.debug("Fetching weather data...")
 
     tasks = []
-    for index, step in enumerate(steps):
+    for _index, step in enumerate(steps):
         tasks.append(
             asyncio.create_task(
                 get_weather_data(
@@ -212,7 +176,6 @@ async def fetch_weather_data_batch(
                     step.location.lon,
                     step.start_time,
                     step.timezone_id,
-                    index,
                 )
             )
         )
@@ -222,14 +185,13 @@ async def fetch_weather_data_batch(
     if progress_callback:
         progress_callback(len(steps))
 
-    # Filter out exceptions and ensure type safety
-    weather_results: list[WeatherResult] = []
+    weather_data: list[WeatherData | None] = []
     for i, res in enumerate(results):
-        if isinstance(res, WeatherResult):
-            weather_results.append(res)
+        if isinstance(res, WeatherData):
+            weather_data.append(res)
         else:
-            logger.warning("Failed to fetch weather for step %d: %s", i, res)
-            weather_results.append(WeatherResult(step_index=i, data=None))
+            weather_data.append(WeatherData())
+            logger.warning("Failed to fetch weather for step %d", i)
 
-    logger.debug("Fetched %d weather data entries", len(weather_results))
-    return weather_results
+    logger.debug("Fetched %d weather data entries", len(weather_data))
+    return weather_data

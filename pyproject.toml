@@ -24,45 +24,46 @@ keywords = [
     "pdf-generator",
 ]
 dependencies = [
-    "aiohttp>=3.9.0",
-    "Pillow>=10.0.0",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0",
-    "jinja2>=3.1.0",
-    "playwright>=1.40.0",
-    "colormath>=3.0.0",
-    "lxml>=5.0.0",
-    "geopy>=2.4.0",
-    "geopandas>=0.14.0",
-    "shapely>=2.0.0",
-    "more-itertools>=10.0.0",
-    "rich>=13.0.0",
-    "tenacity>=8.2.0",
-    "persist-cache>=0.4.4",
-    "pyproj>=3.7.2",
-    "typed-argument-parser>=1.8.0",
-    "numpy>=1.26.0",
-    "opencv-python-headless>=4.8.0",
+    "aiohttp",
+    "Pillow",
+    "pydantic>2",
+    "pydantic-settings>2",
+    "jinja2",
+    "more-itertools",
+    "playwright",
+    "lxml",
+    "geopy",
+    "geopandas",
+    "shapely",
+    "rich",
+    "tenacity",
+    "persist-cache",
+    "pyproj",
+    "typed-argument-parser",
+    "numpy",
+    "opencv-python-headless",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "ruff>=0.14.8",
-    "mypy>=1.19.0",
-    "vulture>=2.10",
-    "deptry>=0.24.0",
-    "djlint>=1.36.4",
-    "taskipy>=1.14.0",
-    "pre-commit>=4.5.0",
+    "ruff",
+    "mypy",
+    "vulture",
+    "deptry",
+    "djlint",
+    "taskipy",
+    "pre-commit",
+    "lxml-stubs",
+    "types-shapely",
+    "types-geopandas",
 ]
 
 [project.scripts]
-psagen = "src.cli.main:main"
+psagen = "src.app.main:main"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
-
 
 [tool.setuptools]
 packages = ["src"]
@@ -72,39 +73,37 @@ format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
 types = "mypy ."
 deps = "deptry ."
-dead = "vulture src"
-html = "djlint static/*.jinja --lint --reformat "
-lint = "task format && task check && task types && task deps && task dead && task html"
+html = "djlint static/**/*.jinja --lint --reformat"
+lint = "task format && task check && task types && task deps && task html"
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-exclude = ["src/_whitelist.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
 
 ignore = [
-    "D203",    # 1-blank-line-before-class (conflicts with D211)
-    "D213",    # Multi-line docstring summary at second line (conflicts with D212)
-    "COM812",  # Missing trailing comma (conflicts with formatter)
-    "ISC001",  # Single line implicit string concatenation (conflicts with formatter)
-    "FIX002",  # Fails if "TODO" is present (blocks development too hard)
-    "TD003",   # Missing issue link for TODO (too bureaucratic)
-    "EM101",   # Exception must not use a string literal
-    "EM102",   # Exception must not use an f-string literal
+    "D203", # 1-blank-line-before-class (conflicts with D211)
+    "D213", # Multi-line docstring summary at second line (conflicts with D212)
+    "COM812", # Missing trailing comma (conflicts with formatter)
+    "ISC001", # Single line implicit string concatenation (conflicts with formatter)
+    "FIX002", # Fails if "TODO" is present (blocks development too hard)
+    "TD003", # Missing issue link for TODO (too bureaucratic)
+    "EM101", # Exception must not use a string literal
+    "EM102", # Exception must not use an f-string literal
     "PLR2004", # Magic numbers - many are acceptable (HTTP codes, common values)
-    "TRY003",  # Long exception messages - acceptable for user-facing errors
-    "ANN401",  # Any types - acceptable for generic cache functions
-    "S324",    # MD5 hash - acceptable for non-cryptographic use (color selection)
-    "D100",    # Missing docstring in public module
-    "D101",    # Missing docstring in public class
-    "D102",    # Missing docstring in public method
-    "D103",    # Missing docstring in public function
-    "D104",    # Missing docstring in public package
-    "D105",    # Missing docstring in magic method
-    "D106",    # Missing docstring in public nested class
-    "D107",    # Missing docstring in __init__
+    "TRY003", # Long exception messages - acceptable for user-facing errors
+    "ANN401", # Any types - acceptable for generic cache functions
+    "S324", # MD5 hash - acceptable for non-cryptographic use (color selection)
+    "D100", # Missing docstring in public module
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
+    "D103", # Missing docstring in public function
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in magic method
+    "D106", # Missing docstring in public nested class
+    "D107", # Missing docstring in __init__
 ]
 
 [tool.ruff.lint.isort]
@@ -114,8 +113,7 @@ combine-as-imports = true
 convention = "google"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10 # Flag functions that are too nested/complex
-
+max-complexity = 10
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
@@ -126,21 +124,10 @@ warn_unused_ignores = true
 show_error_codes = true
 warn_unreachable = true
 pretty = true
-exclude = ["src/_whitelist.py"]
 
 [[tool.mypy.overrides]]
-module = ["colormath.*", "diskcache.*", "geopy.*"]
+module = ["geopy.*"]
 ignore_missing_imports = true
-
-[tool.vulture]
-min_confidence = 60
-sort_by_size = true
-ignore_decorators = ["@model_validator", "@field_validator"]
-
-
-[tool.deptry]
-# Ignore dev dependencies that are imported in tests but not main code
-ignore_notebooks = true
 
 [tool.deptry.per_rule_ignores]
 # DEP002 = "Unused dependency"
@@ -151,23 +138,12 @@ DEP002 = [
     "playwright",
     "ruff",
     "mypy",
-    "pylint",
-    "vulture",
     "deptry",
     "djlint",
 ]
-
 
 [tool.djlint]
 profile = "jinja"
 # H006: img tags missing height/width (often impossible in dynamic templates)
 # H031: meta keywords missing (outdated SEO rule)
 ignore = "H006,H031"
-
-[tool.djlint.js]
-# Formats JS inside <script> tags
-indent_size = 2
-
-[tool.djlint.css]
-# Formats CSS inside <style> tags
-indent_size = 4

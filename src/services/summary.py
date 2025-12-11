@@ -6,16 +6,17 @@ from zoneinfo import ZoneInfo
 from geopy.distance import geodesic
 
 from src.core.logger import get_logger
-from src.data.models import AlbumPhotoData, Step, StepData, TripSummary
+from src.data.context import StepTemplateContext, TripOverviewTemplateCtx
+from src.data.models import AlbumPhotoData, Step
 
 logger = get_logger(__name__)
 
 
-def calculate_trip_summary(
+def calculate_trip_overview(
     steps: list[Step],
-    step_data_list: list[StepData],
+    steps_template_ctx: list[StepTemplateContext],
     photo_data: AlbumPhotoData,
-) -> TripSummary:
+) -> TripOverviewTemplateCtx:
     """Calculate summary statistics for the trip."""
     logger.info("Calculating trip summary for %d steps", len(steps))
 
@@ -26,8 +27,8 @@ def calculate_trip_summary(
     # Photo count for filtered steps
     photo_count = 0
 
-    # Use step_data_list for flags as it contains enriched data
-    for step_data in step_data_list:
+    # Use steps_template_ctx for flags as it contains enriched data
+    for step_data in steps_template_ctx:
         country = step_data.country
         if country and country not in seen_countries:
             flag_url = step_data.country_flag_data_uri
@@ -66,7 +67,7 @@ def calculate_trip_summary(
     else:
         total_days = 0
 
-    return TripSummary(
+    return TripOverviewTemplateCtx(
         countries=countries,
         total_km=round(total_km),
         total_days=total_days,
