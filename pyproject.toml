@@ -40,8 +40,6 @@ dependencies = [
     "persist-cache",
     "pyproj",
     "typed-argument-parser",
-    "numpy",
-    "opencv-python-headless",
 ]
 
 [dependency-groups]

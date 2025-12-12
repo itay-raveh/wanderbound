@@ -92,97 +92,60 @@
                 return theta;
             }
 
-            const allBounds = [];
-
-            {% if trip.path_segments %}
-                let segPoints;
-                {% for segment in trip.path_segments %}
-                    segPoints = [];
-                    {% for p in segment.points %}
-                        segPoints.push([{{ p.lat }}, {{ p.lon }}]);
-                    {% endfor %}
-
-                    if (segPoints.length > 0) {
-                        // Collect bounds
-                        segPoints.forEach(p => allBounds.push(p));
-
-                        {% if not segment.is_flight %}
-                            L.polyline(segPoints, {
-                                color: '#ffffff',
-                                weight: 3,
-                                opacity: 0.9,
-                                dashArray: '5, 10',
-                                lineCap: 'round'
-                            }).addTo(map);
-                        {% else %}
-                            // FLIGHT SEGMENT
-                            const pStart = segPoints[0];
-                            const pEnd = segPoints[segPoints.length - 1];
-
-                            // Control point for curve
-                            const control = getControlPoint(pStart, pEnd, 0.5); // 0.5 curvature
-
-                            // Sample the Bezier curve
-                            const curvePoints = [];
-                            for (var t = 0; t <= 1; t += 0.05) {
-                                curvePoints.push(getBezierPoint(t, pStart, control, pEnd));
-                            }
-
-                            L.polyline(curvePoints, {
-                                color: '#ffffff',
-                                weight: 2,
-                                opacity: 0.8,
-                                dashArray: '4, 8', // Dotted look
-                                lineCap: 'round'
-                            }).addTo(map);
-
-                            // Airplane Icon at midpoint
-                            const midT = 0.5;
-                            const midPos = getBezierPoint(midT, pStart, control, pEnd);
-
-                            // Calculate angle at midpoint (approximate derivative)
-                            const tPlus = midT + 0.01;
-                            const posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
-                            const angle = getAngle(midPos, posPlus);
-
-                            const planeIcon = L.divIcon({
-                                className: 'plane-icon-container',
-                                html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 24px; height: 24px; transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
-                                iconSize: [24, 24],
-                                iconAnchor: [12, 12]
-                            });
-
-                            L.marker(midPos, {icon: planeIcon, zIndexOffset: -1000}).addTo(map);
-
-                        {% endif %}
-                    }
+            {% for segment in trip.path_segments %}
+                var segPoints = [];
+                {% for p in segment.points %}
+                    segPoints.push([{{ p.lat }}, {{ p.lon }}]);
                 {% endfor %}
-            {% else %}
-                // Fallback for non-segmented data
-                const pathPoints = [];
-                {% for point in trip.path_points %}
-                    {% if point.lat is not none and point.lon is not none %}
-                        pathPoints.push([{{ point.lat }}, {{ point.lon }}]);
-                        allBounds.push([{{ point.lat }}, {{ point.lon }}]);
-                    {% endif %}
-                {% endfor %}
-                if (pathPoints.length > 0) {
-                    L.polyline(pathPoints, {
+
+                {% if not segment.is_flight %}
+                    L.polyline(segPoints, {
                         color: '#ffffff',
                         weight: 3,
-                        opacity: 0.9,
-                        dashArray: '5, 10',
+                        dashArray: '6, 10',
+                    }).addTo(map);
+                {% else %}
+                    // FLIGHT SEGMENT
+                    var pStart = segPoints[0];
+                    var pEnd = segPoints[segPoints.length - 1];
+
+                    // Control point for curve
+                    var control = getControlPoint(pStart, pEnd, 0.5); // 0.5 curvature
+
+                    // Sample the Bezier curve
+                    var curvePoints = [];
+                    for (var t = 0; t <= 1; t += 0.005) {
+                        curvePoints.push(getBezierPoint(t, pStart, control, pEnd));
+                    }
+
+                    L.polyline(curvePoints, {
+                        color: '#ffffff',
+                        weight: 3,
+                        dashArray: '1, 10',
                         lineCap: 'round'
                     }).addTo(map);
-                }
-            {% endif %}
 
-            if (allBounds.length > 0) {
-                map.fitBounds(allBounds, {
-                    padding: [100, 100],
-                    maxZoom: 18
-                });
-            }
+                    // Airplane Icon at midpoint
+                    var midT = 0.55;
+                    var midPos = getBezierPoint(midT, pStart, control, pEnd);
+
+                    // Calculate angle at midpoint (approximate derivative)
+                    var tPlus = midT + 0.01;
+                    var posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
+                    var angle = getAngle(midPos, posPlus);
+
+                    var planeIcon = L.divIcon({
+                        className: 'plane-icon-container',
+                        html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 18px; height: 18px; transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
+                        iconSize: [18, 18],
+                    });
+
+                    L.marker(midPos, {icon: planeIcon, zIndexOffset: -1000}).addTo(map);
+
+                {% endif %}
+            {% endfor %}
+
+
 
             // Custom icon for steps
             const createIcon = function (url) {
@@ -204,14 +167,25 @@
                 }
             };
 
+            const allBounds = [];
+
             // Add markers for steps
             {% for step in steps %}
-                // Using cover image if available for the marker icon
-                L.marker([{{ step.lat_val }}, {{ step.lon_val }}], {
+                var point = [{{ step.lat_val }}, {{ step.lon_val }}];
+                allBounds.push(point)
+                L.marker(point, {
                     icon: createIcon("{{ step.cover_photo_path  }}"),
                     zIndexOffset: 1000
                 }).addTo(map);
             {% endfor %}
+
+
+            if (allBounds.length > 0) {
+                map.fitBounds(allBounds, {
+                    padding: [100, 100],
+                    maxZoom: 18
+                });
+            }
 
             console.log("Map initialized successfully");
 

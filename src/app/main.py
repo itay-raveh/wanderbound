@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import webbrowser
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -125,19 +126,11 @@ def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
     return trip_data.cover_photo.url
 
 
-_DAY = 60 * 60 * 24
-
-
-def _process_locations(trip_dir: Path, steps: list[Step] | None) -> list[LocationEntry]:
+def _process_locations(trip_dir: Path, steps: list[Step]) -> list[LocationEntry]:
     """Load and process locations.json data."""
     locations_path = trip_dir / "locations.json"
-
-    start_time = None
-    end_time = None
-
-    if steps:
-        start_time = steps[0].start_time
-        end_time = steps[-1].start_time + _DAY
+    start_time = steps[0].date.timestamp()
+    end_time = (steps[-1].date + timedelta(days=1)).timestamp()
 
     return load_locations(locations_path, min_time=start_time, max_time=end_time)
 

@@ -36,7 +36,7 @@ class TravelSegment(BaseModel):
 
 def detect_segments(
     locations: list[LocationEntry],
-    min_flight_speed_kmh: float = 250.0,
+    min_flight_speed_kmh: float = 150.0,
     min_flight_dist_km: float = 50.0,
 ) -> list[TravelSegment]:
     """Split locations into ground and flight segments based on speed and distance."""

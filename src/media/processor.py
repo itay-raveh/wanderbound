@@ -49,7 +49,7 @@ def process_step_photos(
     photos = load_step_photos(photo_dir)
     if not photos:
         logger.warning(
-            "No photos found in %s for step '%s'. Expected image files (.jpg, .jpeg, .png)",
+            "No photos found in %s for step '%s'",
             photo_dir,
             step.name,
         )
@@ -100,7 +100,7 @@ def _apply_manual_layout(
         if path:
             # Create a transient Photo object
             # Virtual index (validation requirement)
-            return load_single_photo(path, 9999)
+            return load_single_photo(path)
         return None
 
     # We actually need to ensure ALL layout IDs are loaded.

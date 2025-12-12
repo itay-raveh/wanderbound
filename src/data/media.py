@@ -11,11 +11,13 @@ class CoverPhoto(BaseModel):
 
 class Photo(BaseModel):
     id: str
-    index: int = Field(..., gt=0)
     path: Path
-    width: int | None = Field(None, gt=0)
-    height: int | None = Field(None, gt=0)
-    aspect_ratio: float | None = Field(None, gt=0)
+    width: int
+    height: int
+
+    @property
+    def aspect_ratio(self) -> float:
+        return float(self.width) / float(self.height)
 
 
 PhotoLayout = Literal["three-portraits", "portrait-landscape-split"]

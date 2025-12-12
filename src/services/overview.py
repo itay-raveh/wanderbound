@@ -35,7 +35,7 @@ def calculate_trip_overview(
 
     return TripOverviewTemplateCtx(
         countries=countries,
-        total_km=f"{round(distance(*points).km):n}",
+        total_km=f"{round(distance(*points).km):,}",
         total_days=(steps[-1].date - steps[0].date).days,
         step_count=len(steps),
         photo_count=(sum(map(len, photo_data.steps_with_photos.values()))),
