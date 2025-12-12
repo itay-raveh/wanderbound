@@ -91,7 +91,7 @@ def prepare_step_data(
     return StepTemplateContext(
         id=context.step.id,
         name=context.step.name,
-        country=context.step.location.detail,
+        country=context.step.location.country,
         country_code=context.step.location.country_code,
         coords_lat=coords_lat,
         coords_lon=coords_lon,

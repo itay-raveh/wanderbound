@@ -1,6 +1,7 @@
 import math
 from pathlib import Path
 
+from geopy.distance import distance
 from pydantic import (
     BaseModel,
     Field,
@@ -12,10 +13,10 @@ logger = get_logger(__name__)
 
 
 class Location(BaseModel):
-    detail: str | None
-    country_code: str = Field(..., pattern=r"^[A-Za-z]{2}|00$")
-    lat: float = Field(..., ge=-90, le=90)
-    lon: float = Field(..., ge=-180, le=180)
+    country: str = Field(alias="detail")
+    country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
 
 
 class LocationEntry(BaseModel):
@@ -33,20 +34,7 @@ class TravelSegment(BaseModel):
     is_flight: bool
 
 
-def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate the great circle distance between two points in kilometers."""
-    radius_km = 6371.0  # Earth radius in kilometers
-
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) * math.sin(dlat / 2) + math.cos(math.radians(lat1)) * math.cos(
-        math.radians(lat2)
-    ) * math.sin(dlon / 2) * math.sin(dlon / 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return radius_km * c
-
-
-def _detect_segments(
+def detect_segments(
     locations: list[LocationEntry],
     min_flight_speed_kmh: float = 250.0,
     min_flight_dist_km: float = 50.0,
@@ -62,7 +50,7 @@ def _detect_segments(
         p1 = locations[i]
         p2 = locations[i + 1]
 
-        dist_km = _haversine_distance(p1.lat, p1.lon, p2.lat, p2.lon)
+        dist_km = distance((p1.lat, p1.lon), (p2.lat, p2.lon)).kilometers
         time_diff_hours = (p2.time - p1.time) / 3600.0
 
         if time_diff_hours <= 0:
@@ -129,7 +117,7 @@ def _filter_outliers(
             removed_count += 1
             continue
 
-        distance_km = _haversine_distance(last_valid.lat, last_valid.lon, current.lat, current.lon)
+        distance_km = distance((last_valid.lat, last_valid.lon), (current.lat, current.lon)).km
 
         speed = distance_km / time_diff_hours
 

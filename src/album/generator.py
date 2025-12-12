@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.core.logger import create_progress, get_logger
 from src.data.context import StepTemplateContext
+from src.data.locations import LocationEntry
 from src.data.media import AssetPhoto
 from src.data.models import (
     AlbumGenerationConfig,
@@ -23,7 +24,7 @@ from src.services.altitude import fetch_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flags
 from src.services.maps.service import fetch_maps
-from src.services.summary import calculate_trip_overview
+from src.services.overview import calculate_trip_overview
 from src.services.weather import fetch_weather_data
 
 from .assets import calculate_photo_pages_data
@@ -180,6 +181,7 @@ async def generate_album_html(
     steps: list[Step],
     photo_data: AlbumPhotoData,
     config: AlbumGenerationConfig,
+    locations: list[LocationEntry],
     *,
     use_step_range: bool = False,
     light_mode: bool = False,
@@ -199,11 +201,11 @@ async def generate_album_html(
     # Prepare step data
     steps_template_ctx = _process_steps(context, fetched_data)
 
-    # Calculate trip summary
+    # Calculate trip overview
     trip_overview = calculate_trip_overview(
         steps=steps,
-        steps_template_ctx=steps_template_ctx,
         photo_data=photo_data,
+        locations=locations,
     )
 
     # Render template

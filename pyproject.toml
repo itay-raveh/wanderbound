@@ -73,7 +73,7 @@ format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
 types = "mypy ."
 deps = "deptry ."
-html = "djlint static/**/*.jinja --lint --reformat"
+html = "djlint static/*.jinja static/templates/*.jinja --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
 
 [tool.ruff]
@@ -104,6 +104,7 @@ ignore = [
     "D105", # Missing docstring in magic method
     "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
+    "PLR0913"
 ]
 
 [tool.ruff.lint.isort]
@@ -119,7 +120,6 @@ max-complexity = 10
 plugins = ["pydantic.mypy"]
 
 strict = true
-ignore_missing_imports = false
 warn_unused_ignores = true
 show_error_codes = true
 warn_unreachable = true

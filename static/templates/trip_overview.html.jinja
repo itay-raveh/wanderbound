@@ -5,11 +5,9 @@
             {% for country, flag_url in overview.countries %}
                 <li>
                     <div class="country-item">
-                        {% if flag_url %}
-                            <img src="{{ flag_url }}"
-                                 class="country-flag-icon"
-                                 alt="{{ country }} flag" />
-                        {% endif %}
+                        <img src="{{ flag_url }}"
+                             class="country-flag-icon"
+                             alt="{{ country }} flag" />
                         <div>{{ country }}</div>
                     </div>
                 </li>
@@ -27,7 +25,7 @@
                     <img class="stat-icon"
                          src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTk0IiBoZWlnaHQ9IjE5NCIgdmlld0JveD0iMCAwIDE5NCAxOTQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTAyLjIyNCAxMTkuMTY0QzEzMC43ODYgMTE5LjE2NCAxNTMuOTQgOTYuMDA5OSAxNTMuOTQgNjcuNDQ4QzE1My45NCAzOC44ODYxIDEzMC43ODYgMTUuNzMyMSAxMDIuMjI0IDE1LjczMjFDNzMuNjYxOCAxNS43MzIxIDUwLjUwNzggMzguODg2MSA1MC41MDc4IDY3LjQ0OEM1MC41MDc4IDk2LjAwOTkgNzMuNjYxOCAxMTkuMTY0IDEwMi4yMjQgMTE5LjE2NFoiIHN0cm9rZT0iIzhBOTlBRCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxwYXRoIGQ9Ik0xMDQuNjMyIDE1Ljc5ODZDMTA0LjYzMiAxNS43OTg2IDExMS43NjIgMjYuMTEyMiAxMDguNTc4IDM1LjY1NzVDMTAwLjYzNSA0MC40MTU0IDk5LjA0NyA1MS41NDkxIDEwMC42MzUgNDkuOTYwN0MxMDIuMjI0IDQ4LjM2NDkgMTEwLjE3MyA1My4xMzc1IDExMC4xNzMgNTMuMTM3NUMxMTMuMzY1IDUzLjEzNzUgMTE0Ljk0NiA0OC4zNzIyIDExNC45NDYgNDguMzcyMkMxMjIuOTAzIDQ4LjM3MjIgMTE5LjcxOSA2NS44NjcgMTIxLjMgNjcuNDQ4QzEyMi44OTUgNjkuMDQzOCAxMjcuNjYxIDY1Ljg1OTYgMTI3LjY2OCA3MC42Mzk3QzEyNy42NjEgNzUuNDA0OSAxMjYuMDU3IDc4LjU3NDQgMTI2LjA1NyA3OC41NzQ0QzEzNC4wMjIgODYuNTMxMiAxMjYuMDY1IDk0LjQ4ODEgMTI0LjQ4NCA5Ni4wNjkxQzEyMi44ODEgOTcuNjY0OSAxMTMuMzU4IDk0LjQ3MzMgMTExLjc1NCA5Mi44Nzc1QzExMC4xNzMgOTEuMzAzOSAxMTAuMTY2IDg4LjEyNyAxMDguNTYzIDg2LjUzMTJDMTA2Ljk4MiA4NC45NTAyIDEwMC42MjggODQuOTUwMiAxMDAuNjI4IDg0Ljk1MDJDOTQuMjgxNyA3OC41ODE3IDkxLjA5MDEgODQuOTUwMiA4Ni4zMTAxIDg5LjcxNTVDODEuNTM3NSA5NC40OTU1IDc1LjE5MTIgODguMTQxOCA3NS4xOTEyIDg4LjE0MThDNzUuMTkxMiA4OC4xNDE4IDY0LjA3MjIgNzYuOTg1OSA3MC40MTg1IDY3LjQ0OEM3Ni43Nzk2IDU3Ljg4OCA3OS45NzEyIDYxLjA4NyA3OS45NzEyIDYxLjA4N0M4Ni4zMTc1IDYxLjA4NyA4OS41MDkxIDUxLjU0MTcgOTIuNjg1OSA0OC4zNjQ5QzkyLjY4NTkgNDguMzY0OSA4My4xNDggMzUuNjUwMSA4MS41NDQ4IDQwLjQyMjhDNzkuOTU2NCA0NS4xODA2IDc1Ljg4NTYgNDYuODEzNCA3Mi4wMjE3IDQzLjU5MjJDNjYuNTg0MiAzOS4wOTI5IDc3LjkzMjEgMjEuNzY4MSA3Ny45MzIxIDIxLjc2ODEiIHN0cm9rZT0iIzhBOTlBRCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxwYXRoIGQ9Ik02NS4yODM5IDMwLjUwODFMNDYuODE0IDEyLjAzODEiIHN0cm9rZT0iIzhBOTlBRCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTA1LjkxOCAxNTkuNzk4QzEzNC40OCAxNTkuNzk4IDE1Ny42MzQgMTcxLjc1OSAxNTcuNjM0IDE4MS45NjJINTQuMjAyMUM1NC4yMDIxIDE3MS43NTkgNzcuMzU2MSAxNTkuNzk4IDEwNS45MTggMTU5Ljc5OFoiIHN0cm9rZT0iIzhBOTlBRCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxwYXRoIGQ9Ik0xMzkuMTY0IDEwNC4zODhMMTYxLjMyOCAxMjYuNTUyQzE2MS4zMjggMTYzLjQ5MiAxMDUuOTE4IDE1OS43OTggMTA1LjkxOCAxNTkuNzk4IiBzdHJva2U9IiM4QTk5QUQiIHN0cm9rZS13aWR0aD0iNCIvPgo8cGF0aCBkPSJNMTUxLjg1NiAxMTcuMDczQzEyNC40NDcgMTQ0LjQ4MyA4MC4wMDA4IDE0NC40ODMgNTIuNTk4OCAxMTcuMDczQzI1LjE4MTkgODkuNjcxMiAyNS4xODE5IDQ1LjIyNSA1Mi41OTg4IDE3LjgxNTYiIHN0cm9rZT0iIzhBOTlBRCIgc3Ryb2tlLXdpZHRoPSI0Ii8+Cjwvc3ZnPg=="
                          alt="Globe Icon" />
-                    <div class="stat-number">{{ "{:,}".format(overview.total_km | round | int) }}</div>
+                    <div class="stat-number">{{ overview.total_km }}</div>
                     <div class="stat-unit">Kilometers</div>
                 </li>
                 <li class="stat-item">

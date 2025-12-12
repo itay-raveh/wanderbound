@@ -5,15 +5,10 @@ __pycache__/
 *.so
 *.egg-info/
 *.egg
-.ruff_cache/
-.mypy_cache/
 dist/
 build/
 
 # Virtual environments
-venv/
-env/
-ENV/
 .venv
 
 # IDE
@@ -27,19 +22,5 @@ ENV/
 output/
 
 # Cache
-.polarsteps_album_cache/
-*.cache
+.*cache
 
-# Node.js
-node_modules/
-package-lock.json
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# User data
-trip/
