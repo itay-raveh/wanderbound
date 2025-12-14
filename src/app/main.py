@@ -246,15 +246,16 @@ def main() -> None:
     steps = filter_steps(trip.all_steps, args)
 
     display_title = args.title or trip.name
+    display_subtitle = args.subtitle or trip.summary
     path_points = _process_locations(args.trip_dir, steps)
 
     trip_template_ctx = TripTemplateContext(
         title=display_title,
         date_range=get_display_date_range(steps),
-        summary=trip.summary,
+        summary=display_subtitle,
         cover_photo_path=(resolve_cover_photo_path(trip, args)),
         title_dir="rtl" if is_hebrew(display_title) else "ltr",
-        summary_dir="rtl" if is_hebrew(trip.summary or "") else "ltr",
+        summary_dir="rtl" if display_subtitle and is_hebrew(display_subtitle) else "ltr",
         path_points=path_points,
         path_segments=detect_segments(path_points),
     )

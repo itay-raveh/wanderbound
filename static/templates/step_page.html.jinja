@@ -1,6 +1,7 @@
 <div class="step-page page-container {% if step.use_two_columns %}multi-column{% endif %}"
      data-step-id="{{ step.id }}"
-     data-step-name="{{ step.name }} ({{ step.country }})">
+     data-step-name="{{ step.name }} ({{ step.country }})"
+     data-step-cover="{{ step.cover_photo_id }}">
     <div class="step-data">
         <div class="location-section">
             <div class="map-coords-container">
@@ -36,11 +37,11 @@
                 {% endif %}
                 {{ step.country | upper }}
             </div>
-            <div class="step-name">{{ step.name | upper }}</div>
-            {%- if not step.use_two_columns -%}
-                <div class="step-description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
-            {%- endif -%}
+            <div class="step-name">{{ step.name }}</div>
         </div>
+        {%- if not step.use_two_columns -%}
+            <div class="step-description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+        {%- endif -%}
         <div class="metadata-section">
             <div class="metadata">
                 <div class="metadata-item">

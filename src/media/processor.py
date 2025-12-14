@@ -57,7 +57,7 @@ def process_step_photos(
 
     # --- Manual Layout Override ---
     if layout_override:
-        return _apply_manual_layout(photos, layout_override, photo_registry, global_used_ids)
+        return _apply_manual_layout(step, photos, layout_override, photo_registry, global_used_ids)
 
     # --- Default Layout Logic ---
 
@@ -79,6 +79,7 @@ def process_step_photos(
 
 
 def _apply_manual_layout(
+    step: Step,
     local_photos: list[Photo],
     layout: StepLayout,
     photo_registry: PhotoRegistry,
@@ -124,7 +125,7 @@ def _apply_manual_layout(
     cover_photo = _resolve_cover_photo(layout, photo_map)
     hidden_photos, used_photo_ids = _resolve_hidden_photos(layout, photo_map)
 
-    if cover_photo:
+    if cover_photo and should_use_cover_photo(step.description):
         used_photo_ids.add(cover_photo.id)
 
     pages = _build_pages(layout, photo_map, used_photo_ids)
@@ -172,7 +173,7 @@ def _build_pages(
     for page_layout in layout.pages:
         current_page: list[Photo] = []
         for photo_id in page_layout.photos:
-            if photo_id in photo_map:
+            if photo_id in photo_map and photo_id not in used_photo_ids:
                 current_page.append(photo_map[photo_id])
                 used_photo_ids.add(photo_id)
             else:

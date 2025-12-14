@@ -290,11 +290,9 @@ function handleContextMenu(e) {
     document.getElementById("ctx-cover").onclick = () => {
         const stepPage = photoItem.closest(".step-page");
         const stepId = stepPage.dataset.stepId;
-        if (confirm("Set this as cover?")) {
-            saveStepLayout(stepId, {cover_photo_id: photoId}).then(() =>
-                location.reload()
-            );
-        }
+        saveStepLayout(stepId, {cover_photo_id: photoId}).then(() =>
+            location.reload()
+        );
     };
 
     document.getElementById("ctx-hide").onclick = () => {
@@ -396,22 +394,13 @@ function collectStepData(stepId, overrides = {}) {
     const stepPage = document.querySelector(
         `.step-page[data-step-id="${stepId}"]`
     );
-    let currentCoverId = null;
-    if (stepPage) {
-        const coverImg = stepPage.querySelector(".main-image");
-        if (coverImg && coverImg.dataset.photoId) {
-            currentCoverId = coverImg.dataset.photoId;
-        }
-    }
-
-    const stepName = stepPage ? stepPage.dataset.stepName : null;
 
     return {
         step_id: parseInt(stepId),
-        name: stepName,
+        name: stepPage?.dataset.stepName,
         pages: pages,
         hidden_photos: hiddenPhotos,
-        cover_photo_id: currentCoverId,
+        cover_photo_id: stepPage?.dataset.stepCover,
         ...overrides,
     };
 }

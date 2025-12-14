@@ -11,6 +11,7 @@ class Args(Tap):
     steps: slice | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
     sample: int | None = None  # Sample N evenly distributed steps (for testing across countries)
     title: str | None = None  # Override trip title
+    subtitle: str | None = None  # Override trip subtitle ("summary" field in trip.json)
     cover_photo: Path | None = None  # Override cover photo path
     out: Path = Path("output")  # Output directory for HTML/PDF files
     pdf: bool = False  # Generate PDF file using Playwright (requires playwright install)

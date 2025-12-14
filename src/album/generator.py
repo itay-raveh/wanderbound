@@ -146,6 +146,7 @@ def _process_steps(
             ]
 
             cover_photo = context.photo_data.steps_cover_photos.get(step.id)
+
             external_data = StepExternalData(
                 elevation=elevation,
                 weather_data=weather_data,

@@ -30,14 +30,14 @@ def _calculate_progress(
     use_step_range: bool,
 ) -> tuple[int, float]:
     if use_step_range:
-        day_num = step_index + 1
-        progress_percent = (day_num / len(steps)) * 100 if steps else 0
+        day_idx = step_index
+        progress = (day_idx / (len(steps) - 1)) if len(steps) > 1 else 0.5
     else:
-        day_num = _calculate_day_number(step.date.timestamp(), trip.start_date, trip.timezone_id)
+        day_idx = _calculate_day_number(step.date.timestamp(), trip.start_date, trip.timezone_id)
         total_days = _calculate_day_number(trip.end_date, trip.start_date, trip.timezone_id)
-        progress_percent = (day_num / total_days) * 100 if total_days > 0 else 0
+        progress = (day_idx / (total_days - 1)) if total_days > 1 else 0.5
 
-    return day_num, progress_percent
+    return day_idx + 1, progress * 100
 
 
 def _calculate_day_number(
@@ -122,7 +122,7 @@ def prepare_step_data(
         altitude_str=format_altitude(external_data.elevation),
         day_num=day_num,
         progress_percent=progress_percent,
-        day_counter_box_position=max(5.0, min(progress_percent, 95.0)),
+        day_counter_box_position=max(6.0, min(progress_percent, 94.0)),
         day_counter_arrow_position=max(1.0, min(progress_percent, 99.0)),
         cover_photo_path=external_data.cover_photo_path,
         cover_photo_id=external_data.cover_photo_id,

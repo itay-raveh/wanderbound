@@ -1,140 +1,119 @@
 .page-container {
-  width: 100%;
-  max-width: var(--page-width);
-  aspect-ratio: var(--page-aspect-ratio);
-  min-height: var(--page-height);
-  margin: 0 auto;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  overflow: hidden;
-  position: relative;
-  box-sizing: border-box;
-  display: flex;
+    width: 100%;
+    max-width: var(--page-width);
+    aspect-ratio: var(--page-aspect-ratio);
+    min-height: var(--page-height);
+    margin: 0 auto;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
 
-  /* Page break properties */
-  page-break-after: always;
-  page-break-inside: avoid;
-  break-after: page;
-  break-inside: avoid;
+    /* Page break properties */
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    break-inside: avoid;
 }
 
 @media print {
-  .page-container {
-    width: var(--page-width);
-    height: var(--page-height);
-    max-width: var(--page-width);
-    aspect-ratio: auto;
-  }
+    .page-container {
+        width: var(--page-width);
+        height: var(--page-height);
+        max-width: var(--page-width);
+        aspect-ratio: auto;
+    }
 }
 
 .step-page {
-  padding: 0;
-  border: 0;
-  outline: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
 }
 
 .step-data {
-  flex: 1;
-  background: var(--bg-panel);
-  padding-top: var(--spacing-xxl);
-  padding-left: var(--spacing-lg);
-  padding-right: var(--spacing-lg);
-  padding-bottom: var(--spacing-bottom);
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+    flex: 1;
+    background: var(--bg-panel);
+    padding: var(--spacing-huge) var(--spacing-lg) var(--spacing-huge);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
-.step-data .location-section {
-  flex: 0 0 auto;
-}
-
-.step-data .metadata-section {
-  flex: 0 0 auto;
-  margin-top: auto;
-}
 
 .step-content {
-  aspect-ratio: var(--cover-aspect-ratio);
-  background: var(--bg-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 0;
-  position: relative;
-  flex-shrink: 0;
+    aspect-ratio: var(--cover-aspect-ratio);
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
 }
 
 @media print {
-  .step-content {
-    width: calc(210mm * var(--cover-aspect-ratio));
-    height: 210mm;
-  }
+    .step-content {
+        width: calc(210mm * var(--cover-aspect-ratio));
+        height: 210mm;
+    }
 }
 
 .main-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background: transparent;
-  margin: auto;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: transparent;
+    margin: auto;
 }
 
 /* Two-column text spans entire page */
 .step-page.multi-column {
-  flex-direction: column;
+    flex-direction: column;
 }
 
 .step-page.multi-column .step-data {
-  width: 100%;
-  height: auto;
-  min-height: auto;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-xl);
-  gap: var(--spacing-xxxl);
+    width: 100%;
+    height: auto;
+    min-height: auto;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xl);
+    gap: var(--spacing-xxxl);
 }
 
 .step-page.multi-column .location-section {
-  margin-bottom: 0;
-  flex: 1;
+    margin-bottom: 0;
+    flex: 1;
 }
 
 .step-page.multi-column .metadata-section {
-  flex-shrink: 0;
-  width: min(400px, 40%);
-  margin-top: 0;
+    flex-shrink: 0;
+    width: min(400px, 40%);
+    margin-top: 0;
 }
 
 .step-page.multi-column .step-content {
-  width: 100%;
-  min-height: 300px;
-  background: var(--bg-primary);
+    width: 100%;
+    min-height: 300px;
+    background: var(--bg-primary);
 }
 
-/* Map Page Specifics */
-.map-page-container {
-  page-break-before: always;
-  position: relative;
-  height: 100vh;
-  background: #eee;
-  overflow: hidden;
-}
 
 #trip-map {
-  height: 100%;
-  width: 100%;
-  z-index: 1;
-  overflow: hidden;
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+    overflow: hidden;
 }
 
 #map-loading-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #666;
-  z-index: 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    z-index: 0;
 }
