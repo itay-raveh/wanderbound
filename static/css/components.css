@@ -69,7 +69,7 @@
     font-size: 1.3rem;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 0.0625rem;
+
     margin-bottom: var(--spacing-sm);
     display: flex;
     align-items: center;
@@ -107,7 +107,14 @@
 .metadata-item {
     display: flex;
     flex-direction: column;
+}
+
+.metadata-item:first-child {
     align-items: flex-start;
+}
+
+.metadata-item:nth-child(2) {
+    align-items: center;
 }
 
 .metadata-item:last-child {
@@ -118,7 +125,7 @@
 .metadata-label {
     font-size: 0.9rem;
     text-transform: uppercase;
-    letter-spacing: 0.0313rem;
+
     color: var(--text-muted);
     margin-bottom: 0.5rem;
     display: flex;

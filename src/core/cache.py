@@ -2,7 +2,7 @@ import shutil
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from persist_cache import cache  # type: ignore[attr-defined]
+from persist_cache import cache
 
 from src.core.settings import settings
 

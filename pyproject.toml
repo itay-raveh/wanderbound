@@ -45,7 +45,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff",
-    "mypy",
+    "ty",
     "vulture",
     "deptry",
     "djlint",
@@ -69,7 +69,7 @@ packages = ["src"]
 [tool.taskipy.tasks]
 format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
-types = "mypy ."
+types = "ty check"
 deps = "deptry ."
 html = "djlint static/*.jinja static/templates/*.jinja --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
@@ -114,18 +114,7 @@ convention = "google"
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
-[tool.mypy]
-plugins = ["pydantic.mypy"]
-
-strict = true
-warn_unused_ignores = true
-show_error_codes = true
-warn_unreachable = true
-pretty = true
-
-[[tool.mypy.overrides]]
-module = ["geopy.*"]
-ignore_missing_imports = true
+[tool.ty]
 
 [tool.deptry.per_rule_ignores]
 # DEP002 = "Unused dependency"

@@ -21,11 +21,8 @@ def _format_date_range(start: datetime, end: datetime) -> str:
     return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
-def get_display_date_range(steps: list[Step]) -> str | None:
+def get_display_date_range(steps: list[Step]) -> str:
     """Calculate and format the display date range for the trip."""
-    if not steps:
-        return None
-
     start_date = min(s.date for s in steps)
     end_date = max(s.date for s in steps)
 

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     accent_color: str = Field(default="#ff4d6d", pattern=r"^#[0-9a-fA-F]{6}$")
     map_fill_color: str = Field(default="#e0e0e0", pattern=r"^#[0-9a-fA-F]{6}$")
 
-    description_three_columns_threshold: int = Field(default=1750, gt=0)
+    description_three_columns_threshold: int = Field(default=1500, gt=0)
     description_two_columns_threshold: int = Field(default=500, gt=0)
 
     feels_like_display_threshold: float = Field(default=3.0, ge=0.0)
@@ -42,4 +42,4 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+settings = Settings()  # ty:ignore[missing-argument]

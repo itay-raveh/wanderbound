@@ -3,7 +3,7 @@
     font-size: 28px;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 2px;
+
     margin-bottom: 15px;
     line-height: 1.2;
 }
@@ -11,7 +11,7 @@
 .step-description {
     flex: 1;
     font-family: "Noto Sans Hebrew", sans-serif;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
     line-height: 1.8;
     color: var(--text-secondary);
     margin-bottom: 30px;
@@ -41,18 +41,17 @@
     white-space: pre-wrap;
     column-fill: balance;
     text-align: justify;
+    font-size: 0.7rem;
 }
 
 .multi-column-text.two-cols {
     column-count: 2;
     column-gap: 3rem;
-    font-size: 0.8rem;
 }
 
 .multi-column-text.three-cols {
     column-count: 3;
     column-gap: 2rem;
-    font-size: 0.7rem;
 }
 
 .multi-column-text.rtl {

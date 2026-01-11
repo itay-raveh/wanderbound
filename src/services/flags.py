@@ -104,7 +104,7 @@ def _brightness_filter(rgb: RGB) -> bool:
 def _get_pixels(flag_data: bytes) -> list[RGB]:
     try:
         # noinspection PyTypeChecker
-        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()
+        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()  # ty:ignore[invalid-assignment]
     except OSError as e:
         logger.debug("Error loading flag image: %s", e)
         return []

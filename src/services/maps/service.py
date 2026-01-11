@@ -35,7 +35,7 @@ async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
 
     if geojson_file.exists():
         try:
-            return await asyncio.to_thread(gpd.read_file, str(geojson_file))
+            return gpd.read_file(geojson_file)
         except Exception as e:  # noqa: BLE001
             logger.warning("Cached map data corrupt, re-downloading: %s", e)
 
@@ -44,7 +44,7 @@ async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
     content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
     geojson_file.write_bytes(content)
 
-    return await asyncio.to_thread(gpd.read_file, str(geojson_file))
+    return gpd.read_file(geojson_file)
 
 
 @cache_in_file()
