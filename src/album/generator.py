@@ -32,7 +32,7 @@ from .preparation import prepare_step_data
 logger = get_logger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass
 class GeneratorContext:
     """Context data for the album generation process."""
 
@@ -43,7 +43,7 @@ class GeneratorContext:
     light_mode: bool
 
 
-@dataclass(frozen=True)
+@dataclass
 class FetchedData:
     """External data fetched for all steps."""
 

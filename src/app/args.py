@@ -5,6 +5,11 @@ from typing import Literal
 
 from tap import Tap
 
+from src.core.logger import get_logger
+from src.data.trip import Step
+
+logger = get_logger(__name__)
+
 
 class Args(Tap):
     trip_dir: Path  # Directory containing unzipped Polarsteps data
@@ -26,10 +31,31 @@ class Args(Tap):
         self.add_argument("trip_dir", type=Path)
         self.add_argument("--steps", type=_step_slice)
 
+    def filter_steps(self, all_steps: list[Step]) -> list[Step]:
+        logger.info("Found %d total steps", len(all_steps))
+
+        if self.sample:
+            dist_steps = _get_steps_distributed(all_steps, self.sample)
+            logger.info("Sampled %d steps evenly across the trip", len(dist_steps))
+            return dist_steps
+
+        if self.steps:
+            range_steps: list[Step] = all_steps[self.steps]
+            logger.info(
+                "Filtered to steps %d-%d: %d steps",
+                self.steps.start,
+                self.steps.stop,
+                len(range_steps),
+            )
+            return range_steps
+
+        logger.info("Using all %d steps", len(all_steps))
+        return all_steps
+
 
 def _step_slice(range_str: str) -> slice:
     if not range_str.strip():
-        raise ValueError("--steps argument cannot be empty")
+        raise ValueError("'--steps' flag cannot be empty")
 
     if "-" in range_str:
         start, end = range_str.split("-", 1)
@@ -37,3 +63,12 @@ def _step_slice(range_str: str) -> slice:
 
     step_num = int(range_str.strip())
     return slice(step_num, step_num + 1)
+
+
+def _get_steps_distributed(all_steps: list[Step], count: int) -> list[Step]:
+    if count == 1:
+        return [all_steps[len(all_steps) // 2]]
+
+    step_indices = [(i * (len(all_steps) - 1) // (count - 1)) for i in range(count)]
+
+    return [all_steps[idx] for idx in dict.fromkeys(step_indices)]

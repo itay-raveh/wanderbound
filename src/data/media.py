@@ -10,7 +10,7 @@ class CoverPhoto(BaseModel):
     path: str | None = None
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class PhotoWithDims:
     path: Path
     width: int

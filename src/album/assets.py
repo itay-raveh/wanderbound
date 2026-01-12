@@ -2,10 +2,6 @@
 
 from src.core.logger import get_logger
 from src.data.models import PhotoPage, PhotoWithDims
-from src.media.layout_engine import (
-    is_one_portrait_two_landscapes,
-    is_three_portraits,
-)
 
 logger = get_logger(__name__)
 
@@ -25,9 +21,9 @@ def make_photo_pages_data(
         grid_style = None
 
         if len(page) == 3:
-            if is_three_portraits(page):
+            if all(photo.aspect_ratio < 1 for photo in page):
                 layout_class = "three-portraits"
-            elif is_one_portrait_two_landscapes(page):
+            elif sum(photo.aspect_ratio < 1 for photo in page) == 1:
                 layout_class = "portrait-landscape-split"
                 grid_style = _calc_pll_grid_style(page)
 

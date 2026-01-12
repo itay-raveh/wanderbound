@@ -29,7 +29,6 @@ from src.data.models import (
 from src.media.processor import process_step_photos
 
 from .args import Args
-from .steps import filter_steps
 
 if TYPE_CHECKING:
     from src.data.models import Step
@@ -236,8 +235,7 @@ def main() -> None:
         logger.error("No steps found in trip data")
         return
 
-    logger.info("Found %d total steps", len(trip.all_steps))
-    steps = filter_steps(trip.all_steps, args)
+    steps = args.filter_steps(trip.all_steps)
 
     display_title = args.title or trip.name
     display_subtitle = args.subtitle or trip.summary
