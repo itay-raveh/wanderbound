@@ -2,7 +2,8 @@
 name = "polarsteps-album-generator"
 version = "0.1.0"
 description = "Generate photo albums from Polarsteps trip data"
-readme = "README.md"
+#TODO(itay) readme
+#readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
@@ -46,6 +47,7 @@ dependencies = [
 dev = [
     "ruff",
     "ty",
+    "basedpyright",
     "vulture",
     "deptry",
     "djlint",
@@ -60,11 +62,12 @@ dev = [
 psagen = "src.app.main:main"
 
 [build-system]
-requires = ["setuptools>=42"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.9.23,<0.10.0"]
+build-backend = "uv_build"
 
-[tool.setuptools]
-packages = ["src"]
+[tool.uv.build-backend]
+module-name = "src"
+module-root = ""
 
 [tool.taskipy.tasks]
 format = "ruff format ."
