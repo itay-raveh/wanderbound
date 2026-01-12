@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.data.models import Photo
+from src.data.models import PhotoWithDims
 
 from .layout_engine import (
     PhotoRatio,
@@ -21,10 +21,10 @@ class LayoutStrategy(ABC):
         """Number of photos required for this strategy."""
 
     @abstractmethod
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         """Validate if a specific combination of photos fits this strategy."""
 
-    def sort_combo(self, combo: tuple[Photo, ...]) -> list[Photo]:
+    def sort_combo(self, combo: tuple[PhotoWithDims, ...]) -> list[PhotoWithDims]:
         """Sort the combination according to the strategy's requirements.
 
         Default implementation returns the combo as a list.
@@ -43,7 +43,7 @@ class ThreePortraitsStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 3
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         return is_three_portraits(combo)
 
 
@@ -54,10 +54,10 @@ class OnePortraitTwoLandscapesStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 3
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         return is_one_portrait_two_landscapes(combo)
 
-    def sort_combo(self, combo: tuple[Photo, ...]) -> list[Photo]:
+    def sort_combo(self, combo: tuple[PhotoWithDims, ...]) -> list[PhotoWithDims]:
         # Sort: portrait first, then landscapes
         return sorted(
             combo,
@@ -74,7 +74,7 @@ class FourLandscapesStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 4
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         for photo in combo:
             if get_photo_ratio(photo.width or 0, photo.height or 0) != PhotoRatio.LANDSCAPE:
                 return False
@@ -91,7 +91,7 @@ class TwoPortraitsStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 2
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         for photo in combo:
             if get_photo_ratio(photo.width or 0, photo.height or 0) != PhotoRatio.PORTRAIT:
                 return False
@@ -105,7 +105,7 @@ class ThreeLandscapesStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 3
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         # We need 3 landscapes
         for photo in combo:
             if get_photo_ratio(photo.width or 0, photo.height or 0) != PhotoRatio.LANDSCAPE:
@@ -120,7 +120,7 @@ class OneLandscapeStrategy(LayoutStrategy):
     def required_count(self) -> int:
         return 1
 
-    def validate_combo(self, combo: tuple[Photo, ...]) -> bool:
+    def validate_combo(self, combo: tuple[PhotoWithDims, ...]) -> bool:
         if not combo:
             return False
         return get_photo_ratio(combo[0].width or 0, combo[0].height or 0) == PhotoRatio.LANDSCAPE

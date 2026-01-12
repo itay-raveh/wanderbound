@@ -9,10 +9,9 @@ from jinja2 import Environment, FileSystemLoader
 from src.core.logger import create_progress, get_logger
 from src.data.context import StepTemplateContext
 from src.data.locations import LocationEntry
-from src.data.media import AssetPhoto
 from src.data.models import (
     AlbumGenerationConfig,
-    AlbumPhotoData,
+    AlbumPhoto,
     FlagData,
     MapData,
     Step,
@@ -27,7 +26,7 @@ from src.services.maps.service import fetch_maps
 from src.services.overview import calculate_trip_overview
 from src.services.weather import fetch_weather_data
 
-from .assets import calculate_photo_pages_data
+from .assets import make_photo_pages_data
 from .preparation import prepare_step_data
 
 logger = get_logger(__name__)
@@ -38,7 +37,7 @@ class GeneratorContext:
     """Context data for the album generation process."""
 
     steps: list[Step]
-    photo_data: AlbumPhotoData
+    photo_data: AlbumPhoto
     config: AlbumGenerationConfig
     use_step_range: bool
     light_mode: bool
@@ -132,18 +131,9 @@ def _process_steps(
             progress.update(task_id, description=f"Preparing steps: {step.name}")
 
             photo_pages = context.photo_data.steps_photo_pages.get(step.id, [])
-            photo_pages_data = calculate_photo_pages_data(photo_pages)
+            photo_pages_data = make_photo_pages_data(photo_pages)
 
-            # Copy hidden photos to assets (to ensure valid paths for editor)
             hidden_photos = context.photo_data.steps_hidden_photos.get(step.id, [])
-            hidden_photos_paths = [
-                AssetPhoto(
-                    id=photo.id,
-                    path=photo.path.absolute(),
-                )
-                for photo in hidden_photos
-                if photo.path.exists()
-            ]
 
             cover_photo = context.photo_data.steps_cover_photos.get(step.id)
 
@@ -152,8 +142,7 @@ def _process_steps(
                 weather_data=weather_data,
                 flag_data=flag_data,
                 map_data=map_data,
-                cover_photo_path=cover_photo.path.absolute() if cover_photo else None,
-                cover_photo_id=cover_photo.id if cover_photo else None,
+                cover_photo=cover_photo,
             )
 
             step_context = StepContext(
@@ -169,7 +158,7 @@ def _process_steps(
                 light_mode=context.light_mode,
             )
             step_data.photo_pages = photo_pages_data
-            step_data.hidden_photos = hidden_photos_paths
+            step_data.hidden_photos = hidden_photos
             steps_template_ctx.append(step_data)
 
         progress.update(task_id, description="Preparing steps")
@@ -180,7 +169,7 @@ def _process_steps(
 
 async def generate_album_html(
     steps: list[Step],
-    photo_data: AlbumPhotoData,
+    photo_data: AlbumPhoto,
     config: AlbumGenerationConfig,
     locations: list[LocationEntry],
     *,

@@ -1,8 +1,5 @@
 """Step data preparation for HTML generation."""
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from geopy import Point
 
 from src.core.logger import get_logger
@@ -10,7 +7,6 @@ from src.core.settings import settings
 from src.core.text import is_hebrew
 from src.data.context import StepTemplateContext
 from src.data.models import (
-    MapData,
     Step,
     StepContext,
     StepExternalData,
@@ -29,38 +25,12 @@ def _calculate_progress(
     *,
     use_step_range: bool,
 ) -> tuple[int, float]:
-    if use_step_range:
-        day_idx = step_index
-        progress = (day_idx / (len(steps) - 1)) if len(steps) > 1 else 0.5
-    else:
-        day_idx = _calculate_day_number(step.date.timestamp(), trip.start_date, trip.timezone_id)
-        total_days = _calculate_day_number(trip.end_date, trip.start_date, trip.timezone_id)
-        progress = (day_idx / (total_days - 1)) if total_days > 1 else 0.5
+    progress = step_index / (len(steps) - 1)
 
-    return day_idx + 1, progress * 100
+    if not use_step_range:
+        step_index += (step.date - trip.start_date).days
 
-
-def _calculate_day_number(
-    step_start: float | None, trip_start: float | None, timezone_id: str
-) -> int:
-    if not step_start or not trip_start:
-        return 0
-
-    tz = ZoneInfo(timezone_id)
-    step_dt = datetime.fromtimestamp(step_start, tz=tz)
-    trip_dt = datetime.fromtimestamp(trip_start, tz=tz)
-
-    delta = step_dt.date() - trip_dt.date()
-    return delta.days + 1
-
-
-def _extract_map_data(
-    map_result: MapData | None,
-) -> tuple[str | None, float | None, float | None]:
-    if map_result:
-        map_dot_x, map_dot_y = map_result.dot_position if map_result.dot_position else (None, None)
-        return map_result.svg_content, map_dot_x, map_dot_y
-    return None, None, None
+    return step_index + 1, progress * 100
 
 
 def prepare_step_data(
@@ -80,8 +50,7 @@ def prepare_step_data(
         use_step_range=use_step_range,
     )
 
-    country_map_svg, map_dot_x, map_dot_y = _extract_map_data(external_data.map_data)
-
+    # TODO(itay): altitude here
     coords_lat, coords_lon = (
         Point(round(context.step.location.lat, 4), round(context.step.location.lon, 4))
         .format_unicode()
@@ -124,15 +93,12 @@ def prepare_step_data(
         progress_percent=progress_percent,
         day_counter_box_position=max(6.0, min(progress_percent, 94.0)),
         day_counter_arrow_position=max(1.0, min(progress_percent, 99.0)),
-        cover_photo_path=external_data.cover_photo_path,
-        cover_photo_id=external_data.cover_photo_id,
-        country_flag_data_uri=(
-            external_data.flag_data.flag_url if external_data.flag_data else None
-        ),
-        country_map_svg=country_map_svg,
-        map_dot_x=map_dot_x,
-        map_dot_y=map_dot_y,
-        accent_color=(external_data.flag_data.accent_color if external_data.flag_data else None),
+        cover_photo=external_data.cover_photo,
+        country_flag_data_uri=external_data.flag_data.flag_url,
+        country_map_svg=external_data.map_data.svg_content,
+        map_dot_x=external_data.map_data.dot_position[0],
+        map_dot_y=external_data.map_data.dot_position[1],
+        accent_color=external_data.flag_data.accent_color,
         description=context.step.description,
         desc_dir="rtl" if is_hebrew_text else "ltr",
         desc_align="right" if is_hebrew_text else "left",
@@ -150,8 +116,6 @@ def prepare_step_data(
 def _format_temperature(temp: float | None, feels_like: float | None) -> str:
     if temp is None:
         return "N/A"
-    # Only show feels like if difference is meaningful
-    # Using module-level settings
     if feels_like is not None and abs(feels_like - temp) >= settings.feels_like_display_threshold:
         return f"{int(temp)}° ({int(feels_like)}°)"
     return f"{int(temp)}°"

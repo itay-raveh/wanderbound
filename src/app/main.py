@@ -22,12 +22,11 @@ from src.data.layout import AlbumLayout, PageLayout, StepLayout
 from src.data.locations import LocationEntry, detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
-    AlbumPhotoData,
+    AlbumPhoto,
     Step,
     Trip,
 )
 from src.media.processor import process_step_photos
-from src.media.registry import PhotoRegistry
 
 from .args import Args
 from .steps import filter_steps
@@ -40,7 +39,7 @@ logger = get_logger(__name__)
 
 async def _generate_html_album(
     steps: list[Step],
-    photo_data: AlbumPhotoData,
+    photo_data: AlbumPhoto,
     config: AlbumGenerationConfig,
     locations: list[LocationEntry],
     *,
@@ -123,7 +122,7 @@ def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
             return str(found_photos[0].absolute())
 
     # 3. Remote URL
-    return trip_data.cover_photo.url
+    return trip_data.cover_photo.path
 
 
 def _process_locations(trip_dir: Path, steps: list[Step]) -> list[LocationEntry]:
@@ -139,7 +138,7 @@ def _reload_step_data(
     step_id: int | None,
     all_steps: list[Step],
     trip_dir: Path,
-    photo_data: AlbumPhotoData,
+    photo_data: AlbumPhoto,
     output_dir: Path,
 ) -> None:
     """Reloads step data, applying any layout overrides from layout.json."""
@@ -152,16 +151,11 @@ def _reload_step_data(
     if layout_file.exists():
         layout_overrides = AlbumLayout.model_validate_json(layout_file.read_bytes())
 
-    # Initialize Global Registry
-    photo_registry = PhotoRegistry(trip_dir)
-    photo_registry.scan()
-
-    # Compute Global Used IDs
     # Iterate all steps in layout_overrides to see what is claimed.
     global_used_ids = set()
     for s_layout in layout_overrides.steps.values():
-        if s_layout.cover_photo_id:
-            global_used_ids.add(s_layout.cover_photo_id)
+        if s_layout.cover_photo:
+            global_used_ids.add(s_layout.cover_photo)
         global_used_ids.update(s_layout.hidden_photos)
         for p in s_layout.pages:
             global_used_ids.update(p.photos)
@@ -174,7 +168,7 @@ def _reload_step_data(
 
         # Reprocess photos with overrides
         photos, cover_photo, photo_pages, hidden_photos = process_step_photos(
-            step, trip_dir, photo_registry, global_used_ids, step_layout
+            step, trip_dir, global_used_ids, step_layout
         )
 
         # Update shared state
@@ -192,14 +186,14 @@ def _reload_step_data(
         hidden = photo_data.steps_hidden_photos.get(step.id, [])
 
         # Convert to PageLayout objects
-        page_layouts = [PageLayout(photos=[p.id for p in p_page]) for p_page in pages]
+        page_layouts = [PageLayout(photos=[p.path for p in p_page]) for p_page in pages]
 
         new_steps[step.id] = StepLayout(
             step_id=step.id,
             name=step.name,
             pages=page_layouts,
-            hidden_photos=[h.id for h in hidden],
-            cover_photo_id=cover.id if cover else None,
+            hidden_photos=hidden,
+            cover_photo=cover,
         )
 
     # Merge with existing overrides for steps NOT in target_steps (if partial regen)
@@ -264,7 +258,7 @@ def main() -> None:
     logger.debug("Output directory: %s", args.out)
 
     # Initialize photo_data object
-    photo_data = AlbumPhotoData(
+    photo_data = AlbumPhoto(
         steps_with_photos={},
         steps_cover_photos={},
         steps_photo_pages={},

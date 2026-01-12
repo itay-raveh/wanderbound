@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from src.data.locations import LocationEntry, TravelSegment
-from src.data.media import AssetPhoto, PhotoPageData
+from src.data.media import PhotoPage
 
 
 class StepTemplateContext(BaseModel):
@@ -26,8 +26,7 @@ class StepTemplateContext(BaseModel):
     progress_percent: float
     day_counter_box_position: float
     day_counter_arrow_position: float
-    cover_photo_path: Path | None
-    cover_photo_id: str | None = None
+    cover_photo: Path | None
     country_flag_data_uri: str | None
     country_map_svg: str | None
     map_dot_x: float | None
@@ -38,8 +37,8 @@ class StepTemplateContext(BaseModel):
     desc_align: str
     use_two_columns: bool
     use_three_columns: bool
-    photo_pages: list[PhotoPageData]
-    hidden_photos: list[AssetPhoto] = Field(default_factory=list)
+    photo_pages: list[PhotoPage]
+    hidden_photos: list[Path] = Field(default_factory=list)
     light_mode: bool
 
 

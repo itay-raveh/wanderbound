@@ -1,23 +1,19 @@
+from pathlib import Path
+
 from pydantic import BaseModel
 
 
 class PageLayout(BaseModel):
-    """Represents a single page containing a list of photo IDs/filenames."""
-
-    photos: list[str]
+    photos: list[Path]
 
 
 class StepLayout(BaseModel):
-    """Represents the manual layout configuration for a specific step."""
-
     step_id: int
-    name: str | None = None  # Human readable name for manual editing
-    cover_photo_id: str | None = None
+    name: str
+    cover_photo: Path | None = None
     pages: list[PageLayout]
-    hidden_photos: list[str] = []
+    hidden_photos: list[Path] = []
 
 
 class AlbumLayout(BaseModel):
-    """Top-level container for all manual layout overrides in the album."""
-
-    steps: dict[int, StepLayout]  # Keyed by step_id
+    steps: dict[int, StepLayout]

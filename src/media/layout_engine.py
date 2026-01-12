@@ -3,7 +3,7 @@
 from enum import Enum
 
 from src.core.settings import settings
-from src.data.models import Photo
+from src.data.models import PhotoWithDims
 
 
 class PhotoRatio(Enum):
@@ -40,7 +40,7 @@ def should_use_cover_photo(description: str | None) -> bool:
     return len(description) <= settings.description_two_columns_threshold
 
 
-def select_cover_photo(photos: list[Photo]) -> Photo | None:
+def select_cover_photo(photos: list[PhotoWithDims]) -> PhotoWithDims | None:
     if not photos:
         return None
 
@@ -69,7 +69,7 @@ def select_cover_photo(photos: list[Photo]) -> Photo | None:
     return photos[0]
 
 
-def is_three_portraits(combo: tuple[Photo, ...] | list[Photo]) -> bool:
+def is_three_portraits(combo: tuple[PhotoWithDims, ...] | list[PhotoWithDims]) -> bool:
     if len(combo) != 3:
         return False
 
@@ -83,7 +83,7 @@ def is_three_portraits(combo: tuple[Photo, ...] | list[Photo]) -> bool:
     return True
 
 
-def is_one_portrait_two_landscapes(combo: tuple[Photo, ...] | list[Photo]) -> bool:
+def is_one_portrait_two_landscapes(combo: tuple[PhotoWithDims, ...] | list[PhotoWithDims]) -> bool:
     if len(combo) != 3:
         return False
 

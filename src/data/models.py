@@ -1,12 +1,11 @@
 """Pydantic models for trip and media data."""
 
 from src.data.media import (
-    AlbumPhotoData,
-    AssetPhoto,
+    AlbumPhoto,
     CoverPhoto,
-    Photo,
-    PhotoLayout,
-    PhotoPageData,
+    PageLayout,
+    PhotoPage,
+    PhotoWithDims,
 )
 from src.data.trip import (
     AlbumGenerationConfig,
@@ -21,14 +20,13 @@ from src.data.trip import (
 
 __all__ = [
     "AlbumGenerationConfig",
-    "AlbumPhotoData",
-    "AssetPhoto",
+    "AlbumPhoto",
     "CoverPhoto",
     "FlagData",
     "MapData",
-    "Photo",
-    "PhotoLayout",
-    "PhotoPageData",
+    "PageLayout",
+    "PhotoPage",
+    "PhotoWithDims",
     "Step",
     "StepContext",
     "StepExternalData",

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
@@ -10,12 +11,14 @@ from src.data.context import TripTemplateContext
 from src.data.locations import Location
 from src.data.media import CoverPhoto
 
+_Str = Annotated[str, BeforeValidator(lambda v: v or "")]
+
 
 class Step(BaseModel):
     id: int
-    name: str = Field(alias="display_name")
-    slug: str = Field(alias="display_slug")
-    description: Annotated[str, BeforeValidator(lambda v: v or "")]
+    name: str = Field(validation_alias="display_name")
+    slug: str = Field(validation_alias="display_slug")
+    description: _Str
     start_time: float
     timezone_id: str
     location: Location
@@ -31,15 +34,28 @@ class Step(BaseModel):
 
 class Trip(BaseModel):
     name: str
-    start_date: float
-    end_date: float
+    start_time: float = Field(validation_alias="start_date")
+    end_time: float = Field(validation_alias="end_date")
     timezone_id: str
     all_steps: list[Step]
-    summary: str | None
-    cover_photo: CoverPhoto | None
+    summary: _Str
+    cover_photo: CoverPhoto
+
+    @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone_id)
+
+    @property
+    def start_date(self) -> datetime:
+        return datetime.fromtimestamp(self.start_time, tz=self.timezone)
+
+    @property
+    def end_date(self) -> datetime:
+        return datetime.fromtimestamp(self.end_time, tz=self.timezone)
 
 
-class WeatherData(BaseModel):
+@dataclass
+class WeatherData:
     day_temp: float | None = None
     night_temp: float | None = None
     day_feels_like: float | None = None
@@ -48,26 +64,29 @@ class WeatherData(BaseModel):
     night_icon: str | None = None
 
 
-class FlagData(BaseModel):
-    flag_url: str | None = None
-    accent_color: str | None = None
+@dataclass
+class FlagData:
+    flag_url: str
+    accent_color: str
 
 
-class MapData(BaseModel):
+@dataclass
+class MapData:
     svg_content: str
     dot_position: tuple[float, float]
 
 
-class StepExternalData(BaseModel):
-    elevation: float | None
+@dataclass
+class StepExternalData:
+    elevation: float
     weather_data: WeatherData
-    flag_data: FlagData | None
-    map_data: MapData | None
-    cover_photo_path: Path | None
-    cover_photo_id: str | None
+    flag_data: FlagData
+    map_data: MapData
+    cover_photo: Path | None
 
 
-class AlbumGenerationConfig(BaseModel):
+@dataclass
+class AlbumGenerationConfig:
     trip: Trip
     trip_template_ctx: TripTemplateContext | None
     output_dir: Path
@@ -75,7 +94,8 @@ class AlbumGenerationConfig(BaseModel):
     editor_mode: bool = False
 
 
-class StepContext(BaseModel):
+@dataclass
+class StepContext:
     step: Step
     step_index: int
     steps: list[Step]

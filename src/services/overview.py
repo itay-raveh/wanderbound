@@ -6,14 +6,14 @@ from src.core.logger import get_logger
 from src.core.settings import settings
 from src.data.context import TripOverviewTemplateCtx
 from src.data.locations import LocationEntry
-from src.data.models import AlbumPhotoData, Step
+from src.data.models import AlbumPhoto, Step
 
 logger = get_logger(__name__)
 
 
 def calculate_trip_overview(
     steps: list[Step],
-    photo_data: AlbumPhotoData,
+    photo_data: AlbumPhoto,
     locations: list[LocationEntry],
 ) -> TripOverviewTemplateCtx:
     """Calculate summary statistics for the trip."""

@@ -3,7 +3,7 @@
 from itertools import combinations
 
 from src.core.logger import get_logger
-from src.data.models import Photo
+from src.data.models import PhotoWithDims
 
 from .strategies import (
     FourLandscapesStrategy,
@@ -32,8 +32,8 @@ _ACCEPTABLE_STRATEGIES: list[LayoutStrategy] = [
 
 
 def _try_strategies(
-    candidates: list[Photo], strategies: list[LayoutStrategy]
-) -> list[Photo] | None:
+    candidates: list[PhotoWithDims], strategies: list[LayoutStrategy]
+) -> list[PhotoWithDims] | None:
     """Try a list of strategies and return the first valid combination found."""
     for strategy in strategies:
         count = strategy.required_count
@@ -48,8 +48,8 @@ def _try_strategies(
 
 
 def _find_best_photo_combination(
-    candidates: list[Photo],
-) -> list[Photo]:
+    candidates: list[PhotoWithDims],
+) -> list[PhotoWithDims]:
     """Find the best combination of photos using strict quality rules."""
     if not candidates:
         return []
@@ -71,8 +71,8 @@ def _find_best_photo_combination(
 
 
 def compute_default_photos_by_pages(
-    photos: list[Photo], cover_photo: Photo | None
-) -> list[list[Photo]]:
+    photos: list[PhotoWithDims], cover_photo: PhotoWithDims | None
+) -> list[list[PhotoWithDims]]:
     """Compute default photo page layout using optimized bin-packing algorithm."""
     # Filter out cover photo
     candidates = [p for p in photos if p != cover_photo]
@@ -80,7 +80,7 @@ def compute_default_photos_by_pages(
     if not candidates:
         return []
 
-    photos_by_pages: list[list[Photo]] = []
+    photos_by_pages: list[list[PhotoWithDims]] = []
     remaining = candidates.copy()
 
     while remaining:

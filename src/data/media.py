@@ -1,16 +1,17 @@
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class CoverPhoto(BaseModel):
     uuid: str | None = None
-    url: str | None = Field(default=None, alias="path")
+    path: str | None = None
 
 
-class Photo(BaseModel):
-    id: str
+@dataclass
+class PhotoWithDims:
     path: Path
     width: int
     height: int
@@ -20,22 +21,19 @@ class Photo(BaseModel):
         return float(self.width) / float(self.height)
 
 
-PhotoLayout = Literal["three-portraits", "portrait-landscape-split"]
+PageLayout = Literal["three-portraits", "portrait-landscape-split"]
 
 
-class AssetPhoto(BaseModel):
-    id: str
-    path: Path
-
-
-class PhotoPageData(BaseModel):
-    photos: list[AssetPhoto]
-    layout_class: PhotoLayout | None = None
+@dataclass
+class PhotoPage:
+    photos: list[Path]
+    layout_class: PageLayout | None = None
     grid_style: str | None = None
 
 
-class AlbumPhotoData(BaseModel):
-    steps_with_photos: dict[int, list[Photo]]
-    steps_cover_photos: dict[int, Photo | None]
-    steps_photo_pages: dict[int, list[list[Photo]]]
-    steps_hidden_photos: dict[int, list[Photo]] = Field(default_factory=dict)
+@dataclass
+class AlbumPhoto:
+    steps_with_photos: dict[int, list[PhotoWithDims]]
+    steps_cover_photos: dict[int, Path | None]
+    steps_photo_pages: dict[int, list[list[PhotoWithDims]]]
+    steps_hidden_photos: dict[int, list[Path]] = field(default_factory=dict)

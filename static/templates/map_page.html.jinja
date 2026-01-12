@@ -175,7 +175,7 @@
                 var point = [{{ step.lat_val }}, {{ step.lon_val }}];
                 allBounds.push(point)
                 L.marker(point, {
-                    icon: createIcon("{{ step.cover_photo_path  }}"),
+                    icon: createIcon("{{ step.cover_photo }}"),
                     zIndexOffset: 1000
                 }).addTo(map);
             {% endfor %}
