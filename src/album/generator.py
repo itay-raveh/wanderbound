@@ -1,6 +1,7 @@
 """Generate HTML pages for the photo album using Jinja templates."""
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,12 +46,10 @@ class GeneratorContext:
 
 @dataclass
 class FetchedData:
-    """External data fetched for all steps."""
-
-    elevations: list[float | None]
-    weather_data_list: list[WeatherData | None]
-    flag_data_list: list[FlagData | None]
-    map_data_list: list[MapData | None]
+    elevations: Sequence[float]
+    weather_data_list: Sequence[WeatherData]
+    flag_data_list: Sequence[FlagData]
+    map_data_list: Sequence[MapData]
 
 
 async def _fetch_external_data(context: GeneratorContext) -> FetchedData:

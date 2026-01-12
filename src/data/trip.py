@@ -8,10 +8,16 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, BeforeValidator, Field
 
 from src.data.context import TripTemplateContext
-from src.data.locations import Location
 from src.data.media import CoverPhoto
 
-_Str = Annotated[str, BeforeValidator(lambda v: v or "")]
+_Str = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
+
+
+class Location(BaseModel):
+    country: str = Field(alias="detail")
+    country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
 
 
 class Step(BaseModel):

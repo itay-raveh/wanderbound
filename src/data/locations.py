@@ -1,22 +1,13 @@
 import math
+from itertools import pairwise
 from pathlib import Path
 
 from geopy.distance import distance
-from pydantic import (
-    BaseModel,
-    Field,
-)
+from pydantic import BaseModel
 
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class Location(BaseModel):
-    country: str = Field(alias="detail")
-    country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
-    lat: float = Field(ge=-90, le=90)
-    lon: float = Field(ge=-180, le=180)
 
 
 class LocationEntry(BaseModel):
@@ -34,51 +25,24 @@ class TravelSegment(BaseModel):
     is_flight: bool
 
 
-def detect_segments(
-    locations: list[LocationEntry],
-    min_flight_speed_kmh: float = 150.0,
-    min_flight_dist_km: float = 50.0,
-) -> list[TravelSegment]:
+def detect_segments(locations: list[LocationEntry]) -> list[TravelSegment]:
     """Split locations into ground and flight segments based on speed and distance."""
-    if not locations:
-        return []
-
     segments: list[TravelSegment] = []
-    current_points: list[LocationEntry] = [locations[0]]
+    points: list[LocationEntry] = [locations[0]]
 
-    for i in range(len(locations) - 1):
-        p1 = locations[i]
-        p2 = locations[i + 1]
+    for prev, curr in pairwise(locations):
+        dist_km = distance((prev.lat, prev.lon), (curr.lat, curr.lon)).km
+        speed_kmh = dist_km / ((curr.time - prev.time) / 3600.0)
 
-        dist_km = distance((p1.lat, p1.lon), (p2.lat, p2.lon)).kilometers
-        time_diff_hours = (p2.time - p1.time) / 3600.0
+        # Very fast over a large distance, must be a flight
+        if speed_kmh > 150 and dist_km > 50:
+            segments.append(TravelSegment(points=points, is_flight=False))
+            points = []
+            segments.append(TravelSegment(points=[prev, curr], is_flight=True))
 
-        if time_diff_hours <= 0:
-            current_points.append(p2)
-            continue
+        points.append(curr)
 
-        speed_kmh = dist_km / time_diff_hours
-
-        # Check for flight conditions
-        is_flight = speed_kmh > min_flight_speed_kmh and dist_km > min_flight_dist_km
-
-        if is_flight:
-            # 1. Close current ground segment if it has points
-            if current_points:
-                # If the last point is p1, it's included here
-                segments.append(TravelSegment(points=current_points, is_flight=False))
-
-            # 2. Add the flight segment (p1 -> p2)
-            segments.append(TravelSegment(points=[p1, p2], is_flight=True))
-
-            # 3. Start new ground segment from p2
-            current_points = [p2]
-        else:
-            current_points.append(p2)
-
-    # processing the last segment
-    if current_points:
-        segments.append(TravelSegment(points=current_points, is_flight=False))
+    segments.append(TravelSegment(points=points, is_flight=False))
 
     return segments
 

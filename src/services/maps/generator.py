@@ -23,7 +23,7 @@ def _coords_to_svg_path(coords: CoordinateSequence) -> str:
     if not coords:
         return ""
 
-    path_cmds = []
+    path_cmds: list[str] = []
 
     for i, (x, y) in enumerate(coords):
         cmd = "M" if i == 0 else "L"
@@ -77,7 +77,7 @@ def _generate_svg_plot(
     # Create SVG structure
     svg_ns = "http://www.w3.org/2000/svg"
     nsmap = {None: svg_ns}
-    root = etree.Element(f"{{{svg_ns}}}svg", nsmap=nsmap)  # type: ignore[arg-type]
+    root = etree.Element(f"{{{svg_ns}}}svg", nsmap=nsmap)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
     # Set viewBox to match the exact dimensions
     root.set("width", f"{width:.2f}")
@@ -92,9 +92,9 @@ def _generate_svg_plot(
 
     # Add path
     # We combine all geometries into one path for simplicity
-    path_d = []
+    path_d: list[str] = []
     for _, row in gdf.iterrows():
-        path_d.append(_geometry_to_svg_path(row.geometry))
+        path_d.append(_geometry_to_svg_path(row.geometry))  # pyright: ignore[reportAny]
 
     path_elem = etree.SubElement(group, f"{{{svg_ns}}}path")
     path_elem.set("d", " ".join(path_d).strip())

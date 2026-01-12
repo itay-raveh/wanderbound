@@ -6,7 +6,7 @@ from lxml import etree
 def remove_xml_declarations(svg_data: str) -> str:
     """Remove XML declaration and DOCTYPE from SVG to avoid DTD fetching."""
     lines = svg_data.split("\n")
-    cleaned_lines = []
+    cleaned_lines: list[str] = []
     skip_doctype = False
 
     for line in lines:
@@ -41,14 +41,10 @@ def parse_svg_with_lxml(svg_data: str) -> etree._Element:
 
     # Register SVG namespace if not already registered
     if (
-        root is not None
-        and hasattr(root, "nsmap")
+        hasattr(root, "nsmap")
         and root.nsmap
         and "http://www.w3.org/2000/svg" not in root.nsmap.values()
     ):
-        etree.register_namespace("svg", "http://www.w3.org/2000/svg")
-
-    if root is None:
-        raise ValueError("Parsed SVG root is None")
+        etree.register_namespace("svg", "http://www.w3.org/2000/svg")  # pyright: ignore[reportAny]
 
     return root

@@ -42,4 +42,5 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()  # ty:ignore[missing-argument]
+# noinspection PyArgumentList
+settings = Settings()  # ty:ignore[missing-argument]  # pyright: ignore[reportCallIssue]

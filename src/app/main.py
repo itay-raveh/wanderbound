@@ -96,8 +96,6 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
     except ImportError:
         logger.warning("Playwright not installed. Install with: playwright install chromium")
         logger.info("Skipping PDF generation.")
-    except Exception:
-        logger.exception("Failed to generate PDF")
 
 
 def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
@@ -151,7 +149,7 @@ def _reload_step_data(
         layout_overrides = AlbumLayout.model_validate_json(layout_file.read_bytes())
 
     # Iterate all steps in layout_overrides to see what is claimed.
-    global_used_ids = set()
+    global_used_ids = set[Path]()
     for s_layout in layout_overrides.steps.values():
         if s_layout.cover_photo:
             global_used_ids.add(s_layout.cover_photo)
@@ -177,7 +175,7 @@ def _reload_step_data(
         photo_data.steps_hidden_photos[step.id] = hidden_photos
 
     # Rebuild layout object from processed results to include defaults and overrides
-    new_steps = {}
+    new_steps: dict[int, StepLayout] = {}
 
     for step in target_steps:
         cover = photo_data.steps_cover_photos.get(step.id)

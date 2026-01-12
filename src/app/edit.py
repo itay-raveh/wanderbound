@@ -1,5 +1,5 @@
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
 
 from aiohttp import web
 
@@ -10,7 +10,12 @@ logger = get_logger(__name__)
 
 
 class EditorServer:
-    def __init__(self, output_dir: Path, trip_dir: Path, regenerate_callback: Any) -> None:
+    def __init__(
+        self,
+        output_dir: Path,
+        trip_dir: Path,
+        regenerate_callback: Callable[[int], Awaitable[None]],
+    ) -> None:
         self.output_dir = output_dir
         self.trip_dir = trip_dir
         self.regenerate_callback = regenerate_callback
@@ -25,8 +30,7 @@ class EditorServer:
 
     async def handle_save(self, request: web.Request) -> web.Response:
         try:
-            data = await request.json()
-            step_layout = StepLayout(**data)
+            step_layout = StepLayout.model_validate(await request.json())
 
             # Load existing layout or create new
             current_layout = AlbumLayout(steps={})
@@ -50,59 +54,24 @@ class EditorServer:
             logger.exception("Error saving layout")
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
-    async def handle_move_photo(self, request: web.Request) -> web.Response:
-        try:
-            data = await request.json()
-            photo_id = data.get("photo_id")
-            src_step_id = data.get("src_step_id")
-            dest_step_id = data.get("dest_step_id")
-
-            logger.info(
-                "Virtual Move requested: %s from %s to %s", photo_id, src_step_id, dest_step_id
-            )
-
-            return web.json_response({"success": True})
-        except Exception as e:
-            logger.exception("Error handling move request")
-            return web.json_response({"success": False, "error": str(e)}, status=500)
-
     async def handle_save_batch(self, request: web.Request) -> web.Response:
-        try:
-            data = await request.json()
-            updates = data.get("updates", [])
+        data: dict[str, list[StepLayout]] = await request.json()  # pyright: ignore[reportAny]
+        current_layout = AlbumLayout.model_validate_json(self.layout_file.read_text())
+        step_ids_to_regen = set[int]()
 
-            if not updates:
-                return web.json_response({"success": True})
+        for updated_layout in data.get("updates", []):
+            step_layout = StepLayout.model_validate(updated_layout)
+            current_layout.steps[step_layout.step_id] = step_layout
+            step_ids_to_regen.add(step_layout.step_id)
 
-            # Load existing layout
-            current_layout = AlbumLayout(steps={})
-            if self.layout_file.exists():
-                try:
-                    current_layout = AlbumLayout.model_validate_json(self.layout_file.read_text())
-                except (ValueError, TypeError) as e:
-                    logger.warning("Failed to parse existing layout.json, starting fresh: %s", e)
+        self.layout_file.write_text(current_layout.model_dump_json(indent=2))
 
-            step_ids_to_regen = []
+        # Trigger regeneration for each step
+        # TODO(itay): we should pass all IDs to regeneration to do it once if main supports it.
+        for step_id in step_ids_to_regen:
+            await self.regenerate_callback(step_id)
 
-            # Apply all updates
-            for valid_data in updates:
-                step_layout = StepLayout(**valid_data)
-                current_layout.steps[step_layout.step_id] = step_layout
-                step_ids_to_regen.append(step_layout.step_id)
-
-            # Save back to file ATOMICALLY
-            self.layout_file.write_text(current_layout.model_dump_json(indent=2))
-
-            # Trigger regeneration for each step
-            # Optimally, we should pass all IDs to regeneration to do it once if main supports it.
-            # But callback only accepts one ID. We call it sequentially.
-            for step_id in step_ids_to_regen:
-                await self.regenerate_callback(step_id)
-
-            return web.json_response({"success": True})
-        except Exception as e:
-            logger.exception("Error saving batch layout")
-            return web.json_response({"success": False, "error": str(e)}, status=500)
+        return web.json_response({"success": True})
 
     def run(self, port: int = 8000) -> None:
         app = web.Application()
@@ -110,7 +79,6 @@ class EditorServer:
         app.router.add_get("/", self.handle_index)
         app.router.add_post("/api/save", self.handle_save)
         app.router.add_post("/api/save_batch", self.handle_save_batch)
-        app.router.add_post("/api/move_photo", self.handle_move_photo)
 
         app.router.add_static(str(self.trip_dir.absolute()), self.trip_dir)
 

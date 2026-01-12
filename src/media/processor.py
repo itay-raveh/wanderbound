@@ -34,10 +34,7 @@ def process_step_photos(
     photo_dir = _get_step_photo_dir(trip_dir, step)
     if not photo_dir:
         logger.warning(
-            "No photo directory found for step '%s' (ID: %s). "
-            "Expected directory pattern: %s_%s/photos in %s",
-            step.name,
-            step.id,
+            "No photo directory for step %s_%s in %s",
             step.slug,
             step.id,
             trip_dir,
@@ -80,7 +77,7 @@ def _apply_manual_layout(
 ) -> tuple[list[PhotoWithDims], Path | None, list[list[PhotoWithDims]]]:
     photo_map = {p.path: p for p in local_photos}
 
-    all_needed_paths = set()
+    all_needed_paths = set[Path]()
     if layout.cover_photo:
         all_needed_paths.add(layout.cover_photo)
     all_needed_paths.update(layout.hidden_photos)

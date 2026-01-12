@@ -1,7 +1,7 @@
 """Historical weather API integration for temperature data."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfo
 
@@ -42,7 +42,7 @@ def _normalize_icon_name(icon: str | None) -> str | None:
 
 def _find_night_hours(hours: list[WeatherHourData], tz: tzinfo) -> list[WeatherHourData]:
     """Find hours that are nighttime (evening 20-23 or early morning 0-3)."""
-    night_hours = []
+    night_hours: list[WeatherHourData] = []
     for hour_data in hours:
         hour_str = hour_data.datetime
         if not hour_str:
@@ -162,36 +162,25 @@ async def get_weather_data(
 
 async def fetch_weather_data(
     client: APIClient, steps: list[Step], progress_callback: Callable[[int], None] | None = None
-) -> list[WeatherData | None]:
+) -> Sequence[WeatherData]:
     """Fetch weather data for all steps."""
     logger.debug("Fetching weather data...")
 
-    tasks = []
-    for _index, step in enumerate(steps):
-        tasks.append(
-            asyncio.create_task(
-                get_weather_data(
-                    client,
-                    step.location.lat,
-                    step.location.lon,
-                    step.start_time,
-                    step.timezone_id,
-                )
+    weather_data = await asyncio.gather(
+        *(
+            get_weather_data(
+                client,
+                step.location.lat,
+                step.location.lon,
+                step.start_time,
+                step.timezone_id,
             )
-        )
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+            for step in steps
+        ),
+    )
 
     if progress_callback:
         progress_callback(len(steps))
-
-    weather_data: list[WeatherData | None] = []
-    for i, res in enumerate(results):
-        if isinstance(res, WeatherData):
-            weather_data.append(res)
-        else:
-            weather_data.append(WeatherData())
-            logger.warning("Failed to fetch weather for step %d", i)
 
     logger.debug("Fetched %d weather data entries", len(weather_data))
     return weather_data

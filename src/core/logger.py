@@ -44,15 +44,15 @@ class RichPrintHandler(logging.Handler):
         rprint(output)
 
 
-_HANDLER: logging.Handler
-if settings.debug:
-    _HANDLER = RichHandler(
+_HANDLER: logging.Handler = (
+    RichHandler(
         rich_tracebacks=True,
         tracebacks_show_locals=True,
         markup=True,
     )
-else:
-    _HANDLER = RichPrintHandler()
+    if settings.debug
+    else RichPrintHandler()
+)
 
 _HANDLER.setLevel(_LOG_LEVEL)
 

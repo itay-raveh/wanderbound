@@ -4,7 +4,7 @@ import asyncio
 import base64
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from io import BytesIO
 
 from PIL import Image
@@ -104,7 +104,7 @@ def _brightness_filter(rgb: RGB) -> bool:
 def _get_pixels(flag_data: bytes) -> list[RGB]:
     try:
         # noinspection PyTypeChecker
-        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()  # ty:ignore[invalid-assignment]
+        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()  # ty:ignore[invalid-assignment]  # pyright: ignore[reportAssignmentType]
     except OSError as e:
         logger.debug("Error loading flag image: %s", e)
         return []
@@ -179,10 +179,10 @@ async def fetch_flags(
     *,
     light_mode: bool = False,
     progress_callback: Callable[[int], None],
-) -> list[FlagData | None]:
+) -> Sequence[FlagData]:
     """Fetch flags and extract colors for all steps."""
 
-    async def _get_and_update_progress(step: Step) -> FlagData | None:
+    async def _get_and_update_progress(step: Step) -> FlagData:
         flag_url, accent_color = await _get_flag_uri_and_accent(
             client, step.location.country_code, light_mode=light_mode
         )
@@ -191,18 +191,9 @@ async def fetch_flags(
 
         return FlagData(flag_url=flag_url, accent_color=accent_color)
 
-    results = await asyncio.gather(
+    flag_results = await asyncio.gather(
         *(_get_and_update_progress(step) for step in steps),
-        return_exceptions=True,
     )
-
-    flag_results: list[FlagData | None] = []
-    for i, res in enumerate(results):
-        if isinstance(res, FlagData):
-            flag_results.append(res)
-        else:
-            flag_results.append(None)
-            logger.warning("Failed to fetch flag for step %d: %s", i, res)
 
     logger.debug("Processed %d flags", len(flag_results))
     return flag_results

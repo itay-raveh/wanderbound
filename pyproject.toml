@@ -69,7 +69,7 @@ packages = ["src"]
 [tool.taskipy.tasks]
 format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
-types = "ty check"
+types = "ty check && basedpyright"
 deps = "deptry ."
 html = "djlint static/*.jinja static/templates/*.jinja --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
@@ -115,6 +115,12 @@ convention = "google"
 max-complexity = 10
 
 [tool.ty]
+
+[tool.pyright]
+reportUnusedCallResult = false
+reportPrivateUsage = false
+reportImplicitOverride = false
+reportUnannotatedClassAttribute = false
 
 [tool.deptry.per_rule_ignores]
 # DEP002 = "Unused dependency"

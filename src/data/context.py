@@ -1,16 +1,15 @@
+from dataclasses import dataclass, field
 from pathlib import Path
-
-from pydantic import BaseModel, Field
 
 from src.data.locations import LocationEntry, TravelSegment
 from src.data.media import PhotoPage
 
 
-class StepTemplateContext(BaseModel):
+@dataclass
+class StepTemplateContext:
     id: int
     name: str
     country: str
-    country_code: str
     coords_lat: str
     coords_lon: str
     lat_val: float
@@ -38,13 +37,12 @@ class StepTemplateContext(BaseModel):
     use_two_columns: bool
     use_three_columns: bool
     photo_pages: list[PhotoPage]
-    hidden_photos: list[Path] = Field(default_factory=list)
     light_mode: bool
+    hidden_photos: list[Path] = field(default_factory=list)
 
 
-class TripTemplateContext(BaseModel):
-    """Processed trip data for the title page template."""
-
+@dataclass
+class TripTemplateContext:
     title: str
     date_range: str
     summary: str | None
@@ -55,7 +53,8 @@ class TripTemplateContext(BaseModel):
     path_segments: list[TravelSegment]
 
 
-class TripOverviewTemplateCtx(BaseModel):
+@dataclass
+class TripOverviewTemplateCtx:
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
     total_days: int

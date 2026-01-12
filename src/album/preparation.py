@@ -1,6 +1,6 @@
 """Step data preparation for HTML generation."""
 
-from geopy import Point
+from geopy.point import Point
 
 from src.core.logger import get_logger
 from src.core.settings import settings
@@ -50,18 +50,17 @@ def prepare_step_data(
         use_step_range=use_step_range,
     )
 
-    # TODO(itay): altitude here
-    coords_lat, coords_lon = (
-        Point(round(context.step.location.lat, 4), round(context.step.location.lon, 4))
-        .format_unicode()
-        .split(",")
-    )
+    # TODO(itay): altitude here?
+    coords_lat, coords_lon = str(
+        Point(
+            round(context.step.location.lat, 4), round(context.step.location.lon, 4)
+        ).format_unicode()
+    ).split(",")
 
     return StepTemplateContext(
         id=context.step.id,
         name=context.step.name,
         country=context.step.location.country,
-        country_code=context.step.location.country_code,
         coords_lat=coords_lat,
         coords_lon=coords_lon,
         lat_val=context.step.location.lat,

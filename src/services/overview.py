@@ -18,7 +18,7 @@ def calculate_trip_overview(
 ) -> TripOverviewTemplateCtx:
     """Calculate summary statistics for the trip."""
     countries: list[tuple[str, str]] = []
-    seen_countries = set()
+    seen_countries = set[str]()
 
     for step in steps:
         country_code = step.location.country_code

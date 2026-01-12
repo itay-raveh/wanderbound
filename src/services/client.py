@@ -1,4 +1,5 @@
 """Shared utilities for services: API client and helpers."""
+# pyright: reportAny=false, reportExplicitAny=false
 
 from types import TracebackType
 from typing import Any
@@ -27,7 +28,7 @@ class APIClient:
 
         # aiohttp requires base_url to be absolute if provided.
         # If it's empty, we should pass None.
-        self._client = aiohttp.ClientSession(
+        self._client: aiohttp.ClientSession = aiohttp.ClientSession(
             base_url=base_url, connector=connector, timeout=timeout
         )
 
@@ -47,17 +48,14 @@ class APIClient:
 
     def __getstate__(self) -> None:
         """Return None state for pickling to ensure constant cache key."""
-        return
 
-    async def get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def get_json(self, url: str, params: dict[str, str] | None = None) -> dict[str, Any]:
         """Fetch JSON data with rate limiting and retries."""
-        data = await self._fetch(url, params=params, response_type="json")
-        return dict(data)
+        return dict(await self._fetch(url, params=params, response_type="json"))
 
     async def get_content(self, url: str, params: dict[str, Any] | None = None) -> bytes:
         """Fetch binary content with rate limiting and retries."""
-        content = await self._fetch(url, params=params, response_type="content")
-        return bytes(content)
+        return bytes(await self._fetch(url, params=params, response_type="content"))
 
     @retry(
         stop=stop_after_attempt(3),

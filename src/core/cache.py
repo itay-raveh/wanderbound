@@ -1,8 +1,10 @@
+# pyright: basic
+
 import shutil
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from persist_cache import cache
+from persist_cache.persist_cache import cache
 
 from src.core.settings import settings
 
