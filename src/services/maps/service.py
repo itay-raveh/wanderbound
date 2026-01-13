@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
 from asyncio.locks import Lock
 from typing import TYPE_CHECKING
 
 import geopandas as gpd
+from lxml import etree
+from pyproj import Transformer
 
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import MapData, Step
+from src.data.models import Map
 
-from .coordinates import get_country_map_dot_position
-from .generator import generate_geo_calibrated_svg
+from .generator import _ETREE_XML_PARSER, generate_geo_calibrated_svg
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
 
+    from src.data.trip import Location
     from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -26,6 +27,22 @@ logger = get_logger(__name__)
 _NE_GEOJSON = "ne_50m_admin_0_countries.geojson"
 
 _NE_FETCH_LOCK = Lock()
+
+
+@cache_in_file()
+async def fetch_map(client: APIClient, loc: Location) -> Map:
+    """Get country map SVG and dot position."""
+    # Only one of the tasks needs to fetch the ne dataset,
+    # the rest should wait for it, and then they can simply use the local file.
+    await _NE_FETCH_LOCK.acquire()
+    world = await _load_natural_earth_data(client)
+    _NE_FETCH_LOCK.release()
+
+    svg_data = generate_geo_calibrated_svg(world, loc.country_code)
+    return Map(
+        svg_content=svg_data,
+        dot_position=_dot_position(loc, svg_data),
+    )
 
 
 async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
@@ -46,47 +63,23 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
     return gpd.read_file(geojson_file)  # pyright: ignore[reportUnknownMemberType]
 
 
-@cache_in_file()
-async def get_map_data(
-    client: APIClient,
-    country_code: str,
-    lat: float,
-    lon: float,
-) -> MapData:
-    """Get country map SVG and dot position."""
-    # Only one of the tasks needs to fetch the ne dataset,
-    # the rest should wait for it, and then they can simply use the local file.
-    await _NE_FETCH_LOCK.acquire()
-    world = await _load_natural_earth_data(client)
-    _NE_FETCH_LOCK.release()
-
-    svg_data = generate_geo_calibrated_svg(world, country_code)
-    dot_position = get_country_map_dot_position(lon, lat, svg_data)
-
-    return MapData(
-        svg_content=svg_data,
-        dot_position=dot_position,
-    )
+_transform: Callable[[float, float], tuple[float, float]] = Transformer.from_crs(
+    "EPSG:4326", "EPSG:3857", always_xy=True
+).transform
 
 
-async def fetch_maps(
-    client: APIClient, steps: list[Step], progress_callback: Callable[[int], None]
-) -> Sequence[MapData]:
-    """Fetch maps and calculate dot positions for all steps."""
+def _dot_position(loc: Location, svg_data: str) -> tuple[float, float]:
+    """Calculate the relative position (0-100%) of a location dot within a country map."""
+    root = etree.fromstring(svg_data, parser=_ETREE_XML_PARSER)
 
-    async def _get_map_data_and_progress(step: Step) -> MapData:
-        map_data = await get_map_data(
-            client,
-            step.location.country_code,
-            step.location.lat,
-            step.location.lon,
-        )
-        progress_callback(1)
-        return map_data
+    min_x, min_y, max_x, max_y = [float(x) for x in str(root.attrib["data-bounds"]).split(",")]
 
-    map_results = await asyncio.gather(
-        *(_get_map_data_and_progress(step) for step in steps),
-    )
+    x, y = _transform(loc.lon, loc.lat)
 
-    logger.debug("Processed %d maps", len(map_results))
-    return map_results
+    x_ratio = (x - min_x) / (max_x - min_x)
+    y_ratio = (max_y - y) / (max_y - min_y)
+
+    x_percent = 100 * max(0.0, min(x_ratio, 1))
+    y_percent = 100 * max(0.0, min(y_ratio, 1))
+
+    return x_percent, y_percent

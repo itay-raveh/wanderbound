@@ -9,27 +9,27 @@ from src.data.media import (
 )
 from src.data.trip import (
     AlbumGenerationConfig,
-    FlagData,
-    MapData,
+    EnrichedStep,
+    Flag,
+    Map,
     Step,
     StepContext,
-    StepExternalData,
     Trip,
-    WeatherData,
+    Weather,
 )
 
 __all__ = [
     "AlbumGenerationConfig",
     "AlbumPhoto",
     "CoverPhoto",
-    "FlagData",
-    "MapData",
+    "EnrichedStep",
+    "Flag",
+    "Map",
     "PageLayout",
     "PhotoPage",
     "PhotoWithDims",
     "Step",
     "StepContext",
-    "StepExternalData",
     "Trip",
-    "WeatherData",
+    "Weather",
 ]

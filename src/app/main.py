@@ -178,7 +178,7 @@ def _reload_step_data(
     new_steps: dict[int, StepLayout] = {}
 
     for step in target_steps:
-        cover = photo_data.steps_cover_photos.get(step.id)
+        cover = photo_data.steps_cover_photos[step.id]
         pages = photo_data.steps_photo_pages.get(step.id, [])
         hidden = photo_data.steps_hidden_photos.get(step.id, [])
 

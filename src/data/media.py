@@ -34,6 +34,6 @@ class PhotoPage:
 @dataclass
 class AlbumPhoto:
     steps_with_photos: dict[int, list[PhotoWithDims]]
-    steps_cover_photos: dict[int, Path | None]
+    steps_cover_photos: dict[int, Path]
     steps_photo_pages: dict[int, list[list[PhotoWithDims]]]
     steps_hidden_photos: dict[int, list[Path]] = field(default_factory=dict)

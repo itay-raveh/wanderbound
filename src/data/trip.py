@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
@@ -22,8 +23,8 @@ class Location(BaseModel):
 
 class Step(BaseModel):
     id: int
-    name: str = Field(validation_alias="display_name")
-    slug: str = Field(validation_alias="display_slug")
+    name: str = Field(alias="display_name")
+    slug: str = Field(alias="display_slug")
     description: _Str
     start_time: float
     timezone_id: str
@@ -33,9 +34,13 @@ class Step(BaseModel):
     def dir_name(self) -> str:
         return f"{self.slug}_{self.id}"
 
+    @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone_id)
+
     @cached_property
     def date(self) -> datetime:
-        return datetime.fromtimestamp(self.start_time, tz=ZoneInfo(self.timezone_id))
+        return datetime.fromtimestamp(self.start_time, tz=self.timezone)
 
 
 class Trip(BaseModel):
@@ -61,7 +66,7 @@ class Trip(BaseModel):
 
 
 @dataclass
-class WeatherData:
+class Weather:
     day_temp: float | None = None
     night_temp: float | None = None
     day_feels_like: float | None = None
@@ -71,24 +76,15 @@ class WeatherData:
 
 
 @dataclass
-class FlagData:
+class Flag:
     flag_url: str
     accent_color: str
 
 
 @dataclass
-class MapData:
+class Map:
     svg_content: str
     dot_position: tuple[float, float]
-
-
-@dataclass
-class StepExternalData:
-    elevation: float
-    weather_data: WeatherData
-    flag_data: FlagData
-    map_data: MapData
-    cover_photo: Path | None
 
 
 @dataclass
@@ -100,9 +96,17 @@ class AlbumGenerationConfig:
     editor_mode: bool = False
 
 
+class EnrichedStep(Step):
+    altitude: float
+    weather: Weather
+    flag: Flag
+    map: Map
+
+
 @dataclass
 class StepContext:
-    step: Step
+    step: EnrichedStep
+    cover_photo: Path
     step_index: int
-    steps: list[Step]
+    steps: Sequence[EnrichedStep]
     trip: Trip

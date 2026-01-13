@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 class Args(Tap):
     trip_dir: Path  # Directory containing unzipped Polarsteps data
-    steps: slice[int] | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
+    steps: slice | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
     sample: int | None = None  # Sample N evenly distributed steps (for testing across countries)
     title: str | None = None  # Override trip title
     subtitle: str | None = None  # Override trip subtitle ("summary" field in trip.json)

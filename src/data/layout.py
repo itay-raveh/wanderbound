@@ -10,7 +10,7 @@ class PageLayout(BaseModel):
 class StepLayout(BaseModel):
     step_id: int
     name: str
-    cover_photo: Path | None = None
+    cover_photo: Path
     pages: list[PageLayout]
     hidden_photos: list[Path] = []
 

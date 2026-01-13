@@ -19,7 +19,7 @@ def process_step_photos(
     trip_dir: Path,
     global_used_ids: set[Path],
     layout: StepLayout | None = None,
-) -> tuple[list[PhotoWithDims], Path | None, list[list[PhotoWithDims]], list[Path]]:
+) -> tuple[list[PhotoWithDims], Path, list[list[PhotoWithDims]], list[Path]]:
     """Process photos for a single step, including loading, selection, and layout.
 
     Args:
@@ -31,24 +31,9 @@ def process_step_photos(
     Returns:
         tuple: (all_photos, cover_photo, pages, hidden_photos)
     """
-    photo_dir = _get_step_photo_dir(trip_dir, step)
-    if not photo_dir:
-        logger.warning(
-            "No photo directory for step %s_%s in %s",
-            step.slug,
-            step.id,
-            trip_dir,
-        )
-        return [], None, [], []
+    photo_dir = trip_dir / step.dir_name / "photos"
 
     photos = list(map(_load_photo, photo_dir.iterdir()))
-    if not photos:
-        logger.warning(
-            "No photos found in %s for step '%s'",
-            photo_dir,
-            step.name,
-        )
-        return [], None, [], []
 
     if layout:
         # noinspection PyTypeChecker
@@ -66,7 +51,7 @@ def process_step_photos(
         ),
     )
 
-    return photos, cover_photo.path if cover_photo else None, pages, []
+    return photos, cover_photo.path, pages, []
 
 
 def _apply_manual_layout(
@@ -74,7 +59,7 @@ def _apply_manual_layout(
     local_photos: list[PhotoWithDims],
     layout: StepLayout,
     global_used_photos: set[Path],
-) -> tuple[list[PhotoWithDims], Path | None, list[list[PhotoWithDims]]]:
+) -> tuple[list[PhotoWithDims], Path, list[list[PhotoWithDims]]]:
     photo_map = {p.path: p for p in local_photos}
 
     all_needed_paths = set[Path]()
@@ -120,14 +105,6 @@ def _build_pages(
     return pages
 
 
-def _get_step_photo_dir(trip_dir: Path, step: Step) -> Path | None:
-    photo_dir = trip_dir / step.dir_name / "photos"
-    if photo_dir.exists():
-        return photo_dir
-
-    return None
-
-
 def _load_photo(img_path: Path) -> PhotoWithDims:
     with Image.open(img_path) as img:
         img_rotated = ImageOps.exif_transpose(img)
@@ -140,10 +117,7 @@ def _load_photo(img_path: Path) -> PhotoWithDims:
     )
 
 
-def _select_cover(photos: list[PhotoWithDims]) -> PhotoWithDims | None:
-    if not photos:
-        return None
-
+def _select_cover(photos: list[PhotoWithDims]) -> PhotoWithDims:
     portraits = [p for p in photos if p.aspect_ratio < 1]
     if portraits:
         return portraits[0]

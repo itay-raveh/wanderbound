@@ -15,6 +15,12 @@ if TYPE_CHECKING:
     from shapely.coords import CoordinateSequence
     from shapely.geometry.base import BaseGeometry
 
+_ETREE_XML_PARSER = etree.XMLParser(
+    recover=True,
+    strip_cdata=False,
+    no_network=True,  # Don't fetch external DTDs
+)
+
 logger = get_logger(__name__)
 
 

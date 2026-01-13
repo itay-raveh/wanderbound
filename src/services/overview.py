@@ -1,5 +1,7 @@
 """Trip summary calculation service."""
 
+from collections.abc import Sequence
+
 from geopy.distance import distance
 
 from src.core.logger import get_logger
@@ -12,7 +14,7 @@ logger = get_logger(__name__)
 
 
 def calculate_trip_overview(
-    steps: list[Step],
+    steps: Sequence[Step],
     photo_data: AlbumPhoto,
     locations: list[LocationEntry],
 ) -> TripOverviewTemplateCtx:

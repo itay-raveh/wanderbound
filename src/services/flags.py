@@ -1,19 +1,21 @@
 """Country flag API and color extraction."""
 
-import asyncio
 import base64
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from PIL import Image
 
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import FlagData, Step
+from src.data.models import Flag
 from src.services.client import APIClient
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = get_logger(__name__)
 
@@ -29,7 +31,7 @@ _MAX_BLEND_FACTOR = 0.25
 RGB = tuple[int, int, int]
 
 _FLAGS: dict[str, bytes] = {}
-_COLORS: dict[str, RGB | None] = {}
+_COLORS: dict[str, RGB] = {}
 
 
 def _color_distance(color1: RGB, color2: RGB) -> float:
@@ -130,17 +132,13 @@ def _find_best_color_from_candidates(
     return None
 
 
-def _extract_prominent_color(flag_data: bytes, *, light_mode: bool) -> RGB | None:
+def _extract_prominent_color(flag_data: bytes, *, light_mode: bool) -> RGB:
     pixels = _get_pixels(flag_data)
 
-    if not pixels:
-        return None
-
-    color_counts = Counter(pixels).most_common(5)
+    color_counts = Counter(pixels).most_common(3)
 
     # Try to find a color without conflicts
-    best_color = _find_best_color_from_candidates(color_counts, light_mode=light_mode)
-    if best_color:
+    if best_color := _find_best_color_from_candidates(color_counts, light_mode=light_mode):
         return best_color
 
     # Fallback to most common color, nudging if needed to avoid conflicts
@@ -148,9 +146,7 @@ def _extract_prominent_color(flag_data: bytes, *, light_mode: bool) -> RGB | Non
 
 
 @cache_in_file()
-async def _get_flag_uri_and_accent(
-    client: APIClient, country_code: str, *, light_mode: bool
-) -> tuple[str, str]:
+async def fetch_flag(client: APIClient, country_code: str, *, light_mode: bool) -> Flag:
     """Get flag URL and accent color, cached by country code and mode."""
     if country_code not in _FLAGS:
         _FLAGS[country_code] = await client.get_content(
@@ -163,37 +159,7 @@ async def _get_flag_uri_and_accent(
         )
 
     b64_flag_data = base64.b64encode(_FLAGS[country_code]).decode("utf-8")
-    flag_url = f"data:image/png;base64,{b64_flag_data}"
-
-    if color := _COLORS[country_code]:
-        r, g, b = color
-        return flag_url, f"#{r:02x}{g:02x}{b:02x}"
-
-    logger.debug("No suitable pixels or color counts found, using default accent color")
-    return flag_url, settings.accent_color
-
-
-async def fetch_flags(
-    client: APIClient,
-    steps: list[Step],
-    *,
-    light_mode: bool = False,
-    progress_callback: Callable[[int], None],
-) -> Sequence[FlagData]:
-    """Fetch flags and extract colors for all steps."""
-
-    async def _get_and_update_progress(step: Step) -> FlagData:
-        flag_url, accent_color = await _get_flag_uri_and_accent(
-            client, step.location.country_code, light_mode=light_mode
-        )
-
-        progress_callback(1)
-
-        return FlagData(flag_url=flag_url, accent_color=accent_color)
-
-    flag_results = await asyncio.gather(
-        *(_get_and_update_progress(step) for step in steps),
+    r, g, b = _COLORS[country_code]
+    return Flag(
+        flag_url=f"data:image/png;base64,{b64_flag_data}", accent_color=f"#{r:02x}{g:02x}{b:02x}"
     )
-
-    logger.debug("Processed %d flags", len(flag_results))
-    return flag_results
