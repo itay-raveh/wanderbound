@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from pathlib import Path
 
 from aiohttp import web
@@ -14,7 +14,7 @@ class EditorServer:
         self,
         output_dir: Path,
         trip_dir: Path,
-        regenerate_callback: Callable[[int], Awaitable[None]],
+        regenerate_callback: Callable[[int], None],
     ) -> None:
         self.output_dir = output_dir
         self.trip_dir = trip_dir
@@ -47,7 +47,7 @@ class EditorServer:
             self.layout_file.write_text(current_layout.model_dump_json(indent=2))
 
             # Trigger regeneration
-            await self.regenerate_callback(step_layout.step_id)
+            self.regenerate_callback(step_layout.step_id)
 
             return web.json_response({"success": True})
         except Exception as e:
@@ -69,7 +69,7 @@ class EditorServer:
         # Trigger regeneration for each step
         # TODO(itay): we should pass all IDs to regeneration to do it once if main supports it.
         for step_id in step_ids_to_regen:
-            await self.regenerate_callback(step_id)
+            self.regenerate_callback(step_id)
 
         return web.json_response({"success": True})
 

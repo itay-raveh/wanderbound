@@ -13,18 +13,10 @@ from src.data.models import (
 logger = get_logger(__name__)
 
 
-def prepare_step_template(
-    context: StepContext,
-    *,
-    use_step_range: bool,
-) -> StepTemplateContext:
+def prepare_step_template(context: StepContext) -> StepTemplateContext:
     is_hebrew_text = is_hebrew(context.step.description)
 
     progress = 100 * context.step_index / (len(context.steps) - 1)
-    day_num = context.step_index + 1
-    if not use_step_range:
-        day_num += (context.step.date - context.trip.start_date).days
-
     # TODO(itay): altitude here?
     coords_lat, coords_lon = str(
         Point(
@@ -61,7 +53,7 @@ def prepare_step_template(
             )
         ),
         altitude_str=f"{round(context.step.altitude):,}",
-        day_num=day_num,
+        day_num=(context.step_index + 1),
         progress_percent=progress,
         day_counter_box_position=max(6.0, min(progress, 94.0)),
         day_counter_arrow_position=max(1.0, min(progress, 99.0)),

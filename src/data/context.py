@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.data.locations import LocationEntry, TravelSegment
+from src.data.locations import PathPoint, PathSegment
 from src.data.media import PhotoPage
 
 
@@ -49,12 +49,12 @@ class TripTemplateContext:
     cover_photo_path: str | None
     title_dir: str
     summary_dir: str
-    path_points: list[LocationEntry]
-    path_segments: list[TravelSegment]
+    path_points: list[PathPoint]
+    path_segments: list[PathSegment]
 
 
 @dataclass
-class TripOverviewTemplateCtx:
+class OverviewTemplateCtx:
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
     total_days: int

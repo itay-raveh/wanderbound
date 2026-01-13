@@ -48,7 +48,7 @@ class Trip(BaseModel):
     start_time: float = Field(validation_alias="start_date")
     end_time: float = Field(validation_alias="end_date")
     timezone_id: str
-    all_steps: list[Step]
+    all_steps: Sequence[Step]
     summary: _Str
     cover_photo: CoverPhoto
 
@@ -90,7 +90,7 @@ class Map:
 @dataclass
 class AlbumGenerationConfig:
     trip: Trip
-    trip_template_ctx: TripTemplateContext | None
+    trip_template_ctx: TripTemplateContext
     output_dir: Path
     trip_dir: Path
     editor_mode: bool = False
@@ -109,4 +109,3 @@ class StepContext:
     cover_photo: Path
     step_index: int
     steps: Sequence[EnrichedStep]
-    trip: Trip

@@ -19,39 +19,73 @@ from src.core.logger import get_logger
 from src.core.text import is_hebrew
 from src.data.context import TripTemplateContext
 from src.data.layout import AlbumLayout, PageLayout, StepLayout
-from src.data.locations import LocationEntry, detect_segments, load_locations
+from src.data.locations import PathPoint, detect_segments, load_locations
 from src.data.models import (
     AlbumGenerationConfig,
     AlbumPhoto,
     Step,
     Trip,
 )
+from src.data.trip import EnrichedStep
 from src.media.processor import process_step_photos
+from src.services.altitude import fetch_all_altitudes
+from src.services.client import APIClient
+from src.services.flags import fetch_flag
+from src.services.maps import fetch_map
+from src.services.weather import fetch_weather
 
 from .args import Args
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from src.data.models import Step
 
 logger = get_logger(__name__)
 
 
-async def _generate_html_album(
-    steps: list[Step],
+async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
+    """Fetch all external data concurrently."""
+    async with APIClient() as client:
+        results = await asyncio.gather(
+            *(
+                asyncio.gather(
+                    fetch_weather(client, step),
+                    fetch_flag(client, step.location.country_code),
+                    fetch_map(client, step.location),
+                )
+                for step in steps
+            ),
+        )
+
+        alts = await fetch_all_altitudes(client, steps)
+
+    return [
+        EnrichedStep(
+            **step.model_dump(by_alias=True),  # pyright: ignore[reportAny]
+            altitude=altitude,
+            weather=weather,
+            flag=flag,
+            map=map_,
+        )
+        for step, altitude, (weather, flag, map_) in zip(steps, alts, results, strict=True)
+    ]
+
+
+def _generate_html_album(
+    steps: Sequence[EnrichedStep],
     photo_data: AlbumPhoto,
     config: AlbumGenerationConfig,
-    locations: list[LocationEntry],
-    *,
-    use_step_range: bool,
+    path_points: list[PathPoint],
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
-        logger.debug("Generating album HTML...")
-        html_path = await generate_album_html(
+        html_path = generate_album_html(
             steps,
             photo_data,
-            config,
-            locations,
-            use_step_range=use_step_range,
+            path_points,
+            config.trip_template_ctx,
+            config.output_dir,
+            editor_mode=config.editor_mode,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
     return html_path
@@ -120,7 +154,7 @@ def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
     return trip_data.cover_photo.path
 
 
-def _process_locations(trip_dir: Path, steps: list[Step]) -> list[LocationEntry]:
+def _process_locations(trip_dir: Path, steps: Sequence[Step]) -> list[PathPoint]:
     """Load and process locations.json data."""
     locations_path = trip_dir / "locations.json"
     start_time = steps[0].date.timestamp()
@@ -131,7 +165,7 @@ def _process_locations(trip_dir: Path, steps: list[Step]) -> list[LocationEntry]
 
 def _reload_step_data(
     step_id: int | None,
-    all_steps: list[Step],
+    all_steps: Sequence[Step],
     trip_dir: Path,
     photo_data: AlbumPhoto,
     output_dir: Path,
@@ -206,7 +240,7 @@ def _reload_step_data(
 def main() -> None:
     args = Args(underscores_to_dashes=True).parse_args()
 
-    trip_json_path = Path(args.trip_dir) / "trip.json"
+    trip_json_path = args.trip_dir / "trip.json"
     if not trip_json_path.exists():
         logger.error(
             "trip.json not found at %s. Please ensure the trip directory contains trip.json",
@@ -218,20 +252,14 @@ def main() -> None:
 
     if args.no_cache:
         clear_cache()
-        logger.info("Cleared cache")
+        logger.warning("Cleared cache")
 
     with get_console().status("[bold blue]Loading trip data..."):
-        logger.debug("Loading trip data from %s", trip_json_path)
         trip = Trip.model_validate_json(
             trip_json_path.read_text(encoding="utf-8"),
         )
-        logger.debug("Trip data loaded successfully")
 
-    if not trip.all_steps:
-        logger.error("No steps found in trip data")
-        return
-
-    steps = args.filter_steps(trip.all_steps)
+    steps = asyncio.run(enrich_steps(args.filter_steps(trip.all_steps)))
 
     display_title = args.title or trip.name
     display_subtitle = args.subtitle or trip.summary
@@ -260,8 +288,6 @@ def main() -> None:
 
     _reload_step_data(None, steps, args.trip_dir, photo_data, args.out)
 
-    use_step_range = args.progress_mode == "step-range"
-
     album_config = AlbumGenerationConfig(
         trip=trip,
         trip_template_ctx=trip_template_ctx,
@@ -271,28 +297,24 @@ def main() -> None:
     )
 
     # Initial Generation
-    html_path = asyncio.run(
-        _generate_html_album(
-            steps,
-            photo_data,
-            album_config,
-            path_points,
-            use_step_range=use_step_range,
-        )
+    html_path = _generate_html_album(
+        steps,
+        photo_data,
+        album_config,
+        path_points,
     )
 
     if args.edit:
         logger.info("Starting Editor Mode...")
 
-        async def regenerate_callback(step_id: int) -> None:
+        def regenerate_callback(step_id: int) -> None:
             logger.info("Regenerating step %s...", step_id)
             _reload_step_data(step_id, steps, args.trip_dir, photo_data, args.out)
-            await _generate_html_album(
+            _generate_html_album(
                 steps,
                 photo_data,
                 album_config,
                 path_points,
-                use_step_range=use_step_range,
             )
             logger.info("Regeneration complete.")
 
@@ -310,7 +332,3 @@ def main() -> None:
         logger.info("Album generated successfully!", extra={"success": True})
         if not args.no_open:
             _open_file(html_path, "HTML")
-
-
-if __name__ == "__main__":
-    main()

@@ -290,7 +290,7 @@ function handleContextMenu(e) {
     document.getElementById("ctx-cover").onclick = () => {
         const stepPage = photoItem.closest(".step-page");
         const stepId = stepPage.dataset.stepId;
-        saveStepLayout(stepId, {cover_photo_id: photoId}).then(() =>
+        saveStepLayout(stepId, {cover_photo: photoId}).then(() =>
             location.reload()
         );
     };
@@ -400,7 +400,7 @@ function collectStepData(stepId, overrides = {}) {
         name: stepPage?.dataset.stepName,
         pages: pages,
         hidden_photos: hiddenPhotos,
-        cover_photo_id: stepPage?.dataset.stepCover,
+        cover_photo: stepPage?.dataset.stepCover,
         ...overrides,
     };
 }

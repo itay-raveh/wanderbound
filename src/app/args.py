@@ -1,8 +1,8 @@
 """CLI argument parsing for the album generator."""
 # pyright: basic
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal
 
 from tap import Tap
 
@@ -21,8 +21,6 @@ class Args(Tap):
     cover_photo: Path | None = None  # Override cover photo path
     out: Path = Path("output")  # Output directory for HTML/PDF files
     pdf: bool = False  # Generate PDF file using Playwright (requires playwright install)
-    progress_mode: Literal["original", "step-range"] = "step-range"
-    """Progress bar mode: 'original' uses trip days, 'step-range' uses step range"""
     no_open: bool = False  # Do not automatically open the generated album in the browser
     no_cache: bool = False  # Force regeneration of cached data (maps, weather, etc.)
     edit: bool = False  # Enable manual layout editor
@@ -31,7 +29,7 @@ class Args(Tap):
         self.add_argument("trip_dir", type=Path)
         self.add_argument("--steps", type=_step_slice)
 
-    def filter_steps(self, all_steps: list[Step]) -> list[Step]:
+    def filter_steps(self, all_steps: Sequence[Step]) -> Sequence[Step]:
         logger.info("Found %d total steps", len(all_steps))
 
         if self.sample:
@@ -40,7 +38,7 @@ class Args(Tap):
             return dist_steps
 
         if self.steps:
-            range_steps: list[Step] = all_steps[self.steps]
+            range_steps = all_steps[self.steps]
             logger.info(
                 "Filtered to steps %d-%d: %d steps",
                 self.steps.start,
@@ -65,7 +63,7 @@ def _step_slice(range_str: str) -> slice:
     return slice(step_num, step_num + 1)
 
 
-def _get_steps_distributed(all_steps: list[Step], count: int) -> list[Step]:
+def _get_steps_distributed(all_steps: Sequence[Step], count: int) -> Sequence[Step]:
     if count == 1:
         return [all_steps[len(all_steps) // 2]]
 

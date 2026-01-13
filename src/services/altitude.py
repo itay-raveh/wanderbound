@@ -11,6 +11,8 @@ from src.core.logger import get_logger
 from src.core.settings import settings
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from src.data.models import Step
     from src.services.client import APIClient
 
@@ -22,10 +24,7 @@ logger = get_logger(__name__)
 
 
 @cache_in_file()
-async def fetch_all_altitudes(
-    client: APIClient,
-    steps: list[Step],
-) -> list[float]:
+async def fetch_all_altitudes(client: APIClient, steps: Sequence[Step]) -> list[float]:
     all_elevations: list[float] = []
 
     for batch in chunked(((step.location.lat, step.location.lon) for step in steps), _CHUK_SIZE):

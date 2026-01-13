@@ -10,25 +10,25 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-class LocationEntry(BaseModel):
+class PathPoint(BaseModel):
     lat: float
     lon: float
     time: float
 
 
 class LocationEntries(BaseModel):
-    locations: list[LocationEntry]
+    locations: list[PathPoint]
 
 
-class TravelSegment(BaseModel):
-    points: list[LocationEntry]
+class PathSegment(BaseModel):
+    points: list[PathPoint]
     is_flight: bool
 
 
-def detect_segments(locations: list[LocationEntry]) -> list[TravelSegment]:
+def detect_segments(locations: list[PathPoint]) -> list[PathSegment]:
     """Split locations into ground and flight segments based on speed and distance."""
-    segments: list[TravelSegment] = []
-    points: list[LocationEntry] = [locations[0]]
+    segments: list[PathSegment] = []
+    points: list[PathPoint] = [locations[0]]
 
     for prev, curr in pairwise(locations):
         dist_km = distance((prev.lat, prev.lon), (curr.lat, curr.lon)).km
@@ -36,20 +36,18 @@ def detect_segments(locations: list[LocationEntry]) -> list[TravelSegment]:
 
         # Very fast over a large distance, must be a flight
         if speed_kmh > 150 and dist_km > 50:
-            segments.append(TravelSegment(points=points, is_flight=False))
+            segments.append(PathSegment(points=points, is_flight=False))
             points = []
-            segments.append(TravelSegment(points=[prev, curr], is_flight=True))
+            segments.append(PathSegment(points=[prev, curr], is_flight=True))
 
         points.append(curr)
 
-    segments.append(TravelSegment(points=points, is_flight=False))
+    segments.append(PathSegment(points=points, is_flight=False))
 
     return segments
 
 
-def _filter_outliers(
-    locations: list[LocationEntry], max_speed_kmh: float = 1500.0
-) -> list[LocationEntry]:
+def _filter_outliers(locations: list[PathPoint], max_speed_kmh: float = 1500.0) -> list[PathPoint]:
     """Remove points that imply travel speeds greater than max_speed_kmh.
 
     This is calculated relative to the last valid point.
@@ -102,7 +100,7 @@ def load_locations(
     locations_path: Path,
     min_time: float | None = None,
     max_time: float | None = None,
-) -> list[LocationEntry]:
+) -> list[PathPoint]:
     """Load, parse, clean, and filter location data from a JSON file.
 
     Args:
