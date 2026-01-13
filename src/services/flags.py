@@ -72,12 +72,12 @@ def _color_brightness(color: RGB) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def _adjust_color_for_contrast(color: RGB, *, light_mode: bool) -> RGB:
+def _adjust_color_for_contrast(color: RGB) -> RGB:
     """Adjust color brightness to ensure contrast against background."""
     brightness = _color_brightness(color)
     r, g, b = color
 
-    if light_mode:
+    if settings.light_mode:
         target_brightness = _LIGHT_MODE_TARGET_BRIGHTNESS
         if brightness < target_brightness:
             blend_factor = (
@@ -114,9 +114,7 @@ def _get_pixels(flag_data: bytes) -> list[RGB]:
         return list(filter(_brightness_filter, pixel_view))
 
 
-def _find_best_color_from_candidates(
-    color_counts: list[tuple[RGB, int]], *, light_mode: bool
-) -> RGB | None:
+def _find_best_color_from_candidates(color_counts: list[tuple[RGB, int]]) -> RGB | None:
     min_allowed_count = color_counts[0][1] * _COLOR_COUNT_MIN_RATIO
 
     for rgb, count in color_counts:
@@ -127,26 +125,26 @@ def _find_best_color_from_candidates(
             if other and _color_distance(rgb, other) < 0.1:
                 break
         else:
-            return _adjust_color_for_contrast(rgb, light_mode=light_mode)
+            return _adjust_color_for_contrast(rgb)
 
     return None
 
 
-def _extract_prominent_color(flag_data: bytes, *, light_mode: bool) -> RGB:
+def _extract_prominent_color(flag_data: bytes) -> RGB:
     pixels = _get_pixels(flag_data)
 
     color_counts = Counter(pixels).most_common(3)
 
     # Try to find a color without conflicts
-    if best_color := _find_best_color_from_candidates(color_counts, light_mode=light_mode):
+    if best_color := _find_best_color_from_candidates(color_counts):
         return best_color
 
     # Fallback to most common color, nudging if needed to avoid conflicts
-    return _adjust_color_for_contrast(color_counts[0][0], light_mode=light_mode)
+    return _adjust_color_for_contrast(color_counts[0][0])
 
 
 @cache_in_file()
-async def fetch_flag(client: APIClient, country_code: str, *, light_mode: bool) -> Flag:
+async def fetch_flag(client: APIClient, country_code: str) -> Flag:
     """Get flag URL and accent color, cached by country code and mode."""
     if country_code not in _FLAGS:
         _FLAGS[country_code] = await client.get_content(
@@ -154,9 +152,7 @@ async def fetch_flag(client: APIClient, country_code: str, *, light_mode: bool) 
         )
 
     if country_code not in _COLORS:
-        _COLORS[country_code] = _extract_prominent_color(
-            _FLAGS[country_code], light_mode=light_mode
-        )
+        _COLORS[country_code] = _extract_prominent_color(_FLAGS[country_code])
 
     b64_flag_data = base64.b64encode(_FLAGS[country_code]).decode("utf-8")
     r, g, b = _COLORS[country_code]

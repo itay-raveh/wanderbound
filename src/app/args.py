@@ -23,7 +23,6 @@ class Args(Tap):
     pdf: bool = False  # Generate PDF file using Playwright (requires playwright install)
     progress_mode: Literal["original", "step-range"] = "step-range"
     """Progress bar mode: 'original' uses trip days, 'step-range' uses step range"""
-    light_mode: bool = False  # Use light mode instead of dark mode
     no_open: bool = False  # Do not automatically open the generated album in the browser
     no_cache: bool = False  # Force regeneration of cached data (maps, weather, etc.)
     edit: bool = False  # Enable manual layout editor

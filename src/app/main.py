@@ -43,7 +43,6 @@ async def _generate_html_album(
     locations: list[LocationEntry],
     *,
     use_step_range: bool,
-    light_mode: bool,
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
         logger.debug("Generating album HTML...")
@@ -53,7 +52,6 @@ async def _generate_html_album(
             config,
             locations,
             use_step_range=use_step_range,
-            light_mode=light_mode,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
     return html_path
@@ -280,7 +278,6 @@ def main() -> None:
             album_config,
             path_points,
             use_step_range=use_step_range,
-            light_mode=args.light_mode,
         )
     )
 
@@ -296,7 +293,6 @@ def main() -> None:
                 album_config,
                 path_points,
                 use_step_range=use_step_range,
-                light_mode=args.light_mode,
             )
             logger.info("Regeneration complete.")
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from src.core.logger import get_logger
+from src.core.settings import settings
 from src.data.context import StepTemplateContext
 from src.data.locations import LocationEntry
 from src.data.models import (
@@ -37,17 +38,16 @@ class GeneratorContext:
     photo_data: AlbumPhoto
     config: AlbumGenerationConfig
     use_step_range: bool
-    light_mode: bool
 
 
-async def _enrich_steps(steps: list[Step], *, light_mode: bool) -> list[EnrichedStep]:
+async def _enrich_steps(steps: list[Step]) -> list[EnrichedStep]:
     """Fetch all external data concurrently."""
     async with APIClient() as client:
         results = await asyncio.gather(
             *(
                 asyncio.gather(
                     fetch_weather(client, step),
-                    fetch_flag(client, step.location.country_code, light_mode=light_mode),
+                    fetch_flag(client, step.location.country_code),
                     fetch_map(client, step.location),
                 )
                 for step in steps
@@ -92,7 +92,6 @@ def _process_steps(
         step_data = prepare_step_template(
             step_context,
             use_step_range=context.use_step_range,
-            light_mode=context.light_mode,
         )
         step_data.photo_pages = photo_pages_data
         step_data.hidden_photos = hidden_photos
@@ -108,7 +107,6 @@ async def generate_album_html(
     locations: list[LocationEntry],
     *,
     use_step_range: bool = False,
-    light_mode: bool = False,
 ) -> Path:
     """Generate HTML pages for the photo album."""
     context = GeneratorContext(
@@ -116,11 +114,10 @@ async def generate_album_html(
         photo_data=photo_data,
         config=config,
         use_step_range=use_step_range,
-        light_mode=light_mode,
     )
 
     # Batch fetch all external data
-    enriched_steps = await _enrich_steps(steps, light_mode=light_mode)
+    enriched_steps = await _enrich_steps(steps)
 
     # Prepare step data
     steps_template_ctx = _process_steps(context, enriched_steps)
@@ -144,7 +141,7 @@ async def generate_album_html(
     html = template.render(
         trip=config.trip_template_ctx,
         steps=steps_template_ctx,
-        light_mode=light_mode,
+        light_mode=settings.light_mode,
         editor_mode=config.editor_mode,
         overview=trip_overview,
     )

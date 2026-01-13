@@ -37,7 +37,7 @@ class StepTemplateContext:
     use_two_columns: bool
     use_three_columns: bool
     photo_pages: list[PhotoPage]
-    light_mode: bool
+
     hidden_photos: list[Path] = field(default_factory=list)
 
 

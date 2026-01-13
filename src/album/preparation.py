@@ -17,7 +17,6 @@ def prepare_step_template(
     context: StepContext,
     *,
     use_step_range: bool,
-    light_mode: bool = False,
 ) -> StepTemplateContext:
     is_hebrew_text = is_hebrew(context.step.description)
 
@@ -81,7 +80,6 @@ def prepare_step_template(
         use_three_columns=(
             len(context.step.description) > settings.description_three_columns_threshold
         ),
-        light_mode=light_mode,
         photo_pages=[],  # Will be populated later
     )
 
