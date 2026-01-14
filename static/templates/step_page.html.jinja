@@ -87,7 +87,7 @@
             <img src="{{ step.cover_photo }}"
                  alt="{{ step.name }}"
                  class="main-image"
-                 {% if step.cover_photo %}data-photo-id="{{ step.cover_photo }}"{% endif %} />
+                 {% if step.cover_photo %}data-photo-path="{{ step.cover_photo }}"{% endif %} />
         {% else %}
             <div class="no-image-message">No image available</div>
         {% endif %}
@@ -95,8 +95,8 @@
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
         {% for photo in step.hidden_photos %}
-            <div class="photo-item" data-photo-id="{{ photo }}">
-                <img src="{{ photo }}" alt="Hidden {{ photo }}" />
+            <div class="photo-item" data-photo-path="{{ photo.path }}">
+                <img src="{{ photo.path }}" alt="Hidden {{ photo }}" />
             </div>
         {% endfor %}
     </div>
@@ -108,8 +108,10 @@
         <div class="photo-page-container {{ photo_page.layout_class or '' }}"
              {% if photo_page.grid_style %}style="{{ photo_page.grid_style }}"{% endif %}>
             {% for photo in photo_page.photos %}
-                <div class="photo-item" data-photo-id="{{ photo }}">
-                    <img src="{{ photo }}" alt="{{ step.name }} photo" class="photo-image" />
+                <div class="photo-item"
+                     data-photo-path="{{ photo.path }}"
+                     data-photo="{{ photo.model_dump_json() }}">
+                    <img src="{{ photo.path }}" alt="{{ photo.path }}" class="photo-image" />
                 </div>
             {% endfor %}
         </div>

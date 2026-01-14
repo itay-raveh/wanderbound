@@ -1,11 +1,8 @@
 """Pydantic models for trip and media data."""
 
 from src.data.media import (
-    AlbumPhoto,
     CoverPhoto,
-    PageLayout,
-    PhotoPage,
-    PhotoWithDims,
+    Photo,
 )
 from src.data.trip import (
     EnrichedStep,
@@ -18,14 +15,11 @@ from src.data.trip import (
 )
 
 __all__ = [
-    "AlbumPhoto",
     "CoverPhoto",
     "EnrichedStep",
     "Flag",
     "Map",
-    "PageLayout",
-    "PhotoPage",
-    "PhotoWithDims",
+    "Photo",
     "Step",
     "StepContext",
     "Trip",

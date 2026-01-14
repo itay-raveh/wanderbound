@@ -30,7 +30,7 @@ class Step(BaseModel):
     location: Location
 
     @property
-    def dir_name(self) -> str:
+    def folder_name(self) -> str:
         return f"{self.slug}_{self.id}"
 
     @property

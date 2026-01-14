@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.data.layout import PageLayout
 from src.data.locations import PathPoint, PathSegment
-from src.data.media import PhotoPage
 
 
 @dataclass
@@ -36,7 +36,7 @@ class StepTemplateCtx:
     desc_align: str
     use_two_columns: bool
     use_three_columns: bool
-    photo_pages: list[PhotoPage]
+    photo_pages: list[PageLayout]
     hidden_photos: list[Path]
 
 

@@ -196,14 +196,14 @@ async function handleDrop(e) {
             );
 
             // Prevent default drop until we confirm move
-            const photoId = itemToMove.dataset.photoId;
+            const photoPath = itemToMove.dataset.photoPath;
 
             try {
                 const resp = await fetch("/api/move_photo", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({
-                        photo_id: photoId,
+                        photo_id: photoPath,
                         src_step_id: draggedSourceStepId,
                         dest_step_id: destStepId,
                     }),
@@ -263,7 +263,7 @@ async function handleDrop(e) {
 function handleContextMenu(e) {
     e.preventDefault();
     const photoItem = this;
-    const photoId = photoItem.dataset.photoId;
+    const photoPath = photoItem.dataset.photoPath;
 
     // Create simple custom menu
 
@@ -290,7 +290,7 @@ function handleContextMenu(e) {
     document.getElementById("ctx-cover").onclick = () => {
         const stepPage = photoItem.closest(".step-page");
         const stepId = stepPage.dataset.stepId;
-        saveStepLayout(stepId, {cover_photo: photoId}).then(() =>
+        saveStepLayout(stepId, {cover_photo: photoPath}).then(() =>
             location.reload()
         );
     };
@@ -303,7 +303,7 @@ function handleContextMenu(e) {
                 return;
             }
             const stepId = stepPage.dataset.stepId;
-            console.log("Hiding photo", photoId, "for step", stepId);
+            console.log("Hiding photo", photoPath, "for step", stepId);
 
             // Find the MAIN step page (not photo-page) which holds the hidden container
             const mainStepPage = document.querySelector(
@@ -372,7 +372,7 @@ function collectStepData(stepId, overrides = {}) {
     stepPages.forEach((container) => {
         const pagePhotos = [];
         container.querySelectorAll(".photo-item").forEach((item) => {
-            pagePhotos.push(item.dataset.photoId);
+            pagePhotos.push(JSON.parse(item.dataset.photo));
         });
         if (pagePhotos.length > 0) {
             pages.push({photos: pagePhotos});
@@ -386,7 +386,7 @@ function collectStepData(stepId, overrides = {}) {
     const hiddenPhotos = [];
     if (hiddenContainer) {
         hiddenContainer.querySelectorAll(".photo-item").forEach((item) => {
-            hiddenPhotos.push(item.dataset.photoId);
+            hiddenPhotos.push(item.dataset.photoPath);
         });
     }
 
@@ -396,11 +396,11 @@ function collectStepData(stepId, overrides = {}) {
     );
 
     return {
-        step_id: parseInt(stepId),
+        id: parseInt(stepId),
         name: stepPage?.dataset.stepName,
+        cover: stepPage?.dataset.stepCover,
         pages: pages,
         hidden_photos: hiddenPhotos,
-        cover_photo: stepPage?.dataset.stepCover,
         ...overrides,
     };
 }

@@ -11,22 +11,21 @@ from typing import TYPE_CHECKING
 
 from rich import get_console
 
-from src.album.generator import generate_album_html
+from src.album.generator import gen_album_html
 from src.app.edit import EditorServer
 from src.core.cache import clear_cache
 from src.core.dates import get_display_date_range
 from src.core.logger import get_logger
 from src.core.text import is_hebrew
 from src.data.context import TripTemplateCtx
-from src.data.layout import AlbumLayout, PageLayout, StepLayout
+from src.data.layout import AlbumLayout
 from src.data.locations import PathPoint, load_locations
 from src.data.models import (
-    AlbumPhoto,
     Step,
     Trip,
 )
 from src.data.trip import EnrichedStep
-from src.media.processor import process_step_photos
+from src.layout.processor import build_step_layout
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
@@ -36,7 +35,7 @@ from src.services.weather import fetch_weather
 from .args import Args
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from src.data.models import Step
 
@@ -71,9 +70,8 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     ]
 
 
-def _generate_html_album(
+def _gen_album_html_file(
     steps: Sequence[EnrichedStep],
-    photo_data: AlbumPhoto,
     path_points: list[PathPoint],
     trip_template_ctx: TripTemplateCtx,
     output_dir: Path,
@@ -81,9 +79,8 @@ def _generate_html_album(
     edit: bool,
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
-        html_path = generate_album_html(
+        html_path = gen_album_html(
             steps,
-            photo_data,
             path_points,
             trip_template_ctx,
             output_dir,
@@ -152,78 +149,25 @@ def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
     return trip_data.cover_photo.path
 
 
-def _reload_step_data(
-    step_id: int | None,
-    all_steps: Sequence[Step],
+def _update_layout_json_file(
+    target_steps: Sequence[Step],
     trip_dir: Path,
-    photo_data: AlbumPhoto,
     output_dir: Path,
 ) -> None:
     """Reloads step data, applying any layout overrides from layout.json."""
-    logger.info("Reloading layout data...")
-
-    # Reload layout file - Always reload from disk to get latest editor changes
     layout_file = output_dir / "layout.json"
-    layout_overrides = AlbumLayout(steps={})
 
-    if layout_file.exists():
-        layout_overrides = AlbumLayout.model_validate_json(layout_file.read_bytes())
-
-    # Iterate all steps in layout_overrides to see what is claimed.
-    global_used_ids = set[Path]()
-    for s_layout in layout_overrides.steps.values():
-        if s_layout.cover_photo:
-            global_used_ids.add(s_layout.cover_photo)
-        global_used_ids.update(s_layout.hidden_photos)
-        for p in s_layout.pages:
-            global_used_ids.update(p.photos)
-
-    target_steps = [s for s in all_steps if s.id == step_id] if step_id else all_steps
-
-    for step in target_steps:
-        # Check for overrides
-        step_layout = layout_overrides.steps.get(step.id)
-
-        # Reprocess photos with overrides
-        photos, cover_photo, photo_pages, hidden_photos = process_step_photos(
-            step, trip_dir, global_used_ids, step_layout
-        )
-
-        # Update shared state
-        photo_data.steps_with_photos[step.id] = photos
-        photo_data.steps_cover_photos[step.id] = cover_photo
-        photo_data.steps_photo_pages[step.id] = photo_pages
-        photo_data.steps_hidden_photos[step.id] = hidden_photos
-
-    # Rebuild layout object from processed results to include defaults and overrides
-    new_steps: dict[int, StepLayout] = {}
-
-    for step in target_steps:
-        cover = photo_data.steps_cover_photos[step.id]
-        pages = photo_data.steps_photo_pages.get(step.id, [])
-        hidden = photo_data.steps_hidden_photos.get(step.id, [])
-
-        # Convert to PageLayout objects
-        page_layouts = [PageLayout(photos=[p.path for p in p_page]) for p_page in pages]
-
-        new_steps[step.id] = StepLayout(
-            id=step.id,
-            name=step.name,
-            pages=page_layouts,
-            hidden_photos=hidden,
-            cover_photo=cover,
-        )
-
-    # Merge with existing overrides for steps NOT in target_steps (if partial regen)
-    if step_id:
-        # We only updated one step. Keep others from existing layout_overrides.
-        new_steps.update({sid: sl for sid, sl in layout_overrides.steps.items() if sid != step_id})
-
-    final_layout = AlbumLayout(steps=new_steps)
-
-    layout_file.write_text(
-        final_layout.model_dump_json(indent=2, exclude_none=True), encoding="utf-8"
+    layout = (
+        AlbumLayout.model_validate_json(layout_file.read_bytes())
+        if layout_file.exists()
+        else AlbumLayout(steps={})
     )
+
+    for step in target_steps:
+        if step.id not in layout.steps:
+            layout.steps[step.id] = build_step_layout(step, trip_dir)
+
+    layout_file.write_text(layout.model_dump_json(indent=2))
 
 
 def main() -> None:
@@ -270,19 +214,11 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
 
-    # Initialize photo_data object
-    photo_data = AlbumPhoto(
-        steps_with_photos={},
-        steps_cover_photos={},
-        steps_photo_pages={},
-    )
-
-    _reload_step_data(None, steps, args.trip_dir, photo_data, args.out)
+    _update_layout_json_file(steps, args.trip_dir, args.out)
 
     # Initial Generation
-    html_path = _generate_html_album(
+    html_path = _gen_album_html_file(
         steps,
-        photo_data,
         path_points,
         trip_template_ctx,
         args.out,
@@ -292,18 +228,17 @@ def main() -> None:
     if args.edit:
         logger.info("Starting Editor Mode...")
 
-        def regenerate_callback(step_id: int) -> None:
-            logger.info("Regenerating step %s...", step_id)
-            _reload_step_data(step_id, steps, args.trip_dir, photo_data, args.out)
-            _generate_html_album(
+        def regenerate_callback(target_ids: Iterable[int]) -> None:
+            target_steps = [step for step in steps if step.id in target_ids]
+            logger.info("Updating steps: %s.", target_steps)
+            _update_layout_json_file(target_steps, args.trip_dir, args.out)
+            _gen_album_html_file(
                 steps,
-                photo_data,
                 path_points,
                 trip_template_ctx,
                 args.out,
                 edit=args.edit,
             )
-            logger.info("Regeneration complete.")
 
         EditorServer(args.out, args.trip_dir, regenerate_callback).run()
 
