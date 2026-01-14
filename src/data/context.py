@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from src.data.locations import PathPoint, PathSegment
@@ -6,7 +6,7 @@ from src.data.media import PhotoPage
 
 
 @dataclass
-class StepTemplateContext:
+class StepTemplateCtx:
     id: int
     name: str
     country: str
@@ -16,8 +16,8 @@ class StepTemplateContext:
     lon_val: float
     date_month: str
     date_day: str
-    day_weather_icon_url: str | None
-    night_weather_icon_url: str | None
+    day_weather_icon_url: str
+    night_weather_icon_url: str
     temp_str: str
     temp_night_str: str
     altitude_str: str
@@ -25,30 +25,29 @@ class StepTemplateContext:
     progress_percent: float
     day_counter_box_position: float
     day_counter_arrow_position: float
-    cover_photo: Path | None
-    country_flag_data_uri: str | None
-    country_map_svg: str | None
-    map_dot_x: float | None
-    map_dot_y: float | None
-    accent_color: str | None
+    cover_photo: Path
+    country_flag_data_uri: str
+    country_map_svg: str
+    map_dot_x: float
+    map_dot_y: float
+    accent_color: str
     description: str
     desc_dir: str
     desc_align: str
     use_two_columns: bool
     use_three_columns: bool
     photo_pages: list[PhotoPage]
-
-    hidden_photos: list[Path] = field(default_factory=list)
+    hidden_photos: list[Path]
 
 
 @dataclass
-class TripTemplateContext:
+class TripTemplateCtx:
     title: str
-    date_range: str
-    summary: str | None
-    cover_photo_path: str | None
     title_dir: str
-    summary_dir: str
+    date_range: str
+    subtitle: str | None
+    subtitle_dir: str
+    cover_photo: str | None
     path_points: list[PathPoint]
     path_segments: list[PathSegment]
 

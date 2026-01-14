@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, BeforeValidator, Field
 
-from src.data.context import TripTemplateContext
 from src.data.media import CoverPhoto
 
 _Str = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
@@ -67,12 +66,12 @@ class Trip(BaseModel):
 
 @dataclass
 class Weather:
-    day_temp: float | None = None
-    night_temp: float | None = None
-    day_feels_like: float | None = None
-    night_feels_like: float | None = None
-    day_icon: str | None = None
-    night_icon: str | None = None
+    day_temp: float
+    night_temp: float
+    day_feels_like: float
+    night_feels_like: float
+    day_icon: str
+    night_icon: str
 
 
 @dataclass
@@ -85,15 +84,6 @@ class Flag:
 class Map:
     svg_content: str
     dot_position: tuple[float, float]
-
-
-@dataclass
-class AlbumGenerationConfig:
-    trip: Trip
-    trip_template_ctx: TripTemplateContext
-    output_dir: Path
-    trip_dir: Path
-    editor_mode: bool = False
 
 
 class EnrichedStep(Step):

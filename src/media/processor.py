@@ -80,7 +80,7 @@ def _apply_manual_layout(
     pages = _build_pages(layout, photo_map, used_photos)
 
     if orphans := {p1.path for p1 in local_photos} - used_photos - global_used_photos:
-        logger.warning("Step %s has %d orphan photos: %s", layout.step_id, len(orphans), orphans)
+        logger.warning("Step %s has %d orphan photos: %s", layout.id, len(orphans), orphans)
         pages.append(list(map(_load_photo, orphans)))
 
     return list(photo_map.values()), layout.cover_photo, pages

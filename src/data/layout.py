@@ -8,7 +8,7 @@ class PageLayout(BaseModel):
 
 
 class StepLayout(BaseModel):
-    step_id: int
+    id: int
     name: str
     cover_photo: Path
     pages: list[PageLayout]

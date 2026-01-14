@@ -5,7 +5,7 @@ from geopy.point import Point
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.core.text import is_hebrew
-from src.data.context import StepTemplateContext
+from src.data.context import StepTemplateCtx
 from src.data.models import (
     StepContext,
 )
@@ -13,7 +13,7 @@ from src.data.models import (
 logger = get_logger(__name__)
 
 
-def prepare_step_template(context: StepContext) -> StepTemplateContext:
+def prepare_step_template(context: StepContext) -> StepTemplateCtx:
     is_hebrew_text = is_hebrew(context.step.description)
 
     progress = 100 * context.step_index / (len(context.steps) - 1)
@@ -24,7 +24,7 @@ def prepare_step_template(context: StepContext) -> StepTemplateContext:
         ).format_unicode()
     ).split(",")
 
-    return StepTemplateContext(
+    return StepTemplateCtx(
         id=context.step.id,
         name=context.step.name,
         country=context.step.location.country,
@@ -36,13 +36,9 @@ def prepare_step_template(context: StepContext) -> StepTemplateContext:
         date_day=str(context.step.date.day),
         day_weather_icon_url=(
             settings.weather_icon_url.format(icon_name=context.step.weather.day_icon)
-            if context.step.weather.day_icon
-            else None
         ),
         night_weather_icon_url=(
             settings.weather_icon_url.format(icon_name=context.step.weather.night_icon)
-            if context.step.weather.night_icon
-            else None
         ),
         temp_str=(
             _format_temperature(context.step.weather.day_temp, context.step.weather.day_feels_like)
@@ -72,7 +68,9 @@ def prepare_step_template(context: StepContext) -> StepTemplateContext:
         use_three_columns=(
             len(context.step.description) > settings.description_three_columns_threshold
         ),
-        photo_pages=[],  # Will be populated later
+        # Will be populated later
+        photo_pages=[],
+        hidden_photos=[],
     )
 
 

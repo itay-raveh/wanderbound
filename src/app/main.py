@@ -17,11 +17,10 @@ from src.core.cache import clear_cache
 from src.core.dates import get_display_date_range
 from src.core.logger import get_logger
 from src.core.text import is_hebrew
-from src.data.context import TripTemplateContext
+from src.data.context import TripTemplateCtx
 from src.data.layout import AlbumLayout, PageLayout, StepLayout
-from src.data.locations import PathPoint, detect_segments, load_locations
+from src.data.locations import PathPoint, load_locations
 from src.data.models import (
-    AlbumGenerationConfig,
     AlbumPhoto,
     Step,
     Trip,
@@ -75,31 +74,30 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
 def _generate_html_album(
     steps: Sequence[EnrichedStep],
     photo_data: AlbumPhoto,
-    config: AlbumGenerationConfig,
     path_points: list[PathPoint],
+    trip_template_ctx: TripTemplateCtx,
+    output_dir: Path,
+    *,
+    edit: bool,
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
         html_path = generate_album_html(
             steps,
             photo_data,
             path_points,
-            config.trip_template_ctx,
-            config.output_dir,
-            editor_mode=config.editor_mode,
+            trip_template_ctx,
+            output_dir,
+            edit=edit,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
     return html_path
 
 
-def _open_file(file_path: Path, file_type: str) -> None:
-    try:
-        wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
-        webbrowser.open(f"file://{file_path.absolute()}")
-        if wayland_display:
-            os.environ["WAYLAND_DISPLAY"] = wayland_display
-        logger.info("Opened %s in default application", file_type, extra={"success": True})
-    except (OSError, webbrowser.Error) as e:
-        logger.warning("Failed to open %s: %s", file_type, e)
+def _open_file(file_path: Path) -> None:
+    wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
+    webbrowser.open(f"file://{file_path.absolute()}")
+    if wayland_display:
+        os.environ["WAYLAND_DISPLAY"] = wayland_display
 
 
 def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
@@ -152,15 +150,6 @@ def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
 
     # 3. Remote URL
     return trip_data.cover_photo.path
-
-
-def _process_locations(trip_dir: Path, steps: Sequence[Step]) -> list[PathPoint]:
-    """Load and process locations.json data."""
-    locations_path = trip_dir / "locations.json"
-    start_time = steps[0].date.timestamp()
-    end_time = (steps[-1].date + timedelta(days=1)).timestamp()
-
-    return load_locations(locations_path, min_time=start_time, max_time=end_time)
 
 
 def _reload_step_data(
@@ -218,7 +207,7 @@ def _reload_step_data(
         page_layouts = [PageLayout(photos=[p.path for p in p_page]) for p_page in pages]
 
         new_steps[step.id] = StepLayout(
-            step_id=step.id,
+            id=step.id,
             name=step.name,
             pages=page_layouts,
             hidden_photos=hidden,
@@ -263,21 +252,23 @@ def main() -> None:
 
     display_title = args.title or trip.name
     display_subtitle = args.subtitle or trip.summary
-    path_points = _process_locations(args.trip_dir, steps)
 
-    trip_template_ctx = TripTemplateContext(
+    min_time = steps[0].date.timestamp()
+    max_time = (steps[-1].date + timedelta(days=1)).timestamp()
+    path_points, path_segments = load_locations(args.trip_dir, min_time, max_time)
+
+    trip_template_ctx = TripTemplateCtx(
         title=display_title,
-        date_range=get_display_date_range(steps),
-        summary=display_subtitle,
-        cover_photo_path=(resolve_cover_photo_path(trip, args)),
         title_dir="rtl" if is_hebrew(display_title) else "ltr",
-        summary_dir="rtl" if display_subtitle and is_hebrew(display_subtitle) else "ltr",
+        date_range=get_display_date_range(steps),
+        subtitle=display_subtitle,
+        subtitle_dir="rtl" if is_hebrew(display_subtitle) else "ltr",
+        cover_photo=(resolve_cover_photo_path(trip, args)),
         path_points=path_points,
-        path_segments=detect_segments(path_points),
+        path_segments=path_segments,
     )
 
     args.out.mkdir(parents=True, exist_ok=True)
-    logger.debug("Output directory: %s", args.out)
 
     # Initialize photo_data object
     photo_data = AlbumPhoto(
@@ -288,20 +279,14 @@ def main() -> None:
 
     _reload_step_data(None, steps, args.trip_dir, photo_data, args.out)
 
-    album_config = AlbumGenerationConfig(
-        trip=trip,
-        trip_template_ctx=trip_template_ctx,
-        output_dir=args.out,
-        trip_dir=args.trip_dir,
-        editor_mode=args.edit,
-    )
-
     # Initial Generation
     html_path = _generate_html_album(
         steps,
         photo_data,
-        album_config,
         path_points,
+        trip_template_ctx,
+        args.out,
+        edit=args.edit,
     )
 
     if args.edit:
@@ -313,13 +298,14 @@ def main() -> None:
             _generate_html_album(
                 steps,
                 photo_data,
-                album_config,
                 path_points,
+                trip_template_ctx,
+                args.out,
+                edit=args.edit,
             )
             logger.info("Regeneration complete.")
 
-        server = EditorServer(args.out, args.trip_dir, regenerate_callback)
-        server.run()
+        EditorServer(args.out, args.trip_dir, regenerate_callback).run()
 
     elif args.pdf:
         pdf_path = args.out / "album.pdf"
@@ -327,8 +313,8 @@ def main() -> None:
             _generate_pdf(html_path, pdf_path)
         logger.info("Generated: %s", pdf_path, extra={"success": True})
         if not args.no_open:
-            _open_file(pdf_path, "PDF")
+            _open_file(pdf_path)
     else:
         logger.info("Album generated successfully!", extra={"success": True})
         if not args.no_open:
-            _open_file(html_path, "HTML")
+            _open_file(html_path)

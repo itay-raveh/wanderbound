@@ -8,7 +8,6 @@ from src.data.media import (
     PhotoWithDims,
 )
 from src.data.trip import (
-    AlbumGenerationConfig,
     EnrichedStep,
     Flag,
     Map,
@@ -19,7 +18,6 @@ from src.data.trip import (
 )
 
 __all__ = [
-    "AlbumGenerationConfig",
     "AlbumPhoto",
     "CoverPhoto",
     "EnrichedStep",

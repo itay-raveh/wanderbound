@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.context import OverviewTemplateCtx, StepTemplateContext, TripTemplateContext
+from src.data.context import OverviewTemplateCtx, StepTemplateCtx, TripTemplateCtx
 from src.data.locations import PathPoint
 from src.data.models import (
     AlbumPhoto,
@@ -27,10 +27,10 @@ def generate_album_html(
     steps: Sequence[EnrichedStep],
     photo_data: AlbumPhoto,
     path_points: list[PathPoint],
-    trip_template_ctx: TripTemplateContext,
+    trip_template_ctx: TripTemplateCtx,
     output_dir: Path,
     *,
-    editor_mode: bool,
+    edit: bool,
 ) -> Path:
     """Generate HTML pages for the photo album."""
     steps_template_ctx = _process_steps(steps, photo_data)
@@ -52,7 +52,7 @@ def generate_album_html(
         trip=trip_template_ctx,
         steps=steps_template_ctx,
         light_mode=settings.light_mode,
-        editor_mode=editor_mode,
+        edit=edit,
         overview=overview,
     )
 
@@ -66,9 +66,9 @@ def generate_album_html(
 def _process_steps(
     steps: Sequence[EnrichedStep],
     photo_data: AlbumPhoto,
-) -> list[StepTemplateContext]:
+) -> list[StepTemplateCtx]:
     """Process steps and prepare data for rendering."""
-    steps_template_ctx: list[StepTemplateContext] = []
+    steps_template_ctx: list[StepTemplateCtx] = []
 
     for idx, step in enumerate(steps):
         photo_pages = photo_data.steps_photo_pages[step.id]
@@ -105,6 +105,8 @@ def _gen_overview(
         )
         for step in steps
     }
+
+    logger.info("Calculating distance between %d points", len(path_points))
 
     total_dist = distance(*((location.lat, location.lon) for location in path_points))
 

@@ -48,7 +48,6 @@ dev = [
     "ruff",
     "ty",
     "basedpyright",
-    "vulture",
     "deptry",
     "djlint",
     "taskipy",

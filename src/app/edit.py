@@ -41,13 +41,13 @@ class EditorServer:
                     logger.warning("Failed to parse existing layout.json, starting fresh: %s", e)
 
             # Update specific step
-            current_layout.steps[step_layout.step_id] = step_layout
+            current_layout.steps[step_layout.id] = step_layout
 
             # Save back to file
             self.layout_file.write_text(current_layout.model_dump_json(indent=2))
 
             # Trigger regeneration
-            self.regenerate_callback(step_layout.step_id)
+            self.regenerate_callback(step_layout.id)
 
             return web.json_response({"success": True})
         except Exception as e:
@@ -61,8 +61,8 @@ class EditorServer:
 
         for updated_layout in data.get("updates", []):
             step_layout = StepLayout.model_validate(updated_layout)
-            current_layout.steps[step_layout.step_id] = step_layout
-            step_ids_to_regen.add(step_layout.step_id)
+            current_layout.steps[step_layout.id] = step_layout
+            step_ids_to_regen.add(step_layout.id)
 
         self.layout_file.write_text(current_layout.model_dump_json(indent=2))
 
