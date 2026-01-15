@@ -44,10 +44,11 @@ class StepTemplateCtx:
 class TripTemplateCtx:
     title: str
     title_dir: str
-    date_range: str
+    dates: str
     subtitle: str | None
     subtitle_dir: str
-    cover_photo: str | None
+    cover: str | None
+    back_cover: str | None
     path_points: list[PathPoint]
     path_segments: list[PathSegment]
 

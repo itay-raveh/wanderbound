@@ -133,8 +133,8 @@ def _get_display_date_range(steps: Sequence[Step]) -> str:
 def _trip_cover_photo(trip_data: Trip, args: Args) -> str | None:
     """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
     # 1. CLI Override
-    if args.cover_photo:
-        return str(args.cover_photo.absolute())
+    if args.cover:
+        return str(args.cover.absolute())
 
     if not trip_data.cover_photo:
         return None
@@ -202,6 +202,7 @@ def main() -> None:
 
     display_title = args.title or trip.name
     display_subtitle = args.subtitle or trip.summary
+    cover = _trip_cover_photo(trip, args)
 
     min_time = steps[0].date.timestamp()
     max_time = (steps[-1].date + timedelta(days=1)).timestamp()
@@ -210,10 +211,11 @@ def main() -> None:
     trip_template_ctx = TripTemplateCtx(
         title=display_title,
         title_dir="rtl" if is_hebrew(display_title) else "ltr",
-        date_range=_get_display_date_range(steps),
+        dates=_get_display_date_range(steps),
         subtitle=display_subtitle,
         subtitle_dir="rtl" if is_hebrew(display_subtitle) else "ltr",
-        cover_photo=(_trip_cover_photo(trip, args)),
+        cover=cover,
+        back_cover=str(args.back_cover.absolute()) if args.back_cover else cover,
         path_points=path_points,
         path_segments=path_segments,
     )

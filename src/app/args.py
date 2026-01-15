@@ -18,7 +18,8 @@ class Args(Tap):
     steps: str | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
     title: str | None = None  # Override trip title
     subtitle: str | None = None  # Override trip subtitle ("summary" field in trip.json)
-    cover_photo: Path | None = None  # Override trip cover photo
+    cover: Path | None = None  # Override trip cover photo
+    back_cover: Path | None = None  # Add back cover photo (default: same as the front)
     no_cache: bool = False  # Force regeneration of cached data (maps, weather, etc.)
 
     def filter_steps(self, all_steps: Sequence[Step]) -> Sequence[Step]:
