@@ -4,7 +4,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class Photo(BaseModel):
+# noinspection PyDataclass
+class Photo(BaseModel, frozen=True):
     path: Path
     width: int
     height: int

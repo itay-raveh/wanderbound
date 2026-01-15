@@ -3,9 +3,8 @@ from pathlib import Path
 
 from geopy.distance import distance
 from pydantic import BaseModel
-from rich.progress import track
 
-from src.core.logger import get_logger
+from src.core.logger import create_progress, get_logger
 
 logger = get_logger(__name__)
 
@@ -44,36 +43,39 @@ def load_locations(
 
     clean_points: list[PathPoint] = [path_points[0]]  # Hopefully the first point is not a GPS error
 
-    for curr in track(path_points[1:], f"Cleaning   {len(path_points):,} points..."):
-        prev = clean_points[-1]
+    with create_progress() as progress:
+        for curr in progress.track(
+            path_points[1:], description=f"Cleaning   {len(path_points):,} points..."
+        ):
+            prev = clean_points[-1]
 
-        if prev.time == curr.time:
-            continue
+            if prev.time == curr.time:
+                continue
 
-        _, speed_kmh = _dist_and_speed(prev, curr)
+            _, speed_kmh = _dist_and_speed(prev, curr)
 
-        if speed_kmh < 1500:
-            clean_points.append(curr)
+            if speed_kmh < 1500:
+                clean_points.append(curr)
 
-    segments: list[PathSegment] = []
-    segment_points: list[PathPoint] = [path_points[0]]
+        segments: list[PathSegment] = []
+        segment_points: list[PathPoint] = [path_points[0]]
 
-    for prev, curr in track(
-        pairwise(clean_points),
-        f"Segmenting {len(clean_points):,} points...",
-        total=len(clean_points) - 1,
-    ):
-        dist_km, speed_kmh = _dist_and_speed(prev, curr)
+        for prev, curr in progress.track(
+            pairwise(clean_points),
+            len(clean_points) - 1,
+            description=f"Segmenting {len(clean_points):,} points...",
+        ):
+            dist_km, speed_kmh = _dist_and_speed(prev, curr)
 
-        # Very fast over a large distance, must be a flight
-        if speed_kmh > 150 and dist_km > 50:
-            segments.append(PathSegment(points=segment_points, is_flight=False))
-            segment_points = []
-            segments.append(PathSegment(points=[prev, curr], is_flight=True))
+            # Very fast over a large distance, must be a flight
+            if speed_kmh > 150 and dist_km > 50:
+                segments.append(PathSegment(points=segment_points, is_flight=False))
+                segment_points = []
+                segments.append(PathSegment(points=[prev, curr], is_flight=True))
 
-        segment_points.append(curr)
+            segment_points.append(curr)
 
-    segments.append(PathSegment(points=segment_points, is_flight=False))
+        segments.append(PathSegment(points=segment_points, is_flight=False))
 
     logger.info("Loaded %d map points as %d segments", len(clean_points), len(segments))
     return clean_points, segments

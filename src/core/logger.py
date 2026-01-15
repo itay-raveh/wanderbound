@@ -74,10 +74,9 @@ def create_progress() -> Progress:
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(
         SpinnerColumn(),
-        TextColumn("[progress.description]{task.description:<70}"),
+        TextColumn("[progress.description]{task.description:<30}"),
         BarColumn(),
         TaskProgressColumn(),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeElapsedColumn(),
-        transient=True,
     )

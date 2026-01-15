@@ -7,23 +7,19 @@ import os
 import webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from rich import get_console
 
 from src.album.generator import render_album_html
 from src.app.edit import EditorServer
 from src.core.cache import clear_cache
-from src.core.logger import get_logger
+from src.core.logger import create_progress, get_logger
 from src.core.text import is_hebrew
 from src.data.context import TripTemplateCtx
 from src.data.layout import AlbumLayout
 from src.data.locations import PathPoint, load_locations
-from src.data.trip import (
-    EnrichedStep,
-    Step,
-    Trip,
-)
+from src.data.trip import EnrichedStep, Step, Trip
 from src.layout.processor import build_step_layout
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
@@ -34,27 +30,48 @@ from src.services.weather import fetch_weather
 from .args import Args
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Awaitable, Callable, Iterable, Sequence
+
+    from rich.progress import TaskID
 
 
 logger = get_logger(__name__)
 
+P = ParamSpec("P")
+T = TypeVar("T")
+
 
 async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
-    async with APIClient() as client:
-        results = await asyncio.gather(
-            *(
-                asyncio.gather(
-                    fetch_weather(client, step),
-                    fetch_flag(client, step.location.country_code),
-                    fetch_map(client, step.location),
-                )
-                for step in steps
-            ),
-        )
+    with create_progress() as progress:
 
-        alts = await fetch_all_altitudes(client, steps)
+        def _progress(task: TaskID, func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
+            async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
+                res = await func(*args, **kw)
+                progress.advance(task)
+                return res
+
+            return wrapper
+
+        weather_progress = progress.add_task("Fetching weather data...", total=len(steps))
+        flag_progress = progress.add_task("Fetching flags...", total=len(steps))
+        map_progress = progress.add_task("Fetching maps...", total=len(steps))
+
+        async with APIClient() as client:
+            results = await asyncio.gather(
+                *(
+                    asyncio.gather(
+                        _progress(weather_progress, fetch_weather)(client, step),
+                        _progress(flag_progress, fetch_flag)(client, step.location.country_code),
+                        _progress(map_progress, fetch_map)(client, step.location),
+                    )
+                    for step in steps
+                ),
+            )
+
+            alts = await fetch_all_altitudes(client, steps)
+
+    logger.info("Enriched %d steps", len(steps))
 
     return [
         EnrichedStep(
@@ -117,7 +134,7 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
                 print_background=True,
             )
             browser.close()
-        logger.info("PDF generated: %s", pdf_path, extra={"success": True})
+        logger.info("Generated: %s", pdf_path, extra={"success": True})
     except ImportError:
         logger.warning("Playwright not installed. Install with: playwright install chromium")
         logger.info("Skipping PDF generation.")
@@ -144,7 +161,7 @@ def _get_display_date_range(steps: Sequence[Step]) -> str:
     return _format_date_range(start_date, end_date)
 
 
-def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
+def _trip_cover_photo(trip_data: Trip, args: Args) -> str | None:
     """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
     # 1. CLI Override
     if args.cover_photo:
@@ -182,11 +199,13 @@ def _update_layout_json_file(
         else AlbumLayout(steps={})
     )
 
-    for step in target_steps:
-        if step.id not in layout.steps:
-            layout.steps[step.id] = build_step_layout(step, trip_dir)
+    with create_progress() as progress:
+        for step in progress.track(target_steps, description="Building layout.json..."):
+            if step.id not in layout.steps:
+                layout.steps[step.id] = build_step_layout(step, trip_dir)
 
     layout_file.write_text(layout.model_dump_json(indent=2))
+    logger.info("Generated: %s", layout_file, extra={"success": True})
 
 
 def main() -> None:
@@ -206,10 +225,9 @@ def main() -> None:
         clear_cache()
         logger.warning("Cleared cache")
 
-    with get_console().status("[bold blue]Loading trip data..."):
-        trip = Trip.model_validate_json(
-            trip_json_path.read_text(encoding="utf-8"),
-        )
+    trip = Trip.model_validate_json(
+        trip_json_path.read_text(encoding="utf-8"),
+    )
 
     steps = asyncio.run(enrich_steps(args.filter_steps(trip.all_steps)))
 
@@ -226,7 +244,7 @@ def main() -> None:
         date_range=_get_display_date_range(steps),
         subtitle=display_subtitle,
         subtitle_dir="rtl" if is_hebrew(display_subtitle) else "ltr",
-        cover_photo=(resolve_cover_photo_path(trip, args)),
+        cover_photo=(_trip_cover_photo(trip, args)),
         path_points=path_points,
         path_segments=path_segments,
     )
@@ -263,12 +281,8 @@ def main() -> None:
 
     elif args.pdf:
         pdf_path = args.out / "album.pdf"
-        with get_console().status("[bold blue]Generating PDF..."):
-            _generate_pdf(html_path, pdf_path)
-        logger.info("Generated: %s", pdf_path, extra={"success": True})
+        _generate_pdf(html_path, pdf_path)
         if not args.no_open:
             _open_file(pdf_path)
-    else:
-        logger.info("Album generated successfully!", extra={"success": True})
-        if not args.no_open:
-            _open_file(html_path)
+    elif not args.no_open:
+        _open_file(html_path)
