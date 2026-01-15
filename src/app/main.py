@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
@@ -111,41 +109,6 @@ def _gen_album_html_file(
     return html_path
 
 
-def _open_file(file_path: Path) -> None:
-    wayland_display = os.environ.pop("WAYLAND_DISPLAY", None)
-    webbrowser.open(f"file://{file_path.absolute()}")
-    if wayland_display:
-        os.environ["WAYLAND_DISPLAY"] = wayland_display
-
-
-def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
-    """Generate PDF file from HTML using Playwright.
-
-    Opens the HTML file in a headless Chromium browser and exports it as a PDF
-    with A4 landscape format. Requires Playwright to be installed.
-    """
-    try:
-        from playwright.sync_api import sync_playwright  # noqa: PLC0415
-
-        logger.info("Generating PDF from HTML...")
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            page.goto(f"file://{html_path.absolute()}")
-            page.wait_for_load_state("networkidle")
-            page.pdf(
-                path=str(pdf_path),
-                format="A4",
-                landscape=True,
-                print_background=True,
-            )
-            browser.close()
-        logger.info("Generated: %s", pdf_path, extra={"success": True})
-    except ImportError:
-        logger.warning("Playwright not installed. Install with: playwright install chromium")
-        logger.info("Skipping PDF generation.")
-
-
 def _format_date_range(start: datetime, end: datetime) -> str:
     """Format date range smartly, omitting redundant year/month."""
     if start.year == end.year:
@@ -180,9 +143,9 @@ def _trip_cover_photo(trip_data: Trip, args: Args) -> str | None:
     if trip_data.cover_photo.uuid:
         uuid = trip_data.cover_photo.uuid
         # Search for the file in trip_dir
-        found_photos = list(Path(args.trip_dir).rglob(f"*{uuid}*.jpg"))
+        found_photos = list(Path(args.trip).rglob(f"*{uuid}*.jpg"))
         if not found_photos:
-            found_photos = list(Path(args.trip_dir).rglob(f"*{uuid}*.jpg.jpg"))
+            found_photos = list(Path(args.trip).rglob(f"*{uuid}*.jpg.jpg"))
 
         if found_photos:
             return str(found_photos[0].absolute())
@@ -217,7 +180,7 @@ def _update_layout_json_file(
 def main() -> None:
     args = Args(underscores_to_dashes=True).parse_args()
 
-    trip_json_path = args.trip_dir / "trip.json"
+    trip_json_path = args.trip / "trip.json"
     if not trip_json_path.exists():
         logger.error(
             "trip.json not found at %s. Please ensure the trip directory contains trip.json",
@@ -242,7 +205,7 @@ def main() -> None:
 
     min_time = steps[0].date.timestamp()
     max_time = (steps[-1].date + timedelta(days=1)).timestamp()
-    path_points, path_segments = load_locations(args.trip_dir, min_time, max_time)
+    path_points, path_segments = load_locations(args.trip, min_time, max_time)
 
     trip_template_ctx = TripTemplateCtx(
         title=display_title,
@@ -255,41 +218,27 @@ def main() -> None:
         path_segments=path_segments,
     )
 
-    args.out.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(parents=True, exist_ok=True)
 
-    _update_layout_json_file(steps, args.trip_dir, args.out)
+    _update_layout_json_file(steps, args.trip, args.output)
 
     # Initial Generation
-    html_path = _gen_album_html_file(
-        steps,
-        path_points,
-        trip_template_ctx,
-        args.out,
-        edit=args.edit,
-    )
+    _gen_album_html_file(steps, path_points, trip_template_ctx, args.output, edit=True)
 
-    if args.edit:
+    if True:
         logger.info("Starting Editor Mode...")
 
         def regenerate_callback(target_ids: Sequence[int]) -> None:
             logger.info("Updating steps %s", target_ids)
             _update_layout_json_file(
-                [step for step in steps if step.id in target_ids], args.trip_dir, args.out
+                [step for step in steps if step.id in target_ids], args.trip, args.output
             )
             _gen_album_html_file(
                 steps,
                 path_points,
                 trip_template_ctx,
-                args.out,
-                edit=args.edit,
+                args.output,
+                edit=True,
             )
 
-        EditorServer(args.out, args.trip_dir, regenerate_callback).run()
-
-    elif args.pdf:
-        pdf_path = args.out / "album.pdf"
-        _generate_pdf(html_path, pdf_path)
-        if not args.no_open:
-            _open_file(pdf_path)
-    elif not args.no_open:
-        _open_file(html_path)
+        EditorServer(args.output, args.trip, regenerate_callback).run()

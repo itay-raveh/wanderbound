@@ -31,7 +31,6 @@ dependencies = [
     "pydantic-settings>2",
     "jinja2",
     "more-itertools",
-    "playwright",
     "lxml",
     "geopy",
     "geopandas",
@@ -104,17 +103,14 @@ ignore = [
     "D105", # Missing docstring in magic method
     "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
-    "PLR0913"
+    "D401",
 ]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 8
 
 [tool.ty]
 

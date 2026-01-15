@@ -1,6 +1,6 @@
 """CLI argument parsing for the album generator."""
-# pyright: basic
 
+# pyright: reportUninitializedInstanceVariable=false
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,39 +13,18 @@ logger = get_logger(__name__)
 
 
 class Args(Tap):
-    trip_dir: Path  # Directory containing unzipped Polarsteps data
-    steps: slice | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
-    sample: int | None = None  # Sample N evenly distributed steps (for testing across countries)
+    trip: Path  # Directory containing Polarsteps data (`trip.json` etc.)
+    output: Path = Path("output")  # Output directory
+    steps: str | None = None  # Step range to include, e.g. "99-110" or "99". 0-indexed
     title: str | None = None  # Override trip title
     subtitle: str | None = None  # Override trip subtitle ("summary" field in trip.json)
-    cover_photo: Path | None = None  # Override cover photo path
-    out: Path = Path("output")  # Output directory for HTML/PDF files
-    pdf: bool = False  # Generate PDF file using Playwright (requires playwright install)
-    no_open: bool = False  # Do not automatically open the generated album in the browser
+    cover_photo: Path | None = None  # Override trip cover photo
     no_cache: bool = False  # Force regeneration of cached data (maps, weather, etc.)
-    edit: bool = False  # Enable manual layout editor
-
-    def configure(self) -> None:
-        self.add_argument("trip_dir", type=Path)
-        self.add_argument("--steps", type=_step_slice)
 
     def filter_steps(self, all_steps: Sequence[Step]) -> Sequence[Step]:
-        logger.info("Found %d total steps", len(all_steps))
-
-        if self.sample:
-            dist_steps = _get_steps_distributed(all_steps, self.sample)
-            logger.info("Sampled %d steps evenly across the trip", len(dist_steps))
-            return dist_steps
-
         if self.steps:
-            range_steps = all_steps[self.steps]
-            logger.info(
-                "Filtered to steps %d-%d: %d steps",
-                self.steps.start,
-                self.steps.stop - 1,
-                len(range_steps),
-            )
-            return range_steps
+            logger.info("Filtered to steps %s", self.steps)
+            return all_steps[_step_slice(self.steps)]
 
         logger.info("Using all %d steps", len(all_steps))
         return all_steps
@@ -61,12 +40,3 @@ def _step_slice(range_str: str) -> slice:
 
     step = int(range_str.strip())
     return slice(step, step + 1)
-
-
-def _get_steps_distributed(all_steps: Sequence[Step], count: int) -> Sequence[Step]:
-    if count == 1:
-        return [all_steps[len(all_steps) // 2]]
-
-    step_indices = [(i * (len(all_steps) - 1) // (count - 1)) for i in range(count)]
-
-    return [all_steps[idx] for idx in dict.fromkeys(step_indices)]
