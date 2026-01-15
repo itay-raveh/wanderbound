@@ -139,7 +139,7 @@ function handleDragStart(e) {
     e.dataTransfer.effectAllowed = "move";
 }
 
-function handleDragEnd(e) {
+function handleDragEnd(_) {
     this.classList.remove("dragging");
     draggedItem = null;
 
@@ -155,7 +155,7 @@ function handleDragOver(e) {
     return false;
 }
 
-function handleDragLeave(e) {
+function handleDragLeave(_) {
     this.classList.remove("drag-over");
 }
 
@@ -228,7 +228,7 @@ function handleContextMenu(e) {
     document.getElementById("ctx-cover").onclick = () => {
         const stepPage = photoItem.closest(".step-page");
         const stepId = stepPage.dataset.stepId;
-        saveStepLayout(stepId, {cover_photo: photoPath}).then(() => location.reload());
+        updateStepCover(stepId, photoPath).then(() => location.reload());
     };
 
     document.getElementById("ctx-hide").onclick = () => {
@@ -292,7 +292,7 @@ function markStepDirty(stepId) {
     }
 }
 
-function collectStepData(stepId, overrides = {}) {
+function collectStepLayout(stepId, overrides = {}) {
     if (!stepId) return null;
 
     // Gather all photos for this step
@@ -330,6 +330,24 @@ function collectStepData(stepId, overrides = {}) {
     };
 }
 
+async function updateStepCover(stepId, cover) {
+    try {
+        const response = await fetch("/api/cover", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({id: stepId, cover}),
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || "Cover update failed");
+        }
+    } catch (err) {
+        console.error(err);
+        alert(`Error saving: ${err.message}`);
+    }
+}
+
 
 window.saveAllVisibleSteps = async function () {
     if (dirtySteps.size === 0) {
@@ -345,17 +363,17 @@ window.saveAllVisibleSteps = async function () {
     try {
         const allUpdates = [];
         for (const stepId of dirtySteps) {
-            const data = collectStepData(stepId);
+            const data = collectStepLayout(stepId);
             if (data) allUpdates.push(data);
         }
 
-        const response = await fetch("/api/save_batch", {
+        const response = await fetch("/api/layout", {
             method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({updates: allUpdates}),
         });
 
         const result = await response.json();
         if (!result.success) {
-            throw new Error(result.error || "Batch save failed");
+            throw new Error(result.error || "Layout update failed");
         }
 
         // Clear dirty state

@@ -29,10 +29,15 @@ _STRATEGIES: list[LayoutStrategy] = [
 ]
 
 
-def _try_build_layout_with_strategies(
-    candidates: Collection[Photo], strategies: list[LayoutStrategy]
-) -> PageLayout | None:
-    for strategy in strategies:
+def try_choose_layout(photos: Collection[Photo]) -> PageLayout | None:
+    for strategy in _STRATEGIES:
+        if strategy.required_count == len(photos) and strategy.validate(photos):
+            return PageLayout(photos=strategy.sort(photos), layout_class=strategy.layout_class)
+    return None
+
+
+def _try_build_page(candidates: Collection[Photo]) -> PageLayout | None:
+    for strategy in _STRATEGIES:
         if strategy.required_count > len(candidates):
             continue
 
@@ -51,7 +56,7 @@ def gen_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
     # Divide photos intp pages
     pages: list[PageLayout] = []
     while candidates:
-        if layout := _try_build_layout_with_strategies(candidates, _STRATEGIES):
+        if layout := _try_build_page(candidates):
             pages.append(layout)
             candidates -= set(layout.photos)
         else:

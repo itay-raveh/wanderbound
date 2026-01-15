@@ -30,7 +30,7 @@ from src.services.weather import fetch_weather
 from .args import Args
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable, Sequence
+    from collections.abc import Awaitable, Callable, Sequence
 
     from rich.progress import TaskID
 
@@ -269,8 +269,8 @@ def main() -> None:
     if args.edit:
         logger.info("Starting Editor Mode...")
 
-        def regenerate_callback(target_ids: Iterable[int]) -> None:
-            logger.info("Updating steps: %s.", target_ids)
+        def regenerate_callback(target_ids: Sequence[int]) -> None:
+            logger.info("Updating steps %s", target_ids)
             _update_layout_json_file(
                 [step for step in steps if step.id in target_ids], args.trip_dir, args.out
             )

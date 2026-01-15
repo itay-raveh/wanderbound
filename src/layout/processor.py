@@ -19,7 +19,7 @@ def build_step_layout(
     trip_dir: Path,
 ) -> StepLayout:
     folder = trip_dir / step.folder_name / "photos"
-    photos_in_folder = list(map(_load_photo, folder.iterdir()))
+    photos_in_folder = list(map(load_photo, folder.iterdir()))
 
     # Determine cover photo
     cover = _select_cover(photos_in_folder)
@@ -37,7 +37,7 @@ def build_step_layout(
     )
 
 
-def _load_photo(path: Path) -> Photo:
+def load_photo(path: Path) -> Photo:
     with Image.open(path) as img:
         width, height = ImageOps.exif_transpose(img).size
 
