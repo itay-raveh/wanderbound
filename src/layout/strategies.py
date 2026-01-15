@@ -66,7 +66,12 @@ class OnePortraitTwoLandscapesStrategy(LayoutStrategy):
         )
 
 
-class ThreePortraitsStrategy(LayoutStrategy):
+class _AllPortraitsStrategy(LayoutStrategy, ABC):
+    def validate(self, photos: Iterable[Photo]) -> bool:
+        return all(photo.aspect_ratio < 1 for photo in photos)
+
+
+class ThreePortraitsStrategy(_AllPortraitsStrategy):
     @property
     def required_count(self) -> int:
         return 3
@@ -75,8 +80,11 @@ class ThreePortraitsStrategy(LayoutStrategy):
     def layout_class(self) -> SpecialLayoutClass | None:
         return "three-portraits"
 
-    def validate(self, photos: Iterable[Photo]) -> bool:
-        return all(photo.aspect_ratio < 1 for photo in photos)
+
+class TwoPortraitsStrategy(_AllPortraitsStrategy):
+    @property
+    def required_count(self) -> int:
+        return 2
 
 
 class FourLandscapesStrategy(LayoutStrategy):
@@ -86,12 +94,6 @@ class FourLandscapesStrategy(LayoutStrategy):
 
     def validate(self, photos: Iterable[Photo]) -> bool:
         return all(photo.aspect_ratio > 1 for photo in photos)
-
-
-class TwoPortraitsStrategy(ThreePortraitsStrategy):
-    @property
-    def required_count(self) -> int:
-        return 2
 
 
 class ThreeLandscapesStrategy(FourLandscapesStrategy):
