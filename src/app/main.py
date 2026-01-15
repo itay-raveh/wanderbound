@@ -94,8 +94,6 @@ def _gen_album_html_file(
     path_points: list[PathPoint],
     trip_template_ctx: TripTemplateCtx,
     output_dir: Path,
-    *,
-    edit: bool,
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
         html_path = render_album_html(
@@ -103,7 +101,6 @@ def _gen_album_html_file(
             path_points,
             trip_template_ctx,
             output_dir,
-            edit=edit,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
     return html_path
@@ -154,7 +151,7 @@ def _trip_cover_photo(trip_data: Trip, args: Args) -> str | None:
     return trip_data.cover_photo.path
 
 
-def _update_layout_json_file(
+def _gen_layout_json_file(
     target_steps: Sequence[Step],
     trip_dir: Path,
     output_dir: Path,
@@ -188,15 +185,11 @@ def main() -> None:
         )
         return
 
-    logger.info("Found trip.json at %s", trip_json_path)
-
     if args.no_cache:
         clear_cache()
         logger.warning("Cleared cache")
 
-    trip = Trip.model_validate_json(
-        trip_json_path.read_text(encoding="utf-8"),
-    )
+    trip = Trip.model_validate_json(trip_json_path.read_text())
 
     steps = asyncio.run(enrich_steps(args.filter_steps(trip.all_steps)))
 
@@ -221,26 +214,19 @@ def main() -> None:
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
+    _gen_layout_json_file(steps, args.trip, args.output)
+    _gen_album_html_file(steps, path_points, trip_template_ctx, args.output)
 
-    _update_layout_json_file(steps, args.trip, args.output)
+    def regenerate_callback(target_ids: Sequence[int]) -> None:
+        logger.info("Updating steps %s", target_ids)
+        _gen_layout_json_file(
+            [step for step in steps if step.id in target_ids], args.trip, args.output
+        )
+        _gen_album_html_file(
+            steps,
+            path_points,
+            trip_template_ctx,
+            args.output,
+        )
 
-    # Initial Generation
-    _gen_album_html_file(steps, path_points, trip_template_ctx, args.output, edit=True)
-
-    if True:
-        logger.info("Starting Editor Mode...")
-
-        def regenerate_callback(target_ids: Sequence[int]) -> None:
-            logger.info("Updating steps %s", target_ids)
-            _update_layout_json_file(
-                [step for step in steps if step.id in target_ids], args.trip, args.output
-            )
-            _gen_album_html_file(
-                steps,
-                path_points,
-                trip_template_ctx,
-                args.output,
-                edit=True,
-            )
-
-        EditorServer(args.output, args.trip, regenerate_callback).run()
+    EditorServer(args.output, args.trip, regenerate_callback).run()

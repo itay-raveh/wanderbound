@@ -26,10 +26,8 @@
         {% include 'css/overview.css' %}
         {% include 'css/title.css' %}
         </style>
-        {% if edit %}
-            <script>{% include 'editor/editor.js' %}</script>
-            <style>{% include 'editor/editor.css' %}</style>
-        {% endif %}
+        <script>{% include 'editor/editor.js' %}</script>
+        <style>{% include 'editor/editor.css' %}</style>
     </head>
     <body {% if light_mode %}class="light-mode"{% endif %}>
         {% include "templates/title_page.html.jinja" %}

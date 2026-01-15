@@ -5,7 +5,6 @@
 document.addEventListener("DOMContentLoaded", () => initEditor());
 
 function initEditor() {
-    console.log("Initializing Editor Mode...");
     makePhotosDraggable();
     injectEditorUI();
     injectAddPageButtons();
@@ -80,48 +79,12 @@ function makePhotosDraggable() {
 }
 
 function injectEditorUI() {
-    // Inject "Hidden Photos" bin or controls if we want them visible
-    // For now, we'll keep hidden photos in a hidden div, so they are just removed from view.
-    // To restore them, we'd need a "Manage Hidden" UI.
-    // MVP: Context menu -> Hide. To restore, user must manually edit JSON or reset.
-
-    // Global Save Control Panel
-    const controlPanel = document.createElement("div");
-    controlPanel.className = "editor-control-panel";
-    controlPanel.innerHTML = `
-        <div class="editor-status">Editor Mode</div>
-        <div class="editor-actions">
-           <button onclick="saveAllVisibleSteps()">Save Changes</button>
-        </div>
-    `;
-    document.body.appendChild(controlPanel);
-
-    // Inject styles for context menu
-    const style = document.createElement("style");
-    style.textContent = `
-    .editor-context-menu {
-        position: absolute;
-        background: white;
-        border: 1px solid #ccc;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-        z-index: 10000;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .menu-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #333;
-    }
-    .menu-item:hover {
-        background: #f0f0f0;
-    }
-    .is-dirty {
-        border: 2px solid orange; /* Visual cue for modified steps */
-    }
-  `;
-    document.head.appendChild(style);
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "save-btn";
+    saveBtn.innerHTML = "SAVE"
+    saveBtn.addEventListener("click", () => saveAllVisibleSteps());
+    saveBtn.disabled = true;
+    document.body.appendChild(saveBtn);
 }
 
 // Drag & Drop Handlers
@@ -287,8 +250,8 @@ function markStepDirty(stepId) {
         if (step) step.classList.add("is-dirty");
 
         // Enable Save button state if needed
-        const btn = document.querySelector(".editor-actions button");
-        if (btn) btn.innerText = "Save Changes *";
+        const btn = document.querySelector(".save-btn");
+        btn.disabled = false;
     }
 }
 
@@ -333,9 +296,7 @@ function collectStepLayout(stepId, overrides = {}) {
 async function updateStepCover(stepId, cover) {
     try {
         const response = await fetch("/api/cover", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({id: stepId, cover}),
+            method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: stepId, cover}),
         });
 
         const result = await response.json();
@@ -355,9 +316,7 @@ window.saveAllVisibleSteps = async function () {
         return;
     }
 
-    const btn = document.querySelector(".editor-actions button");
-    const originalText = btn.innerText;
-    btn.innerText = "Saving...";
+    const btn = document.querySelector(".save-btn");
     btn.disabled = true;
 
     try {
@@ -387,7 +346,6 @@ window.saveAllVisibleSteps = async function () {
     } catch (err) {
         console.error(err);
         alert(`Error saving: ${err.message}`);
-        btn.innerText = originalText;
         btn.disabled = false;
     }
 };

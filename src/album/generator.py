@@ -23,8 +23,6 @@ def render_album_html(
     path_points: list[PathPoint],
     trip_ctx: TripTemplateCtx,
     output_dir: Path,
-    *,
-    edit: bool,
 ) -> Path:
     """Generate HTML pages for the photo album."""
     layout_file = output_dir / "layout.json"
@@ -54,7 +52,6 @@ def render_album_html(
         trip=trip_ctx,
         steps=steps_ctx,
         light_mode=settings.light_mode,
-        edit=edit,
         overview=overview_ctx,
     )
 
