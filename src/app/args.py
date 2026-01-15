@@ -59,8 +59,8 @@ def _step_slice(range_str: str) -> slice:
         start, end = range_str.split("-", 1)
         return slice(int(start.strip()), int(end.strip()) + 1)
 
-    step_num = int(range_str.strip())
-    return slice(step_num, step_num + 1)
+    step = int(range_str.strip())
+    return slice(step, step + 1)
 
 
 def _get_steps_distributed(all_steps: Sequence[Step], count: int) -> Sequence[Step]:

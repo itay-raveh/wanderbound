@@ -12,7 +12,7 @@ class Photo(BaseModel, frozen=True):
 
     @property
     def is_portrait(self) -> float:
-        return float(self.width) / float(self.height) < 0.8
+        return self.width / self.height < 4 / 5
 
 
 SpecialLayoutClass = Literal["three-portraits", "one-portrait-two-landscapes"]

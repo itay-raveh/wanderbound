@@ -19,7 +19,6 @@ from .generator import _ETREE_XML_PARSER, generate_geo_calibrated_svg
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from src.data.trip import Location
     from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -30,18 +29,18 @@ _NE_FETCH_LOCK = Lock()
 
 
 @cache_in_file()
-async def fetch_map(client: APIClient, loc: Location) -> Map:
+async def fetch_map(client: APIClient, lat: float, lon: float, country_code: str) -> Map:
     """Get country map SVG and dot position."""
-    # Only one of the tasks needs to fetch the ne dataset,
+    # Only one of the tasks needs to fetch the NE dataset,
     # the rest should wait for it, and then they can simply use the local file.
     await _NE_FETCH_LOCK.acquire()
     world = await _load_natural_earth_data(client)
     _NE_FETCH_LOCK.release()
 
-    svg_data = generate_geo_calibrated_svg(world, loc.country_code)
+    svg_data = generate_geo_calibrated_svg(world, country_code)
     return Map(
         svg_content=svg_data,
-        dot_position=_dot_position(loc, svg_data),
+        dot_position=_dot_position(lat, lon, svg_data),
     )
 
 
@@ -68,13 +67,13 @@ _transform: Callable[[float, float], tuple[float, float]] = Transformer.from_crs
 ).transform
 
 
-def _dot_position(loc: Location, svg_data: str) -> tuple[float, float]:
+def _dot_position(lat: float, lon: float, svg_data: str) -> tuple[float, float]:
     """Calculate the relative position (0-100%) of a location dot within a country map."""
     root = etree.fromstring(svg_data, parser=_ETREE_XML_PARSER)
 
     min_x, min_y, max_x, max_y = [float(x) for x in str(root.attrib["data-bounds"]).split(",")]
 
-    x, y = _transform(loc.lon, loc.lat)
+    x, y = _transform(lon, lat)
 
     x_ratio = (x - min_x) / (max_x - min_x)
     y_ratio = (max_y - y) / (max_y - min_y)

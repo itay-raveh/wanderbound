@@ -65,7 +65,9 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
                             client, step.location.lat, step.location.lon, step.date
                         ),
                         _progress(flag_progress, fetch_flag)(client, step.location.country_code),
-                        _progress(map_progress, fetch_map)(client, step.location),
+                        _progress(map_progress, fetch_map)(
+                            client, step.location.lat, step.location.lon, step.location.country_code
+                        ),
                     )
                     for step in steps
                 ),
