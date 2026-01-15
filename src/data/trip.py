@@ -2,13 +2,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
-from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, BeforeValidator, Field
-
-from src.data.media import CoverPhoto
 
 _Str = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
 
@@ -40,6 +37,11 @@ class Step(BaseModel):
     @cached_property
     def date(self) -> datetime:
         return datetime.fromtimestamp(self.start_time, tz=self.timezone)
+
+
+class CoverPhoto(BaseModel):
+    uuid: str | None = None
+    path: str | None = None
 
 
 class Trip(BaseModel):
@@ -91,11 +93,3 @@ class EnrichedStep(Step):
     weather: Weather
     flag: Flag
     map: Map
-
-
-@dataclass
-class StepContext:
-    step: EnrichedStep
-    cover_photo: Path
-    step_index: int
-    steps: Sequence[EnrichedStep]

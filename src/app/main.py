@@ -5,26 +5,25 @@ from __future__ import annotations
 import asyncio
 import os
 import webbrowser
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich import get_console
 
-from src.album.generator import gen_album_html
+from src.album.generator import render_album_html
 from src.app.edit import EditorServer
 from src.core.cache import clear_cache
-from src.core.dates import get_display_date_range
 from src.core.logger import get_logger
 from src.core.text import is_hebrew
 from src.data.context import TripTemplateCtx
 from src.data.layout import AlbumLayout
 from src.data.locations import PathPoint, load_locations
-from src.data.models import (
+from src.data.trip import (
+    EnrichedStep,
     Step,
     Trip,
 )
-from src.data.trip import EnrichedStep
 from src.layout.processor import build_step_layout
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
@@ -37,7 +36,6 @@ from .args import Args
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    from src.data.models import Step
 
 logger = get_logger(__name__)
 
@@ -79,7 +77,7 @@ def _gen_album_html_file(
     edit: bool,
 ) -> Path:
     with get_console().status("[bold blue]Generating album HTML..."):
-        html_path = gen_album_html(
+        html_path = render_album_html(
             steps,
             path_points,
             trip_template_ctx,
@@ -123,6 +121,27 @@ def _generate_pdf(html_path: Path, pdf_path: Path) -> None:
     except ImportError:
         logger.warning("Playwright not installed. Install with: playwright install chromium")
         logger.info("Skipping PDF generation.")
+
+
+def _format_date_range(start: datetime, end: datetime) -> str:
+    """Format date range smartly, omitting redundant year/month."""
+    if start.year == end.year:
+        if start.month == end.month:
+            # Same month and year: "16 - 26 April 2025"
+            return f"{start.day} - {end.day} {start.strftime('%B %Y')}"
+        # Different month, same year: "16 April - 2 May 2025"
+        return f"{start.day} {start.strftime('%B')} - {end.day} {end.strftime('%B %Y')}"
+
+    # Different year: "28 December 2024 - 15 January 2025"
+    return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
+
+
+def _get_display_date_range(steps: Sequence[Step]) -> str:
+    """Calculate and format the display date range for the trip."""
+    start_date = min(s.date for s in steps)
+    end_date = max(s.date for s in steps)
+
+    return _format_date_range(start_date, end_date)
 
 
 def resolve_cover_photo_path(trip_data: Trip, args: Args) -> str | None:
@@ -204,7 +223,7 @@ def main() -> None:
     trip_template_ctx = TripTemplateCtx(
         title=display_title,
         title_dir="rtl" if is_hebrew(display_title) else "ltr",
-        date_range=get_display_date_range(steps),
+        date_range=_get_display_date_range(steps),
         subtitle=display_subtitle,
         subtitle_dir="rtl" if is_hebrew(display_subtitle) else "ltr",
         cover_photo=(resolve_cover_photo_path(trip, args)),

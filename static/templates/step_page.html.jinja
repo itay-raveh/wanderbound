@@ -80,7 +80,7 @@
     </div>
     <div class="step-content">
         {% if step.use_two_columns %}
-            <div class="multi-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {% if step.desc_dir == 'rtl' %}rtl{% endif %}">
+            <div class="multi-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {{ step.desc_dir }}">
                 {{- step.description -}}
             </div>
         {% elif step.cover_photo %}

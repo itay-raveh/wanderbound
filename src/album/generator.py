@@ -8,24 +8,20 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.context import OverviewTemplateCtx, StepTemplateCtx, TripTemplateCtx
+from src.data.context import OverviewTemplateCtx, TripTemplateCtx
 from src.data.layout import AlbumLayout
 from src.data.locations import PathPoint
-from src.data.models import (
-    Step,
-    StepContext,
-)
-from src.data.trip import EnrichedStep
+from src.data.trip import EnrichedStep, Step
 
-from .preparation import prepare_step_template
+from .preparation import build_step_template_ctx
 
 logger = get_logger(__name__)
 
 
-def gen_album_html(
+def render_album_html(
     steps: Sequence[EnrichedStep],
     path_points: list[PathPoint],
-    trip_template_ctx: TripTemplateCtx,
+    trip_ctx: TripTemplateCtx,
     output_dir: Path,
     *,
     edit: bool,
@@ -34,8 +30,17 @@ def gen_album_html(
     layout_file = output_dir / "layout.json"
     layout = AlbumLayout.model_validate_json(layout_file.read_bytes())
 
-    steps_template_ctx = _process_steps(steps, layout)
-    overview = _gen_overview(steps, layout, path_points)
+    steps_ctx = [
+        build_step_template_ctx(
+            step,
+            layout.steps[step.id],
+            idx,
+            steps,
+        )
+        for idx, step in enumerate(steps)
+    ]
+
+    overview_ctx = _gen_overview_template_ctx(steps, layout, path_points)
 
     template_dir = Path(__file__).parents[2] / "static"
     env = Environment(
@@ -46,11 +51,11 @@ def gen_album_html(
     )
 
     html = env.get_template("album.html.jinja").render(
-        trip=trip_template_ctx,
-        steps=steps_template_ctx,
+        trip=trip_ctx,
+        steps=steps_ctx,
         light_mode=settings.light_mode,
         edit=edit,
-        overview=overview,
+        overview=overview_ctx,
     )
 
     output_path = output_dir / "album.html"
@@ -59,28 +64,7 @@ def gen_album_html(
     return output_path
 
 
-def _process_steps(steps: Sequence[EnrichedStep], layout: AlbumLayout) -> list[StepTemplateCtx]:
-    """Process steps and prepare data for rendering."""
-    steps_template_ctx: list[StepTemplateCtx] = []
-
-    for idx, step in enumerate(steps):
-        step_layout = layout.steps[step.id]
-
-        step_context = StepContext(
-            step=step,
-            cover_photo=step_layout.cover,
-            step_index=idx,
-            steps=steps,
-        )
-        step_data = prepare_step_template(step_context)
-        step_data.photo_pages = step_layout.pages
-        step_data.hidden_photos = step_layout.hidden_photos
-        steps_template_ctx.append(step_data)
-
-    return steps_template_ctx
-
-
-def _gen_overview(
+def _gen_overview_template_ctx(
     steps: Sequence[Step],
     layout: AlbumLayout,
     path_points: list[PathPoint],

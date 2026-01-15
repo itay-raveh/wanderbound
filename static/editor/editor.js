@@ -2,9 +2,7 @@
  * Manual Layout Editor for Polarsteps Album
  */
 
-document.addEventListener("DOMContentLoaded", () => {
-    initEditor();
-});
+document.addEventListener("DOMContentLoaded", () => initEditor());
 
 function initEditor() {
     console.log("Initializing Editor Mode...");
@@ -17,15 +15,11 @@ function injectAddPageButtons() {
     // Find all step groupings.
     // We can assume steps are sequential blocks defined by data-step-id.
     const steps = new Set();
-    document.querySelectorAll(".step-page[data-step-id]").forEach((el) => {
-        steps.add(el.dataset.stepId);
-    });
+    document.querySelectorAll(".step-page[data-step-id]").forEach((el) => steps.add(el.dataset.stepId));
 
     steps.forEach((stepId) => {
         // Find the last visible element for this step to append the button after
-        const stepPages = document.querySelectorAll(
-            `.step-page[data-step-id="${stepId}"]`
-        );
+        const stepPages = document.querySelectorAll(`.step-page[data-step-id="${stepId}"]`);
         const lastPage = stepPages[stepPages.length - 1];
 
         if (lastPage) {
@@ -170,70 +164,17 @@ async function handleDrop(e) {
     this.classList.remove("drag-over");
 
     const itemToMove = draggedItem;
-    if (
-        itemToMove &&
-        (this.contains(itemToMove) || this !== itemToMove.parentNode)
-    ) {
+    if (itemToMove && (this.contains(itemToMove) || this !== itemToMove.parentNode)) {
         // Determine Destination Step
         const destStepPage = this.closest(".step-page");
         const destStepId = destStepPage ? destStepPage.dataset.stepId : null;
-
-        // Check if Cross-Step Move
-        if (
-            draggedSourceStepId &&
-            destStepId &&
-            draggedSourceStepId !== destStepId
-        ) {
-            const srcName = draggedSourceStepName || draggedSourceStepId;
-            const destName = destStepPage.dataset.stepName || destStepId;
-
-            if (!confirm(`Moving photo from "${srcName}" to "${destName}"?`)) {
-                return false;
-            }
-
-            console.log(
-                `Cross-step move detected: ${draggedSourceStepId} -> ${destStepId}`
-            );
-
-            // Prevent default drop until we confirm move
-            const photoPath = itemToMove.dataset.photoPath;
-
-            try {
-                const resp = await fetch("/api/move_photo", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        photo_id: photoPath,
-                        src_step_id: draggedSourceStepId,
-                        dest_step_id: destStepId,
-                    }),
-                });
-
-                const result = await resp.json();
-                if (!result.success) {
-                    alert("Failed to move photo: " + result.error);
-                    return false;
-                }
-
-                // Success: Proceed to move DOM
-                markStepDirty(draggedSourceStepId); // Mark source dirty (removal)
-            } catch (err) {
-                console.error(err);
-                alert("Error moving photo: " + err.message);
-                return false;
-            }
-        }
 
         // Standard Drop Logic (Reordering or Appending)
         // Advanced Drop: Reorder support
         // Check if we dropped ON TOP of another photo item
         const targetPhoto = e.target.closest(".photo-item");
 
-        if (
-            targetPhoto &&
-            targetPhoto !== itemToMove &&
-            this.contains(targetPhoto)
-        ) {
+        if (targetPhoto && targetPhoto !== itemToMove && this.contains(targetPhoto)) {
             // Determine insertion direction based on mouse position
             const rect = targetPhoto.getBoundingClientRect();
             const midX = rect.left + rect.width / 2;
@@ -241,10 +182,7 @@ async function handleDrop(e) {
             if (e.clientX < midX) {
                 targetPhoto.parentNode.insertBefore(itemToMove, targetPhoto);
             } else {
-                targetPhoto.parentNode.insertBefore(
-                    itemToMove,
-                    targetPhoto.nextSibling
-                );
+                targetPhoto.parentNode.insertBefore(itemToMove, targetPhoto.nextSibling);
             }
         } else {
             // Appended to container (empty space)
@@ -290,9 +228,7 @@ function handleContextMenu(e) {
     document.getElementById("ctx-cover").onclick = () => {
         const stepPage = photoItem.closest(".step-page");
         const stepId = stepPage.dataset.stepId;
-        saveStepLayout(stepId, {cover_photo: photoPath}).then(() =>
-            location.reload()
-        );
+        saveStepLayout(stepId, {cover_photo: photoPath}).then(() => location.reload());
     };
 
     document.getElementById("ctx-hide").onclick = () => {
@@ -306,15 +242,11 @@ function handleContextMenu(e) {
             console.log("Hiding photo", photoPath, "for step", stepId);
 
             // Find the MAIN step page (not photo-page) which holds the hidden container
-            const mainStepPage = document.querySelector(
-                `.step-page[data-step-id="${stepId}"]:not(.photo-page)`
-            );
+            const mainStepPage = document.querySelector(`.step-page[data-step-id="${stepId}"]:not(.photo-page)`);
             let hiddenContainer = null;
 
             if (mainStepPage) {
-                hiddenContainer = mainStepPage.querySelector(
-                    ".hidden-photos-container"
-                );
+                hiddenContainer = mainStepPage.querySelector(".hidden-photos-container");
             }
 
             if (!hiddenContainer) {
@@ -364,9 +296,7 @@ function collectStepData(stepId, overrides = {}) {
     if (!stepId) return null;
 
     // Gather all photos for this step
-    const stepPages = document.querySelectorAll(
-        `.step-page[data-step-id="${stepId}"] .photo-page-container`
-    );
+    const stepPages = document.querySelectorAll(`.step-page[data-step-id="${stepId}"] .photo-page-container`);
 
     const pages = [];
     stepPages.forEach((container) => {
@@ -380,9 +310,7 @@ function collectStepData(stepId, overrides = {}) {
     });
 
     // Gather hidden photos
-    const hiddenContainer = document.querySelector(
-        `.step-page[data-step-id="${stepId}"]:not(.photo-page) .hidden-photos-container`
-    );
+    const hiddenContainer = document.querySelector(`.step-page[data-step-id="${stepId}"]:not(.photo-page) .hidden-photos-container`);
     const hiddenPhotos = [];
     if (hiddenContainer) {
         hiddenContainer.querySelectorAll(".photo-item").forEach((item) => {
@@ -391,30 +319,17 @@ function collectStepData(stepId, overrides = {}) {
     }
 
     // Gather Cover Photo ID
-    const stepPage = document.querySelector(
-        `.step-page[data-step-id="${stepId}"]`
-    );
+    const stepPage = document.querySelector(`.step-page[data-step-id="${stepId}"]`);
 
     return {
         id: parseInt(stepId),
         name: stepPage?.dataset.stepName,
         cover: stepPage?.dataset.stepCover,
         pages: pages,
-        hidden_photos: hiddenPhotos,
-        ...overrides,
+        hidden_photos: hiddenPhotos, ...overrides,
     };
 }
 
-async function saveStepLayout(stepId, overrides = {}) {
-    const payload = collectStepData(stepId, overrides);
-    if (!payload) return null;
-
-    return fetch("/api/save", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-    });
-}
 
 window.saveAllVisibleSteps = async function () {
     if (dirtySteps.size === 0) {
@@ -435,9 +350,7 @@ window.saveAllVisibleSteps = async function () {
         }
 
         const response = await fetch("/api/save_batch", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({updates: allUpdates}),
+            method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({updates: allUpdates}),
         });
 
         const result = await response.json();

@@ -11,7 +11,7 @@ from PIL import Image
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.models import Flag
+from src.data.trip import Flag
 from src.services.client import APIClient
 
 if TYPE_CHECKING:

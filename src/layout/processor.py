@@ -6,8 +6,8 @@ from PIL import Image, ImageOps
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.layout import StepLayout
-from src.data.models import Photo, Step
+from src.data.layout import Photo, StepLayout
+from src.data.trip import Step
 
 from .scorer import gen_page_layouts
 

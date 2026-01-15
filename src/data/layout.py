@@ -3,7 +3,16 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from src.data.media import Photo
+
+class Photo(BaseModel):
+    path: Path
+    width: int
+    height: int
+
+    @property
+    def aspect_ratio(self) -> float:
+        return float(self.width) / float(self.height)
+
 
 SpecialLayoutClass = Literal["three-portraits", "one-portrait-two-landscapes"]
 

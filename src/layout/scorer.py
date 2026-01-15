@@ -4,8 +4,7 @@ from collections.abc import Collection, Iterable
 from itertools import combinations
 
 from src.core.logger import get_logger
-from src.data.layout import PageLayout
-from src.data.models import Photo
+from src.data.layout import PageLayout, Photo
 
 from .strategies import (
     FourLandscapesStrategy,

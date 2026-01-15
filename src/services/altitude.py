@@ -13,7 +13,7 @@ from src.core.settings import settings
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from src.data.models import Step
+    from src.data.trip import Step
     from src.services.client import APIClient
 
 
