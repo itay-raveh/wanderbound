@@ -1,14 +1,14 @@
 """Historical weather API integration for temperature data."""
 
 from collections import Counter
-from datetime import datetime, tzinfo
+from datetime import UTC, datetime, tzinfo
 
 from pydantic import BaseModel
 
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.trip import Step, Weather
+from src.data.trip import Weather
 from src.services.client import APIClient
 
 logger = get_logger(__name__)
@@ -62,13 +62,13 @@ def _get_night_icon(hours: list[WeatherHourData], tz: tzinfo, day_icon: str) -> 
 
 
 @cache_in_file()
-async def fetch_weather(client: APIClient, step: Step) -> Weather:
+async def fetch_weather(client: APIClient, lat: float, lon: float, date: datetime) -> Weather:
     data = WeatherApiResponse.model_validate(
         await client.get_json(
             settings.visual_crossing_api_url.format(
-                lat=step.location.lat,
-                lon=step.location.lon,
-                date=step.date.strftime("%Y-%m-%d"),
+                lat=lat,
+                lon=lon,
+                date=date.strftime("%Y-%m-%d"),
                 key=settings.visual_crossing_api_key,
             )
         )
@@ -82,5 +82,5 @@ async def fetch_weather(client: APIClient, step: Step) -> Weather:
         day_feels_like=day.feelslikemax,
         night_feels_like=day.feelslikemin,
         day_icon=day_icon,
-        night_icon=_get_night_icon(day.hours, step.timezone, day_icon),
+        night_icon=_get_night_icon(day.hours, date.tzinfo or UTC, day_icon),
     )

@@ -22,7 +22,7 @@ def build_step_template_ctx(
 ) -> StepTemplateCtx:
     is_hebrew_text = is_hebrew(step.description)
 
-    progress = 100 * step_index / (len(steps) - 1)
+    progress = 100 * step_index / (len(steps) - 1) if len(steps) > 1 else 0
     # TODO(itay): altitude here?
     coords_lat, coords_lon = str(
         Point(round(step.location.lat, 4), round(step.location.lon, 4)).format_unicode()

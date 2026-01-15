@@ -61,7 +61,9 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
             results = await asyncio.gather(
                 *(
                     asyncio.gather(
-                        _progress(weather_progress, fetch_weather)(client, step),
+                        _progress(weather_progress, fetch_weather)(
+                            client, step.location.lat, step.location.lon, step.date
+                        ),
                         _progress(flag_progress, fetch_flag)(client, step.location.country_code),
                         _progress(map_progress, fetch_map)(client, step.location),
                     )
@@ -69,7 +71,9 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
                 ),
             )
 
-            alts = await fetch_all_altitudes(client, steps)
+            alts = await fetch_all_altitudes(
+                client, [(step.location.lat, step.location.lon) for step in steps]
+            )
 
     logger.info("Enriched %d steps", len(steps))
 

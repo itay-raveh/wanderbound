@@ -42,7 +42,7 @@ class Args(Tap):
             logger.info(
                 "Filtered to steps %d-%d: %d steps",
                 self.steps.start,
-                self.steps.stop,
+                self.steps.stop - 1,
                 len(range_steps),
             )
             return range_steps
