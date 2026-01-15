@@ -41,7 +41,6 @@ def _try_build_layout_with_strategies(
                 return PageLayout(
                     photos=strategy.sort(combo),
                     layout_class=strategy.layout_class,
-                    grid_style=strategy.grid_style(combo),
                 )
     return None
 
@@ -58,6 +57,6 @@ def gen_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
         else:
             # If no strategies work, give some photo its own page,
             # and we will try again with the rest
-            pages.append(PageLayout(photos=[candidates.pop()], layout_class=None, grid_style=None))
+            pages.append(PageLayout(photos=[candidates.pop()], layout_class=None))
 
     return pages

@@ -11,8 +11,8 @@ class Photo(BaseModel, frozen=True):
     height: int
 
     @property
-    def aspect_ratio(self) -> float:
-        return float(self.width) / float(self.height)
+    def is_portrait(self) -> float:
+        return float(self.width) / float(self.height) < 0.8
 
 
 SpecialLayoutClass = Literal["three-portraits", "one-portrait-two-landscapes"]
@@ -21,7 +21,6 @@ SpecialLayoutClass = Literal["three-portraits", "one-portrait-two-landscapes"]
 class PageLayout(BaseModel):
     photos: list[Photo]
     layout_class: SpecialLayoutClass | None = None
-    grid_style: str | None = None
 
 
 class StepLayout(BaseModel):

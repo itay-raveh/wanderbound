@@ -18,9 +18,6 @@ class LayoutStrategy(ABC):
     def layout_class(self) -> SpecialLayoutClass | None:
         return None
 
-    def grid_style(self, photos: Iterable[Photo]) -> str | None:  # noqa: ARG002  # pyright: ignore[reportUnusedParameter]
-        return None
-
     @abstractmethod
     def validate(self, photos: Iterable[Photo]) -> bool:
         """Validate if a specific combination of photos fits this strategy."""
@@ -43,32 +40,20 @@ class OnePortraitTwoLandscapesStrategy(LayoutStrategy):
     def layout_class(self) -> SpecialLayoutClass | None:
         return "one-portrait-two-landscapes"
 
-    # TODO(itay): make this better
-    def grid_style(self, photos: Iterable[Photo]) -> str | None:
-        p, l1, l2 = photos
-        page_content_width_mm = 272
-        row_gap_mm = 7
-        ar_l_avg = (l1.aspect_ratio + l2.aspect_ratio) / 2
-        numerator = (2 * page_content_width_mm / ar_l_avg) + row_gap_mm
-        denominator = (1 / p.aspect_ratio) + (2 / ar_l_avg)
-        w_p = numerator / denominator
-        w_l = page_content_width_mm - w_p
-        return f"grid-template-columns: {w_p}fr {w_l}fr;"
-
     def validate(self, photos: Iterable[Photo]) -> bool:
-        return sum(photo.aspect_ratio < 1 for photo in photos) == 1
+        return sum(photo.is_portrait for photo in photos) == 1
 
     def sort(self, photos: Iterable[Photo]) -> list[Photo]:
         # portrait first, then landscapes
         return sorted(
             photos,
-            key=lambda p: p.aspect_ratio,
+            key=lambda p: not p.is_portrait,
         )
 
 
 class _AllPortraitsStrategy(LayoutStrategy, ABC):
     def validate(self, photos: Iterable[Photo]) -> bool:
-        return all(photo.aspect_ratio < 1 for photo in photos)
+        return all(photo.is_portrait for photo in photos)
 
 
 class ThreePortraitsStrategy(_AllPortraitsStrategy):
@@ -93,7 +78,7 @@ class FourLandscapesStrategy(LayoutStrategy):
         return 4
 
     def validate(self, photos: Iterable[Photo]) -> bool:
-        return all(photo.aspect_ratio > 1 for photo in photos)
+        return all(not photo.is_portrait for photo in photos)
 
 
 class ThreeLandscapesStrategy(FourLandscapesStrategy):

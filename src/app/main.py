@@ -270,9 +270,10 @@ def main() -> None:
         logger.info("Starting Editor Mode...")
 
         def regenerate_callback(target_ids: Iterable[int]) -> None:
-            target_steps = [step for step in steps if step.id in target_ids]
-            logger.info("Updating steps: %s.", target_steps)
-            _update_layout_json_file(target_steps, args.trip_dir, args.out)
+            logger.info("Updating steps: %s.", target_ids)
+            _update_layout_json_file(
+                [step for step in steps if step.id in target_ids], args.trip_dir, args.out
+            )
             _gen_album_html_file(
                 steps,
                 path_points,

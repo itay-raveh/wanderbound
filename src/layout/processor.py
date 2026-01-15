@@ -49,7 +49,7 @@ def _load_photo(path: Path) -> Photo:
 
 
 def _select_cover(photos: list[Photo]) -> Photo:
-    portraits = [photo for photo in photos if photo.aspect_ratio < 1]
+    portraits = [photo for photo in photos if photo.is_portrait]
 
     if portraits:
         return portraits[0]
