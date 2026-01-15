@@ -70,13 +70,12 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def create_progress() -> Progress:
+def create_progress(spinner: str = "dots") -> Progress:
     # Use fixed-width format to align all progress bars regardless of title length
     return Progress(
-        SpinnerColumn(),
+        SpinnerColumn(spinner),
         TextColumn("[progress.description]{task.description:<30}"),
         BarColumn(),
         TaskProgressColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeElapsedColumn(),
     )

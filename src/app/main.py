@@ -43,7 +43,7 @@ T = TypeVar("T")
 
 async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
-    with create_progress() as progress:
+    with create_progress("earth") as progress:
 
         def _progress(task: TaskID, func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
