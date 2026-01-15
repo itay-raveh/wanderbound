@@ -1,7 +1,7 @@
 """Historical weather API integration for temperature data."""
 
 from collections import Counter
-from datetime import UTC, datetime, tzinfo
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -25,7 +25,7 @@ class WeatherDayData(BaseModel):
     feelslikemax: float
     feelslikemin: float
     icon: str
-    hours: list[WeatherHourData] = []
+    hours: list[WeatherHourData]
 
 
 class WeatherApiResponse(BaseModel):
@@ -36,19 +36,10 @@ def _normalize_icon_name(icon: str) -> str:
     return icon.lower().replace("_", "-")
 
 
-def _find_night_hours(hours: list[WeatherHourData], tz: tzinfo) -> list[WeatherHourData]:
-    night_hours: list[WeatherHourData] = []
+def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
+    night_hours = [hour for hour in hours if not 5 <= int(hour.datetime[0:2]) <= 21]
 
-    for hour_data in hours:
-        hour = datetime.strptime(hour_data.datetime, "%H:%M:%S").astimezone(tz).hour
-        if not 5 <= hour <= 21:
-            night_hours.append(hour_data)
-
-    return night_hours
-
-
-def _get_night_icon(hours: list[WeatherHourData], tz: tzinfo, day_icon: str) -> str:
-    if night_hours := _find_night_hours(hours, tz):
+    if night_hours:
         icons = (hour.icon for hour in night_hours)
         common = Counter(icons).most_common()[0][0]
         return _normalize_icon_name(common)
@@ -82,5 +73,5 @@ async def fetch_weather(client: APIClient, lat: float, lon: float, date: datetim
         day_feels_like=day.feelslikemax,
         night_feels_like=day.feelslikemin,
         day_icon=day_icon,
-        night_icon=_get_night_icon(day.hours, date.tzinfo or UTC, day_icon),
+        night_icon=_get_night_icon(day.hours, day_icon),
     )
