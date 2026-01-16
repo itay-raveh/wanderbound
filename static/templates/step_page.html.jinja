@@ -93,7 +93,9 @@
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
         {% for photo in step.hidden_photos %}
-            <div class="photo-item" data-photo-path="{{ photo.path }}">
+            <div class="photo-item"
+                 draggable="true"
+                 data-photo-path="{{ photo.path }}">
                 <img src="{{ photo.path }}" alt="Hidden {{ photo }}" />
             </div>
         {% endfor %}
@@ -107,6 +109,7 @@
              {% if photo_page.grid_style %}style="{{ photo_page.grid_style }}"{% endif %}>
             {% for photo in photo_page.photos %}
                 <div class="photo-item"
+                     draggable="true"
                      data-photo-path="{{ photo.path }}"
                      data-photo="{{ photo.model_dump_json() }}">
                     <img src="{{ photo.path }}" alt="{{ photo.path }}" class="photo-image" />
@@ -115,3 +118,8 @@
         </div>
     </div>
 {% endfor %}
+<div class="add-page-container">
+    <button class="add-page-btn"
+            title="Add Photo Page"
+            onclick="addPhotoPage('{{ step.id }}', this)">+</button>
+</div>

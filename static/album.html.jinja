@@ -17,17 +17,25 @@
                 integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
                 crossorigin=""></script>
         <style>
-        {% include 'css/variables.css' %}
-        {% include 'css/reset.css' %}
-        {% include 'css/layout.css' %}
-        {% include 'css/components.css' %}
-        {% include 'css/typography.css' %}
-        {% include 'css/photos.css' %}
-        {% include 'css/overview.css' %}
-        {% include 'css/title.css' %}
+        /* Base */
+        {% include 'css/base/reset.css' %}
+        {% include 'css/base/variables.css' %}
+        {% include 'css/base/typography.css' %}
+        {% include 'css/base/layout.css' %}
+
+        /* Modules */
+        {% include 'css/modules/grids.css' %}
+        {% include 'css/modules/maps.css' %}
+
+        /* Pages */
+        {% include 'css/pages/title.css' %}
+        {% include 'css/pages/overview.css' %}
+        {% include 'css/pages/step.css' %}
+
+        /* Editor */
+        {% include 'editor/editor.css' %}
         </style>
         <script>{% include 'editor/editor.js' %}</script>
-        <style>{% include 'editor/editor.css' %}</style>
     </head>
     <body {% if light_mode %}class="light-mode"{% endif %}>
         {% include "templates/title_page.html.jinja" %}
@@ -36,5 +44,6 @@
         {% for step in steps %}
             {% include "templates/step_page.html.jinja" %}
         {% endfor %}
+        <button id="save-btn" class="save-btn" disabled>SAVE</button>
     </body>
 </html>
