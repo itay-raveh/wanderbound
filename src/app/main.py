@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from rich import get_console
@@ -13,11 +11,11 @@ from src.album.generator import render_album_html
 from src.app.edit import EditorServer
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_logger
-from src.core.text import is_hebrew
+from src.core.text import choose_text_dir
 from src.data.context import TripTemplateCtx
 from src.data.layout import AlbumLayout
 from src.data.locations import PathPoint, load_locations
-from src.data.trip import EnrichedStep, Step, Trip
+from src.data.trip import EnrichedStep, Step, Trip, TripCover
 from src.layout.processor import build_step_layout
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
@@ -29,6 +27,8 @@ from .args import Args
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
+    from datetime import datetime
+    from pathlib import Path
 
     from rich.progress import TaskID
 
@@ -41,7 +41,7 @@ T = TypeVar("T")
 
 async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
-    with create_progress("earth") as progress:
+    with create_progress("Fetching online data", "earth") as progress:
 
         def _progress(task: TaskID, func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
@@ -51,9 +51,9 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
 
             return wrapper
 
-        weather_progress = progress.add_task("Fetching weather data...", total=len(steps))
-        flag_progress = progress.add_task("Fetching flags...", total=len(steps))
-        map_progress = progress.add_task("Fetching maps...", total=len(steps))
+        weather_progress = progress.add_task("Weather...", total=len(steps))
+        flag_progress = progress.add_task("Flags...", total=len(steps))
+        map_progress = progress.add_task("Maps...", total=len(steps))
 
         async with APIClient() as client:
             results = await asyncio.gather(
@@ -94,7 +94,7 @@ def _gen_album_html_file(
     path_points: list[PathPoint],
     trip_template_ctx: TripTemplateCtx,
     output_dir: Path,
-) -> Path:
+) -> None:
     with get_console().status("[bold blue]Generating album HTML..."):
         html_path = render_album_html(
             steps,
@@ -103,7 +103,6 @@ def _gen_album_html_file(
             output_dir,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
-    return html_path
 
 
 def _format_date_range(start: datetime, end: datetime) -> str:
@@ -119,36 +118,21 @@ def _format_date_range(start: datetime, end: datetime) -> str:
     return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
-def _get_display_date_range(steps: Sequence[Step]) -> str:
-    """Calculate and format the display date range for the trip."""
-    start_date = min(s.date for s in steps)
-    end_date = max(s.date for s in steps)
-
-    return _format_date_range(start_date, end_date)
-
-
-def _trip_cover_photo(trip_data: Trip, args: Args) -> str | None:
+def _select_trip_cover(trip_cover: TripCover | None, args: Args) -> str | None:
     """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
     # 1. CLI Override
     if args.cover:
         return str(args.cover.absolute())
 
-    if not trip_data.cover_photo:
+    if not trip_cover:
         return None
 
     # 2. Local File Search
-    if trip_data.cover_photo.uuid:
-        uuid = trip_data.cover_photo.uuid
-        # Search for the file in trip_dir
-        found_photos = list(Path(args.trip).rglob(f"*{uuid}*.jpg"))
-        if not found_photos:
-            found_photos = list(Path(args.trip).rglob(f"*{uuid}*.jpg.jpg"))
-
-        if found_photos:
-            return str(found_photos[0].absolute())
+    if photos := list(args.trip.rglob(f"*{trip_cover.uuid}*.jpg")):
+        return str(photos[0].absolute())
 
     # 3. Remote URL
-    return trip_data.cover_photo.path
+    return trip_cover.url
 
 
 def _gen_layout_json_file(
@@ -179,10 +163,7 @@ def main() -> None:
 
     trip_json_path = args.trip / "trip.json"
     if not trip_json_path.exists():
-        logger.error(
-            "trip.json not found at %s. Please ensure the trip directory contains trip.json",
-            trip_json_path,
-        )
+        logger.error("trip.json not found at %s.", trip_json_path)
         return
 
     if args.no_cache:
@@ -190,25 +171,33 @@ def main() -> None:
         logger.warning("Cleared cache")
 
     trip = Trip.model_validate_json(trip_json_path.read_text())
-
     steps = asyncio.run(enrich_steps(args.filter_steps(trip.all_steps)))
 
-    display_title = args.title or trip.name
-    display_subtitle = args.subtitle or trip.summary
-    cover = _trip_cover_photo(trip, args)
+    title = args.title or trip.title
+    subtitle = args.subtitle or trip.subtitle
+    cover = _select_trip_cover(trip.cover_photo, args)
+    back_cover = str(args.back_cover.absolute()) if args.back_cover else cover
 
-    min_time = steps[0].date.timestamp()
-    max_time = (steps[-1].date + timedelta(days=1)).timestamp()
-    path_points, path_segments = load_locations(args.trip, min_time, max_time)
+    start_date = steps[0].date
+    end_date = steps[-1].date
+
+    path_points, path_segments = load_locations(
+        args.trip,
+        start_date.timestamp(),
+        # Go until the END of the last day
+        end_date.timestamp() + 60 * 60 * 24,
+    )
+
+    dates = _format_date_range(start_date, end_date)
 
     trip_template_ctx = TripTemplateCtx(
-        title=display_title,
-        title_dir="rtl" if is_hebrew(display_title) else "ltr",
-        dates=_get_display_date_range(steps),
-        subtitle=display_subtitle,
-        subtitle_dir="rtl" if is_hebrew(display_subtitle) else "ltr",
+        title=title,
+        title_dir=choose_text_dir(title),
+        dates=dates,
+        subtitle=subtitle,
+        subtitle_dir=choose_text_dir(subtitle),
         cover=cover,
-        back_cover=str(args.back_cover.absolute()) if args.back_cover else cover,
+        back_cover=back_cover,
         path_points=path_points,
         path_segments=path_segments,
     )

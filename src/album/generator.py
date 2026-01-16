@@ -25,8 +25,7 @@ def render_album_html(
     output_dir: Path,
 ) -> Path:
     """Generate HTML pages for the photo album."""
-    layout_file = output_dir / "layout.json"
-    layout = AlbumLayout.model_validate_json(layout_file.read_bytes())
+    layout = AlbumLayout.model_validate_json((output_dir / "layout.json").read_bytes())
 
     steps_ctx = [
         build_step_template_ctx(

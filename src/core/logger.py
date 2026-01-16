@@ -4,6 +4,7 @@ import logging
 
 from rich import print as rprint
 from rich.logging import RichHandler
+from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,
@@ -70,12 +71,17 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def create_progress(spinner: str = "dots") -> Progress:
+def create_progress(title: str | None = None, spinner: str = "dots") -> Progress:
     # Use fixed-width format to align all progress bars regardless of title length
-    return Progress(
+    progress = Progress(
         SpinnerColumn(spinner),
         TextColumn("[progress.description]{task.description:<30}"),
         BarColumn(),
         TaskProgressColumn(),
         TimeElapsedColumn(),
     )
+
+    if title:
+        progress.print(Panel.fit(title))
+
+    return progress

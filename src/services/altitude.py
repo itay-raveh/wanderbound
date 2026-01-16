@@ -29,9 +29,7 @@ async def fetch_all_altitudes(
     all_elevations: list[float] = []
 
     with create_progress() as progress:
-        for batch in chunked(
-            progress.track(points, description="Fetching altitudes..."), _CHUK_SIZE
-        ):
+        for batch in chunked(progress.track(points, description="Altitudes..."), _CHUK_SIZE):
             locations_param = "|".join(f"{lat},{lon}" for lat, lon in batch)
             url = settings.opentopodata_api_url.format(locations=locations_param)
             data: dict[str, list[dict[str, float]]] = await client.get_json(url)

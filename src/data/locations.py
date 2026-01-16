@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from itertools import pairwise
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from geopy.distance import distance
 from pydantic import BaseModel
 
 from src.core.logger import create_progress, get_logger
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = get_logger(__name__)
 
@@ -13,6 +18,9 @@ class PathPoint(BaseModel):
     lat: float
     lon: float
     time: float
+
+    def __lt__(self, other: PathPoint) -> bool:
+        return self.time < other.time
 
 
 class LocationsJSON(BaseModel):
@@ -35,18 +43,14 @@ def load_locations(
     min_time: float,
     max_time: float,
 ) -> tuple[list[PathPoint], list[PathSegment]]:
-    locations_path = trip_dir / "locations.json"
+    locations_json = LocationsJSON.model_validate_json((trip_dir / "locations.json").read_text())
 
-    path_points = LocationsJSON.model_validate_json(locations_path.read_text()).locations
-    path_points = [p for p in path_points if min_time <= p.time <= max_time]
-    path_points.sort(key=lambda p: p.time)
+    with create_progress("Loading GPS points") as progress:
+        tracked_points = progress.track(locations_json.locations, description="Filtering...")
+        points = sorted(point for point in tracked_points if min_time <= point.time <= max_time)
 
-    clean_points: list[PathPoint] = [path_points[0]]  # Hopefully the first point is not a GPS error
-
-    with create_progress() as progress:
-        for curr in progress.track(
-            path_points[1:], description=f"Cleaning   {len(path_points):,} points..."
-        ):
+        clean_points = [points[0]]  # Hopefully the first point is not a GPS error
+        for curr in progress.track(points[1:], description="Cleaning..."):
             prev = clean_points[-1]
 
             if prev.time == curr.time:
@@ -58,12 +62,10 @@ def load_locations(
                 clean_points.append(curr)
 
         segments: list[PathSegment] = []
-        segment_points: list[PathPoint] = [path_points[0]]
+        segment_points: list[PathPoint] = [points[0]]
 
         for prev, curr in progress.track(
-            pairwise(clean_points),
-            len(clean_points) - 1,
-            description=f"Segmenting {len(clean_points):,} points...",
+            pairwise(clean_points), len(clean_points) - 1, description="Segmenting..."
         ):
             dist_km, speed_kmh = _dist_and_speed(prev, curr)
 

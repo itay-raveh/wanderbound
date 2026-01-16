@@ -6,7 +6,7 @@ from geopy.point import Point
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.core.text import is_hebrew
+from src.core.text import choose_text_dir
 from src.data.context import StepTemplateCtx
 from src.data.layout import StepLayout
 from src.data.trip import EnrichedStep
@@ -20,10 +20,7 @@ def build_step_template_ctx(
     step_index: int,
     steps: Sequence[EnrichedStep],
 ) -> StepTemplateCtx:
-    is_hebrew_text = is_hebrew(step.description)
-
     progress = 100 * step_index / (len(steps) - 1) if len(steps) > 1 else 0
-    # TODO(itay): altitude here?
     coords_lat, coords_lon = str(
         Point(round(step.location.lat, 4), round(step.location.lon, 4)).format_unicode()
     ).split(",")
@@ -58,8 +55,7 @@ def build_step_template_ctx(
         map_dot_y=step.map.dot_position[1],
         accent_color=step.flag.accent_color,
         description=step.description,
-        desc_dir="rtl" if is_hebrew_text else "ltr",
-        desc_align="right" if is_hebrew_text else "left",
+        desc_dir=choose_text_dir(step.description),
         is_long_description=len(step.description) > settings.long_description_threshold,
         photo_pages=layout.pages,
         hidden_photos=layout.hidden_photos,

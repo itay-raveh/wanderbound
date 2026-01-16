@@ -39,19 +39,19 @@ class Step(BaseModel):
         return datetime.fromtimestamp(self.start_time, tz=self.timezone)
 
 
-class CoverPhoto(BaseModel):
+class TripCover(BaseModel):
     uuid: str | None = None
-    path: str | None = None
+    url: str | None = Field(None, alias="path")
 
 
 class Trip(BaseModel):
-    name: str
-    start_time: float = Field(validation_alias="start_date")
-    end_time: float = Field(validation_alias="end_date")
+    title: str = Field(alias="name")
+    subtitle: _Str = Field(alias="summary")
+    cover_photo: TripCover
+    start_time: float = Field(alias="start_date")
+    end_time: float = Field(alias="end_date")
     timezone_id: str
     all_steps: Sequence[Step]
-    summary: _Str
-    cover_photo: CoverPhoto
 
     @property
     def timezone(self) -> ZoneInfo:
