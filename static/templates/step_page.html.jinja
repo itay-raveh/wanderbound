@@ -1,4 +1,4 @@
-<div class="step-page page-container {% if step.use_two_columns %}multi-column{% endif %}"
+<div class="step-page page-container {% if step.is_long_description %}with-long-desc{% endif %}"
      data-step-id="{{ step.id }}"
      data-step-name="{{ step.name }} ({{ step.country }})"
      data-step-cover="{{ step.cover_photo }}">
@@ -28,8 +28,8 @@
             </div>
             <div class="step-name">{{ step.name }}</div>
         </div>
-        {%- if not step.use_two_columns -%}
-            <div class="step-description" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+        {%- if not step.is_long_description -%}
+            <div class="step-description {{ step.desc_dir }}">{{- step.description -}}</div>
         {%- endif -%}
         <div class="metadata-section">
             <div class="metadata">
@@ -79,10 +79,8 @@
         </div>
     </div>
     <div class="step-content">
-        {% if step.use_two_columns %}
-            <div class="multi-column-text {% if step.use_three_columns %}three-cols{% else %}two-cols{% endif %} {{ step.desc_dir }}">
-                {{- step.description -}}
-            </div>
+        {% if step.is_long_description %}
+            <div class="long-description {{ step.desc_dir }}">{{- step.description -}}</div>
         {% elif step.cover_photo %}
             <img src="{{ step.cover_photo }}"
                  alt="{{ step.name }}"

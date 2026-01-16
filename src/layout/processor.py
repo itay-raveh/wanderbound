@@ -24,8 +24,8 @@ def build_step_layout(
     # Determine cover photo
     cover = _select_cover(photos_in_folder)
 
-    # But if it will not appear, leave it tu be put in the pages
-    if len(step.description) <= settings.description_two_columns_threshold:
+    # But if it will not appear, leave it to be put in the pages
+    if len(step.description) <= settings.long_description_threshold:
         photos_in_folder.remove(cover)
 
     return StepLayout(

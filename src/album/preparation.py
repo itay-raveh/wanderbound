@@ -60,8 +60,7 @@ def build_step_template_ctx(
         description=step.description,
         desc_dir="rtl" if is_hebrew_text else "ltr",
         desc_align="right" if is_hebrew_text else "left",
-        use_two_columns=(len(step.description) > settings.description_two_columns_threshold),
-        use_three_columns=(len(step.description) > settings.description_three_columns_threshold),
+        is_long_description=len(step.description) > settings.long_description_threshold,
         photo_pages=layout.pages,
         hidden_photos=layout.hidden_photos,
     )

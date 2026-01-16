@@ -22,7 +22,7 @@
     --icon-size-small: 12px;
     --icon-size-medium: 16px;
     --icon-size-large: 24px;
-    --map-icon-size: 7rem;
+    --map-icon-size: 5rem;
     --flag-width: 18px;
     --flag-height: 13px;
 
@@ -32,7 +32,7 @@
     --bg-panel: #212121;
     --bg-sidebar: #002e3d;
     --text-primary: white;
-    --text-secondary: #e0e0e0;
+    --text-secondary: #ececec;
     --text-muted: #999;
     --text-coords: #ccc;
     --border-color: #333;

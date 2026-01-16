@@ -11,7 +11,6 @@
     gap: 5mm;
     align-items: stretch;
     justify-items: stretch;
-    padding: 10mm;
 }
 
 /* Single photo: full page */
@@ -125,9 +124,6 @@
 .photo-image {
     max-width: 100%;
     max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
 }
 
 .hidden-photos-container {

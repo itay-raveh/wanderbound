@@ -1,70 +1,41 @@
 .step-name {
     font-family: var(--font-primary);
-    font-size: 28px;
+    font-size: 1.3rem;
     font-weight: bold;
     text-transform: uppercase;
-
-    margin-bottom: 15px;
-    line-height: 1.2;
 }
 
 .step-description {
-    flex: 1;
     font-family: "Noto Sans Hebrew", sans-serif;
     font-size: 0.7rem;
     line-height: 1.8;
     color: var(--text-secondary);
-    margin-bottom: 30px;
+    margin-bottom: 1rem;
     white-space: pre-wrap;
-    text-align: start;
+    overflow: hidden;
 }
 
-.step-description[dir="rtl"] {
-    direction: rtl;
-    text-align: right;
-}
-
-.step-description[dir="ltr"] {
-    direction: ltr;
-    text-align: left;
-}
-
-.multi-column-text {
-    width: 100%;
-    height: 100%;
-    padding: var(--spacing-xxxl) var(--spacing-huge);
-    overflow-y: auto;
-    background: var(--bg-primary);
+.long-description {
+    padding: var(--spacing-lg);
     color: var(--text-secondary);
     font-family: "Noto Sans Hebrew", sans-serif;
     line-height: 1.8;
     white-space: pre-wrap;
-    column-fill: balance;
-    text-align: justify;
     font-size: 0.7rem;
+    columns: 2;
 }
 
-.multi-column-text.two-cols {
-    column-count: 2;
-    column-gap: 3rem;
-}
-
-.multi-column-text.three-cols {
-    column-count: 3;
-    column-gap: 2rem;
-}
-
-.multi-column-text.rtl {
+.rtl {
     direction: rtl;
     text-align: right;
 }
 
-.multi-column-text:not(.rtl) {
+.ltr {
     direction: ltr;
     text-align: left;
 }
 
-.multi-column-text .step-description {
+.long-description .step-description {
     font-family: "Noto Sans Hebrew", sans-serif;
     line-height: 1.8;
     color: #e0e0e0;

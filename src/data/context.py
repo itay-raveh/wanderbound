@@ -34,8 +34,7 @@ class StepTemplateCtx:
     description: str
     desc_dir: str
     desc_align: str
-    use_two_columns: bool
-    use_three_columns: bool
+    is_long_description: bool
     photo_pages: list[PageLayout]
     hidden_photos: list[Path]
 

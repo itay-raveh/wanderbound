@@ -23,7 +23,7 @@
 .step-data {
     flex: 1;
     background: var(--bg-panel);
-    padding: var(--spacing-bottom) var(--spacing-lg) var(--spacing-bottom) 10mm;
+    padding: var(--spacing-xxl) var(--spacing-lg);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -54,33 +54,25 @@
 }
 
 /* Two-column text spans entire page */
-.step-page.multi-column {
+.step-page.with-long-desc {
     flex-direction: column;
 }
 
-.step-page.multi-column .step-data {
-    width: 100%;
-    height: auto;
-    min-height: auto;
+.step-page.with-long-desc .step-data {
     flex-direction: row;
-    justify-content: space-between;
     align-items: center;
-    padding: 20mm 20mm var(--spacing-xl) 20mm;
-    gap: var(--spacing-xxxl);
+    padding: var(--spacing-xxxl);
 }
 
-.step-page.multi-column .location-section {
+.step-page.with-long-desc .location-section {
     margin-bottom: 0;
-    flex: 1;
 }
 
-.step-page.multi-column .metadata-section {
-    flex-shrink: 0;
-    width: min(400px, 40%);
-    margin-top: 0;
+.step-page.with-long-desc .metadata-section {
+    width: 40%
 }
 
-.step-page.multi-column .step-content {
+.step-page.with-long-desc .step-content {
     width: 100%;
     min-height: 300px;
     background: var(--bg-primary);
