@@ -93,10 +93,8 @@
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
         {% for photo in step.hidden_photos %}
-            <div class="photo-item"
-                 draggable="true"
-                 data-photo-path="{{ photo.path }}">
-                <img src="{{ photo.path }}" alt="Hidden {{ photo }}" />
+            <div class="photo-item" data-photo-path="{{ photo.path }}">
+                <img src="{{ photo.path }}" alt="Hidden {{ photo }}" draggable="true" />
             </div>
         {% endfor %}
     </div>
@@ -109,10 +107,32 @@
              {% if photo_page.grid_style %}style="{{ photo_page.grid_style }}"{% endif %}>
             {% for photo in photo_page.photos %}
                 <div class="photo-item"
-                     draggable="true"
                      data-photo-path="{{ photo.path }}"
                      data-photo="{{ photo.model_dump_json() }}">
-                    <img src="{{ photo.path }}" alt="{{ photo.path }}" class="photo-image" />
+                    {% if photo.is_video %}
+                        <div class="video-wrapper"
+                             style="aspect-ratio: {{ photo.width }} / {{ photo.height }}">
+                            <img src="{{ photo.path }}"
+                                 alt="Video Frame"
+                                 class="video-poster photo-image"
+                                 draggable="true" />
+                            <div class="play-overlay" onclick="toggleVideo(this)"></div>
+                            <video src="{{ photo.video_src }}"
+                                   class="video-player photo-image"
+                                   controls
+                                   preload="metadata">
+                            </video>
+                            <button class="set-frame-btn"
+                                    onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.video_src }}')">
+                                Set Frame
+                            </button>
+                        </div>
+                    {% else %}
+                        <img src="{{ photo.path }}"
+                             alt="{{ photo.path }}"
+                             class="photo-image"
+                             draggable="true" />
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>

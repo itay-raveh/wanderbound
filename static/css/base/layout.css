@@ -1,0 +1,20 @@
+.page-container {
+  width: 100%;
+  max-width: var(--page-width);
+  aspect-ratio: var(--page-aspect-ratio);
+  min-height: var(--page-height);
+  margin: 0 auto;
+  padding: 0 12mm;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+
+  /* Page break properties */
+  page-break-after: always;
+  page-break-inside: avoid;
+  break-after: page;
+  break-inside: avoid;
+}

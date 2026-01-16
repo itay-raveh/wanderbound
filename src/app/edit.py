@@ -5,9 +5,10 @@ from aiohttp import web
 from pydantic import BaseModel
 
 from src.core.logger import get_logger
-from src.data.layout import AlbumLayout, StepLayout
+from src.data.layout import AlbumLayout, StepLayout, Video
 from src.layout.processor import load_photo
 from src.layout.scorer import try_choose_layout
+from src.services import video
 
 logger = get_logger(__name__)
 
@@ -15,6 +16,12 @@ logger = get_logger(__name__)
 class CoverRequest(BaseModel):
     id: int
     cover: Path
+
+
+class VideoUpdateRequest(BaseModel):
+    id: int
+    video_src: Path
+    timestamp: float
 
 
 class LayoutRequest(BaseModel):
@@ -65,6 +72,24 @@ class EditorServer:
         self.regenerate([cover_request.id])
         return web.json_response({"success": True})
 
+    async def handle_video(self, request: web.Request) -> web.Response:
+        video_request = VideoUpdateRequest.model_validate(await request.json())
+        layout = AlbumLayout.model_validate_json(self.layout_file.read_text())
+
+        for page in layout.steps[video_request.id].pages:
+            for photo in page.photos:
+                if isinstance(photo, Video) and photo.video_src == video_request.video_src:
+                    photo.path = video.calculate_frame_path(
+                        video_request.video_src, video_request.timestamp, self.output_dir
+                    )
+                    photo.video_timestamp = video_request.timestamp
+                    video.extract_frame(photo.video_src, photo.video_timestamp, photo.path)
+                    break
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2))
+        self.regenerate([video_request.id])
+        return web.json_response({"success": True})
+
     async def handle_layout(self, request: web.Request) -> web.Response:
         layout_request = LayoutRequest.model_validate(await request.json())
         layout = AlbumLayout.model_validate_json(self.layout_file.read_text())
@@ -86,6 +111,8 @@ class EditorServer:
         app.router.add_get("/", self.handle_index)
         app.router.add_post("/api/cover", self.handle_cover)
         app.router.add_post("/api/layout", self.handle_layout)
+        app.router.add_post("/api/video", self.handle_video)
         app.router.add_static(str(self.trip_dir.absolute()), self.trip_dir)
+        app.router.add_static(str(self.output_dir.absolute()), self.output_dir)
 
         web.run_app(app, port=port)

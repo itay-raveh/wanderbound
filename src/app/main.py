@@ -149,10 +149,10 @@ def _gen_layout_json_file(
         else AlbumLayout(steps={})
     )
 
-    with create_progress() as progress:
+    with create_progress("Loading photos/videos") as progress:
         for step in progress.track(target_steps, description="Building layout.json..."):
             if step.id not in layout.steps:
-                layout.steps[step.id] = build_step_layout(step, trip_dir)
+                layout.steps[step.id] = build_step_layout(step, trip_dir, output_dir)
 
     layout_file.write_text(layout.model_dump_json(indent=2))
     logger.info("Generated: %s", layout_file, extra={"success": True})
