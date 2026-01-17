@@ -27,7 +27,7 @@ class LocationsJSON(BaseModel):
     locations: list[PathPoint]
 
 
-class PathSegment(BaseModel):
+class Segment(BaseModel):
     points: list[PathPoint]
     is_flight: bool
 
@@ -38,11 +38,7 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     return dist_km, speed_kmh
 
 
-def load_locations(
-    trip_dir: Path,
-    min_time: float,
-    max_time: float,
-) -> tuple[list[PathPoint], list[PathSegment]]:
+def load_segments(trip_dir: Path, min_time: float, max_time: float) -> list[Segment]:
     locations_json = LocationsJSON.model_validate_json((trip_dir / "locations.json").read_text())
 
     with create_progress("Loading GPS points") as progress:
@@ -58,10 +54,10 @@ def load_locations(
 
             _, speed_kmh = _dist_and_speed(prev, curr)
 
-            if speed_kmh < 1500:
+            if speed_kmh < 1000:
                 clean_points.append(curr)
 
-        segments: list[PathSegment] = []
+        segments: list[Segment] = []
         segment_points: list[PathPoint] = [points[0]]
 
         for prev, curr in progress.track(
@@ -71,13 +67,13 @@ def load_locations(
 
             # Very fast over a large distance, must be a flight
             if speed_kmh > 150 and dist_km > 50:
-                segments.append(PathSegment(points=segment_points, is_flight=False))
+                segments.append(Segment(points=segment_points, is_flight=False))
                 segment_points = []
-                segments.append(PathSegment(points=[prev, curr], is_flight=True))
+                segments.append(Segment(points=[prev, curr], is_flight=True))
 
             segment_points.append(curr)
 
-        segments.append(PathSegment(points=segment_points, is_flight=False))
+        segments.append(Segment(points=segment_points, is_flight=False))
 
     logger.info("Loaded %d map points as %d segments", len(clean_points), len(segments))
-    return clean_points, segments
+    return segments

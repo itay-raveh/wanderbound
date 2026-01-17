@@ -27,6 +27,7 @@ def build_step_template_ctx(
 
     return StepTemplateCtx(
         id=step.id,
+        index=step_index,
         name=step.name,
         country=step.location.country,
         coords_lat=coords_lat,

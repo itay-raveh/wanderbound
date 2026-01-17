@@ -14,7 +14,7 @@ from src.core.logger import create_progress, get_logger
 from src.core.text import choose_text_dir
 from src.data.context import TripTemplateCtx
 from src.data.layout import AlbumLayout
-from src.data.locations import PathPoint, load_locations
+from src.data.segments import load_segments
 from src.data.trip import EnrichedStep, Step, Trip, TripCover
 from src.layout.processor import build_step_layout
 from src.services.altitude import fetch_all_altitudes
@@ -91,15 +91,15 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
 
 def _gen_album_html_file(
     steps: Sequence[EnrichedStep],
-    path_points: list[PathPoint],
     trip_template_ctx: TripTemplateCtx,
+    maps_slices: list[slice],
     output_dir: Path,
 ) -> None:
     with get_console().status("[bold blue]Generating album HTML..."):
         html_path = render_album_html(
             steps,
-            path_points,
             trip_template_ctx,
+            maps_slices,
             output_dir,
         )
     logger.info("Generated: %s", html_path, extra={"success": True})
@@ -171,7 +171,25 @@ def main() -> None:
         logger.warning("Cleared cache")
 
     trip = Trip.model_validate_json(trip_json_path.read_text())
-    steps = asyncio.run(enrich_steps(args.filter_steps(trip.all_steps)))
+
+    target_steps = args.filter_steps(trip.all_steps)
+
+    # Validate and adjust map ranges
+    offset = args.steps_slice.start if args.steps_slice else 0
+    maps_slices: list[slice] = []
+
+    for map_slice in args.maps_slices or []:
+        adj_start = map_slice.start - offset
+        adj_stop = map_slice.stop - offset
+
+        if adj_start < 0 or adj_stop > len(target_steps):
+            logger.error("Map range %d-%d is out of bounds", map_slice.start, map_slice.stop - 1)
+            return
+
+        maps_slices.append(slice(adj_start, adj_stop))
+
+    # 2. Enrich steps (expensive network calls)
+    steps = asyncio.run(enrich_steps(target_steps))
 
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
@@ -181,7 +199,7 @@ def main() -> None:
     start_date = steps[0].date
     end_date = steps[-1].date
 
-    path_points, path_segments = load_locations(
+    segments = load_segments(
         args.trip,
         start_date.timestamp(),
         # Go until the END of the last day
@@ -198,13 +216,12 @@ def main() -> None:
         subtitle_dir=choose_text_dir(subtitle),
         cover=cover,
         back_cover=back_cover,
-        path_points=path_points,
-        path_segments=path_segments,
+        segments=segments,
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
     _gen_layout_json_file(steps, args.trip, args.output)
-    _gen_album_html_file(steps, path_points, trip_template_ctx, args.output)
+    _gen_album_html_file(steps, trip_template_ctx, maps_slices, args.output)
 
     def regenerate_callback(target_ids: Sequence[int]) -> None:
         logger.info("Updating steps %s", target_ids)
@@ -213,8 +230,8 @@ def main() -> None:
         )
         _gen_album_html_file(
             steps,
-            path_points,
             trip_template_ctx,
+            maps_slices,
             args.output,
         )
 

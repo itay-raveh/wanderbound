@@ -2,12 +2,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.data.layout import PageLayout
-from src.data.locations import PathPoint, PathSegment
+from src.data.segments import Segment
 
 
 @dataclass
 class StepTemplateCtx:
     id: int
+    index: int
     name: str
     country: str
     coords_lat: str
@@ -47,8 +48,7 @@ class TripTemplateCtx:
     subtitle_dir: str
     cover: str | None
     back_cover: str | None
-    path_points: list[PathPoint]
-    path_segments: list[PathSegment]
+    segments: list[Segment]
 
 
 @dataclass
@@ -58,3 +58,10 @@ class OverviewTemplateCtx:
     total_days: int
     step_count: int
     photo_count: int
+
+
+@dataclass
+class MapTemplateCtx:
+    id: str  # DOM container ID
+    segments: list[Segment]
+    steps: list[StepTemplateCtx]

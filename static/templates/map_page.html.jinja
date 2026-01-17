@@ -1,208 +1,200 @@
 <div class="page-container">
-    <div id="trip-map"></div>
-    <div id="map-loading-text">Map Loading...</div>
+    <div id="{{ map_ctx.id }}" class="full-map-container"></div>
+    <div class="map-loading-text">Map Loading...</div>
 </div>
 <script>
-    // Immediate check
-    console.log("Map script loaded");
-    const debugLoading = document.getElementById('map-loading-text');
-    if (debugLoading) debugLoading.textContent = "Map Loading... Init";
+    (function () {
+        // Map Context Data
+        // Map Context Data
+        const segments = [
+            {% for segment in map_ctx.segments %}
+                {{ segment.model_dump() | tojson }},
+            {% endfor %}
+        ];
+        const steps = [
+            {% for step in map_ctx.steps %}
+                {
+                    "lat_val": {{ step.lat_val }},
+                    "lon_val": {{ step.lon_val }},
+                    "cover_photo": "{{ step.cover_photo }}"
+                },
+            {% endfor %}
+        ];
+        const containerId = "{{ map_ctx.id }}";
 
-    function initMap() {
-        console.log("Initializing Map Logic");
-        const loadingText = document.getElementById('map-loading-text');
-        if (loadingText) loadingText.textContent = "Map Loading... Starting";
+        if (typeof window.initMapLogic === 'undefined') {
+            window.initMapLogic = function (containerId, segments, steps) {
+                console.log("Initializing Map Logic for", containerId);
+                const mapContainer = document.getElementById(containerId);
+                if (!mapContainer) return;
 
-        if (typeof L === 'undefined') {
-            console.error("Leaflet is undefined");
-            if (loadingText) {
-                loadingText.textContent = "Error: Leaflet JS (L) is not defined. Asset path issue?";
-                loadingText.style.color = "red";
-            }
-            return;
-        }
+                const pageContainer = mapContainer.parentElement;
+                const loadingText = pageContainer.querySelector('.map-loading-text');
 
-        try {
-            const map = L.map('trip-map', {
-                zoomSnap: 0,
-                zoomDelta: 0.1,
-                preferCanvas: true,
-                zoomControl: false,
-                attributionControl: false,
-                dragging: false,
-                touchZoom: false,
-                scrollWheelZoom: false,
-                doubleClickZoom: false,
-                boxZoom: false,
-                keyboard: false
-            });
+                if (typeof L === 'undefined') {
+                    console.error("Leaflet is undefined");
+                    if (loadingText) loadingText.textContent = "Error: Leaflet JS (L) is not defined.";
+                    return;
+                }
 
-            // Esri World Imagery
-            const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-            }).addTo(map);
+                try {
+                    const map = L.map(containerId, {
+                        zoomSnap: 0,
+                        zoomDelta: 0.1,
+                        preferCanvas: true,
+                        zoomControl: false,
+                        attributionControl: false,
+                        dragging: false,
+                        touchZoom: false,
+                        scrollWheelZoom: false,
+                        doubleClickZoom: false,
+                        boxZoom: false,
+                        keyboard: false
+                    });
 
-            // 2. Context Overlay (Roads, Borders - Esri)
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {}).addTo(map);
-
-            if (loadingText)
-                loadingText.textContent = "Map Loading... Tiles";
-
-            tiles.on('load', function () {
-                if (loadingText) loadingText.style.display = 'none';
-            });
-
-            // Fallback: hide loading text after 3 seconds anyway if map initialized
-            setTimeout(function () {
-                if (loadingText) loadingText.style.display = 'none';
-            }, 2000);
-
-            // Force map to update size once everything is loaded
-            setTimeout(function () {
-                map.invalidateSize();
-            }, 500);
-
-            // Bezier Curve Logic
-            function getBezierPoint(t, p0, p1, p2) {
-                const x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0];
-                const y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1];
-                return [x, y];
-            }
-
-            function getControlPoint(p0, p1, offsetScale) {
-                const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
-                const dx = p1[0] - p0[0];
-                const dy = p1[1] - p0[1];
-
-                // Normal vector (-dy, dx)
-                const nx = -dy;
-                const ny = dx;
-
-                // Normalize and scale
-                // offsetScale determines curve height relative to distance
-                const k = offsetScale * 0.2;
-
-                return [mid[0] + nx * k, mid[1] + ny * k];
-            }
-
-            function getAngle(p0, p1) {
-                const dy = p1[0] - p0[0];
-                const dx = p1[1] - p0[1];
-                let theta = Math.atan2(dy, dx); // range (-PI, PI]
-                theta *= 180 / Math.PI; // rads to degs
-                return theta;
-            }
-
-            {% for segment in trip.path_segments %}
-                var segPoints = [];
-                {% for p in segment.points %}
-                    segPoints.push([{{ p.lat }}, {{ p.lon }}]);
-                {% endfor %}
-
-                {% if not segment.is_flight %}
-                    L.polyline(segPoints, {
-                        color: '#ffffff',
-                        weight: 3,
-                        dashArray: '6, 10',
+                    // Esri World Imagery
+                    const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
                     }).addTo(map);
-                {% else %}
-                    // FLIGHT SEGMENT
-                    var pStart = segPoints[0];
-                    var pEnd = segPoints[segPoints.length - 1];
 
-                    // Control point for curve
-                    var control = getControlPoint(pStart, pEnd, 0.5); // 0.5 curvature
+                    // 2. Context Overlay (Roads, Borders - Esri)
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {}).addTo(map);
 
-                    // Sample the Bezier curve
-                    var curvePoints = [];
-                    for (var t = 0; t <= 1; t += 0.005) {
-                        curvePoints.push(getBezierPoint(t, pStart, control, pEnd));
+                    if (loadingText) loadingText.textContent = "Map Loading... Tiles";
+
+                    tiles.on('load', function () {
+                        if (loadingText) loadingText.style.display = 'none';
+                    });
+
+                    setTimeout(function () {
+                        if (loadingText) loadingText.style.display = 'none';
+                    }, 2000);
+
+                    setTimeout(function () {
+                        map.invalidateSize();
+                    }, 500);
+
+                    // Helper functions (scoped)
+                    function getBezierPoint(t, p0, p1, p2) {
+                        const x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0];
+                        const y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1];
+                        return [x, y];
                     }
 
-                    L.polyline(curvePoints, {
-                        color: '#ffffff',
-                        weight: 3,
-                        dashArray: '1, 10',
-                        lineCap: 'round'
-                    }).addTo(map);
+                    function getControlPoint(p0, p1, offsetScale) {
+                        const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+                        const dx = p1[0] - p0[0];
+                        const dy = p1[1] - p0[1];
+                        const nx = -dy;
+                        const ny = dx;
+                        const k = offsetScale * 0.2;
+                        return [mid[0] + nx * k, mid[1] + ny * k];
+                    }
 
-                    // Airplane Icon at midpoint
-                    var midT = 0.55;
-                    var midPos = getBezierPoint(midT, pStart, control, pEnd);
+                    function getAngle(p0, p1) {
+                        const dy = p1[0] - p0[0];
+                        const dx = p1[1] - p0[1];
+                        let theta = Math.atan2(dy, dx);
+                        theta *= 180 / Math.PI;
+                        return theta;
+                    }
 
-                    // Calculate angle at midpoint (approximate derivative)
-                    var tPlus = midT + 0.01;
-                    var posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
-                    var angle = getAngle(midPos, posPlus);
+                    const createIcon = function (url) {
+                        if (url && url !== 'None' && url !== '') {
+                            return L.divIcon({
+                                className: 'custom-marker',
+                                html: `<div class="custom-marker-inner" style="background-image: url('${url}');"></div>`,
+                                iconSize: [40, 40],
+                                iconAnchor: [20, 20],
+                                popupAnchor: [0, -20]
+                            });
+                        } else {
+                            return L.divIcon({
+                                className: 'step-marker-icon',
+                                iconSize: [12, 12],
+                                iconAnchor: [6, 6]
+                            });
+                        }
+                    };
 
-                    var planeIcon = L.divIcon({
-                        className: 'plane-icon-container',
-                        html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 18px; height: 18px; transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
-                        iconSize: [18, 18],
+                    // Render Segments
+                    segments.forEach(segment => {
+                        const segPoints = segment.points.map(p => [p.lat, p.lon]);
+
+                        if (!segment.is_flight) {
+                            L.polyline(segPoints, {
+                                color: '#ffffff',
+                                weight: 3,
+                                dashArray: '6, 10',
+                            }).addTo(map);
+                        } else {
+                            // Flight Segment
+                            const pStart = segPoints[0];
+                            const pEnd = segPoints[segPoints.length - 1];
+                            const control = getControlPoint(pStart, pEnd, 0.5);
+                            const curvePoints = [];
+                            const numSteps = 100;
+                            for (let i = 0; i <= numSteps; i++) {
+                                const t = i / numSteps;
+                                curvePoints.push(getBezierPoint(t, pStart, control, pEnd));
+                            }
+
+                            L.polyline(curvePoints, {
+                                color: '#ffffff',
+                                weight: 3,
+                                dashArray: '1, 10',
+                                lineCap: 'round'
+                            }).addTo(map);
+
+                            // Plane Icon
+                            const midT = 0.55;
+                            const midPos = getBezierPoint(midT, pStart, control, pEnd);
+                            const tPlus = midT + 0.01;
+                            const posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
+                            const angle = getAngle(midPos, posPlus);
+
+                            const planeIcon = L.divIcon({
+                                className: 'plane-icon-container',
+                                html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 18px; height: 18px; transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
+                                iconSize: [18, 18],
+                            });
+
+                            L.marker(midPos, {icon: planeIcon, zIndexOffset: -1000}).addTo(map);
+                        }
                     });
 
-                    L.marker(midPos, {icon: planeIcon, zIndexOffset: -1000}).addTo(map);
+                    // Render Steps
+                    const allBounds = [];
+                    steps.forEach(step => {
+                        const point = [step.lat_val, step.lon_val];
+                        allBounds.push(point);
 
-                {% endif %}
-            {% endfor %}
-
-
-
-            // Custom icon for steps
-            const createIcon = function (url) {
-                if (url && url !== 'None' && url !== '') {
-                    return L.divIcon({
-                        className: 'custom-marker',
-                        html: `<div class="custom-marker-inner" style="background-image: url('${url}');">
-                        </div>`,
-                        iconSize: [40, 40],
-                        iconAnchor: [20, 20],
-                        popupAnchor: [0, -20]
+                        // cover_photo is a Path. In JS it will be a string path.
+                        L.marker(point, {
+                            icon: createIcon(step.cover_photo),
+                            zIndexOffset: 1000
+                        }).addTo(map);
                     });
-                } else {
-                    return L.divIcon({
-                        className: 'step-marker-icon',
-                        iconSize: [12, 12],
-                        iconAnchor: [6, 6]
-                    });
+
+                    if (allBounds.length > 0) {
+                        map.fitBounds(allBounds, {
+                            padding: [100, 100],
+                            maxZoom: 18
+                        });
+                    }
+
+                    console.log("Map initialized successfully for", containerId);
+
+                } catch (e) {
+                    console.error("Map initialization error:", e);
+                    if (loadingText) {
+                        loadingText.textContent = "Error loading map: " + e.message;
+                        loadingText.style.color = "red";
+                    }
                 }
             };
-
-            const allBounds = [];
-
-            // Add markers for steps
-            {% for step in steps %}
-                var point = [{{ step.lat_val }}, {{ step.lon_val }}];
-                allBounds.push(point)
-                L.marker(point, {
-                    icon: createIcon("{{ step.cover_photo }}"),
-                    zIndexOffset: 1000
-                }).addTo(map);
-            {% endfor %}
-
-
-            if (allBounds.length > 0) {
-                map.fitBounds(allBounds, {
-                    padding: [100, 100],
-                    maxZoom: 18
-                });
-            }
-
-            console.log("Map initialized successfully");
-
-        } catch (e) {
-            console.error("Map initialization error:", e);
-            if (loadingText) {
-                loadingText.textContent = "Error loading map: " + e.message;
-                loadingText.style.color = "red";
-            }
         }
-    }
 
-    // Interactive check to handle race condition where DOMContentLoaded already fired
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initMap);
-    } else {
-        initMap();
-    }
+        window.initMapLogic(containerId, segments, steps);
+    })();
 </script>

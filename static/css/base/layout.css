@@ -18,3 +18,27 @@
   break-after: page;
   break-inside: avoid;
 }
+
+/* Step Index */
+.step-index {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  padding: 1rem;
+  font-size: 4rem;
+  font-weight: bold;
+  color: var(--text-primary);
+  /* background-color: removed; */
+  opacity: 1;
+  z-index: 1000;
+  pointer-events: none;
+  font-family: monospace;
+  line-height: 1;
+  text-shadow: 0 0 10px var(--bg-primary);
+}
+
+@media print {
+  .step-index {
+    display: none !important;
+  }
+}

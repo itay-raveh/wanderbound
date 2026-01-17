@@ -105,14 +105,17 @@
 }
 
 /* Trip Map Container */
-#trip-map {
+.full-map-container {
   height: 100%;
   width: 100%;
   z-index: 1;
   overflow: hidden;
+  /* Ensure it takes space in flex parent */
+  flex-grow: 1;
+  min-height: 400px; /* Fallback */
 }
 
-#map-loading-text {
+.map-loading-text {
   position: absolute;
   top: 50%;
   left: 50%;
