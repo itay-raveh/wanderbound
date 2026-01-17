@@ -42,19 +42,13 @@ def render_album_html(
     main_map_ctx = MapTemplateCtx(
         id="map-main",
         segments=trip_ctx.segments,
-        steps=steps_ctx,
+        steps=[],
     )
 
     submaps_ctx = {
         map_slice.start: MapTemplateCtx(
             id=f"map-{map_slice.start}-{map_slice.stop - 1}",
-            segments=(
-                _filter_segments(
-                    trip_ctx.segments,
-                    steps[map_slice][0].start_time,
-                    steps[map_slice][-1].start_time + 3600 * 24,
-                )
-            ),
+            segments=_filter_segments(steps[map_slice], trip_ctx.segments),
             steps=steps_ctx[map_slice],
         )
         for map_slice in maps_slices
@@ -85,8 +79,16 @@ def render_album_html(
     return output_path
 
 
-def _filter_segments(segments: list[Segment], min_time: float, max_time: float) -> list[Segment]:
+def _filter_segments(steps: Sequence[Step], segments: list[Segment]) -> list[Segment]:
     """Return segments that overlap with the time window."""
+    min_time = steps[0].date.timestamp()
+    max_time = steps[-1].date.timestamp()
+
+    if len(steps) == 1:
+        # Single step, grab around it
+        min_time -= 6 * 3600
+        max_time += 6 * 3600
+
     filtered: list[Segment] = []
 
     for seg in segments:

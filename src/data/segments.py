@@ -34,8 +34,8 @@ class Segment(BaseModel):
 
 def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     dist_km = distance((prev.lat, prev.lon), (curr.lat, curr.lon)).km
-    speed_kmh = dist_km / ((curr.time - prev.time) / 3600.0)
-    return dist_km, speed_kmh
+    time_h = (curr.time - prev.time) / 3600.0
+    return dist_km, dist_km / time_h
 
 
 def load_segments(trip_dir: Path, min_time: float, max_time: float) -> list[Segment]:

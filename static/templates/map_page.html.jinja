@@ -4,8 +4,9 @@
 </div>
 <script>
     (function () {
-        // Map Context Data
-        // Map Context Data
+        const ICON_SIZE = 60;
+        const PADDING = 100;
+
         const segments = [
             {% for segment in map_ctx.segments %}
                 {{ segment.model_dump() | tojson }},
@@ -104,9 +105,9 @@
                             return L.divIcon({
                                 className: 'custom-marker',
                                 html: `<div class="custom-marker-inner" style="background-image: url('${url}');"></div>`,
-                                iconSize: [40, 40],
-                                iconAnchor: [20, 20],
-                                popupAnchor: [0, -20]
+                                iconSize: [ICON_SIZE, ICON_SIZE],
+                                iconAnchor: [ICON_SIZE / 2, ICON_SIZE / 2],
+                                popupAnchor: [0, -ICON_SIZE / 2]
                             });
                         } else {
                             return L.divIcon({
@@ -117,9 +118,12 @@
                         }
                     };
 
+                    const bounds = [];
+
                     // Render Segments
                     segments.forEach(segment => {
                         const segPoints = segment.points.map(p => [p.lat, p.lon]);
+                        bounds.push(segPoints);
 
                         if (!segment.is_flight) {
                             L.polyline(segPoints, {
@@ -163,11 +167,15 @@
                         }
                     });
 
+                    map.fitBounds(bounds, {
+                        padding: [PADDING, PADDING],
+                        maxZoom: 18
+                    });
+
+
                     // Render Steps
-                    const allBounds = [];
                     steps.forEach(step => {
                         const point = [step.lat_val, step.lon_val];
-                        allBounds.push(point);
 
                         // cover_photo is a Path. In JS it will be a string path.
                         L.marker(point, {
@@ -176,12 +184,6 @@
                         }).addTo(map);
                     });
 
-                    if (allBounds.length > 0) {
-                        map.fitBounds(allBounds, {
-                            padding: [100, 100],
-                            maxZoom: 18
-                        });
-                    }
 
                     console.log("Map initialized successfully for", containerId);
 
