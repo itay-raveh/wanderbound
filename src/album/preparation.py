@@ -45,7 +45,6 @@ def build_step_template_ctx(
             _format_temperature(step.weather.night_temp, step.weather.night_feels_like)
         ),
         altitude_str=f"{round(step.altitude):,}",
-        day_num=(step_index + 1),
         progress_percent=progress,
         day_counter_box_position=max(6.0, min(progress, 94.0)),
         day_counter_arrow_position=max(1.0, min(progress, 99.0)),

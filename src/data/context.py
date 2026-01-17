@@ -22,7 +22,6 @@ class StepTemplateCtx:
     temp_str: str
     temp_night_str: str
     altitude_str: str
-    day_num: int
     progress_percent: float
     day_counter_box_position: float
     day_counter_arrow_position: float
