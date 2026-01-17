@@ -22,13 +22,11 @@ logger = get_logger(__name__)
 
 def render_album_html(
     steps: Sequence[EnrichedStep],
+    layout: AlbumLayout,
     trip_ctx: TripTemplateCtx,
     maps_slices: list[slice[int]],
-    output_dir: Path,
-) -> Path:
+) -> str:
     """Generate HTML pages for the photo album."""
-    layout = AlbumLayout.model_validate_json((output_dir / "layout.json").read_bytes())
-
     steps_ctx = [
         build_step_template_ctx(
             step,
@@ -64,7 +62,7 @@ def render_album_html(
         lstrip_blocks=True,
     )
 
-    html = env.get_template("album.html.jinja").render(
+    return env.get_template("album.html.jinja").render(
         trip=trip_ctx,
         steps=steps_ctx,
         light_mode=settings.light_mode,
@@ -72,11 +70,6 @@ def render_album_html(
         main_map=main_map_ctx,
         submaps=submaps_ctx,
     )
-
-    output_path = output_dir / "album.html"
-    output_path.write_text(html, encoding="utf-8")
-
-    return output_path
 
 
 def _filter_segments(steps: Sequence[Step], segments: list[Segment]) -> list[Segment]:

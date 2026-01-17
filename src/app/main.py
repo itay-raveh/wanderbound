@@ -28,7 +28,6 @@ from .args import Args
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
     from datetime import datetime
-    from pathlib import Path
 
     from rich.progress import TaskID
 
@@ -89,22 +88,6 @@ async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     ]
 
 
-def _gen_album_html_file(
-    steps: Sequence[EnrichedStep],
-    trip_template_ctx: TripTemplateCtx,
-    maps_slices: list[slice],
-    output_dir: Path,
-) -> None:
-    with get_console().status("[bold blue]Generating album HTML..."):
-        html_path = render_album_html(
-            steps,
-            trip_template_ctx,
-            maps_slices,
-            output_dir,
-        )
-    logger.info("Generated: %s", html_path, extra={"success": True})
-
-
 def _format_date_range(start: datetime, end: datetime) -> str:
     """Format date range smartly, omitting redundant year/month."""
     if start.year == end.year:
@@ -118,14 +101,11 @@ def _format_date_range(start: datetime, end: datetime) -> str:
     return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
-def _select_trip_cover(trip_cover: TripCover | None, args: Args) -> str | None:
+def _select_trip_cover(trip_cover: TripCover, args: Args) -> str | None:
     """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
     # 1. CLI Override
     if args.cover:
         return str(args.cover.absolute())
-
-    if not trip_cover:
-        return None
 
     # 2. Local File Search
     if photos := list(args.trip.rglob(f"*{trip_cover.uuid}*.jpg")):
@@ -135,69 +115,34 @@ def _select_trip_cover(trip_cover: TripCover | None, args: Args) -> str | None:
     return trip_cover.url
 
 
-def _gen_layout_json_file(
-    target_steps: Sequence[Step],
-    trip_dir: Path,
-    output_dir: Path,
-) -> None:
-    """Reloads step data, applying any layout overrides from layout.json."""
-    layout_file = output_dir / "layout.json"
-
-    layout = (
-        AlbumLayout.model_validate_json(layout_file.read_bytes())
-        if layout_file.exists()
-        else AlbumLayout(steps={})
-    )
-
-    with create_progress("Loading photos/videos") as progress:
-        for step in progress.track(target_steps, description="Building layout.json..."):
-            if step.id not in layout.steps:
-                layout.steps[step.id] = build_step_layout(step, trip_dir, output_dir)
-
-    layout_file.write_text(layout.model_dump_json(indent=2))
-    logger.info("Generated: %s", layout_file, extra={"success": True})
-
-
 def main() -> None:
-    args = Args(underscores_to_dashes=True).parse_args()
-
-    trip_json_path = args.trip / "trip.json"
-    if not trip_json_path.exists():
-        logger.error("trip.json not found at %s.", trip_json_path)
-        return
+    args = Args(underscores_to_dashes=True).parse_args(known_only=True)
 
     if args.no_cache:
         clear_cache()
         logger.warning("Cleared cache")
 
-    trip = Trip.model_validate_json(trip_json_path.read_text())
+    trip_file = args.trip / "trip.json"
+    if not trip_file.exists():
+        logger.error("trip.json not found at %s.", trip_file)
+        return
+
+    trip = Trip.model_validate_json(trip_file.read_text())
 
     target_steps = args.filter_steps(trip.all_steps)
+    maps_slices = args.filter_map_slices(target_steps)
+    if maps_slices is None:
+        return
 
-    # Validate and adjust map ranges
-    offset = args.steps_slice.start if args.steps_slice else 0
-    maps_slices: list[slice] = []
-
-    for map_slice in args.maps_slices or []:
-        adj_start = map_slice.start - offset
-        adj_stop = map_slice.stop - offset
-
-        if adj_start < 0 or adj_stop > len(target_steps):
-            logger.error("Map range %d-%d is out of bounds", map_slice.start, map_slice.stop - 1)
-            return
-
-        maps_slices.append(slice(adj_start, adj_stop))
-
-    # 2. Enrich steps (expensive network calls)
-    steps = asyncio.run(enrich_steps(target_steps))
+    all_steps = asyncio.run(enrich_steps(target_steps))
 
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
     cover = _select_trip_cover(trip.cover_photo, args)
     back_cover = str(args.back_cover.absolute()) if args.back_cover else cover
 
-    start_date = steps[0].date
-    end_date = steps[-1].date
+    start_date = all_steps[0].date
+    end_date = all_steps[-1].date
 
     segments = load_segments(
         args.trip,
@@ -211,28 +156,47 @@ def main() -> None:
     trip_template_ctx = TripTemplateCtx(
         title=title,
         title_dir=choose_text_dir(title),
-        dates=dates,
         subtitle=subtitle,
         subtitle_dir=choose_text_dir(subtitle),
+        dates=dates,
         cover=cover,
         back_cover=back_cover,
         segments=segments,
     )
 
+    def generate(target_ids: Sequence[int]) -> None:
+        logger.info("Generating steps %s", target_ids)
+
+        layout_file = args.output / "layout.json"
+        layout = (
+            AlbumLayout.model_validate_json(layout_file.read_bytes())
+            if layout_file.exists()
+            else AlbumLayout(steps={})
+        )
+
+        with create_progress("Loading photos/videos") as progress:
+            for step in progress.track(
+                [step for step in all_steps if step.id in target_ids],
+                description="Building layouts...",
+            ):
+                if step.id not in layout.steps:
+                    layout.steps[step.id] = build_step_layout(step, args.trip, args.output)
+
+        layout_file.write_text(layout.model_dump_json(indent=2))
+        logger.info("Generated: %s", layout_file, extra={"success": True})
+
+        with get_console().status("[bold blue]Generating HTML..."):
+            html = render_album_html(
+                all_steps,
+                layout,
+                trip_template_ctx,
+                maps_slices,
+            )
+
+        html_file = args.output / "album.html"
+        html_file.write_text(html)
+        logger.info("Generated: %s", html_file, extra={"success": True})
+
     args.output.mkdir(parents=True, exist_ok=True)
-    _gen_layout_json_file(steps, args.trip, args.output)
-    _gen_album_html_file(steps, trip_template_ctx, maps_slices, args.output)
-
-    def regenerate_callback(target_ids: Sequence[int]) -> None:
-        logger.info("Updating steps %s", target_ids)
-        _gen_layout_json_file(
-            [step for step in steps if step.id in target_ids], args.trip, args.output
-        )
-        _gen_album_html_file(
-            steps,
-            trip_template_ctx,
-            maps_slices,
-            args.output,
-        )
-
-    EditorServer(args.output, args.trip, regenerate_callback).run()
+    generate([step.id for step in all_steps])
+    EditorServer(args.output, args.trip, generate).run()

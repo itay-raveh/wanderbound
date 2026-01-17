@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
@@ -51,7 +50,7 @@ class Trip(BaseModel):
     start_time: float = Field(alias="start_date")
     end_time: float = Field(alias="end_date")
     timezone_id: str
-    all_steps: Sequence[Step]
+    all_steps: list[Step]
 
     @property
     def timezone(self) -> ZoneInfo:

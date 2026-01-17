@@ -104,6 +104,7 @@ ignore = [
     "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
     "D401",
+    "RUF017"
 ]
 
 [tool.ruff.lint.isort]

@@ -33,11 +33,11 @@ class EditorServer:
         self,
         output_dir: Path,
         trip_dir: Path,
-        regenerate_callback: Callable[[Sequence[int]], None],
+        generate: Callable[[Sequence[int]], None],
     ) -> None:
         self.output_dir = output_dir
         self.trip_dir = trip_dir
-        self.regenerate = regenerate_callback
+        self.generate = generate
         self.layout_file = output_dir / "layout.json"
 
     async def handle_index(self, _request: web.Request) -> web.FileResponse:
@@ -69,7 +69,7 @@ class EditorServer:
                         break
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.regenerate([cover_request.id])
+        self.generate([cover_request.id])
         return web.json_response({"success": True})
 
     async def handle_video(self, request: web.Request) -> web.Response:
@@ -87,7 +87,7 @@ class EditorServer:
                     break
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.regenerate([video_request.id])
+        self.generate([video_request.id])
         return web.json_response({"success": True})
 
     async def handle_layout(self, request: web.Request) -> web.Response:
@@ -102,7 +102,7 @@ class EditorServer:
             layout.steps[step_layout.id] = step_layout
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.regenerate([step_layout.id for step_layout in layout_request.updates])
+        self.generate([step_layout.id for step_layout in layout_request.updates])
         return web.json_response({"success": True})
 
     def run(self, port: int = 8000) -> None:
