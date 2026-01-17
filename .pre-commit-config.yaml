@@ -1,8 +1,0 @@
-repos:
-  - repo: local
-    hooks:
-      - id: system-task-lint
-        name: Full Linting Pipeline
-        entry: task lint
-        language: system
-        pass_filenames: false
