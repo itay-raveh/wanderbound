@@ -6,6 +6,9 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from src.core.settings import settings
+from src.core.text import calculate_visual_length
+
 _Str = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
 
 
@@ -36,6 +39,14 @@ class Step(BaseModel):
     @cached_property
     def date(self) -> datetime:
         return datetime.fromtimestamp(self.start_time, tz=self.timezone)
+
+    @property
+    def is_long_description(self) -> bool:
+        return calculate_visual_length(self.description) > settings.long_description_threshold
+
+    @property
+    def is_extra_long_description(self) -> bool:
+        return calculate_visual_length(self.description) > settings.extra_long_description_threshold
 
 
 class TripCover(BaseModel):

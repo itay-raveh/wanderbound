@@ -10,26 +10,26 @@
                         {{ step.country_map_svg | safe }}
                         <div class="map-location-dot"
                              style="left: {{ step.map_dot_x }}%;
-                                    top: {{ step.map_dot_y }}%;
-                                    background: {{ step.accent_color }}"></div>
+                                     top: {{ step.map_dot_y }}%;
+                                     background: {{ step.accent_color }}"></div>
                     </div>
                 </div>
                 <div class="coordinates">
                     {{ step.coords_lat }}
-                    <br />
+                    <br/>
                     {{ step.coords_lon }}
                 </div>
             </div>
             <div class="country">
                 <img src="{{ step.country_flag_data_uri }}"
                      alt="{{ step.country }} flag"
-                     class="country-flag" />
+                     class="country-flag"/>
                 {{ step.country | upper }}
             </div>
             <div class="step-name">{{ step.name }}</div>
         </div>
         {%- if not step.is_long_description -%}
-            <div class="step-description {{ step.desc_dir }}">{{- step.description -}}</div>
+            <div class="step-description short" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
         {%- endif -%}
         <div class="metadata-section">
             <div class="metadata">
@@ -42,7 +42,7 @@
                         {% if step.night_weather_icon_url %}
                             <img src="{{ step.night_weather_icon_url }}"
                                  alt="Night weather"
-                                 class="weather-icon" />
+                                 class="weather-icon"/>
                         {% endif %}
                         {{ step.temp_night_str }}
                     </div>
@@ -50,7 +50,7 @@
                         {% if step.day_weather_icon_url %}
                             <img src="{{ step.day_weather_icon_url }}"
                                  alt="Day weather"
-                                 class="weather-icon" />
+                                 class="weather-icon"/>
                         {% endif %}
                         {{ step.temp_str }}
                     </div>
@@ -64,42 +64,47 @@
                 <div class="progress-bar">
                     <div class="progress-fill"
                          style="width: {{ step.progress_percent }}%;
-                                background: {{ step.accent_color }}"></div>
+                                 background: {{ step.accent_color }}"></div>
                 </div>
                 <div class="step-counter-arrow"
                      style="border-bottom-color: {{ step.accent_color }};
-                            left: {{ step.day_counter_arrow_position }}%;
-                            transform: translateX(-55%)"></div>
+                             left: {{ step.day_counter_arrow_position }}%;
+                             transform: translateX(-55%)"></div>
                 <div class="step-counter-wrapper"
                      style="left: {{ step.day_counter_box_position }}%;
-                            transform: translateX(-55%)">
-                    <div class="step-counter" style="background: {{ step.accent_color }};">STEP {{ step.index + 1 }}</div>
+                             transform: translateX(-55%)">
+                    <div class="step-counter" style="background: {{ step.accent_color }};">
+                        STEP {{ step.index + 1 }}</div>
                 </div>
             </div>
         </div>
     </div>
     <div class="step-content">
         {% if step.is_long_description %}
-            <div class="long-description {{ step.desc_dir }}">{{- step.description -}}</div>
-        {% elif step.cover_photo %}
+            <div class="step-description long" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+        {% else %}
             <img src="{{ step.cover_photo }}"
                  alt="{{ step.name }}"
                  class="main-image"
-                 {% if step.cover_photo %}data-photo-path="{{ step.cover_photo }}"{% endif %} />
-        {% else %}
-            <div class="no-image-message">No image available</div>
+                 {% if step.cover_photo %}data-photo-path="{{ step.cover_photo }}"{% endif %}/>
         {% endif %}
     </div>
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
         {% for photo in step.hidden_photos %}
             <div class="photo-item" data-photo-path="{{ photo.path }}">
-                <img src="{{ photo.path }}" alt="Hidden {{ photo }}" draggable="true" />
+                <img src="{{ photo.path }}" alt="Hidden {{ photo }}"/>
             </div>
         {% endfor %}
     </div>
     <div class="step-index">{{ step.index }}</div>
 </div>
+{% if step.extra_description %}
+    <div class="step-page page-container">
+        <div class="step-description long" dir="{{ step.desc_dir }}">{{- step.extra_description -}}</div>
+        <div class="step-index">{{ step.index }}</div>
+    </div>
+{% endif %}
 {# Photo pages for this step #}
 {% for photo_page in step.photo_pages %}
     <div class="step-page photo-page page-container"
@@ -116,7 +121,7 @@
                             <img src="{{ photo.path }}"
                                  alt="Video Frame"
                                  class="video-poster photo-image"
-                                 draggable="true" />
+                                 draggable="true"/>
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
                             <video src="{{ photo.video_src }}"
                                    class="video-player photo-image"
@@ -132,7 +137,7 @@
                         <img src="{{ photo.path }}"
                              alt="{{ photo.path }}"
                              class="photo-image"
-                             draggable="true" />
+                             draggable="true"/>
                     {% endif %}
                 </div>
             {% endfor %}
@@ -142,5 +147,6 @@
 <div class="add-page-container">
     <button class="add-page-btn"
             title="Add Photo Page"
-            onclick="addPhotoPage('{{ step.id }}', this)">+</button>
+            onclick="addPhotoPage('{{ step.id }}', this)">+
+    </button>
 </div>

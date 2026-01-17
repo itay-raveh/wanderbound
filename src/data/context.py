@@ -33,6 +33,7 @@ class StepTemplateCtx:
     accent_color: str
     description: str
     desc_dir: str
+    extra_description: str | None
     is_long_description: bool
     photo_pages: list[PageLayout]
     hidden_photos: list[Path]

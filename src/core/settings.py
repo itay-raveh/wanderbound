@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     light_mode: bool = False
     accent_color: str = Field(default="#ff4d6d", pattern=r"^#[0-9a-fA-F]{6}$")
 
-    long_description_threshold: int = Field(default=800, gt=0)
+    long_description_threshold: int = Field(default=1000, gt=0)
+    extra_long_description_threshold: int = Field(default=5000, gt=0)
 
     feels_like_display_threshold: float = Field(default=3.0, ge=0.0)
 

@@ -6,7 +6,7 @@ from geopy.point import Point
 
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.core.text import choose_text_dir
+from src.core.text import choose_text_dir, find_visual_split_index
 from src.data.context import StepTemplateCtx
 from src.data.layout import StepLayout
 from src.data.trip import EnrichedStep
@@ -24,6 +24,16 @@ def build_step_template_ctx(
     coords_lat, coords_lon = str(
         Point(round(step.location.lat, 4), round(step.location.lon, 4)).format_unicode()
     ).split(",")
+
+    description = step.description
+    extra_description: str | None = None
+
+    if step.is_extra_long_description:
+        # Split using visual length calculation
+        split_idx = find_visual_split_index(description, settings.extra_long_description_threshold)
+
+        extra_description = description[split_idx:].strip()
+        description = description[:split_idx].strip()
 
     return StepTemplateCtx(
         id=step.id,
@@ -54,8 +64,9 @@ def build_step_template_ctx(
         map_dot_x=step.map.dot_position[0],
         map_dot_y=step.map.dot_position[1],
         accent_color=step.flag.accent_color,
-        description=step.description,
+        description=description,
         desc_dir=choose_text_dir(step.description),
+        extra_description=extra_description,
         is_long_description=len(step.description) > settings.long_description_threshold,
         photo_pages=layout.pages,
         hidden_photos=layout.hidden_photos,

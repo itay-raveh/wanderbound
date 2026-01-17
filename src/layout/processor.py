@@ -5,7 +5,6 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from src.core.logger import get_logger
-from src.core.settings import settings
 from src.data.layout import Photo, StepLayout, Video
 from src.data.trip import Step
 from src.services import video
@@ -42,7 +41,7 @@ def build_step_layout(
     cover = cover or _select_cover(assets_in_folder)
 
     # If it appears on the step page, remove it from the photo pages
-    if len(step.description) <= settings.long_description_threshold:
+    if not step.is_long_description:
         assets_in_folder.remove(cover)
 
     return StepLayout(
