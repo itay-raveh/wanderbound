@@ -42,7 +42,7 @@ class Args(Tap):
     def filter_steps(self, all_steps: list[Step]) -> list[Step]:
         if self.steps_slices:
             logger.info("Filtered to steps %s", self.steps)
-            return sum((all_steps[slc] for slc in self.steps_slices), start=[])
+            return sum((all_steps[slc] for slc in self.steps_slices), start=[])  # pyright: ignore[reportUnknownArgumentType]
 
         logger.info("Using all %d steps", len(all_steps))
         return all_steps
