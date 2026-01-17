@@ -92,11 +92,11 @@
 .full-map-container {
     height: 100%;
     width: 100%;
-    z-index: 1;
-    overflow: hidden;
+    /*z-index: 1;*/
+    /*overflow: hidden;*/
     /* Ensure it takes space in flex parent */
-    flex-grow: 1;
-    min-height: 400px; /* Fallback */
+    /*flex-grow: 1;*/
+    /*min-height: 400px; !* Fallback *!*/
 }
 
 .map-loading-text {

@@ -3,7 +3,6 @@
         border: 1px dashed #ccc;
         margin-top: 20px;
         margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
 
     .photo-item.dragging {

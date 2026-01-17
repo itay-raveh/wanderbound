@@ -11,7 +11,6 @@
 .step-content {
     aspect-ratio: var(--cover-aspect-ratio);
     display: flex;
-    align-items: center;
 }
 
 .main-image {
