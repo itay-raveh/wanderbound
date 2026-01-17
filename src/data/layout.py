@@ -14,7 +14,7 @@ class Photo(BaseModel):
 
     @property
     def is_portrait(self) -> float:
-        return self.width / self.height < 4 / 5
+        return self.width / self.height <= 4 / 5
 
     @property
     def is_video(self) -> bool:
