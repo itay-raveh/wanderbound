@@ -20,16 +20,17 @@ def build_step_layout(
     trip_dir: Path,
     output_dir: Path,
 ) -> StepLayout:
+    assets_in_folder: list[Video | Photo] = []
+
     # Load Photos
     photo_folder = trip_dir / step.folder_name / "photos"
-    assets_in_folder: list[Video | Photo] = list(map(load_photo, photo_folder.iterdir()))
+    if photo_folder.exists():
+        assets_in_folder = list(map(load_photo, photo_folder.iterdir()))
 
-    # Determine cover photo
-    cover = _select_cover(assets_in_folder)
-
-    # If it appears on the step page, remove it from the photo pages
-    if len(step.description) <= settings.long_description_threshold:
-        assets_in_folder.remove(cover)
+    # Try select cover
+    cover: Photo | None = None
+    if assets_in_folder:
+        cover = _select_cover(assets_in_folder)
 
     # Load Videos
     video_folder = trip_dir / step.folder_name / "videos"
@@ -37,6 +38,12 @@ def build_step_layout(
         assets_in_folder.extend(
             load_video(video_path, output_dir) for video_path in video_folder.iterdir()
         )
+
+    cover = cover or _select_cover(assets_in_folder)
+
+    # If it appears on the step page, remove it from the photo pages
+    if len(step.description) <= settings.long_description_threshold:
+        assets_in_folder.remove(cover)
 
     return StepLayout(
         id=step.id,

@@ -11,7 +11,7 @@ from rich.progress import (
     SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
-    TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 
 from .settings import settings
@@ -78,7 +78,7 @@ def create_progress(title: str | None = None, spinner: str = "dots") -> Progress
         TextColumn("[progress.description]{task.description:<30}"),
         BarColumn(),
         TaskProgressColumn(),
-        TimeElapsedColumn(),
+        TimeRemainingColumn(compact=True, elapsed_when_finished=True),
     )
 
     if title:
