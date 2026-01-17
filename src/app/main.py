@@ -146,6 +146,7 @@ def main() -> None:
 
     segments = load_segments(
         args.trip,
+        all_steps,
         start_date.timestamp(),
         # Go until the END of the last day
         end_date.timestamp() + 60 * 60 * 24,

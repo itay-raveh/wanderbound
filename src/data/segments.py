@@ -9,7 +9,10 @@ from pydantic import BaseModel
 from src.core.logger import create_progress, get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
+
+    from src.data.trip import Step
 
 logger = get_logger(__name__)
 
@@ -38,11 +41,20 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     return dist_km, dist_km / time_h
 
 
-def load_segments(trip_dir: Path, min_time: float, max_time: float) -> list[Segment]:
+def load_segments(
+    trip_dir: Path, steps: Sequence[Step], min_time: float, max_time: float
+) -> list[Segment]:
     locations_json = LocationsJSON.model_validate_json((trip_dir / "locations.json").read_text())
 
+    step_points = [
+        PathPoint(lat=step.location.lat, lon=step.location.lon, time=step.start_time)
+        for step in steps
+    ]
+
     with create_progress("Loading GPS points") as progress:
-        tracked_points = progress.track(locations_json.locations, description="Filtering...")
+        tracked_points = progress.track(
+            locations_json.locations + step_points, description="Filtering..."
+        )
         points = sorted(point for point in tracked_points if min_time <= point.time <= max_time)
 
         clean_points = [points[0]]  # Hopefully the first point is not a GPS error
