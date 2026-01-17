@@ -2,33 +2,18 @@
 .map-icon {
     width: var(--map-icon-size);
     height: var(--map-icon-size);
-    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    flex-shrink: 0;
 }
 
-.map-icon > img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    filter: var(--map-filter);
-}
 
 .map-svg-container {
     position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    max-width: var(--map-icon-size);
-    max-height: var(--map-icon-size);
 }
 
 .map-svg-container svg {
     display: block;
-    filter: var(--map-filter);
     max-width: var(--map-icon-size);
     max-height: var(--map-icon-size);
     width: auto;

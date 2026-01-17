@@ -28,7 +28,6 @@ class Settings(BaseSettings):
 
     light_mode: bool = False
     accent_color: str = Field(default="#ff4d6d", pattern=r"^#[0-9a-fA-F]{6}$")
-    map_fill_color: str = Field(default="#e0e0e0", pattern=r"^#[0-9a-fA-F]{6}$")
 
     long_description_threshold: int = Field(default=800, gt=0)
 

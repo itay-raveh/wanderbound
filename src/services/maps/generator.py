@@ -8,7 +8,6 @@ from lxml import etree
 from shapely.geometry import MultiPolygon, Polygon
 
 from src.core.logger import get_logger
-from src.core.settings import settings
 
 if TYPE_CHECKING:
     from geopandas import GeoDataFrame
@@ -104,7 +103,7 @@ def _generate_svg_plot(
 
     path_elem = etree.SubElement(group, f"{{{svg_ns}}}path")
     path_elem.set("d", " ".join(path_d).strip())
-    path_elem.set("fill", settings.map_fill_color)
+    path_elem.set("fill", "var(--text-primary)")
     path_elem.set("stroke", "none")
 
     return root, (min_x, min_y, max_x, max_y)

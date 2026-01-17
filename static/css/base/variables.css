@@ -37,7 +37,6 @@
     --text-coords: #ccc;
     --border-color: #333;
     --progress-bg: #333;
-    --map-filter: brightness(0) invert(1);
     --dot-shadow-1: rgba(0, 0, 0, 0.5);
     --dot-shadow-2: rgba(0, 0, 0, 0.4);
     --dot-drop-shadow: rgba(0, 0, 0, 0.4);
@@ -66,7 +65,6 @@ body.light-mode {
     --text-coords: #666;
     --border-color: #e0e0e0;
     --progress-bg: #e0e0e0;
-    --map-filter: brightness(0) saturate(0) opacity(0.4);
     --dot-shadow-1: rgba(255, 255, 255, 0.8);
     --dot-shadow-2: rgba(255, 255, 255, 0.5);
     --dot-drop-shadow: rgba(255, 255, 255, 0.6);
