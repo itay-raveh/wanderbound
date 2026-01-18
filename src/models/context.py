@@ -1,12 +1,12 @@
-from dataclasses import dataclass
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from src.models.layout import PageLayout
 from src.models.segments import Segment
 
 
-@dataclass
-class StepTemplateCtx:
+class StepTemplateCtx(BaseModel):
     id: int
     index: int
     name: str
@@ -39,8 +39,7 @@ class StepTemplateCtx:
     hidden_photos: list[Path]
 
 
-@dataclass
-class TripTemplateCtx:
+class TripTemplateCtx(BaseModel):
     title: str
     title_dir: str
     dates: str
@@ -51,8 +50,7 @@ class TripTemplateCtx:
     segments: list[Segment]
 
 
-@dataclass
-class OverviewTemplateCtx:
+class OverviewTemplateCtx(BaseModel):
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
     total_days: int
@@ -60,8 +58,7 @@ class OverviewTemplateCtx:
     photo_count: int
 
 
-@dataclass
-class MapTemplateCtx:
+class MapTemplateCtx(BaseModel):
     id: str  # DOM container ID
     segments: list[Segment]
     steps: list[StepTemplateCtx]

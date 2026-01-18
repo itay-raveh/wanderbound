@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from typing import Annotated
@@ -76,8 +75,7 @@ class Trip(BaseModel):
         return datetime.fromtimestamp(self.end_time, tz=self.timezone)
 
 
-@dataclass
-class Weather:
+class Weather(BaseModel):
     day_temp: float
     night_temp: float
     day_feels_like: float
@@ -86,14 +84,12 @@ class Weather:
     night_icon: str
 
 
-@dataclass
-class Flag:
+class Flag(BaseModel):
     flag_url: str
     accent_color: str
 
 
-@dataclass
-class Map:
+class Map(BaseModel):
     svg_content: str
     dot_position: tuple[float, float]
 
