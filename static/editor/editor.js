@@ -9,7 +9,7 @@ function toggleVideo(overlay) {
     overlay.style.display = "none";
 }
 
-async function videoSetFrame(btn, stepId, videoSrc) {
+async function videoSetFrame(btn, stepId, src) {
     const wrapper = btn.parentElement;
     const video = wrapper.querySelector("video");
 
@@ -28,8 +28,8 @@ async function videoSetFrame(btn, stepId, videoSrc) {
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
                 id: parseInt(stepId),
-                video_src: videoSrc,
-                timestamp: timestamp,
+                src,
+                timestamp,
             }),
         });
 

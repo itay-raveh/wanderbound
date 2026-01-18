@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
 from aiohttp import web
@@ -7,8 +7,7 @@ from pydantic import BaseModel
 from src.core.logger import get_logger
 from src.layout.builder import try_build_layout
 from src.models.layout import AlbumLayout, StepLayout, Video
-from src.services import video
-from src.services.media import load_photo
+from src.services.media import extract_frame, frame_path, load_photo
 
 logger = get_logger(__name__)
 
@@ -20,7 +19,7 @@ class CoverRequest(BaseModel):
 
 class VideoUpdateRequest(BaseModel):
     id: int
-    video_src: Path
+    src: Path
     timestamp: float
 
 
@@ -33,7 +32,7 @@ class EditorServer:
         self,
         output_dir: Path,
         trip_dir: Path,
-        generate: Callable[[Sequence[int]], None],
+        generate: Callable[[Sequence[int]], Awaitable[None]],
     ) -> None:
         self.output_dir = output_dir
         self.trip_dir = trip_dir
@@ -65,11 +64,11 @@ class EditorServer:
             for page in step_layout.pages:
                 for idx, photo in enumerate(page.photos):
                     if photo.path == cover_request.cover:
-                        page.photos[idx] = load_photo(old_cover)
+                        page.photos[idx] = await load_photo(old_cover)
                         break
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.generate([cover_request.id])
+        await self.generate([cover_request.id])
         return web.json_response({"success": True})
 
     async def handle_video(self, request: web.Request) -> web.Response:
@@ -78,16 +77,16 @@ class EditorServer:
 
         for page in layout.steps[video_request.id].pages:
             for photo in page.photos:
-                if isinstance(photo, Video) and photo.video_src == video_request.video_src:
-                    photo.path = video.calculate_frame_path(
-                        video_request.video_src, video_request.timestamp, self.output_dir
+                if isinstance(photo, Video) and photo.src == video_request.src:
+                    photo.path = frame_path(
+                        video_request.src, video_request.timestamp, self.output_dir
                     )
-                    photo.video_timestamp = video_request.timestamp
-                    video.extract_frame(photo.video_src, photo.video_timestamp, photo.path)
+                    photo.timestamp = video_request.timestamp
+                    await extract_frame(photo.src, photo.timestamp, photo.path)
                     break
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.generate([video_request.id])
+        await self.generate([video_request.id])
         return web.json_response({"success": True})
 
     async def handle_layout(self, request: web.Request) -> web.Response:
@@ -102,7 +101,7 @@ class EditorServer:
             layout.steps[step_layout.id] = step_layout
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
-        self.generate([step_layout.id for step_layout in layout_request.updates])
+        await self.generate([step_layout.id for step_layout in layout_request.updates])
         return web.json_response({"success": True})
 
     def run(self, port: int = 8000) -> None:

@@ -165,7 +165,7 @@ def main() -> None:
         segments=segments,
     )
 
-    def generate(target_ids: Sequence[int]) -> None:
+    async def generate(target_ids: Sequence[int]) -> None:
         logger.info("Generating steps %s", target_ids)
 
         layout_file = args.output / "layout.json"
@@ -181,7 +181,7 @@ def main() -> None:
                 description="Building layouts...",
             ):
                 if step.id not in layout.steps:
-                    layout.steps[step.id] = build_step_layout(step, args.trip, args.output)
+                    layout.steps[step.id] = await build_step_layout(step, args.trip, args.output)
 
         layout_file.write_text(layout.model_dump_json(indent=2))
         logger.info("Generated: %s", layout_file, extra={"success": True})
@@ -199,5 +199,5 @@ def main() -> None:
         logger.info("Generated: %s", html_file, extra={"success": True})
 
     args.output.mkdir(parents=True, exist_ok=True)
-    generate([step.id for step in all_steps])
+    asyncio.run(generate([step.id for step in all_steps]))
     EditorServer(args.output, args.trip, generate).run()

@@ -118,17 +118,17 @@
                         <div class="video-wrapper"
                              style="aspect-ratio: {{ photo.width }} / {{ photo.height }}">
                             <img src="{{ photo.path }}"
-                                 alt="Video Frame"
+                                 alt="{{ photo.path }} Frame"
                                  class="video-poster photo-image"
                                  draggable="true" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
-                            <video src="{{ photo.video_src }}"
+                            <video src="{{ photo.src }}"
                                    class="video-player photo-image"
                                    controls
                                    preload="metadata">
                             </video>
                             <button class="set-frame-btn"
-                                    onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.video_src }}')">
+                                    onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.src }}')">
                                 Set Frame
                             </button>
                         </div>

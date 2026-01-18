@@ -22,8 +22,8 @@ class Photo(BaseModel):
 
 
 class Video(Photo):
-    video_src: Path
-    video_timestamp: float
+    src: Path
+    timestamp: float
 
     @property
     def is_video(self) -> bool:

@@ -1,5 +1,6 @@
 """Photo scoring and bin-packing algorithms for page layout."""
 
+import asyncio
 from collections.abc import Collection, Iterable
 from itertools import combinations
 from pathlib import Path
@@ -70,7 +71,7 @@ def _build_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
     return pages
 
 
-def build_step_layout(
+async def build_step_layout(
     step: Step,
     trip_dir: Path,
     output_dir: Path,
@@ -80,7 +81,9 @@ def build_step_layout(
     # Load Photos
     photo_folder = trip_dir / step.folder_name / "photos"
     if photo_folder.exists():
-        assets_in_folder = list(map(load_photo, photo_folder.iterdir()))
+        assets_in_folder.extend(
+            await asyncio.gather(*(load_photo(path) for path in photo_folder.iterdir()))
+        )
 
     # Try select cover
     cover: Photo | None = None
@@ -90,9 +93,10 @@ def build_step_layout(
     # Load Videos
     video_folder = trip_dir / step.folder_name / "videos"
     if video_folder.exists():
-        assets_in_folder.extend(
-            load_video(video_path, output_dir) for video_path in video_folder.iterdir()
+        videos = await asyncio.gather(
+            *(load_video(path, output_dir) for path in video_folder.iterdir())
         )
+        assets_in_folder.extend(videos)
 
     cover = cover or _select_cover(assets_in_folder)
 
