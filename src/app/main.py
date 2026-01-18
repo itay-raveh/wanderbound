@@ -5,25 +5,21 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
-from rich import get_console
-
-from src.app.edit import EditorServer
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_logger
 from src.core.text import choose_text_dir
-from src.layout.builder import build_step_layout
 from src.models.context import TripTemplateCtx
-from src.models.layout import AlbumLayout
 from src.models.segments import load_segments
 from src.models.trip import EnrichedStep, Step, Trip, TripCover
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
+from src.services.location import fetch_home_location
 from src.services.maps import fetch_map
 from src.services.weather import fetch_weather
 
 from .args import Args
-from .renderer import render_album_html
+from .server import EditorServer
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -38,7 +34,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
-async def enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
+async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
     with create_progress("Fetching online data", "earth") as progress:
 
@@ -115,7 +111,36 @@ def _select_trip_cover(trip_cover: TripCover, args: Args) -> str | None:
     return trip_cover.url
 
 
-def main() -> None:
+async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> TripTemplateCtx:
+    title = args.title or trip.title
+    subtitle = args.subtitle or trip.subtitle
+    cover = _select_trip_cover(trip.cover_photo, args)
+    back_cover = str(args.back_cover.absolute()) if args.back_cover else cover
+
+    start_date = steps[0].date
+    end_date = steps[-1].date
+
+    segments = load_segments(
+        args.trip,
+        steps,
+        start_date.timestamp(),
+        # Go until the END of the last day
+        end_date.timestamp() + 60 * 60 * 24,
+    )
+
+    return TripTemplateCtx(
+        title=title,
+        title_dir=choose_text_dir(title),
+        subtitle=subtitle,
+        subtitle_dir=choose_text_dir(subtitle),
+        dates=_format_date_range(start_date, end_date),
+        cover=cover,
+        back_cover=back_cover,
+        segments=segments,
+    )
+
+
+async def make_server() -> EditorServer | None:
     args = Args(underscores_to_dashes=True).parse_args(known_only=True)
 
     if args.no_cache:
@@ -125,79 +150,24 @@ def main() -> None:
     trip_file = args.trip / "trip.json"
     if not trip_file.exists():
         logger.error("trip.json not found at %s.", trip_file)
-        return
-
+        return None
     trip = Trip.model_validate_json(trip_file.read_text())
 
     target_steps = args.filter_steps(trip.all_steps)
     maps_slices = args.filter_map_slices(target_steps)
     if maps_slices is None:
-        return
+        return None
 
-    all_steps = asyncio.run(enrich_steps(target_steps))
-
-    title = args.title or trip.title
-    subtitle = args.subtitle or trip.subtitle
-    cover = _select_trip_cover(trip.cover_photo, args)
-    back_cover = str(args.back_cover.absolute()) if args.back_cover else cover
-
-    start_date = all_steps[0].date
-    end_date = all_steps[-1].date
-
-    segments = load_segments(
-        args.trip,
-        all_steps,
-        start_date.timestamp(),
-        # Go until the END of the last day
-        end_date.timestamp() + 60 * 60 * 24,
-    )
-
-    dates = _format_date_range(start_date, end_date)
-
-    trip_template_ctx = TripTemplateCtx(
-        title=title,
-        title_dir=choose_text_dir(title),
-        subtitle=subtitle,
-        subtitle_dir=choose_text_dir(subtitle),
-        dates=dates,
-        cover=cover,
-        back_cover=back_cover,
-        segments=segments,
-    )
-
-    async def generate(target_ids: Sequence[int]) -> None:
-        logger.info("Generating steps %s", target_ids)
-
-        layout_file = args.output / "layout.json"
-        layout = (
-            AlbumLayout.model_validate_json(layout_file.read_bytes())
-            if layout_file.exists()
-            else AlbumLayout(steps={})
-        )
-
-        with create_progress("Loading photos/videos") as progress:
-            for step in progress.track(
-                [step for step in all_steps if step.id in target_ids],
-                description="Building layouts...",
-            ):
-                if step.id not in layout.steps:
-                    layout.steps[step.id] = await build_step_layout(step, args.trip, args.output)
-
-        layout_file.write_text(layout.model_dump_json(indent=2))
-        logger.info("Generated: %s", layout_file, extra={"success": True})
-
-        with get_console().status("[bold blue]Generating HTML..."):
-            html = render_album_html(
-                all_steps,
-                layout,
-                trip_template_ctx,
-                maps_slices,
-            )
-
-        html_file = args.output / "album.html"
-        html_file.write_text(html)
-        logger.info("Generated: %s", html_file, extra={"success": True})
+    steps = await _enrich_steps(target_steps)
+    trip_ctx = await _trip_template_ctx(args, trip, steps)
+    home_location = await fetch_home_location()
 
     args.output.mkdir(parents=True, exist_ok=True)
-    asyncio.run(generate([step.id for step in all_steps]))
-    EditorServer(args.output, args.trip, generate).run()
+    server = EditorServer(args, trip_ctx, steps, maps_slices, home_location)
+    await server.generate([step.id for step in steps])
+    return server
+
+
+def main() -> None:
+    if server := asyncio.run(make_server()):
+        server.run()

@@ -39,8 +39,8 @@
 }
 
 .overview-content {
-    position: relative;
     width: 80%;
+    height: 80%;
 }
 
 /* Stats Grid */
@@ -93,4 +93,105 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding-top: var(--spacing-lg);
     width: 100%;
+}
+
+/* Furthest Point Feature */
+.stats-furthest-container {
+    position: absolute;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 80%;
+    top: 70%
+}
+
+.stats-furthest-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /*position: relative;*/
+    /*z-index: 2;*/
+    flex-basis: 20%;
+    /*flex-grow: 1;*/
+    /*max-width: 25%;*/
+}
+
+.stats-furthest-circle {
+    background-color: var(--accent-color);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-sm);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.stats-furthest-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.stats-furthest-name {
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 0.5rem;
+    width: 200%;
+}
+
+.stats-furthest-center {
+    flex-grow: 3;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: -15px;
+}
+
+.stats-furthest-line-container {
+}
+
+.stats-furthest-line {
+    width: 100%;
+    scale: 1.17 0.7;
+    margin-top: 1.3rem;
+}
+
+.stats-furthest-point-text {
+    position: absolute;
+    bottom: 1rem;
+    text-transform: uppercase;
+    text-align: center;
+    width: 100%;
+}
+
+.stats-furthest-point-bubble {
+    position: absolute;
+    top: -1rem;
+    left: 7.5rem;
+    background-color: var(--bg-sidebar);
+    color: var(--text-primary);
+    padding: 0.4rem 1.2rem;
+    border-radius: 6px;
+    font-size: var(--font-size-md);
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.stats-furthest-point-superindex {
+    font-size: 0.5em;
+    vertical-align: super;
+    margin-left: 2px;
+    opacity: 0.8;
+}
+
+.stats-furthest-point-bubble-arrow {
+    position: absolute;
+    top: 100%;
+    width: 12px;
+    height: auto;
+    left: 45%
 }

@@ -1,12 +1,17 @@
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from aiohttp import web
 from pydantic import BaseModel
+from rich import get_console
 
-from src.core.logger import get_logger
-from src.layout.builder import try_build_layout
+from src.app.args import Args
+from src.app.renderer import build_overview_template_ctx, render_album_html
+from src.core.logger import create_progress, get_logger
+from src.layout.builder import build_step_layout, try_build_layout
+from src.models.context import TripTemplateCtx
 from src.models.layout import AlbumLayout, StepLayout, Video
+from src.models.trip import EnrichedStep, Location
 from src.services.media import extract_frame, frame_path, load_photo
 
 logger = get_logger(__name__)
@@ -30,14 +35,54 @@ class LayoutRequest(BaseModel):
 class EditorServer:
     def __init__(
         self,
-        output_dir: Path,
-        trip_dir: Path,
-        generate: Callable[[Sequence[int]], Awaitable[None]],
+        args: Args,
+        trip_ctx: TripTemplateCtx,
+        steps: Sequence[EnrichedStep],
+        maps_slices: list[slice[int]],
+        home_location: tuple[Location, str],
     ) -> None:
-        self.output_dir = output_dir
-        self.trip_dir = trip_dir
-        self.generate = generate
-        self.layout_file = output_dir / "layout.json"
+        self.trip_ctx = trip_ctx
+        self.output_dir = args.output
+        self.trip_dir = args.trip
+        self.layout_file = self.output_dir / "layout.json"
+        self.steps = steps
+        self.maps_slices = maps_slices
+        self.home_location = home_location
+
+    async def generate(self, target_ids: Sequence[int]) -> None:
+        logger.info("Generating steps %s", target_ids)
+
+        layout = (
+            AlbumLayout.model_validate_json(self.layout_file.read_bytes())
+            if self.layout_file.exists()
+            else AlbumLayout(steps={})
+        )
+
+        overview_ctx = build_overview_template_ctx(
+            self.steps, layout, self.trip_ctx.segments, self.home_location
+        )
+
+        with create_progress("Loading photos/videos") as progress:
+            for step in progress.track(
+                [step for step in self.steps if step.id in target_ids],
+                description="Building layouts...",
+            ):
+                if step.id not in layout.steps:
+                    layout.steps[step.id] = await build_step_layout(
+                        step, self.trip_dir, self.output_dir
+                    )
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2))
+        logger.info("Generated: %s", self.layout_file, extra={"success": True})
+
+        with get_console().status("[bold blue]Generating HTML..."):
+            html = render_album_html(
+                self.steps, layout, self.trip_ctx, overview_ctx, self.maps_slices
+            )
+
+        html_file = self.output_dir / "album.html"
+        html_file.write_text(html)
+        logger.info("Generated: %s", html_file, extra={"success": True})
 
     async def handle_index(self, _request: web.Request) -> web.FileResponse:
         response = web.FileResponse(self.output_dir / "album.html")

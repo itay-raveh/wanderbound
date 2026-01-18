@@ -3,7 +3,7 @@ from functools import cached_property
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import AliasChoices, BaseModel, BeforeValidator, Field
 
 from src.core.settings import settings
 from src.core.text import calculate_visual_length
@@ -11,9 +11,11 @@ from src.core.text import calculate_visual_length
 _Str = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
 
 
-class Location(BaseModel):
-    country: str = Field(alias="detail")
-    country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
+class Location(BaseModel, extra="ignore"):
+    country: str = Field(validation_alias=AliasChoices("country", "detail"))
+    country_code: str = Field(
+        validation_alias=AliasChoices("country_code", "countryCode"), pattern=r"^[A-Za-z]{2}$"
+    )
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
 

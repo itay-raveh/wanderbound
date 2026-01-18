@@ -11,8 +11,8 @@ class StepTemplateCtx(BaseModel):
     index: int
     name: str
     country: str
-    coords_lat: str
-    coords_lon: str
+    lat_str: str
+    lon_str: str
     lat_val: float
     lon_val: float
     date_month: str
@@ -50,12 +50,19 @@ class TripTemplateCtx(BaseModel):
     segments: list[Segment]
 
 
+class FurthestPointCtx(BaseModel):
+    home_name: str
+    furthest_name: str
+    distance_km: str
+
+
 class OverviewTemplateCtx(BaseModel):
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
     total_days: str
     step_count: str
     photo_count: str
+    furthest_point: FurthestPointCtx
 
 
 class MapTemplateCtx(BaseModel):
