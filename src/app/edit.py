@@ -5,10 +5,10 @@ from aiohttp import web
 from pydantic import BaseModel
 
 from src.core.logger import get_logger
-from src.data.layout import AlbumLayout, StepLayout, Video
-from src.layout.processor import load_photo
-from src.layout.scorer import try_choose_layout
+from src.layout.builder import try_build_layout
+from src.models.layout import AlbumLayout, StepLayout, Video
 from src.services import video
+from src.services.media import load_photo
 
 logger = get_logger(__name__)
 
@@ -96,7 +96,7 @@ class EditorServer:
 
         for step_layout in layout_request.updates:
             step_layout.pages = [
-                try_choose_layout(page_layout.photos) or page_layout
+                try_build_layout(page_layout.photos) or page_layout
                 for page_layout in step_layout.pages
             ]
             layout.steps[step_layout.id] = step_layout

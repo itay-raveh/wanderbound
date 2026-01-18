@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.data.layout import PageLayout
-from src.data.segments import Segment
+from src.models.layout import PageLayout
+from src.models.segments import Segment
 
 
 @dataclass

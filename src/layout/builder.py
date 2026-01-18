@@ -2,9 +2,12 @@
 
 from collections.abc import Collection, Iterable
 from itertools import combinations
+from pathlib import Path
 
 from src.core.logger import get_logger
-from src.data.layout import PageLayout, Photo
+from src.models.layout import PageLayout, Photo, StepLayout, Video
+from src.models.trip import Step
+from src.services.media import load_photo, load_video
 
 from .strategies import (
     FourLandscapesStrategy,
@@ -29,7 +32,7 @@ _STRATEGIES: list[LayoutStrategy] = [
 ]
 
 
-def try_choose_layout(photos: Collection[Photo]) -> PageLayout | None:
+def try_build_layout(photos: Collection[Photo]) -> PageLayout | None:
     for strategy in _STRATEGIES:
         if strategy.required_count == len(photos) and strategy.validate(photos):
             return PageLayout(photos=strategy.sort(photos), layout_class=strategy.layout_class)
@@ -50,7 +53,7 @@ def _try_build_page(candidates: Collection[Photo]) -> PageLayout | None:
     return None
 
 
-def gen_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
+def _build_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
     candidates = set(photos)
 
     # Divide photos intp pages
@@ -65,3 +68,51 @@ def gen_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
             pages.append(PageLayout(photos=[candidates.pop()], layout_class=None))
 
     return pages
+
+
+def build_step_layout(
+    step: Step,
+    trip_dir: Path,
+    output_dir: Path,
+) -> StepLayout:
+    assets_in_folder: list[Video | Photo] = []
+
+    # Load Photos
+    photo_folder = trip_dir / step.folder_name / "photos"
+    if photo_folder.exists():
+        assets_in_folder = list(map(load_photo, photo_folder.iterdir()))
+
+    # Try select cover
+    cover: Photo | None = None
+    if assets_in_folder:
+        cover = _select_cover(assets_in_folder)
+
+    # Load Videos
+    video_folder = trip_dir / step.folder_name / "videos"
+    if video_folder.exists():
+        assets_in_folder.extend(
+            load_video(video_path, output_dir) for video_path in video_folder.iterdir()
+        )
+
+    cover = cover or _select_cover(assets_in_folder)
+
+    # If it appears on the step page, remove it from the photo pages
+    if not step.is_long_description:
+        assets_in_folder.remove(cover)
+
+    return StepLayout(
+        id=step.id,
+        name=step.name,
+        cover=cover.path,
+        pages=_build_page_layouts(assets_in_folder),
+        hidden_photos=[],
+    )
+
+
+def _select_cover(photos: list[Photo]) -> Photo:
+    portraits = [photo for photo in photos if photo.is_portrait]
+
+    if portraits:
+        return portraits[0]
+
+    return photos[0]

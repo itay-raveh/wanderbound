@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from src.data.trip import Step
+    from src.models.trip import Step
 
 logger = get_logger(__name__)
 

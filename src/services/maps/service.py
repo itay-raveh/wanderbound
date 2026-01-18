@@ -12,7 +12,7 @@ from pyproj import Transformer
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.trip import Map
+from src.models.trip import Map
 
 from .generator import _ETREE_XML_PARSER, generate_geo_calibrated_svg
 

@@ -7,16 +7,15 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from rich import get_console
 
-from src.album.generator import render_album_html
 from src.app.edit import EditorServer
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_logger
 from src.core.text import choose_text_dir
-from src.data.context import TripTemplateCtx
-from src.data.layout import AlbumLayout
-from src.data.segments import load_segments
-from src.data.trip import EnrichedStep, Step, Trip, TripCover
-from src.layout.processor import build_step_layout
+from src.layout.builder import build_step_layout
+from src.models.context import TripTemplateCtx
+from src.models.layout import AlbumLayout
+from src.models.segments import load_segments
+from src.models.trip import EnrichedStep, Step, Trip, TripCover
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
@@ -24,6 +23,7 @@ from src.services.maps import fetch_map
 from src.services.weather import fetch_weather
 
 from .args import Args
+from .renderer import render_album_html
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence

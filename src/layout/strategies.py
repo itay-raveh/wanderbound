@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 
-from src.data.layout import Photo, SpecialLayoutClass
+from src.models.layout import Photo, SpecialLayoutClass
 
 
 class LayoutStrategy(ABC):

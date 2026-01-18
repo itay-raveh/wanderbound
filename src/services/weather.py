@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from src.core.cache import cache_in_file
 from src.core.logger import get_logger
 from src.core.settings import settings
-from src.data.trip import Weather
+from src.models.trip import Weather
 from src.services.client import APIClient
 
 logger = get_logger(__name__)

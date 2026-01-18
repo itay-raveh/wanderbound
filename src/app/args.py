@@ -11,7 +11,7 @@ from tap import Tap
 from src.core.logger import get_logger
 
 if TYPE_CHECKING:
-    from src.data.trip import Step
+    from src.models.trip import Step
 
 logger = get_logger(__name__)
 
