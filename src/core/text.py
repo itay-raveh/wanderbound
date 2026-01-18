@@ -5,7 +5,7 @@ def choose_text_dir(text: str) -> str:
     return "rtl" if any("\u0590" <= char <= "\u05ff" for char in text) else "ltr"
 
 
-_WIDTH = 40
+_WIDTH = 80
 
 
 def calculate_visual_length(text: str) -> int:
@@ -32,16 +32,8 @@ def find_visual_split_index(text: str, threshold: int) -> int:
 
     Favor splitting at newlines.
     """
-    if not text:
-        return 0
-
     current_visual_len = 0
     current_char_idx = 0
-
-    # We scan paragraph by paragraph
-    # We must treat the split carefully to track original indices
-    # text.split('\n') loses the strictly original positions if we aren't careful?
-    # Actually, iterating by finding \n is safer.
 
     start = 0
     while start < len(text):
