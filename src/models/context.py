@@ -53,9 +53,9 @@ class TripTemplateCtx(BaseModel):
 class OverviewTemplateCtx(BaseModel):
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
-    total_days: int
-    step_count: int
-    photo_count: int
+    total_days: str
+    step_count: str
+    photo_count: str
 
 
 class MapTemplateCtx(BaseModel):

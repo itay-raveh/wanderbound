@@ -113,15 +113,16 @@ def _gen_overview_template_ctx(
     pairs = ((location.lat, location.lon) for location in points)
     total_dist = distance(*pairs)
 
+    photo_count = sum(
+        sum(len(page.photos) for page in step_layout.pages) for step_layout in layout.steps.values()
+    )
+
     return OverviewTemplateCtx(
         countries=list(countries.items()),
         total_km=f"{round(total_dist.km):,}",
-        total_days=(steps[-1].date - steps[0].date).days,
-        step_count=len(steps),
-        photo_count=sum(
-            sum(len(page.photos) for page in step_layout.pages)
-            for step_layout in layout.steps.values()
-        ),
+        total_days=f"{(steps[-1].date - steps[0].date).days:,}",
+        step_count=f"{len(steps):,}",
+        photo_count=f"{photo_count:,}",
     )
 
 
