@@ -85,6 +85,8 @@
             <img src="{{ step.cover_photo }}"
                  alt="{{ step.name }}"
                  class="main-image"
+                 loading="lazy"
+                 decoding="async"
                  {% if step.cover_photo %}data-photo-path="{{ step.cover_photo }}"{% endif %} />
         {% endif %}
     </div>
@@ -120,12 +122,14 @@
                             <img src="{{ photo.path }}"
                                  alt="{{ photo.path }} Frame"
                                  class="video-poster photo-image"
-                                 draggable="true" />
+                                 draggable="true"
+                                 loading="lazy"
+                                 decoding="async" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
                             <video src="{{ photo.src }}"
                                    class="video-player photo-image"
                                    controls
-                                   preload="metadata">
+                                   preload="none">
                             </video>
                             <button class="set-frame-btn"
                                     onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.src }}')">
@@ -136,7 +140,9 @@
                         <img src="{{ photo.path }}"
                              alt="{{ photo.path }}"
                              class="photo-image"
-                             draggable="true" />
+                             draggable="true"
+                             loading="lazy"
+                             decoding="async" />
                     {% endif %}
                 </div>
             {% endfor %}
