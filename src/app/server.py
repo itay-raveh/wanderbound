@@ -58,10 +58,6 @@ class EditorServer:
             else AlbumLayout(steps={})
         )
 
-        overview_ctx = build_overview_template_ctx(
-            self.steps, layout, self.trip_ctx.segments, self.home_location
-        )
-
         with create_progress("Loading photos/videos") as progress:
             for step in progress.track(
                 [step for step in self.steps if step.id in target_ids],
@@ -74,6 +70,10 @@ class EditorServer:
 
         self.layout_file.write_text(layout.model_dump_json(indent=2))
         logger.info("Generated: %s", self.layout_file, extra={"success": True})
+
+        overview_ctx = build_overview_template_ctx(
+            self.steps, layout, self.trip_ctx.segments, self.home_location
+        )
 
         with get_console().status("[bold blue]Generating HTML..."):
             html = render_album_html(

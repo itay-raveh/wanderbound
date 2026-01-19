@@ -191,7 +191,9 @@ def build_overview_template_ctx(
     total_dist = distance(*pairs)
 
     photo_count = sum(
-        sum(len(page.photos) for page in step_layout.pages) for step_layout in layout.steps.values()
+        sum(len(page.photos) for page in step_layout.pages)
+        for step_layout in layout.steps.values()
+        if step_layout.id in [step.id for step in steps]
     )
 
     return OverviewTemplateCtx(
