@@ -56,7 +56,6 @@ async function videoSetFrame(btn, stepId, src) {
 }
 
 function initEditor() {
-    document.body.classList.add("is-editing");
     makePhotosDraggable();
 
     // Bind Save Button

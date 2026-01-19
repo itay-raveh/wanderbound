@@ -4,7 +4,8 @@
 </div>
 <script>
     (function () {
-        const ICON_SIZE = 60;
+        const ICON_SIZE = {{ 20 if map_ctx.id == "map-main" else 60 }};
+        const LINE_WEIGHT = {{ 1 if map_ctx.id == "map-main" else 4 }};
         const PADDING = 100;
 
         const segments = [
@@ -128,8 +129,8 @@
                         if (!segment.is_flight) {
                             L.polyline(segPoints, {
                                 color: '#ffffff',
-                                weight: 3,
-                                dashArray: '6, 10',
+                                weight: LINE_WEIGHT,
+                                {#dashArray: '6, 10',#}
                             }).addTo(map);
                         } else {
                             // Flight Segment
@@ -145,22 +146,21 @@
 
                             L.polyline(curvePoints, {
                                 color: '#ffffff',
-                                weight: 3,
-                                dashArray: '1, 10',
+                                weight: LINE_WEIGHT,
+                                dashArray: '1, 5',
                                 lineCap: 'round'
                             }).addTo(map);
 
                             // Plane Icon
                             const midT = 0.55;
                             const midPos = getBezierPoint(midT, pStart, control, pEnd);
-                            const tPlus = midT + 0.01;
-                            const posPlus = getBezierPoint(tPlus, pStart, control, pEnd);
+                            const posPlus = getBezierPoint(midT + 0.01, pStart, control, pEnd);
                             const angle = getAngle(midPos, posPlus);
 
                             const planeIcon = L.divIcon({
                                 className: 'plane-icon-container',
-                                html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker@2x.png" style="width: 18px; height: 18px; transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
-                                iconSize: [18, 18],
+                                html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker.png" style="transform: rotate(${-angle}deg); display: block;" alt="Airplane Icon">`,
+                                iconSize: [16, 15],
                             });
 
                             L.marker(midPos, {icon: planeIcon, zIndexOffset: -1000}).addTo(map);

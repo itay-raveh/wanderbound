@@ -81,6 +81,7 @@
 /* Custom marker inner style */
 .custom-marker-inner {
     height: 100%;
+    width: 100%;
     border-radius: 50%;
     border: 3px solid white;
     background-size: cover;
