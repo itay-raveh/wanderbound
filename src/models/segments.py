@@ -6,13 +6,12 @@ from typing import TYPE_CHECKING
 from geopy.distance import distance
 from pydantic import BaseModel
 
+from src.core.cache import cache_in_file
 from src.core.logger import create_progress, get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
     from pathlib import Path
 
-    from src.models.trip import Step
 
 logger = get_logger(__name__)
 
@@ -41,20 +40,18 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     return dist_km, dist_km / time_h
 
 
+@cache_in_file()
 def load_segments(
-    trip_dir: Path, steps: Sequence[Step], min_time: float, max_time: float
+    trip_dir: Path, step_points: list[tuple[float, float, float]], min_time: float, max_time: float
 ) -> list[Segment]:
     locations_json = LocationsJSON.model_validate_json((trip_dir / "locations.json").read_text())
 
-    step_points = [
-        PathPoint(lat=step.location.lat, lon=step.location.lon, time=step.start_time)
-        for step in steps
+    path_points = locations_json.locations + [
+        PathPoint(lat=lat, lon=lon, time=time) for lat, lon, time in step_points
     ]
 
     with create_progress("Loading GPS points") as progress:
-        tracked_points = progress.track(
-            locations_json.locations + step_points, description="Filtering..."
-        )
+        tracked_points = progress.track(path_points, description="Filtering...")
         points = sorted(point for point in tracked_points if min_time <= point.time <= max_time)
 
         clean_points = [points[0]]  # Hopefully the first point is not a GPS error
@@ -87,5 +84,4 @@ def load_segments(
 
         segments.append(Segment(points=segment_points, is_flight=False))
 
-    logger.info("Loaded %d map points as %d segments", len(clean_points), len(segments))
     return segments

@@ -122,11 +122,13 @@ async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> T
 
     segments = load_segments(
         args.trip,
-        steps,
+        [(step.location.lat, step.location.lon, step.start_time) for step in steps],
         start_date.timestamp(),
         # Go until the END of the last day
         end_date.timestamp() + 60 * 60 * 24,
     )
+
+    logger.info("Loaded %d travel segments", len(segments))
 
     return TripTemplateCtx(
         title=title,
