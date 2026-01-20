@@ -4,10 +4,6 @@
 </div>
 <script>
     (function () {
-        const ICON_SIZE = {{ 20 if map_ctx.id == "map-main" else 60 }};
-        const LINE_WEIGHT = {{ 1 if map_ctx.id == "map-main" else 4 }};
-        const PADDING = 100;
-
         const segments = [
             {% for segment in map_ctx.segments %}
                 {{ segment.model_dump() | tojson }},
@@ -26,6 +22,10 @@
 
         if (typeof window.initMapLogic === 'undefined') {
             window.initMapLogic = function (containerId, segments, steps) {
+                const ICON_SIZE = containerId === "map-main" ? 20 : 60;
+                const LINE_WEIGHT = containerId === "map-main" ? 1 : 2;
+                const PADDING = 100;
+
                 console.log("Initializing Map Logic for", containerId);
                 const mapContainer = document.getElementById(containerId);
                 if (!mapContainer) return;
@@ -104,7 +104,7 @@
                     const createIcon = function (url) {
                         if (url && url !== 'None' && url !== '') {
                             return L.divIcon({
-                                className: 'custom-marker',
+                                className: `step-marker-${containerId}`,
                                 html: `<div class="custom-marker-inner" style="background-image: url('${url}');"></div>`,
                                 iconSize: [ICON_SIZE, ICON_SIZE],
                                 iconAnchor: [ICON_SIZE / 2, ICON_SIZE / 2],
@@ -129,8 +129,7 @@
                         if (!segment.is_flight) {
                             L.polyline(segPoints, {
                                 color: '#ffffff',
-                                weight: LINE_WEIGHT,
-                                {#dashArray: '6, 10',#}
+                                weight: LINE_WEIGHT * 2,
                             }).addTo(map);
                         } else {
                             // Flight Segment
