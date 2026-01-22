@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Generate photo albums from Polarsteps trip data"
 #TODO(itay) readme
 #readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = { file = "LICENSE" }
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
 classifiers = [
@@ -40,6 +40,8 @@ dependencies = [
     "persist-cache",
     "pyproj",
     "typed-argument-parser",
+    "nicegui",
+    "pywin32 ; platform_system == 'Windows'"
 ]
 
 [dependency-groups]
@@ -50,7 +52,6 @@ dev = [
     "deptry",
     "djlint",
     "taskipy",
-    "pre-commit",
     "lxml-stubs",
     "types-shapely",
     "types-geopandas",
@@ -58,6 +59,9 @@ dev = [
 
 [project.scripts]
 psagen = "src.app.main:main"
+
+[project.gui-scripts]
+psagen-gui = "src.app.gui:main"
 
 [build-system]
 requires = ["uv_build>=0.9.23,<0.10.0"]
@@ -76,7 +80,6 @@ html = "djlint static/*.jinja static/templates/*.jinja --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
 
 [tool.ruff]
-target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -93,6 +96,7 @@ ignore = [
     "EM102", # Exception must not use an f-string literal
     "PLR2004", # Magic numbers - many are acceptable (HTTP codes, common values)
     "TRY003", # Long exception messages - acceptable for user-facing errors
+    "TRY400",
     "ANN401", # Any types - acceptable for generic cache functions
     "S324", # MD5 hash - acceptable for non-cryptographic use (color selection)
     "D100", # Missing docstring in public module
@@ -104,7 +108,7 @@ ignore = [
     "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
     "D401",
-    "RUF017"
+    "RUF017",
 ]
 
 [tool.ruff.lint.isort]

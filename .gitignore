@@ -23,5 +23,6 @@ output/
 
 # Cache
 .*cache
+.nicegui
 
 trip

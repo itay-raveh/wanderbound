@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
+
+from nicegui.html import a
 
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_logger
@@ -36,7 +39,7 @@ T = TypeVar("T")
 
 async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
-    with create_progress("Fetching online data", "earth") as progress:
+    with create_progress("Fetching online data") as progress:
 
         def _progress(task: TaskID, func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
@@ -121,7 +124,7 @@ async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> T
     end_date = steps[-1].date
 
     segments = load_segments(
-        args.trip,
+        Path(args.trip),
         [(step.location.lat, step.location.lon, step.start_time) for step in steps],
         start_date.timestamp(),
         # Go until the END of the last day
@@ -142,34 +145,40 @@ async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> T
     )
 
 
-async def make_server() -> EditorServer | None:
-    args = Args(underscores_to_dashes=True).parse_args(known_only=True)
-
+async def setup_server(args: Args) -> EditorServer:
     if args.no_cache:
         clear_cache()
         logger.warning("Cleared cache")
 
-    trip_file = args.trip / "trip.json"
-    if not trip_file.exists():
-        logger.error("trip.json not found at %s.", trip_file)
-        return None
+    trip_file = Path(args.trip) / "trip.json"
     trip = Trip.model_validate_json(trip_file.read_text())
 
-    target_steps = args.filter_steps(trip.all_steps)
-    maps_slices = args.filter_map_slices(target_steps)
-    if maps_slices is None:
-        return None
+    if args.steps:
+        logger.info("Filtered to steps %s", args.steps)
+        target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        logger.info("Using all %d steps", len(trip.all_steps))
+        target_steps = trip.all_steps
 
     steps = await _enrich_steps(target_steps)
     trip_ctx = await _trip_template_ctx(args, trip, steps)
     home_location = await fetch_home_location()
 
     args.output.mkdir(parents=True, exist_ok=True)
-    server = EditorServer(args, trip_ctx, steps, maps_slices, home_location)
+    server = EditorServer(args, trip_ctx, steps, home_location)
     await server.generate([step.id for step in steps])
     return server
 
 
+async def run_server(args: Args) -> EditorServer | None:
+    try:
+        server = await setup_server(args)
+        await server.run()
+    except Exception:
+        logger.exception("Error: %s")
+        return None
+
+
 def main() -> None:
-    if server := asyncio.run(make_server()):
-        server.run()
+    args = Args(underscores_to_dashes=True, suggest_or_error=True).parse_args(known_only=True)
+    asyncio.run(run_server(args))

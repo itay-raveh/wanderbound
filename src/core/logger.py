@@ -2,7 +2,7 @@
 
 import logging
 
-from rich import print as rprint
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.progress import (
@@ -16,7 +16,17 @@ from rich.progress import (
 
 from .settings import settings
 
-_LOG_LEVEL = logging.DEBUG if settings.debug else logging.INFO
+_console: Console = Console()
+
+
+def get_console() -> Console:
+    return _console
+
+
+def set_console(console: Console) -> None:
+    """Set the global console instance for all progress bars and logging."""
+    global _console  # noqa: PLW0603
+    _console = console
 
 
 class RichPrintHandler(logging.Handler):
@@ -42,19 +52,11 @@ class RichPrintHandler(logging.Handler):
         elif record.levelno >= logging.ERROR:
             output = f"[red]{output}[/red]"
 
-        rprint(output)
+        get_console().print(output)
 
 
-_HANDLER: logging.Handler = (
-    RichHandler(
-        rich_tracebacks=True,
-        tracebacks_show_locals=True,
-        markup=True,
-    )
-    if settings.debug
-    else RichPrintHandler()
-)
-
+_LOG_LEVEL = logging.DEBUG if settings.debug else logging.INFO
+_HANDLER: logging.Handler = RichHandler() if settings.debug else RichPrintHandler()
 _HANDLER.setLevel(_LOG_LEVEL)
 
 
@@ -79,6 +81,7 @@ def create_progress(title: str | None = None, spinner: str = "dots") -> Progress
         BarColumn(),
         TaskProgressColumn(),
         TimeRemainingColumn(compact=True, elapsed_when_finished=True),
+        console=get_console(),
     )
 
     if title:

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from rich import get_console
 from src.app.args import Args
 from src.app.renderer import build_overview_template_ctx, render_album_html
 from src.core.logger import create_progress, get_logger
+from src.core.settings import settings
 from src.layout.builder import build_step_layout, try_build_layout
 from src.models.context import TripTemplateCtx
 from src.models.layout import AlbumLayout, StepLayout, Video
@@ -38,15 +40,14 @@ class EditorServer:
         args: Args,
         trip_ctx: TripTemplateCtx,
         steps: Sequence[EnrichedStep],
-        maps_slices: list[slice[int]],
         home_location: tuple[Location, str],
     ) -> None:
         self.trip_ctx = trip_ctx
-        self.output_dir = args.output
-        self.trip_dir = args.trip
+        self.output_dir = Path(args.output)
+        self.trip_dir = Path(args.trip)
         self.layout_file = self.output_dir / "layout.json"
         self.steps = steps
-        self.maps_slices = maps_slices
+        self.maps_slices = args.maps
         self.home_location = home_location
 
     async def generate(self, target_ids: Sequence[int]) -> None:
@@ -77,7 +78,7 @@ class EditorServer:
 
         with get_console().status("[bold blue]Generating HTML..."):
             html = render_album_html(
-                self.steps, layout, self.trip_ctx, overview_ctx, self.maps_slices
+                self.steps, layout, self.trip_ctx, overview_ctx, self.maps_slices or []
             )
 
         html_file = self.output_dir / "album.html"
@@ -149,8 +150,8 @@ class EditorServer:
         await self.generate([step_layout.id for step_layout in layout_request.updates])
         return web.json_response({"success": True})
 
-    def run(self, port: int = 8000) -> None:
-        app = web.Application()
+    async def run(self) -> None:
+        app = web.Application(logger=logger)
 
         app.router.add_get("/", self.handle_index)
         app.router.add_post("/api/cover", self.handle_cover)
@@ -159,4 +160,13 @@ class EditorServer:
         app.router.add_static(str(self.trip_dir.absolute()), self.trip_dir)
         app.router.add_static(str(self.output_dir.absolute()), self.output_dir)
 
-        web.run_app(app, port=port)
+        runner = web.AppRunner(app, handle_signals=True)
+        await runner.setup()
+        site = web.TCPSite(runner, "localhost", settings.editor_port)
+        await site.start()
+
+        try:
+            while True:
+                await asyncio.Event().wait()
+        finally:
+            await runner.cleanup()
