@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from nicegui import app
-
 from src.app.renderer import build_overview_template_ctx, render_album_html
 from src.app.state import state
 from src.core.cache import clear_cache
@@ -37,9 +35,8 @@ logger = get_logger(__name__)
 async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
     with create_progress("Fetching online data") as progress:
-
         def _progress[**P, T](
-            task: TaskID, func: Callable[P, Awaitable[T]]
+                task: TaskID, func: Callable[P, Awaitable[T]]
         ) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
                 res = await func(*args, **kw)
@@ -114,7 +111,7 @@ def _select_trip_cover(trip_cover: TripCover, args: GeneratorArgs) -> str | None
 
 
 async def _trip_template_ctx(
-    args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
+        args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
 ) -> TripTemplateCtx:
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
@@ -123,9 +120,6 @@ async def _trip_template_ctx(
 
     start_date = steps[0].date
     end_date = steps[-1].date
-
-    # Resolve Path object properly
-    # GeneratorArgs.trip is DirectoryPath -> Path
 
     segments = load_segments(
         args.trip,
@@ -151,9 +145,6 @@ async def _trip_template_ctx(
 
 async def generate_step_layouts(target_ids: Sequence[int]) -> None:
     """Generate layout and HTML for specific steps."""
-    if not state.is_ready() or not state.layout_file or not state.args:
-        return
-
     logger.info("Generating steps %s", target_ids)
 
     layout = (
@@ -207,7 +198,7 @@ async def run_generation_task(args: GeneratorArgs) -> None:
     trip = Trip.model_validate_json(trip_file.read_text())
 
     if args.steps:
-        logger.info("Filtered to steps %s", args.steps)
+        logger.info("Filtered to steps %r", args.steps)
         target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])
     else:
         logger.info("Using all %d steps", len(trip.all_steps))
@@ -217,19 +208,12 @@ async def run_generation_task(args: GeneratorArgs) -> None:
     trip_ctx = await _trip_template_ctx(args, trip, steps)
     home_location = await fetch_home_location()
 
-    args.output.mkdir(parents=True, exist_ok=True)
-
     # Update Global State
     state.args = args
     state.trip_ctx = trip_ctx
     state.steps = steps
     state.home_location = home_location
     state.layout_file = args.output / "layout.json"
-
-    # STATIC MOUNTS for the editor/album
-    # We can dynamically add static routes or ensure they are present
-    app.add_static_files("/trip_data", str(args.trip))
-    app.add_static_files("/output_data", str(args.output))
 
     # Initial Generation
     await generate_step_layouts([step.id for step in steps])

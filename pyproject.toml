@@ -2,18 +2,13 @@
 name = "polarsteps-album-generator"
 version = "0.1.0"
 description = "Generate photo albums from Polarsteps trip data"
-#TODO(itay) readme
-#readme = "README.md"
 requires-python = ">=3.13"
-license = { file = "LICENSE" }
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
@@ -40,8 +35,7 @@ dependencies = [
     "persist-cache",
     "pyproj",
     "nicegui",
-    "pywin32 ; platform_system == 'Windows'",
-    "crossfiledialog>=1.1.0",
+    "crossfiledialog",
 ]
 
 [dependency-groups]
@@ -57,7 +51,6 @@ dev = [
     "types-geopandas",
 ]
 
-
 [build-system]
 requires = ["uv_build>=0.9.23,<0.10.0"]
 build-backend = "uv_build"
@@ -65,6 +58,18 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "src"
 module-root = ""
+
+[tool.pycrucible]
+entrypoint = "src/app/gui.py"
+
+[tool.pycrucible.patterns]
+include = [
+    "src/**/*.py",
+    "static/**/*.jinja",
+    "static/**/*.css",
+    "static/**/*.js",
+    ".env"
+]
 
 [tool.taskipy.tasks]
 format = "ruff format ."

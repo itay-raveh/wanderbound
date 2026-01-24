@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from pydantic import (
     BaseModel,
@@ -12,9 +12,6 @@ from pydantic import (
     PlainSerializer,
     model_validator,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _parse_slice_string(part: str) -> slice[int]:
@@ -90,7 +87,7 @@ class GeneratorArgs(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
-    def process_args(self) -> GeneratorArgs:
+    def after(self) -> GeneratorArgs:
         self._reindex_maps_slices()
         return self
 

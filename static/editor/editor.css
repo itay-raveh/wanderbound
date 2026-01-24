@@ -40,43 +40,63 @@
     }
 }
 
-.save-btn {
-
-    background: #333;
-    color: white;
-    padding: 15px;
-    border-radius: 8px;
-
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* Base Button Style */
-.save-btn {
-    /* Sizing and Layout */
+/* FAB Container */
+.fab-container {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
     z-index: 9999;
-    padding: 16px 32px;
-    font-size: 18px;
-    font-weight: 600;
-    border-radius: 8px;
+}
+
+/* Base FAB Button Style */
+.fab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     border: none;
-    background-color: #18553e;
     color: white;
+    cursor: pointer;
     transition: all 0.2s ease-in-out;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.fab-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+}
+
+.fab-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.fab-btn svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Print Button Specifics */
+.print-btn {
+    background-color: #007bff;
+}
+
+.print-btn:hover {
+    background-color: #0056b3;
+}
+
+/* Save Button Specifics */
+.save-btn {
+    background-color: #18553e;
 }
 
 .save-btn:hover {
     background-color: #143e2e;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-.save-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .save-btn:disabled {
@@ -87,7 +107,6 @@
     transform: none;
     opacity: 0.7;
 }
-
 
 .editor-context-menu {
     position: absolute;
@@ -146,7 +165,7 @@
 
 
 @media print {
-    .save-btn, .add-page-container, .add-page-container {
-        display: none;
+    .fab-container, .add-page-container {
+        display: none !important;
     }
 }

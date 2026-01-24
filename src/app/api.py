@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse, JSONResponse, Response
-from nicegui import app
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from src.app.engine import generate_step_layouts
@@ -37,11 +36,7 @@ class LayoutRequest(BaseModel):
 
 
 @api_router.post("/cover")
-async def handle_cover(request: Request) -> Response:
-    if not state.is_ready() or not state.layout_file:
-        return JSONResponse({"error": "Server not ready"}, status_code=503)
-
-    cover_request = CoverRequest.model_validate(await request.json())
+async def handle_cover(cover_request: CoverRequest) -> Response:
     layout = AlbumLayout.model_validate_json(state.layout_file.read_text())
 
     # Replace cover
@@ -66,11 +61,7 @@ async def handle_cover(request: Request) -> Response:
 
 
 @api_router.post("/video")
-async def handle_video(request: Request) -> Response:
-    if not state.is_ready() or not state.layout_file or not state.args:
-        return JSONResponse({"error": "Server not ready"}, status_code=503)
-
-    video_request = VideoUpdateRequest.model_validate(await request.json())
+async def handle_video(video_request: VideoUpdateRequest) -> Response:
     layout = AlbumLayout.model_validate_json(state.layout_file.read_text())
 
     for page in layout.steps[video_request.id].pages:
@@ -89,11 +80,7 @@ async def handle_video(request: Request) -> Response:
 
 
 @api_router.post("/layout")
-async def handle_layout(request: Request) -> Response:
-    if not state.is_ready() or not state.layout_file:
-        return JSONResponse({"error": "Server not ready"}, status_code=503)
-
-    layout_request = LayoutRequest.model_validate(await request.json())
+async def handle_layout(layout_request: LayoutRequest) -> Response:
     layout = AlbumLayout.model_validate_json(state.layout_file.read_text())
 
     for step_layout in layout_request.updates:

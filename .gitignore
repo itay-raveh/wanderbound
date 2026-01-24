@@ -7,6 +7,7 @@ __pycache__/
 *.egg
 dist/
 build/
+pycrucible_payload
 
 # Virtual environments
 .venv

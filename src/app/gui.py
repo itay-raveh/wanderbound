@@ -16,7 +16,6 @@ from rich.console import Console
 from src.app.api import api_router
 from src.app.engine import run_generation_task
 from src.core.logger import TeeIO, get_logger, set_console
-from src.core.settings import settings
 from src.models.args import GeneratorArgs
 
 if TYPE_CHECKING:
@@ -24,9 +23,7 @@ if TYPE_CHECKING:
     from nicegui.events import ClickEventArguments, Handler
     from pydantic.fields import FieldInfo
 
-
 logger = get_logger(__name__)
-
 
 TERMINAL_FONT_FAMILY = '"Cascadia Code", Menlo, monospace'
 TERMINAL_THEME = {
@@ -128,8 +125,8 @@ def create_form() -> ui.button:
 
 
 async def generate(
-    terminal: FileCompatXTerm,
-    album_frame: ui.element,
+        terminal: FileCompatXTerm,
+        album_frame: ui.element,
 ) -> None:
     # Reset UI
     await terminal.run_terminal_method("clear")
@@ -137,15 +134,18 @@ async def generate(
     album_frame.visible = False
 
     try:
-        args = GeneratorArgs.model_validate(app.storage.general)
+        args = GeneratorArgs.model_validate(
+            {k: (None if v == "" else v) for k, v in app.storage.general.items()}
+        )
     except ValidationError as e:
-        logger.error("Validation Error: %s", e.errors()[0]["msg"])
+        err = e.errors()[0]
+        logger.error("%s: %s", err["input"], err["msg"])
         return
 
     try:
         await run_generation_task(args)
     except Exception:
-        logger.exception("Generation failed")
+        logger.exception("Generation Error:")
         return
 
     # 3. Show Result
