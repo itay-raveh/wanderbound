@@ -1,19 +1,20 @@
-"""Main CLI application for generating photo albums."""
-
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import TYPE_CHECKING, ParamSpec, TypeVar
+from typing import TYPE_CHECKING
 
-from nicegui.html import a
+from nicegui import app
 
+from src.app.renderer import build_overview_template_ctx, render_album_html
+from src.app.state import state
 from src.core.cache import clear_cache
-from src.core.logger import create_progress, get_logger
+from src.core.logger import create_progress, get_console, get_logger
 from src.core.text import choose_text_dir
+from src.layout.builder import build_step_layout
 from src.models.context import TripTemplateCtx
+from src.models.layout import AlbumLayout
 from src.models.segments import load_segments
-from src.models.trip import EnrichedStep, Step, Trip, TripCover
+from src.models.trip import EnrichedStep, Trip
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
@@ -21,27 +22,25 @@ from src.services.location import fetch_home_location
 from src.services.maps import fetch_map
 from src.services.weather import fetch_weather
 
-from .args import Args
-from .server import EditorServer
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
     from datetime import datetime
 
     from rich.progress import TaskID
 
+    from src.models.args import GeneratorArgs
+    from src.models.trip import Step, TripCover
 
 logger = get_logger(__name__)
-
-P = ParamSpec("P")
-T = TypeVar("T")
 
 
 async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
     with create_progress("Fetching online data") as progress:
 
-        def _progress(task: TaskID, func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
+        def _progress[**P, T](
+            task: TaskID, func: Callable[P, Awaitable[T]]
+        ) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
                 res = await func(*args, **kw)
                 progress.advance(task)
@@ -100,9 +99,9 @@ def _format_date_range(start: datetime, end: datetime) -> str:
     return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
-def _select_trip_cover(trip_cover: TripCover, args: Args) -> str | None:
+def _select_trip_cover(trip_cover: TripCover, args: GeneratorArgs) -> str | None:
     """Resolve the cover photo path based on priority: CLI -> Local -> URL."""
-    # 1. CLI Override
+    # 1. CLI / Form Override
     if args.cover:
         return str(args.cover.absolute())
 
@@ -114,7 +113,9 @@ def _select_trip_cover(trip_cover: TripCover, args: Args) -> str | None:
     return trip_cover.url
 
 
-async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> TripTemplateCtx:
+async def _trip_template_ctx(
+    args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
+) -> TripTemplateCtx:
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
     cover = _select_trip_cover(trip.cover_photo, args)
@@ -123,8 +124,11 @@ async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> T
     start_date = steps[0].date
     end_date = steps[-1].date
 
+    # Resolve Path object properly
+    # GeneratorArgs.trip is DirectoryPath -> Path
+
     segments = load_segments(
-        Path(args.trip),
+        args.trip,
         [(step.location.lat, step.location.lon, step.start_time) for step in steps],
         start_date.timestamp(),
         # Go until the END of the last day
@@ -145,17 +149,66 @@ async def _trip_template_ctx(args: Args, trip: Trip, steps: Sequence[Step]) -> T
     )
 
 
-async def setup_server(args: Args) -> EditorServer:
+async def generate_step_layouts(target_ids: Sequence[int]) -> None:
+    """Generate layout and HTML for specific steps."""
+    if not state.is_ready() or not state.layout_file or not state.args:
+        return
+
+    logger.info("Generating steps %s", target_ids)
+
+    layout = (
+        AlbumLayout.model_validate_json(state.layout_file.read_bytes())
+        if state.layout_file.exists()
+        else AlbumLayout(steps={})
+    )
+
+    with create_progress("Loading photos/videos") as progress:
+        steps_to_process = [step for step in state.steps if step.id in target_ids]
+
+        for step in progress.track(steps_to_process, description="Building layouts..."):
+            if step.id not in layout.steps:
+                layout.steps[step.id] = await build_step_layout(
+                    step, state.args.trip, state.args.output
+                )
+
+    state.layout_file.write_text(layout.model_dump_json(indent=2))
+    logger.info("Generated: %s", state.layout_file, extra={"success": True})
+
+    if not state.trip_ctx or not state.home_location:
+        logger.warning("Missing context for HTML generation")
+        return
+
+    overview_ctx = build_overview_template_ctx(
+        state.steps, layout, state.trip_ctx.segments, state.home_location
+    )
+
+    with get_console().status("[bold blue]Generating HTML..."):
+        html = render_album_html(
+            state.steps, layout, state.trip_ctx, overview_ctx, state.args.maps or []
+        )
+
+    html_file = state.args.output / "album.html"
+    html_file.write_text(html)
+    logger.info("Generated: %s", html_file, extra={"success": True})
+
+
+async def run_generation_task(args: GeneratorArgs) -> None:
+    """Main entry point for generation process."""
     if args.no_cache:
         clear_cache()
         logger.warning("Cleared cache")
 
-    trip_file = Path(args.trip) / "trip.json"
+    trip_file = args.trip / "trip.json"
+
+    if not trip_file.exists():
+        logger.error("trip.json not found in %s", args.trip)
+        return
+
     trip = Trip.model_validate_json(trip_file.read_text())
 
     if args.steps:
         logger.info("Filtered to steps %s", args.steps)
-        target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])  # pyright: ignore[reportUnknownArgumentType]
+        target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])
     else:
         logger.info("Using all %d steps", len(trip.all_steps))
         target_steps = trip.all_steps
@@ -165,20 +218,18 @@ async def setup_server(args: Args) -> EditorServer:
     home_location = await fetch_home_location()
 
     args.output.mkdir(parents=True, exist_ok=True)
-    server = EditorServer(args, trip_ctx, steps, home_location)
-    await server.generate([step.id for step in steps])
-    return server
 
+    # Update Global State
+    state.args = args
+    state.trip_ctx = trip_ctx
+    state.steps = steps
+    state.home_location = home_location
+    state.layout_file = args.output / "layout.json"
 
-async def run_server(args: Args) -> EditorServer | None:
-    try:
-        server = await setup_server(args)
-        await server.run()
-    except Exception:
-        logger.exception("Error: %s")
-        return None
+    # STATIC MOUNTS for the editor/album
+    # We can dynamically add static routes or ensure they are present
+    app.add_static_files("/trip_data", str(args.trip))
+    app.add_static_files("/output_data", str(args.output))
 
-
-def main() -> None:
-    args = Args(underscores_to_dashes=True, suggest_or_error=True).parse_args(known_only=True)
-    asyncio.run(run_server(args))
+    # Initial Generation
+    await generate_step_layouts([step.id for step in steps])

@@ -33,8 +33,6 @@ class Settings(BaseSettings):
 
     feels_like_display_threshold: float = Field(default=3.0, ge=0.0)
 
-    editor_port: int = 8000
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

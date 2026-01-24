@@ -8,7 +8,7 @@
         <div class="title-page-content">
             <div class="title-page-dates">{{ trip.dates }}</div>
             <h1 class="title-page-title" dir="{{ trip.title_dir }}">{{ trip.title }}</h1>
-            {% if trip.summary %}
+            {% if trip.subtitle %}
                 <div class="title-page-summary" dir="{{ trip.subtitle_dir }}">{{ trip.subtitle }}</div>
             {% endif %}
         </div>

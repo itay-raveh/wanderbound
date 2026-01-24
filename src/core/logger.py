@@ -1,6 +1,9 @@
 """Logging configuration for the album generator using Rich."""
 
+from __future__ import annotations
+
 import logging
+from typing import IO
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -27,6 +30,26 @@ def set_console(console: Console) -> None:
     """Set the global console instance for all progress bars and logging."""
     global _console  # noqa: PLW0603
     _console = console
+
+
+# noinspection PyAbstractClass
+class TeeIO(IO[str]):
+    """A file-like object that writes to multiple files."""
+
+    def __init__(self, *files: IO[str]) -> None:
+        self.files = files
+
+    def write(self, s: str) -> int:
+        for f in self.files:
+            f.write(s)
+        return len(s)
+
+    def flush(self) -> None:
+        for f in self.files:
+            f.flush()
+
+    def isatty(self) -> bool:
+        return any(getattr(f, "isatty", lambda: False)() for f in self.files)
 
 
 class RichPrintHandler(logging.Handler):
@@ -56,8 +79,6 @@ class RichPrintHandler(logging.Handler):
 
 
 _LOG_LEVEL = logging.DEBUG if settings.debug else logging.INFO
-_HANDLER: logging.Handler = RichHandler() if settings.debug else RichPrintHandler()
-_HANDLER.setLevel(_LOG_LEVEL)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -66,8 +87,11 @@ def get_logger(name: str) -> logging.Logger:
     if logger.handlers:
         return logger
 
+    handler: logging.Handler = RichHandler() if settings.debug else RichPrintHandler()
+    handler.setLevel(_LOG_LEVEL)
+
     logger.setLevel(_LOG_LEVEL)
-    logger.addHandler(_HANDLER)
+    logger.addHandler(handler)
     logger.propagate = False
 
     return logger
