@@ -1,14 +1,18 @@
 """GUI entry point for the album generator using NiceGUI."""
+
 # pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportAny=false, reportExplicitAny=false
 
 from __future__ import annotations
 
 import sys
-from functools import partial
+
 from pathlib import Path
+from time import time
+import tkinter as tk
+from functools import partial
+from tkinter import filedialog
 from typing import IO, TYPE_CHECKING, Any
 
-import crossfiledialog
 from nicegui import app, run, ui
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 from rich.console import Console
@@ -50,7 +54,9 @@ TERMINAL_THEME = {
 
 
 # noinspection PyAbstractClass
-class FileCompatXTerm(ui.xterm, IO[str]):  # pyright: ignore[reportIncompatibleMethodOverride]
+class FileCompatXTerm(
+    ui.xterm, IO[str]
+):  # pyright: ignore[reportIncompatibleMethodOverride]
     def flush(self) -> None:
         self.update()
 
@@ -71,18 +77,36 @@ def _make_field_validator(field_info: FieldInfo) -> ValidationFunction:
     return validator
 
 
-_USER_HOME = str(Path("~").expanduser())
+def _pick_file_or_folder(label: str, is_dir: bool, initial: str) -> str | None:
+    # Create a hidden root window
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    root.attributes("-topmost", True)  # Make the dialog appear on top
+
+    try:
+        if is_dir:
+            path = filedialog.askdirectory(
+                title=label, mustexist=True, parent=root, initialdir=initial
+            )
+        else:
+            path = filedialog.askopenfilename(
+                title=label, parent=root, initialdir=initial
+            )
+    finally:
+        root.destroy()
+
+    return str(path) if path else None
 
 
-def _make_file_picker_handler(inp: ui.input, field: FieldInfo) -> Handler[ClickEventArguments]:
+def _make_file_picker_handler(
+    inp: ui.input, field: FieldInfo
+) -> Handler[ClickEventArguments]:
     async def handler() -> None:
-        open_f = (
-            crossfiledialog.choose_folder
-            if "path_type='dir'" in str(field)
-            else crossfiledialog.open_file
+        is_dir = "path_type='dir'" in str(field)
+        # Run in a separate thread to not block the GUI event loop
+        path = await run.io_bound(
+            partial(_pick_file_or_folder, f"Choose {inp.label}", is_dir, inp.value)
         )
-
-        path = await run.io_bound(partial(open_f, f"Choose {inp.label}", _USER_HOME))
 
         if path:
             inp.set_value(path)
@@ -107,7 +131,10 @@ def create_form() -> ui.button:
                             label,
                             validation=_make_field_validator(field),
                         ).props("disable")
-                        ui.button(icon="folder", on_click=_make_file_picker_handler(inp, field))
+                        ui.button(
+                            icon="folder",
+                            on_click=_make_file_picker_handler(inp, field),
+                        )
 
                 # SliceList or str -> Input
                 else:
@@ -124,9 +151,14 @@ def create_form() -> ui.button:
         )
 
 
+def _path_to_mount(path: Path) -> str:
+    s = path.absolute().as_posix()
+    return s if s.startswith("/") else "/" + s
+
+
 async def generate(
-        terminal: FileCompatXTerm,
-        album_frame: ui.element,
+    terminal: FileCompatXTerm,
+    album_frame: ui.element,
 ) -> None:
     # Reset UI
     await terminal.run_terminal_method("clear")
@@ -148,17 +180,15 @@ async def generate(
         logger.exception("Generation Error:")
         return
 
-    # 3. Show Result
+    app.add_static_files(_path_to_mount(args.output), args.output)
+    app.add_static_files(_path_to_mount(args.trip), args.trip)
+
     album_frame.visible = True
     terminal.visible = False
     # Refresh iframe
     await ui.run_javascript(
-        f"getHtmlElement({album_frame.id}).src='{(args.output / 'album.html').absolute()}'"
+        f"getHtmlElement({album_frame.id}).src='{_path_to_mount(args.output / 'album.html')}?t={time()}';"
     )
-    album_frame.update()
-
-    app.add_static_files(str(args.trip.absolute()), args.trip)
-    app.add_static_files(str(args.output.absolute()), args.output)
 
 
 @ui.page("/")
@@ -196,6 +226,9 @@ async def index_page() -> None:
     )
 
 
+app.mount("/api", api_router)
+
 if __name__ in {"__main__", "__mp_main__"}:
-    app.mount("/api", api_router)
-    ui.run(title="Polarsteps Album Generator", dark=True)
+    # Disable reload when frozen (packaged)
+    reload_app = not getattr(sys, "frozen", False)
+    ui.run(title="Polarsteps Album Generator", dark=True, reload=reload_app)

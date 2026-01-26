@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from math import e
 from typing import TYPE_CHECKING
 
 from src.app.renderer import build_overview_template_ctx, render_album_html
@@ -35,8 +36,9 @@ logger = get_logger(__name__)
 async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
     """Fetch all external data concurrently."""
     with create_progress("Fetching online data") as progress:
+
         def _progress[**P, T](
-                task: TaskID, func: Callable[P, Awaitable[T]]
+            task: TaskID, func: Callable[P, Awaitable[T]]
         ) -> Callable[P, Awaitable[T]]:
             async def wrapper(*args: P.args, **kw: P.kwargs) -> T:
                 res = await func(*args, **kw)
@@ -56,9 +58,14 @@ async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
                         _progress(weather_progress, fetch_weather)(
                             client, step.location.lat, step.location.lon, step.date
                         ),
-                        _progress(flag_progress, fetch_flag)(client, step.location.country_code),
+                        _progress(flag_progress, fetch_flag)(
+                            client, step.location.country_code
+                        ),
                         _progress(map_progress, fetch_map)(
-                            client, step.location.lat, step.location.lon, step.location.country_code
+                            client,
+                            step.location.lat,
+                            step.location.lon,
+                            step.location.country_code,
                         ),
                     )
                     for step in steps
@@ -79,7 +86,9 @@ async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
             flag=flag,
             map=map_,
         )
-        for step, altitude, (weather, flag, map_) in zip(steps, alts, results, strict=True)
+        for step, altitude, (weather, flag, map_) in zip(
+            steps, alts, results, strict=True
+        )
     ]
 
 
@@ -111,7 +120,7 @@ def _select_trip_cover(trip_cover: TripCover, args: GeneratorArgs) -> str | None
 
 
 async def _trip_template_ctx(
-        args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
+    args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
 ) -> TripTemplateCtx:
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
@@ -148,7 +157,7 @@ async def generate_step_layouts(target_ids: Sequence[int]) -> None:
     logger.info("Generating steps %s", target_ids)
 
     layout = (
-        AlbumLayout.model_validate_json(state.layout_file.read_bytes())
+        AlbumLayout.model_validate_json(state.layout_file.read_text(encoding="utf-8"))
         if state.layout_file.exists()
         else AlbumLayout(steps={})
     )
@@ -162,7 +171,7 @@ async def generate_step_layouts(target_ids: Sequence[int]) -> None:
                     step, state.args.trip, state.args.output
                 )
 
-    state.layout_file.write_text(layout.model_dump_json(indent=2))
+    state.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
     logger.info("Generated: %s", state.layout_file, extra={"success": True})
 
     if not state.trip_ctx or not state.home_location:
@@ -179,7 +188,7 @@ async def generate_step_layouts(target_ids: Sequence[int]) -> None:
         )
 
     html_file = state.args.output / "album.html"
-    html_file.write_text(html)
+    html_file.write_text(html, encoding="utf-8")
     logger.info("Generated: %s", html_file, extra={"success": True})
 
 
@@ -195,7 +204,7 @@ async def run_generation_task(args: GeneratorArgs) -> None:
         logger.error("trip.json not found in %s", args.trip)
         return
 
-    trip = Trip.model_validate_json(trip_file.read_text())
+    trip = Trip.model_validate_json(trip_file.read_text(encoding="utf-8"))
 
     if args.steps:
         logger.info("Filtered to steps %r", args.steps)

@@ -1,6 +1,6 @@
 import asyncio
-import subprocess
 from pathlib import Path
+import cv2
 
 from PIL import Image, ImageOps
 
@@ -54,31 +54,30 @@ def frame_path(video_path: Path, timestamp: float, output_dir: Path) -> Path:
 
 
 async def extract_frame(video: Path, timestamp: float, frame: Path) -> None:
-    """Extract a single frame from the video at the given timestamp using ffmpeg asynchronously."""
+    """Extract a single frame from the video at the given timestamp using OpenCV asynchronously."""
     if frame.exists():
         return
 
     frame.parent.mkdir(parents=True, exist_ok=True)
 
-    args = [
-        "-ss",
-        str(timestamp),
-        "-i",
-        str(video.absolute()),
-        "-frames:v",
-        "1",
-        "-q:v",
-        "1",  # Highest quality JPG (1-31 range)
-        str(frame.absolute()),
-    ]
+    loop = asyncio.get_running_loop()
 
-    proc = await asyncio.create_subprocess_exec(
-        "ffmpeg",
-        *args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    _, stderr = await proc.communicate()
+    def run():
+        cap = cv2.VideoCapture(str(video))
+        if not cap.isOpened():
+            raise RuntimeError(f"Failed to open video: {video}")
 
-    if proc.returncode != 0:
-        logger.error("ffmpeg failed: %s", stderr.decode())
+        cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+
+        success, img = cap.read()
+        cap.release()
+
+        if not success:
+            raise RuntimeError(f"Failed to extract frame at {timestamp}s from {video}")
+
+        cv2.imwrite(str(frame), img)
+
+    try:
+        await loop.run_in_executor(None, run)
+    except Exception as e:
+        logger.error("Frame extraction failed: %s", e)

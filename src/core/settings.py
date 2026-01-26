@@ -1,5 +1,6 @@
 """Application settings using Pydantic."""
 
+import sys
 from pathlib import Path
 
 from pydantic import Field
@@ -9,7 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Debug mode (set via DEBUG environment variable)
     debug: bool = Field(default=False)
-    cache_dir: Path = Path(__file__).parents[2] / ".psagen_cache"
+    cache_dir: Path = (
+        Path(sys.executable).parent / ".psagen_cache"
+        if getattr(sys, "frozen", False)
+        else Path(__file__).parents[2] / ".psagen_cache"
+    )
 
     flag_cdn_url: str = "https://flagcdn.com/w40/{country_code}.png"
     opentopodata_api_url: str = "https://api.opentopodata.org/v1/aster30m?locations={locations}"
@@ -34,7 +39,11 @@ class Settings(BaseSettings):
     feels_like_display_threshold: float = Field(default=3.0, ge=0.0)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            Path(sys.executable).parent / ".env"
+            if getattr(sys, "frozen", False)
+            else ".env"
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

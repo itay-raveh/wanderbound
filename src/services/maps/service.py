@@ -29,7 +29,9 @@ _NE_FETCH_LOCK = Lock()
 
 
 @cache_in_file()
-async def fetch_map(client: APIClient, lat: float, lon: float, country_code: str) -> Map:
+async def fetch_map(
+    client: APIClient, lat: float, lon: float, country_code: str
+) -> Map:
     """Get country map SVG and dot position."""
     # Only one of the tasks needs to fetch the NE dataset,
     # the rest should wait for it, and then they can simply use the local file.
@@ -50,14 +52,16 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
 
     if geojson_file.exists():
         try:
-            return gpd.read_file(geojson_file)  # pyright: ignore[reportUnknownMemberType]
+            return gpd.read_file(
+                geojson_file
+            )  # pyright: ignore[reportUnknownMemberType]
         except Exception as e:  # noqa: BLE001
             logger.warning("Cached map data corrupt, re-downloading: %s", e)
 
     logger.info("Downloading Natural Earth 50m data...")
 
     content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
-    geojson_file.write_bytes(content)
+    geojson_file.write_bytes(content, encoding="utf-8")
 
     return gpd.read_file(geojson_file)  # pyright: ignore[reportUnknownMemberType]
 
@@ -71,7 +75,9 @@ def _dot_position(lat: float, lon: float, svg_data: str) -> tuple[float, float]:
     """Calculate the relative position (0-100%) of a location dot within a country map."""
     root = etree.fromstring(svg_data, parser=_ETREE_XML_PARSER)
 
-    min_x, min_y, max_x, max_y = [float(x) for x in str(root.attrib["data-bounds"]).split(",")]
+    min_x, min_y, max_x, max_y = [
+        float(x) for x in str(root.attrib["data-bounds"]).split(",")
+    ]
 
     x, y = _transform(lon, lat)
 

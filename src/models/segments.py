@@ -42,9 +42,14 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
 
 @cache_in_file()
 def load_segments(
-    trip_dir: Path, step_points: list[tuple[float, float, float]], min_time: float, max_time: float
+    trip_dir: Path,
+    step_points: list[tuple[float, float, float]],
+    min_time: float,
+    max_time: float,
 ) -> list[Segment]:
-    locations_json = LocationsJSON.model_validate_json((trip_dir / "locations.json").read_text())
+    locations_json = LocationsJSON.model_validate_json(
+        (trip_dir / "locations.json").read_text(encoding="utf-8")
+    )
 
     path_points = locations_json.locations + [
         PathPoint(lat=lat, lon=lon, time=time) for lat, lon, time in step_points
@@ -52,7 +57,9 @@ def load_segments(
 
     with create_progress("Loading GPS points") as progress:
         tracked_points = progress.track(path_points, description="Filtering...")
-        points = sorted(point for point in tracked_points if min_time <= point.time <= max_time)
+        points = sorted(
+            point for point in tracked_points if min_time <= point.time <= max_time
+        )
 
         clean_points = [points[0]]  # Hopefully the first point is not a GPS error
         for curr in progress.track(points[1:], description="Cleaning..."):

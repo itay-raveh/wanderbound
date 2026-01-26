@@ -82,7 +82,7 @@
         {% if step.is_long_description %}
             <div class="step-description long" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
         {% else %}
-            <img src="{{ step.cover_photo }}"
+            <img src="{{ step.cover_photo  | path_to_url }}"
                  alt="{{ step.name }}"
                  class="main-image"
                  loading="lazy"
@@ -92,9 +92,9 @@
     </div>
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
-        {% for photo in step.hidden_photos %}
-            <div class="photo-item" data-photo-path="{{ photo.path }}">
-                <img src="{{ photo.path }}" alt="Hidden {{ photo }}" />
+        {% for path in step.hidden_photos %}
+            <div class="photo-item" data-photo-path="{{ path }}">
+                <img src="{{ path | path_to_url }}" alt="Hidden {{ photo }}" />
             </div>
         {% endfor %}
     </div>
@@ -119,25 +119,25 @@
                     {% if photo.is_video %}
                         <div class="video-wrapper"
                              style="aspect-ratio: {{ photo.width }} / {{ photo.height }}">
-                            <img src="{{ photo.path }}"
+                            <img src="{{ photo.path  | path_to_url }}"
                                  alt="{{ photo.path }} Frame"
                                  class="video-poster photo-image"
                                  draggable="true"
                                  loading="lazy"
                                  decoding="async" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
-                            <video src="{{ photo.src }}"
+                            <video src="{{ photo.src | path_to_url}}"
                                    class="video-player photo-image"
                                    controls
                                    preload="none">
                             </video>
                             <button class="set-frame-btn"
-                                    onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.src }}')">
+                                    onclick="videoSetFrame(this, '{{ step.id }}', String.raw`{{ photo.src }}`)">
                                 Set Frame
                             </button>
                         </div>
                     {% else %}
-                        <img src="{{ photo.path }}"
+                        <img src="{{ photo.path  | path_to_url }}"
                              alt="{{ photo.path }}"
                              class="photo-image"
                              draggable="true"
