@@ -192,7 +192,7 @@ async def generate_step_layouts(target_ids: Sequence[int]) -> None:
     logger.info("Generated: %s", html_file, extra={"success": True})
 
 
-async def run_generation_task(args: GeneratorArgs) -> None:
+async def generate_album(args: GeneratorArgs) -> None:
     """Main entry point for generation process."""
     if args.no_cache:
         clear_cache()

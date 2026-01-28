@@ -5,11 +5,10 @@
 from __future__ import annotations
 
 import sys
-
-from pathlib import Path
-from time import time
 import tkinter as tk
 from functools import partial
+from pathlib import Path
+from time import time
 from tkinter import filedialog
 from typing import IO, TYPE_CHECKING, Any
 
@@ -18,11 +17,12 @@ from pydantic import ConfigDict, TypeAdapter, ValidationError
 from rich.console import Console
 
 from src.app.api import api_router
-from src.app.engine import run_generation_task
+from src.app.engine import generate_album
 from src.core.logger import TeeIO, get_logger, set_console
 from src.models.args import GeneratorArgs
 
 if TYPE_CHECKING:
+    from nicegui.elements.mixins.text_element import TextElement
     from nicegui.elements.mixins.validation_element import ValidationFunction
     from nicegui.events import ClickEventArguments, Handler
     from pydantic.fields import FieldInfo
@@ -54,9 +54,7 @@ TERMINAL_THEME = {
 
 
 # noinspection PyAbstractClass
-class FileCompatXTerm(
-    ui.xterm, IO[str]
-):  # pyright: ignore[reportIncompatibleMethodOverride]
+class FileCompatXTerm(ui.xterm, IO[str]):  # pyright: ignore[reportIncompatibleMethodOverride]
     def flush(self) -> None:
         self.update()
 
@@ -68,7 +66,7 @@ def _make_field_validator(field_info: FieldInfo) -> ValidationFunction:
         try:
             TypeAdapter(
                 field_info.annotation, config=ConfigDict(arbitrary_types_allowed=True)
-            ).validate_python(value)
+            ).validate_python(value or None)
         except ValidationError as e:
             # Return the first error message, stripping the "Value error, " prefix if present
             msg = e.errors()[0]["msg"]
@@ -89,18 +87,14 @@ def _pick_file_or_folder(label: str, is_dir: bool, initial: str) -> str | None:
                 title=label, mustexist=True, parent=root, initialdir=initial
             )
         else:
-            path = filedialog.askopenfilename(
-                title=label, parent=root, initialdir=initial
-            )
+            path = filedialog.askopenfilename(title=label, parent=root, initialdir=initial)
     finally:
         root.destroy()
 
     return str(path) if path else None
 
 
-def _make_file_picker_handler(
-    inp: ui.input, field: FieldInfo
-) -> Handler[ClickEventArguments]:
+def _make_file_picker_handler(inp: ui.input, field: FieldInfo) -> Handler[ClickEventArguments]:
     async def handler() -> None:
         is_dir = "path_type='dir'" in str(field)
         # Run in a separate thread to not block the GUI event loop
@@ -156,49 +150,73 @@ def _path_to_mount(path: Path) -> str:
     return s if s.startswith("/") else "/" + s
 
 
+async def update_display(
+    album_frame: ui.element,
+    title_label: TextElement,
+    terminal: FileCompatXTerm,
+) -> None:
+    """Update the display based on stored generation state."""
+    trip = app.storage.general.get("trip")
+    output = app.storage.general.get("output")
+
+    if not trip or not output:
+        return
+
+    trip_path = Path(trip)
+    output_path = Path(output)
+
+    # Ensure static files are served
+    app.add_static_files(_path_to_mount(output_path), output_path)
+    app.add_static_files(_path_to_mount(trip_path), trip_path)
+
+    # Update title
+    title_label.text = f"Album from {str(output_path)} based on {str(trip_path)}"
+
+    # Show album
+    album_frame.visible = True
+    terminal.visible = False
+
+    # Refresh iframe
+    # Use a unique timestamp to force reload if the file changed
+    src = f"{_path_to_mount(output_path / 'album.html')}?t={time()}"
+    await ui.run_javascript(f"getHtmlElement({album_frame.id}).src='{src}';")
+
+
 async def generate(
     terminal: FileCompatXTerm,
     album_frame: ui.element,
+    title_label: TextElement,
 ) -> None:
     # Reset UI
     await terminal.run_terminal_method("clear")
     terminal.visible = True
     album_frame.visible = False
 
-    try:
-        args = GeneratorArgs.model_validate(
-            {k: (None if v == "" else v) for k, v in app.storage.general.items()}
-        )
-    except ValidationError as e:
-        err = e.errors()[0]
-        logger.error("%s: %s", err["input"], err["msg"])
-        return
-
-    try:
-        await run_generation_task(args)
-    except Exception:
-        logger.exception("Generation Error:")
-        return
-
-    app.add_static_files(_path_to_mount(args.output), args.output)
-    app.add_static_files(_path_to_mount(args.trip), args.trip)
-
-    album_frame.visible = True
-    terminal.visible = False
-    # Refresh iframe
-    await ui.run_javascript(
-        f"getHtmlElement({album_frame.id}).src='{_path_to_mount(args.output / 'album.html')}?t={time()}';"
+    # Validate inputs from storage
+    args = GeneratorArgs.model_validate(
+        {k: (None if v == "" else v) for k, v in app.storage.general.items()}
     )
+
+    await generate_album(args)
+    await update_display(album_frame, title_label, terminal)
 
 
 @ui.page("/")
 async def index_page() -> None:
+    ui.on_exception(lambda e: logger.exception("Error:", exc_info=e))
+
     with ui.row(wrap=False).classes("size-full"):
         with ui.column().classes("w-1/3 h-full"):
             generate_btn = create_form()
 
         with ui.column().classes("w-2/3 h-[90vh]"):
+            # Title for the album
+            title_label = ui.label().classes("text-xl font-bold mb-2")
             album_frame = ui.element("iframe").classes("size-full").style("zoom: 70%")
+
+            # Bind title visibility to album frame
+            title_label.bind_visibility_from(album_frame, "visible")
+
             album_frame.visible = False
 
             terminal = FileCompatXTerm(
@@ -214,7 +232,7 @@ async def index_page() -> None:
             if terminal.visible:
                 await terminal.fit()
 
-        generate_btn.on_click(lambda: generate(terminal, album_frame))
+    generate_btn.on_click(lambda: generate(terminal, album_frame, title_label))
 
     set_console(
         Console(
@@ -225,10 +243,18 @@ async def index_page() -> None:
         )
     )
 
+    await update_display(album_frame, title_label, terminal)
+
 
 app.mount("/api", api_router)
 
 if __name__ in {"__main__", "__mp_main__"}:
     # Disable reload when frozen (packaged)
     reload_app = not getattr(sys, "frozen", False)
-    ui.run(title="Polarsteps Album Generator", dark=True, reload=reload_app)
+
+    ui.run(
+        title="Polarsteps Album Generator",
+        dark=True,
+        reload=reload_app,
+        uvicorn_reload_dirs="src,static",
+    )

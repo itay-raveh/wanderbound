@@ -61,7 +61,7 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
     logger.info("Downloading Natural Earth 50m data...")
 
     content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
-    geojson_file.write_bytes(content, encoding="utf-8")
+    geojson_file.write_bytes(content)
 
     return gpd.read_file(geojson_file)  # pyright: ignore[reportUnknownMemberType]
 
