@@ -1,24 +1,28 @@
 from __future__ import annotations
 
 import asyncio
-from math import e
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated
+
+from fastapi import Depends
+from nicegui import app
 
 from src.app.renderer import build_overview_template_ctx, render_album_html
-from src.app.state import state
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_console, get_logger
 from src.core.text import choose_text_dir
-from src.layout.builder import build_step_layout
+from src.layout.builder import build_step_layout, try_build_layout
+from src.models.args import GeneratorArgs, str_slices
 from src.models.context import TripTemplateCtx
-from src.models.layout import AlbumLayout
+from src.models.layout import AlbumLayout, Video
 from src.models.segments import load_segments
-from src.models.trip import EnrichedStep, Trip
+from src.models.trip import EnrichedStep, Location, Trip
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
 from src.services.location import fetch_home_location
 from src.services.maps import fetch_map
+from src.services.media import extract_frame, frame_path, load_photo
 from src.services.weather import fetch_weather
 
 if TYPE_CHECKING:
@@ -27,7 +31,7 @@ if TYPE_CHECKING:
 
     from rich.progress import TaskID
 
-    from src.models.args import GeneratorArgs
+    from src.models.layout import StepLayout
     from src.models.trip import Step, TripCover
 
 logger = get_logger(__name__)
@@ -58,9 +62,7 @@ async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
                         _progress(weather_progress, fetch_weather)(
                             client, step.location.lat, step.location.lon, step.date
                         ),
-                        _progress(flag_progress, fetch_flag)(
-                            client, step.location.country_code
-                        ),
+                        _progress(flag_progress, fetch_flag)(client, step.location.country_code),
                         _progress(map_progress, fetch_map)(
                             client,
                             step.location.lat,
@@ -86,9 +88,7 @@ async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
             flag=flag,
             map=map_,
         )
-        for step, altitude, (weather, flag, map_) in zip(
-            steps, alts, results, strict=True
-        )
+        for step, altitude, (weather, flag, map_) in zip(steps, alts, results, strict=True)
     ]
 
 
@@ -119,9 +119,7 @@ def _select_trip_cover(trip_cover: TripCover, args: GeneratorArgs) -> str | None
     return trip_cover.url
 
 
-async def _trip_template_ctx(
-    args: GeneratorArgs, trip: Trip, steps: Sequence[Step]
-) -> TripTemplateCtx:
+def _trip_template_ctx(args: GeneratorArgs, trip: Trip, steps: Sequence[Step]) -> TripTemplateCtx:
     title = args.title or trip.title
     subtitle = args.subtitle or trip.subtitle
     cover = _select_trip_cover(trip.cover_photo, args)
@@ -152,77 +150,177 @@ async def _trip_template_ctx(
     )
 
 
-async def generate_step_layouts(target_ids: Sequence[int]) -> None:
-    """Generate layout and HTML for specific steps."""
-    logger.info("Generating steps %s", target_ids)
+class AlbumService:
+    def __init__(
+        self,
+        args: GeneratorArgs,
+        trip_ctx: TripTemplateCtx,
+        steps: Sequence[EnrichedStep],
+        home_location: tuple[Location, str],
+        layout_file: Path,
+    ) -> None:
+        self.args = args
+        self.trip_ctx = trip_ctx
+        self.steps = steps
+        self.home_location = home_location
+        self.layout_file = layout_file
 
-    layout = (
-        AlbumLayout.model_validate_json(state.layout_file.read_text(encoding="utf-8"))
-        if state.layout_file.exists()
-        else AlbumLayout(steps={})
-    )
+    @classmethod
+    async def from_args(cls, args: GeneratorArgs) -> AlbumService:
+        """Load album state from disk and external services."""
+        trip_file = args.trip / "trip.json"
+        if not trip_file.exists():
+            raise FileNotFoundError(f"trip.json not found in {args.trip}")
 
-    with create_progress("Loading photos/videos") as progress:
-        steps_to_process = [step for step in state.steps if step.id in target_ids]
+        trip = Trip.model_validate_json(trip_file.read_text(encoding="utf-8"))
 
-        for step in progress.track(steps_to_process, description="Building layouts..."):
-            if step.id not in layout.steps:
-                layout.steps[step.id] = await build_step_layout(
-                    step, state.args.trip, state.args.output
-                )
+        if args.steps:
+            logger.info("Filtered to steps %s", str_slices(args.steps))
+            target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])  # pyright: ignore[reportUnknownArgumentType]
+        else:
+            logger.info("Using all %d steps", len(trip.all_steps))
+            target_steps = trip.all_steps
 
-    state.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
-    logger.info("Generated: %s", state.layout_file, extra={"success": True})
+        steps = await _enrich_steps(target_steps)
+        trip_ctx = _trip_template_ctx(args, trip, steps)
+        home_location = await fetch_home_location()
 
-    if not state.trip_ctx or not state.home_location:
-        logger.warning("Missing context for HTML generation")
-        return
-
-    overview_ctx = build_overview_template_ctx(
-        state.steps, layout, state.trip_ctx.segments, state.home_location
-    )
-
-    with get_console().status("[bold blue]Generating HTML..."):
-        html = render_album_html(
-            state.steps, layout, state.trip_ctx, overview_ctx, state.args.maps or []
+        return cls(
+            args=args,
+            trip_ctx=trip_ctx,
+            steps=steps,
+            home_location=home_location,
+            layout_file=args.output / "layout.json",
         )
 
-    html_file = state.args.output / "album.html"
-    html_file.write_text(html, encoding="utf-8")
-    logger.info("Generated: %s", html_file, extra={"success": True})
+    async def generate(self) -> None:
+        """Generate the album layout and HTML."""
+        await self._generate_for_steps([step.id for step in self.steps])
+
+    async def update_cover(self, step_id: int, new_cover: str) -> None:
+        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+
+        step_layout = layout.steps[step_id]
+        old_cover = step_layout.cover
+        step_layout.cover = Path(new_cover)
+
+        # if the old cover was not in any of the pages
+        if not any(
+            old_cover in [photo.path for photo in page.photos] for page in step_layout.pages
+        ):
+            # then we need to find the page with the new cover,
+            # and replace it with the old cover
+            for page in step_layout.pages:
+                for idx, photo in enumerate(page.photos):
+                    if photo.path == step_layout.cover:
+                        page.photos[idx] = await load_photo(old_cover)
+                        break
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await self._generate_for_steps([step_id])
+
+    async def update_video_timestamp(self, step_id: int, src: str, timestamp: float) -> None:
+        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+
+        src_path = Path(src)
+
+        for page in layout.steps[step_id].pages:
+            for photo in page.photos:
+                if isinstance(photo, Video) and photo.src == src_path:
+                    photo.path = frame_path(src_path, timestamp, self.args.output)
+                    photo.timestamp = timestamp
+                    await extract_frame(photo.src, photo.timestamp, photo.path)
+                    break
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await self._generate_for_steps([step_id])
+
+    async def update_layout(self, updates: list[StepLayout]) -> None:
+        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+
+        for step_layout in updates:
+            step_layout.pages = [
+                try_build_layout(page_layout.photos) or page_layout
+                for page_layout in step_layout.pages
+            ]
+            layout.steps[step_layout.id] = step_layout
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await self._generate_for_steps([step_layout.id for step_layout in updates])
+
+    async def _generate_for_steps(self, target_ids: Sequence[int]) -> None:
+        """Generate layout and HTML for specific steps."""
+        logger.info("Generating steps %s", target_ids)
+
+        layout = (
+            AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+            if self.layout_file.exists()
+            else AlbumLayout(steps={})
+        )
+
+        with create_progress("Loading photos/videos") as progress:
+            steps_to_process = [step for step in self.steps if step.id in target_ids]
+
+            for step in progress.track(steps_to_process, description="Building layouts..."):
+                if step.id not in layout.steps:
+                    layout.steps[step.id] = await build_step_layout(
+                        step, self.args.trip, self.args.output
+                    )
+
+        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        logger.info("Generated: %s", self.layout_file, extra={"success": True})
+
+        overview_ctx = build_overview_template_ctx(
+            self.steps, layout, self.trip_ctx.segments, self.home_location
+        )
+
+        with get_console().status("[bold blue]Generating HTML..."):
+            html = render_album_html(
+                self.steps, layout, self.trip_ctx, overview_ctx, self.args.maps or []
+            )
+
+        html_file = self.args.output / "album.html"
+        html_file.write_text(html, encoding="utf-8")
+        logger.info("Generated: %s", html_file, extra={"success": True})
 
 
-async def generate_album(args: GeneratorArgs) -> None:
-    """Main entry point for generation process."""
-    if args.no_cache:
-        clear_cache()
-        logger.warning("Cleared cache")
+def get_generator_args() -> GeneratorArgs:
+    """Dependency to get generator arguments from storage."""
+    return GeneratorArgs.model_validate(
+        {k: (None if v == "" else v) for k, v in app.storage.general.items()}
+    )
 
-    trip_file = args.trip / "trip.json"
 
-    if not trip_file.exists():
-        logger.error("trip.json not found in %s", args.trip)
-        return
+async def get_album_service(
+    args: Annotated[GeneratorArgs, Depends(get_generator_args)],
+) -> AlbumService:
+    """Dependency for FastAPI to get the album service."""
+    # Check if current singleton matches the requested args
+    current: AlbumService | None = getattr(app.state, "album_service", None)
+    if current and current.args == args:
+        return current
 
-    trip = Trip.model_validate_json(trip_file.read_text(encoding="utf-8"))
+    # If not, recreate it
+    app.state.album_service = await AlbumService.from_args(args)
+    return app.state.album_service
 
-    if args.steps:
-        logger.info("Filtered to steps %r", args.steps)
-        target_steps = sum((trip.all_steps[slc] for slc in args.steps), start=[])
-    else:
-        logger.info("Using all %d steps", len(trip.all_steps))
-        target_steps = trip.all_steps
 
-    steps = await _enrich_steps(target_steps)
-    trip_ctx = await _trip_template_ctx(args, trip, steps)
-    home_location = await fetch_home_location()
+def try_get_generator_args() -> GeneratorArgs | None:
+    """Dependency to get generator arguments from storage if valid."""
+    try:
+        return get_generator_args()
+    except ValueError:
+        return None
 
-    # Update Global State
-    state.args = args
-    state.trip_ctx = trip_ctx
-    state.steps = steps
-    state.home_location = home_location
-    state.layout_file = args.output / "layout.json"
 
-    # Initial Generation
-    await generate_step_layouts([step.id for step in steps])
+async def try_get_album_service(
+    args: Annotated[GeneratorArgs | None, Depends(try_get_generator_args)],
+) -> AlbumService | None:
+    """Dependency for GUI to get the album service if it exists."""
+    if args is None:
+        return None
+
+    try:
+        return await get_album_service(args)
+    except ValueError:
+        return None

@@ -1,5 +1,3 @@
-import sys
-
 from cx_Freeze import Executable, setup
 
 # 1. Dynamic Logic: Handle pyproj data path (Required for geopandas/maps)
@@ -33,6 +31,19 @@ packages = [
     "cv2",  # opencv-python
 ]
 
+excludes = [
+    "matplotlib",
+    "scipy",
+    "notebook",
+    "ipython",
+    "test",
+    "unittest",
+    "email.test",
+    "http.test",
+    "pydoc",
+    "pdb",
+]
+
 include_files = [("static", "static"), (".env", ".env")]
 
 if PYPROJ_DATADIR:
@@ -40,10 +51,13 @@ if PYPROJ_DATADIR:
 
 build_exe_options = {
     "packages": packages,
-    "excludes": [],
+    "excludes": excludes,
     "include_files": include_files,
     "include_msvcr": True,
     "optimize": 2,
+    # Speed up startup by zipping all packages (reduces I/O)
+    "zip_include_packages": ["*"],
+    "zip_exclude_packages": [],
 }
 upgrade_code = "{3B770287-3932-4752-9596-764720993068}"
 
@@ -69,6 +83,7 @@ setup(
             icon="static/favicon.ico",
             shortcut_name="Polarsteps Album Generator",
             shortcut_dir="ProgramMenuFolder",
+            base="gui",  # "gui" base hides the console window on Windows
         ),
         Executable(
             "src/app/gui.py",
@@ -76,6 +91,7 @@ setup(
             icon="static/favicon.ico",
             shortcut_name="Polarsteps Album Generator",
             shortcut_dir="DesktopFolder",
+            base="gui",
         ),
     ],
 )

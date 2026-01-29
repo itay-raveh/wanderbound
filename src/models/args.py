@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import (
     BaseModel,
@@ -50,7 +50,7 @@ def _parse_slices_string(v: str | list[slice[int]]) -> list[slice[int]]:
     return list(map(_parse_slice_string, parts))
 
 
-def _serialize_slices(v: list[slice[int]]) -> str:
+def str_slices(v: list[slice[int]]) -> str:
     parts: list[str] = []
     for s in v:
         if s.stop - s.start > 1:
@@ -60,11 +60,14 @@ def _serialize_slices(v: list[slice[int]]) -> str:
     return ",".join(parts)
 
 
-SliceList = Annotated[
-    list[slice],
-    BeforeValidator(_parse_slices_string),
-    PlainSerializer(_serialize_slices, return_type=str),
-]
+if TYPE_CHECKING:
+    SliceList = list[slice[int]]
+else:
+    SliceList = Annotated[
+        list[slice],
+        BeforeValidator(_parse_slices_string),
+        PlainSerializer(str_slices, return_type=str),
+    ]
 
 
 class GeneratorArgs(BaseModel):

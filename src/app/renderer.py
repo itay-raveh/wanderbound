@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import operator
-import sys
 from functools import reduce
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import quote
 
 from geopy.distance import distance
 from geopy.point import Point
@@ -34,10 +32,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def path_to_url(v: str | Path):
+def path_to_url(v: str | Path) -> str:
     if isinstance(v, Path):
         v = v.absolute().as_posix()
-    if v.startswith("/") or v.startswith("http://") or v.startswith("https://"):
+    if v.startswith(("/", "http://", "https://")):
         return v
     return "/" + v
 
@@ -75,13 +73,8 @@ def render_album_html(
         for map_slice in maps_slices
     }
 
-    if getattr(sys, "frozen", False):
-        template_dir = Path(sys.executable).parent / "static"
-    else:
-        template_dir = Path(__file__).parents[2] / "static"
-
     env = Environment(
-        loader=FileSystemLoader(str(template_dir)),
+        loader=FileSystemLoader(str(settings.root_dir / "static")),
         autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -99,9 +92,7 @@ def render_album_html(
     )
 
 
-def _segments_for_steps(
-    steps: Sequence[Step], all_segments: list[Segment]
-) -> list[Segment]:
+def _segments_for_steps(steps: Sequence[Step], all_segments: list[Segment]) -> list[Segment]:
     # For a single step, grab the whole day
     if len(steps) == 1:
         min_time = steps[0].date.replace(hour=0).timestamp()
@@ -114,9 +105,7 @@ def _segments_for_steps(
     filtered: list[Segment] = []
 
     for segment in all_segments:
-        valid_points = [
-            point for point in segment.points if min_time <= point.time <= max_time
-        ]
+        valid_points = [point for point in segment.points if min_time <= point.time <= max_time]
 
         if len(valid_points) < 2:
             continue
@@ -141,9 +130,7 @@ def _build_step_template_ctx(
     extra_description: str | None = None
 
     if step.is_extra_long_description:
-        split_idx = find_visual_split_index(
-            description, settings.extra_long_description_threshold
-        )
+        split_idx = find_visual_split_index(description, settings.extra_long_description_threshold)
         extra_description = description[split_idx:].strip()
         description = description[:split_idx].strip()
 
@@ -158,15 +145,11 @@ def _build_step_template_ctx(
         lon_val=step.location.lon,
         date_month=step.date.strftime("%B"),
         date_day=str(step.date.day),
-        day_weather_icon_url=settings.weather_icon_url.format(
-            icon_name=step.weather.day_icon
-        ),
+        day_weather_icon_url=settings.weather_icon_url.format(icon_name=step.weather.day_icon),
         night_weather_icon_url=(
             settings.weather_icon_url.format(icon_name=step.weather.night_icon)
         ),
-        temp_str=_format_temperature(
-            step.weather.day_temp, step.weather.day_feels_like
-        ),
+        temp_str=_format_temperature(step.weather.day_temp, step.weather.day_feels_like),
         temp_night_str=(
             _format_temperature(step.weather.night_temp, step.weather.night_feels_like)
         ),
@@ -239,9 +222,7 @@ def _furthest_point(
     furthest_step: Step = steps[0]
 
     for step in steps:
-        dist = distance(
-            (home_loc.lat, home_loc.lon), (step.location.lat, step.location.lon)
-        ).km
+        dist = distance((home_loc.lat, home_loc.lon), (step.location.lat, step.location.lon)).km
         if dist > max_dist:
             max_dist = dist
             furthest_step = step

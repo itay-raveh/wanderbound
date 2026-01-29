@@ -5,11 +5,7 @@
 from __future__ import annotations
 
 import sys
-import tkinter as tk
-from functools import partial
-from pathlib import Path
 from time import time
-from tkinter import filedialog
 from typing import IO, TYPE_CHECKING, Any
 
 from nicegui import app, run, ui
@@ -17,12 +13,18 @@ from pydantic import ConfigDict, TypeAdapter, ValidationError
 from rich.console import Console
 
 from src.app.api import api_router
-from src.app.engine import generate_album
+from src.app.engine import (
+    get_album_service,
+    get_generator_args,
+    try_get_generator_args,
+)
+from src.core.cache import clear_cache
 from src.core.logger import TeeIO, get_logger, set_console
 from src.models.args import GeneratorArgs
 
 if TYPE_CHECKING:
-    from nicegui.elements.mixins.text_element import TextElement
+    from pathlib import Path
+
     from nicegui.elements.mixins.validation_element import ValidationFunction
     from nicegui.events import ClickEventArguments, Handler
     from pydantic.fields import FieldInfo
@@ -53,12 +55,6 @@ TERMINAL_THEME = {
 }
 
 
-# noinspection PyAbstractClass
-class FileCompatXTerm(ui.xterm, IO[str]):  # pyright: ignore[reportIncompatibleMethodOverride]
-    def flush(self) -> None:
-        self.update()
-
-
 def _make_field_validator(field_info: FieldInfo) -> ValidationFunction:
     """Create a validator for a NiceGUI input based on Pydantic types."""
 
@@ -75,19 +71,22 @@ def _make_field_validator(field_info: FieldInfo) -> ValidationFunction:
     return validator
 
 
-def _pick_file_or_folder(label: str, is_dir: bool, initial: str) -> str | None:
+def _pick_file_or_folder(title: str, initial: str, *, is_dir: bool) -> str | None:
+    import tkinter as tk  # noqa: PLC0415
+    from tkinter import filedialog  # noqa: PLC0415
+
     # Create a hidden root window
     root = tk.Tk()
-    root.withdraw()  # Hide the main window
-    root.attributes("-topmost", True)  # Make the dialog appear on top
+    root.withdraw()
+    root.attributes("-topmost")
 
     try:
         if is_dir:
             path = filedialog.askdirectory(
-                title=label, mustexist=True, parent=root, initialdir=initial
+                title=title, mustexist=True, parent=root, initialdir=initial
             )
         else:
-            path = filedialog.askopenfilename(title=label, parent=root, initialdir=initial)
+            path = filedialog.askopenfilename(title=title, parent=root, initialdir=initial)
     finally:
         root.destroy()
 
@@ -99,7 +98,7 @@ def _make_file_picker_handler(inp: ui.input, field: FieldInfo) -> Handler[ClickE
         is_dir = "path_type='dir'" in str(field)
         # Run in a separate thread to not block the GUI event loop
         path = await run.io_bound(
-            partial(_pick_file_or_folder, f"Choose {inp.label}", is_dir, inp.value)
+            _pick_file_or_folder, f"Choose {inp.label}", inp.value, is_dir=is_dir
         )
 
         if path:
@@ -108,41 +107,80 @@ def _make_file_picker_handler(inp: ui.input, field: FieldInfo) -> Handler[ClickE
     return handler
 
 
-def create_form() -> ui.button:
+def create_args_form() -> None:
     # Use GeneratorArgs fields to build Form
-    with ui.column().classes("w-full p-4 gap-2"):
-        for name, field in GeneratorArgs.model_fields.items():
-            label = name.replace("_", " ").title()
-            with ui.row().classes("w-full items-center"):
-                # Boolean -> Checkbox
-                if field.annotation is bool:
-                    inp = ui.checkbox(label)
+    for name, field in GeneratorArgs.model_fields.items():
+        label = name.replace("_", " ").title()
+        with ui.row().classes("w-full items-center"):
+            # Boolean -> Checkbox
+            if field.annotation is bool:
+                inp = ui.checkbox(label)
 
-                # Path -> File Picker
-                elif "Path" in str(field.annotation):
-                    with ui.row().classes("w-full"):
-                        inp = ui.input(
-                            label,
-                            validation=_make_field_validator(field),
-                        ).props("disable")
-                        ui.button(
-                            icon="folder",
-                            on_click=_make_file_picker_handler(inp, field),
-                        )
-
-                # SliceList or str -> Input
-                else:
+            # Path -> File Picker
+            elif "Path" in str(field.annotation):
+                with ui.row().classes("w-full"):
                     inp = ui.input(
                         label,
                         validation=_make_field_validator(field),
-                    ).props("outlined")
+                    ).props("disable")
+                    ui.button(
+                        icon="folder",
+                        on_click=_make_file_picker_handler(inp, field),
+                    )
 
-                inp.classes("flex-grow").props(
-                    f'dense hint="{field.description or ""}"'
-                ).bind_value(app.storage.general, name)
-        return ui.button("Generate Album", color="primary", icon="play_arrow").classes(
-            "w-full mt-4"
+            # SliceList or str -> Input
+            else:
+                inp = ui.input(
+                    label,
+                    validation=_make_field_validator(field),
+                ).props("outlined")
+
+            inp.classes("flex-grow").props(f'dense hint="{field.description or ""}"').bind_value(
+                app.storage.general, name
+            )
+
+
+# noinspection PyAbstractClass
+class FileCompatXTerm(ui.xterm, IO[str]):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def flush(self) -> None:
+        self.update()
+
+
+async def create_display() -> tuple[ui.element, FileCompatXTerm]:
+    # Album iframe
+    album_frame = ui.element("iframe").classes("size-full").style("zoom: 70%")
+    album_frame.visible = False
+
+    # Terminal simulator, visible only wen the album isn't
+    terminal = (
+        FileCompatXTerm(
+            options={
+                "theme": TERMINAL_THEME,
+                "fontFamily": TERMINAL_FONT_FAMILY,
+                "disableStdin": True,
+                "cursorBlink": False,
+                "convertEol": True,
+            }
         )
+        .classes("size-full")
+        .bind_visibility_from(album_frame, "visible", value=False)
+    )
+
+    await ui.context.client.connected()
+    await terminal.fit()
+    width = await terminal.get_columns()
+    height = await terminal.get_rows()
+
+    set_console(
+        Console(
+            file=TeeIO(sys.stdout, terminal),
+            force_terminal=True,
+            width=width,
+            height=height,
+        )
+    )
+
+    return album_frame, terminal
 
 
 def _path_to_mount(path: Path) -> str:
@@ -150,111 +188,74 @@ def _path_to_mount(path: Path) -> str:
     return s if s.startswith("/") else "/" + s
 
 
-async def update_display(
-    album_frame: ui.element,
-    title_label: TextElement,
-    terminal: FileCompatXTerm,
-) -> None:
-    """Update the display based on stored generation state."""
-    trip = app.storage.general.get("trip")
-    output = app.storage.general.get("output")
-
-    if not trip or not output:
-        return
-
-    trip_path = Path(trip)
-    output_path = Path(output)
-
+async def show_album_frame(album_frame: ui.element, args: GeneratorArgs) -> None:
     # Ensure static files are served
-    app.add_static_files(_path_to_mount(output_path), output_path)
-    app.add_static_files(_path_to_mount(trip_path), trip_path)
-
-    # Update title
-    title_label.text = f"Album from {str(output_path)} based on {str(trip_path)}"
+    app.add_static_files(_path_to_mount(args.output), args.output)
+    app.add_static_files(_path_to_mount(args.trip), args.trip)
 
     # Show album
     album_frame.visible = True
-    terminal.visible = False
 
     # Refresh iframe
     # Use a unique timestamp to force reload if the file changed
-    src = f"{_path_to_mount(output_path / 'album.html')}?t={time()}"
+    src = f"{_path_to_mount(args.output / 'album.html')}?t={time()}"
     await ui.run_javascript(f"getHtmlElement({album_frame.id}).src='{src}';")
 
 
-async def generate(
-    terminal: FileCompatXTerm,
-    album_frame: ui.element,
-    title_label: TextElement,
-) -> None:
+async def generate(terminal: FileCompatXTerm, album_frame: ui.element) -> None:
     # Reset UI
     await terminal.run_terminal_method("clear")
-    terminal.visible = True
     album_frame.visible = False
 
     # Validate inputs from storage
-    args = GeneratorArgs.model_validate(
-        {k: (None if v == "" else v) for k, v in app.storage.general.items()}
-    )
+    args = get_generator_args()
 
-    await generate_album(args)
-    await update_display(album_frame, title_label, terminal)
+    if args.no_cache:
+        clear_cache()
+        logger.warning("Cleared cache")
+
+    # Load and generate
+    service = await get_album_service(args)
+    await service.generate()
+
+    await show_album_frame(album_frame, service.args)
 
 
 @ui.page("/")
 async def index_page() -> None:
-    ui.on_exception(lambda e: logger.exception("Error:", exc_info=e))
+    ui.on_exception(lambda exc: logger.exception("Error:", exc_info=exc))
 
-    with ui.row(wrap=False).classes("size-full"):
-        with ui.column().classes("w-1/3 h-full"):
-            generate_btn = create_form()
+    with ui.row(wrap=False).classes("w-full h-[95vh]"):
+        with ui.column().classes("w-1/3 h-full gap-2") as form:
+            create_args_form()
 
-        with ui.column().classes("w-2/3 h-[90vh]"):
-            # Title for the album
-            title_label = ui.label().classes("text-xl font-bold mb-2")
-            album_frame = ui.element("iframe").classes("size-full").style("zoom: 70%")
+        with ui.column().classes("w-2/3 h-full"):
+            album_frame, terminal = await create_display()
 
-            # Bind title visibility to album frame
-            title_label.bind_visibility_from(album_frame, "visible")
+        with form:
+            (
+                ui.button(
+                    "Generate Album",
+                    color="primary",
+                    icon="play_arrow",
+                    on_click=lambda: generate(terminal, album_frame),
+                )
+                .classes("w-full mt-4")
+                .bind_enabled_from(
+                    app.storage, "general", lambda _: (try_get_generator_args() is not None)
+                )
+            )
 
-            album_frame.visible = False
-
-            terminal = FileCompatXTerm(
-                options={
-                    "theme": TERMINAL_THEME,
-                    "fontFamily": TERMINAL_FONT_FAMILY,
-                    "disableStdin": True,
-                    "cursorBlink": False,
-                    "convertEol": True,
-                }
-            ).classes("size-full")
-
-            if terminal.visible:
-                await terminal.fit()
-
-    generate_btn.on_click(lambda: generate(terminal, album_frame, title_label))
-
-    set_console(
-        Console(
-            file=TeeIO(sys.stdout, terminal),
-            force_terminal=True,
-            width=await terminal.get_columns(),
-            height=await terminal.get_rows(),
-        )
-    )
-
-    await update_display(album_frame, title_label, terminal)
+    if args := try_get_generator_args():
+        await show_album_frame(album_frame, args)
 
 
 app.mount("/api", api_router)
 
 if __name__ in {"__main__", "__mp_main__"}:
-    # Disable reload when frozen (packaged)
-    reload_app = not getattr(sys, "frozen", False)
-
     ui.run(
         title="Polarsteps Album Generator",
         dark=True,
-        reload=reload_app,
+        reload=not getattr(sys, "frozen", False),
         uvicorn_reload_dirs="src,static",
     )

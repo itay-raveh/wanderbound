@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import IO
 
-from nicegui import ui
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -82,23 +81,6 @@ class RichPrintHandler(logging.Handler):
 _LOG_LEVEL = logging.DEBUG if settings.debug else logging.INFO
 
 
-class NotifyHandler(logging.Handler):
-    """Logging handler that defines the notification sink."""
-
-    def emit(self, record: logging.LogRecord) -> None:
-        msg = self.format(record)
-
-        type_ = "negative" if record.levelno >= logging.ERROR else "warning"
-
-        ui.notify(
-            msg,
-            type=type_,
-            close_button=True,
-            multi_line=True,
-            timeout=5000 if record.levelno < logging.ERROR else 0,
-        )
-
-
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
@@ -108,12 +90,8 @@ def get_logger(name: str) -> logging.Logger:
     console_handler = RichHandler() if settings.debug else RichPrintHandler()
     console_handler.setLevel(_LOG_LEVEL)
 
-    notify_handler = NotifyHandler()
-    notify_handler.setLevel(logging.WARNING)
-
     logger.setLevel(_LOG_LEVEL)
     logger.addHandler(console_handler)
-    logger.addHandler(notify_handler)
 
     logger.propagate = False
 

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from asyncio.locks import Lock
 from typing import TYPE_CHECKING
 
-import geopandas as gpd
-from lxml import etree
 from pyproj import Transformer
 
 from src.core.cache import cache_in_file
@@ -14,10 +13,12 @@ from src.core.logger import get_logger
 from src.core.settings import settings
 from src.models.trip import Map
 
-from .generator import _ETREE_XML_PARSER, generate_geo_calibrated_svg
+from .generator import generate_geo_calibrated_svg
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    import geopandas as gpd
 
     from src.services.client import APIClient
 
@@ -26,44 +27,52 @@ logger = get_logger(__name__)
 _NE_GEOJSON = "ne_50m_admin_0_countries.geojson"
 
 _NE_FETCH_LOCK = Lock()
+_ne_data: gpd.GeoDataFrame | None = None
 
 
 @cache_in_file()
-async def fetch_map(
-    client: APIClient, lat: float, lon: float, country_code: str
-) -> Map:
+async def fetch_map(client: APIClient, lat: float, lon: float, country_code: str) -> Map:
     """Get country map SVG and dot position."""
     # Only one of the tasks needs to fetch the NE dataset,
     # the rest should wait for it, and then they can simply use the local file.
-    await _NE_FETCH_LOCK.acquire()
-    world = await _load_natural_earth_data(client)
-    _NE_FETCH_LOCK.release()
+    async with _NE_FETCH_LOCK:
+        world = await _load_natural_earth_data(client)
 
-    svg_data = generate_geo_calibrated_svg(world, country_code)
+    svg_data, bounds = await asyncio.to_thread(generate_geo_calibrated_svg, world, country_code)
+
+    dot_pos = _dot_position(lat, lon, bounds)
+
     return Map(
         svg_content=svg_data,
-        dot_position=_dot_position(lat, lon, svg_data),
+        dot_position=dot_pos,
     )
 
 
 async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
     """Load Natural Earth GeoJSON data from cache or download it."""
+    global _ne_data  # noqa: PLW0603
+    if _ne_data is not None:
+        return _ne_data
+
+    from geopandas import read_file  # noqa: PLC0415
+
     geojson_file = settings.cache_dir / _NE_GEOJSON
 
     if geojson_file.exists():
         try:
-            return gpd.read_file(
-                geojson_file
-            )  # pyright: ignore[reportUnknownMemberType]
+            _ne_data = await asyncio.to_thread(read_file, geojson_file)
         except Exception as e:  # noqa: BLE001
             logger.warning("Cached map data corrupt, re-downloading: %s", e)
+        else:
+            return _ne_data
 
     logger.info("Downloading Natural Earth 50m data...")
 
     content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
-    geojson_file.write_bytes(content)
+    await asyncio.to_thread(geojson_file.write_bytes, content)
 
-    return gpd.read_file(geojson_file)  # pyright: ignore[reportUnknownMemberType]
+    _ne_data = await asyncio.to_thread(read_file, geojson_file)
+    return _ne_data
 
 
 _transform: Callable[[float, float], tuple[float, float]] = Transformer.from_crs(
@@ -71,13 +80,11 @@ _transform: Callable[[float, float], tuple[float, float]] = Transformer.from_crs
 ).transform
 
 
-def _dot_position(lat: float, lon: float, svg_data: str) -> tuple[float, float]:
+def _dot_position(
+    lat: float, lon: float, bounds: tuple[float, float, float, float]
+) -> tuple[float, float]:
     """Calculate the relative position (0-100%) of a location dot within a country map."""
-    root = etree.fromstring(svg_data, parser=_ETREE_XML_PARSER)
-
-    min_x, min_y, max_x, max_y = [
-        float(x) for x in str(root.attrib["data-bounds"]).split(",")
-    ]
+    min_x, min_y, max_x, max_y = bounds
 
     x, y = _transform(lon, lat)
 

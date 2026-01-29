@@ -2,7 +2,7 @@
 # pyright: reportAny=false, reportExplicitAny=false
 
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
 
 import aiohttp
 from tenacity import (
@@ -35,7 +35,7 @@ class APIClient:
     async def close(self) -> None:
         await self._client.close()
 
-    async def __aenter__(self) -> "APIClient":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(

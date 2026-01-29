@@ -57,9 +57,7 @@ def load_segments(
 
     with create_progress("Loading GPS points") as progress:
         tracked_points = progress.track(path_points, description="Filtering...")
-        points = sorted(
-            point for point in tracked_points if min_time <= point.time <= max_time
-        )
+        points = sorted(point for point in tracked_points if min_time <= point.time <= max_time)
 
         clean_points = [points[0]]  # Hopefully the first point is not a GPS error
         for curr in progress.track(points[1:], description="Cleaning..."):

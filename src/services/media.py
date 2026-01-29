@@ -1,6 +1,5 @@
 import asyncio
 from pathlib import Path
-import cv2
 
 from PIL import Image, ImageOps
 
@@ -60,9 +59,9 @@ async def extract_frame(video: Path, timestamp: float, frame: Path) -> None:
 
     frame.parent.mkdir(parents=True, exist_ok=True)
 
-    loop = asyncio.get_running_loop()
+    def run() -> None:
+        import cv2  # noqa: PLC0415
 
-    def run():
         cap = cv2.VideoCapture(str(video))
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video}")
@@ -77,7 +76,4 @@ async def extract_frame(video: Path, timestamp: float, frame: Path) -> None:
 
         cv2.imwrite(str(frame), img)
 
-    try:
-        await loop.run_in_executor(None, run)
-    except Exception as e:
-        logger.error("Frame extraction failed: %s", e)
+    await asyncio.to_thread(run)

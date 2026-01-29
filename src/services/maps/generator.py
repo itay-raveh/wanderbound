@@ -111,7 +111,7 @@ def _generate_svg_plot(
 
 def generate_geo_calibrated_svg(
     world: GeoDataFrame, country_code: str, max_dimension: int = 800
-) -> str:
+) -> tuple[str, tuple[float, float, float, float]]:
     """Generate a geo-calibrated SVG map for a country."""
     # Find country by code and project to EPSG:3857 (2D Web Mercator)
     country_gdf = world[world["ISO_A2"] == country_code.upper()].to_crs("EPSG:3857")
@@ -123,4 +123,4 @@ def generate_geo_calibrated_svg(
     svg_root.set("data-bounds", ",".join(map(str, bounds)))
 
     # Serialize to string
-    return str(etree.tostring(svg_root, encoding="unicode", pretty_print=False))
+    return str(etree.tostring(svg_root, encoding="unicode", pretty_print=False)), bounds
