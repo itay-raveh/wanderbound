@@ -29,7 +29,7 @@
             <div class="step-name">{{ step.name }}</div>
         </div>
         {%- if not step.is_long_description -%}
-            <div class="step-description short" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+            <div class="step-description short" dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
         {%- endif -%}
         <div class="metadata-section">
             <div class="metadata">
@@ -80,9 +80,9 @@
     </div>
     <div class="step-content">
         {% if step.is_long_description %}
-            <div class="step-description long" dir="{{ step.desc_dir }}">{{- step.description -}}</div>
+            <div class="step-description long" dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
         {% else %}
-            <img src="{{ step.cover_photo  | path_to_url }}"
+            <img src="{{ step.cover_photo | path_to_url }}"
                  alt="{{ step.name }}"
                  class="main-image"
                  loading="lazy"
@@ -98,12 +98,12 @@
             </div>
         {% endfor %}
     </div>
-    <div class="step-index">{{ step.index }}</div>
+    <div class="step-index">{{ step.index + 1 }}</div>
 </div>
 {% if step.extra_description %}
     <div class="step-page page-container">
-        <div class="step-description long" dir="{{ step.desc_dir }}">{{- step.extra_description -}}</div>
-        <div class="step-index">{{ step.index }}</div>
+        <div class="step-description long" dir="{{ step.extra_description | text_dir }}">{{- step.extra_description -}}</div>
+        <div class="step-index">{{ step.index + 1 }}</div>
     </div>
 {% endif %}
 {# Photo pages for this step #}
@@ -126,13 +126,13 @@
                                  loading="lazy"
                                  decoding="async" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
-                            <video src="{{ photo.src | path_to_url}}"
+                            <video src="{{ photo.src | path_to_url }}"
                                    class="video-player photo-image"
                                    controls
                                    preload="none">
                             </video>
                             <button class="set-frame-btn"
-                                    onclick="videoSetFrame(this, '{{ step.id }}', String.raw`{{ photo.src }}`)">
+                                    onclick="videoSetFrame(this, '{{ step.id }}', '{{ photo.src.as_posix() }}')">
                                 Set Frame
                             </button>
                         </div>

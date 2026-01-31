@@ -61,7 +61,8 @@ class APIClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception(
-            lambda exc: isinstance(exc, aiohttp.ClientResponseError) and exc.status >= 500
+            lambda exc: (isinstance(exc, aiohttp.ClientResponseError) and exc.status >= 500)
+            or isinstance(exc, aiohttp.ClientError)
         ),
         reraise=True,
     )

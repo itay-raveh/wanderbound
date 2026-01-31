@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from geopy.distance import distance
 from pydantic import BaseModel
+from shapely.geometry import LineString
 
 from src.core.cache import cache_in_file
 from src.core.logger import create_progress, get_logger
@@ -32,6 +33,30 @@ class LocationsJSON(BaseModel):
 class Segment(BaseModel):
     points: list[PathPoint]
     is_flight: bool
+
+
+def simplify_segments(segments: list[Segment], tolerance: float = 0.005) -> list[Segment]:
+    """Simplify segments using Ramer-Douglas-Peucker algorithm via shapely."""
+    simplified: list[Segment] = []
+    for segment in segments:
+        if len(segment.points) < 3:
+            simplified.append(segment)
+            continue
+
+        coords = [(p.lon, p.lat) for p in segment.points]
+        line = LineString(coords)
+        simplified_line = line.simplify(tolerance, preserve_topology=False)
+
+        if simplified_line.is_empty:
+            continue
+
+        # Reconstruct PathPoints (losing time data, set to 0.0)
+        new_points = [
+            PathPoint(lat=y, lon=x, time=0.0) for x, y in simplified_line.coords
+        ]
+        simplified.append(Segment(points=new_points, is_flight=segment.is_flight))
+
+    return simplified
 
 
 def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:

@@ -41,8 +41,8 @@ def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
 
     if night_hours:
         icons = (hour.icon for hour in night_hours)
-        common = Counter(icons).most_common()[0][0]
-        return _normalize_icon_name(common)
+        if common := Counter(icons).most_common(1):
+            return _normalize_icon_name(common[0][0])
 
     # fallback: convert day icon to night variant
     if day_icon == "clear":
@@ -64,6 +64,17 @@ async def fetch_weather(client: APIClient, lat: float, lon: float, date: datetim
             )
         )
     )
+
+    if not data.days:
+        logger.warning("No weather data found for %s at %s, %s", date, lat, lon)
+        return Weather(
+            day_temp=0,
+            night_temp=0,
+            day_feels_like=0,
+            night_feels_like=0,
+            day_icon="unknown",
+            night_icon="unknown",
+        )
 
     day = data.days[0]
     day_icon = _normalize_icon_name(day.icon)

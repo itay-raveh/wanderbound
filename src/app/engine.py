@@ -10,12 +10,11 @@ from nicegui import app
 from src.app.renderer import build_overview_template_ctx, render_album_html
 from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_console, get_logger
-from src.core.text import choose_text_dir
 from src.layout.builder import build_step_layout, try_build_layout
 from src.models.args import GeneratorArgs, str_slices
 from src.models.context import TripTemplateCtx
 from src.models.layout import AlbumLayout, Video
-from src.models.segments import load_segments
+from src.models.segments import load_segments, simplify_segments
 from src.models.trip import EnrichedStep, Location, Trip
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
@@ -140,13 +139,12 @@ def _trip_template_ctx(args: GeneratorArgs, trip: Trip, steps: Sequence[Step]) -
 
     return TripTemplateCtx(
         title=title,
-        title_dir=choose_text_dir(title),
         subtitle=subtitle,
-        subtitle_dir=choose_text_dir(subtitle),
         dates=_format_date_range(start_date, end_date),
         cover=cover,
         back_cover=back_cover,
         segments=segments,
+        main_map_segments=simplify_segments(segments),
     )
 
 
@@ -172,7 +170,8 @@ class AlbumService:
         if not trip_file.exists():
             raise FileNotFoundError(f"trip.json not found in {args.trip}")
 
-        trip = Trip.model_validate_json(trip_file.read_text(encoding="utf-8"))
+        trip_json = await asyncio.to_thread(trip_file.read_text, encoding="utf-8")
+        trip = Trip.model_validate_json(trip_json)
 
         if args.steps:
             logger.info("Filtered to steps %s", str_slices(args.steps))
@@ -198,7 +197,8 @@ class AlbumService:
         await self._generate_for_steps([step.id for step in self.steps])
 
     async def update_cover(self, step_id: int, new_cover: str) -> None:
-        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+        layout_json = await asyncio.to_thread(self.layout_file.read_text, encoding="utf-8")
+        layout = AlbumLayout.model_validate_json(layout_json)
 
         step_layout = layout.steps[step_id]
         old_cover = step_layout.cover
@@ -216,11 +216,14 @@ class AlbumService:
                         page.photos[idx] = await load_photo(old_cover)
                         break
 
-        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await asyncio.to_thread(
+            self.layout_file.write_text, layout.model_dump_json(indent=2), encoding="utf-8"
+        )
         await self._generate_for_steps([step_id])
 
     async def update_video_timestamp(self, step_id: int, src: str, timestamp: float) -> None:
-        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+        layout_json = await asyncio.to_thread(self.layout_file.read_text, encoding="utf-8")
+        layout = AlbumLayout.model_validate_json(layout_json)
 
         src_path = Path(src)
 
@@ -232,11 +235,14 @@ class AlbumService:
                     await extract_frame(photo.src, photo.timestamp, photo.path)
                     break
 
-        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await asyncio.to_thread(
+            self.layout_file.write_text, layout.model_dump_json(indent=2), encoding="utf-8"
+        )
         await self._generate_for_steps([step_id])
 
     async def update_layout(self, updates: list[StepLayout]) -> None:
-        layout = AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
+        layout_json = await asyncio.to_thread(self.layout_file.read_text, encoding="utf-8")
+        layout = AlbumLayout.model_validate_json(layout_json)
 
         for step_layout in updates:
             step_layout.pages = [
@@ -245,18 +251,20 @@ class AlbumService:
             ]
             layout.steps[step_layout.id] = step_layout
 
-        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await asyncio.to_thread(
+            self.layout_file.write_text, layout.model_dump_json(indent=2), encoding="utf-8"
+        )
         await self._generate_for_steps([step_layout.id for step_layout in updates])
 
     async def _generate_for_steps(self, target_ids: Sequence[int]) -> None:
         """Generate layout and HTML for specific steps."""
         logger.info("Generating steps %s", target_ids)
 
-        layout = (
-            AlbumLayout.model_validate_json(self.layout_file.read_text(encoding="utf-8"))
-            if self.layout_file.exists()
-            else AlbumLayout(steps={})
-        )
+        if self.layout_file.exists():
+            layout_json = await asyncio.to_thread(self.layout_file.read_text, encoding="utf-8")
+            layout = AlbumLayout.model_validate_json(layout_json)
+        else:
+            layout = AlbumLayout(steps={})
 
         with create_progress("Loading photos/videos") as progress:
             steps_to_process = [step for step in self.steps if step.id in target_ids]
@@ -267,7 +275,9 @@ class AlbumService:
                         step, self.args.trip, self.args.output
                     )
 
-        self.layout_file.write_text(layout.model_dump_json(indent=2), encoding="utf-8")
+        await asyncio.to_thread(
+            self.layout_file.write_text, layout.model_dump_json(indent=2), encoding="utf-8"
+        )
         logger.info("Generated: %s", self.layout_file, extra={"success": True})
 
         overview_ctx = build_overview_template_ctx(
@@ -275,12 +285,17 @@ class AlbumService:
         )
 
         with get_console().status("[bold blue]Generating HTML..."):
-            html = render_album_html(
-                self.steps, layout, self.trip_ctx, overview_ctx, self.args.maps or []
+            html = await asyncio.to_thread(
+                render_album_html,
+                self.steps,
+                layout,
+                self.trip_ctx,
+                overview_ctx,
+                self.args.maps or [],
             )
 
         html_file = self.args.output / "album.html"
-        html_file.write_text(html, encoding="utf-8")
+        await asyncio.to_thread(html_file.write_text, html, encoding="utf-8")
         logger.info("Generated: %s", html_file, extra={"success": True})
 
 

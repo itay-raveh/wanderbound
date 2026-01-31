@@ -60,7 +60,7 @@ def render_album_html(
 
     main_map_ctx = MapTemplateCtx(
         id="map-main",
-        segments=trip_ctx.segments,
+        segments=trip_ctx.main_map_segments,
         steps=steps_ctx,
     )
 
@@ -81,6 +81,7 @@ def render_album_html(
     )
 
     env.filters["path_to_url"] = path_to_url
+    env.filters["text_dir"] = choose_text_dir
 
     return env.get_template("album.html.jinja").render(
         trip=trip_ctx,
@@ -164,7 +165,6 @@ def _build_step_template_ctx(
         map_dot_y=step.map.dot_position[1],
         accent_color=step.flag.accent_color,
         description=description,
-        desc_dir=choose_text_dir(step.description),
         extra_description=extra_description,
         is_long_description=step.is_long_description,
         photo_pages=layout.pages,
@@ -206,7 +206,7 @@ def build_overview_template_ctx(
     return OverviewTemplateCtx(
         countries=list(countries.items()),
         total_km=f"{round(total_dist.km):,}",
-        total_days=f"{(steps[-1].date - steps[0].date).days:,}",
+        total_days=f"{(steps[-1].date - steps[0].date).days + 1:,}",
         step_count=f"{len(steps):,}",
         photo_count=f"{photo_count:,}",
         furthest_point=_furthest_point(steps, home_location),

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 # OpenTopoData allows max 100 locations per request
-_CHUK_SIZE = 100
+_CHUNK_SIZE = 100
 
 logger = get_logger(__name__)
 
@@ -29,7 +29,7 @@ async def fetch_all_altitudes(
     all_elevations: list[float] = []
 
     with create_progress() as progress:
-        for batch in chunked(progress.track(points, description="Altitudes..."), _CHUK_SIZE):
+        for batch in chunked(progress.track(points, description="Altitudes..."), _CHUNK_SIZE):
             locations_param = "|".join(f"{lat},{lon}" for lat, lon in batch)
             url = settings.opentopodata_api_url.format(locations=locations_param)
             data: dict[str, list[dict[str, float]]] = await client.get_json(url)

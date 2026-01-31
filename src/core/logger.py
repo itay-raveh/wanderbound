@@ -39,7 +39,7 @@ class TeeIO(IO[str]):
     def __init__(self, *files: IO[str]) -> None:
         self.files = files
 
-    def write(self, s: str) -> int:
+    def write(self, s: str, /) -> int:  # type: ignore[override]
         for f in self.files:
             f.write(s)
         return len(s)

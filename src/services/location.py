@@ -12,4 +12,4 @@ logger = get_logger(__name__)
 async def fetch_home_location() -> tuple[Location, str]:
     async with APIClient() as client:
         data = await client.get_json("http://ip-api.com/json/")
-    return Location.model_validate(data), data["city"]
+    return Location.model_validate(data), data.get("city", "Unknown")

@@ -184,6 +184,9 @@ async def create_display() -> tuple[ui.element, FileCompatXTerm]:
 
 
 def _path_to_mount(path: Path) -> str:
+    """Convert a file path to a URL-friendly mount path."""
+    # On Windows, as_posix() returns 'C:/...', which we need to prepend with '/'
+    # to make it a valid URL path '/C:/...'. On Linux, it's already '/home/...'.
     s = path.absolute().as_posix()
     return s if s.startswith("/") else "/" + s
 

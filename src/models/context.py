@@ -32,7 +32,6 @@ class StepTemplateCtx(BaseModel):
     map_dot_y: float
     accent_color: str
     description: str
-    desc_dir: str
     extra_description: str | None
     is_long_description: bool
     photo_pages: list[PageLayout]
@@ -41,13 +40,12 @@ class StepTemplateCtx(BaseModel):
 
 class TripTemplateCtx(BaseModel):
     title: str
-    title_dir: str
     dates: str
     subtitle: str | None
-    subtitle_dir: str
     cover: str | None
     back_cover: str | None
     segments: list[Segment]
+    main_map_segments: list[Segment]
 
 
 class FurthestPointCtx(BaseModel):

@@ -104,11 +104,14 @@ async def build_step_layout(
     if not step.is_long_description:
         assets_in_folder.remove(cover)
 
+    # Run combinatorial layout search in a separate thread
+    pages = await asyncio.to_thread(_build_page_layouts, assets_in_folder)
+
     return StepLayout(
         id=step.id,
         name=step.name,
         cover=cover.path,
-        pages=_build_page_layouts(assets_in_folder),
+        pages=pages,
         hidden_photos=[],
     )
 
