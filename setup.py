@@ -104,7 +104,7 @@ build_exe_options = {
     "optimize": 2,
     # Speed up startup by zipping all packages (reduces I/O)
     "zip_include_packages": ["*"],
-    "zip_exclude_packages": [],
+    "zip_exclude_packages": ["nicegui"],
 }
 upgrade_code = "{3B770287-3932-4752-9596-764720993068}"
 
@@ -130,7 +130,6 @@ setup(
             icon="static/favicon.ico",
             shortcut_name="Polarsteps Album Generator",
             shortcut_dir="ProgramMenuFolder",
-            base="gui",  # "gui" base hides the console window on Windows
         ),
         Executable(
             "src/app/gui.py",
@@ -138,7 +137,6 @@ setup(
             icon="static/favicon.ico",
             shortcut_name="Polarsteps Album Generator",
             shortcut_dir="DesktopFolder",
-            base="gui",
         ),
     ],
 )

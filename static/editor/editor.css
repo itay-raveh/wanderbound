@@ -1,209 +1,173 @@
 @media not print {
-    .page-container {
-        border: 1px dashed #ccc;
-        margin-top: 20px;
-        margin-bottom: 20px;
-    }
+  .page-container {
+    border: 1px dashed #ccc;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
 
-    .photo-item.dragging {
-        opacity: 0.5;
-        border: 2px dashed #007bff;
-    }
+  .photo-item.dragging {
+    opacity: 0.5;
+    border: 2px dashed #007bff;
+  }
 
-    .photo-page-container.drag-over {
-        background: rgba(0, 123, 255, 0.1);
-        border: 2px dashed #007bff;
-    }
+  .photo-page-container.drag-over {
+    background: rgba(0, 123, 255, 0.1);
+    border: 2px dashed #007bff;
+  }
 
-    .photo-item {
-        cursor: grab;
-    }
+  .photo-item {
+    cursor: grab;
+  }
 
-    .photo-item:active {
-        cursor: grabbing;
-    }
+  .photo-item:active {
+    cursor: grabbing;
+  }
 
-    /* Ensure empty pages have size */
-    .photo-page-container:empty::after {
-        content: "Drop photos here";
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        width: 100%;
-        color: #999;
-        border: 2px dashed #ddd;
-        border-radius: 8px;
-        font-style: italic;
-        grid-column: 1 / -1;
-        grid-row: 1 / -1;
-    }
+  /* Ensure empty pages have size */
+  .photo-page-container:empty::after {
+    content: "Drop photos here";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    color: #999;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    font-style: italic;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+  }
 }
 
 /* FAB Container */
 .fab-container {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    z-index: 9999;
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 9999;
 }
 
 /* Base FAB Button Style */
 .fab-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    border: none;
-    color: white;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 .fab-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
 }
 
 .fab-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .fab-btn svg {
-    width: 24px;
-    height: 24px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Print Button Specifics */
 .print-btn {
-    background-color: #007bff;
+  background-color: #007bff;
 }
 
 .print-btn:hover {
-    background-color: #0056b3;
+  background-color: #0056b3;
 }
 
 /* Save Button Specifics */
 .save-btn {
-    background-color: #18553e;
+  background-color: #18553e;
 }
 
 .save-btn:hover {
-    background-color: #143e2e;
+  background-color: #143e2e;
 }
 
 .save-btn:disabled {
-    background-color: #d1d5db;
-    color: #9ca3af;
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
-    opacity: 0.7;
+  background-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.7;
 }
 
 .editor-context-menu {
-    position: absolute;
-    background: white;
-    border: 1px solid #ccc;
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
-    z-index: 10000;
-    border-radius: 4px;
-    overflow: hidden;
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 10000;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #333;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
 }
 
 .menu-item:hover {
-    background: #f0f0f0;
+  background: #f0f0f0;
 }
 
 .is-dirty {
-    border: 2px solid orange;
+  border: 2px solid orange;
 }
 
 .add-page-container {
-    display: flex;
-    justify-content: center;
-    padding: 20px 0;
-    width: 100%;
-    max-width: var(--page-width);
-    margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+  width: 100%;
+  max-width: var(--page-width);
+  margin: 0 auto;
 }
 
 .add-page-btn {
-    background-color: var(--accent-primary, #007bff);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    font-size: 24px;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s, background-color 0.2s;
+  background-color: var(--accent-primary, #007bff);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.2s,
+    background-color 0.2s;
 }
 
 .add-page-btn:hover {
-    transform: scale(1.1);
-    background-color: var(--accent-secondary, #0056b3);
-}
-
-
-@media print {
-    .fab-container, .add-page-container {
-        display: none !important;
-    }
-}
-
-/* Hidden Photos Area (Visible in Editor, Hidden in Print) */
-.hidden-photos-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 10px;
-    margin: 20px;
-    background-color: #f8f9fa;
-    border: 2px dashed #dc3545;
-    min-height: 100px;
-}
-
-.hidden-photos-container::before {
-    content: "Hidden Photos (Drag out to restore)";
-    width: 100%;
-    color: #dc3545;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.hidden-photos-container .photo-item {
-    width: 100px;
-    height: 100px;
-}
-
-.hidden-photos-container .photo-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.7;
+  transform: scale(1.1);
+  background-color: var(--accent-secondary, #0056b3);
 }
 
 @media print {
-    .hidden-photos-container {
-        display: none !important;
-    }
+  .fab-container,
+  .add-page-container {
+    display: none !important;
+  }
 }
