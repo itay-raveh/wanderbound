@@ -14,7 +14,7 @@
                 {
                     "lat_val": {{ step.lat_val }},
                     "lon_val": {{ step.lon_val }},
-                    "cover_photo": String.raw`{{ step.cover_photo | path_to_url }}`
+                    "cover_photo": String.raw`{{ step.cover_photo }}`
                 },
             {% endfor %}
         ];

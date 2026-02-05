@@ -23,8 +23,6 @@ from src.core.logger import TeeIO, get_logger, set_console
 from src.models.args import GeneratorArgs
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from nicegui.elements.mixins.validation_element import ValidationFunction
     from nicegui.events import ClickEventArguments, Handler
     from pydantic.fields import FieldInfo
@@ -183,25 +181,19 @@ async def create_display() -> tuple[ui.element, FileCompatXTerm]:
     return album_frame, terminal
 
 
-def _path_to_mount(path: Path) -> str:
-    """Convert a file path to a URL-friendly mount path."""
-    # On Windows, as_posix() returns 'C:/...', which we need to prepend with '/'
-    # to make it a valid URL path '/C:/...'. On Linux, it's already '/home/...'.
-    s = path.absolute().as_posix()
-    return s if s.startswith("/") else "/" + s
-
-
 async def show_album_frame(album_frame: ui.element, args: GeneratorArgs) -> None:
-    # Ensure static files are served
-    app.add_static_files(_path_to_mount(args.output), args.output)
-    app.add_static_files(_path_to_mount(args.trip), args.trip)
+    """Display the generated album in an iframe."""
+    # Serve static files from output and trip directories
+    app.add_static_files(str(args.output), args.output)
+    app.add_static_files(str(args.trip), args.trip)
 
     # Show album
     album_frame.visible = True
 
     # Refresh iframe
     # Use a unique timestamp to force reload if the file changed
-    src = f"{_path_to_mount(args.output / 'album.html')}?t={time()}"
+    album_path = str(args.output / "album.html")
+    src = f"{album_path}?t={time()}"
     await ui.run_javascript(f"getHtmlElement({album_frame.id}).src='{src}';")
 
 
@@ -259,6 +251,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title="Polarsteps Album Generator",
         dark=True,
-        reload=not getattr(sys, "frozen", False),
+        reload=True,
         uvicorn_reload_dirs="src,static",
     )

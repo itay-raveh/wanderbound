@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import operator
 from functools import reduce
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from geopy.distance import distance
@@ -30,14 +29,6 @@ if TYPE_CHECKING:
     from src.models.trip import EnrichedStep, Location, Step
 
 logger = get_logger(__name__)
-
-
-def path_to_url(v: str | Path) -> str:
-    if isinstance(v, Path):
-        v = v.absolute().as_posix()
-    if v.startswith(("/", "http://", "https://")):
-        return v
-    return "/" + v
 
 
 def render_album_html(
@@ -80,7 +71,6 @@ def render_album_html(
         lstrip_blocks=True,
     )
 
-    env.filters["path_to_url"] = path_to_url
     env.filters["text_dir"] = choose_text_dir
 
     return env.get_template("album.html.jinja").render(

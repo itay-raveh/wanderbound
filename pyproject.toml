@@ -34,7 +34,6 @@ dependencies = [
     "persist-cache",
     "pyproj",
     "nicegui",
-    "cx_Freeze",
     "opencv-python-headless",
 ]
 

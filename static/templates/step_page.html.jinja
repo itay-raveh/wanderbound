@@ -29,7 +29,8 @@
             <div class="step-name">{{ step.name }}</div>
         </div>
         {%- if not step.is_long_description -%}
-            <div class="step-description short" dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
+            <div class="step-description short"
+                 dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
         {%- endif -%}
         <div class="metadata-section">
             <div class="metadata">
@@ -82,7 +83,7 @@
         {% if step.is_long_description %}
             <div class="step-description long" dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
         {% else %}
-            <img src="{{ step.cover_photo | path_to_url }}"
+            <img src="{{ step.cover_photo }}"
                  alt="{{ step.name }}"
                  class="main-image"
                  loading="lazy"
@@ -94,7 +95,7 @@
     <div class="hidden-photos-container">
         {% for path in step.hidden_photos %}
             <div class="photo-item" data-photo-path="{{ path }}">
-                <img src="{{ path | path_to_url }}" alt="Hidden {{ photo }}" />
+                <img src="{{ path }}" alt="Hidden {{ photo }}" />
             </div>
         {% endfor %}
     </div>
@@ -102,7 +103,8 @@
 </div>
 {% if step.extra_description %}
     <div class="step-page page-container">
-        <div class="step-description long" dir="{{ step.extra_description | text_dir }}">{{- step.extra_description -}}</div>
+        <div class="step-description long"
+             dir="{{ step.extra_description | text_dir }}">{{- step.extra_description -}}</div>
         <div class="step-index">{{ step.index + 1 }}</div>
     </div>
 {% endif %}
@@ -119,14 +121,14 @@
                     {% if photo.is_video %}
                         <div class="video-wrapper"
                              style="aspect-ratio: {{ photo.width }} / {{ photo.height }}">
-                            <img src="{{ photo.path  | path_to_url }}"
+                            <img src="{{ photo.path }}"
                                  alt="{{ photo.path }} Frame"
                                  class="video-poster photo-image"
                                  draggable="true"
                                  loading="lazy"
                                  decoding="async" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
-                            <video src="{{ photo.src | path_to_url }}"
+                            <video src="{{ photo.src }}"
                                    class="video-player photo-image"
                                    controls
                                    preload="none">
@@ -137,7 +139,7 @@
                             </button>
                         </div>
                     {% else %}
-                        <img src="{{ photo.path  | path_to_url }}"
+                        <img src="{{ photo.path }}"
                              alt="{{ photo.path }}"
                              class="photo-image"
                              draggable="true"

@@ -1,6 +1,6 @@
 <div class="title-page-container">
     {% if trip.cover %}
-        <img src="{{ trip.cover | path_to_url }}"
+        <img src="{{ trip.cover }}"
              class="title-page-cover"
              alt="Trip Cover Photo">
     {% endif %}
@@ -16,7 +16,7 @@
 </div>
 <div class="title-page-container">
     {% if trip.back_cover %}
-        <img src="{{ trip.back_cover | path_to_url }}"
+        <img src="{{ trip.back_cover }}"
              class="title-page-cover"
              alt="Trip Back Cover Photo">
     {% endif %}
