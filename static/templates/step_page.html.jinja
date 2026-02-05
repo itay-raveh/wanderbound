@@ -1,7 +1,7 @@
 <div class="step-page page-container {% if step.is_long_description %}with-long-desc{% endif %}"
      data-step-id="{{ step.id }}"
      data-step-name="{{ step.name }} ({{ step.country }})"
-     data-step-cover="{{ step.cover_photo }}">
+     data-step-cover="{{ step.cover_photo | session_url }}">
     <div class="step-data">
         <div>
             <div class="map-coords-container">
@@ -83,19 +83,19 @@
         {% if step.is_long_description %}
             <div class="step-description long" dir="{{ step.description | text_dir }}">{{- step.description -}}</div>
         {% else %}
-            <img src="{{ step.cover_photo }}"
+            <img src="{{ step.cover_photo | session_url }}"
                  alt="{{ step.name }}"
                  class="main-image"
                  loading="lazy"
                  decoding="async"
-                 {% if step.cover_photo %}data-photo-path="{{ step.cover_photo }}"{% endif %} />
+                 {% if step.cover_photo %}data-photo-path="{{ step.cover_photo | session_url }}"{% endif %} />
         {% endif %}
     </div>
     {# Hidden photos container (preserved for editor state) #}
     <div class="hidden-photos-container">
         {% for path in step.hidden_photos %}
-            <div class="photo-item" data-photo-path="{{ path }}">
-                <img src="{{ path }}" alt="Hidden {{ photo }}" />
+            <div class="photo-item" data-photo-path="{{ path | session_url }}">
+                <img src="{{ path | session_url }}" alt="Hidden {{ photo }}" />
             </div>
         {% endfor %}
     </div>
@@ -116,19 +116,19 @@
              {% if photo_page.grid_style %}style="{{ photo_page.grid_style }}"{% endif %}>
             {% for photo in photo_page.photos %}
                 <div class="photo-item"
-                     data-photo-path="{{ photo.path }}"
+                     data-photo-path="{{ photo.path | session_url }}"
                      data-photo="{{ photo.model_dump_json() }}">
                     {% if photo.is_video %}
                         <div class="video-wrapper"
                              style="aspect-ratio: {{ photo.width }} / {{ photo.height }}">
-                            <img src="{{ photo.path }}"
+                            <img src="{{ photo.path | session_url }}"
                                  alt="{{ photo.path }} Frame"
                                  class="video-poster photo-image"
                                  draggable="true"
                                  loading="lazy"
                                  decoding="async" />
                             <div class="play-overlay" onclick="toggleVideo(this)"></div>
-                            <video src="{{ photo.src }}"
+                            <video src="{{ photo.src | session_url }}"
                                    class="video-player photo-image"
                                    controls
                                    preload="none">
@@ -139,7 +139,7 @@
                             </button>
                         </div>
                     {% else %}
-                        <img src="{{ photo.path }}"
+                        <img src="{{ photo.path | session_url }}"
                              alt="{{ photo.path }}"
                              class="photo-image"
                              draggable="true"

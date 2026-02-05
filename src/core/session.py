@@ -110,3 +110,30 @@ def cleanup_session() -> None:
             logger.info("Cleaned up session: %s", session_id)
     except Exception:
         logger.exception("Failed to cleanup session")
+
+
+def path_to_session_url(path: Path | str) -> str:
+    """Convert an absolute file path to a session-based URL.
+
+    Args:
+        path: Absolute path to a file within the session directory
+
+    Returns:
+        URL in format /api/session/{session_id}/assets/{relative_path}
+
+    Example:
+        >>> path_to_session_url("/var/polarsteps/sessions/abc123/trips/MyTrip/photo.jpg")
+        "/api/session/abc123/assets/trips/MyTrip/photo.jpg"
+
+    """
+    path = Path(path) if isinstance(path, str) else path
+    session_id = get_session_id()
+    session_dir = SESSIONS_DIR / session_id
+
+    try:
+        relative_path = path.relative_to(session_dir)
+    except ValueError:
+        # Path is not within session directory - return as-is (for external URLs)
+        return str(path)
+
+    return f"/api/session/{session_id}/assets/{relative_path}"

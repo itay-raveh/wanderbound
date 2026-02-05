@@ -73,6 +73,11 @@ def render_album_html(
 
     env.filters["text_dir"] = choose_text_dir
 
+    # Convert file paths to session-based URLs for web serving
+    from src.core.session import path_to_session_url  # noqa: PLC0415
+
+    env.filters["session_url"] = path_to_session_url
+
     return env.get_template("album.html.jinja").render(
         trip=trip_ctx,
         steps=steps_ctx,
