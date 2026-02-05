@@ -134,7 +134,7 @@ def create_args_form() -> None:
                 ).props("outlined")
 
             inp.classes("flex-grow").props(f'dense hint="{field.description or ""}"').bind_value(
-                app.storage.general, name
+                app.storage.user, name
             )
 
 
@@ -221,25 +221,20 @@ async def index_page() -> None:
     ui.on_exception(lambda exc: logger.exception("Error:", exc_info=exc))
 
     with ui.row(wrap=False).classes("w-full h-[95vh]"):
-        with ui.column().classes("w-1/3 h-full gap-2") as form:
+        with ui.column().classes("w-1/3 h-full gap-2"):
             create_args_form()
+            generate_btn = ui.button(
+                "Generate Album",
+                color="primary",
+                icon="play_arrow",
+                on_click=lambda: generate(terminal, album_frame),
+            ).classes("w-full mt-4")
+            generate_btn.bind_enabled_from(
+                app.storage.user, lambda _: try_get_generator_args() is not None
+            )
 
         with ui.column().classes("w-2/3 h-full"):
             album_frame, terminal = await create_display()
-
-        with form:
-            (
-                ui.button(
-                    "Generate Album",
-                    color="primary",
-                    icon="play_arrow",
-                    on_click=lambda: generate(terminal, album_frame),
-                )
-                .classes("w-full mt-4")
-                .bind_enabled_from(
-                    app.storage, "general", lambda _: (try_get_generator_args() is not None)
-                )
-            )
 
     if args := try_get_generator_args():
         await show_album_frame(album_frame, args)
@@ -248,9 +243,16 @@ async def index_page() -> None:
 app.mount("/api", api_router)
 
 if __name__ in {"__main__", "__mp_main__"}:
+    import os
+    import secrets
+
+    # Use environment variable for production, or generate for development
+    storage_secret = os.environ.get("NICEGUI_STORAGE_SECRET", secrets.token_hex(32))
+
     ui.run(
         title="Polarsteps Album Generator",
         dark=True,
         reload=True,
         uvicorn_reload_dirs="src,static",
+        storage_secret=storage_secret,
     )

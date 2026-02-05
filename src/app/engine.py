@@ -8,7 +8,6 @@ from fastapi import Depends
 from nicegui import app
 
 from src.app.renderer import build_overview_template_ctx, render_album_html
-from src.core.cache import clear_cache
 from src.core.logger import create_progress, get_console, get_logger
 from src.layout.builder import build_step_layout, try_build_layout
 from src.models.args import GeneratorArgs, str_slices
@@ -302,7 +301,7 @@ class AlbumService:
 def get_generator_args() -> GeneratorArgs:
     """Dependency to get generator arguments from storage."""
     return GeneratorArgs.model_validate(
-        {k: (None if v == "" else v) for k, v in app.storage.general.items()}
+        {k: (None if v == "" else v) for k, v in app.storage.user.items()}
     )
 
 
