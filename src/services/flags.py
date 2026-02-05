@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from PIL import Image
 
-from src.core.cache import cache_in_file
+from src.core.cache import async_cache
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.models.trip import Flag
@@ -143,7 +143,7 @@ def _extract_prominent_color(flag_data: bytes) -> RGB:
     return _adjust_color_for_contrast(color_counts[0][0])
 
 
-@cache_in_file()
+@async_cache
 async def fetch_flag(client: APIClient, country_code: str) -> Flag:
     """Get flag URL and accent color, cached by country code and mode."""
     if country_code not in _FLAGS:

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from more_itertools import chunked
 
-from src.core.cache import cache_in_file
+from src.core.cache import async_cache
 from src.core.logger import create_progress, get_logger
 from src.core.settings import settings
 
@@ -22,7 +22,7 @@ _CHUNK_SIZE = 100
 logger = get_logger(__name__)
 
 
-@cache_in_file()
+@async_cache
 async def fetch_all_altitudes(
     client: APIClient, points: Sequence[tuple[float, float]]
 ) -> list[float]:

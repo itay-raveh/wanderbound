@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from src.core.cache import cache_in_file
+from src.core.cache import async_cache
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.models.trip import Weather
@@ -52,7 +52,7 @@ def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
     return day_icon.replace("-day", "-night")
 
 
-@cache_in_file()
+@async_cache
 async def fetch_weather(client: APIClient, lat: float, lon: float, date: datetime) -> Weather:
     data = WeatherApiResponse.model_validate(
         await client.get_json(

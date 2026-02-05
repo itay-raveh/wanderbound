@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from pyproj import Transformer
 
-from src.core.cache import cache_in_file
+from src.core.cache import async_cache
 from src.core.logger import get_logger
 from src.core.settings import settings
 from src.models.trip import Map
@@ -30,7 +30,7 @@ _NE_FETCH_LOCK = Lock()
 _ne_data: gpd.GeoDataFrame | None = None
 
 
-@cache_in_file()
+@async_cache
 async def fetch_map(client: APIClient, lat: float, lon: float, country_code: str) -> Map:
     """Get country map SVG and dot position."""
     # Only one of the tasks needs to fetch the NE dataset,

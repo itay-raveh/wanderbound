@@ -7,7 +7,7 @@ from geopy.distance import distance
 from pydantic import BaseModel
 from shapely.geometry import LineString
 
-from src.core.cache import cache_in_file
+from src.core.cache import async_cache
 from src.core.logger import create_progress, get_logger
 
 if TYPE_CHECKING:
@@ -51,9 +51,7 @@ def simplify_segments(segments: list[Segment], tolerance: float = 0.005) -> list
             continue
 
         # Reconstruct PathPoints (losing time data, set to 0.0)
-        new_points = [
-            PathPoint(lat=y, lon=x, time=0.0) for x, y in simplified_line.coords
-        ]
+        new_points = [PathPoint(lat=y, lon=x, time=0.0) for x, y in simplified_line.coords]
         simplified.append(Segment(points=new_points, is_flight=segment.is_flight))
 
     return simplified
@@ -65,7 +63,7 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     return dist_km, dist_km / time_h
 
 
-@cache_in_file()
+@async_cache
 def load_segments(
     trip_dir: Path,
     step_points: list[tuple[float, float, float]],
