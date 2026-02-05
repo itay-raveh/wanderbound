@@ -105,16 +105,88 @@ def _make_file_picker_handler(inp: ui.input, field: FieldInfo) -> Handler[ClickE
     return handler
 
 
+# Fields that are auto-managed by session (not shown in form)
+_HIDDEN_FIELDS = {"trip", "output"}
+
+
 def create_args_form() -> None:
-    # Use GeneratorArgs fields to build Form
+    """Create the upload/trip selector and form fields bound to app.storage.user."""
+    from src.core.session import extract_zip_upload, get_output_dir, get_trips_dir  # noqa: PLC0415
+
+    # Track available trips in user storage
+    trips_key = "_available_trips"
+    selected_trip_key = "_selected_trip"
+
+    # Placeholder for trip_select widget (created after handler definition)
+    trip_select: ui.select | None = None
+
+    async def handle_upload(event: Any) -> None:
+        """Handle zip file upload and populate trip selector."""
+        nonlocal trip_select
+        try:
+            trips = await extract_zip_upload(event)
+            app.storage.user[trips_key] = trips
+            if trip_select:
+                trip_select.options = trips
+                trip_select.set_visibility(bool(trips))
+                if trips:
+                    app.storage.user[selected_trip_key] = trips[0]
+                    trip_select.value = trips[0]
+                    _update_trip_paths(trips[0])
+            ui.notify(f"Extracted {len(trips)} trip(s)", type="positive")
+        except ValueError as e:
+            ui.notify(str(e), type="negative")
+
+    def _update_trip_paths(trip_slug: str) -> None:
+        """Update trip and output paths in storage based on selected trip."""
+        trips_dir = get_trips_dir()
+        output_dir = get_output_dir()
+        app.storage.user["trip"] = str(trips_dir / trip_slug)
+        app.storage.user["output"] = str(output_dir)
+
+    def on_trip_change(e: Any) -> None:
+        """Handle trip selection change."""
+        if e.value:
+            app.storage.user[selected_trip_key] = e.value
+            _update_trip_paths(e.value)
+
+    # Zip Upload Section
+    with ui.card().classes("w-full"):
+        ui.label("Upload Polarsteps Export").classes("text-lg font-bold")
+        ui.upload(
+            label="Upload .zip file",
+            on_upload=handle_upload,
+            auto_upload=True,
+        ).props("accept=.zip").classes("w-full")
+
+        # Trip Selector (hidden until upload completes)
+        trip_select = (
+            ui.select(
+                options=[],
+                label="Select Trip",
+                on_change=on_trip_change,
+            )
+            .classes("w-full")
+            .bind_value(app.storage.user, selected_trip_key)
+        )
+        trip_select.set_visibility(False)
+
+    # Divider
+    ui.separator()
+    ui.label("Album Settings").classes("text-lg font-bold")
+
+    # Other fields from GeneratorArgs
     for name, field in GeneratorArgs.model_fields.items():
+        if name in _HIDDEN_FIELDS:
+            continue
+
         label = name.replace("_", " ").title()
         with ui.row().classes("w-full items-center"):
             # Boolean -> Checkbox
             if field.annotation is bool:
                 inp = ui.checkbox(label)
 
-            # Path -> File Picker
+            # Path -> File Picker (for cover/back_cover only now)
             elif "Path" in str(field.annotation):
                 with ui.row().classes("w-full"):
                     inp = ui.input(
