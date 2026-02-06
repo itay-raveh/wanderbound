@@ -19,11 +19,8 @@ pycrucible_payload
 *.swo
 *~
 
-# Generated output
-output/
+*.log
 
 # Cache
 .*cache
 .nicegui
-
-trip

@@ -16,9 +16,15 @@ class Settings(BaseSettings):
         """Return the project root directory."""
         return Path(__file__).parents[2]
 
+    data_dir: Path = Field(default_factory=Path.cwd)
+
     @property
     def cache_dir(self) -> Path:
         """Return the cache directory path."""
+        # Use data_dir for cache as well? Or keep separate?
+        # Current implementation puts .psagen_cache in root.
+        # Let's keep it in root to avoid breaking existing cache,
+        # or move it to data_dir if desired. For now, keep as is.
         return self.root_dir / ".psagen_cache"
 
     # External API URLs

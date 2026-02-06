@@ -76,10 +76,11 @@ def async_cache(func: Callable[P, T] | Callable[P, Awaitable[T]]) -> Callable[P,
         cache = get_cache()
         key = _make_cache_key(func, args, kwargs)
 
-        # Check cache (sync operation - fast with SQLite)
-        cached = cache.get(key, default=None)
-        if cached is not None:
-            return cached  # type: ignore[return-value]
+        # Check cache only if not forced
+        if not _force_update.get():
+            cached = cache.get(key, default=None)
+            if cached is not None:
+                return cached  # type: ignore[return-value]
 
         # Call original function
         result = await func(*args, **kwargs)  # type: ignore[misc]
@@ -93,10 +94,11 @@ def async_cache(func: Callable[P, T] | Callable[P, Awaitable[T]]) -> Callable[P,
         cache = get_cache()
         key = _make_cache_key(func, args, kwargs)
 
-        # Check cache
-        cached = cache.get(key, default=None)
-        if cached is not None:
-            return cached  # type: ignore[return-value]
+        # Check cache only if not forced
+        if not _force_update.get():
+            cached = cache.get(key, default=None)
+            if cached is not None:
+                return cached  # type: ignore[return-value]
 
         # Call original function
         result = func(*args, **kwargs)
@@ -108,6 +110,22 @@ def async_cache(func: Callable[P, T] | Callable[P, Awaitable[T]]) -> Callable[P,
     if asyncio.iscoroutinefunction(func):
         return async_wrapper  # type: ignore[return-value]
     return sync_wrapper  # type: ignore[return-value]
+
+
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+_force_update: ContextVar[bool] = ContextVar("force_update", default=False)
+
+
+@contextmanager
+def force_cache_update():
+    """Context manager to force cache updates (skip read, always write)."""
+    token = _force_update.set(True)
+    try:
+        yield
+    finally:
+        _force_update.reset(token)
 
 
 def clear_cache() -> None:

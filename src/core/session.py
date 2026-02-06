@@ -16,10 +16,12 @@ from src.core.logger import get_logger
 if TYPE_CHECKING:
     from nicegui.events import UploadEventArguments
 
+from .settings import settings
+
 logger = get_logger(__name__)
 
 # Base directory for all session data
-SESSIONS_DIR = Path("/var/polarsteps/sessions")
+SESSIONS_DIR = settings.data_dir / "sessions"
 
 
 def get_session_id() -> str:

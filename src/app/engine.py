@@ -8,6 +8,7 @@ from fastapi import Depends
 from nicegui import app
 
 from src.app.renderer import build_overview_template_ctx, render_album_html
+from src.core.cache import force_cache_update
 from src.core.logger import create_progress, get_console, get_logger
 from src.layout.builder import build_step_layout, try_build_layout
 from src.models.args import GeneratorArgs, str_slices
@@ -192,7 +193,13 @@ class AlbumService:
             logger.info("Using all %d steps", len(trip.all_steps))
             target_steps = trip.all_steps
 
-        steps = await _enrich_steps(target_steps)
+        if args.no_cache:
+            logger.info("Forcing cache update for external data")
+            with force_cache_update():
+                steps = await _enrich_steps(target_steps)
+        else:
+            steps = await _enrich_steps(target_steps)
+
         trip_ctx = _trip_template_ctx(args, trip, steps)
         home_location = await fetch_home_location()
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 from typing import IO
 
+from nicegui import context
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -87,11 +89,42 @@ def get_logger(name: str) -> logging.Logger:
     if logger.handlers:
         return logger
 
+    # Console Handler
     console_handler = RichHandler() if settings.debug else RichPrintHandler()
     console_handler.setLevel(_LOG_LEVEL)
 
+    log_dir = settings.data_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_dir / "app.log",
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(logging.INFO)
+
+    # Custom Filter to inject session ID
+    class SessionFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            try:
+                client = context.get_client()
+                record.session_id = str(client.id) if client else "-"
+            except RuntimeError:  # Raised if not in a NiceGUI request context
+                record.session_id = "-"
+            return True
+
+    file_handler.addFilter(SessionFilter())
+
+    # Format with session ID
+    formatter = logging.Formatter(
+        "%(asctime)s - [%(session_id)s] - %(name)s - %(levelname)s - %(message)s"
+    )
+    file_handler.setFormatter(formatter)
+
     logger.setLevel(_LOG_LEVEL)
     logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
 
     logger.propagate = False
 
