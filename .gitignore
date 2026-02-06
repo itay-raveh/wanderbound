@@ -24,3 +24,5 @@ pycrucible_payload
 # Cache
 .*cache
 .nicegui
+
+sessions/
