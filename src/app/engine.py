@@ -14,14 +14,14 @@ from src.models.args import GeneratorArgs, str_slices
 from src.models.context import TripTemplateCtx
 from src.models.layout import AlbumLayout, Video
 from src.models.segments import load_segments, simplify_segments
-from src.models.trip import EnrichedStep, Location, Trip
+from src.models.trip import EnrichedStep, Location, Trip, Weather
 from src.services.altitude import fetch_all_altitudes
 from src.services.client import APIClient
 from src.services.flags import fetch_flag
 from src.services.location import fetch_home_location
 from src.services.maps import fetch_map
 from src.services.media import extract_frame, frame_path, load_photo
-from src.services.weather import fetch_weather
+from src.services.weather import get_weather_with_fallback
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -54,12 +54,25 @@ async def _enrich_steps(steps: Sequence[Step]) -> Sequence[EnrichedStep]:
         map_progress = progress.add_task("Maps...", total=len(steps))
 
         async with APIClient() as client:
+            # Create weather fetch coroutines with fallback support
+            async def fetch_step_weather(step: Step) -> Weather:
+                weather_temp = step.weather_info.temperature if step.weather_info else None
+                weather_cond = step.weather_info.conditions if step.weather_info else None
+                result = await get_weather_with_fallback(
+                    client,
+                    step.location.lat,
+                    step.location.lon,
+                    step.date,
+                    trip_weather_temp=weather_temp,
+                    trip_weather_conditions=weather_cond,
+                )
+                progress.advance(weather_progress)
+                return result
+
             results = await asyncio.gather(
                 *(
                     asyncio.gather(
-                        _progress(weather_progress, fetch_weather)(
-                            client, step.location.lat, step.location.lon, step.date
-                        ),
+                        fetch_step_weather(step),
                         _progress(flag_progress, fetch_flag)(client, step.location.country_code),
                         _progress(map_progress, fetch_map)(
                             client,

@@ -20,6 +20,13 @@ class Location(BaseModel, extra="ignore"):
     lon: float = Field(ge=-180, le=180)
 
 
+class StepWeather(BaseModel, extra="ignore"):
+    """Builtin weather data from Polarsteps trip.json export."""
+
+    temperature: float | None = None
+    conditions: str | None = None
+
+
 class Step(BaseModel):
     id: int
     name: str = Field(alias="display_name")
@@ -28,6 +35,7 @@ class Step(BaseModel):
     start_time: float
     timezone_id: str
     location: Location
+    weather_info: StepWeather | None = Field(None, alias="weather")
 
     @property
     def folder_name(self) -> str:

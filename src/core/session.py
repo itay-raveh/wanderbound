@@ -137,3 +137,63 @@ def path_to_session_url(path: Path | str) -> str:
         return str(path)
 
     return f"/api/session/{session_id}/assets/{relative_path}"
+
+
+# Session cleanup constants
+SESSION_MAX_AGE_HOURS = 24
+CLEANUP_INTERVAL_HOURS = 1
+
+
+async def cleanup_old_sessions() -> int:
+    """Delete session directories older than SESSION_MAX_AGE_HOURS.
+
+    Returns:
+        Number of sessions cleaned up
+
+    """
+    import asyncio  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    if not SESSIONS_DIR.exists():
+        return 0
+
+    max_age_seconds = SESSION_MAX_AGE_HOURS * 3600
+    now = time.time()
+    cleaned = 0
+
+    for session_dir in SESSIONS_DIR.iterdir():
+        if not session_dir.is_dir():
+            continue
+
+        try:
+            # Check modification time of the session directory
+            mtime = session_dir.stat().st_mtime
+            age = now - mtime
+
+            if age > max_age_seconds:
+                await asyncio.to_thread(shutil.rmtree, session_dir)
+                logger.info(
+                    "Cleaned up old session: %s (age: %.1f hours)", session_dir.name, age / 3600
+                )
+                cleaned += 1
+        except Exception:
+            logger.exception("Failed to cleanup session %s", session_dir.name)
+
+    if cleaned:
+        logger.info("Session cleanup complete: removed %d old sessions", cleaned)
+
+    return cleaned
+
+
+async def start_cleanup_task() -> None:
+    """Start a background task to periodically cleanup old sessions."""
+    import asyncio  # noqa: PLC0415
+
+    while True:
+        try:
+            await cleanup_old_sessions()
+        except Exception:
+            logger.exception("Session cleanup task error")
+
+        # Wait for the next cleanup interval
+        await asyncio.sleep(CLEANUP_INTERVAL_HOURS * 3600)

@@ -86,6 +86,9 @@ class GeneratorArgs(BaseModel):
         default=None, description="Ranges of steps for which to add a map"
     )
     no_cache: bool = Field(default=False, description="Force regeneration of cached data")
+    weather_api_key: str | None = Field(
+        default=None, description="Visual Crossing API key (optional, for weather data)"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

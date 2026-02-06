@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from time import time
 from typing import IO, TYPE_CHECKING, Any
@@ -123,6 +124,10 @@ def create_args_form() -> None:
     async def handle_upload(event: Any) -> None:
         """Handle zip file upload and populate trip selector."""
         nonlocal trip_select
+
+        # Show loading notification
+        loading_notify = ui.notification("Extracting zip file...", type="ongoing", spinner=True)
+
         try:
             trips = await extract_zip_upload(event)
             app.storage.user[trips_key] = trips
@@ -133,8 +138,11 @@ def create_args_form() -> None:
                     app.storage.user[selected_trip_key] = trips[0]
                     trip_select.value = trips[0]
                     _update_trip_paths(trips[0])
+
+            loading_notify.dismiss()
             ui.notify(f"Extracted {len(trips)} trip(s)", type="positive")
         except ValueError as e:
+            loading_notify.dismiss()
             ui.notify(str(e), type="negative")
 
     def _update_trip_paths(trip_slug: str) -> None:
@@ -253,20 +261,85 @@ async def create_display() -> tuple[ui.element, FileCompatXTerm]:
     return album_frame, terminal
 
 
-async def show_album_frame(album_frame: ui.element, args: GeneratorArgs) -> None:
+async def show_album_frame(album_frame: ui.element) -> None:
     """Display the generated album in an iframe."""
-    # Serve static files from output and trip directories
-    app.add_static_files(str(args.output), args.output)
-    app.add_static_files(str(args.trip), args.trip)
+    from src.core.session import get_session_id  # noqa: PLC0415
 
     # Show album
     album_frame.visible = True
 
-    # Refresh iframe
-    # Use a unique timestamp to force reload if the file changed
-    album_path = str(args.output / "album.html")
-    src = f"{album_path}?t={time()}"
-    await ui.run_javascript(f"getHtmlElement({album_frame.id}).src='{src}';")
+    # Build session-based album URL
+    session_id = get_session_id()
+    album_url = f"/api/session/{session_id}/assets/output/album.html?t={time()}"
+
+    # Refresh iframe with session URL
+    await ui.run_javascript(f"getHtmlElement({album_frame.id}).src='{album_url}';")
+
+
+async def download_layout() -> None:
+    """Download the current layout.json file."""
+    args = try_get_generator_args()
+    if args is None:
+        ui.notify("No album generated yet", type="warning")
+        return
+
+    layout_path = args.output / "layout.json"
+    if not layout_path.exists():
+        ui.notify("No layout file found. Generate an album first.", type="warning")
+        return
+
+    ui.download(layout_path.read_bytes(), "layout.json")
+    ui.notify("Layout downloaded", type="positive")
+
+
+async def on_layout_upload(event: Any, dialog: ui.dialog) -> None:
+    """Handle uploaded layout.json file with validation."""
+    import json  # noqa: PLC0415
+
+    from src.models.layout import AlbumLayout  # noqa: PLC0415
+
+    args = try_get_generator_args()
+    if args is None:
+        ui.notify("No album configured. Set up your trip first.", type="warning")
+        dialog.close()
+        return
+
+    try:
+        content = event.content.read()
+        layout_data = json.loads(content)
+
+        # Validate layout structure
+        try:
+            AlbumLayout.model_validate(layout_data)
+        except (ValueError, TypeError) as e:
+            ui.notify(f"Invalid layout format: {e}", type="negative")
+            dialog.close()
+            return
+
+        # Validate step IDs match current trip (if trip.json exists)
+        trip_json = args.trip / "trip.json"
+        if trip_json.exists():
+            trip_data = json.loads(trip_json.read_text())
+            trip_step_ids = {step["id"] for step in trip_data.get("all_steps", [])}
+            layout_step_ids = {s["id"] for s in layout_data.get("step_layouts", [])}
+
+            unknown_ids = layout_step_ids - trip_step_ids
+            if unknown_ids:
+                ui.notify(
+                    f"Layout contains step IDs not in current trip: {unknown_ids}",
+                    type="warning",
+                )
+
+        # Write to output directory
+        layout_path = args.output / "layout.json"
+        layout_path.parent.mkdir(parents=True, exist_ok=True)
+        layout_path.write_text(json.dumps(layout_data, indent=2))
+
+        ui.notify("Layout restored! Regenerate to apply.", type="positive")
+    except (json.JSONDecodeError, OSError) as e:
+        ui.notify(f"Invalid layout file: {e}", type="negative")
+    finally:
+        dialog.close()
 
 
 async def generate(terminal: FileCompatXTerm, album_frame: ui.element) -> None:
@@ -274,18 +347,42 @@ async def generate(terminal: FileCompatXTerm, album_frame: ui.element) -> None:
     await terminal.run_terminal_method("clear")
     album_frame.visible = False
 
-    # Validate inputs from storage
-    args = get_generator_args()
+    # Create progress dialog
+    with ui.dialog() as progress_dialog, ui.card().classes("w-96"):
+        ui.label("Generating Album").classes("text-lg font-bold")
+        progress_bar = ui.linear_progress(show_value=False).props("indeterminate")
+        status_label = ui.label("Starting...")
 
-    if args.no_cache:
-        clear_cache()
-        logger.warning("Cleared cache")
+    progress_dialog.open()
 
-    # Load and generate
-    service = await get_album_service(args)
-    await service.generate()
+    try:
+        # Validate inputs from storage
+        args = get_generator_args()
 
-    await show_album_frame(album_frame, service.args)
+        if args.no_cache:
+            clear_cache()
+            logger.warning("Cleared cache")
+
+        status_label.text = "Loading trip data..."
+        await asyncio.sleep(0.1)  # Allow UI update
+
+        # Load and generate
+        service = await get_album_service(args)
+
+        status_label.text = "Fetching weather, maps, and flags..."
+        await asyncio.sleep(0.1)
+
+        await service.generate()
+
+        status_label.text = "Complete!"
+        progress_bar.props(remove="indeterminate")
+        progress_bar.value = 1.0
+        await asyncio.sleep(0.5)
+
+    finally:
+        progress_dialog.close()
+
+    await show_album_frame(album_frame)
 
 
 @ui.page("/")
@@ -305,11 +402,48 @@ async def index_page() -> None:
                 app.storage.user, lambda _: try_get_generator_args() is not None
             )
 
+            # Layout export/import
+            with ui.row().classes("w-full gap-2"):
+                ui.button(
+                    "Download Layout",
+                    icon="download",
+                    on_click=download_layout,
+                ).classes("flex-1").props("outline")
+                ui.button(
+                    "Upload Layout",
+                    icon="upload",
+                    on_click=lambda: upload_layout_dialog.open(),
+                ).classes("flex-1").props("outline")
+
+            # Hidden upload dialog
+            with ui.dialog() as upload_layout_dialog, ui.card().classes("w-96"):
+                ui.label("Upload Layout").classes("text-lg font-bold")
+                ui.label("Select a layout.json file to restore your edits.")
+                ui.upload(
+                    label="layout.json",
+                    auto_upload=True,
+                    on_upload=lambda e: on_layout_upload(e, upload_layout_dialog),
+                ).props("accept=.json")
+
         with ui.column().classes("w-2/3 h-full"):
             album_frame, terminal = await create_display()
 
-    if args := try_get_generator_args():
-        await show_album_frame(album_frame, args)
+    if try_get_generator_args() is not None:
+        await show_album_frame(album_frame)
+
+
+# Register background task for session cleanup
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+@app.on_startup
+async def _start_background_tasks() -> None:
+    """Start background tasks when the application starts."""
+    from src.core.session import start_cleanup_task  # noqa: PLC0415
+
+    task = asyncio.create_task(start_cleanup_task())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 app.mount("/api", api_router)
