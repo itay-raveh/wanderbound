@@ -84,7 +84,9 @@ async def fetch_weather(client: APIClient, step: Step) -> Weather:
         return Weather.from_step(step)
 
     try:
-        return await _fetch_weather(client, step.location.lat, step.location.lon, step.date)
+        return await _fetch_weather(
+            client, round(step.location.lat, 2), round(step.location.lon, 2), step.date
+        )
     except aiohttp.ClientError:
         logger.exception("Unable to fetch weather for %s at %s", step.location.country, step.date)
         return Weather.from_step(step)

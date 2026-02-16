@@ -54,11 +54,15 @@ class PydanticForm:
                 if field.annotation is None:
                     continue
 
-                inp = ui.input(
-                    value=str(getattr(instance, name)),  # pyright: ignore[reportAny]
-                    label=name.replace("_", " ").title(),
-                    validation=_make_input_validation(field),
-                ).classes("w-full")
+                inp = (
+                    ui.input(
+                        value=str(getattr(instance, name)),  # pyright: ignore[reportAny]
+                        label=name.replace("_", " ").title(),
+                        validation=_make_input_validation(field),
+                    )
+                    .classes("w-full")
+                    .props("dense")
+                )
 
                 inp.on_value_change(partial(self._on_value_change, name, inp))
 

@@ -34,13 +34,6 @@ class Segment(BaseModel):
     points: list[PathPoint]
     is_flight: bool
 
-    @field_validator("points")
-    @classmethod
-    def simplify(cls, points: list[PathPoint]) -> list[PathPoint]:
-        coords = [(p.lon, p.lat) for p in points]
-        simplified = LineString(coords).simplify(5, preserve_topology=False)
-        return [PathPoint(lat=y, lon=x, time=0.0) for x, y in simplified.coords]
-
 
 def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
     dist_km = distance((prev.lat, prev.lon), (curr.lat, curr.lon)).km

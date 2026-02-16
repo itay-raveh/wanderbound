@@ -18,16 +18,13 @@ logger = get_logger(__name__)
 _LINEAR_RGB_THRESHOLD = 0.03928
 
 # Color extraction and adjustment constants
-_TARGET_BRIGHTNESS = 0.45
+_TARGET_BRIGHTNESS = 0.75
 _MAX_BLEND_FACTOR = 0.25
-
-# Render flags at a low resolution for color extraction to save CPU time
-_ANALYSIS_WIDTH = 64
 
 RGB = tuple[int, int, int]
 
 _COLOR_LOCK = asyncio.Lock()
-_COLORS = set[RGB]()
+_COLORS: dict[str, RGB] = {}
 
 
 def _color_distance(color1: RGB, color2: RGB) -> float:
@@ -97,11 +94,12 @@ def _get_histogram(im_data: bytes) -> Iterator[tuple[int, RGB]]:
 
 def _find_best_color(flag_data: bytes) -> RGB | None:
     for _, color in _get_histogram(flag_data):
-        for other in _COLORS:
-            if other and _color_distance(color, other) < 0.1:
-                break
-        else:
-            return _adjust_color_for_contrast(color)
+        if 0.1 < _color_brightness(color) < 0.9:
+            for other in _COLORS.values():
+                if other and _color_distance(color, other) < 0.15:
+                    break
+            else:
+                return _adjust_color_for_contrast(color)
 
     return None
 
@@ -111,14 +109,15 @@ async def fetch_flag(client: APIClient, country_code: str) -> Flag:
     flag_data = await client.get(settings.flag_cdn_url.format(country_code=country_code.lower()))
 
     async with _COLOR_LOCK:
-        color = await asyncio.to_thread(_find_best_color, flag_data)
-        if color is None:
-            logger.warning("Could not find color %s", country_code)
-            color = (30, 30, 30)
-        _COLORS.add(color)
+        if country_code not in _COLORS:
+            color = await asyncio.to_thread(_find_best_color, flag_data)
+            if color is None:
+                logger.warning("Could not find color %s", country_code)
+                color = (30, 30, 30)
+            _COLORS[country_code] = color
 
     b64_svg = base64.b64encode(flag_data).decode("utf-8")
-    r, g, b = color
+    r, g, b = _COLORS[country_code]
     return Flag(
         flag_url=f"data:image/svg+xml;base64,{b64_svg}",
         accent_color=f"#{r:02x}{g:02x}{b:02x}",

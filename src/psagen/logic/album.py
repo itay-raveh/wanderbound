@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
+from psagen.core.cache import log_cache_stats
 from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.logic.altitude import fetch_all_altitudes
@@ -16,13 +19,11 @@ from psagen.logic.media import extract_frame, load_photo
 from psagen.logic.renderer import render_album_html
 from psagen.logic.segments import Segment, load_segments
 from psagen.logic.weather import fetch_weather
-from psagen.models.enrich import EnrichedStep
+from psagen.models.enrich import EnrichedStep, Flag, Map, Weather
 from psagen.models.layout import Video
 from psagen.models.trip import Trip
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
     from psagen.models.config import AlbumConfig
     from psagen.models.layout import StepLayout
     from psagen.models.trip import Step
@@ -30,29 +31,59 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+ProgressCallback = Callable[[str], None]
 
-async def _enrich_steps(steps: list[Step]) -> list[EnrichedStep]:
-    """Fetch all external data concurrently."""
+
+def _wp[**P, R](
+    func: Callable[P, Awaitable[R]], callback: Callable[[], None]
+) -> Callable[P, Awaitable[R]]:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        result = await func(*args, **kwargs)
+        callback()
+        return result
+
+    return wrapper
+
+
+async def _enrich_steps(
+    steps: list[Step], progress_callback: ProgressCallback
+) -> list[EnrichedStep]:
     async with APIClient() as client:
-        results = await asyncio.gather(
-            *(
+        tasks: list[asyncio.Future[tuple[Weather, Flag, Map]]] = []
+        total = len(steps)
+        for idx, step in enumerate(steps):
+            _weather = _wp(
+                fetch_weather, partial(progress_callback, f"{idx + 1}/{total} Fetched weather")
+            )
+            _flag = _wp(fetch_flag, partial(progress_callback, f"{idx + 1}/{total} Fetched flag"))
+            _map = _wp(fetch_map, partial(progress_callback, f"{idx + 1}/{total} Fetched map"))
+
+            tasks.append(
                 asyncio.gather(
-                    fetch_weather(client, step),
-                    fetch_flag(client, step.location.country_code),
-                    fetch_map(
+                    _weather(client, step),
+                    _flag(client, step.location.country_code),
+                    _map(
                         client,
-                        step.location.lat,
-                        step.location.lon,
+                        round(step.location.lat, 1),
+                        round(step.location.lon, 1),
                         step.location.country_code,
                     ),
                 )
-                for step in steps
-            ),
-        )
+            )
+        results = await asyncio.gather(*tasks)
 
+        progress_callback("Fetching altitudes....")
         alts = await fetch_all_altitudes(
-            client, [(step.location.lat, step.location.lon) for step in steps]
+            client,
+            [
+                (
+                    round(step.location.lat, 4),
+                    round(step.location.lon, 4),
+                )
+                for step in steps
+            ],
         )
+        progress_callback(f"Fetched {len(alts)} altitudes")
 
     return [
         EnrichedStep(
@@ -82,31 +113,44 @@ class Album:
         return self.folder / "album.html"
 
     @classmethod
-    async def generate(cls, user: User, config: AlbumConfig) -> AsyncGenerator[str | Self]:
-        yield "Loading trip data..."
+    async def generate(
+        cls, user: User, config: AlbumConfig, progress_callback: ProgressCallback
+    ) -> Self:
+        progress_callback("Loading trip data...")
         trip_dir = user.trips_folder / config.trip_name
         trip_json_path = trip_dir / "trip.json"
         trip = Trip.model_validate_json(trip_json_path.read_bytes())
-        yield f"Loaded trip {trip.name}"
+        progress_callback(f"Loaded trip {trip.name}")
 
-        yield "Fetching external data..."
+        progress_callback("Fetching external data...")
         steps = await _enrich_steps(
             list(
                 itertools.chain.from_iterable(
                     trip.all_steps[slc.as_slice()] for slc in config.settings.steps_ranges.root
                 )
+            ),
+            progress_callback,
+        )
+        progress_callback(f"Fetched data for {len(steps)} steps")
+
+        progress_callback("Building photo page layouts...")
+        layouts = await asyncio.gather(
+            *(
+                _wp(
+                    build_step_layout,
+                    partial(
+                        progress_callback,
+                        f"{idx + 1}/{len(steps)} Built layout: {step.name}",
+                    ),
+                )(trip_dir, step)
+                for idx, step in enumerate(steps)
+                if step.id not in config.layouts
             )
         )
-        yield f"Fetched data for {len(steps)} steps"
-
-        yield "Building photo page layouts..."
-        layouts = await asyncio.gather(
-            *(build_step_layout(trip_dir, step) for step in steps if step.id not in config.layouts)
-        )
         config.layouts.update({layout.id: layout for layout in layouts})
-        yield f"Built {len(layouts)} new page layouts"
+        progress_callback(f"Built {len(layouts)} new page layouts")
 
-        yield "Loading location data..."
+        progress_callback("Loading location data...")
         segments = load_segments(
             trip_dir / "locations.json",
             [(step.location.lat, step.location.lon, step.start_time) for step in steps],
@@ -114,9 +158,20 @@ class Album:
             # Go until the END of the last day
             steps[-1].start_time + 60 * 60 * 24,
         )
-        yield f"Loaded location data as {len(segments)} segments"
+        progress_callback(f"Loaded location data as {len(segments)} segments")
 
-        yield cls(user=user, config=config, steps=steps, segments=segments)
+        log_cache_stats()
+
+        album = cls(user=user, config=config, steps=steps, segments=segments)
+        logger.info(
+            "Generated %s: %d steps, %d segments",
+            album.config.trip_name,
+            len(album.steps),
+            len(album.segments),
+        )
+        await asyncio.to_thread(album.save)
+        logger.info("Generated %s", album.html_file)
+        return album
 
     def persist_config(self) -> None:
         self.config.persist_in_trip_folder(self.folder)

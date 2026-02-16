@@ -115,21 +115,13 @@ async def register_page() -> None:
 
             with ui.column().classes("gap-4 items-center w-full"):
                 ui.markdown(
-                    "Upload your **Polartsteps Data Export** ZIP file below to begin.<br>"
-                    "<span class='text-sm text-gray-500'>"
-                    "You can export your data from the Polarsteps website settings."
-                    "</span>"
+                    "Upload your **Polartsteps Data Export** ZIP file below to begin."
                 ).classes("text-center mb-2")
 
                 ui.upload(
-                    label="Drop your user_data.zip here",
                     on_upload=handle_zip_upload,
                     auto_upload=True,
                 ).props("accept=.zip flat color=primary").classes("w-full h-32")
-
-        # Footer
-        with ui.row().classes("mt-12 opacity-50"):
-            ui.label("Designed for travelers").classes("text-sm")
 
 
 CONFIGS: dict[TripName, AlbumConfig] = {}
@@ -145,14 +137,10 @@ def _make_generate_on_click(
         d, log = create_log_dialog("Generating Album...", "auto_awesome")
 
         with d:
-            async for update in Album.generate(user, CONFIGS[user.selected_trip]):
-                if isinstance(update, Album):
-                    update.save()
-                    ALBUMS[user.selected_trip] = update
-                    d.close()
-                    break
-
-                log.push(update)
+            ALBUMS[user.selected_trip] = await Album.generate(
+                user, CONFIGS[user.selected_trip], log.push
+            )
+        d.close()
 
         await load_current_album_html()
 
@@ -189,10 +177,8 @@ async def home() -> None:
         # Left: Album Select & Settings
         with (
             ui.card().classes("w-2/7 h-full"),
-            ui.column().classes("size-full justify-between"),
+            ui.column().classes("size-full justify-between gap-0"),
         ):
-            ui.markdown("## Polarsteps Album Generator")
-
             trip_select = (
                 ui.select(
                     value=user.selected_trip,
@@ -202,19 +188,21 @@ async def home() -> None:
                 .props("outlined")
             )
 
-            ui.separator()
+            ui.separator().classes("mt-4 mb-4")
 
             settings_form = PydanticForm()
-            settings_form.elem.classes("size-full p-4")
+            settings_form.elem.classes("size-full")
 
             trip_select.bind_value_to(user, "selected_trip")
             trip_select.bind_value_to(settings_form, "instance", forward=_make_form_forward(user))
 
             generate_btn = ui.button("Generate Album", icon="auto_awesome").classes(
-                "w-full py-3 text-lg font-bold shadow-lg"
+                "w-full text-lg font-bold shadow-lg"
             )
             generate_btn.bind_enabled_from(
-                settings_form, "errors", backward=lambda errors: len(errors) == 0
+                settings_form,
+                "errors",
+                backward=lambda errors: len(errors) == 0,  # pyright: ignore[reportAny]
             )
 
         # Right: Layout Editor (Preview)

@@ -10,11 +10,15 @@ from typing import TYPE_CHECKING, overload
 
 import diskcache
 
+from psagen.core.client import APIClient
+from psagen.core.logger import get_logger
 from psagen.core.settings import settings
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine, Iterator
 
+
+logger = get_logger(__name__)
 
 # Global cache instance with SQLite backend
 _cache: diskcache.Cache | None = None
@@ -29,8 +33,27 @@ def get_cache() -> diskcache.Cache:
     return _cache
 
 
+_cache_tries = [0]
+_cache_hits = [0]
+
+
+def log_cache_stats() -> None:
+    logger.info(
+        "Cache stats: %d/%d/%d: %d%% hits",
+        _cache_tries[0],
+        _cache_hits[0],
+        _cache_tries[0] - _cache_hits[0],
+        100 * _cache_hits[0] / _cache_tries[0],
+    )
+
+
+_NOT_HASHABLE = APIClient
+
+
 def _make_cache_key[**P, R](func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> str:
-    return f"{func.__qualname__}:{args}:{kwargs}"
+    hashable_args = [arg for arg in args if not isinstance(arg, _NOT_HASHABLE)]
+    hashable_kwarg = {k: v for k, v in kwargs.items() if not isinstance(v, _NOT_HASHABLE)}
+    return f"{func.__qualname__}:{hashable_args}:{hashable_kwarg}"
 
 
 _force_update: ContextVar[bool] = ContextVar("force_update", default=False)
@@ -65,9 +88,12 @@ def async_cache[**P, T](
         key = _make_cache_key(func, *args, **kwargs)
 
         if not _force_update.get():
+            _cache_tries[0] += 1
             cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]
             if cached is not None:
+                _cache_hits[0] += 1
                 return cached
+            logger.info("Cache miss: %s", key)
 
         # Call original function
         result: T = await func(*args, **kwargs)  # pyright: ignore[reportGeneralTypeIssues]
@@ -82,9 +108,12 @@ def async_cache[**P, T](
         key = _make_cache_key(func, *args, **kwargs)
 
         if not _force_update.get():
+            _cache_tries[0] += 1
             cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]
             if cached is not None:
+                _cache_hits[0] += 1
                 return cached
+            logger.info("Cache miss: %s", key)
 
         # Call original function
         result: T = func(*args, **kwargs)  # pyright: ignore[reportAssignmentType]
