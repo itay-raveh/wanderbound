@@ -4,7 +4,7 @@ import asyncio
 from asyncio.locks import Lock
 from typing import TYPE_CHECKING
 
-from geopandas import read_file  # pyright: ignore[reportUnknownVariableType]
+from geopandas import GeoDataFrame, read_file  # pyright: ignore[reportUnknownVariableType]
 from pyproj import Transformer
 
 from psagen.core.cache import async_cache
@@ -17,8 +17,6 @@ from .generator import generate_geo_calibrated_svg
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    import geopandas as gpd
-
     from psagen.core.client import APIClient
 
 logger = get_logger(__name__)
@@ -26,7 +24,7 @@ logger = get_logger(__name__)
 _NE_GEOJSON = "ne_50m_admin_0_countries.geojson"
 
 _NE_FETCH_LOCK = Lock()
-_ne_data: gpd.GeoDataFrame | None = None
+_ne_data: GeoDataFrame | None = None
 
 
 @async_cache
@@ -41,13 +39,10 @@ async def fetch_map(client: APIClient, lat: float, lon: float, country_code: str
 
     dot_pos = _dot_position(lat, lon, bounds)
 
-    return Map(
-        svg_content=svg_data,
-        dot_position=dot_pos,
-    )
+    return Map(svg_content=svg_data, dot_position=dot_pos)
 
 
-async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
+async def _load_natural_earth_data(client: APIClient) -> GeoDataFrame:
     """Load Natural Earth GeoJSON data from cache or download it."""
     global _ne_data  # noqa: PLW0603
     if _ne_data is not None:

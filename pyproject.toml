@@ -39,7 +39,6 @@ dependencies = [
     "nicegui",
     "fastapi",
     "opencv-python-headless",
-    "cairosvg",
 ]
 
 [dependency-groups]

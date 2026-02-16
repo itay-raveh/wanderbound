@@ -3,7 +3,7 @@ from functools import cached_property
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from pydantic import AliasChoices, BaseModel, BeforeValidator, Field
+from pydantic import AliasChoices, BaseModel, BeforeValidator, Field, field_validator
 
 from psagen.core.settings import settings
 from psagen.core.text import calculate_visual_length
@@ -14,11 +14,14 @@ NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ign
 class Location(BaseModel, extra="ignore"):
     city: NullableStr = Field(alias="name")
     country: NullableStr = Field(validation_alias=AliasChoices("country", "detail"))
-    country_code: str = Field(
-        validation_alias=AliasChoices("country_code", "countryCode"), pattern=r"^[A-Za-z]{2}|00$"
-    )
+    country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
+
+    @field_validator("country_code", mode="before")
+    @classmethod
+    def country_code_validator(cls, v: str) -> str:
+        return "un" if v == "00" else v
 
 
 class Step(BaseModel):

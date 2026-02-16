@@ -4,7 +4,6 @@ import math
 from collections.abc import Iterator
 from io import BytesIO
 
-from cairosvg import svg2png
 from PIL import Image
 
 from psagen.core.cache import async_cache
@@ -84,24 +83,19 @@ def _adjust_color_for_contrast(color: RGB) -> RGB:
     return max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
 
 
-def _get_histogram(svg_data: bytes) -> Iterator[tuple[int, RGB]]:
+def _get_histogram(im_data: bytes) -> Iterator[tuple[int, RGB]]:
     try:
-        png_data = svg2png(bytestring=svg_data, output_width=_ANALYSIS_WIDTH)
-        if not png_data:
-            return
-
-        with Image.open(BytesIO(png_data)) as img:
+        with Image.open(BytesIO(im_data)) as img:
             # noinspection PyTypeChecker
             histogram: list[tuple[int, RGB]] = img.convert("RGB").getcolors()  # pyright: ignore[reportAssignmentType]
 
+        yield from sorted(histogram, key=lambda x: x[0], reverse=True)
     except Exception as e:  # noqa: BLE001
         logger.debug("Error loading flag image: %s", e)
         return
 
-    yield from sorted(histogram, key=lambda x: x[0], reverse=True)
 
-
-def _find_best_color(flag_data: bytes) -> RGB:
+def _find_best_color(flag_data: bytes) -> RGB | None:
     for _, color in _get_histogram(flag_data):
         for other in _COLORS:
             if other and _color_distance(color, other) < 0.1:
@@ -109,18 +103,22 @@ def _find_best_color(flag_data: bytes) -> RGB:
         else:
             return _adjust_color_for_contrast(color)
 
-    raise RuntimeError("Impossible to find best color")
+    return None
 
 
 @async_cache
 async def fetch_flag(client: APIClient, country_code: str) -> Flag:
-    svg_data = await client.get(settings.flag_cdn_url.format(country_code=country_code.lower()))
+    flag_data = await client.get(settings.flag_cdn_url.format(country_code=country_code.lower()))
 
     async with _COLOR_LOCK:
-        r, g, b = await asyncio.to_thread(_find_best_color, svg_data)
-        _COLORS.add((r, g, b))
+        color = await asyncio.to_thread(_find_best_color, flag_data)
+        if color is None:
+            logger.warning("Could not find color %s", country_code)
+            color = (30, 30, 30)
+        _COLORS.add(color)
 
-    b64_svg = base64.b64encode(svg_data).decode("utf-8")
+    b64_svg = base64.b64encode(flag_data).decode("utf-8")
+    r, g, b = color
     return Flag(
         flag_url=f"data:image/svg+xml;base64,{b64_svg}",
         accent_color=f"#{r:02x}{g:02x}{b:02x}",

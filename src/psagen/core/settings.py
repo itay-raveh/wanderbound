@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         return self.data_dir / "users"
 
     # External API URLs
-    flag_cdn_url: str = "https://cdn.prod.polarsteps.com/b8cd8a2397f6263fac7c14b403554d4028f9ee33/assets/flags/{country_code}.svg"
+    flag_cdn_url: str = "https://flagcdn.com/w40/{country_code}.png"
     opentopodata_api_url: str = "https://api.opentopodata.org/v1/aster30m?locations={locations}"
     natural_earth_geojson_url: str = (
         "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
