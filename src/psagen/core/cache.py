@@ -1,22 +1,20 @@
 # pyright: basic
-"""Async-compatible caching using diskcache with SQLite backend."""
 
 from __future__ import annotations
 
 import functools
-import shutil
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, overload
+import inspect
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import TYPE_CHECKING, Any, overload
 
 import diskcache
 
 from psagen.core.settings import settings
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Awaitable, Callable, Coroutine, Iterator
 
-P = ParamSpec("P")
-T = TypeVar("T")
 
 # Global cache instance with SQLite backend
 _cache: diskcache.Cache | None = None
@@ -42,84 +40,15 @@ def _make_cache_key(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dic
 
     normalized_args = tuple(normalize(a) for a in args)
     normalized_kwargs = {k: normalize(v) for k, v in sorted(kwargs.items())}
+    # noinspection PyUnresolvedReferences
     return f"{func.__module__}.{func.__qualname__}:{normalized_args}:{normalized_kwargs}"
 
-
-@overload
-def async_cache(
-    func: Callable[P, Coroutine[Any, Any, T]],
-) -> Callable[P, Coroutine[Any, Any, T]]: ...
-
-
-@overload
-def async_cache(func: Callable[P, T]) -> Callable[P, T]: ...
-
-
-def async_cache(func: Callable[P, T] | Callable[P, Awaitable[T]]) -> Callable[P, T | Awaitable[T]]:
-    """Decorator for caching async function results using diskcache.
-
-    Features:
-    - Works with both sync and async functions
-    - Coordinate rounding built-in (2 decimal places)
-    - SQLite-backed for reliability
-    - Respects global cache directory from settings
-
-    Usage:
-        @async_cache
-        async def get_weather(lat: float, lon: float) -> WeatherData:
-            ...
-    """
-    import asyncio  # noqa: PLC0415
-
-    @functools.wraps(func)
-    async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-        cache = get_cache()
-        key = _make_cache_key(func, args, kwargs)
-
-        # Check cache only if not forced
-        if not _force_update.get():
-            cached = cache.get(key, default=None)
-            if cached is not None:
-                return cached  # type: ignore[return-value]
-
-        # Call original function
-        result = await func(*args, **kwargs)  # type: ignore[misc]
-
-        # Store in cache
-        cache.set(key, result)
-        return result  # type: ignore[return-value]
-
-    @functools.wraps(func)
-    def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-        cache = get_cache()
-        key = _make_cache_key(func, args, kwargs)
-
-        # Check cache only if not forced
-        if not _force_update.get():
-            cached = cache.get(key, default=None)
-            if cached is not None:
-                return cached  # type: ignore[return-value]
-
-        # Call original function
-        result = func(*args, **kwargs)
-
-        # Store in cache
-        cache.set(key, result)
-        return result  # type: ignore[return-value]
-
-    if asyncio.iscoroutinefunction(func):
-        return async_wrapper  # type: ignore[return-value]
-    return sync_wrapper  # type: ignore[return-value]
-
-
-from contextlib import contextmanager
-from contextvars import ContextVar
 
 _force_update: ContextVar[bool] = ContextVar("force_update", default=False)
 
 
 @contextmanager
-def force_cache_update():
+def force_cache_update() -> Iterator[None]:
     """Context manager to force cache updates (skip read, always write)."""
     token = _force_update.set(True)
     try:
@@ -128,11 +57,51 @@ def force_cache_update():
         _force_update.reset(token)
 
 
-def clear_cache() -> None:
-    """Clear the persistent cache."""
-    global _cache  # noqa: PLW0603
-    if _cache is not None:
-        _cache.close()
-        _cache = None
-    if settings.cache_dir.exists():
-        shutil.rmtree(settings.cache_dir)
+@overload
+def async_cache[**P, Y, S, R](
+    func: Callable[P, Coroutine[Y, S, R]],
+) -> Callable[P, Coroutine[Y, S, R]]: ...
+
+
+@overload
+def async_cache[**P, T](func: Callable[P, T]) -> Callable[P, T]: ...
+
+
+def async_cache[**P, T](
+    func: Callable[P, T] | Callable[P, Awaitable[T]],
+) -> Callable[P, T | Awaitable[T]]:
+    @functools.wraps(func)
+    async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        cache = get_cache()
+        key = _make_cache_key(func, args, kwargs)
+
+        if not _force_update.get():
+            cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]
+            if cached is not None:
+                return cached
+
+        # Call original function
+        result: T = await func(*args, **kwargs)  # pyright: ignore[reportGeneralTypeIssues]
+
+        # Store in cache
+        cache.set(key, result)
+        return result
+
+    @functools.wraps(func)
+    def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        cache = get_cache()
+        key = _make_cache_key(func, args, kwargs)
+
+        if not _force_update.get():
+            cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]
+            if cached is not None:
+                return cached
+
+        # Call original function
+        result: T = func(*args, **kwargs)  # pyright: ignore[reportAssignmentType]
+
+        # Store in cache
+        cache.set(key, result)
+        return result
+
+    return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper

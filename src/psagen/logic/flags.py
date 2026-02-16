@@ -1,21 +1,17 @@
-"""Country flag API and color extraction."""
-
+import asyncio
 import base64
 import math
-from collections import Counter
+from collections.abc import Iterator
 from io import BytesIO
-from typing import TYPE_CHECKING
 
+from cairosvg import svg2png
 from PIL import Image
 
 from psagen.core.cache import async_cache
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
 from psagen.logic.client import APIClient
-from psagen.models.trip import Flag
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+from psagen.models.enrich import Flag
 
 logger = get_logger(__name__)
 
@@ -23,15 +19,16 @@ logger = get_logger(__name__)
 _LINEAR_RGB_THRESHOLD = 0.03928
 
 # Color extraction and adjustment constants
-_COLOR_COUNT_MIN_RATIO = 0.3
-_LIGHT_MODE_TARGET_BRIGHTNESS = 0.55
-_DARK_MODE_TARGET_BRIGHTNESS = 0.45
+_TARGET_BRIGHTNESS = 0.45
 _MAX_BLEND_FACTOR = 0.25
+
+# Render flags at a low resolution for color extraction to save CPU time
+_ANALYSIS_WIDTH = 64
 
 RGB = tuple[int, int, int]
 
-_FLAGS: dict[str, bytes] = {}
-_COLORS: dict[str, RGB] = {}
+_COLOR_LOCK = asyncio.Lock()
+_COLORS = set[RGB]()
 
 
 def _color_distance(color1: RGB, color2: RGB) -> float:
@@ -77,85 +74,56 @@ def _adjust_color_for_contrast(color: RGB) -> RGB:
     brightness = _color_brightness(color)
     r, g, b = color
 
-    if settings.light_mode:
-        target_brightness = _LIGHT_MODE_TARGET_BRIGHTNESS
-        if brightness < target_brightness:
-            blend_factor = (
-                (target_brightness - brightness) / (1.0 - brightness) if brightness < 1.0 else 0
-            )
-            blend_factor = min(_MAX_BLEND_FACTOR, blend_factor)
-            r = int(r + (255 - r) * blend_factor)
-            g = int(g + (255 - g) * blend_factor)
-            b = int(b + (255 - b) * blend_factor)
-    else:
-        target_brightness = _DARK_MODE_TARGET_BRIGHTNESS
-        if brightness > target_brightness:
-            blend_factor = (brightness - target_brightness) / brightness if brightness > 0 else 0
-            blend_factor = min(_MAX_BLEND_FACTOR, blend_factor)
-            r = int(r * (1 - blend_factor))
-            g = int(g * (1 - blend_factor))
-            b = int(b * (1 - blend_factor))
+    if brightness > _TARGET_BRIGHTNESS:
+        blend_factor = (brightness - _TARGET_BRIGHTNESS) / brightness if brightness > 0 else 0
+        blend_factor = min(_MAX_BLEND_FACTOR, blend_factor)
+        r = int(r * (1 - blend_factor))
+        g = int(g * (1 - blend_factor))
+        b = int(b * (1 - blend_factor))
 
     return max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
 
 
-def _brightness_filter(rgb: RGB) -> bool:
-    return 0.1 <= _color_brightness(rgb) <= 0.9
-
-
-def _get_pixels(flag_data: bytes) -> list[RGB]:
+def _get_histogram(svg_data: bytes) -> Iterator[tuple[int, RGB]]:
     try:
-        # noinspection PyTypeChecker
-        pixel_view: Iterable[RGB] = Image.open(BytesIO(flag_data)).convert("RGB").getdata()  # ty:ignore[invalid-assignment]  # pyright: ignore[reportAssignmentType]
-    except OSError as e:
+        png_data = svg2png(bytestring=svg_data, output_width=_ANALYSIS_WIDTH)
+        if not png_data:
+            return
+
+        with Image.open(BytesIO(png_data)) as img:
+            # noinspection PyTypeChecker
+            histogram: list[tuple[int, RGB]] = img.convert("RGB").getcolors()  # pyright: ignore[reportAssignmentType]
+
+    except Exception as e:  # noqa: BLE001
         logger.debug("Error loading flag image: %s", e)
-        return []
-    else:
-        return list(filter(_brightness_filter, pixel_view))
+        return
+
+    yield from sorted(histogram, key=lambda x: x[0], reverse=True)
 
 
-def _find_best_color_from_candidates(color_counts: list[tuple[RGB, int]]) -> RGB | None:
-    min_allowed_count = color_counts[0][1] * _COLOR_COUNT_MIN_RATIO
-
-    for rgb, count in color_counts:
-        if count < min_allowed_count:
-            return None
-
-        for other in _COLORS.values():
-            if other and _color_distance(rgb, other) < 0.1:
+def _find_best_color(flag_data: bytes) -> RGB:
+    for _, color in _get_histogram(flag_data):
+        for other in _COLORS:
+            if other and _color_distance(color, other) < 0.1:
                 break
         else:
-            return _adjust_color_for_contrast(rgb)
+            return _adjust_color_for_contrast(color)
 
-    return None
-
-
-def _extract_prominent_color(flag_data: bytes) -> RGB:
-    pixels = _get_pixels(flag_data)
-
-    color_counts = Counter(pixels).most_common(3)
-
-    # Try to find a color without conflicts
-    if best_color := _find_best_color_from_candidates(color_counts):
-        return best_color
-
-    # Fallback to most common color, nudging if needed to avoid conflicts
-    return _adjust_color_for_contrast(color_counts[0][0])
+    raise RuntimeError("Impossible to find best color")
 
 
 @async_cache
 async def fetch_flag(client: APIClient, country_code: str) -> Flag:
-    """Get flag URL and accent color, cached by country code and mode."""
-    if country_code not in _FLAGS:
-        _FLAGS[country_code] = await client.get_content(
-            settings.flag_cdn_url.format(country_code=country_code.lower())
-        )
+    svg_data = await client.get_content(
+        settings.flag_cdn_url.format(country_code=country_code.lower())
+    )
 
-    if country_code not in _COLORS:
-        _COLORS[country_code] = _extract_prominent_color(_FLAGS[country_code])
+    async with _COLOR_LOCK:
+        r, g, b = await asyncio.to_thread(_find_best_color, svg_data)
+        _COLORS.add((r, g, b))
 
-    b64_flag_data = base64.b64encode(_FLAGS[country_code]).decode("utf-8")
-    r, g, b = _COLORS[country_code]
+    b64_svg = base64.b64encode(svg_data).decode("utf-8")
     return Flag(
-        flag_url=f"data:image/png;base64,{b64_flag_data}", accent_color=f"#{r:02x}{g:02x}{b:02x}"
+        flag_url=f"data:image/svg+xml;base64,{b64_svg}",
+        accent_color=f"#{r:02x}{g:02x}{b:02x}",
     )

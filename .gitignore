@@ -19,10 +19,8 @@ pycrucible_payload
 *.swo
 *~
 
-*.log
-
-# Cache
-.*cache
+logs/
+*.env
+cache/
 .nicegui
-
-sessions/
+users/

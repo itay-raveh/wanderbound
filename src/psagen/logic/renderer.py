@@ -1,5 +1,3 @@
-"""Generate HTML pages for the photo album using Jinja templates."""
-
 from __future__ import annotations
 
 import operator
@@ -13,36 +11,58 @@ from jinja2 import Environment, FileSystemLoader
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
 from psagen.core.text import choose_text_dir, find_visual_split_index
+from psagen.logic.segments import PathPoint, Segment
+from psagen.models.config import AlbumSettings, Slice
 from psagen.models.context import (
-    FurthestPointCtx,
     MapTemplateCtx,
     OverviewTemplateCtx,
     StepTemplateCtx,
     TripTemplateCtx,
 )
-from psagen.models.segments import PathPoint, Segment
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+    from datetime import datetime
 
-    from psagen.models.layout import AlbumLayout, StepLayout
-    from psagen.models.trip import EnrichedStep, Location, Step
+    from psagen.models.enrich import EnrichedStep
+    from psagen.models.layout import StepLayout
+    from psagen.models.trip import Step
 
 logger = get_logger(__name__)
 
+env = Environment(
+    loader=FileSystemLoader(str(settings.static_dir)),
+    autoescape=True,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+
+env.filters["text_dir"] = choose_text_dir
+
+_ALBUM_TEMPLATE = env.get_template("album.html.jinja")
+
 
 def render_album_html(
-    steps: Sequence[EnrichedStep],
-    layout: AlbumLayout,
-    trip_ctx: TripTemplateCtx,
-    overview_ctx: OverviewTemplateCtx,
-    maps_slices: list[slice[int]],
+    album_settings: AlbumSettings,
+    layouts: dict[int, StepLayout],
+    steps: list[EnrichedStep],
+    segments: list[Segment],
 ) -> str:
-    """Generate HTML pages for the photo album."""
+    trip_ctx = TripTemplateCtx(
+        title=album_settings.title,
+        subtitle=album_settings.subtitle,
+        dates=_format_date_range(steps[0].date, steps[-1].date),
+        cover=album_settings.front_cover_photo,
+        back_cover=album_settings.back_cover_photo,
+        segments=segments,
+    )
+
+    overview_ctx = _build_overview_template_ctx(steps, layouts, segments)
+
     steps_ctx = [
         _build_step_template_ctx(
             step,
-            layout.steps[step.id],
+            layouts[step.id],
             idx,
             steps,
         )
@@ -51,41 +71,55 @@ def render_album_html(
 
     main_map_ctx = MapTemplateCtx(
         id="map-main",
-        segments=trip_ctx.main_map_segments,
+        segments=trip_ctx.segments,
         steps=steps_ctx,
     )
 
     submaps_ctx = {
         map_slice.start: MapTemplateCtx(
-            id=f"map-{map_slice.start}-{map_slice.stop - 1}",
-            segments=_segments_for_steps(steps[map_slice], trip_ctx.segments),
-            steps=steps_ctx[map_slice],
+            id=f"map-{map_slice}",
+            segments=_segments_for_steps(steps[map_slice.as_slice()], trip_ctx.segments),
+            steps=steps_ctx[map_slice.as_slice()],
         )
-        for map_slice in maps_slices
+        for map_slice in _re_indexed_maps_slices(
+            album_settings.steps_ranges.root, album_settings.maps_ranges.root
+        )
     }
 
-    env = Environment(
-        loader=FileSystemLoader(str(settings.static_dir)),
-        autoescape=True,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-
-    env.filters["text_dir"] = choose_text_dir
-
-    # Convert file paths to session-based URLs for web serving
-    from psagen.core.session import path_to_session_url  # noqa: PLC0415
-
-    env.filters["session_url"] = path_to_session_url
-
-    return env.get_template("album.html.jinja").render(
+    return _ALBUM_TEMPLATE.render(
         trip=trip_ctx,
         steps=steps_ctx,
-        light_mode=settings.light_mode,
         overview=overview_ctx,
         main_map=main_map_ctx,
         submaps=submaps_ctx,
     )
+
+
+def _re_indexed_maps_slices(steps: list[Slice], maps: list[Slice]) -> list[Slice]:
+    if not maps:
+        return []
+
+    # Build mapping from Original Index -> Filtered Index
+    idx_map: dict[int, int] = {}
+    current_idx = 0
+    for slc in steps:
+        for orig_idx in range(slc.start, slc.end):
+            idx_map[orig_idx] = current_idx
+            current_idx += 1
+
+    maps_slices: list[Slice] = []
+    for map_slice in maps:
+        if map_slice.start not in idx_map:
+            raise ValueError(f"Map start index {map_slice.start} is not in the included steps!")
+
+        # slice.stop is exclusive
+        last_included_orig = map_slice.end - 1
+        if last_included_orig not in idx_map:
+            raise ValueError(f"Map end index {last_included_orig} is not in the included steps!")
+
+        maps_slices.append(Slice(start=idx_map[map_slice.start], end=idx_map[last_included_orig]))
+
+    return maps_slices
 
 
 def _segments_for_steps(steps: Sequence[Step], all_segments: list[Segment]) -> list[Segment]:
@@ -109,6 +143,19 @@ def _segments_for_steps(steps: Sequence[Step], all_segments: list[Segment]) -> l
         filtered.append(Segment(points=valid_points, is_flight=segment.is_flight))
 
     return filtered
+
+
+def _format_date_range(start: datetime, end: datetime) -> str:
+    """Format date range smartly, omitting redundant year/month."""
+    if start.year == end.year:
+        if start.month == end.month:
+            # Same month and year: "16 - 26 April 2025"
+            return f"{start.day} - {end.day} {start.strftime('%B %Y')}"
+        # Different month, same year: "16 April - 2 May 2025"
+        return f"{start.day} {start.strftime('%B')} - {end.day} {end.strftime('%B %Y')}"
+
+    # Different year: "28 December 2024 - 15 January 2025"
+    return f"{start.day} {start.strftime('%B %Y')} - {end.day} {end.strftime('%B %Y')}"
 
 
 def _build_step_template_ctx(
@@ -141,13 +188,17 @@ def _build_step_template_ctx(
         lon_val=step.location.lon,
         date_month=step.date.strftime("%B"),
         date_day=str(step.date.day),
-        day_weather_icon_url=settings.weather_icon_url.format(icon_name=step.weather.day_icon),
+        day_weather_icon_url=settings.weather_icon_url.format(icon_name=step.weather.day.icon),
         night_weather_icon_url=(
-            settings.weather_icon_url.format(icon_name=step.weather.night_icon)
+            settings.weather_icon_url.format(icon_name=step.weather.night.icon)
+            if step.weather.night
+            else ""
         ),
-        temp_str=_format_temperature(step.weather.day_temp, step.weather.day_feels_like),
+        temp_str=_format_temperature(step.weather.day.temp, step.weather.day.feels_like),
         temp_night_str=(
-            _format_temperature(step.weather.night_temp, step.weather.night_feels_like)
+            _format_temperature(step.weather.night.temp, step.weather.night.feels_like)
+            if step.weather.night
+            else ""
         ),
         altitude_str=f"{round(step.altitude):,}",
         progress_percent=progress,
@@ -173,11 +224,10 @@ def _format_temperature(temp: float, feels_like: float) -> str:
     return f"{int(temp)}°"
 
 
-def build_overview_template_ctx(
+def _build_overview_template_ctx(
     steps: Sequence[Step],
-    layout: AlbumLayout,
+    layouts: dict[int, StepLayout],
     segments: list[Segment],
-    home_location: tuple[Location, str],
 ) -> OverviewTemplateCtx:
     countries = {
         step.location.country: settings.flag_cdn_url.format(
@@ -194,7 +244,7 @@ def build_overview_template_ctx(
 
     photo_count = sum(
         sum(len(page.photos) for page in step_layout.pages)
-        for step_layout in layout.steps.values()
+        for step_layout in layouts.values()
         if step_layout.id in [step.id for step in steps]
     )
 
@@ -204,26 +254,4 @@ def build_overview_template_ctx(
         total_days=f"{(steps[-1].date - steps[0].date).days + 1:,}",
         step_count=f"{len(steps):,}",
         photo_count=f"{photo_count:,}",
-        furthest_point=_furthest_point(steps, home_location),
-    )
-
-
-def _furthest_point(
-    steps: Sequence[Step],
-    home_location: tuple[Location, str],
-) -> FurthestPointCtx:
-    home_loc, home_name = home_location
-    max_dist = 0.0
-    furthest_step: Step = steps[0]
-
-    for step in steps:
-        dist = distance((home_loc.lat, home_loc.lon), (step.location.lat, step.location.lon)).km
-        if dist > max_dist:
-            max_dist = dist
-            furthest_step = step
-
-    return FurthestPointCtx(
-        home_name=home_name,
-        furthest_name=furthest_step.name,
-        distance_km=f"{round(max_dist):,}",
     )

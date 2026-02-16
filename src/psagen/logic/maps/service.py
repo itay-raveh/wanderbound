@@ -1,17 +1,16 @@
-"""Main map service entry point."""
-
 from __future__ import annotations
 
 import asyncio
 from asyncio.locks import Lock
 from typing import TYPE_CHECKING
 
+from geopandas import read_file  # pyright: ignore[reportUnknownVariableType]
 from pyproj import Transformer
 
 from psagen.core.cache import async_cache
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.models.trip import Map
+from psagen.models.enrich import Map
 
 from .generator import generate_geo_calibrated_svg
 
@@ -54,13 +53,11 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
     if _ne_data is not None:
         return _ne_data
 
-    from geopandas import read_file  # noqa: PLC0415
-
     geojson_file = settings.cache_dir / _NE_GEOJSON
 
     if geojson_file.exists():
         try:
-            _ne_data = await asyncio.to_thread(read_file, geojson_file)
+            _ne_data = await asyncio.to_thread(read_file, geojson_file)  # pyright: ignore[reportUnknownArgumentType]
         except Exception as e:  # noqa: BLE001
             logger.warning("Cached map data corrupt, re-downloading: %s", e)
         else:
@@ -71,7 +68,7 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
     content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
     await asyncio.to_thread(geojson_file.write_bytes, content)
 
-    _ne_data = await asyncio.to_thread(read_file, geojson_file)
+    _ne_data = await asyncio.to_thread(read_file, geojson_file)  # pyright: ignore[reportUnknownArgumentType]
     return _ne_data
 
 

@@ -1,157 +1,124 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/icon?family=Material+Icons");
 
-/* 
- * NOTE: CSS Variables are injected by Javascript/NiceGUI at runtime 
- * to ensure consistency with Python theme constants.
- * See: psagen/ui/theme.py
- */
+:root {
+    --bg-card: #1a1a2e;
+    --bg-input: #252540;
+    --accent_hover: #6bb3ff;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+    --border: #374151;
+}
 
 body {
-  background: var(--bg-dark);
-  color: var(--text);
-  overflow: hidden;
-  font-family:
-    "Inter",
-    "Segoe UI",
-    system-ui,
-    -apple-system,
-    sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 /* Cards */
 .q-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
 }
 
 /* Inputs */
 .q-field--outlined .q-field__control {
-  border-color: var(--border);
-  background: var(--bg-input);
-  border-radius: 8px;
+    border-color: var(--border);
+    background: var(--bg-input);
+    border-radius: 8px;
 }
+
 .q-field--outlined .q-field__control:hover {
-  border-color: var(--accent);
+    /*border-color: var(--accent);*/
 }
+
 .q-field__label {
-  color: var(--text-muted);
+    color: var(--text-muted);
 }
 
 /* Buttons */
 .q-btn--standard {
-  border-radius: 8px;
+    border-radius: 8px;
 }
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent), #3b82f6);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-.btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-hover), #60a5fa);
-}
+
 
 /* Expansions */
 .q-expansion-item {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 8px;
-  background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: var(--bg-input);
 }
+
 .q-expansion-item__container {
-  background: transparent;
+    background: transparent;
 }
+
 .q-item__label {
-  font-weight: 500;
+    font-weight: 500;
 }
 
 /* Upload zone */
 .q-uploader {
-  background: var(--bg-input);
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-}
-.q-uploader:hover {
-  border-color: var(--accent);
+    background: var(--bg-input);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
 }
 
-/* Remove all scrollbars by default */
-.no-scroll {
-  overflow: hidden;
-}
+
 .scroll-y {
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
 }
+
 .scroll-y:hover {
-  scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border) transparent;
 }
+
 .scroll-y::-webkit-scrollbar {
-  width: 4px;
+    width: 4px;
 }
+
 .scroll-y::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
+
 .scroll-y::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
+    background: transparent;
+    border-radius: 2px;
 }
+
 .scroll-y:hover::-webkit-scrollbar-thumb {
-  background: var(--border);
-}
-
-/* Terminal */
-.xterm .xterm-viewport {
-  scrollbar-width: thin;
-}
-.xterm .xterm-viewport::-webkit-scrollbar {
-  width: 6px;
-}
-
-/* Custom Button Styling */
-.custom-btn {
-  border-radius: 8px;
-  font-weight: 600;
-  text-transform: none;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: all 0.2s ease;
-}
-.custom-btn:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-.btn-generate {
-  background: linear-gradient(135deg, var(--accent), #2563eb);
+    background: var(--border);
 }
 
 /* Custom Upload Styling */
-.custom-upload .q-uploader__header {
-  background: transparent;
-  color: var(--text-muted);
+.q-uploader__header {
+    background: transparent;
+    color: var(--text-muted);
 }
-.custom-upload .q-uploader__list {
-  background: transparent;
-  padding: 0;
+
+.q-uploader__list {
+    background: transparent;
+    padding: 0;
 }
-.custom-upload {
-  background: var(--bg-input);
-  border: 1px dashed var(--border);
-  box-shadow: none;
+
+.q-uploader {
+    background: var(--bg-input);
+    border: 1px dashed var(--border);
+    box-shadow: none;
 }
-.custom-upload:hover {
-  border-color: var(--accent);
-  background: rgba(74, 158, 255, 0.05);
+
+.q-uploader:hover {
+    background: rgba(74, 158, 255, 0.05);
 }
 
 /* Remove padding from main page container specifically (NiceGUI default) */
 .nicegui-content {
-  padding: 0;
-  margin: 0;
+    padding: 0;
+    margin: 0;
 }

@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from psagen.logic.segments import Segment
 from psagen.models.layout import PageLayout
-from psagen.models.segments import Segment
 
 
 class StepTemplateCtx(BaseModel):
@@ -41,17 +41,10 @@ class StepTemplateCtx(BaseModel):
 class TripTemplateCtx(BaseModel):
     title: str
     dates: str
-    subtitle: str | None
+    subtitle: str
     cover: str | None
     back_cover: str | None
     segments: list[Segment]
-    main_map_segments: list[Segment]
-
-
-class FurthestPointCtx(BaseModel):
-    home_name: str
-    furthest_name: str
-    distance_km: str
 
 
 class OverviewTemplateCtx(BaseModel):
@@ -60,7 +53,6 @@ class OverviewTemplateCtx(BaseModel):
     total_days: str
     step_count: str
     photo_count: str
-    furthest_point: FurthestPointCtx
 
 
 class MapTemplateCtx(BaseModel):

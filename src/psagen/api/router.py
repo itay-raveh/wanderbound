@@ -2,11 +2,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import FileResponse
+from nicegui import app
 from pydantic import BaseModel
 
-from psagen.core.session import SESSIONS_DIR, get_session_id
-from psagen.logic.generator import AlbumService, get_album_service
+from psagen.logic.album import Album
 from psagen.models.layout import StepLayout
+from psagen.models.user import TripName, User, get_user
 
 api_router = APIRouter()
 
@@ -26,54 +27,47 @@ class LayoutRequest(BaseModel):
     updates: list[StepLayout]
 
 
-Service = Annotated[AlbumService, Depends(get_album_service, use_cache=False)]
+ALBUMS: dict[TripName, Album] = {}
+
+DependsUser = Annotated[User, Depends(get_user)]
+
+
+def get_current_album(user: DependsUser) -> Album:
+    return ALBUMS[user.selected_trip]  # pyright: ignore[reportArgumentType]
+
+
+DependsAlbum = Annotated[Album, Depends(get_current_album, use_cache=False)]
 
 
 @api_router.post("/cover")
-async def handle_cover(cover_request: CoverRequest, service: Service) -> None:
-    await service.update_cover(cover_request.id, cover_request.cover)
+async def handle_cover(cover_request: CoverRequest, album: DependsAlbum) -> None:
+    await album.update_cover(cover_request.id, cover_request.cover)
 
 
 @api_router.post("/video")
-async def handle_video(video_request: VideoUpdateRequest, service: Service) -> None:
-    await service.update_video_timestamp(
-        video_request.id, video_request.src, video_request.timestamp
-    )
+async def handle_video(video_request: VideoUpdateRequest, album: DependsAlbum) -> None:
+    await album.update_video_timestamp(video_request.id, video_request.src, video_request.timestamp)
 
 
 @api_router.post("/layout")
-async def handle_layout(layout_request: LayoutRequest, service: Service) -> None:
-    await service.update_layout(layout_request.updates)
+async def handle_layout(layout_request: LayoutRequest, album: DependsAlbum) -> None:
+    await album.update_layout(layout_request.updates)
 
 
-@api_router.get("/session/{session_id}/assets/{file_path:path}")
-async def serve_session_asset(session_id: str, file_path: str) -> FileResponse:
-    """Serve files from a user's session directory securely.
-
-    Validates:
-    - Session ID matches current user's session
-    - Path doesn't escape session directory (no traversal)
-    - File exists
-    """
-    # Validate session ownership
-    current_session = get_session_id()
-    if session_id != current_session:
-        raise HTTPException(status_code=403, detail="Access denied: wrong session")
-
-    # Build and validate path
-    session_dir = SESSIONS_DIR / session_id
-    requested_path = (session_dir / file_path).resolve()
+@app.get("/trip/{path:path}")
+async def serve_asset(path: str, user: DependsUser) -> Response:
+    file = user.trips_folder / path
 
     # Prevent path traversal (ensure path is within session dir)
     try:
-        requested_path.relative_to(session_dir.resolve())
+        file.resolve()
     except ValueError:
         raise HTTPException(  # noqa: B904
             status_code=403, detail="Access denied: path traversal detected"
         )
 
     # Check file exists
-    if not requested_path.is_file():
+    if not file.is_file():
         return Response(content="File not found", media_type="text/plain", status_code=404)
 
-    return FileResponse(requested_path)
+    return FileResponse(file)

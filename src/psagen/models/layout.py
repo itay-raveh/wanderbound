@@ -45,7 +45,3 @@ class StepLayout(BaseModel):
     cover: Path
     pages: list[PageLayout]
     hidden_photos: list[Path]
-
-
-class AlbumLayout(BaseModel):
-    steps: dict[int, StepLayout]

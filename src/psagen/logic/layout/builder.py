@@ -6,11 +6,7 @@ from itertools import combinations
 from pathlib import Path
 
 from psagen.core.logger import get_logger
-from psagen.logic.media import load_photo, load_video
-from psagen.models.layout import PageLayout, Photo, StepLayout, Video
-from psagen.models.trip import Step
-
-from .strategies import (
+from psagen.logic.layout.strategies import (
     FourLandscapesStrategy,
     LayoutStrategy,
     OneLandscapeStrategy,
@@ -19,6 +15,9 @@ from .strategies import (
     ThreePortraitsStrategy,
     TwoPortraitsStrategy,
 )
+from psagen.logic.media import load_photo, load_video
+from psagen.models.layout import PageLayout, Photo, StepLayout, Video
+from psagen.models.trip import Step
 
 logger = get_logger(__name__)
 
@@ -71,10 +70,18 @@ def _build_page_layouts(photos: Iterable[Photo]) -> list[PageLayout]:
     return pages
 
 
+def _select_cover(photos: list[Photo]) -> Photo:
+    portraits = [photo for photo in photos if photo.is_portrait]
+
+    if portraits:
+        return portraits[0]
+
+    return photos[0]
+
+
 async def build_step_layout(
-    step: Step,
     trip_dir: Path,
-    output_dir: Path,
+    step: Step,
 ) -> StepLayout:
     assets_in_folder: list[Video | Photo] = []
 
@@ -82,7 +89,7 @@ async def build_step_layout(
     photo_folder = trip_dir / step.folder_name / "photos"
     if photo_folder.exists():
         assets_in_folder.extend(
-            await asyncio.gather(*(load_photo(path) for path in photo_folder.iterdir()))
+            await asyncio.gather(*(load_photo(trip_dir, path) for path in photo_folder.iterdir()))
         )
 
     # Try select cover
@@ -94,7 +101,7 @@ async def build_step_layout(
     video_folder = trip_dir / step.folder_name / "videos"
     if video_folder.exists():
         videos = await asyncio.gather(
-            *(load_video(path, output_dir) for path in video_folder.iterdir())
+            *(load_video(trip_dir, path) for path in video_folder.iterdir())
         )
         assets_in_folder.extend(videos)
 
@@ -114,12 +121,3 @@ async def build_step_layout(
         pages=pages,
         hidden_photos=[],
     )
-
-
-def _select_cover(photos: list[Photo]) -> Photo:
-    portraits = [photo for photo in photos if photo.is_portrait]
-
-    if portraits:
-        return portraits[0]
-
-    return photos[0]

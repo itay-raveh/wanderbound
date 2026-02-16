@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 
+import cv2
 from PIL import Image, ImageOps
 
 from psagen.core.logger import get_logger
@@ -9,19 +10,16 @@ from psagen.models.layout import Photo, Video
 logger = get_logger(__name__)
 
 
-async def load_photo(path: Path) -> Photo:
-    """Load photo metadata asynchronously (CPU bound, so threaded)."""
-    return await asyncio.to_thread(_load_photo, path)
+async def load_photo(root: Path, path: Path) -> Photo:
+    return await asyncio.to_thread(_load_photo, root, path)
 
 
-def _load_photo(path: Path) -> Photo:
-    path = path.absolute()
-
+def _load_photo(root: Path, path: Path) -> Photo:
     with Image.open(path) as img:
         width, height = ImageOps.exif_transpose(img).size
 
     return Photo(
-        path=path,
+        path=path.relative_to(root),
         width=width,
         height=height,
     )
@@ -30,50 +28,44 @@ def _load_photo(path: Path) -> Photo:
 _DEFAULT_FRAME_TS = 1
 
 
-async def load_video(path: Path, output_dir: Path) -> Video:
-    path = path.absolute()
-
-    frame = frame_path(path, _DEFAULT_FRAME_TS, output_dir)
-    await extract_frame(path, _DEFAULT_FRAME_TS, frame)
-
-    frame = await load_photo(frame)
+async def load_video(root: Path, path: Path) -> Video:
+    frame_path = await extract_frame(root, path, _DEFAULT_FRAME_TS)
+    frame = await load_photo(root, frame_path)
 
     return Video(
         path=frame.path,
         width=frame.width,
         height=frame.height,
-        src=path,
+        src=path.relative_to(root),
         timestamp=_DEFAULT_FRAME_TS,
     )
 
 
-def frame_path(video_path: Path, timestamp: float, output_dir: Path) -> Path:
+async def extract_frame(root: Path, video_path: Path, timestamp: float) -> Path:
+    return await asyncio.to_thread(_extract_frame, root, video_path, timestamp)
+
+
+def _extract_frame(root: Path, video_path: Path, timestamp: float) -> Path:
     ts_str = f"{timestamp:.3f}".replace(".", "_")
-    return (output_dir / "frames" / f"{video_path.stem}__{ts_str}.jpg").absolute()
+    frame = root / "zz_frames" / f"{video_path.stem}__{ts_str}.png"
 
-
-async def extract_frame(video: Path, timestamp: float, frame: Path) -> None:
-    """Extract a single frame from the video at the given timestamp using OpenCV asynchronously."""
     if frame.exists():
-        return
+        return frame
 
     frame.parent.mkdir(parents=True, exist_ok=True)
 
-    def run() -> None:
-        import cv2  # noqa: PLC0415
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open video: {video_path}")
 
-        cap = cv2.VideoCapture(str(video))
-        if not cap.isOpened():
-            raise RuntimeError(f"Failed to open video: {video}")
+    cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
 
-        cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+    success, img = cap.read()
+    cap.release()
 
-        success, img = cap.read()
-        cap.release()
+    if not success:
+        raise RuntimeError(f"Failed to extract frame at {timestamp}s from {video_path}")
 
-        if not success:
-            raise RuntimeError(f"Failed to extract frame at {timestamp}s from {video}")
+    cv2.imwrite(str(frame), img)
 
-        cv2.imwrite(str(frame), img)
-
-    await asyncio.to_thread(run)
+    return frame

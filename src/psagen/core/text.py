@@ -13,10 +13,7 @@ def choose_text_dir(text: str) -> str:
     ]
     return (
         "rtl"
-        if any(
-            any(start <= char <= end for start, end in rtl_ranges)
-            for char in text
-        )
+        if any(any(start <= char <= end for start, end in rtl_ranges) for char in text)
         else "ltr"
     )
 
