@@ -6,7 +6,7 @@ import functools
 import inspect
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, overload
 
 import diskcache
 
@@ -29,19 +29,8 @@ def get_cache() -> diskcache.Cache:
     return _cache
 
 
-def _make_cache_key(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
-    """Create a cache key from function name and arguments."""
-
-    # Round coordinates to 2 decimal places (~1.1km precision) for location-based caching
-    def normalize(v: Any) -> Any:
-        if isinstance(v, float):
-            return round(v, 2)
-        return v
-
-    normalized_args = tuple(normalize(a) for a in args)
-    normalized_kwargs = {k: normalize(v) for k, v in sorted(kwargs.items())}
-    # noinspection PyUnresolvedReferences
-    return f"{func.__module__}.{func.__qualname__}:{normalized_args}:{normalized_kwargs}"
+def _make_cache_key[**P, R](func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> str:
+    return f"{func.__qualname__}:{args}:{kwargs}"
 
 
 _force_update: ContextVar[bool] = ContextVar("force_update", default=False)
@@ -73,7 +62,7 @@ def async_cache[**P, T](
     @functools.wraps(func)
     async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         cache = get_cache()
-        key = _make_cache_key(func, args, kwargs)
+        key = _make_cache_key(func, *args, **kwargs)
 
         if not _force_update.get():
             cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]
@@ -90,7 +79,7 @@ def async_cache[**P, T](
     @functools.wraps(func)
     def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         cache = get_cache()
-        key = _make_cache_key(func, args, kwargs)
+        key = _make_cache_key(func, *args, **kwargs)
 
         if not _force_update.get():
             cached: T | None = cache.get(key, default=None)  # pyright: ignore[reportAssignmentType]

@@ -8,9 +8,9 @@ from cairosvg import svg2png
 from PIL import Image
 
 from psagen.core.cache import async_cache
+from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.logic.client import APIClient
 from psagen.models.enrich import Flag
 
 logger = get_logger(__name__)
@@ -114,9 +114,7 @@ def _find_best_color(flag_data: bytes) -> RGB:
 
 @async_cache
 async def fetch_flag(client: APIClient, country_code: str) -> Flag:
-    svg_data = await client.get_content(
-        settings.flag_cdn_url.format(country_code=country_code.lower())
-    )
+    svg_data = await client.get(settings.flag_cdn_url.format(country_code=country_code.lower()))
 
     async with _COLOR_LOCK:
         r, g, b = await asyncio.to_thread(_find_best_color, svg_data)

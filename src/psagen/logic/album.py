@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
+from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.logic.altitude import fetch_all_altitudes
-from psagen.logic.client import APIClient
 from psagen.logic.flags import fetch_flag
 from psagen.logic.layout.builder import build_step_layout, try_build_layout
 from psagen.logic.maps import fetch_map

@@ -1,4 +1,3 @@
-"""Shared utilities for services: API client and helpers."""
 # pyright: reportAny=false, reportExplicitAny=false
 
 from types import TracebackType
@@ -7,7 +6,6 @@ from typing import Any, Self
 import aiohttp
 from tenacity import (
     retry,
-    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -47,31 +45,15 @@ class APIClient:
     def __getstate__(self) -> None:
         """Return None state for pickling to ensure constant cache key."""
 
-    async def get_json(self, url: str, params: dict[str, str] | None = None) -> dict[str, Any]:
-        """Fetch JSON data with rate limiting and retries."""
-        return dict(await self._fetch(url, params=params, response_type="json"))
-
-    async def get_content(self, url: str, params: dict[str, Any] | None = None) -> bytes:
-        """Fetch binary content with rate limiting and retries."""
-        return bytes(await self._fetch(url, params=params, response_type="content"))
-
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception(
-            lambda exc: (
-                (isinstance(exc, aiohttp.ClientResponseError) and exc.status >= 500)
-                or isinstance(exc, aiohttp.ClientError)
-            )
-        ),
         reraise=True,
     )
-    async def _fetch(self, url: str, params: dict[str, Any] | None, response_type: str) -> Any:
+    async def get(self, url: str, params: dict[str, Any] | None = None) -> bytes:
         try:
             async with self._client.get(url, params=params) as response:
                 response.raise_for_status()
-                if response_type == "json":
-                    return await response.json()
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             logger.warning(

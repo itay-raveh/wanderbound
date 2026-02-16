@@ -7,9 +7,9 @@ import aiohttp
 from pydantic import BaseModel
 
 from psagen.core.cache import async_cache
+from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.logic.client import APIClient
 from psagen.models.enrich import Weather, WeatherData
 from psagen.models.trip import Step
 
@@ -57,7 +57,7 @@ def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
 @async_cache
 async def _fetch_weather(client: APIClient, lat: float, lon: float, date: datetime) -> Weather:
     response = WeatherApiResponse.model_validate_json(
-        await client.get_content(
+        await client.get(
             settings.visual_crossing_api_url.format(
                 lat=lat,
                 lon=lon,

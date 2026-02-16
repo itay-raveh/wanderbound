@@ -25,7 +25,7 @@ class User:
 
 
 def get_user() -> User:
-    return User(**app.storage.user)
+    return User(**app.storage.user)  # pyright: ignore[reportUnknownArgumentType]
 
 
 def set_user(user: User) -> None:

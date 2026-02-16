@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
     import geopandas as gpd
 
-    from psagen.logic.client import APIClient
+    from psagen.core.client import APIClient
 
 logger = get_logger(__name__)
 
@@ -65,7 +65,7 @@ async def _load_natural_earth_data(client: APIClient) -> gpd.GeoDataFrame:
 
     logger.info("Downloading Natural Earth 50m data...")
 
-    content = await client.get_content(settings.natural_earth_geojson_url + _NE_GEOJSON)
+    content = await client.get(settings.natural_earth_geojson_url + _NE_GEOJSON)
     await asyncio.to_thread(geojson_file.write_bytes, content)
 
     _ne_data = await asyncio.to_thread(read_file, geojson_file)  # pyright: ignore[reportUnknownArgumentType]

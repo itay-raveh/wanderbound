@@ -32,9 +32,10 @@ class PydanticForm:
     ready = BindableProperty()
 
     def __init__(self) -> None:
-        self._elem = ui.element()
         self.instance = None
         self.ready = True
+
+        self._elem = ui.element()
         self._errors = set[str]()
 
     def _on_value_change(self, name: str, inp: ui.input) -> None:

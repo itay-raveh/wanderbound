@@ -37,6 +37,7 @@ dependencies = [
     "diskcache",
     "pyproj",
     "nicegui",
+    "fastapi",
     "opencv-python-headless",
     "cairosvg",
 ]
@@ -44,7 +45,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff",
-    "ty",
     "basedpyright",
     "deptry",
     "djlint",
@@ -65,9 +65,9 @@ module-root = "src"
 [tool.taskipy.tasks]
 format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
-types = "ty check && basedpyright"
+types = "basedpyright"
 deps = "deptry ."
-html = "djlint static/*.jinja static/templates/*.jinja --lint --reformat"
+html = "djlint src/psagen/static/**/*.jinja src/psagen/static/*.jinja  --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
 
 [tool.ruff]
@@ -81,15 +81,10 @@ ignore = [
     "D213", # Multi-line docstring summary at second line (conflicts with D212)
     "COM812", # Missing trailing comma (conflicts with formatter)
     "ISC001", # Single line implicit string concatenation (conflicts with formatter)
-    "FIX002", # Fails if "TODO" is present (blocks development too hard)
-    "TD003", # Missing issue link for TODO (too bureaucratic)
     "EM101", # Exception must not use a string literal
     "EM102", # Exception must not use an f-string literal
     "PLR2004", # Magic numbers - many are acceptable (HTTP codes, common values)
     "TRY003", # Long exception messages - acceptable for user-facing errors
-    "TRY400",
-    "ANN401", # Any types - acceptable for generic cache functions
-    "S324", # MD5 hash - acceptable for non-cryptographic use (color selection)
     "D100", # Missing docstring in public module
     "D101", # Missing docstring in public class
     "D102", # Missing docstring in public method
@@ -99,7 +94,6 @@ ignore = [
     "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
     "D401",
-    "RUF017",
 ]
 
 [tool.ruff.lint.isort]
@@ -107,8 +101,6 @@ combine-as-imports = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
-
-[tool.ty]
 
 [tool.pyright]
 reportUnusedCallResult = false
@@ -128,6 +120,8 @@ DEP002 = [
     "deptry",
     "djlint",
 ]
+# DEP003 = "Transitive dependency"
+DEP003 = ["psagen"]
 
 [tool.djlint]
 profile = "jinja"
