@@ -29,31 +29,27 @@ def _make_input_validation[T](field: FieldInfo) -> ValidationFunction:
 
 class PydanticForm:
     instance = BindableProperty(on_change=lambda sender, value: cast("Self", sender)._render(value))  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]  # noqa: SLF001
-    ready = BindableProperty()
+    errors = BindableProperty()
 
     def __init__(self) -> None:
         self.instance = None
-        self.ready = True
-
-        self._elem = ui.element()
-        self._errors = set[str]()
+        self.elem = ui.element()
+        self.errors = set[str]()
 
     def _on_value_change(self, name: str, inp: ui.input) -> None:
         if inp.validate():
             setattr(self.instance, name, inp.value)  # pyright: ignore[reportAny]
-            self._errors -= {name}
+            self.errors -= {name}
         else:
-            self._errors.add(name)
-
-        self.ready = len(self._errors) == 0
+            self.errors.add(name)
 
     def _render(self, instance: BaseModel | None) -> None:
-        self._elem.clear()
+        self.elem.clear()
 
         if not instance:
             return
 
-        with self._elem:
+        with self.elem:
             for name, field in instance.__class__.model_fields.items():
                 if field.annotation is None:
                     continue
@@ -62,7 +58,7 @@ class PydanticForm:
                     value=str(getattr(instance, name)),  # pyright: ignore[reportAny]
                     label=name.replace("_", " ").title(),
                     validation=_make_input_validation(field),
-                ).classes("w-full rounded-lg")
+                ).classes("w-full")
 
                 inp.on_value_change(partial(self._on_value_change, name, inp))
 

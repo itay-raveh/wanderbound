@@ -1,25 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FA504D;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#FF8C61;stop-opacity:1" />
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a9eff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3d8bd4;stop-opacity:1" />
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
-      <feOffset dx="0" dy="4" result="offsetblur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.3"/>
-      </feComponentTransfer>
-      <feMerge> 
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/> 
-      </feMerge>
-    </filter>
   </defs>
+  
+  <!-- Book Cover/Backing -->
+  <rect x="40" y="80" width="432" height="352" rx="20" ry="20" fill="#252540" />
+  
+  <!-- Pages -->
+  <path d="M256 100 L60 100 Q40 100 40 120 L40 412 Q40 432 60 432 L256 432 Z" fill="#e5e7eb" />
+  <path d="M256 100 L452 100 Q472 100 472 120 L472 412 Q472 432 452 432 L256 432 Z" fill="#f3f4f6" />
+  
+  <!-- Center Fold/Spine -->
+  <rect x="254" y="100" width="4" height="332" fill="#d1d5db" />
 
-  <!-- Background: Simple Rounded Square (Brand Color) -->
-  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#brandGradient)" filter="url(#shadow)"/>
+  <!-- Left Page: Photos -->
+  <rect x="70" y="130" width="150" height="100" rx="4" fill="#4a9eff" opacity="0.2" />
+  <rect x="80" y="140" width="130" height="80" rx="2" fill="#4a9eff" />
+  
+  <rect x="70" y="250" width="70" height="70" rx="4" fill="#ffd700" opacity="0.2" />
+  <rect x="78" y="258" width="54" height="54" rx="2" fill="#ffd700" />
+  
+  <rect x="150" y="250" width="70" height="70" rx="4" fill="#ff007f" opacity="0.2" />
+  <rect x="158" y="258" width="54" height="54" rx="2" fill="#ff007f" />
 
-  <!-- Icon: Bold White Location Pin (High Contrast) -->
-  <path d="M256 96c-70.7 0-128 57.3-128 128 0 88.3 128 224 128 224s128-135.7 128-224c0-70.7-57.3-128-128-128zm0 176c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48z" fill="white"/>
+  <!-- Right Page: Map Route -->
+  <circle cx="300" cy="350" r="8" fill="#4a9eff" />
+  <circle cx="420" cy="180" r="8" fill="#c10015" />
+  
+  <!-- Dotted Route Line -->
+  <path d="M300 350 Q 320 250, 360 280 T 420 180" fill="none" stroke="#252540" stroke-width="4" stroke-dasharray="8,6" stroke-linecap="round" />
+  
+  <!-- Location Pin on Top Right -->
+  <path d="M420 180 L420 150 M405 165 L435 165" stroke="none" /> <!-- Spacer -->
+  <circle cx="420" cy="180" r="4" fill="white" />
+  
 </svg>

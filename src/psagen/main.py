@@ -16,6 +16,7 @@ from psagen.core.settings import settings
 from psagen.logic.album import Album
 from psagen.models.config import AlbumConfig, AlbumSettings
 from psagen.models.user import TripName, User, get_user, set_user
+from psagen.ui.dialog import create_log_dialog
 from psagen.ui.form import PydanticForm
 from psagen.ui.preview import (
     create_layout_editor_panel,
@@ -91,11 +92,44 @@ async def handle_zip_upload(event: UploadEventArguments) -> None:
 @ui.page("/register")
 async def register_page() -> None:
     ui.on_exception(handle_exception)
-    ui.upload(
-        label="Upload your Polarsteps `user_data.zip` file",
-        on_upload=handle_zip_upload,
-        auto_upload=True,
-    ).props("accept=.zip flat").classes("w-full rounded-lg")
+    ui.add_css(settings.static_dir / "style.css")
+
+    with ui.column().classes(
+        "w-full h-screen items-center justify-center p-4 bg-gradient-to-br from-dark to-black"
+    ):
+        # Hero Section
+        with ui.column().classes("items-center text-center mb-12"):
+            ui.image("/static/icon.svg").classes("w-24 h-24 mb-4 opacity-90")
+            ui.label("Polarsteps Album Generator").classes(
+                "text-4xl font-bold tracking-tight mb-2 text-primary"
+            )
+            ui.label("Turn your adventures into beautiful, printable albums.").classes(
+                "text-xl text-gray-400 font-medium"
+            )
+
+        # Main Card
+        with ui.card().classes(
+            "w-full max-w-2xl p-8 shadow-2xl border-none bg-opacity-50 backdrop-blur-md"
+        ):
+            ui.label("Get Started").classes("text-2xl font-semibold mb-6 text-center w-full")
+
+            with ui.column().classes("gap-4 items-center w-full"):
+                ui.markdown(
+                    "Upload your **Polartsteps Data Export** ZIP file below to begin.<br>"
+                    "<span class='text-sm text-gray-500'>"
+                    "You can export your data from the Polarsteps website settings."
+                    "</span>"
+                ).classes("text-center mb-2")
+
+                ui.upload(
+                    label="Drop your user_data.zip here",
+                    on_upload=handle_zip_upload,
+                    auto_upload=True,
+                ).props("accept=.zip flat color=primary").classes("w-full h-32")
+
+        # Footer
+        with ui.row().classes("mt-12 opacity-50"):
+            ui.label("Designed for travelers").classes("text-sm")
 
 
 CONFIGS: dict[TripName, AlbumConfig] = {}
@@ -108,13 +142,17 @@ def _make_generate_on_click(
         if user.selected_trip is None:
             raise RuntimeError("Impossible")
 
-        async for update in Album.generate(user, CONFIGS[user.selected_trip]):
-            if isinstance(update, Album):
-                update.save()
-                ALBUMS[user.selected_trip] = update
-                break
+        d, log = create_log_dialog("Generating Album...", "auto_awesome")
 
-            ui.notify(update)
+        with d:
+            async for update in Album.generate(user, CONFIGS[user.selected_trip]):
+                if isinstance(update, Album):
+                    update.save()
+                    ALBUMS[user.selected_trip] = update
+                    d.close()
+                    break
+
+                log.push(update)
 
         await load_current_album_html()
 
@@ -138,7 +176,7 @@ async def home() -> None:
 
     try:
         user = get_user()
-    except TypeError:
+    except (TypeError, KeyError):
         ui.navigate.to(register_page)
         return
 
@@ -147,24 +185,40 @@ async def home() -> None:
     # Bind the storage dict to the typed user object
     bind(user, "selected_trip", app.storage.user, "selected_trip")
 
-    with ui.row().classes("w-full h-screen p-4 pb-8 gap-4 "):
+    with ui.row().classes("w-full h-screen p-4 pb-8"):
         # Left: Album Select & Settings
-        with ui.card().classes("w-1/5 h-full p-4 scroll-y"):
-            trip_select = ui.select(
-                value=user.selected_trip,
-                options=user.trip_names,
-                label="Select Trip",
-            ).classes("w-full mt-4")
+        with (
+            ui.card().classes("w-2/7 h-full"),
+            ui.column().classes("size-full justify-between"),
+        ):
+            ui.markdown("## Polarsteps Album Generator")
 
-            generate_btn = ui.button("Generate", icon="play")
+            trip_select = (
+                ui.select(
+                    value=user.selected_trip,
+                    options={name: name[: name.find("_")].title() for name in user.trip_names},
+                )
+                .classes("w-full text-xl font-medium")
+                .props("outlined")
+            )
+
+            ui.separator()
+
             settings_form = PydanticForm()
+            settings_form.elem.classes("size-full p-4")
 
             trip_select.bind_value_to(user, "selected_trip")
             trip_select.bind_value_to(settings_form, "instance", forward=_make_form_forward(user))
-            generate_btn.bind_enabled_from(settings_form, "ready", backward=bool)
 
-        # Right: Layout Editor
-        with ui.card().classes("flex-grow h-full p-4 flex flex-col"):
+            generate_btn = ui.button("Generate Album", icon="auto_awesome").classes(
+                "w-full py-3 text-lg font-bold shadow-lg"
+            )
+            generate_btn.bind_enabled_from(
+                settings_form, "errors", backward=lambda errors: len(errors) == 0
+            )
+
+        # Right: Layout Editor (Preview)
+        with ui.card().classes("flex-grow h-full"):
             load_current_album_html = await create_layout_editor_panel(user)
 
     # Load album on trip select
@@ -177,22 +231,22 @@ async def home() -> None:
 def handle_exception(e: Exception) -> None:
     logger.exception("Unexpected error", exc_info=e)
 
-    with ui.dialog() as d, ui.card().classes("border-red-500 border-2"):
-        with ui.row().classes("items-center gap-2 text-red-400"):
-            ui.icon("error", size="md")
-            ui.label("An unexpected error occurred").classes("text-lg font-bold")
-
-        ui.separator().classes("my-2 bg-red-500 opacity-20")
-        ui.log().classes("my-2 font-mono text-sm bg-black/20 p-2 rounded").push(str(e))
-
-        with ui.row().classes("w-full justify-between items-center mt-2"):
-            ui.button("Close", on_click=d.close).props("flat color=white")
-
-    d.open()
+    # Use the shared dialog component with error styling
+    _, log = create_log_dialog("An unexpected error occurred", "error", color="red-500")
+    log.push(str(e))
 
 
 if __name__ in {"__main__", "__mp_main__"}:
-    app.colors(dar_page="#0f0f1a", accent="#4a9eff", positive="#10b981", warning="#f59e0b")
+    app.colors(
+        primary="#4a9eff",
+        secondary="#ffd700",
+        accent="#ff007f",
+        dark="#1a1a2e",
+        positive="#21ba45",
+        negative="#c10015",
+        info="#31ccec",
+        warning="#f2c037",
+    )
 
     # Mount Static Files
     app.add_static_files("/static", settings.static_dir)
