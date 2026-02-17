@@ -4,8 +4,7 @@ from itertools import pairwise
 from typing import TYPE_CHECKING
 
 from geopy.distance import distance
-from pydantic import BaseModel, field_validator
-from shapely.geometry import LineString
+from pydantic import BaseModel
 
 from psagen.core.cache import async_cache
 from psagen.core.logger import get_logger
