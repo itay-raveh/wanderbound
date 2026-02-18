@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from psagen.logic.album import Album
 from psagen.models.layout import StepLayout
-from psagen.models.user import TripName, User, get_user
+from psagen.models.user import TripName, User
 
 api_router = APIRouter()
 
@@ -29,14 +29,14 @@ class LayoutRequest(BaseModel):
 
 ALBUMS: dict[TripName, Album] = {}
 
-DependsUser = Annotated[User, Depends(get_user)]
+DependsUser = Annotated[User, Depends(User.from_storage)]
 
 
 def get_current_album(user: DependsUser) -> Album:
-    return ALBUMS[user.selected_trip]  # pyright: ignore[reportArgumentType]
+    return ALBUMS[user.selected_trip]
 
 
-DependsAlbum = Annotated[Album, Depends(get_current_album, use_cache=False)]
+DependsAlbum = Annotated[Album, Depends(get_current_album)]
 
 
 @api_router.post("/cover")

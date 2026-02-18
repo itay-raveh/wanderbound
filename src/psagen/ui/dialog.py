@@ -7,7 +7,6 @@ def create_log_dialog(title: str, icon: str, color: str = "primary") -> tuple[ui
             ui.icon(icon, size="md")
             ui.label(title).classes("text-lg font-bold")
 
-        ui.separator().classes(f"my-2 bg-{color} opacity-20")
         log = ui.log().classes("w-full h-48 bg-black/20 font-mono text-sm p-2 rounded")
 
         with ui.row().classes("w-full justify-end mt-2"):

@@ -83,14 +83,14 @@ class SliceList(RootModel[list[Slice]]):
 
 
 class AlbumSettings(BaseModel, validate_assignment=True):
-    steps_ranges: SliceList = Field(description="Step ranges to include", examples=["1-5, 8"])
+    steps_ranges: SliceList = Field(examples=["1-5, 8"])
     title: str
-    subtitle: str
+    subtitle: str | None = None
     front_cover_photo: str
     back_cover_photo: str
     maps_ranges: SliceList = Field(
         default_factory=lambda: SliceList([]),
-        description="Ranges of steps for which to add a additional maps",
+        description="Ranges of steps for which to add additional maps",
         examples=["1-5, 8"],
     )
 

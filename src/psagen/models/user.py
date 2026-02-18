@@ -1,5 +1,6 @@
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Self
 
 from nicegui import app
 from nicegui.binding import bindable_dataclass
@@ -9,11 +10,11 @@ from psagen.core.settings import settings
 type TripName = str
 
 
-@bindable_dataclass
+@(dataclass if TYPE_CHECKING else bindable_dataclass)
 class User:
     id: str
     trip_names: list[TripName]
-    selected_trip: TripName | None = None
+    selected_trip: TripName
 
     @property
     def folder(self) -> Path:
@@ -23,10 +24,10 @@ class User:
     def trips_folder(self) -> Path:
         return self.folder / "trip"
 
+    @classmethod
+    def from_storage(cls) -> Self:
+        return cls(**app.storage.user)  # pyright: ignore[reportUnknownArgumentType]
 
-def get_user() -> User:
-    return User(**app.storage.user)  # pyright: ignore[reportUnknownArgumentType]
-
-
-def set_user(user: User) -> None:
-    app.storage.user.update(asdict(user))
+    def store(self) -> None:
+        # noinspection PyTypeChecker,PyDataclass
+        app.storage.user.update(asdict(self))

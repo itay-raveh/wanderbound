@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 import zipfile
+from functools import partial
 from io import BytesIO
 from typing import TYPE_CHECKING, cast
 
 from nicegui import app, ui
-from nicegui.binding import bind
-from nicegui.elements.upload_files import FileUpload, LargeFileUpload
+from nicegui.elements.upload_files import LargeFileUpload
 from nicegui.storage import request_contextvar
 
 from psagen.api.router import ALBUMS, api_router
@@ -15,12 +16,10 @@ from psagen.core.logger import get_logger
 from psagen.core.settings import settings
 from psagen.logic.album import Album
 from psagen.models.config import AlbumConfig, AlbumSettings
-from psagen.models.user import TripName, User, get_user, set_user
+from psagen.models.user import TripName, User
 from psagen.ui.dialog import create_log_dialog
 from psagen.ui.form import PydanticForm
-from psagen.ui.preview import (
-    create_layout_editor_panel,
-)
+from psagen.ui.preview import try_load_current_album_html
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -30,63 +29,65 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-async def extract_zip_upload(user: User, upload: FileUpload) -> list[str]:
-    logger.info("Extracting %d MB zip upload", upload.size() / 1024 // 1024)
+def _trips_with_labels(trip_names: list[TripName]) -> dict[TripName, str]:
+    return {name: name[: name.find("_")].title() for name in trip_names}
+
+
+def _trip_select_for(user: User) -> ui.select:
+    return (
+        ui.select(_trips_with_labels(user.trip_names), value=user.selected_trip)
+        .classes("w-full text-xl font-medium")
+        .props("standout")
+        .bind_value_to(user, "selected_trip")
+        .bind_value_to(app.storage.user, "selected_trip")
+    )
+
+
+async def _handle_zip_upload(
+    user: User, trip_select: ui.select, event: UploadEventArguments
+) -> None:
+    logger.info("Extracting %s: %d MB", event.file.name, event.file.size() / 1024 // 1024)
 
     # noinspection PyProtectedMember
-    file = upload._path if isinstance(upload, LargeFileUpload) else BytesIO(upload._data)  # noqa: SLF001  # pyright: ignore[reportUnknownArgumentType, reportAttributeAccessIssue, reportUnknownMemberType]
+    file = (
+        event.file._path if isinstance(event.file, LargeFileUpload) else BytesIO(event.file._data)  # noqa: SLF001  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
+    )
 
+    remove_target = user.folder
+    loading = ui.notification("Extracting trips...", type="ongoing", spinner=True)
     try:
-        # Extract from disk
         with zipfile.ZipFile(file, "r") as zf:
-            # Validate it's a Polarsteps export (should have trip.json files)
-            file_list = zf.namelist()
-            trip_jsons = [f for f in file_list if f.endswith("trip.json")]
-            if not trip_jsons:
-                msg = "Invalid Polarsteps export: no trip.json files found"
-                raise ValueError(msg)
+            await asyncio.to_thread(zf.extractall, user.folder)
 
-            def extract_to_trip_dir() -> None:
-                for filename in file_list:
-                    if filename.startswith("trip/"):
-                        zf.extract(filename, user.folder)
+        user.trip_names = [path.name for path in user.trips_folder.iterdir()]
+        trip_select.set_options(_trips_with_labels(user.trip_names))  # pyright: ignore[reportUnknownMemberType]
 
-            # Extract to trips directory
-            await asyncio.to_thread(extract_to_trip_dir)
+        msg = f"Found {len(user.trip_names)} trip(s)"
+        logger.info(msg)
+        ui.notify(msg, type="positive")
 
-    except zipfile.BadZipFile as e:
-        msg = f"Invalid zip file: {e}"
-        raise ValueError(msg) from e
-
-    trip_names = [path.name for path in user.trips_folder.iterdir()]
-    logger.info("Extracted %d trips from upload: %s", len(trip_names), ", ".join(trip_names))
-
-    return trip_names
-
-
-async def handle_zip_upload(event: UploadEventArguments) -> None:
-    loading = ui.notification("Extracting...", type="ongoing", spinner=True)
-
-    request = request_contextvar.get()
-    if request is None:
-        # Something is wrong with the cookie, let's reload
-        ui.navigate.reload()
-        return
-
-    user = User(id=request.session["id"], trip_names=[])  # pyright: ignore[reportAny]
-    user.folder.mkdir(parents=True, exist_ok=True)
-
-    try:
-        user.trip_names = await extract_zip_upload(user, event.file)
-    except ValueError as e:
-        loading.dismiss()
-        ui.notify(str(e), type="negative")
+        remove_target = user.folder / "user"
+    except (zipfile.BadZipFile, FileNotFoundError):
+        msg = f"'{event.file.name}' is a corrupted file or is not a Polarsteps export"
+        ui.notify(msg, type="negative")
         cast("ui.upload", event.sender).reset()
-    else:
+    finally:
         loading.dismiss()
-        set_user(user)
-        ui.notify(f"Found {len(user.trip_names)} trip(s)", type="positive")
-        ui.navigate.to(home)
+        if remove_target.exists():
+            # noinspection PyTypeChecker
+            await asyncio.to_thread(shutil.rmtree, remove_target)
+
+
+_POLARSTEPS_EXPORT_INSTRUCTIONS = """
+### Download a copy of your Polarsteps data:
+
+- Log in at [Polarsteps](https://www.polarsteps.com) using a laptop or desktop computer.
+- Click on your name on the top right of the page and select **Account settings**.
+- Scroll down to **Download my data** in the privacy section.
+- Click the blue link to **Download a copy of your data**.
+- Click **Start My Archive**.
+- You will receive an email with a link to download a file with your data.
+"""
 
 
 @ui.page("/register")
@@ -94,46 +95,70 @@ async def register_page() -> None:
     ui.on_exception(handle_exception)
     ui.add_css(settings.static_dir / "style.css")
 
+    request = request_contextvar.get()
+    if request is None:
+        # Client is not connected, let's reload
+        ui.navigate.reload()
+        return
+
+    # Create an illegal empty user so we can use the `.folder` method etc.
+    user = User(id=cast("str", request.session["id"]), trip_names=[], selected_trip=None)  # pyright: ignore[reportArgumentType]
+
+    if user.folder.exists():
+        # noinspection PyTypeChecker
+        await asyncio.to_thread(shutil.rmtree, user.folder)
+
     with ui.column().classes(
         "w-full h-screen items-center justify-center p-4 bg-gradient-to-br from-dark to-black"
     ):
         # Hero Section
         with ui.column().classes("items-center text-center mb-12"):
-            ui.image("/static/icon.svg").classes("w-24 h-24 mb-4 opacity-90")
-            ui.label("Polarsteps Album Generator").classes(
-                "text-4xl font-bold tracking-tight mb-2 text-primary"
-            )
+            with ui.row().classes("items-center"):
+                ui.image("/static/icon.svg").classes("size-24")
+                ui.label("Polarsteps Album Generator").classes(
+                    "text-4xl font-bold tracking-tight mb-2 text-primary"
+                )
             ui.label("Turn your adventures into beautiful, printable albums.").classes(
                 "text-xl text-gray-400 font-medium"
             )
 
-        # Main Card
-        with ui.card().classes(
-            "w-full max-w-2xl p-8 shadow-2xl border-none bg-opacity-50 backdrop-blur-md"
+        with (
+            ui.dialog().props('backdrop-filter="blur(6px)"') as d,
+            ui.card().classes("p-8 max-w-2xl w-full flex items-center"),
         ):
-            ui.label("Get Started").classes("text-2xl font-semibold mb-6 text-center w-full")
+            ui.markdown(_POLARSTEPS_EXPORT_INSTRUCTIONS, sanitize=False)
 
-            with ui.column().classes("gap-4 items-center w-full"):
-                ui.markdown(
-                    "Upload your **Polartsteps Data Export** ZIP file below to begin."
-                ).classes("text-center mb-2")
+        with ui.card().classes("w-full max-w-2xl p-12 backdrop-blur-md items-center"):
+            with ui.row().classes("items-center"):
+                ui.markdown("Upload your **user_data.zip** to begin").classes(
+                    "text-2xl text-center"
+                )
+                ui.button(icon="help_outline", color=None, on_click=d.open).props("flat dense")
 
-                ui.upload(
-                    on_upload=handle_zip_upload,
-                    auto_upload=True,
-                ).props("accept=.zip flat color=primary").classes("w-full h-32")
+            upload = ui.upload(auto_upload=True).props("accept=.zip flat").classes("w-full h-32")
+
+            trip_select = (
+                _trip_select_for(user)
+                # Once we have trips, allow the user to select one
+                .bind_enabled_from(user, "trip_names", bool)
+                .on_value_change(user.store)
+            )
+
+            upload.on_upload(partial(_handle_zip_upload, user, trip_select))
+
+            (
+                # Once they do that, allow them to return to the home page
+                ui.button("Let's go!", icon="auto_awesome", on_click=lambda: ui.navigate.to(home))
+                .classes("size-full")
+                .bind_enabled_from(user, "selected_trip", bool)
+            )
 
 
 CONFIGS: dict[TripName, AlbumConfig] = {}
 
 
-def _make_generate_on_click(
-    user: User, load_current_album_html: Callable[[], Awaitable[None]]
-) -> Callable[[], Awaitable[None]]:
+def _make_generate_on_click(user: User, frame: ui.element) -> Callable[[], Awaitable[None]]:
     async def on_click() -> None:
-        if user.selected_trip is None:
-            raise RuntimeError("Impossible")
-
         d, log = create_log_dialog("Generating Album...", "auto_awesome")
 
         with d:
@@ -142,7 +167,7 @@ def _make_generate_on_click(
             )
         d.close()
 
-        await load_current_album_html()
+        await try_load_current_album_html(user, frame)
 
     return on_click
 
@@ -161,59 +186,49 @@ def _make_form_forward(user: User) -> Callable[[TripName | None], AlbumSettings 
 @ui.page("/")
 async def home() -> None:
     ui.on_exception(handle_exception)
+    ui.add_css(settings.static_dir / "style.css")
 
     try:
-        user = get_user()
+        user = User.from_storage()
     except (TypeError, KeyError):
         ui.navigate.to(register_page)
         return
 
-    ui.add_css(settings.static_dir / "style.css")
-
-    # Bind the storage dict to the typed user object
-    bind(user, "selected_trip", app.storage.user, "selected_trip")
+    logger.info("%s", user)
 
     with ui.row().classes("w-full h-screen p-4 pb-8"):
         # Left: Album Select & Settings
-        with (
-            ui.card().classes("w-2/7 h-full"),
-            ui.column().classes("size-full justify-between gap-0"),
-        ):
-            trip_select = (
-                ui.select(
-                    value=user.selected_trip,
-                    options={name: name[: name.find("_")].title() for name in user.trip_names},
-                )
-                .classes("w-full text-xl font-medium")
-                .props("outlined")
-            )
+        with ui.card().classes("w-2/7 h-full justify-between"):
+            trip_select = _trip_select_for(user)
 
-            ui.separator().classes("mt-4 mb-4")
+            ui.separator()
 
             settings_form = PydanticForm()
-            settings_form.elem.classes("size-full")
+            settings_form.column.classes("w-full gap-3")
 
-            trip_select.bind_value_to(user, "selected_trip")
-            trip_select.bind_value_to(settings_form, "instance", forward=_make_form_forward(user))
+            ui.separator()
 
             generate_btn = ui.button("Generate Album", icon="auto_awesome").classes(
                 "w-full text-lg font-bold shadow-lg"
             )
-            generate_btn.bind_enabled_from(
-                settings_form,
-                "errors",
-                backward=lambda errors: len(errors) == 0,  # pyright: ignore[reportAny]
-            )
 
         # Right: Layout Editor (Preview)
         with ui.card().classes("flex-grow h-full"):
-            load_current_album_html = await create_layout_editor_panel(user)
+            frame = ui.element("iframe").classes("size-full rounded-lg").style("zoom: 0.8")
+            frame.visible = False
 
-    # Load album on trip select
-    trip_select.on_value_change(load_current_album_html)
+    # On trip select update settings form
+    trip_select.bind_value_to(settings_form, "instance", forward=_make_form_forward(user))
 
     # Generate and load album on generate click
-    generate_btn.on_click(_make_generate_on_click(user, load_current_album_html))
+    generate_btn.on_click(_make_generate_on_click(user, frame))
+
+    # Enable button only when form has no errors
+    generate_btn.bind_enabled_from(
+        settings_form,
+        "errors",
+        backward=lambda errors: len(errors) == 0,  # pyright: ignore[reportAny]
+    )
 
 
 def handle_exception(e: Exception) -> None:
