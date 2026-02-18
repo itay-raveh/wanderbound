@@ -11,7 +11,7 @@ def args_to_key(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
     typed: bool,
-    ignore: set[int | str],  # noqa: PYI011
+    ignore: set[int | str],
 ) -> tuple[Any, ...]: ...
 
 class Cache:
