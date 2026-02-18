@@ -104,23 +104,25 @@ def _re_indexed_maps_slices(steps: list[Slice], maps: list[Slice]) -> list[Slice
     idx_map: dict[int, int] = {}
     current_idx = 0
     for slc in steps:
-        for orig_idx in range(slc.start, slc.end):
+        for orig_idx in range(slc.start, slc.end + 1):
             idx_map[orig_idx] = current_idx
             current_idx += 1
 
-    maps_slices: list[Slice] = []
+    re_indexed_maps: list[Slice] = []
     for map_slice in maps:
         if map_slice.start not in idx_map:
             raise ValueError(f"Map start index {map_slice.start} is not in the included steps!")
 
         # slice.stop is exclusive
-        last_included_orig = map_slice.end - 1
+        last_included_orig = map_slice.end
         if last_included_orig not in idx_map:
             raise ValueError(f"Map end index {last_included_orig} is not in the included steps!")
 
-        maps_slices.append(Slice(start=idx_map[map_slice.start], end=idx_map[last_included_orig]))
+        re_indexed_maps.append(
+            Slice(start=idx_map[map_slice.start], end=idx_map[last_included_orig])
+        )
 
-    return maps_slices
+    return re_indexed_maps
 
 
 def _segments_for_steps(steps: Sequence[Step], all_segments: list[Segment]) -> list[Segment]:
