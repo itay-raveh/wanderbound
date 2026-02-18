@@ -1,5 +1,4 @@
-from collections.abc import Iterator
-from typing import Any, LiteralString
+from typing import Any
 
 from geopy.point import Point
 
