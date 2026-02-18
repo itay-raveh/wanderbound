@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from functools import partial
 from typing import Self, cast, get_args
@@ -71,25 +71,32 @@ def _make_input_validation[T](field: FieldInfo) -> ValidationFunction:
     return validation
 
 
+async def _nothing() -> None:
+    return
+
+
 class PydanticForm:
     instance = BindableProperty(on_change=lambda sender, _: cast("Self", sender)._render())  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType, reportAssignmentType]  # noqa: SLF001
-    errors = BindableProperty()
+    ready = BindableProperty()  # pyright: ignore[reportAssignmentType]
 
     def __init__(self) -> None:
         self.instance: BaseModel | None = None
         self.column = ui.column()
-        self.errors = set[str]()
-        self._on_value_change: Callable[[], None] = lambda: None
+        self.ready: bool = False
+        self._errors = set[str]()
+        self._on_value_change: Callable[[], Awaitable[None]] = _nothing
 
-    def on_value_change(self, handler: Callable[[], None]) -> None:
+    def on_value_change(self, handler: Callable[[], Awaitable[None]]) -> None:
         self._on_value_change = handler
 
     def _on_input_value_change(self, name: str, inp: ui.input) -> None:
         if inp.validate():
             setattr(self.instance, name, inp.value)  # pyright: ignore[reportAny]
-            self.errors -= {name}
+            self._errors -= {name}
         else:
-            self.errors.add(name)
+            self._errors.add(name)
+
+        self.ready = len(self._errors) == 0
 
     async def _on_location_refresh(self, name: str, inp: ui.input) -> None:
         if location := await _try_get_user_location():
@@ -130,6 +137,8 @@ class PydanticForm:
 
         if self.instance is None:
             return
+
+        self.ready = True
 
         with self.column:
             for name, field in self.instance.__class__.model_fields.items():

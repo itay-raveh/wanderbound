@@ -1076,6 +1076,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "anyio" },
     { name = "diskcache" },
     { name = "fastapi" },
     { name = "geopandas" },
@@ -1109,6 +1110,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp" },
+    { name = "anyio", specifier = ">=4.12.1" },
     { name = "diskcache" },
     { name = "fastapi" },
     { name = "geopandas" },

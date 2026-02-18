@@ -1,9 +1,9 @@
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
+from anyio import Path
 from nicegui import app
-from nicegui.binding import bindable_dataclass
+from nicegui.binding import bindable_dataclass  # pyright: ignore[reportUnusedImport]
 
 from psagen.core.settings import settings
 
@@ -18,7 +18,7 @@ class User:
 
     @property
     def folder(self) -> Path:
-        return settings.users_dir / self.id
+        return Path(settings.users_dir) / self.id
 
     @property
     def trips_folder(self) -> Path:

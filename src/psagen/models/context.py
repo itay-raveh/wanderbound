@@ -7,7 +7,7 @@ from psagen.models.layout import PageLayout
 from psagen.models.trip import Location
 
 
-class StepTemplateCtx(BaseModel):
+class StepTemplateCtx(BaseModel, arbitrary_types_allowed=True):
     id: int
     index: int
     name: str

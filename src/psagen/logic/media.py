@@ -1,6 +1,7 @@
-import asyncio
-from pathlib import Path
+import pathlib
+from io import BytesIO
 
+import anyio
 import cv2
 from PIL import Image, ImageOps
 
@@ -10,16 +11,12 @@ from psagen.models.layout import Photo, Video
 logger = get_logger(__name__)
 
 
-async def load_photo(root: Path, path: Path) -> Photo:
-    return await asyncio.to_thread(_load_photo, root, path)
-
-
-def _load_photo(root: Path, path: Path) -> Photo:
-    with Image.open(path) as img:
+async def load_photo(root: anyio.Path, path: anyio.Path) -> Photo:
+    with Image.open(BytesIO(await path.read_bytes())) as img:
         width, height = ImageOps.exif_transpose(img).size
 
     return Photo(
-        path=path.relative_to(root),
+        path=pathlib.Path(path.relative_to(root)),
         width=width,
         height=height,
     )
@@ -28,7 +25,7 @@ def _load_photo(root: Path, path: Path) -> Photo:
 _DEFAULT_FRAME_TS = 1
 
 
-async def load_video(root: Path, path: Path) -> Video:
+async def load_video(root: anyio.Path, path: anyio.Path) -> Video:
     frame_path = await extract_frame(root, path, _DEFAULT_FRAME_TS)
     frame = await load_photo(root, frame_path)
 
@@ -36,23 +33,19 @@ async def load_video(root: Path, path: Path) -> Video:
         path=frame.path,
         width=frame.width,
         height=frame.height,
-        src=path.relative_to(root),
+        src=pathlib.Path(path.relative_to(root)),
         timestamp=_DEFAULT_FRAME_TS,
     )
 
 
-async def extract_frame(root: Path, video_path: Path, timestamp: float) -> Path:
-    return await asyncio.to_thread(_extract_frame, root, video_path, timestamp)
-
-
-def _extract_frame(root: Path, video_path: Path, timestamp: float) -> Path:
+async def extract_frame(root: anyio.Path, video_path: anyio.Path, timestamp: float) -> anyio.Path:
     ts_str = f"{timestamp:.3f}".replace(".", "_")
     frame = root / "zz_frames" / f"{video_path.stem}__{ts_str}.png"
 
-    if frame.exists():
+    if await frame.exists():
         return frame
 
-    frame.parent.mkdir(parents=True, exist_ok=True)
+    await frame.parent.mkdir(parents=True, exist_ok=True)
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():

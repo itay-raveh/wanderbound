@@ -1,16 +1,22 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 import math
-from collections.abc import Iterator
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from PIL import Image
+from pydantic import BaseModel
 
 from psagen.core.cache import async_cache
-from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.models.enrich import Flag
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from psagen.core.client import APIClient
 
 logger = get_logger(__name__)
 
@@ -102,6 +108,11 @@ def _find_best_color(flag_data: bytes) -> RGB | None:
                 return _adjust_color_for_contrast(color)
 
     return None
+
+
+class Flag(BaseModel):
+    flag_url: str
+    accent_color: str
 
 
 @async_cache

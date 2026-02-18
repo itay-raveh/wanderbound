@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from datetime import datetime
 
-    from psagen.models.enrich import EnrichedStep
+    from psagen.logic.enrich import EnrichedStep
     from psagen.models.layout import StepLayout
     from psagen.models.trip import Location, Step
 

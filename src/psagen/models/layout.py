@@ -39,7 +39,7 @@ class PageLayout(BaseModel):
     layout_class: SpecialLayoutClass | None = None
 
 
-class StepLayout(BaseModel):
+class StepLayout(BaseModel, arbitrary_types_allowed=True):
     id: int
     name: str
     cover: Path

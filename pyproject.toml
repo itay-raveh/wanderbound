@@ -39,6 +39,7 @@ dependencies = [
     "nicegui",
     "fastapi",
     "opencv-python-headless",
+    "anyio>=4.12.1",
 ]
 
 [dependency-groups]

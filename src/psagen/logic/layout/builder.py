@@ -1,9 +1,8 @@
-"""Photo scoring and bin-packing algorithms for page layout."""
-
 import asyncio
 from collections.abc import Collection, Iterable
 from itertools import combinations
-from pathlib import Path
+
+from anyio import Path
 
 from psagen.core.logger import get_logger
 from psagen.logic.layout.strategies import (
@@ -87,9 +86,14 @@ async def build_step_layout(
 
     # Load Photos
     photo_folder = trip_dir / step.folder_name / "photos"
-    if photo_folder.exists():
+    if await photo_folder.exists():
         assets_in_folder.extend(
-            await asyncio.gather(*(load_photo(trip_dir, path) for path in photo_folder.iterdir()))
+            await asyncio.gather(
+                *(
+                    load_photo(trip_dir, path)
+                    for path in [path async for path in photo_folder.iterdir()]
+                )
+            )
         )
 
     # Try select cover
@@ -99,11 +103,15 @@ async def build_step_layout(
 
     # Load Videos
     video_folder = trip_dir / step.folder_name / "videos"
-    if video_folder.exists():
-        videos = await asyncio.gather(
-            *(load_video(trip_dir, path) for path in video_folder.iterdir())
+    if await video_folder.exists():
+        assets_in_folder.extend(
+            await asyncio.gather(
+                *(
+                    load_video(trip_dir, path)
+                    for path in [path async for path in photo_folder.iterdir()]
+                )
+            )
         )
-        assets_in_folder.extend(videos)
 
     cover = cover or _select_cover(assets_in_folder)
 

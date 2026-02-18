@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,9 @@ from psagen.core.cache import async_cache
 from psagen.core.logger import get_logger
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Callable, Sequence
+
+    from psagen.models.trip import Step
 
 
 logger = get_logger(__name__)
@@ -41,19 +44,26 @@ def _dist_and_speed(prev: PathPoint, curr: PathPoint) -> tuple[float, float]:
 
 
 @async_cache
-def load_segments(
-    locations_json_path: Path,
-    step_points: list[tuple[float, float, float]],
-    min_time: float,
-    max_time: float,
+async def load_segments(
+    locations: Locations, steps: Sequence[Step], progres_callback: Callable[[str], None]
 ) -> list[Segment]:
-    locations_json = Locations.model_validate_json(locations_json_path.read_text(encoding="utf-8"))
+    progres_callback("Loading GPS points...")
 
-    path_points = locations_json.locations + [
-        PathPoint(lat=lat, lon=lon, time=time) for lat, lon, time in step_points
-    ]
+    step_points = (
+        PathPoint(lat=step.location.lat, lon=step.location.lat, time=step.start_time)
+        for step in steps
+    )
 
-    points = sorted(point for point in path_points if min_time <= point.time <= max_time)
+    min_time: float = steps[0].start_time
+    max_time: float = steps[-1].start_time + 60 * 60 * 24
+
+    points = sorted(
+        point
+        for point in itertools.chain(locations.locations, step_points)
+        if min_time <= point.time <= max_time
+    )
+
+    progres_callback(f"Cleaning {len(points)} points...")
 
     clean_points = [points[0]]  # Hopefully the first point is not a GPS error
     for curr in points[1:]:
@@ -66,6 +76,8 @@ def load_segments(
 
         if speed_kmh < 1000:
             clean_points.append(curr)
+
+    progres_callback(f"Segmenting {len(clean_points)} points...")
 
     segments: list[Segment] = []
     segment_points: list[PathPoint] = [points[0]]
@@ -83,5 +95,7 @@ def load_segments(
 
     segments.append(Segment(points=segment_points, is_flight=False))
 
-    logger.info("Loaded %d travel segments", len(segments))
+    msg = f"Loaded {len(segments)} travel segments"
+    progres_callback(msg)
+    logger.info(msg)
     return segments

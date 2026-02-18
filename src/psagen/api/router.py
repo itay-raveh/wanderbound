@@ -60,14 +60,14 @@ async def serve_asset(path: str, user: DependsUser) -> Response:
 
     # Prevent path traversal (ensure path is within session dir)
     try:
-        file.resolve()
+        await file.resolve(strict=True)
     except ValueError:
         raise HTTPException(  # noqa: B904
             status_code=403, detail="Access denied: path traversal detected"
         )
 
     # Check file exists
-    if not file.is_file():
+    if not await file.is_file():
         return Response(content="File not found", media_type="text/plain", status_code=404)
 
     return FileResponse(file)

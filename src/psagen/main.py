@@ -9,21 +9,20 @@ from typing import TYPE_CHECKING, cast
 
 from nicegui import app, ui
 from nicegui.elements.upload_files import LargeFileUpload
+from nicegui.events import ValueChangeEventArguments
 from nicegui.storage import request_contextvar
 
 from psagen.api.router import ALBUMS, api_router
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
 from psagen.logic.album import Album
-from psagen.models.config import AlbumConfig, AlbumSettings
+from psagen.models.config import AlbumConfig
 from psagen.models.user import TripName, User
 from psagen.ui.dialog import create_log_dialog
 from psagen.ui.form import PydanticForm
 from psagen.ui.preview import try_load_current_album_html
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
     from nicegui.events import UploadEventArguments
 
 logger = get_logger(__name__)
@@ -59,7 +58,7 @@ async def _handle_zip_upload(
         with zipfile.ZipFile(file, "r") as zf:
             await asyncio.to_thread(zf.extractall, user.folder)
 
-        user.trip_names = [path.name for path in user.trips_folder.iterdir()]
+        user.trip_names = [path.name async for path in user.trips_folder.iterdir()]
         trip_select.set_options(_trips_with_labels(user.trip_names))  # pyright: ignore[reportUnknownMemberType]
 
         msg = f"Found {len(user.trip_names)} trip(s)"
@@ -73,7 +72,7 @@ async def _handle_zip_upload(
         cast("ui.upload", event.sender).reset()
     finally:
         loading.dismiss()
-        if remove_target.exists():
+        if await remove_target.exists():
             # noinspection PyTypeChecker
             await asyncio.to_thread(shutil.rmtree, remove_target)
 
@@ -104,7 +103,7 @@ async def register_page() -> None:
     # Create an illegal empty user so we can use the `.folder` method etc.
     user = User(id=cast("str", request.session["id"]), trip_names=[], selected_trip=None)  # pyright: ignore[reportArgumentType]
 
-    if user.folder.exists():
+    if await user.folder.exists():
         # noinspection PyTypeChecker
         await asyncio.to_thread(shutil.rmtree, user.folder)
 
@@ -157,29 +156,31 @@ async def register_page() -> None:
 CONFIGS: dict[TripName, AlbumConfig] = {}
 
 
-def _make_generate_on_click(user: User, frame: ui.element) -> Callable[[], Awaitable[None]]:
-    async def on_click() -> None:
-        d, log = create_log_dialog("Generating Album...", "auto_awesome")
+async def _generate_on_click(user: User, frame: ui.element) -> None:
+    d, log = create_log_dialog("Generating Album...", "auto_awesome")
 
-        with d:
-            ALBUMS[user.selected_trip] = await Album.generate(
-                user, CONFIGS[user.selected_trip], log.push
-            )
-        d.close()
+    with d:
+        ALBUMS[user.selected_trip] = await Album.generate(
+            user, CONFIGS[user.selected_trip], log.push
+        )
+    d.close()
 
-        await try_load_current_album_html(user, frame)
-
-    return on_click
+    await try_load_current_album_html(user, frame)
 
 
-def _trip_name_to_settings(
-    user: User, settings_form: PydanticForm, trip_name: TripName
-) -> AlbumSettings:
+async def _set_settings_instance(
+    user: User, settings_form: PydanticForm, ev: ValueChangeEventArguments
+) -> None:
+    trip_name = cast("TripName | None", ev.value)
+
+    if trip_name is None:
+        return
+
     if trip_name not in CONFIGS:
-        CONFIGS[trip_name] = AlbumConfig.from_trip_folder(user.trips_folder / trip_name)
+        CONFIGS[trip_name] = await AlbumConfig.from_trip_folder(user.trips_folder / trip_name)
 
-    settings_form.on_value_change(lambda: CONFIGS[trip_name].persist_for(user))
-    return CONFIGS[trip_name].settings
+    settings_form.on_value_change(partial(CONFIGS[trip_name].persist_for, user))
+    settings_form.instance = CONFIGS[trip_name].settings
 
 
 @ui.page("/")
@@ -217,18 +218,23 @@ async def home() -> None:
             frame.visible = False
 
     # On trip select update settings form
-    trip_select.bind_value_to(
-        settings_form, "instance", forward=partial(_trip_name_to_settings, user, settings_form)
+    trip_select.on_value_change(partial(_set_settings_instance, user, settings_form))
+
+    # Trigger this manually once
+    # noinspection PyTypeChecker
+    await _set_settings_instance(
+        user,
+        settings_form,
+        ValueChangeEventArguments(sender=None, client=None, value=user.selected_trip),  # pyright: ignore[reportArgumentType]
     )
 
     # Generate and load album on generate click
-    generate_btn.on_click(_make_generate_on_click(user, frame))
+    generate_btn.on_click(partial(_generate_on_click, user, frame))
 
     # Enable button only when form has no errors
     generate_btn.bind_enabled_from(
         settings_form,
-        "errors",
-        backward=lambda errors: len(errors) == 0,  # pyright: ignore[reportAny]
+        "ready",
     )
 
 

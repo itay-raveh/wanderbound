@@ -1,17 +1,22 @@
 """Historical weather API integration for temperature data."""
 
+from __future__ import annotations
+
 from collections import Counter
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import aiohttp
 from pydantic import BaseModel
 
 from psagen.core.cache import async_cache
-from psagen.core.client import APIClient
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.models.enrich import Weather, WeatherData
-from psagen.models.trip import Step
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from psagen.core.client import APIClient
+    from psagen.models.trip import Step
 
 logger = get_logger(__name__)
 
@@ -54,6 +59,21 @@ def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
     return day_icon.replace("-day", "-night")
 
 
+class Weather(BaseModel):
+    day: WeatherData
+    night: WeatherData | None = None
+
+    @classmethod
+    def from_step(cls, step: Step) -> Weather:
+        return Weather(
+            day=WeatherData(
+                temp=step.weather_temperature,
+                feels_like=step.weather_temperature,
+                icon=step.weather_condition,
+            )
+        )
+
+
 @async_cache
 async def _fetch_weather(client: APIClient, lat: float, lon: float, date: datetime) -> Weather:
     response = WeatherApiResponse.model_validate_json(
@@ -90,3 +110,9 @@ async def fetch_weather(client: APIClient, step: Step) -> Weather:
     except aiohttp.ClientError:
         logger.exception("Unable to fetch weather for %s at %s", step.location.country, step.date)
         return Weather.from_step(step)
+
+
+class WeatherData(BaseModel):
+    temp: float
+    feels_like: float
+    icon: str

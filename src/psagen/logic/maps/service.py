@@ -5,12 +5,12 @@ from asyncio.locks import Lock
 from typing import TYPE_CHECKING
 
 from geopandas import GeoDataFrame, read_file  # pyright: ignore[reportUnknownVariableType]
+from pydantic import BaseModel
 from pyproj import Transformer
 
 from psagen.core.cache import async_cache
 from psagen.core.logger import get_logger
 from psagen.core.settings import settings
-from psagen.models.enrich import Map
 
 from .generator import generate_geo_calibrated_svg
 
@@ -25,6 +25,11 @@ _NE_GEOJSON = "ne_50m_admin_0_countries.geojson"
 
 _NE_FETCH_LOCK = Lock()
 _ne_data: GeoDataFrame | None = None
+
+
+class Map(BaseModel):
+    svg_content: str
+    dot_position: tuple[float, float]
 
 
 @async_cache

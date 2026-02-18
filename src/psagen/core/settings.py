@@ -1,5 +1,3 @@
-"""Application settings using Pydantic."""
-
 from pathlib import Path
 
 from pydantic import Field

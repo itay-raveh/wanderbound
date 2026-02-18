@@ -1,6 +1,6 @@
-from pathlib import Path
 from typing import Self
 
+from anyio import Path
 from pydantic import (
     BaseModel,
     Field,
@@ -103,14 +103,14 @@ class AlbumConfig(BaseModel):
     layouts: dict[int, StepLayout]
 
     @classmethod
-    def from_trip_folder(cls, trip_folder: Path) -> Self:
+    async def from_trip_folder(cls, trip_folder: Path) -> Self:
         config_json = trip_folder / "config.json"
 
-        if config_json.exists():
-            return cls.model_validate_json(config_json.read_bytes())
+        if await config_json.exists():
+            return cls.model_validate_json(await config_json.read_bytes())
 
         trip_json = trip_folder / "trip.json"
-        trip = TripHeader.model_validate_json(trip_json.read_bytes())
+        trip = TripHeader.model_validate_json(await trip_json.read_bytes())
 
         return cls(
             trip_name=trip.name,
@@ -124,7 +124,7 @@ class AlbumConfig(BaseModel):
             ),
         )
 
-    def persist_for(self, user: User) -> None:
-        (user.trips_folder / self.trip_name / "config.json").write_text(
+    async def persist_for(self, user: User) -> None:
+        await (user.trips_folder / self.trip_name / "config.json").write_text(
             self.model_dump_json(indent=2)
         )
