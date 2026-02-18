@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from contextlib import suppress
 from functools import partial
 from typing import Self, cast, get_args
@@ -78,8 +79,12 @@ class PydanticForm:
         self.instance: BaseModel | None = None
         self.column = ui.column()
         self.errors = set[str]()
+        self._on_value_change: Callable[[], None] = lambda: None
 
-    def _on_value_change(self, name: str, inp: ui.input) -> None:
+    def on_value_change(self, handler: Callable[[], None]) -> None:
+        self._on_value_change = handler
+
+    def _on_input_value_change(self, name: str, inp: ui.input) -> None:
         if inp.validate():
             setattr(self.instance, name, inp.value)  # pyright: ignore[reportAny]
             self.errors -= {name}
@@ -99,6 +104,7 @@ class PydanticForm:
             ui.input(
                 value=str(getattr(self.instance, name) or ""),
                 label=name.replace("_", " ").title(),
+                on_change=self._on_value_change,
             )
             .classes("w-full")
             .props("dense outlined rounded")
@@ -117,7 +123,7 @@ class PydanticForm:
                 ).props("flat dense")
         else:
             inp.validation = _make_input_validation(field)
-            inp.on_value_change(partial(self._on_value_change, name, inp))
+            inp.on_value_change(partial(self._on_input_value_change, name, inp))
 
     def _render(self) -> None:
         self.column.clear()

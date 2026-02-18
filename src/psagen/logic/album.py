@@ -174,7 +174,7 @@ class Album:
         return album
 
     def persist_config(self) -> None:
-        self.config.persist_in_trip_folder(self.folder)
+        self.config.persist_for(self.user)
 
     def save(self) -> None:
         self.persist_config()

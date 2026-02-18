@@ -172,15 +172,14 @@ def _make_generate_on_click(user: User, frame: ui.element) -> Callable[[], Await
     return on_click
 
 
-def _make_form_forward(user: User) -> Callable[[TripName | None], AlbumSettings | None]:
-    def forward(trip_name: TripName | None) -> AlbumSettings | None:
-        if trip_name is None:
-            return None
-        if trip_name not in CONFIGS:
-            CONFIGS[trip_name] = AlbumConfig.from_trip_folder(user.trips_folder / trip_name)
-        return CONFIGS[trip_name].settings
+def _trip_name_to_settings(
+    user: User, settings_form: PydanticForm, trip_name: TripName
+) -> AlbumSettings:
+    if trip_name not in CONFIGS:
+        CONFIGS[trip_name] = AlbumConfig.from_trip_folder(user.trips_folder / trip_name)
 
-    return forward
+    settings_form.on_value_change(lambda: CONFIGS[trip_name].persist_for(user))
+    return CONFIGS[trip_name].settings
 
 
 @ui.page("/")
@@ -218,7 +217,9 @@ async def home() -> None:
             frame.visible = False
 
     # On trip select update settings form
-    trip_select.bind_value_to(settings_form, "instance", forward=_make_form_forward(user))
+    trip_select.bind_value_to(
+        settings_form, "instance", forward=partial(_trip_name_to_settings, user, settings_form)
+    )
 
     # Generate and load album on generate click
     generate_btn.on_click(_make_generate_on_click(user, frame))

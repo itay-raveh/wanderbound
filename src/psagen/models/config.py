@@ -11,6 +11,7 @@ from pydantic import (
 
 from psagen.models.layout import StepLayout
 from psagen.models.trip import Location, TripHeader
+from psagen.models.user import User
 
 
 class Slice(BaseModel):
@@ -123,5 +124,7 @@ class AlbumConfig(BaseModel):
             ),
         )
 
-    def persist_in_trip_folder(self, trip_folder: Path) -> None:
-        (trip_folder / "config.json").write_text(self.model_dump_json(indent=2))
+    def persist_for(self, user: User) -> None:
+        (user.trips_folder / self.trip_name / "config.json").write_text(
+            self.model_dump_json(indent=2)
+        )
