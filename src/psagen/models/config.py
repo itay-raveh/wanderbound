@@ -10,7 +10,7 @@ from pydantic import (
 )
 
 from psagen.models.layout import StepLayout
-from psagen.models.trip import TripHeader
+from psagen.models.trip import Location, TripHeader
 
 
 class Slice(BaseModel):
@@ -93,6 +93,7 @@ class AlbumSettings(BaseModel, validate_assignment=True):
         description="Ranges of steps for which to add additional maps",
         examples=["1-5, 8"],
     )
+    home: Location | None = Field(default=None, description="To show furthest step from home")
 
 
 class AlbumConfig(BaseModel):

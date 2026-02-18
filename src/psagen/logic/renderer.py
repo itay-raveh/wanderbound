@@ -14,6 +14,7 @@ from psagen.core.text import choose_text_dir, find_visual_split_index
 from psagen.logic.segments import PathPoint, Segment
 from psagen.models.config import AlbumSettings, Slice
 from psagen.models.context import (
+    FurthestPointCtx,
     MapTemplateCtx,
     OverviewTemplateCtx,
     StepTemplateCtx,
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 
     from psagen.models.enrich import EnrichedStep
     from psagen.models.layout import StepLayout
-    from psagen.models.trip import Step
+    from psagen.models.trip import Location, Step
 
 logger = get_logger(__name__)
 
@@ -50,14 +51,14 @@ def render_album_html(
 ) -> str:
     trip_ctx = TripTemplateCtx(
         title=album_settings.title,
-        subtitle=album_settings.subtitle,
+        subtitle=album_settings.subtitle or "",
         dates=_format_date_range(steps[0].date, steps[-1].date),
         cover=album_settings.front_cover_photo,
         back_cover=album_settings.back_cover_photo,
         segments=segments,
     )
 
-    overview_ctx = _build_overview_template_ctx(steps, layouts, segments)
+    overview_ctx = _build_overview_template_ctx(steps, layouts, segments, album_settings.home)
 
     steps_ctx = [
         _build_step_template_ctx(
@@ -165,9 +166,10 @@ def _build_step_template_ctx(
     steps: Sequence[EnrichedStep],
 ) -> StepTemplateCtx:
     progress = 100 * step_index / (len(steps) - 1) if len(steps) > 1 else 0
-    lat_str, lon_str = str(
-        Point(round(step.location.lat, 4), round(step.location.lon, 4)).format_unicode()
-    ).split(",")
+
+    lat_str, lon_str = (
+        Point(round(step.location.lat, 3), round(step.location.lon, 3)).format_unicode().split(",")
+    )
 
     description = step.description
     extra_description: str | None = None
@@ -228,6 +230,7 @@ def _build_overview_template_ctx(
     steps: Sequence[Step],
     layouts: dict[int, StepLayout],
     segments: list[Segment],
+    home: Location | None,
 ) -> OverviewTemplateCtx:
     countries = {
         step.location.country: settings.flag_cdn_url.format(
@@ -248,10 +251,32 @@ def _build_overview_template_ctx(
         if step_layout.id in [step.id for step in steps]
     )
 
+    furthest_point = None
+    if home:
+        furthest_point = _calculate_furthest_point(steps, home)
+
     return OverviewTemplateCtx(
         countries=list(countries.items()),
         total_km=f"{round(total_dist.km):,}",
         total_days=f"{(steps[-1].date - steps[0].date).days + 1:,}",
         step_count=f"{len(steps):,}",
         photo_count=f"{photo_count:,}",
+        furthest_point=furthest_point,
+    )
+
+
+def _calculate_furthest_point(steps: Sequence[Step], home: Location) -> FurthestPointCtx:
+    max_dist = 0.0
+    furthest_step = steps[0]
+
+    for step in steps:
+        dist = distance((home.lat, home.lon), (step.location.lat, step.location.lon)).km
+        if dist > max_dist:
+            max_dist = dist
+            furthest_step = step
+
+    return FurthestPointCtx(
+        home=home,
+        furthest=furthest_step.location,
+        distance_km=f"{round(max_dist):,}",
     )

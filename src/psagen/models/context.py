@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from psagen.logic.segments import Segment
 from psagen.models.layout import PageLayout
+from psagen.models.trip import Location
 
 
 class StepTemplateCtx(BaseModel):
@@ -47,12 +48,19 @@ class TripTemplateCtx(BaseModel):
     segments: list[Segment]
 
 
+class FurthestPointCtx(BaseModel):
+    home: Location
+    furthest: Location
+    distance_km: str
+
+
 class OverviewTemplateCtx(BaseModel):
     countries: list[tuple[str, str]]  # (name, flag_url)
     total_km: str
     total_days: str
     step_count: str
     photo_count: str
+    furthest_point: FurthestPointCtx | None = None
 
 
 class MapTemplateCtx(BaseModel):

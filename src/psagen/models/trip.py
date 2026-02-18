@@ -11,17 +11,25 @@ from psagen.core.text import calculate_visual_length
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
 
 
-class Location(BaseModel, extra="ignore"):
-    city: NullableStr = Field(alias="name")
-    country: NullableStr = Field(validation_alias=AliasChoices("country", "detail"))
+class Location(BaseModel, populate_by_name=True):
+    city: NullableStr = Field(
+        validation_alias=AliasChoices(
+            "name",
+            "village",
+        )
+    )
+    country: NullableStr = Field(validation_alias="detail")
     country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
-    lat: float = Field(ge=-90, le=90)
-    lon: float = Field(ge=-180, le=180)
+    lat: float
+    lon: float
 
     @field_validator("country_code", mode="before")
     @classmethod
     def country_code_validator(cls, v: str) -> str:
         return "un" if v == "00" else v
+
+    def __str__(self) -> str:
+        return f"{self.city} ({self.country})"
 
 
 class Step(BaseModel):
