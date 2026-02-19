@@ -50,7 +50,7 @@ async def load_segments(
     progres_callback("Loading GPS points...")
 
     step_points = (
-        PathPoint(lat=step.location.lat, lon=step.location.lat, time=step.start_time)
+        PathPoint(lat=step.location.lat, lon=step.location.lon, time=step.start_time)
         for step in steps
     )
 
