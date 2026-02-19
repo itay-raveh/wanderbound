@@ -95,11 +95,3 @@
     width: 100%;
 }
 
-.map-loading-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #666;
-    z-index: 0;
-}

@@ -1,44 +1,43 @@
 @media not print {
-  .page-container {
-    border: 1px dashed #ccc;
-    margin-top: 20px;
-    margin-bottom: 20px;
-  }
+    .page-container {
+        border: 1px dashed #ccc;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
 
-  .photo-item.dragging {
-    opacity: 0.5;
-    border: 2px dashed #007bff;
-  }
+    .photo-item.dragging {
+        opacity: 0.5;
+        border: 2px dashed #007bff;
+    }
 
-  .photo-page-container.drag-over {
-    background: rgba(0, 123, 255, 0.1);
-    border: 2px dashed #007bff;
-  }
+    .photo-page-container.drag-over {
+        background: rgba(0, 123, 255, 0.1);
+        border: 2px dashed #007bff;
+    }
 
-  .photo-item {
-    cursor: grab;
-  }
+    .photo-item {
+        cursor: grab;
+    }
 
-  .photo-item:active {
-    cursor: grabbing;
-  }
+    .photo-item:active {
+        cursor: grabbing;
+    }
 
-  /* Ensure empty pages have size */
-  .photo-page-container:empty::after {
-    content: "Drop photos here";
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    width: 100%;
-    color: #999;
-    border: 2px dashed #ddd;
-    border-radius: 8px;
-    font-style: italic;
-    grid-column: 1 / -1;
-    grid-row: 1 / -1;
-  }
-}
+    /* Ensure empty pages have size */
+    .photo-page-container:empty::after {
+        content: "Drop photos here";
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        width: 100%;
+        color: #999;
+        border: 2px dashed #ddd;
+        border-radius: 8px;
+        font-style: italic;
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+    }
 
     .print-btn {
         position: fixed;
@@ -68,65 +67,53 @@
 }
 
 .editor-context-menu {
-  position: absolute;
-  background: white;
-  border: 1px solid #ccc;
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
-  z-index: 10000;
-  border-radius: 4px;
-  overflow: hidden;
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .menu-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #333;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
 }
 
 .menu-item:hover {
-  background: #f0f0f0;
-}
-
-.is-dirty {
-  border: 2px solid orange;
+    background: #f0f0f0;
 }
 
 .add-page-container {
-  display: flex;
-  justify-content: center;
-  padding: 20px 0;
-  width: 100%;
-  max-width: var(--page-width);
-  margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+    width: 100%;
+    max-width: var(--page-width);
+    margin: 0 auto;
 }
 
 .add-page-btn {
-  background-color: var(--accent-primary, #007bff);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  font-size: 24px;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    transform 0.2s,
+    background-color: var(--accent-primary, #007bff);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s,
     background-color 0.2s;
 }
 
 .add-page-btn:hover {
-  transform: scale(1.1);
-  background-color: var(--accent-secondary, #0056b3);
-}
-
-@media print {
-  .fab-container,
-  .add-page-container {
-    display: none !important;
-  }
+    transform: scale(1.1);
+    background-color: var(--accent-secondary, #0056b3);
 }

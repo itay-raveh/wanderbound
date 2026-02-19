@@ -23,10 +23,6 @@ class VideoUpdateRequest(BaseModel):
     timestamp: float
 
 
-class LayoutRequest(BaseModel):
-    updates: list[StepLayout]
-
-
 ALBUMS: dict[TripName, Album] = {}
 
 DependsUser = Annotated[User, Depends(User.from_storage)]
@@ -50,8 +46,8 @@ async def handle_video(video_request: VideoUpdateRequest, album: DependsAlbum) -
 
 
 @api_router.post("/layout")
-async def handle_layout(layout_request: LayoutRequest, album: DependsAlbum) -> None:
-    await album.update_layout(layout_request.updates)
+async def handle_layout(layout: StepLayout, album: DependsAlbum) -> None:
+    await album.update_layout(layout)
 
 
 @app.get("/trip/{path:path}")

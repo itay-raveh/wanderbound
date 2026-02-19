@@ -106,5 +106,5 @@ async def _generate_on_click(user: User, frame: ui.element) -> None:
 
     path = ALBUMS[user.selected_trip].html_file.relative_to(user.folder)
     stat = await ALBUMS[user.selected_trip].html_file.stat()
-    await frame.run_method("setAttribute", "src", f"{path}?t={stat.st_mtime}")
+    await frame.run_method("setAttribute", "src", f"{path}?t={stat.st_mtime_ns}")
     frame.visible = True

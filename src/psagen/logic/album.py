@@ -138,12 +138,10 @@ class Album:
 
         await self.save()
 
-    async def update_layout(self, updates: list[StepLayout]) -> None:
-        for step_layout in updates:
-            step_layout.pages = [
-                try_build_layout(page_layout.photos) or page_layout
-                for page_layout in step_layout.pages
-            ]
-            self.config.layouts[step_layout.id] = step_layout
+    async def update_layout(self, step_layout: StepLayout) -> None:
+        step_layout.pages = [
+            try_build_layout(page_layout.photos) or page_layout for page_layout in step_layout.pages
+        ]
+        self.config.layouts[step_layout.id] = step_layout
 
         await self.save()
