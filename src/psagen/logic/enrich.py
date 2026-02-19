@@ -9,13 +9,12 @@ from psagen.core.client import APIClient
 from psagen.logic.altitude import fetch_all_altitudes
 from psagen.logic.flags import Flag, fetch_flag
 from psagen.logic.maps import fetch_map
+from psagen.logic.maps.service import Map  # noqa: TC001
 from psagen.logic.weather import Weather, fetch_weather
 from psagen.models.trip import Step
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
-    from psagen.logic.maps.service import Map
 
 
 class EnrichedStep(Step):
