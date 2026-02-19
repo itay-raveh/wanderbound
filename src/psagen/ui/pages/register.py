@@ -17,6 +17,8 @@ from psagen.models.user import User
 from psagen.ui.pages.exception import handle_exception
 from psagen.ui.trip_select import _trips_with_labels, trip_select_for
 
+_ANIMATE_SHAKE = "animate-[shake_3s_ease-in-out_infinite]"
+
 if TYPE_CHECKING:
     from nicegui.events import UploadEventArguments
 
@@ -57,7 +59,7 @@ async def register_page() -> None:
 
         with (
             ui.dialog().props('backdrop-filter="blur(6px)"') as d,
-            ui.card().classes("p-8 max-w-2xl w-full flex items-center"),
+            ui.card().classes("p-8 max-w-3xl w-full flex items-center"),
         ):
             ui.markdown(_POLARSTEPS_EXPORT_INSTRUCTIONS, sanitize=False)
 
@@ -68,23 +70,22 @@ async def register_page() -> None:
                 )
                 ui.button(icon="help_outline", color=None, on_click=d.open).props("flat dense")
 
-            upload = ui.upload(auto_upload=True).props("accept=.zip flat").classes("w-full h-32")
+            upload = (
+                ui.upload(auto_upload=True)
+                .props("accept=.zip")
+                .classes("w-full")
+                .classes(_ANIMATE_SHAKE)
+            )
 
             trip_select = (
                 trip_select_for(user)
                 # Once we have trips, allow the user to select one
                 .bind_enabled_from(user, "trip_names", bool)
                 .on_value_change(user.store)
+                .on_value_change(lambda: ui.navigate.to("/?new=true"))
             )
 
             upload.on_upload(partial(_handle_zip_upload, user, trip_select))
-
-            (
-                # Once they do that, allow them to return to the home page
-                ui.button("Let's go!", icon="auto_awesome", on_click=lambda: ui.navigate.to("/"))
-                .classes("size-full")
-                .bind_enabled_from(user, "selected_trip", bool)
-            )
 
 
 _POLARSTEPS_EXPORT_INSTRUCTIONS = """
@@ -109,6 +110,8 @@ async def _handle_zip_upload(
         event.file._path if isinstance(event.file, LargeFileUpload) else BytesIO(event.file._data)  # noqa: SLF001  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
     )
 
+    uploader = cast("ui.upload", event.sender)
+
     remove_target = user.folder
     loading = ui.notification("Extracting trips...", type="ongoing", spinner=True)
     try:
@@ -118,6 +121,9 @@ async def _handle_zip_upload(
         user.trip_names = [path.name async for path in user.trips_folder.iterdir()]
         trip_select.set_options(_trips_with_labels(user.trip_names))  # pyright: ignore[reportUnknownMemberType]
 
+        uploader.classes(remove=_ANIMATE_SHAKE)
+        trip_select.classes(_ANIMATE_SHAKE)
+
         msg = f"Found {len(user.trip_names)} trip(s)"
         logger.info(msg)
         ui.notify(msg, type="positive")
@@ -126,7 +132,7 @@ async def _handle_zip_upload(
     except (zipfile.BadZipFile, FileNotFoundError):
         msg = f"'{event.file.name}' is a corrupted file or is not a Polarsteps export"
         ui.notify(msg, type="negative")
-        cast("ui.upload", event.sender).reset()
+        uploader.reset()
     finally:
         loading.dismiss()
         if await remove_target.exists():

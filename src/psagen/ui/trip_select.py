@@ -12,7 +12,7 @@ def trip_select_for(user: User) -> ui.select:
     return (
         ui.select(_trips_with_labels(user.trip_names), value=user.selected_trip)
         .classes("w-full text-xl font-medium")
-        .props("standout")
+        .props("outlined")
         .bind_value_to(user, "selected_trip")
         .bind_value_to(app.storage.user, "selected_trip")
     )

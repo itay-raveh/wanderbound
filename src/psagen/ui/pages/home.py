@@ -4,7 +4,7 @@ from functools import partial
 from typing import cast
 
 from nicegui import ui
-from nicegui.events import ValueChangeEventArguments
+from nicegui.events import KeyEventArguments, ValueChangeEventArguments
 
 from psagen.api.router import ALBUMS
 from psagen.core.logger import get_logger
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 @ui.page("/")
-async def home_page() -> None:
+async def home_page(*, new: bool = False) -> None:
     ui.on_exception(handle_exception)
     ui.add_css(settings.static_dir / "style.css")
 
@@ -44,11 +44,11 @@ async def home_page() -> None:
             settings_form = PydanticForm()
             settings_form.column.classes("w-full gap-3")
 
-            ui.separator()
-
-            generate_btn = ui.button("Generate Album", icon="auto_awesome").classes(
-                "w-full text-lg font-bold shadow-lg"
-            )
+            generate_btn = ui.button(
+                "Generate Album", color="secondary", icon="auto_awesome"
+            ).classes("w-full text-lg")
+            if new:
+                generate_btn.classes("animate-[shake_3s_ease-in-out]")
 
         # Right: Layout Editor (Preview)
         with ui.card().classes("flex-grow h-full"):
@@ -75,6 +75,13 @@ async def home_page() -> None:
         settings_form,
         "ready",
     )
+
+    # Also generate on "enter"
+    def handle_key(e: KeyEventArguments) -> None:
+        if e.key.enter:
+            generate_btn.run_method("click")
+
+    ui.keyboard(on_key=handle_key, ignore=["select", "button"])
 
 
 CONFIGS: dict[TripName, AlbumConfig] = {}
@@ -105,6 +112,5 @@ async def _generate_on_click(user: User, frame: ui.element) -> None:
     d.close()
 
     path = ALBUMS[user.selected_trip].html_file.relative_to(user.folder)
-    stat = await ALBUMS[user.selected_trip].html_file.stat()
-    await frame.run_method("setAttribute", "src", f"{path}?t={stat.st_mtime_ns}")
+    await frame.run_method("setAttribute", "src", str(path))
     frame.visible = True

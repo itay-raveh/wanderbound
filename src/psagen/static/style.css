@@ -1,3 +1,21 @@
+@keyframes shake {
+    0%, 50%, 100% {
+        transform: translateX(0);
+    }
+    5%, 15%, 25%, 35% {
+        transform: translateX(-6px);
+    }
+    10%, 20%, 30%, 40% {
+        transform: translateX(6px);
+    }
+    45% {
+        transform: translateX(-3px);
+    }
+    48% {
+        transform: translateX(3px);
+    }
+}
+
 :root {
     --bg-card: #252540;
     --bg-input: #151525;
@@ -33,33 +51,8 @@ body {
 /* Buttons */
 .q-btn {
     border-radius: var(--radius-sm);
-    box-shadow: none !important; /* Force flat style */
     text-transform: none; /* More modern text style */
     font-weight: 600;
-}
-
-.q-btn--outline {
-    border: 1px solid var(--border-color) !important;
-}
-
-/* Inputs */
-.q-field .q-field__control {
-    background: var(--bg-input);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-}
-
-.q-field .q-field__control:before {
-    border: none !important; /* Remove default Quasar border */
-}
-
-.q-field.q-field--focused .q-field__control {
-    border-color: var(--q-primary);
-    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
-}
-
-.q-field:not(.q-field--highlighted) .q-field__label {
-    color: var(--text-muted);
 }
 
 /* Dialogs */

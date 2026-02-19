@@ -11,12 +11,12 @@ from psagen.ui.pages.register import (
 
 if __name__ in {"__main__", "__mp_main__"}:
     app.colors(
-        primary="#4a9eff",
-        secondary="#ffd700",
+        primary="#80bbff",
+        secondary="#0053b3",
         accent="#ff007f",
         dark="#1a1a2e",
         positive="#21ba45",
-        negative="#c10015",
+        negative="#fc1c36",
         info="#31ccec",
         warning="#f2c037",
     )

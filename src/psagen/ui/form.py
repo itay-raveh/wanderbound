@@ -114,7 +114,7 @@ class PydanticForm:
                 on_change=self._on_value_change,
             )
             .classes("w-full")
-            .props("dense outlined rounded")
+            .props("dense filled")
         )
 
         if field.description:
