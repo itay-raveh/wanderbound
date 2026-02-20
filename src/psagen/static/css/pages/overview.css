@@ -1,5 +1,5 @@
 .overview-sidebar {
-    background-color: var(--bg-sidebar);
+    background-color: var(--bg-panel);
     padding: 4rem;
     display: flex;
     flex-direction: column;
@@ -22,7 +22,6 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Main overview Area */
 .overview-main {
     position: relative;
     flex-grow: 1;
@@ -132,7 +131,7 @@
     font-size: var(--font-size-sm);
     font-weight: bold;
     text-align: center;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
     width: 200%;
 }
 
