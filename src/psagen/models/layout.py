@@ -48,4 +48,4 @@ class StepLayout(BaseModel, arbitrary_types_allowed=True):
     name: str
     cover: Photo
     pages: list[PageLayout]
-    unused_photos: list[Photo]
+    unused_photos: list[Video | Photo]
