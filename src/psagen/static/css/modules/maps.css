@@ -71,14 +71,7 @@
     color: #666;
 }
 
-.step-marker-icon {
-    background: #fff;
-    border: 2px solid #333;
-    border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
 
-/* Custom marker inner style */
 .custom-marker-inner {
     height: 100%;
     width: 100%;
@@ -89,7 +82,6 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
-/* Trip Map Container */
 .full-map-container {
     height: 100%;
     width: 100%;

@@ -358,11 +358,6 @@ const PADDING = 100;
 
 // Global Map Initialization Logic
 window.initMapLogic = (containerId, segments, steps) => {
-  const ICON_SIZE = containerId === "map-main" ? 20 : 60;
-  const LINE_WEIGHT = containerId === "map-main" ? 1 : 2;
-
-  console.log("Initializing Map Logic for", containerId);
-
   const map = L.map(containerId, {
     zoomSnap: 0,
     zoomDelta: 0.1,
@@ -385,6 +380,8 @@ window.initMapLogic = (containerId, segments, steps) => {
   ).addTo(map);
   setTimeout(() => map.invalidateSize(), 500);
 
+  const lineWeight = 3 - steps.length / 100;
+
   const bounds = [];
   segments.forEach((segment) => {
     const segPoints = segment.points.map((p) => [p.lat, p.lon]);
@@ -393,7 +390,7 @@ window.initMapLogic = (containerId, segments, steps) => {
     if (!segment.is_flight) {
       L.polyline(segPoints, {
         color: "#ffffff",
-        weight: LINE_WEIGHT * 2,
+        weight: lineWeight * 2,
       }).addTo(map);
     } else {
       const pStart = segPoints[0];
@@ -405,7 +402,7 @@ window.initMapLogic = (containerId, segments, steps) => {
       }
       L.polyline(curvePoints, {
         color: "#ffffff",
-        weight: LINE_WEIGHT,
+        weight: lineWeight,
         dashArray: "1, 5",
         lineCap: "round",
       }).addTo(map);
@@ -427,16 +424,17 @@ window.initMapLogic = (containerId, segments, steps) => {
 
   map.fitBounds(bounds, { padding: [PADDING, PADDING], maxZoom: 18 });
 
+  const iconSize = 60 - steps.length / 5;
+
   steps.forEach((step) => {
     L.marker([step.lat_val, step.lon_val], {
-      icon: L.icon({
-        iconUrl: step.cover_photo,
-        iconSize: [ICON_SIZE, ICON_SIZE],
-        iconAnchor: [ICON_SIZE / 2, ICON_SIZE / 2],
-        popupAnchor: [0, -ICON_SIZE / 2],
+      icon: L.divIcon({
+        className: "step-marker-icon",
+        html: `<div class="custom-marker-inner" style="background-image: url('${step.cover_photo}')"></div>`,
+        iconSize: [iconSize, iconSize],
+        iconAnchor: [iconSize / 2, iconSize / 2],
+        popupAnchor: [0, -iconSize / 2],
       }),
     }).addTo(map);
   });
-
-  console.log("Map initialized successfully for", containerId);
 };
