@@ -108,7 +108,7 @@ async def build_step_layout(
             await asyncio.gather(
                 *(
                     load_video(trip_dir, path)
-                    for path in [path async for path in photo_folder.iterdir()]
+                    for path in [path async for path in video_folder.iterdir()]
                 )
             )
         )
