@@ -52,7 +52,7 @@ async def home_page(*, new: bool = False) -> None:
 
         # Right: Layout Editor (Preview)
         with ui.card().classes("flex-grow h-full"):
-            preview_frame = ui.element("iframe").classes("size-full rounded-lg").style("zoom: 0.8")
+            preview_frame = ui.element("iframe").classes("size-full rounded-lg").style("zoom: 0.7")
             preview_frame.visible = False
 
     # On trip select update settings form and hide preview

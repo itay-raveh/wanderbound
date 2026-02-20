@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Self
 from psagen.core.cache import log_cache_stats
 from psagen.core.logger import get_logger
 from psagen.logic.enrich import enrich_steps
-from psagen.logic.layout.builder import build_step_layout, try_build_layout
-from psagen.logic.media import extract_frame, load_photo
+from psagen.logic.layout.builder import build_step_layout
+from psagen.logic.media import extract_frame
 from psagen.logic.renderer import render_album_html
 from psagen.logic.segments import Locations, Segment, load_segments
 from psagen.models.layout import Video
@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
     from psagen.logic.enrich import EnrichedStep
     from psagen.models.config import AlbumConfig
-    from psagen.models.layout import StepLayout
     from psagen.models.user import User
 
 logger = get_logger(__name__)
@@ -99,30 +98,6 @@ class Album:
             render_album_html(self.config.settings, self.config.layouts, self.steps, self.segments)
         )
 
-    async def update_cover(self, step_id: int, new_cover: str) -> None:
-        step_layout = self.config.layouts[step_id]
-        old_cover = step_layout.cover
-        step_layout.cover = pathlib.Path(new_cover)
-
-        # if the old cover was not in any of the pages
-        if not any(
-            old_cover in [photo.path for photo in page.photos] for page in step_layout.pages
-        ):
-            # then we need to find the page with the new cover,
-            # and replace it with the old cover
-            for page_idx, page in enumerate(step_layout.pages):
-                for photo_idx, photo in enumerate(page.photos):
-                    if photo.path == step_layout.cover:
-                        # Replace new cover with old cover in the page
-                        page.photos[photo_idx] = await load_photo(
-                            self.folder, self.folder / old_cover
-                        )
-                        # Make a layout for the page
-                        step_layout.pages[page_idx] = try_build_layout(page.photos) or page
-                        break
-
-        await self.save()
-
     async def update_video_timestamp(self, step_id: int, src: str, timestamp: float) -> None:
         src_path = pathlib.Path(src)
 
@@ -135,13 +110,5 @@ class Album:
                     )
                     asset.path = pathlib.Path(frame_path.relative_to(self.folder))
                     break
-
-        await self.save()
-
-    async def update_layout(self, step_layout: StepLayout) -> None:
-        step_layout.pages = [
-            try_build_layout(page_layout.photos) or page_layout for page_layout in step_layout.pages
-        ]
-        self.config.layouts[step_layout.id] = step_layout
 
         await self.save()

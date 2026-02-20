@@ -1,9 +1,7 @@
-from pathlib import Path
-
 from pydantic import BaseModel
 
 from psagen.logic.segments import Segment
-from psagen.models.layout import PageLayout
+from psagen.models.layout import PageLayout, Photo
 from psagen.models.trip import Location
 
 
@@ -26,7 +24,7 @@ class StepTemplateCtx(BaseModel, arbitrary_types_allowed=True):
     progress_percent: float
     day_counter_box_position: float
     day_counter_arrow_position: float
-    cover_photo: Path
+    cover_photo: Photo
     country_flag_data_uri: str
     country_map_svg: str
     map_dot_x: float
@@ -36,7 +34,7 @@ class StepTemplateCtx(BaseModel, arbitrary_types_allowed=True):
     extra_description: str | None
     is_long_description: bool
     photo_pages: list[PageLayout]
-    hidden_photos: list[Path]
+    unused_photos: list[Photo]
 
 
 class TripTemplateCtx(BaseModel):

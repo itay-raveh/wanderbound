@@ -13,8 +13,12 @@ class Photo(BaseModel):
         return hash(self.path)
 
     @property
+    def aspect_ratio(self) -> float:
+        return self.width / self.height
+
+    @property
     def is_portrait(self) -> float:
-        return self.width / self.height <= 4 / 5
+        return self.aspect_ratio <= 4 / 5
 
     @property
     def is_video(self) -> bool:
@@ -42,6 +46,6 @@ class PageLayout(BaseModel):
 class StepLayout(BaseModel, arbitrary_types_allowed=True):
     id: int
     name: str
-    cover: Path
+    cover: Photo
     pages: list[PageLayout]
-    hidden_photos: list[Path]
+    unused_photos: list[Photo]

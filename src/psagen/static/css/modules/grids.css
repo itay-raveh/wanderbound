@@ -58,11 +58,6 @@
     object-fit: cover;
 }
 
-.photo-page-container.one-portrait-two-landscapes .photo-item:nth-child(2),
-.photo-page-container.one-portrait-two-landscapes .photo-item:nth-child(3) {
-    /*height: 100%;*/
-}
-
 .photo-page-container.one-portrait-two-landscapes .video-wrapper {
     width: 100% !important;
     height: 100% !important;
@@ -130,8 +125,4 @@
 .photo-image {
     max-width: 100%;
     max-height: 100%;
-}
-
-.hidden-photos-container {
-    display: none;
 }

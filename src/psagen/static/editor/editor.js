@@ -11,58 +11,47 @@ async function apiCall(endpoint, body) {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       // noinspection ExceptionCaughtLocallyJS
-      throw new Error(data.detail || `Request failed (${response.status})`);
+      throw new Error(
+        data.detail[0]?.msg || `Request failed (${response.status})`,
+      );
     }
   } catch (err) {
     console.error(err);
     alert(err.message);
-    throw err;
   }
 }
 
-function collectStepLayout(stepId) {
-  const stepPhotoPages = document.querySelectorAll(
-    `.step-page[data-step-id="${stepId}"] .photo-page-container`,
-  );
+function collectStepLayout(stepWrapper) {
+  const pages = Array.from(
+    stepWrapper.querySelectorAll(".photo-page-container"),
+  )
+    .map((container) =>
+      Array.from(container.querySelectorAll(".photo-item")).map((item) =>
+        JSON.parse(item.dataset.photo),
+      ),
+    )
+    .filter((photos) => photos.length > 0)
+    .map((photos) => ({ photos }));
 
-  const pages = [];
-  stepPhotoPages.forEach((container) => {
-    const pagePhotos = [];
-
-    container.querySelectorAll(".photo-item").forEach((item) => {
-      pagePhotos.push(JSON.parse(item.dataset.photo));
-    });
-
-    if (pagePhotos.length > 0) pages.push({ photos: pagePhotos });
-  });
-
-  const hiddenContainer = document.querySelector(
-    `.step-page[data-step-id="${stepId}"]:not(.photo-page) .hidden-photos-container`,
-  );
-  const hiddenPhotos = [];
-  hiddenContainer.querySelectorAll(".photo-item").forEach((item) => {
-    hiddenPhotos.push(item.dataset.photoPath);
-  });
-
-  const stepPage = document.querySelector(
-    `.step-page[data-step-id="${stepId}"]`,
-  );
+  const unused_photos = Array.from(
+    stepWrapper
+      .querySelector(`.unused-photos-container`)
+      .querySelectorAll(".photo-item"),
+  ).map((item) => JSON.parse(item.dataset.photo));
 
   return {
-    id: parseInt(stepId),
-    name: stepPage.dataset.stepName,
-    cover: stepPage.dataset.stepCover,
+    id: stepWrapper.dataset.id,
+    name: stepWrapper.dataset.name,
+    cover: JSON.parse(stepWrapper.dataset.cover),
     pages,
-    hidden_photos: hiddenPhotos,
+    unused_photos,
   };
 }
 
-function updateStepCover(id, cover) {
-  apiCall("cover", { id, cover }).then(location.reload);
-}
-
-function updateStepLayout(id) {
-  apiCall("layout", collectStepLayout(id)).then(location.reload);
+function updateStepLayout(stepWrapper) {
+  apiCall("layout", collectStepLayout(stepWrapper)).then(() =>
+    window.location.reload(),
+  );
 }
 
 // --- Video Logic ---
@@ -86,7 +75,7 @@ async function videoSetFrame(btn, stepId, src) {
       timestamp: btn.parentElement.querySelector("video").currentTime,
     });
 
-    location.reload();
+    window.location.reload();
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "Set Frame";
@@ -146,6 +135,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const addPageContainer = e.target.closest(".add-page-container");
     if (addPageContainer) handleDragOver.call(addPageContainer, e);
+
+    const unusedWrapper = e.target.closest(".unused-photos-wrapper");
+    if (unusedWrapper) handleDragOver.call(unusedWrapper, e);
+
+    if (e.target.matches(".cover-photo")) {
+      e.preventDefault();
+      e.target.classList.add("drag-over");
+    }
   });
 
   document.addEventListener("dragleave", (e) => {
@@ -154,6 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const addPageContainer = e.target.closest(".add-page-container");
     if (addPageContainer) handleDragLeave.call(addPageContainer, e);
+
+    const unusedWrapper = e.target.closest(".unused-photos-wrapper");
+    if (unusedWrapper) handleDragLeave.call(unusedWrapper, e);
+
+    if (e.target.matches(".cover-photo")) {
+      e.target.classList.remove("drag-over");
+    }
   });
 
   document.addEventListener("drop", (e) => {
@@ -162,29 +166,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const addPageContainer = e.target.closest(".add-page-container");
     if (addPageContainer) handleAddPageDrop.call(addPageContainer, e);
-  });
 
-  // Context Menu Delegation
-  document.addEventListener("contextmenu", (e) => {
-    const photoItem = e.target.closest(".photo-item");
-    if (photoItem) handleContextMenu.call(photoItem, e);
+    const unusedWrapper = e.target.closest(".unused-photos-wrapper");
+    if (unusedWrapper) handleDrop.call(unusedWrapper, e);
+
+    if (e.target.matches(".cover-photo")) handleCoverDrop.call(e.target, e);
   });
 });
 
-window.addPhotoPage = function (stepId, btn) {
+window.addPhotoPage = function (btn) {
   const newPage = document.createElement("div");
   newPage.className = "step-page photo-page page-container";
-  newPage.dataset.stepId = stepId;
-  newPage.innerHTML = `
-        <div class="photo-page-container">
-            <!-- Photos drop here -->
-        </div>
-    `;
+  newPage.innerHTML = `<div class="photo-page-container"></div>`;
 
   const btnContainer = btn.closest(".add-page-container");
   btnContainer.insertAdjacentElement("beforebegin", newPage);
 
-  newPage.scrollIntoView({ behavior: "smooth" });
   return newPage;
 };
 
@@ -228,13 +225,14 @@ function handleDrop(e) {
 
   const oldParent = draggedItem.parentNode;
 
-  // If the item was dropped over another photo
   const targetPhoto = e.target.closest(".photo-item");
   if (
     targetPhoto &&
     targetPhoto !== draggedItem &&
     this.contains(targetPhoto)
   ) {
+    // If the item was dropped over another photo
+
     // Check if it was dropped closer to the left side or right side of the other photo
     const rect = targetPhoto.getBoundingClientRect();
     const midX = rect.left + rect.width / 2;
@@ -243,8 +241,14 @@ function handleDrop(e) {
       draggedItem,
       e.clientX < midX ? targetPhoto : targetPhoto.nextSibling,
     );
+  } else if (this.classList.contains("unused-photos-wrapper")) {
+    // else, If this is the unused photos bar
+
+    const container = this.querySelector(".unused-photos-container");
+    container.appendChild(draggedItem);
   } else {
-    // Otherwise, `this` is simply a photo page
+    // Otherwise, this is simply a photo page
+
     this.appendChild(draggedItem);
   }
 
@@ -258,70 +262,48 @@ function handleDrop(e) {
   }
 
   // Update the layout
-  updateStepLayout(this.closest(".step-page").dataset.stepId);
+  updateStepLayout(this.closest(".step-wrapper"));
+}
+
+function handleCoverDrop(e) {
+  e.stopPropagation();
+  this.classList.remove("drag-over");
+
+  if (!draggedItem) return;
+
+  const sourceImg = draggedItem.querySelector("img");
+  if (!sourceImg) return;
+
+  const stepWrapper = this.closest(".step-wrapper");
+
+  // Swap Logic
+  const oldCoverUrl = this.src;
+  const oldCover = stepWrapper.dataset.cover;
+  const newCoverUrl = sourceImg.src;
+  const newCover = draggedItem.closest(".photo-item").dataset.photo;
+
+  // 1. Update cover image visual and dataset
+  this.src = newCoverUrl;
+  stepWrapper.dataset.cover = newCover;
+
+  // 2. Update the source photo item to show the OLD cover
+  sourceImg.src = oldCoverUrl;
+  draggedItem.dataset.photo = oldCover;
+
+  // 4. Trigger Layout Update
+  updateStepLayout(stepWrapper);
 }
 
 function handleAddPageDrop(e) {
   e.stopPropagation();
   this.classList.remove("drag-over");
 
-  if (!draggedItem) return;
-
-  // Find stepId
-  // Previous sibling should be a step-page belonging to the same step
-  const stepPage = this.previousElementSibling;
-
-  // If the previous element is not a step page (e.g. at the very top?), try next sibling if it exists, or just fail safely
-  const stepId = stepPage?.dataset?.stepId;
-  if (!stepId) return;
-
   // Create the new page
-  // We pass `this` as the button, since it's the container and addPhotoPage handles `closest('.add-page-container')`
-  const newPage = window.addPhotoPage(parseInt(stepId), this);
+  const newPage = addPhotoPage(this);
 
   // Move the photo to the new page
   const newContainer = newPage.querySelector(".photo-page-container");
   handleDrop.call(newContainer, e);
-}
-
-// --- Context Menu ---
-function handleContextMenu(e) {
-  e.preventDefault();
-
-  // Create menu
-  const menu = document.createElement("div");
-  menu.className = "editor-context-menu";
-  menu.style.left = e.pageX + "px";
-  menu.style.top = e.pageY + "px";
-  menu.innerHTML = `
-        <div class="menu-item" id="ctx-cover">Set as Cover</div>
-        <div class="menu-item" id="ctx-hide">Hide Photo</div>
-    `;
-  document.body.appendChild(menu);
-  const closeMenu = () => {
-    menu.remove();
-    document.removeEventListener("click", closeMenu);
-  };
-  setTimeout(() => document.addEventListener("click", closeMenu), 0);
-
-  // "Set as Cover" action
-  document.getElementById("ctx-cover").onclick = () => {
-    updateStepCover(
-      this.closest(".step-page").dataset.stepId,
-      this.dataset.photoPath,
-    );
-  };
-
-  // "Hide photo" action
-  document.getElementById("ctx-hide").onclick = () => {
-    const stepId = this.closest(".step-page").dataset.stepId;
-    document
-      .querySelector(
-        `.step-page[data-step-id="${stepId}"]:not(.photo-page) .hidden-photos-container`,
-      )
-      .appendChild(this);
-    updateStepLayout(stepId);
-  };
 }
 
 // Force load lazy images before print

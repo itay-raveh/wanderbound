@@ -125,7 +125,7 @@ async def build_step_layout(
     return StepLayout(
         id=step.id,
         name=step.name,
-        cover=cover.path,
+        cover=cover,
         pages=pages,
-        hidden_photos=[],
+        unused_photos=[],
     )

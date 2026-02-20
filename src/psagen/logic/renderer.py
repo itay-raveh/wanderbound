@@ -218,7 +218,7 @@ def _build_step_template_ctx(
         extra_description=extra_description,
         is_long_description=step.is_long_description,
         photo_pages=layout.pages,
-        hidden_photos=layout.hidden_photos,
+        unused_photos=layout.unused_photos,
     )
 
 
