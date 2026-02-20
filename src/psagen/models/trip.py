@@ -12,12 +12,7 @@ NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ign
 
 
 class Location(BaseModel, populate_by_name=True):
-    city: NullableStr = Field(
-        validation_alias=AliasChoices(
-            "name",
-            "village",
-        )
-    )
+    city: NullableStr = Field(validation_alias=AliasChoices("name", "village", "town"))
     country: NullableStr = Field(validation_alias="detail")
     country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
     lat: float
