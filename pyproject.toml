@@ -67,7 +67,7 @@ format = "ruff format ."
 check = "ruff check . --fix --unsafe-fixes"
 types = "basedpyright"
 deps = "deptry ."
-html = "djlint src/psagen/static/**/*.jinja src/psagen/static/*.jinja  --lint --reformat"
+html = "djlint src/psagen/static/templates/*.jinja  --lint --reformat"
 lint = "task format && task check && task types && task deps && task html"
 
 [tool.ruff]
@@ -77,22 +77,22 @@ line-length = 100
 select = ["ALL"]
 
 ignore = [
-    "D203", # 1-blank-line-before-class (conflicts with D211)
-    "D213", # Multi-line docstring summary at second line (conflicts with D212)
-    "COM812", # Missing trailing comma (conflicts with formatter)
-    "ISC001", # Single line implicit string concatenation (conflicts with formatter)
-    "EM101", # Exception must not use a string literal
-    "EM102", # Exception must not use an f-string literal
+    "D203",    # 1-blank-line-before-class (conflicts with D211)
+    "D213",    # Multi-line docstring summary at second line (conflicts with D212)
+    "COM812",  # Missing trailing comma (conflicts with formatter)
+    "ISC001",  # Single line implicit string concatenation (conflicts with formatter)
+    "EM101",   # Exception must not use a string literal
+    "EM102",   # Exception must not use an f-string literal
     "PLR2004", # Magic numbers - many are acceptable (HTTP codes, common values)
-    "TRY003", # Long exception messages - acceptable for user-facing errors
-    "D100", # Missing docstring in public module
-    "D101", # Missing docstring in public class
-    "D102", # Missing docstring in public method
-    "D103", # Missing docstring in public function
-    "D104", # Missing docstring in public package
-    "D105", # Missing docstring in magic method
-    "D106", # Missing docstring in public nested class
-    "D107", # Missing docstring in __init__
+    "TRY003",  # Long exception messages - acceptable for user-facing errors
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+    "D106",    # Missing docstring in public nested class
+    "D107",    # Missing docstring in __init__
     "D401",
 ]
 

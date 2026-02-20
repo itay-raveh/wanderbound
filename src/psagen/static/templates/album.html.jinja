@@ -39,16 +39,16 @@
         <script>{% include 'editor/editor.js' %}</script>
     </head>
     <body>
-        {% include "templates/title_page.html.jinja" %}
-        {% include "templates/trip_overview.html.jinja" %}
+        {% include "title_page.html.jinja" %}
+        {% include "trip_overview.html.jinja" %}
         {% set map_ctx = main_map %}
-        {% include "templates/map_page.html.jinja" %}
+        {% include "map_page.html.jinja" %}
         {% for step in steps %}
             {% if loop.index0 in submaps %}
                 {% set map_ctx = submaps[loop.index0] %}
-                {% include "templates/map_page.html.jinja" %}
+                {% include "map_page.html.jinja" %}
             {% endif %}
-            {% include "templates/step_page.html.jinja" %}
+            {% include "step_page.html.jinja" %}
         {% endfor %}
         <button class="print-btn" onclick="window.print()" title="Print Album">
             <span class="material-symbols-outlined">print</span>

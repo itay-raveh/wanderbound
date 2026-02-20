@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 env = Environment(
-    loader=FileSystemLoader(str(settings.static_dir)),
+    loader=FileSystemLoader([settings.static_dir, settings.static_dir / "templates"]),
     autoescape=True,
     trim_blocks=True,
     lstrip_blocks=True,
