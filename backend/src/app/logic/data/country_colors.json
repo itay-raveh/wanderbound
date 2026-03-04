@@ -1,0 +1,1747 @@
+[
+  {
+    "code": "00",
+    "colors": [
+      "#080808"
+    ]
+  },
+  {
+    "code": "DZ",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "AO",
+    "colors": [
+      "#FF0000",
+      "#000000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "BJ",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "BW",
+    "colors": [
+      "#76ACDC",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Burkina Faso",
+    "code": "BF",
+    "colors": [
+      "#FF0000",
+      "#008000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "BI",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "CM",
+    "colors": [
+      "#008000",
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "country": "Cape Verde",
+    "code": "CV",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "country": "Central African Republic",
+    "code": "CF",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "TD",
+    "colors": [
+      "#00008B",
+      "#FFD700",
+      "#CC0000"
+    ]
+  },
+  {
+    "code": "KM",
+    "colors": [
+      "#FFFF00",
+      "#FFFFFF",
+      "#FF0000",
+      "#0000FF",
+      "#008000"
+    ]
+  },
+  {
+    "country": "Congo, Democratic Republic of the",
+    "code": "CD",
+    "colors": [
+      "#007FFF",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Congo, Republic of the",
+    "code": "CG",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "DJ",
+    "colors": [
+      "#75AADB",
+      "#008000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "EG",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000"
+    ]
+  },
+  {
+    "country": "Equatorial Guinea",
+    "code": "GQ",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000",
+      "#007FFF"
+    ]
+  },
+  {
+    "code": "ER",
+    "colors": [
+      "#008000",
+      "#007FFF",
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "country": "Eswatini (Swaziland)",
+    "code": "SZ",
+    "colors": [
+      "#3C5EBA",
+      "#FFD700",
+      "#B30404",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "ET",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "GA",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "GM",
+    "colors": [
+      "#FF0000",
+      "#00008B",
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "GH",
+    "colors": [
+      "#FF0000",
+      "#FFFF00",
+      "#008000",
+      "#000000"
+    ]
+  },
+  {
+    "code": "GN",
+    "colors": [
+      "#FF0000",
+      "#FFFF00",
+      "#008000"
+    ]
+  },
+  {
+    "country": "Guinea-Bissau",
+    "code": "GW",
+    "colors": [
+      "#FF0000",
+      "#FFFF00",
+      "#008000",
+      "#000000"
+    ]
+  },
+  {
+    "country": "Ivory Coast",
+    "code": "CI",
+    "colors": [
+      "#FFA500",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "KE",
+    "colors": [
+      "#000000",
+      "#FF0000",
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "LS",
+    "colors": [
+      "#00008B",
+      "#FFFFFF",
+      "#008000",
+      "#000000"
+    ]
+  },
+  {
+    "code": "LR",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#00008B"
+    ]
+  },
+  {
+    "code": "LY",
+    "colors": [
+      "#FF0000",
+      "#000000",
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "MG",
+    "colors": [
+      "#FC3B2E",
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "MW",
+    "colors": [
+      "#000000",
+      "#FF0000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "ML",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "MR",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "MU",
+    "colors": [
+      "#FF0000",
+      "#000080",
+      "#FFFF00",
+      "#008000"
+    ]
+  },
+  {
+    "code": "MA",
+    "colors": [
+      "#C22229",
+      "#006230"
+    ]
+  },
+  {
+    "code": "MZ",
+    "colors": [
+      "#008000",
+      "#000000",
+      "#FFFF00",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "NA",
+    "colors": [
+      "#0000FF",
+      "#FF0000",
+      "#008000",
+      "#FFFFFF",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "NE",
+    "colors": [
+      "#E05206",
+      "#FFFFFF",
+      "#0DB02B"
+    ]
+  },
+  {
+    "code": "NG",
+    "colors": [
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "RW",
+    "colors": [
+      "#00A3DF",
+      "#FFFF00",
+      "#008000"
+    ]
+  },
+  {
+    "country": "São Tomé and Príncipe",
+    "code": "ST",
+    "colors": [
+      "#12AD2B",
+      "#FFFF00",
+      "#FF0000",
+      "#000000"
+    ]
+  },
+  {
+    "code": "SN",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "SC",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "country": "Sierra Leone",
+    "code": "SL",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "SO",
+    "colors": [
+      "#007FFF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "South Africa",
+    "code": "ZA",
+    "colors": [
+      "#FF0000",
+      "#008000",
+      "#0000FF",
+      "#FFD700",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "South Sudan",
+    "code": "SS",
+    "colors": [
+      "#000000",
+      "#FF0000",
+      "#008000",
+      "#0000FF",
+      "#FFFF00",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "SD",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "TZ",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#007FFF",
+      "#000000"
+    ]
+  },
+  {
+    "code": "TG",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "TN",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "UG",
+    "colors": [
+      "#000000",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "ZM",
+    "colors": [
+      "#008000",
+      "#FF0000",
+      "#000000",
+      "#FFA500"
+    ]
+  },
+  {
+    "code": "ZW",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#FF0000",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "AI",
+    "colors": [
+      "#FF861F",
+      "#93CCEA",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Antigua and Barbuda",
+    "code": "AG",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF",
+      "#000000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "AW",
+    "colors": [
+      "#FBE870",
+      "#4997D0",
+      "#FF8833",
+      "#ED0A3F"
+    ]
+  },
+  {
+    "code": "BS",
+    "colors": [
+      "#40E0D0",
+      "#FFFF00",
+      "#000000"
+    ]
+  },
+  {
+    "code": "BB",
+    "colors": [
+      "#00008B",
+      "#FFFF00",
+      "#000000"
+    ]
+  },
+  {
+    "code": "BZ",
+    "colors": [
+      "#0066CC",
+      "#FF3F34",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "BM",
+    "colors": [
+      "#ED0A3F",
+      "#0066FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "British Virgin Islands",
+    "code": "VG",
+    "colors": [
+      "#29AB87",
+      "#FBE870",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "CA",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Cayman Islands",
+    "code": "KY",
+    "colors": [
+      "#3F26BF",
+      "#FF3F34",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Costa Rica",
+    "code": "CR",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "CU",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Curaçao",
+    "code": "CW",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "DM",
+    "colors": [
+      "#008000",
+      "#FFFF00",
+      "#000000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Dominican Republic",
+    "code": "DO",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "El Salvador",
+    "code": "SV",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "GD",
+    "colors": [
+      "#01A368",
+      "#F8D568",
+      "#ED0A3F"
+    ]
+  },
+  {
+    "code": "GP",
+    "colors": [
+      "#01A368",
+      "#ED0A3F",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "GT",
+    "colors": [
+      "#0066FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "HT",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "HN",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "JM",
+    "colors": [
+      "#008000",
+      "#FFD700",
+      "#000000"
+    ]
+  },
+  {
+    "code": "MQ",
+    "colors": [
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "MX",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "MS",
+    "colors": [
+      "#000000",
+      "#1CAC78",
+      "#23145D",
+      "#EE204D",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "NI",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "PA",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Puerto Rico",
+    "code": "PR",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "country": "Saint Kitts and Nevis",
+    "code": "KN",
+    "colors": [
+      "#008000",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Saint Lucia",
+    "code": "LC",
+    "colors": [
+      "#50BFE6",
+      "#FAFA37",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Saint Martin",
+    "code": "MF",
+    "colors": [
+      "#FFFF00",
+      "#0000FF"
+    ]
+  },
+  {
+    "country": "Saint Pierre et Miquelon",
+    "code": "PM",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Saint Vincent and the Grenadines",
+    "code": "VC",
+    "colors": [
+      "#2243B6",
+      "#FFD82C",
+      "#1CAC78"
+    ]
+  },
+  {
+    "country": "Sint Maarten",
+    "code": "MF",
+    "colors": [
+      "#ED0A3F",
+      "#FCF686",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Trinidad and Tobago",
+    "code": "TT",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000"
+    ]
+  },
+  {
+    "country": "Turks and Caicos",
+    "code": "TC",
+    "colors": [
+      "#436CB9",
+      "#3AA8C1",
+      "#D05340",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "United States of America",
+    "code": "US",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#00008B"
+    ]
+  },
+  {
+    "country": "US Virgin Islands",
+    "code": "VI",
+    "colors": [
+      "#FFFFFF",
+      "#FFFF66",
+      "#0066FF"
+    ]
+  },
+  {
+    "code": "AR",
+    "colors": [
+      "#75AADB",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "BO",
+    "colors": [
+      "#FF0000",
+      "#FFFF00",
+      "#008000"
+    ]
+  },
+  {
+    "code": "BR",
+    "colors": [
+      "#008000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "CL",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "CO",
+    "colors": [
+      "#FFFF00",
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "EC",
+    "colors": [
+      "#FFFF00",
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "French Guiana",
+    "code": "GF",
+    "colors": [
+      "#FFDB00",
+      "#63B76C"
+    ]
+  },
+  {
+    "code": "GY",
+    "colors": [
+      "#FCF686",
+      "#119430"
+    ]
+  },
+  {
+    "code": "PY",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "PE",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "SR",
+    "colors": [
+      "#FFFFFF",
+      "#01A368"
+    ]
+  },
+  {
+    "code": "UY",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "VE",
+    "colors": [
+      "#FFFF00",
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "AF",
+    "colors": [
+      "#000000",
+      "#FF0000",
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "AM",
+    "colors": [
+      "#FF0000",
+      "#0000FF",
+      "#FFA500"
+    ]
+  },
+  {
+    "code": "AZ",
+    "colors": [
+      "#0000FF",
+      "#FF0000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "BH",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "BD",
+    "colors": [
+      "#F4263F",
+      "#006A4D",
+      "#FF9900"
+    ]
+  },
+  {
+    "code": "BT",
+    "colors": [
+      "#E48400",
+      "#FFD700",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "BN",
+    "colors": [
+      "#FFFF00",
+      "#000000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "KH",
+    "colors": [
+      "#FF0000",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "CN",
+    "colors": [
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "GE",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Hong Kong",
+    "code": "HK",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "IN",
+    "colors": [
+      "#FFA500",
+      "#00008B",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "ID",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "IR",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "IQ",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "IL",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "JP",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "JO",
+    "colors": [
+      "#000000",
+      "#FFFFFF",
+      "#008000",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "KZ",
+    "colors": [
+      "#007FFF",
+      "#FFFF00"
+    ]
+  },
+  {
+    "country": "Korea, North",
+    "code": "KP",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "country": "Korea, South",
+    "code": "KR",
+    "colors": [
+      "#FFFFFF",
+      "#FF0000",
+      "#0000FF",
+      "#000000"
+    ]
+  },
+  {
+    "code": "KW",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000",
+      "#000000"
+    ]
+  },
+  {
+    "code": "KG",
+    "colors": [
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "LA",
+    "colors": [
+      "#FF0000",
+      "#00008B",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "LB",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "MO",
+    "colors": [
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "MY",
+    "colors": [
+      "#FFD700",
+      "#000000"
+    ]
+  },
+  {
+    "code": "MV",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "MN",
+    "colors": [
+      "#0000FF",
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "MM",
+    "colors": [
+      "#FFFF00",
+      "#008000",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "NP",
+    "colors": [
+      "#DC143C",
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "OM",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "PK",
+    "colors": [
+      "#006400",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "PS",
+    "colors": [
+      "#000000",
+      "#FFFFFF",
+      "#008000",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "PH",
+    "colors": [
+      "#0000FF",
+      "#FF0000",
+      "#FFFFFF",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "QA",
+    "colors": [
+      "#800000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Saudi Arabia",
+    "code": "SA",
+    "colors": [
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "SG",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Sri Lanka",
+    "code": "LK",
+    "colors": [
+      "#800000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "SY",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "TW",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "TJ",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "TH",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "country": "Timor-Leste",
+    "code": "TL",
+    "colors": [
+      "#FF0000",
+      "#FFFF00",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "TR",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "TM",
+    "colors": [
+      "#008000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "United Arab Emirates",
+    "code": "AE",
+    "colors": [
+      "#FF0000",
+      "#008000",
+      "#FFFFFF",
+      "#000000"
+    ]
+  },
+  {
+    "code": "UZ",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "VN",
+    "colors": [
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "YE",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#000000"
+    ]
+  },
+  {
+    "code": "AL",
+    "colors": [
+      "#FF0000",
+      "#000000"
+    ]
+  },
+  {
+    "code": "AD",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "AT",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "BY",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "BE",
+    "colors": [
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "Bosnia and Herzegovina",
+    "code": "BA",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "BG",
+    "colors": [
+      "#FFFFFF",
+      "#008000",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "HR",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "CY",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "Czech Republic",
+    "code": "CZ",
+    "colors": [
+      "#FFFFFF",
+      "#FF0000",
+      "#0000CC"
+    ]
+  },
+  {
+    "code": "DK",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "EE",
+    "colors": [
+      "#0000FF",
+      "#000000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "FI",
+    "colors": [
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "FR",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "DE",
+    "colors": [
+      "#000000",
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "GR",
+    "colors": [
+      "#0000FF",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "HU",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#008000"
+    ]
+  },
+  {
+    "code": "IS",
+    "colors": [
+      "#0000CC",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "IE",
+    "colors": [
+      "#008000",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "IT",
+    "colors": [
+      "#008000",
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "XK",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "LV",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "LI",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "LT",
+    "colors": [
+      "#FFFF00",
+      "#008000",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "LU",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#75AADB"
+    ]
+  },
+  {
+    "code": "MT",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "MD",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "MC",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "ME",
+    "colors": [
+      "#CC0000",
+      "#CFB53B"
+    ]
+  },
+  {
+    "code": "NL",
+    "colors": [
+      "#FF7F00"
+    ]
+  },
+  {
+    "country": "North Macedonia",
+    "code": "MK",
+    "colors": [
+      "#FF0000",
+      "#FFFF00"
+    ]
+  },
+  {
+    "code": "NO",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#00008B"
+    ]
+  },
+  {
+    "code": "PL",
+    "colors": [
+      "#FFFFFF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "PT",
+    "colors": [
+      "#008000",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "RO",
+    "colors": [
+      "#0000FF",
+      "#FFFF00",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "RU",
+    "colors": [
+      "#FFFFFF",
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "country": "San Marino",
+    "code": "SM",
+    "colors": [
+      "#FFFFFF",
+      "#007FFF"
+    ]
+  },
+  {
+    "code": "RS",
+    "colors": [
+      "#FF0000",
+      "#0000CC",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "SK",
+    "colors": [
+      "#FFFFFF",
+      "#00008B",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "SI",
+    "colors": [
+      "#FFFFFF",
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "ES",
+    "colors": [
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "SE",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "CH",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "UA",
+    "colors": [
+      "#0000FF",
+      "#FFFF00"
+    ]
+  },
+  {
+    "country": "United Kingdom",
+    "code": "GB",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000CC"
+    ]
+  },
+  {
+    "country": "American Samoa",
+    "code": "AS",
+    "colors": [
+      "#1A63C2",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "AU",
+    "colors": [
+      "#008000",
+      "#FFD700"
+    ]
+  },
+  {
+    "country": "Cook Islands",
+    "code": "CK",
+    "colors": [
+      "#01796F",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "FJ",
+    "colors": [
+      "#75AADB"
+    ]
+  },
+  {
+    "country": "French Polynesia",
+    "code": "PF",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "GU",
+    "colors": [
+      "#4F69C6",
+      "#CA3435"
+    ]
+  },
+  {
+    "country": "New Caledonia",
+    "code": "NC",
+    "colors": [
+      "#A6AAAE",
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "country": "New Zealand",
+    "code": "NZ",
+    "colors": [
+      "#000000"
+    ]
+  },
+  {
+    "code": "NU",
+    "colors": [
+      "#FFDF00",
+      "#0066FF"
+    ]
+  },
+  {
+    "code": "WS",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF",
+      "#0000FF"
+    ]
+  },
+  {
+    "country": "Solomon Islands",
+    "code": "SB",
+    "colors": [
+      "#497E48",
+      "#FFFF00",
+      "#0048ba"
+    ]
+  },
+  {
+    "code": "TO",
+    "colors": [
+      "#FF0000",
+      "#FFFFFF"
+    ]
+  },
+  {
+    "code": "TV",
+    "colors": [
+      "#76D7EA",
+      "#FFFF66",
+      "#FFFFFF"
+    ]
+  }
+]

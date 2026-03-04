@@ -1,0 +1,29 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+backend/typings/
+
+# Node (not needed in Docker — frontend is built in a separate stage)
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# Data & logs
+*.log
+backend/data/
+backend/database.db
+backend/users/
+backend/cache/
+
+# Misc
+*.env
+user_data.zip

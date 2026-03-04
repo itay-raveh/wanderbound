@@ -5,22 +5,42 @@ __pycache__/
 *.so
 *.egg-info/
 *.egg
-dist/
-build/
 pycrucible_payload
 
 # Virtual environments
-.venv
+.venv/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Logs
+*.log
 
 # IDE
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*.sw?
 *~
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.local
 
-logs/
+# App data
 *.env
-cache/
-.nicegui
-users/
+backend/data
+
+# Generated
+frontend/public/countries
+frontend/src/api
+
+# Test
+playwright-report/
+test-results/
