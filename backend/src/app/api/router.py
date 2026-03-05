@@ -16,11 +16,11 @@ from pydantic import BaseModel
 from safezip import SafezipError, SafeZipFile
 from sqlmodel import select
 
-from app.core.client import APIClient
+from app.core.client import RetryAsyncClient
 from app.core.logging import config_logger
 from app.logic.data.country_colors import build_country_colors
 from app.logic.data.openmeteo import fetch_elevations
-from app.logic.data.weather import fetch_weather
+from app.logic.data.weather import build_weather
 from app.logic.layout.builder import build_step_layout
 from app.logic.layout.media import extract_frame
 from app.logic.tracking.cleaning import clean_points
@@ -95,7 +95,7 @@ async def upload(
 
         session.add(album)
 
-        async with APIClient() as client:
+        async with RetryAsyncClient() as client:
             elevations = [
                 int(el)
                 async for el in fetch_elevations(
@@ -106,7 +106,7 @@ async def upload(
             logger.info(":heavy_check_mark: Fetched elevations")
 
             weathers = await asyncio.gather(
-                *(fetch_weather(client, step) for step in trip.all_steps)
+                *(build_weather(client, step) for step in trip.all_steps)
             )
 
             logger.info(":heavy_check_mark: Fetched weathers")
@@ -226,68 +226,46 @@ async def get_segments(
     user: DependsUser,
     session: DependsSession,
 ) -> Sequence[Segment]:
+    # Get steps (we want to add them as GPS points as well)
+    stmt = select(Step).where(
+        Step.uid == user.id, Step.aid == aid, Step.idx >= first, Step.idx <= last
+    )
+    steps = (await session.scalars(stmt)).all()
+
+    buffer = timedelta(days=0.5)
+    start_limit = steps[0].datetime - buffer
+    end_limit = steps[-1].datetime + buffer
+
+    # Combine and filter to get all points between the steps
+    step_points = (
+        PSPoint(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()) for s in steps
+    )
+
     # Get GPS data
     locations = PSLocations.model_validate_json(
         (user.trip_folder / aid / "locations.json").read_bytes()
     )
 
-    # Get steps (we want to add them as GPS points as well)
-    steps = (
-        await session.scalars(
-            select(Step).where(
-                Step.uid == user.id, Step.aid == aid, Step.idx >= first, Step.idx <= last
-            )
-        )
-    ).all()
-
-    buffer = timedelta(days=0.5)
-
-    # Combine and filter to get all points between the steps
     points = filter(
-        lambda point: (
-            (steps[0].datetime - buffer) <= point.datetime <= (steps[-1].datetime + buffer)
-        ),
-        chain(
-            clean_points(locations.locations),
-            (
-                PSPoint(
-                    lat=step.location.lat,
-                    lon=step.location.lon,
-                    time=step.datetime.timestamp(),
-                )
-                for step in steps
-            ),
-        ),
+        lambda p: start_limit <= p.datetime <= end_limit,
+        chain(clean_points(locations.locations), step_points),
     )
 
-    segments = list(build_segments(points))
-    logger.info("Found %d segments for %s", len(segments), aid)
-
-    flights = [seg for seg in segments if seg.kind == "flight"]
-    logger.info("Found %d flights for %s", len(flights), aid)
-
-    return segments
+    return list(build_segments(points))
 
 
 @api.get("/trip/{asset_rel_path:path}")
 async def get_trip_asset(asset_rel_path: Path, user: DependsUser) -> FileResponse:
-    asset_path = user.trip_folder / asset_rel_path
-
-    if asset_path.suffix.lower() not in {".jpg", ".png", ".mp4"}:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-
-    try:
-        asset_path_resolved = asset_path.resolve()
-    except OSError as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND) from e
+    normalized = (user.trip_folder / asset_rel_path).resolve()
 
     if (
-        not asset_path_resolved.is_relative_to(user.trip_folder)
-        or not asset_path_resolved.is_file()
+        normalized.suffix.lower() not in {".jpg", ".jpeg", ".png", ".mp4"}
+        or not normalized.is_relative_to(user.trip_folder)
+        or not normalized.is_file(follow_symlinks=False)
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND)
 
-    return FileResponse(asset_path_resolved)
+    return FileResponse(normalized)
 
 
 @api.put("/trip/{video:path}")

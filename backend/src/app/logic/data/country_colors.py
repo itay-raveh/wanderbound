@@ -9,13 +9,9 @@ from pydantic import BaseModel, StringConstraints, TypeAdapter
 if TYPE_CHECKING:
     from collections.abc import Container
 
-CountryCode = Annotated[
-    str, StringConstraints(to_lower=True, pattern="[a-zA-Z]{2}|00")
-]
+CountryCode = Annotated[str, StringConstraints(to_lower=True, pattern="[a-zA-Z]{2}|00")]
 
-HexColor = Annotated[
-    str, StringConstraints(to_lower=True, pattern="#[0-9a-fA-F]{6}")
-]
+HexColor = Annotated[str, StringConstraints(to_lower=True, pattern="#[0-9a-fA-F]{6}")]
 
 
 class CountryColors(BaseModel):
@@ -23,27 +19,27 @@ class CountryColors(BaseModel):
     colors: list[HexColor]
 
 
-COUNTRIES = TypeAdapter(list[CountryColors]).validate_json(
+_COUNTRIES = TypeAdapter(list[CountryColors]).validate_json(
     (Path(__file__).parent / "country_colors.json").read_bytes()
 )
 
 
-def hex_to_rgb(hex_color: HexColor) -> tuple[int, int, int]:
+def _hex_to_rgb(hex_color: HexColor) -> tuple[int, int, int]:
     """Convert a hex string to an (R, G, B) tuple."""
     hex_color = hex_color.lstrip("#")
     # noinspection PyTypeChecker
     return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))  # pyright: ignore[reportReturnType]
 
 
-def rgb_to_hex(r: float, g: float, b: float) -> HexColor:
+def _rgb_to_hex(r: float, g: float, b: float) -> HexColor:
     """Convert (R, G, B) to a hex string."""
     return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
 
 
-def color_distance(hex1: HexColor, hex2: HexColor) -> float:
+def _color_distance(hex1: HexColor, hex2: HexColor) -> float:
     """Calculates the 'Redmean' color distance."""
-    r1, g1, b1 = hex_to_rgb(hex1)
-    r2, g2, b2 = hex_to_rgb(hex2)
+    r1, g1, b1 = _hex_to_rgb(hex1)
+    r2, g2, b2 = _hex_to_rgb(hex2)
 
     r_mean = (r1 + r2) / 2
     r_diff = r1 - r2
@@ -58,8 +54,8 @@ def color_distance(hex1: HexColor, hex2: HexColor) -> float:
     )
 
 
-def darken_color(hex_color: HexColor, factor: float = 0.7) -> HexColor:
-    r, g, b = hex_to_rgb(hex_color)
+def _darken_color(hex_color: HexColor, factor: float = 0.7) -> HexColor:
+    r, g, b = _hex_to_rgb(hex_color)
     h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
 
     # Darken the lightness (preventing it from going below 0)
@@ -67,41 +63,29 @@ def darken_color(hex_color: HexColor, factor: float = 0.7) -> HexColor:
 
     # Convert back to RGB
     r, g, b = colorsys.hls_to_rgb(h, l, s)
-    return rgb_to_hex(r * 255, g * 255, b * 255)
+    return _rgb_to_hex(r * 255, g * 255, b * 255)
+
+
+def _score_combo(combo: tuple[HexColor, ...]) -> float:
+    return min(
+        (_color_distance(c1, c2) for c1, c2 in itertools.combinations(combo, 2)),
+        default=math.inf,
+    )
 
 
 def build_country_colors(
     codes: Container[str], threshold: float = 150.0
 ) -> dict[CountryCode, HexColor]:
-    countries = [country for country in COUNTRIES if country.code in codes]
-    country_candidates = [c.colors for c in countries]
+    countries = [country for country in _COUNTRIES if country.code in codes]
+    if not countries:
+        return {}
 
-    # Find the permutation with the maximum minimum-distance
-    best_combo = []
-    max_min_dist = float("-inf")
-
-    for combo in itertools.product(*country_candidates):
-        if len(combo) <= 1:
-            best_combo = list(combo)
-            break
-
-        # Check every pair in this specific combination
-        min_dist_in_combo = float("inf")
-        for color1, color2 in itertools.combinations(combo, 2):
-            dist = color_distance(color1, color2)
-            min_dist_in_combo = min(min_dist_in_combo, dist)
-
-        # Is this combination better than the previous best?
-        if min_dist_in_combo > max_min_dist:
-            max_min_dist = min_dist_in_combo
-            best_combo = list(combo)
+    # Find the combination with the maximum minimum-distance between colors
+    best_combo = list(max(itertools.product(*(c.colors for c in countries)), key=_score_combo))
 
     # Darken the conflicting colors
-    if max_min_dist < threshold and len(best_combo) > 1:
-        for i in range(len(best_combo)):
-            for j in range(i + 1, len(best_combo)):
-                if color_distance(best_combo[i], best_combo[j]) < threshold:
-                    # Darken the second color in the conflict
-                    best_combo[j] = darken_color(best_combo[j], factor=0.7)
+    for i, j in itertools.combinations(range(len(best_combo)), 2):
+        if _color_distance(best_combo[i], best_combo[j]) < threshold:
+            best_combo[j] = _darken_color(best_combo[j])
 
-    return {countries[i].code: best_combo[i] for i in range(len(countries))}
+    return {country.code: best_combo[i] for i, country in enumerate(countries)}

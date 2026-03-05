@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING
 
-import aiohttp
+import httpx
 from pydantic import BaseModel
 
 from app.core.logging import config_logger
@@ -12,7 +12,7 @@ from app.core.settings import settings
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from app.core.client import APIClient
+    from app.core.client import RetryAsyncClient
     from app.models.polarsteps import PSStep
 
 logger = config_logger(__name__)
@@ -41,9 +41,7 @@ def _normalize_icon_name(icon: str) -> str:
 
 
 def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
-    night_hours = [
-        hour for hour in hours if not 5 <= int(hour.datetime[0:2]) <= 21
-    ]
+    night_hours = [hour for hour in hours if not 5 <= int(hour.datetime[0:2]) <= 21]
 
     if night_hours:
         icons = (hour.icon for hour in night_hours)
@@ -56,6 +54,12 @@ def _get_night_icon(hours: list[WeatherHourData], day_icon: str) -> str:
     if day_icon == "partly-cloudy":
         return "partly-cloudy-night"
     return day_icon.replace("-day", "-night")
+
+
+class WeatherData(BaseModel):
+    temp: float
+    feels_like: float
+    icon: str
 
 
 class Weather(BaseModel):
@@ -74,25 +78,24 @@ class Weather(BaseModel):
 
 
 async def _fetch_weather(
-    client: APIClient, lat: float, lon: float, date: datetime
+    client: RetryAsyncClient, lat: float, lon: float, date: datetime
 ) -> Weather:
     response = WeatherApiResponse.model_validate_json(
-        await client.get(
-            settings.visual_crossing_api_url.format(
-                lat=lat,
-                lon=lon,
-                date=date.strftime("%Y-%m-%d"),
-                key=settings.visual_crossing_api_key,
-            )
+        await client.get_with_retries(
+            f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date:%Y-%m-%d}",
+            params={
+                "key": settings.visual_crossing_api_key,
+                "unitGroup": "metric",
+                "include": "hours",
+                "elements": "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon",
+            },
         )
     )
 
     day = response.days[0]
     day_icon = _normalize_icon_name(day.icon)
     return Weather(
-        day=WeatherData(
-            temp=day.tempmax, feels_like=day.feelslikemax, icon=day_icon
-        ),
+        day=WeatherData(temp=day.tempmax, feels_like=day.feelslikemax, icon=day_icon),
         night=WeatherData(
             temp=day.tempmin,
             feels_like=day.feelslikemin,
@@ -101,7 +104,7 @@ async def _fetch_weather(
     )
 
 
-async def fetch_weather(client: APIClient, step: PSStep) -> Weather:
+async def build_weather(client: RetryAsyncClient, step: PSStep) -> Weather:
     if not settings.visual_crossing_api_key:
         return Weather.from_step(step)
 
@@ -112,16 +115,10 @@ async def fetch_weather(client: APIClient, step: PSStep) -> Weather:
             round(step.location.lon, 2),
             step.datetime,
         )
-    except aiohttp.ClientError:
+    except httpx.HTTPError:
         logger.exception(
             "Unable to fetch weather for %s at %s",
             step.location.detail,
             step.datetime,
         )
         return Weather.from_step(step)
-
-
-class WeatherData(BaseModel):
-    temp: float
-    feels_like: float
-    icon: str

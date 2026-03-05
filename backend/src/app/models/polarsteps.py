@@ -58,6 +58,10 @@ class PSStep(BaseModel):
         return f"{self.slug}_{self.id}"
 
     @property
+    def datetime(self) -> datetime:
+        return datetime.fromtimestamp(self.timestamp, ZoneInfo(self.timezone_id))
+
+    @property
     def is_long_description(self) -> bool:
         return _calculate_visual_length(self.description) > settings.long_description_threshold
 

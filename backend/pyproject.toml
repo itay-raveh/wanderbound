@@ -6,7 +6,6 @@ requires-python = ">=3.14"
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
 
 dependencies = [
-    "aiohttp",
     "Pillow",
     "pydantic>2",
     "pydantic-settings>2",
@@ -20,6 +19,7 @@ dependencies = [
     "aiosqlite",
     "safezip",
     "numpy>2",
+    "httpx",
 ]
 
 [dependency-groups]
@@ -28,8 +28,6 @@ dev = [
     "basedpyright",
     "deptry",
     "taskipy",
-    "folium",
-    "ipykernel",
 ]
 
 [build-system]

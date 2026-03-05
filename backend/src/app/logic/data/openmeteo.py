@@ -8,7 +8,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Iterable
 
-    from app.core.client import APIClient
+    from app.core.client import RetryAsyncClient
     from app.models.polarsteps import Location
 
 
@@ -17,15 +17,16 @@ class OpenMeteoElevationsResponse(BaseModel):
 
 
 async def fetch_elevations(
-    client: APIClient, locs: Iterable[Location]
+    client: RetryAsyncClient, locs: Iterable[Location]
 ) -> AsyncGenerator[float]:
     for batch in batched(locs, 100, strict=False):
         latitude = ",".join(str(loc.lat) for loc in batch)
         longitude = ",".join(str(loc.lon) for loc in batch)
 
         response = OpenMeteoElevationsResponse.model_validate_json(
-            await client.get(
-                f"https://api.open-meteo.com/v1/elevation?{latitude=!s}&{longitude=!s}",
+            await client.get_with_retries(
+                "https://api.open-meteo.com/v1/elevation",
+                params={"latitude": latitude, "longitude": longitude},
             )
         )
 
