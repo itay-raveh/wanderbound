@@ -67,11 +67,11 @@ async def upload(
     except (BadZipFile, SafezipError) as e:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=str(e)) from e
 
-    for trip_folder in user.trip_folder.iterdir():
-        logger.info("Processing '%s' ...", trip_folder.name)
+    for trip_dir in user.trips_folder.iterdir():
+        logger.info("Processing '%s' ...", trip_dir.name)
 
         # Load trip.json
-        trip = PSTrip.model_validate_json((trip_folder / "trip.json").read_bytes())
+        trip = PSTrip.from_trip_dir(trip_dir)
 
         logger.info("Loaded '%s' with %d steps", trip.title, trip.step_count)
 
@@ -84,7 +84,7 @@ async def upload(
         # Create Album
         album = Album(
             uid=user.id,
-            id=trip_folder.name,
+            id=trip_dir.name,
             colors=colors,
             steps_ranges=f"0-{trip.step_count - 1}",
             title=trip.title,
@@ -95,6 +95,7 @@ async def upload(
 
         session.add(album)
 
+        # Create a single client for the requests to enforce limits
         async with RetryAsyncClient() as client:
             elevations = [
                 int(el)
@@ -111,12 +112,8 @@ async def upload(
 
             logger.info(":heavy_check_mark: Fetched weathers")
 
-            layouts = (
-                # await asyncio.gather(
-                # *(
-                [await build_step_layout(user, album.id, step) for step in trip.all_steps]
-                # )
-                # )
+            layouts = await asyncio.gather(
+                *(build_step_layout(user, album.id, step) for step in trip.all_steps)
             )
 
             logger.info(":heavy_check_mark: Fetched layouts")
@@ -242,9 +239,7 @@ async def get_segments(
     )
 
     # Get GPS data
-    locations = PSLocations.model_validate_json(
-        (user.trip_folder / aid / "locations.json").read_bytes()
-    )
+    locations = PSLocations.from_trip_dir(user.trips_folder / aid)
 
     points = filter(
         lambda p: start_limit <= p.datetime <= end_limit,
@@ -256,11 +251,11 @@ async def get_segments(
 
 @api.get("/trip/{asset_rel_path:path}")
 async def get_trip_asset(asset_rel_path: Path, user: DependsUser) -> FileResponse:
-    normalized = (user.trip_folder / asset_rel_path).resolve()
+    normalized = (user.trips_folder / asset_rel_path).resolve()
 
     if (
         normalized.suffix.lower() not in {".jpg", ".jpeg", ".png", ".mp4"}
-        or not normalized.is_relative_to(user.trip_folder)
+        or not normalized.is_relative_to(user.trips_folder)
         or not normalized.is_file(follow_symlinks=False)
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND)

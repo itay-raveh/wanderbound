@@ -71,25 +71,21 @@ async def build_step_layout(
     assets_in_folder: list[Media] = []
 
     # Load Photos
-    photo_folder = user.trip_folder / aid / step.folder_name / "photos"
+    photo_folder = user.trips_folder / aid / step.folder_name / "photos"
     if photo_folder.exists():
         assets_in_folder.extend(
-            # await asyncio.gather(
-            # *(
-            [await Photo.load(user.folder, path) for path in photo_folder.iterdir()]
-            # )
-            # )
+            await asyncio.gather(
+                *(Photo.load(user.folder, path) for path in photo_folder.iterdir())
+            )
         )
 
     # Load Videos
-    video_folder = user.trip_folder / aid / step.folder_name / "videos"
+    video_folder = user.trips_folder / aid / step.folder_name / "videos"
     if video_folder.exists():
         assets_in_folder.extend(
-            # await asyncio.gather(
-            # *(
-            [await Video.load(user.folder, path) for path in video_folder.iterdir()]
-            # )
-            # )
+            await asyncio.gather(
+                *(Video.load(user.folder, path) for path in video_folder.iterdir())
+            )
         )
 
     # Portraits, sorted from 4/5 (perfect size) downwards

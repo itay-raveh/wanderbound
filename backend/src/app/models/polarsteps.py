@@ -1,5 +1,6 @@
 import math
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Self
 from zoneinfo import ZoneInfo
 
@@ -32,6 +33,10 @@ class PSPoint(BaseModel):
 
 class PSLocations(BaseModel):
     locations: list[PSPoint]
+
+    @classmethod
+    def from_trip_dir(cls, trip_dir: Path) -> Self:
+        return cls.model_validate_json((trip_dir / "locations.json").read_bytes())
 
 
 class Location(BaseModel):
@@ -88,6 +93,11 @@ class PSTrip(BaseModel):
     @property
     def name(self) -> str:
         return f"{self.slug}_{self.id}"
+
+    @classmethod
+    def from_trip_dir(cls, trip_dir: Path) -> Self:
+        return cls.model_validate_json((trip_dir / "trip.json").read_bytes())
+
 
 
 def _calculate_visual_length(text: str) -> int:

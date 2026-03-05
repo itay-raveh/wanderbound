@@ -37,7 +37,7 @@ class User(SQLModel, table=True):
         return settings.users_dir / str(self.id)
 
     @property
-    def trip_folder(self) -> Path:
+    def trips_folder(self) -> Path:
         return self.folder / "trip"
 
 
