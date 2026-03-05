@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from app.core.client import RetryAsyncClient
-    from app.models.polarsteps import PSStep
+    from app.models.trips import PSStep
 
 logger = config_logger(__name__)
 

@@ -2,11 +2,11 @@ import http
 import time
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.deps import USER_COOKIE
 from app.api.router import api
 from app.core.logging import config_logger
 from app.models.db import init_db
@@ -47,11 +47,11 @@ app.add_middleware(
 async def add_process_time_header(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    request_id = uuid4()
+    user_id = request.cookies.get(USER_COOKIE, "unknown")
 
     logger.info(
-        "{%s}[%s:%-5s] %-5s %s",
-        request_id,
+        "[%s][%s:%-5s] %-5s %s",
+        user_id,
         request.client.host if request.client else "unknown",
         request.client.port if request.client else "unknown",
         request.method,
@@ -63,8 +63,8 @@ async def add_process_time_header(
     end_time = time.perf_counter()
 
     logger.info(
-        "{%s}[%s:%-5s] %-5s %s [%s] %s %s [/] (%d ms)",
-        request_id,
+        "[%s][%s:%-5s] %-5s %s [%s] %s %s [/] (%d ms)",
+        user_id,
         request.client.host if request.client else "unknown",
         request.client.port if request.client else "unknown",
         request.method,

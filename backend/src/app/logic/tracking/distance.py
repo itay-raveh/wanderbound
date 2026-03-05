@@ -2,7 +2,7 @@ import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models.polarsteps import PSPoint
+    from app.models.trips import Point
 
 
 def distance_km_coords(p1_lon: float, p1_lat: float, p2_lon: float, p2_lat: float) -> float:
@@ -18,11 +18,11 @@ def distance_km_coords(p1_lon: float, p1_lat: float, p2_lon: float, p2_lat: floa
     return c * 6371  # Radius of earth
 
 
-def distance_km(p1: PSPoint, p2: PSPoint) -> float:
+def distance_km(p1: Point, p2: Point) -> float:
     return distance_km_coords(p1.lon, p1.lat, p2.lon, p2.lat)
 
 
-def dist_time_speed(prev: PSPoint, curr: PSPoint) -> tuple[float, float, float]:
+def dist_time_speed(prev: Point, curr: Point) -> tuple[float, float, float]:
     dist_km = distance_km(prev, curr)
     time_h = (curr.time - prev.time) / 3600.0
     return dist_km, time_h, dist_km / time_h

@@ -7,16 +7,16 @@ from app.logic.tracking.distance import dist_time_speed, distance_km
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from app.models.polarsteps import PSPoint
+    from app.models.trips import Point
 
 
 def clean_points(
-    points: Iterable[PSPoint],
+    points: Iterable[Point],
     max_speed_kmh: float = 1000.0,
     spike_dist_threshold_km: float = 0.5,
     median_window: int = 3,
     max_smoothing_speed_kmh: int = 15,
-) -> Iterable[PSPoint]:
+) -> Iterable[Point]:
     # --- Phase 1: Sort & Deduplicate ---
     unique_pts = filter_duplicates(points)
 
@@ -73,7 +73,7 @@ def clean_points(
         yield p
 
 
-def filter_duplicates(points: Iterable[PSPoint]) -> list[PSPoint]:
+def filter_duplicates(points: Iterable[Point]) -> list[Point]:
     sorted_pts = sorted(points)
     if len(sorted_pts) < 2:
         return sorted_pts
@@ -85,9 +85,9 @@ def filter_duplicates(points: Iterable[PSPoint]) -> list[PSPoint]:
 
 
 def _filter_speed(
-    points: list[PSPoint],
+    points: list[Point],
     max_speed_kmh: float,
-) -> list[PSPoint]:
+) -> list[Point]:
     speed_filtered = [points[0]]
     for i in range(1, len(points)):
         prev = speed_filtered[-1]
@@ -100,7 +100,7 @@ def _filter_speed(
     return speed_filtered
 
 
-def _filter_spikes(points: list[PSPoint], spike_dist_threshold_km: float) -> list[PSPoint]:
+def _filter_spikes(points: list[Point], spike_dist_threshold_km: float) -> list[Point]:
     spike_filtered = [points[0]]
 
     i = 1

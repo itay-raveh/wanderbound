@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Iterable
 
     from app.core.client import RetryAsyncClient
-    from app.models.polarsteps import Location
+    from app.models.trips import Location
 
 
 class OpenMeteoElevationsResponse(BaseModel):

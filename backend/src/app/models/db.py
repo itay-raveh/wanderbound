@@ -2,18 +2,18 @@
 import datetime
 import pickle
 from pathlib import Path
-from uuid import uuid4
+from typing import BinaryIO, Self
 from zoneinfo import ZoneInfo
 
-from pydantic import UUID4, computed_field
-from sqlalchemy import create_engine
+from pydantic import computed_field
+from safezip import safe_extract
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import JSON, Column, Field, SQLModel
+from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 from app.core.settings import settings
 from app.logic.data.country_colors import CountryCode, HexColor
 from app.logic.data.weather import Weather
-from app.models.polarsteps import Location
+from app.models.trips import Location
 
 engine = create_async_engine(
     str(settings.db_conn_uri),
@@ -30,7 +30,31 @@ async def init_db() -> None:
 
 
 class User(SQLModel, table=True):
-    id: UUID4 = Field(default_factory=uuid4, primary_key=True)
+    id: int = Field(primary_key=True)
+    first_name: str
+    last_name: str
+    living_location: Location = Field(sa_column=Column(JSON))
+    locale: str = Field(regex="^[a-z]{2}_[A-Z]{2}$")
+    unit_is_km: bool
+    temperature_is_celsius: bool
+
+    albums: list[Album] = Relationship(back_populates="user", cascade_delete=True)
+
+    @classmethod
+    def from_zip_upload(cls, file: BinaryIO) -> Self:
+        # Extract the ZIP into a tmp folder
+        folder = settings.users_dir / "tmp"
+        safe_extract(file, folder)
+
+        # Create the user from the folder and rename the folder with its ID
+        user = cls.model_validate_json((folder / "user" / "user.json").read_bytes())
+        folder.rename(user.folder)
+
+        # Remove the now unneeded user data
+        (user.folder / "user" / "user.json").unlink()
+        (user.folder / "user").rmdir()
+
+        return user
 
     @property
     def folder(self) -> Path:
@@ -55,12 +79,14 @@ class AlbumSettings(SQLModel):
     back_cover_photo: str = Field(
         description="Either a URL, or path to one of the photos form the trip"
     )
-    use_location: bool = False
 
 
 class Album(AlbumSettings, table=True):
-    uid: UUID4 = Field(primary_key=True, foreign_key="user.id")
+    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     id: AlbumId = Field(primary_key=True)
+
+    user: User = Relationship(back_populates="albums")
+    steps: list[Step] = Relationship(back_populates="album", cascade_delete=True)
 
     colors: dict[CountryCode, HexColor] = Field(sa_column=Column(JSON))
 
@@ -75,9 +101,11 @@ class StepLayout(SQLModel):
 
 
 class Step(StepLayout, table=True):
-    uid: UUID4 = Field(primary_key=True, foreign_key="user.id")
+    uid: int = Field(primary_key=True, foreign_key="user.id")
     aid: AlbumId = Field(primary_key=True, foreign_key="album.id")
     idx: StepIdx = Field(primary_key=True)
+
+    album: Album = Relationship(back_populates="steps")
 
     name: str
     description: str

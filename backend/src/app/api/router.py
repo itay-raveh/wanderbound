@@ -1,9 +1,10 @@
-# ruff: noqa: ARG001, TC001, TC003
+# ruff: noqa: ARG001, TC003
 # pyright: reportUnusedParameter=false
 
 from __future__ import annotations
 
 import asyncio
+import shutil
 from collections.abc import Sequence
 from datetime import timedelta
 from itertools import chain
@@ -13,7 +14,7 @@ from zipfile import BadZipFile
 from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from safezip import SafezipError, SafeZipFile
+from safezip import SafezipError
 from sqlmodel import select
 
 from app.core.client import RetryAsyncClient
@@ -34,44 +35,34 @@ from app.models.db import (
     StepLayout,
     User,
 )
-from app.models.polarsteps import PSLocations, PSPoint, PSTrip
+from app.models.trips import Locations, Point, Trip
 
-from .deps import DependsAlbum, DependsSession, DependsUser
+from .deps import USER_COOKIE, DependsAlbum, DependsSession, DependsUser
 
 logger = config_logger(__name__)
 
 api = APIRouter()
 
 
-@api.post("/upload")
-async def upload(
+@api.post("/users")
+async def create_user(
+    upload: UploadFile,
     session: DependsSession,
-    file: UploadFile,
     response: Response,
-) -> None:
-    user = User()
-    session.add(user)
-    response.set_cookie("uid", str(user.id))
-
-    logger.info("New user: %s", user)
-    logger.info(
-        "Extracting '%s' (%d MB)",
-        file.filename,
-        (file.size or 0) // 1024 // 1024,
-    )
-
-    # Extract ZIP
+) -> User:
     try:
-        with SafeZipFile(file.file) as zf:
-            await asyncio.to_thread(zf.extractall, user.folder)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        user = await asyncio.to_thread(User.from_zip_upload, upload.file)
     except (BadZipFile, SafezipError) as e:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=str(e)) from e
+
+    session.add(user)
+    response.set_cookie(USER_COOKIE, str(user.id))
 
     for trip_dir in user.trips_folder.iterdir():
         logger.info("Processing '%s' ...", trip_dir.name)
 
         # Load trip.json
-        trip = PSTrip.from_trip_dir(trip_dir)
+        trip = Trip.from_trip_dir(trip_dir)
 
         logger.info("Loaded '%s' with %d steps", trip.title, trip.step_count)
 
@@ -144,6 +135,16 @@ async def upload(
             )
 
     await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@api.delete("/users")
+async def delete_user(user: DependsUser, session: DependsSession, response: Response) -> None:
+    shutil.rmtree(user.folder)
+    await session.delete(user)
+    await session.commit()
+    response.delete_cookie(USER_COOKIE)
 
 
 @api.get("/albums")
@@ -235,11 +236,11 @@ async def get_segments(
 
     # Combine and filter to get all points between the steps
     step_points = (
-        PSPoint(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()) for s in steps
+        Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()) for s in steps
     )
 
     # Get GPS data
-    locations = PSLocations.from_trip_dir(user.trips_folder / aid)
+    locations = Locations.from_trip_dir(user.trips_folder / aid)
 
     points = filter(
         lambda p: start_limit <= p.datetime <= end_limit,

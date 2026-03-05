@@ -1,14 +1,12 @@
 # ruff: noqa: TC003
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Cookie, Depends, HTTPException, Path, status
-from sqlmodel import Session
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import config_logger
-from app.models.db import Album, AlbumId, Step, StepIdx, User, engine
+from app.models.db import Album, AlbumId, User, engine
 
 logger = config_logger(__name__)
 
@@ -20,8 +18,9 @@ async def _get_session() -> AsyncGenerator[AsyncSession]:
 
 DependsSession = Annotated[AsyncSession, Depends(_get_session)]
 
+USER_COOKIE = "uid"
 
-async def _get_user(session: DependsSession, uid: Annotated[UUID | None, Cookie()] = None) -> User:
+async def _get_user(session: DependsSession, uid: Annotated[int | None, Cookie()] = None) -> User:
     if uid is None or (user := await session.get(User, uid)) is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
 

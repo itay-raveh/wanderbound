@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from app.models.db import AlbumId, User
-    from app.models.polarsteps import PSStep
+    from app.models.trips import PSStep
 
 logger = config_logger(__name__)
 

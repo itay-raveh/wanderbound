@@ -12,7 +12,7 @@ from app.logic.tracking.distance import dist_time_speed, distance_km, distance_k
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Sequence
 
-    from app.models.polarsteps import PSPoint
+    from app.models.trips import Point
 
 _SPEED_MEANS_WINDOW = 5
 _WALKING_SPEED_KMH = 5
@@ -44,7 +44,7 @@ class Segment(BaseModel):
     latlons: list[LatLon]
 
     @classmethod
-    def from_points(cls, kind: SegmentKind, points: Sequence[PSPoint]) -> Self:
+    def from_points(cls, kind: SegmentKind, points: Sequence[Point]) -> Self:
         return cls(
             kind=kind,
             start=points[0].datetime,
@@ -54,15 +54,15 @@ class Segment(BaseModel):
         )
 
 
-def _sum_distance_km(points: Iterable[PSPoint]) -> float:
+def _sum_distance_km(points: Iterable[Point]) -> float:
     return sum(distance_km(*pair) for pair in pairwise(points))
 
 
 def _extract_flights(
-    points: list[PSPoint],
+    points: list[Point],
     min_flight_speed_kmh: float = 200.0,
     min_flight_distance_km: float = 100.0,
-) -> Generator[tuple[bool, list[PSPoint]]]:
+) -> Generator[tuple[bool, list[Point]]]:
     if len(points) <= 1:
         yield False, points
         return
@@ -97,8 +97,8 @@ def _extract_flights(
 
 
 def _group_points_by_walk(
-    points: list[PSPoint],
-) -> Generator[tuple[bool, list[PSPoint]]]:
+    points: list[Point],
+) -> Generator[tuple[bool, list[Point]]]:
     times = np.array([p.time for p in points])
 
     d_h = np.diff(times) / 3600.0
@@ -126,9 +126,9 @@ def _group_points_by_walk(
 
 
 def _merge_short_gaps(
-    chunks: Iterable[tuple[bool, list[PSPoint]]],
-) -> list[tuple[bool, list[PSPoint]]]:
-    merged: list[tuple[bool, list[PSPoint]]] = []
+    chunks: Iterable[tuple[bool, list[Point]]],
+) -> list[tuple[bool, list[Point]]]:
+    merged: list[tuple[bool, list[Point]]] = []
 
     for is_walk, chunk_points in chunks:
         if not merged:
@@ -158,7 +158,7 @@ def _merge_short_gaps(
     return merged
 
 
-def _is_walk_chunk_a_hike(points: list[PSPoint]) -> bool:
+def _is_walk_chunk_a_hike(points: list[Point]) -> bool:
     if len(points) < 2:
         return False
 
@@ -185,7 +185,7 @@ def _is_walk_chunk_a_hike(points: list[PSPoint]) -> bool:
 
 
 # noinspection PyTypeChecker
-def _extract_hikes(points: list[PSPoint]) -> Iterable[Segment]:
+def _extract_hikes(points: list[Point]) -> Iterable[Segment]:
     if len(points) < 2:
         yield Segment.from_points(SegmentKind.other, points)
         return
@@ -217,7 +217,7 @@ def _extract_hikes(points: list[PSPoint]) -> Iterable[Segment]:
         yield Segment.from_points(current_kind, current_points)  # pyright: ignore[reportArgumentType]
 
 
-def build_segments(points: Iterable[PSPoint]) -> Iterable[Segment]:
+def build_segments(points: Iterable[Point]) -> Iterable[Segment]:
     unique = filter_duplicates(points)
     for is_flight, chunk in _extract_flights(unique):
         if is_flight:

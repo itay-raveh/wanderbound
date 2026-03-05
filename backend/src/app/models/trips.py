@@ -18,7 +18,7 @@ from app.logic.data.country_colors import CountryCode
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
 
 
-class PSPoint(BaseModel):
+class Point(BaseModel):
     lat: float
     lon: float
     time: float
@@ -31,15 +31,15 @@ class PSPoint(BaseModel):
         return self.time < other.time
 
 
-class PSLocations(BaseModel):
-    locations: list[PSPoint]
+class Locations(BaseModel):
+    locations: list[Point]
 
     @classmethod
     def from_trip_dir(cls, trip_dir: Path) -> Self:
         return cls.model_validate_json((trip_dir / "locations.json").read_bytes())
 
 
-class Location(BaseModel):
+class Location(BaseModel, extra="ignore"):
     name: NullableStr
     detail: NullableStr
     country_code: CountryCode
@@ -81,7 +81,7 @@ class TripCoverPhoto(BaseModel):
     path: HttpUrl
 
 
-class PSTrip(BaseModel):
+class Trip(BaseModel):
     id: int
     slug: str
     title: str = Field(alias="name")
@@ -98,6 +98,8 @@ class PSTrip(BaseModel):
     def from_trip_dir(cls, trip_dir: Path) -> Self:
         return cls.model_validate_json((trip_dir / "trip.json").read_bytes())
 
+
+_WIDTH = 80
 
 
 def _calculate_visual_length(text: str) -> int:
@@ -119,4 +121,3 @@ def _calculate_visual_length(text: str) -> int:
     return lines * _WIDTH
 
 
-_WIDTH = 80
