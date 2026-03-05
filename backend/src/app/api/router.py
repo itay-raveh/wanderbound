@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from datetime import UTC, timedelta
+from datetime import timedelta
 from itertools import chain
 from pathlib import Path
 from zipfile import BadZipFile
@@ -23,7 +23,8 @@ from app.logic.data.openmeteo import fetch_elevations
 from app.logic.data.weather import fetch_weather
 from app.logic.layout.builder import build_step_layout
 from app.logic.layout.media import extract_frame
-from app.logic.segments import Segment, build_segments, clean_points
+from app.logic.tracking.cleaning import clean_points
+from app.logic.tracking.segments import Segment, build_segments
 from app.models.db import (
     Album,
     AlbumId,
