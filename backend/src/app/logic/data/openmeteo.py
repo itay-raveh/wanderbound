@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Iterable
 
     from app.core.client import APIClient
-    from app.models.polarsteps import PSLocation
+    from app.models.polarsteps import Location
 
 
 class OpenMeteoElevationsResponse(BaseModel):
@@ -17,7 +17,7 @@ class OpenMeteoElevationsResponse(BaseModel):
 
 
 async def fetch_elevations(
-    client: APIClient, locs: Iterable[PSLocation]
+    client: APIClient, locs: Iterable[Location]
 ) -> AsyncGenerator[float]:
     for batch in batched(locs, 100, strict=False):
         latitude = ",".join(str(loc.lat) for loc in batch)

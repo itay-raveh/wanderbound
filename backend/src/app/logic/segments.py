@@ -2,10 +2,11 @@ import math
 from datetime import datetime
 from enum import StrEnum
 from itertools import pairwise
-from typing import TYPE_CHECKING, Self
+from operator import le
+from typing import TYPE_CHECKING, Self, Sequence, Iterable
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from app.core.logging import config_logger
 from app.models.polarsteps import PSPoint, PSPoint as Point
@@ -18,8 +19,8 @@ _WALKING_SPEED_KMH = 5
 _HIKE_MIN_TIME_H = 5
 _HIKE_MIN_BBOX_DIAGONAL_KM = 5
 _HIKE_MIN_KM = 8
-_HIKE_MAX_GAP_H = 2
-_HIKE_MAX_GAP_KM = 3
+_HIKE_MAX_GAP_H = 5
+_HIKE_MAX_GAP_KM = 8
 
 logger = config_logger(__name__)
 
@@ -32,18 +33,18 @@ class SegmentKind(StrEnum):
 
 Lon = float
 Lat = float
-LatLon = tuple[Lat, Lon]
+type LatLon = tuple[Lat, Lon]
 
 
 class Segment(BaseModel):
     kind: SegmentKind
-    start: datetime
-    end: datetime
+    start: AwareDatetime
+    end: AwareDatetime
     length_km: float
     latlons: list[LatLon]
 
     @classmethod
-    def from_points(cls, kind: SegmentKind, points: list[Point]) -> Self:
+    def from_points(cls, kind: SegmentKind, points: Sequence[Point]) -> Self:
         return cls(
             kind=kind,
             start=points[0].datetime,
@@ -88,15 +89,15 @@ def clean_points(
     max_smoothing_speed_kmh: int = 15,
 ) -> Iterable[Point]:
     # --- Phase 1: Sort & Deduplicate ---
-    sorted_pts = sorted(points)
-    unique_pts = [sorted_pts[0]]
-    for p in sorted_pts[1:]:
-        if p.time != unique_pts[-1].time:
-            unique_pts.append(p)
+    unique_pts = _filter_duplicates(points)
+
+    if len(unique_pts) <= 2:
+        yield from unique_pts
+        return
+
 
     # --- Phase 2: Global Velocity Filter ---
     speed_filtered = _speed_filter(unique_pts, max_speed_kmh)
-    speed_filtered = _speed_filter(speed_filtered, max_speed_kmh)
 
     if len(speed_filtered) < 3:
         yield from speed_filtered
@@ -105,7 +106,6 @@ def clean_points(
     # --- Phase 3: Spike / Zig-Zag Detection ---
     # Look at points A, B, and C. If B shoots far off, but C is close to A, B is noise.
     spike_filtered = _spike_filter(speed_filtered, spike_dist_threshold_km)
-    spike_filtered = _spike_filter(spike_filtered, spike_dist_threshold_km)
 
     # --- Phase 4: Speed-Gated NumPy Rolling Median ---
     # Only smooth when moving slowly to preserve high-speed geometry
@@ -150,12 +150,15 @@ def clean_points(
         yield Point(time=p.time, lat=final_lat, lon=final_lon)
 
 
-def _max_speed(points: list[PSPoint]) -> float:
-    max_speed_kmh = 0
-    for prev, curr in pairwise(points):
-        _, _, speed_kmh = _dist_time_speed(prev, curr)
-        max_speed_kmh = max(max_speed_kmh, speed_kmh)
-    return max_speed_kmh
+def _filter_duplicates(points: Iterable[PSPoint]) -> list[PSPoint]:
+    sorted_pts = sorted(points)
+    if len(sorted_pts) < 2:
+        return sorted_pts
+    unique_pts = [sorted_pts[0]]
+    for p in sorted_pts[1:]:
+        if p.time != unique_pts[-1].time:
+            unique_pts.append(p)
+    return unique_pts
 
 
 def _speed_filter(
@@ -374,8 +377,8 @@ def _extract_hikes(points: list[Point]) -> Iterable[Segment]:
 
 
 def build_segments(points: Iterable[Point]) -> Iterable[Segment]:
-    clean = list(clean_points(points))
-    for is_flight, chunk in _extract_flights(clean):
+    unique = _filter_duplicates(points)
+    for is_flight, chunk in _extract_flights(unique):
         if is_flight:
             yield Segment.from_points(kind=SegmentKind.flight, points=chunk)
         else:

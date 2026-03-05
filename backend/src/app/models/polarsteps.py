@@ -24,8 +24,7 @@ class PSPoint(BaseModel):
 
     @property
     def datetime(self) -> AwareDatetime:
-        # TODO: check the timezone: Is it by the trip? UTC?
-        return datetime.fromtimestamp(self.time)  # , UTC)
+        return datetime.fromtimestamp(self.time, UTC)
 
     def __lt__(self, other: Self) -> bool:
         return self.time < other.time
@@ -35,7 +34,7 @@ class PSLocations(BaseModel):
     locations: list[PSPoint]
 
 
-class PSLocation(BaseModel):
+class Location(BaseModel):
     name: NullableStr
     detail: NullableStr
     country_code: CountryCode
@@ -50,24 +49,13 @@ class PSStep(BaseModel):
     description: NullableStr
     timestamp: float = Field(validation_alias="start_time")
     timezone_id: str
-    location: PSLocation
+    location: Location
     weather_condition: str
     weather_temperature: float
-
-    def __lt__(self, other: PSStep) -> bool:
-        return self.datetime < other.datetime
 
     @property
     def folder_name(self) -> str:
         return f"{self.slug}_{self.id}"
-
-    @property
-    def timezone(self) -> ZoneInfo:
-        return ZoneInfo(self.timezone_id)
-
-    @property
-    def datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.timestamp, tz=self.timezone)
 
     @property
     def is_long_description(self) -> bool:
@@ -90,17 +78,12 @@ class PSTrip(BaseModel):
     title: str = Field(alias="name")
     subtitle: NullableStr = Field(alias="summary")
     cover_photo: TripCoverPhoto
-    timezone_id: str
     step_count: int
     all_steps: list[PSStep]
 
     @property
     def name(self) -> str:
         return f"{self.slug}_{self.id}"
-
-    @property
-    def timezone(self) -> ZoneInfo:
-        return ZoneInfo(self.timezone_id)
 
 
 def _calculate_visual_length(text: str) -> int:

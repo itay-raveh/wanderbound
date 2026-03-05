@@ -21,7 +21,7 @@ logger = config_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-    init_db()
+    await init_db()
     yield
 
 

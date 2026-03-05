@@ -16,7 +16,6 @@ const steps = computedAsync(async () => {
     path: { aid: props.album.id },
     body: toRangeList(props.album.steps_ranges),
   });
-  console.log(steps);
   return steps;
 }, null);
 
@@ -29,7 +28,6 @@ const segments = computedAsync(async () => {
       last: steps.value[steps.value.length - 1]!.idx,
     },
   });
-  console.log(segments);
   return segments;
 }, null);
 </script>

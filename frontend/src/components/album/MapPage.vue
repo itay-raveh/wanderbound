@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import type { Segment, Step } from "@/api";
+import type { LatLon, Segment, Step } from "@/api";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { onMounted, useTemplateRef, watch } from "vue";
+import { date } from "quasar";
 
 const props = defineProps<{
   steps: Step[];
@@ -42,8 +43,6 @@ onMounted(() => {
 
 watch(() => props.segments, draw);
 
-type LatLon = [number, number];
-
 function getBezierPoint(t: number, p0: LatLon, p1: LatLon, p2: LatLon): LatLon {
   const x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0];
   const y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1];
@@ -78,14 +77,13 @@ function draw() {
     }
   });
 
+  console.log(props.segments.map((s) => s.kind));
+
   const lineWeight = 4 - props.steps.length / 100;
+  const iconSize = 50 - props.steps.length / 10;
+
   for (const segment of props.segments) {
-    if (segment.kind !== "flight") {
-      L.polyline(segment.latlons, {
-        color: "white",
-        weight: lineWeight * 2,
-      }).addTo(map);
-    } else {
+    if (segment.kind === "flight") {
       console.log(segment);
       const pStart = segment.latlons[0];
       const pEnd = segment.latlons[segment.latlons.length - 1];
@@ -96,7 +94,7 @@ function draw() {
         curvePoints.push(getBezierPoint(i / 100, pStart, control, pEnd));
       }
       L.polyline(curvePoints, {
-        weight: lineWeight,
+        weight: lineWeight / 2,
         color: "white",
         dashArray: "1, 5",
         lineCap: "round",
@@ -109,10 +107,69 @@ function draw() {
       const angle = getAngle(midPos, posPlus);
       L.marker(L.latLng(midPos[0], midPos[1]), {
         icon: L.divIcon({
-          className: "plane-icon-container",
-          html: `<img src="https://cdn.prod.polarsteps.com/65969828189e33620c7fe02b236c1f2734e312df/assets/airplane-marker.png" style="transform: rotate(${-angle}deg); display: block;" alt="Flight">`,
-          iconSize: [16, 15],
+          className: "path-icon",
+          html: `<i class="q-icon material-icons" style="transform: rotate(${90 - angle}deg);font-size: ${iconSize / 2}px;">flight</i>`,
+          iconSize: [iconSize / 2, iconSize / 2],
         }),
+        zIndexOffset: -100,
+      }).addTo(map);
+    } else if (segment.kind === "hike") {
+      L.polyline(segment.latlons, {
+        color: "white",
+        weight: lineWeight,
+        dashArray: "10, 10",
+      }).addTo(map);
+
+      const dt_hours = date.getDateDiff(
+        new Date(segment.end),
+        new Date(segment.start),
+        "hours",
+      );
+
+      const time_text =
+        dt_hours <= 24
+          ? `${dt_hours} hours`
+          : `${Math.ceil(dt_hours / 24)} days`;
+
+      let pos: L.LatLng = L.latLng(segment.latlons[0]!);
+      let maxMinDist = -1;
+
+      for (const latlon of segment.latlons.slice(
+        segment.latlons.length * (1 / 2),
+        segment.latlons.length * (3 / 4),
+      )) {
+        const p = L.latLng(latlon[0], latlon[1]);
+        let minDistToStep = Infinity;
+
+        for (const step of props.steps) {
+          const stepP = L.latLng(step.location.lat, step.location.lon);
+          const d = p.distanceTo(stepP);
+          if (d < minDistToStep) minDistToStep = d;
+        }
+
+        if (minDistToStep > maxMinDist) {
+          maxMinDist = minDistToStep;
+          pos = p;
+        }
+      }
+
+      L.marker(pos, {
+        icon: L.divIcon({
+          className: "path-icon",
+          html: `<div class="column items-center text-center text-white text-weight-bold" style="text-shadow: 0 0 4px black;">
+            <i class="q-icon material-icons" style="font-size: ${iconSize}px;">hiking</i>
+            <span style="font-size: ${iconSize / 3}px">${Math.floor(segment.length_km)} KM</span>
+            <span style="font-size: ${iconSize / 4}px">${time_text}</span>
+          </div>`,
+          iconSize: [iconSize * 2, iconSize * 2],
+          iconAnchor: [iconSize, iconSize / 2],
+        }),
+        zIndexOffset: -100,
+      }).addTo(map);
+    } else if (segment.kind === "other") {
+      L.polyline(segment.latlons, {
+        color: "white",
+        weight: lineWeight,
       }).addTo(map);
     }
   }
@@ -120,7 +177,6 @@ function draw() {
   // Draw step markers on top of the route
 
   const allBounds: LatLon[] = [];
-  const iconSize = 50 - props.steps.length / 10;
   for (const step of props.steps) {
     const pnt: LatLon = [step.location.lat, step.location.lon];
     allBounds.push(pnt);
@@ -133,6 +189,23 @@ function draw() {
       }),
     }).addTo(map);
   }
+
+  const displaySegments = [...props.segments];
+  if (displaySegments.length >= 2) {
+    if (
+      displaySegments[0]!.kind === "other" &&
+      displaySegments[1]!.kind === "hike"
+    )
+      displaySegments.shift();
+    if (
+      displaySegments[displaySegments.length - 1]!.kind === "other" &&
+      displaySegments[displaySegments.length - 2]!.kind === "hike"
+    )
+      displaySegments.pop();
+  }
+
+  // Add segments to bounds
+  for (const segment of displaySegments) allBounds.push(...segment.latlons);
 
   // Fit map to bounds
   map.fitBounds(allBounds, {
@@ -178,6 +251,10 @@ function draw() {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.path-icon {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .custom-marker-inner {

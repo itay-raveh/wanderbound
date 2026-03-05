@@ -7,14 +7,15 @@ from zoneinfo import ZoneInfo
 
 from pydantic import UUID4, computed_field
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.settings import settings
 from app.logic.data.country_colors import CountryCode, HexColor
 from app.logic.data.weather import Weather
-from app.models.polarsteps import PSLocation
+from app.models.polarsteps import Location
 
-engine = create_engine(
+engine = create_async_engine(
     str(settings.db_conn_uri),
     # To allow JSON columns with Pydantic models:
     json_serializer=pickle.dumps,
@@ -22,8 +23,10 @@ engine = create_engine(
 )
 
 
-def init_db() -> None:
-    SQLModel.metadata.create_all(engine)
+async def init_db() -> None:
+    # noinspection PyTypeChecker
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
 
 class User(SQLModel, table=True):
@@ -80,7 +83,7 @@ class Step(StepLayout, table=True):
     description: str
     timestamp: float
     timezone_id: str
-    location: PSLocation = Field(sa_column=Column(JSON))
+    location: Location = Field(sa_column=Column(JSON))
     elevation: int
     weather: Weather = Field(sa_column=Column(JSON))
 

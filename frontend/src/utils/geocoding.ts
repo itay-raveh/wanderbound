@@ -1,12 +1,12 @@
 import { ref } from "vue";
 import { client } from "@/api/client.gen.ts";
 import { defineStore } from "pinia";
-import { type PsLocation } from "@/api";
+import { type Location } from "@/api";
 
-let _locationCache: PsLocation | null = null;
+let _locationCache: Location | null = null;
 
 export const useUserLocation = defineStore("home", () => {
-  const location = ref<PsLocation | null>(null);
+  const location = ref<Location | null>(null);
 
   function clear() {
     location.value = null;
