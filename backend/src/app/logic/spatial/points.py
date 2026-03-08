@@ -1,7 +1,7 @@
 """Core spatial data types.
 
 Only the ``Point`` model and its associated type aliases live here.
-All heavy lifting (haversine, cleaning, segmentation) is in ``segments.py``.
+Distances are in ``distance.py``; segmentation logic is in ``segments.py``.
 """
 
 from __future__ import annotations

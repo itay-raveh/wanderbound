@@ -89,6 +89,57 @@ def test_steps_1_to_22_no_gaps(sa_trip: Trip, sa_locations: Locations) -> None:
             assert len(seg.points) >= 1, f"Segment {i} ({seg.kind}) is erroneously empty"  # noqa: S101
 
 
+def test_no_other_kind_in_full_trip(sa_trip: Trip, sa_locations: Locations) -> None:
+    """``build_segments`` must never emit a segment with kind == 'other'.
+
+    Regression: before the walking/driving split, the internal ``"other"``
+    label was exposed directly to callers.
+    """
+    steps = sorted(sa_trip.all_steps, key=lambda s: s.timestamp)[1:23]
+    segments = list(build_segments(steps, sa_locations.locations))
+    other = [s for s in segments if s.kind.value == "other"]
+    assert not other, f"Found {len(other)} unexpected 'other' segment(s)"  # noqa: S101
+
+
+def test_step_location_in_hike_step9(sa_trip: Trip, sa_locations: Locations) -> None:
+    """Step 9 (Ushuaia mountain viewpoint) must appear in the hike output points.
+
+    Regression: on out-and-back routes RDP used to collapse the path to its
+    two endpoints, dropping the turnaround point at the step's location.
+    """
+    steps = sa_trip.all_steps
+    step9 = steps[9]
+    segments = list(build_segments(steps[9:10], sa_locations.locations))
+    hikes = [s for s in segments if s.kind == SegmentKind.hike]
+    assert hikes, "Expected at least one hike for step 9"  # noqa: S101
+    in_hike = any(  # noqa: S101
+        abs(p.lat - step9.location.lat) < 0.001
+        and abs(p.lon - step9.location.lon) < 0.001
+        for p in hikes[0].points
+    )
+    assert in_hike, (  # noqa: S101
+        f"Step 9 location ({step9.location.lat:.4f}, {step9.location.lon:.4f}) "
+        f"not found in hike points"
+    )
+
+
+def test_hike_segments_keep_all_points(sa_trip: Trip, sa_locations: Locations) -> None:
+    """Hike segments must not be RDP-simplified.
+
+    Regression: hike segments were previously passed through RDP, which
+    discarded intermediate points needed for accurate distance calculations.
+    All hike segments for steps 1–22 should have many points (> 10).
+    """
+    steps = sorted(sa_trip.all_steps, key=lambda s: s.timestamp)[1:23]
+    segments = list(build_segments(steps, sa_locations.locations))
+    hikes = [s for s in segments if s.kind == SegmentKind.hike]
+    assert hikes  # noqa: S101
+    for i, h in enumerate(hikes):
+        assert len(h.points) > 10, (  # noqa: S101
+            f"Hike {i} has only {len(h.points)} points — may have been RDP-simplified"
+        )
+
+
 def test_segments_are_contiguous(sa_trip: Trip, sa_locations: Locations) -> None:
     """Consecutive segments must share their boundary point — no spatial or temporal gaps."""
     steps = sorted(sa_trip.all_steps, key=lambda s: s.timestamp)[1:23]

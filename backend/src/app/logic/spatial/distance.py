@@ -5,7 +5,7 @@ from numpy import float64
 from numpy.typing import NDArray
 import polars as pl
 
-__all__ = ["geodist_2d", "geodist_3d"]
+__all__ = ["geodist_2d", "geodist_3d", "haversine_expr", "haversine_expr_between"]
 
 # Earth radius in meters
 R = 6371000.0
@@ -67,7 +67,7 @@ def haversine_expr_between(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl
 
     return c * R
 
-def haversine_expr(lat_col: str = "lats", lon_col: str = "lons") -> pl.Expr:
+def haversine_expr(lat_col: str = "lat", lon_col: str = "lon") -> pl.Expr:
     """Calculates the 2D Haversine distance in meters to the previous row using pure Polars expressions."""
     c_r = haversine_expr_between(
         pl.col(lat_col).shift(1), pl.col(lon_col).shift(1),

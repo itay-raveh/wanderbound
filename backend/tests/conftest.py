@@ -12,9 +12,9 @@ TEST_DATA_DIR = Path(__file__).parent / "test_data"
 @pytest.fixture
 def sa_trip_dir() -> Path:
     """Path to the South America trip test data directory."""
-    tirp_dir = TEST_DATA_DIR / "trip" / "south-america-2024-2025_14232450"
-    assert tirp_dir.exists(), f"SA test data not found at {tirp_dir}"
-    return tirp_dir
+    trip_dir = TEST_DATA_DIR / "trip" / "south-america-2024-2025_14232450"
+    assert trip_dir.exists(), f"SA test data not found at {trip_dir}"
+    return trip_dir
 
 
 @pytest.fixture
