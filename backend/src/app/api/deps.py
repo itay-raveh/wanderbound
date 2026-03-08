@@ -1,12 +1,13 @@
-# ruff: noqa: TC003
-from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Cookie, Depends, HTTPException, Path, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import config_logger
 from app.models.db import Album, AlbumId, User, engine
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = config_logger(__name__)
 
@@ -19,6 +20,7 @@ async def _get_session() -> AsyncGenerator[AsyncSession]:
 DependsSession = Annotated[AsyncSession, Depends(_get_session)]
 
 USER_COOKIE = "uid"
+
 
 async def _get_user(session: DependsSession, uid: Annotated[int | None, Cookie()] = None) -> User:
     if uid is None or (user := await session.get(User, uid)) is None:

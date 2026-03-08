@@ -1,0 +1,27 @@
+"""Shared fixtures for the test suite."""
+
+from pathlib import Path
+
+import pytest
+
+from app.models.trips import Locations, Trip
+
+TEST_DATA_DIR = Path(__file__).parent / "test_data"
+
+
+@pytest.fixture
+def sa_trip_dir() -> Path:
+    """Path to the South America trip test data directory."""
+    tirp_dir = TEST_DATA_DIR / "trip" / "south-america-2024-2025_14232450"
+    assert tirp_dir.exists(), f"SA test data not found at {tirp_dir}"
+    return tirp_dir
+
+
+@pytest.fixture
+def sa_trip(sa_trip_dir: Path) -> Trip:
+    return Trip.from_trip_dir(sa_trip_dir)
+
+
+@pytest.fixture
+def sa_locations(sa_trip_dir: Path) -> Locations:
+    return Locations.from_trip_dir(sa_trip_dir)

@@ -1,10 +1,12 @@
 import asyncio
 from io import BytesIO
-from pathlib import Path
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from PIL import Image, ImageOps
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class Photo(BaseModel):

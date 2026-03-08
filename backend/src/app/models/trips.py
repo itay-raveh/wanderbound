@@ -1,11 +1,10 @@
 import math
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Self
 from zoneinfo import ZoneInfo
 
 from pydantic import (
-    AwareDatetime,
     BaseModel,
     BeforeValidator,
     Field,
@@ -13,22 +12,10 @@ from pydantic import (
 )
 
 from app.core.settings import settings
-from app.logic.data.country_colors import CountryCode
+from app.logic.country_colors import CountryCode
+from app.logic.spatial.points import Lat, Lon, Point
 
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]  # pyright: ignore[reportAny]
-
-
-class Point(BaseModel):
-    lat: float
-    lon: float
-    time: float
-
-    @property
-    def datetime(self) -> AwareDatetime:
-        return datetime.fromtimestamp(self.time, UTC)
-
-    def __lt__(self, other: Self) -> bool:
-        return self.time < other.time
 
 
 class Locations(BaseModel):
@@ -36,15 +23,17 @@ class Locations(BaseModel):
 
     @classmethod
     def from_trip_dir(cls, trip_dir: Path) -> Self:
-        return cls.model_validate_json((trip_dir / "locations.json").read_bytes())
+        obj = cls.model_validate_json((trip_dir / "locations.json").read_bytes())
+        obj.locations.sort()
+        return obj
 
 
-class Location(BaseModel, extra="ignore"):
+class Location(BaseModel):
     name: NullableStr
     detail: NullableStr
     country_code: CountryCode
-    lat: float
-    lon: float
+    lat: Lat
+    lon: Lon
 
 
 class PSStep(BaseModel):
@@ -57,6 +46,9 @@ class PSStep(BaseModel):
     location: Location
     weather_condition: str
     weather_temperature: float
+
+    def __lt__(self, other: PSStep) -> bool:
+        return self.datetime < other.datetime
 
     @property
     def folder_name(self) -> str:
@@ -96,7 +88,9 @@ class Trip(BaseModel):
 
     @classmethod
     def from_trip_dir(cls, trip_dir: Path) -> Self:
-        return cls.model_validate_json((trip_dir / "trip.json").read_bytes())
+        obj = cls.model_validate_json((trip_dir / "trip.json").read_bytes())
+        obj.all_steps.sort(key=lambda s: s.timestamp)
+        return obj
 
 
 _WIDTH = 80
@@ -119,5 +113,3 @@ def _calculate_visual_length(text: str) -> int:
             lines += math.ceil(len(para) / _WIDTH)
 
     return lines * _WIDTH
-
-

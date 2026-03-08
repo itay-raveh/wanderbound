@@ -28,9 +28,7 @@ def config_logger(name: str) -> logging.Logger:
         encoding="utf-8",
     )
 
-    formatter = logging.Formatter(
-        "[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
-    )
+    formatter = logging.Formatter("[%(asctime)s][%(name)s][%(levelname)s] %(message)s")
     file_handler.setFormatter(formatter)
 
     logger.setLevel(_LOG_LEVEL)

@@ -6,13 +6,14 @@ from typing import TYPE_CHECKING
 import httpx
 from pydantic import BaseModel
 
+from app.core.client import client
 from app.core.logging import config_logger
 from app.core.settings import settings
 
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from app.core.client import RetryAsyncClient
+    from app.logic.spatial.points import Lat, Lon
     from app.models.trips import PSStep
 
 logger = config_logger(__name__)
@@ -32,7 +33,7 @@ class WeatherDayData(BaseModel):
     hours: list[WeatherHourData]
 
 
-class WeatherApiResponse(BaseModel):
+class WeatherApiResult(BaseModel):
     days: list[WeatherDayData] = []
 
 
@@ -77,22 +78,19 @@ class Weather(BaseModel):
         )
 
 
-async def _fetch_weather(
-    client: RetryAsyncClient, lat: float, lon: float, date: datetime
-) -> Weather:
-    response = WeatherApiResponse.model_validate_json(
-        await client.get_with_retries(
-            f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date:%Y-%m-%d}",
-            params={
-                "key": settings.visual_crossing_api_key,
-                "unitGroup": "metric",
-                "include": "hours",
-                "elements": "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon",
-            },
-        )
+async def _fetch_weather(lat: Lat, lon: Lon, date: datetime) -> Weather:
+    response = await client.get(
+        f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date:%Y-%m-%d}",
+        params={
+            "key": settings.visual_crossing_api_key,
+            "unitGroup": "metric",
+            "include": "hours",
+            "elements": "datetime,tempmax,tempmin,feelslikemax,feelslikemin,icon",
+        },
     )
+    result = WeatherApiResult.model_validate_json(await response.aread())
 
-    day = response.days[0]
+    day = result.days[0]
     day_icon = _normalize_icon_name(day.icon)
     return Weather(
         day=WeatherData(temp=day.tempmax, feels_like=day.feelslikemax, icon=day_icon),
@@ -104,13 +102,12 @@ async def _fetch_weather(
     )
 
 
-async def build_weather(client: RetryAsyncClient, step: PSStep) -> Weather:
+async def build_weather(step: PSStep) -> Weather:
     if not settings.visual_crossing_api_key:
         return Weather.from_step(step)
 
     try:
         return await _fetch_weather(
-            client,
             round(step.location.lat, 2),
             round(step.location.lon, 2),
             step.datetime,

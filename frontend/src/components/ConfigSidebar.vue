@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import { getAlbum, updateAlbumSettings } from "@/api";
-import { ref } from "vue";
-import { useUserLocation } from "@/utils/geocoding.ts";
 import { useAlbum } from "@/utils/albumStore.ts";
-import { storeToRefs } from "pinia";
+import { useUserLocation } from "@/utils/geocoding.ts";
+import { toRangeList } from "@/utils/ranges";
 import { chooseTextDir } from "@/utils/text.ts";
+import { storeToRefs } from "pinia";
+import { ref } from "vue";
 
 defineProps<{
   tripNames: string[];
@@ -40,8 +41,12 @@ const ruleRequired = (val: string): true | string => {
   return true;
 };
 const ruleRangesFormat = (val: string): true | string => {
-  const pattern = /^\s*(\d+(-\d+)?)(\s*,\s*\d+(-\d+)?)*\s*$/;
-  return pattern.test(val) || "Use format: 0-20 or 0-5, 10-15";
+  try {
+    toRangeList(val);
+  } catch {
+    return "Use format: 0-20 or 0-5, 10-15";
+  }
+  return true;
 };
 
 const toTitleCase = (str: string) =>

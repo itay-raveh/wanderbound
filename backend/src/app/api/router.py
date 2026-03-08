@@ -6,26 +6,26 @@ from __future__ import annotations
 import asyncio
 import shutil
 from collections.abc import Sequence
-from datetime import timedelta
 from itertools import chain
 from pathlib import Path
 from zipfile import BadZipFile
 
+import numpy as np
 from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from safezip import SafezipError
 from sqlmodel import select
 
-from app.core.client import RetryAsyncClient
 from app.core.logging import config_logger
-from app.logic.data.country_colors import build_country_colors
-from app.logic.data.openmeteo import fetch_elevations
-from app.logic.data.weather import build_weather
+from app.logic.country_colors import build_country_colors
 from app.logic.layout.builder import build_step_layout
 from app.logic.layout.media import extract_frame
-from app.logic.tracking.cleaning import clean_points
-from app.logic.tracking.segments import Segment, build_segments
+from app.logic.spatial.distance import geodist_2d, geodist_3d
+from app.logic.spatial.elevation import elevations
+from app.logic.spatial.points import Meters, Point
+from app.logic.spatial.segments import Segment, build_segments
+from app.logic.weather import build_weather
 from app.models.db import (
     Album,
     AlbumId,
@@ -35,7 +35,7 @@ from app.models.db import (
     StepLayout,
     User,
 )
-from app.models.trips import Locations, Point, Trip
+from app.models.trips import Locations, Trip
 
 from .deps import USER_COOKIE, DependsAlbum, DependsSession, DependsUser
 
@@ -46,33 +46,26 @@ api = APIRouter()
 
 @api.post("/users")
 async def create_user(
-    upload: UploadFile,
+    file: UploadFile,
     session: DependsSession,
     response: Response,
 ) -> User:
     try:
-        user = await asyncio.to_thread(User.from_zip_upload, upload.file)
-    except (BadZipFile, SafezipError) as e:
-        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=str(e)) from e
+        user = await asyncio.to_thread(User.from_zip_upload, file.file)
+    except (BadZipFile, SafezipError, OSError) as e:
+        logger.warning("Bad ZIP: %s", e)
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
 
     session.add(user)
     response.set_cookie(USER_COOKIE, str(user.id))
 
     for trip_dir in user.trips_folder.iterdir():
-        logger.info("Processing '%s' ...", trip_dir.name)
-
-        # Load trip.json
         trip = Trip.from_trip_dir(trip_dir)
+        trip.all_steps.sort()
+        logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
 
-        logger.info("Loaded '%s' with %d steps", trip.title, trip.step_count)
-
-        # Create color palette
         colors = build_country_colors({ps_step.location.country_code for ps_step in trip.all_steps})
 
-        for code, color in colors.items():
-            logger.info("[%s] ███ %s ███ [/]", color, code)
-
-        # Create Album
         album = Album(
             uid=user.id,
             id=trip_dir.name,
@@ -86,35 +79,29 @@ async def create_user(
 
         session.add(album)
 
-        # Create a single client for the requests to enforce limits
-        async with RetryAsyncClient() as client:
-            elevations = [
-                int(el)
-                async for el in fetch_elevations(
-                    client, [ps_step.location for ps_step in trip.all_steps]
-                )
-            ]
+        elevs = map(
+            int,
+            elevations(
+                [ps_step.location.lat for ps_step in trip.all_steps],
+                [ps_step.location.lon for ps_step in trip.all_steps],
+            ),
+        )
 
-            logger.info(":heavy_check_mark: Fetched elevations")
+        logger.info(":heavy_check_mark: Fetched elevations")
 
-            weathers = await asyncio.gather(
-                *(build_weather(client, step) for step in trip.all_steps)
-            )
+        weathers = await asyncio.gather(*(build_weather(step) for step in trip.all_steps))
 
-            logger.info(":heavy_check_mark: Fetched weathers")
+        logger.info(":heavy_check_mark: Fetched weathers")
 
-            layouts = await asyncio.gather(
-                *(build_step_layout(user, album.id, step) for step in trip.all_steps)
-            )
+        layouts = await asyncio.gather(
+            *(build_step_layout(user, album.id, step) for step in trip.all_steps)
+        )
 
-            logger.info(":heavy_check_mark: Fetched layouts")
+        logger.info(":heavy_check_mark: Fetched layouts")
 
-        # Create steps
         for idx, (step, elevation, weather, (cover, pages)) in enumerate(
-            zip(trip.all_steps, elevations, weathers, layouts, strict=True)
+            zip(trip.all_steps, elevs, weathers, layouts, strict=True)
         ):
-            logger.info('Step %d "%s"', idx, step.name)
-
             # Add step
             session.add(
                 Step(
@@ -207,12 +194,12 @@ async def update_step_layout(
     user: DependsUser,
     session: DependsSession,
 ) -> Step:
-    step = await session.get_one(Step, (user.id, aid, sid))
+    # noinspection PyTypeChecker
+    step: Step = await session.get_one(Step, (user.id, aid, sid))
     step.sqlmodel_update(update)
     session.add(step)
     await session.commit()
     await session.refresh(step)
-    # noinspection PyTypeChecker
     return step
 
 
@@ -224,30 +211,28 @@ async def get_segments(
     user: DependsUser,
     session: DependsSession,
 ) -> Sequence[Segment]:
-    # Get steps (we want to add them as GPS points as well)
-    stmt = select(Step).where(
-        Step.uid == user.id, Step.aid == aid, Step.idx >= first, Step.idx <= last
+    # Get steps ordered by time
+    stmt = (
+        select(Step)
+        .where(Step.uid == user.id, Step.aid == aid, Step.idx >= first, Step.idx <= last)
+        .order_by(Step.idx)  # pyright: ignore[reportArgumentType]
     )
     steps = (await session.scalars(stmt)).all()
+    locations = Locations.from_trip_dir(user.trips_folder / aid).locations
+    return list(build_segments(steps, locations))
 
-    buffer = timedelta(days=0.5)
-    start_limit = steps[0].datetime - buffer
-    end_limit = steps[-1].datetime + buffer
 
-    # Combine and filter to get all points between the steps
-    step_points = (
-        Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()) for s in steps
-    )
+@api.post("/hike_distance")
+async def get_hike_distance(
+    points: list[Point],
+) -> Meters:
+    def sync_dist() -> Meters:
+        lats = np.array([p.lat for p in points])
+        lons = np.array([p.lon for p in points])
+        elevs = elevations(lats, lons)
+        return np.sum(geodist_3d(lats, lons, elevs))
 
-    # Get GPS data
-    locations = Locations.from_trip_dir(user.trips_folder / aid)
-
-    points = filter(
-        lambda p: start_limit <= p.datetime <= end_limit,
-        chain(clean_points(locations.locations), step_points),
-    )
-
-    return list(build_segments(points))
+    return await asyncio.to_thread(sync_dist)
 
 
 @api.get("/trip/{asset_rel_path:path}")

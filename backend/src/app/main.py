@@ -3,12 +3,14 @@ import time
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.deps import USER_COOKIE
 from app.api.router import api
 from app.core.logging import config_logger
+from app.logic.spatial.elevation import init_elevations
 from app.models.db import init_db
 
 if TYPE_CHECKING:
@@ -22,7 +24,8 @@ logger = config_logger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     await init_db()
-    yield
+    async with init_elevations():
+        yield
 
 
 def _generate_unique_id(route: APIRoute) -> str:
@@ -42,6 +45,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.middleware("http")
 async def add_process_time_header(
@@ -76,3 +80,7 @@ async def add_process_time_header(
     )
 
     return response
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", reload=True, access_log=False)

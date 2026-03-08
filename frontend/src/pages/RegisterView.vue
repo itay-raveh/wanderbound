@@ -75,7 +75,7 @@ function onFailed(info: { xhr: XMLHttpRequest }) {
           flat
           label="Drop .zip file here"
           style="width: 100%; max-width: 600px; height: 200px"
-          url="/api/v1/upload"
+          url="/api/v1/users"
           with-credentials
           @failed="onFailed"
           @uploaded="onUploaded"
