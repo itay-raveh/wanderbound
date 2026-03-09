@@ -10,7 +10,6 @@ from itertools import chain
 from pathlib import Path
 from zipfile import BadZipFile
 
-import numpy as np
 from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -21,9 +20,7 @@ from app.core.logging import config_logger
 from app.logic.country_colors import build_country_colors
 from app.logic.layout.builder import build_step_layout
 from app.logic.layout.media import extract_frame
-from app.logic.spatial.distance import geodist_2d, geodist_3d
-from app.logic.spatial.elevation import elevations
-from app.logic.spatial.points import Meters, Point
+from app.logic.open_meteo import elevations
 from app.logic.spatial.segments import Segment, build_segments
 from app.logic.weather import build_weather
 from app.models.db import (
@@ -79,25 +76,16 @@ async def create_user(
 
         session.add(album)
 
-        elevs = map(
-            int,
-            elevations(
-                [ps_step.location.lat for ps_step in trip.all_steps],
-                [ps_step.location.lon for ps_step in trip.all_steps],
-            ),
-        )
-
+        elevs = [int(elev) async for elev in elevations(step.location for step in trip.all_steps)]
         logger.info(":heavy_check_mark: Fetched elevations")
 
         weathers = await asyncio.gather(*(build_weather(step) for step in trip.all_steps))
-
         logger.info(":heavy_check_mark: Fetched weathers")
 
         layouts = await asyncio.gather(
             *(build_step_layout(user, album.id, step) for step in trip.all_steps)
         )
-
-        logger.info(":heavy_check_mark: Fetched layouts")
+        logger.info(":heavy_check_mark: Built layouts")
 
         for idx, (step, elevation, weather, (cover, pages)) in enumerate(
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
@@ -220,19 +208,6 @@ async def get_segments(
     steps = (await session.scalars(stmt)).all()
     locations = Locations.from_trip_dir(user.trips_folder / aid).locations
     return list(build_segments(steps, locations))
-
-
-@api.post("/hike_distance")
-async def get_hike_distance(
-    points: list[Point],
-) -> Meters:
-    def sync_dist() -> Meters:
-        lats = np.array([p.lat for p in points])
-        lons = np.array([p.lon for p in points])
-        elevs = elevations(lats, lons)
-        return np.sum(geodist_3d(lats, lons, elevs))
-
-    return await asyncio.to_thread(sync_dist)
 
 
 @api.get("/trip/{asset_rel_path:path}")

@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.deps import USER_COOKIE
 from app.api.router import api
 from app.core.logging import config_logger
-from app.logic.spatial.elevation import init_elevations
 from app.models.db import init_db
 
 if TYPE_CHECKING:
@@ -24,8 +23,7 @@ logger = config_logger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     await init_db()
-    async with init_elevations():
-        yield
+    yield
 
 
 def _generate_unique_id(route: APIRoute) -> str:

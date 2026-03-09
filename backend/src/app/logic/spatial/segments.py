@@ -78,8 +78,9 @@ Column schema (flowing through the pipeline)
 from __future__ import annotations
 
 import heapq
+import math
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 import polars as pl
@@ -87,11 +88,8 @@ from pydantic import BaseModel
 
 from app.core.logging import config_logger
 
-from .distance import geodist_2d, haversine_expr, haversine_expr_between
 from .points import Point
 from .simplify import rdp_mask
-
-_log = config_logger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -99,6 +97,7 @@ if TYPE_CHECKING:
 
     from app.models.trips import Location
 
+_log = config_logger(__name__)
 
 # ── Speed thresholds for edge classification ──────────────────────────────────
 # GPS underreports speed on winding trails; a sustained hike reads ≤ 6.5 km/h
@@ -228,6 +227,27 @@ def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
     )
 
 
+# Earth radius in meters
+R = 6371000.0
+
+
+# https://en.wikipedia.org/wiki/Haversine_formula#Formulation
+def _haversine_m(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr) -> pl.Expr:
+    to_rad = math.pi / 180.0
+    phi_1 = lat1 * to_rad
+    phi_2 = lat2 * to_rad
+    lambda_1 = lon1 * to_rad
+    lambda_2 = lon2 * to_rad
+
+    d_phi = phi_2 - phi_1
+    d_lambda = lambda_2 - lambda_1
+
+    a = (d_phi / 2).sin() ** 2 + phi_1.cos() * phi_2.cos() * (d_lambda / 2).sin() ** 2
+    c = 2 * pl.arctan2(a.sqrt(), (1 - a).sqrt())
+
+    return c * R
+
+
 def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
     """Compute per-edge gap_h, dist_km, and speed_kmh.
 
@@ -236,7 +256,12 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
     """
     return df.with_columns(
         ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(0.0).alias("gap_h"),
-        (haversine_expr(lat_col="lat", lon_col="lon") / 1000.0).alias("dist_km"),
+        (
+            _haversine_m(
+                pl.col("lat").shift(1), pl.col("lon").shift(1), pl.col("lat"), pl.col("lon")
+            ).fill_null(0.0)
+            / 1000.0
+        ).alias("dist_km"),
     ).with_columns(
         pl.when(pl.col("gap_h") > 0)
         .then(pl.col("dist_km") / pl.col("gap_h"))
@@ -325,7 +350,8 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
 
     Without densification, a hiker with GPS logging every 60 s at 5 km/h
     produces one point every ~80 m.  A two-hour hike might have only ~150
-    raw points: enough for labeling, but not enough for accurate elevation-based distance.  Densification fills the gaps linearly in space and time.
+    raw points: enough for labeling, but not enough for accurate elevation-based distance.
+    Densification fills the gaps linearly in space and time.
 
     Only edges that would be labeled "hike" are densified:
       • speed   ≤ DENSIFY_MAX_SPEED_KMH   (hike pace, not a cab ride)
@@ -333,8 +359,12 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
       • dist_km > DENSIFY_RESOLUTION_KM   (already dense enough otherwise)
 
     The densification is fully vectorized using NumPy repeat/cumsum: no
-    Python loop.  The ``is_step`` column is dropped here (the time-based
-    ``is_in`` check in ``_ingest`` re-marks step rows after densification).
+    Python loop.  ``df`` must already have ``dist_km``, ``gap_h``, and
+    ``speed_kmh`` columns (computed by ``_add_edge_metrics``).  The output
+    contains only ``lat``, ``lon``, ``time``; the caller must re-run
+    ``_add_edge_metrics`` afterwards.  The ``is_step`` column is also dropped;
+    the time-based ``is_in`` check in ``_ingest`` re-marks step rows after
+    densification.
     """
     lats = df["lat"].to_numpy()
     lons = df["lon"].to_numpy()
@@ -343,24 +373,26 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     if len(lats) < 2:
         return df
 
-    dists = geodist_2d(lats, lons) / 1000.0  # km, consecutive pairs
-    dts = (times[1:] - times[:-1]) / 3600.0
-    speeds = np.where(dts > 0, dists / dts, 0.0)
+    # Edge metrics (row 0 is always 0; edges start at row 1)
+    dists = df["dist_km"].to_numpy()[1:]
+    dts = df["gap_h"].to_numpy()[1:]
+    speeds = df["speed_kmh"].to_numpy()[1:]
 
     should_densify = (
         (speeds <= DENSIFY_MAX_SPEED_KMH) & (dists > DENSIFY_RESOLUTION_KM) & (dts < MAX_HIKE_GAP_H)
     )
 
     # n_pts[i] = number of output points for edge i (subdivisions if densifying, else 1 endpoint)
-    n_pts = np.where(should_densify, np.ceil(dists / DENSIFY_RESOLUTION_KM).astype(int), 1)
+    n_pts: np.typing.NDArray[np.int_] = np.where(
+        should_densify, np.ceil(dists / DENSIFY_RESOLUTION_KM).astype(int), 1
+    )
 
-    # Build interpolation indices without a Python loop:
-    #   edge_idx[k]  = which edge output point k belongs to
-    #   local_step[k] = position within that edge (0-based)
-    #   frac[k]      = interpolation fraction → 1/n, 2/n, …, n/n (= endpoint)
+    #   edge_idx[k]     = which edge output point k belongs to
+    #   local_step[k]   = position within that edge (0-based)
+    #   frac[k]         = interpolation fraction → 1/n, 2/n, …, n/n (= endpoint)
     edge_idx = np.repeat(np.arange(len(n_pts)), n_pts)
     cum_before = np.concatenate([[0], n_pts[:-1].cumsum()])
-    local_step = np.arange(n_pts.sum()) - cum_before[edge_idx]
+    local_step = np.arange(cast("np.int_", n_pts.sum())) - cum_before[edge_idx]
     frac = (local_step + 1) / n_pts[edge_idx]
 
     i0, i1 = edge_idx, edge_idx + 1
@@ -381,8 +413,9 @@ def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFra
       2. Sort both streams; merge them chronologically via heapq.merge.
       3. Deduplicate on time (step + coincident GPS point → keep one).
       4. Mark step rows, then remove GPS noise (steps are immune).
-      5. Densify hike-speed edges; re-mark step rows (densified rows aren't steps).
-      6. Compute edge metrics (gap_h, dist_km, speed_kmh).
+      5. Compute edge metrics so densification can read them without recomputing haversine.
+      6. Densify hike-speed edges; re-mark step rows (densified rows aren't steps).
+      7. Recompute edge metrics for the densified points.
     """
     t0 = steps[0].datetime.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     t1 = steps[-1].datetime.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp()
@@ -403,7 +436,8 @@ def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFra
     # distant GPS points (e.g. the user was at a remote viewpoint with no signal).
     df = df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
     df = _remove_gps_noise(df)
-    df = _densify_hike_edges(df)  # drops is_step column
+    df = _add_edge_metrics(df)
+    df = _densify_hike_edges(df)  # uses precomputed metrics; drops all columns except lat/lon/time
     df = _add_edge_metrics(df)
     # Re-mark after densification: interpolated rows won't match step_times.
     return df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
@@ -634,7 +668,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         pl.col("gap_h").sum().alias("tot_h"),
         pl.col("dist_km").sum().alias("tot_km"),
         (
-            haversine_expr_between(
+            _haversine_m(
                 pl.col("lat").first(),
                 pl.col("lon").first(),
                 pl.col("lat"),
@@ -689,12 +723,12 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
     prev_last_pt: Point | None = None
 
     for _, gdf in df.group_by("output_id", maintain_order=True):
-        kind: str = gdf["final_mode"][0]
+        kind = cast("str", gdf["final_mode"][0])
 
         if kind == "flight":
             pts: list[Point] = [
-                Point(lat=gdf["lat"][0], lon=gdf["lon"][0], time=gdf["time"][0]),
-                Point(lat=gdf["lat"][-1], lon=gdf["lon"][-1], time=gdf["time"][-1]),
+                Point(lat=gdf["lat"][0], lon=gdf["lon"][0], time=gdf["time"][0]),  # pyright: ignore[reportAny]
+                Point(lat=gdf["lat"][-1], lon=gdf["lon"][-1], time=gdf["time"][-1]),  # pyright: ignore[reportAny]
             ]
             if pts[0].datetime < first_step_dt:
                 continue
@@ -704,10 +738,10 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
             ti = gdf["time"].to_numpy()
 
             if kind == "hike":
-                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la))]
+                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la))]  # pyright: ignore[reportAny]
             else:
                 mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
-                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if mask[i]]
+                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if mask[i]]  # pyright: ignore[reportAny]
 
         # Prepend the previous segment's last point if there is a time gap,
         # ensuring the map polyline is visually continuous.
@@ -771,7 +805,7 @@ def build_segments(
     if df.is_empty():
         return iter([])
 
-    total_span_h = (df["time"].max() - df["time"].min()) / 3600
+    total_span_h = (float(df["time"].max()) - float(df["time"].min())) / 3600  # pyright: ignore[reportArgumentType]
     long_window = bool(total_span_h > 24)
 
     df = _label_edges(df, long_window=long_window)

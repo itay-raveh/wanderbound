@@ -1,16 +1,9 @@
-"""Core spatial data types.
-
-Only the ``Point`` model and its associated type aliases live here.
-Distances are in ``distance.py``; segmentation logic is in ``segments.py``.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 from pydantic import AwareDatetime, BaseModel, computed_field
 
-type Meters = float
 type Lon = float
 type Lat = float
 

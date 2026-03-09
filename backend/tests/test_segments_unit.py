@@ -15,19 +15,13 @@ Each test exercises a specific invariant or guards against a known regression:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
 import pytest
 
 from app.logic.spatial.points import Point
 from app.logic.spatial.segments import (
-    TELEPORT_MAX_SPEED_KMH,
-    FLIGHT_MIN_DISTANCE_KM,
-    FLIGHT_MIN_SPEED_KMH,
-    HIKE_MAX_SPEED_KMH,
-    HIKE_MIN_DISTANCE_KM,
-    HIKE_MIN_DURATION_H,
     SegmentKind,
     _remove_gps_noise,
     build_segments,
@@ -36,7 +30,7 @@ from app.logic.spatial.segments import (
 # ── Time helpers ──────────────────────────────────────────────────────────────
 
 # All synthetic tests use 2024-01-01 as the base date (UTC).
-_BASE_TS = datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+_BASE_TS = datetime(2024, 1, 1, tzinfo=UTC).timestamp()
 
 
 def _ts(hours: float) -> float:
@@ -46,7 +40,7 @@ def _ts(hours: float) -> float:
 
 def _dt(hours: float) -> datetime:
     """Aware UTC datetime at base-date midnight + ``hours``."""
-    return datetime.fromtimestamp(_ts(hours), tz=timezone.utc)
+    return datetime.fromtimestamp(_ts(hours), tz=UTC)
 
 
 # ── Synthetic step / GPS helpers ──────────────────────────────────────────────
@@ -78,7 +72,7 @@ def _pt(lat: float, lon: float, hours: float) -> Point:
     return Point(lat=lat, lon=lon, time=_ts(hours))
 
 
-def _track(
+def _track(  # noqa: PLR0913
     lat0: float,
     lon0: float,
     lat1: float,

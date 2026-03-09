@@ -1,3 +1,4 @@
+# ruff: noqa: TC003, TC001
 import math
 from datetime import datetime
 from pathlib import Path
