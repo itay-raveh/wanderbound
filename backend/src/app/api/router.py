@@ -18,7 +18,7 @@ from sqlmodel import select
 
 from app.core.logging import config_logger
 from app.logic.country_colors import build_country_colors
-from app.logic.layout.builder import build_step_layout
+from app.logic.layout import build_step_layout
 from app.logic.layout.media import extract_frame
 from app.logic.open_meteo import elevations
 from app.logic.spatial.segments import Segment, build_segments

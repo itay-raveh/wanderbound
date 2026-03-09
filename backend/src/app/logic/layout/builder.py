@@ -1,22 +1,14 @@
 import asyncio
-from itertools import combinations
+from itertools import batched
+from math import ceil
 from typing import TYPE_CHECKING
 
 from app.core.logging import config_logger
-from app.logic.layout.strategies import (
-    FourLandscapesStrategy,
-    LayoutStrategy,
-    OneLandscapeStrategy,
-    OnePortraitTwoLandscapesStrategy,
-    ThreeLandscapesStrategy,
-    ThreePortraitsStrategy,
-    TwoPortraitsStrategy,
-)
 
 from .media import Media, Photo, Video
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable
+    from collections.abc import AsyncIterable, Iterable, Sequence
     from pathlib import Path
 
     from app.models.db import AlbumId, User
@@ -24,81 +16,115 @@ if TYPE_CHECKING:
 
 logger = config_logger(__name__)
 
-# In order of preference
-_STRATEGIES: list[LayoutStrategy] = [
-    ThreePortraitsStrategy(),
-    OnePortraitTwoLandscapesStrategy(),
-    FourLandscapesStrategy(),
-    TwoPortraitsStrategy(),
-    ThreeLandscapesStrategy(),
-    OneLandscapeStrategy(),
-]
+
+def _portrait_page_count(n: int) -> int:
+    """Min pages for n portraits (page sizes 3, 2, 1)."""
+    return ceil(n / 3)
 
 
-def _try_build_page(candidates: Collection[Media]) -> list[Media] | None:
-    for strategy in _STRATEGIES:
-        if strategy.required_count > len(candidates):
-            continue
-
-        for combo in combinations(candidates, strategy.required_count):
-            if strategy.validate(combo):
-                return strategy.sort(combo)
-    return None
+def _landscape_page_count(n: int) -> int:
+    """Min pages for n landscapes (page sizes 4, 3, 1)."""
+    return 2 if n == 2 else ceil(n / 4)
 
 
-def _build_page_layouts(photos: Iterable[Media]) -> list[list[Path]]:
-    candidates = set(photos)
+def _optimal_mixed_count(p: int, l: int) -> int:
+    """Find the number of 1P+2L pages that minimizes total page count."""
+    best_total = p + l
+    best_b = 0
 
-    # Divide photos intp pages
-    pages: list[list[Path]] = []
-    while candidates:
-        if layout := _try_build_page(candidates):
-            pages.append([media.path for media in layout])
-            candidates -= set(layout)
-        else:
-            # If no strategies work, give some photo its own page,
-            # and we will try again with the rest
-            pages.append([candidates.pop().path])
+    for b in range(min(p, l // 2) + 1):
+        total = b + _portrait_page_count(p - b) + _landscape_page_count(l - 2 * b)
 
-    return pages
+        if total < best_total:
+            best_total = total
+            best_b = b
+
+    return best_b
+
+
+def _three_page_count(n: int) -> int:
+    """Number of 3-pages to optimally decompose n landscapes into pages of 4 and 3."""
+    return -n % 4
+
+
+def _pages_of(items: Iterable[Path], size: int) -> Iterable[list[Path]]:
+    """Yield pages of the given size from items."""
+    yield from (list(batch) for batch in batched(items, size, strict=False))
+
+
+def _landscape_pages(items: Sequence[Path]) -> Iterable[list[Path]]:
+    """Yield optimally packed landscape pages (sizes 4, 3, 1)."""
+    n = len(items)
+
+    if n < 3:
+        yield from ([p] for p in items)
+    elif n == 5:
+        # Only case where 4s and 3s can't cover: 4 + 1
+        yield list(items[:4])
+        yield [items[4]]
+    else:
+        threes = _three_page_count(n)
+        cut = n - 3 * threes
+        yield from _pages_of(items[:cut], 4)
+        yield from _pages_of(items[cut:], 3)
+
+
+def _build_pages(portraits: Sequence[Path], landscapes: Sequence[Path]) -> Iterable[list[Path]]:
+    mixed = _optimal_mixed_count(len(portraits), len(landscapes))
+
+    # 1 portrait + 2 landscape mixed pages
+    for i in range(mixed):
+        yield [portraits[i], landscapes[2 * i], landscapes[2 * i + 1]]
+
+    # Portraits: batched by 3 — last batch of 1 or 2 is a valid page size
+    yield from _pages_of(portraits[mixed:], 3)
+
+    # Landscapes: optimal 4/3 decomposition
+    yield from _landscape_pages(landscapes[2 * mixed :])
+
+
+async def _step_media(user: User, step_dir: Path) -> AsyncIterable[Media]:
+    photo_folder = step_dir / "photos"
+    if photo_folder.exists():
+        for photo in (Photo.load(user.folder, path) for path in photo_folder.iterdir()):
+            yield photo
+
+    video_folder = step_dir / "videos"
+    if video_folder.exists():
+        async for video in asyncio.as_completed(
+            Video.extract(user.folder, path) for path in video_folder.iterdir()
+        ):
+            yield await video
 
 
 async def build_step_layout(
-    user: User,
-    aid: AlbumId,
-    step: PSStep,
+    user: User, aid: AlbumId, step: PSStep
 ) -> tuple[Path, list[list[Path]]]:
-    assets_in_folder: list[Media] = []
+    step_dir = user.trips_folder / aid / step.folder_name
 
-    # Load Photos
-    photo_folder = user.trips_folder / aid / step.folder_name / "photos"
-    if photo_folder.exists():
-        assets_in_folder.extend(
-            [await Photo.load(user.folder, path) for path in photo_folder.iterdir()]
+    media: list[Media] = [m async for m in _step_media(user, step_dir)]
+
+    # Split and sort portraits (closest to 4/5 first)
+    portraits = [
+        p.path
+        for p in sorted(
+            (p for p in media if p.is_portrait),
+            key=lambda p: p.aspect_ratio,
+            reverse=True,
         )
+    ]
+    landscapes = [p.path for p in media if not p.is_portrait]
 
-    # Load Videos
-    video_folder = user.trips_folder / aid / step.folder_name / "videos"
-    if video_folder.exists():
-        assets_in_folder.extend(
-            [await Video.load(user.folder, path) for path in video_folder.iterdir()]
-        )
-
-    # Portraits, sorted from 4/5 (perfect size) downwards
-    portraits = sorted(
-        (photo for photo in assets_in_folder if photo.is_portrait),
-        key=lambda photo: photo.aspect_ratio,
-        reverse=True,
-    )
-
-    # Select cover
-    cover = portraits[0] if portraits else assets_in_folder[0]
+    # Select cover: best portrait, or first asset
+    cover = portraits[0] if portraits else landscapes[0]
 
     # If it appears on the step page, remove it from the photo pages
     if not step.is_long_description:
-        assets_in_folder.remove(cover)
+        if cover in portraits:
+            portraits.remove(cover)
+        else:
+            landscapes.remove(cover)
 
-    # Run combinatorial layout search in a separate thread
-    pages = await asyncio.to_thread(_build_page_layouts, assets_in_folder)
+    pages = list(_build_pages(portraits, landscapes))
 
-    return cover.path, pages
+    return cover, pages

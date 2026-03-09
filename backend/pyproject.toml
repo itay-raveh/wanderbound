@@ -5,29 +5,29 @@ requires-python = ">=3.14"
 authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
 
 dependencies = [
-    "Pillow",
-    "pydantic>2",
-    "pydantic-settings>2",
-    "rich",
-    "fastapi",
-    "python-multipart",
-    "uvicorn",
-    "sqlalchemy>2",
-    "sqlmodel",
-    "aiosqlite",
-    "safezip",
-    "numpy>2",
-    "httpx",
-    "hishel[httpx]",
-    "httpx-retries",
-    "polars>=1.38.1",
+    "Pillow~=12.0",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "rich~=14.0",
+    "fastapi<1",
+    "python-multipart<1",
+    "uvicorn<1",
+    "sqlalchemy~=2.0",
+    "sqlmodel<1",
+    "aiosqlite<1",
+    "safezip<1",
+    "numpy~=2.0",
+    "httpx<1",
+    "hishel[httpx]~=1.0",
+    "httpx-retries<1",
+    "polars>=1.38.1,<2",
 ]
 
 [dependency-groups]
-dev = ["ruff", "basedpyright", "deptry", "taskipy", "pytest>=9.0.2"]
+dev = ["ruff<1", "basedpyright~=1.0", "deptry<1", "taskipy~=1.0", "pytest~=9.0"]
 
 [build-system]
-requires = ["uv_build>=0.9,<0.10.0"]
+requires = ["uv_build~=0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -40,34 +40,34 @@ check = "ruff check . --fix --unsafe-fixes"
 types = "basedpyright"
 deps = "deptry ."
 lint = "task format && task check && task types && task deps"
+test = "pytest -s"
 
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint]
-exclude = ["tests/*"]
-
 select = ["ALL"]
 ignore = [
-    "D203",
-    "D213",
-    "COM812",
-    "ISC001",
-    "EM101",
-    "EM102",
-    "PLR2004",
-    "TRY003",
-    "D100",
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D106",
-    "D107",
-    "D401",
-    "E741",
-    "D413",
+    "D203",   # blank line before class docstring (conflicts with D211)
+    "D213",   # multi-line summary on second line (conflicts with D212)
+    "COM812", # missing trailing comma (conflicts with formatter)
+    "ISC001", # implicit string concat (conflicts with formatter)
+    "EM101",  # string literal in exception
+    "EM102",  # f-string in exception
+    "PLR2004", # magic value in comparison
+    "TRY003", # long exception message
+    "D10",    # missing docstrings
+    "D401",   # imperative mood in docstring
+    "D413",   # blank line after last docstring section
+    "E741",   # ambiguous variable name
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101", # assert is fine in tests
+    "PT001", # @pytest.fixture() parentheses style
+    "RUF002", # ambiguous unicode (en-dash in docstrings)
+    "SLF001", # private member access (testing internals)
 ]
 
 [tool.ruff.lint.isort]
@@ -99,3 +99,4 @@ DEP003 = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+strict = true
