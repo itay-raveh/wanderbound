@@ -1,17 +1,17 @@
 <script lang="ts" setup>
 import OverviewLocationCircle from "@/components/album/overview/OverviewLocationCircle.vue";
-import { type PsLocation, type Step } from "@/api";
+import { type Location, type Step } from "@/client";
 import { distance } from "@/utils/geocoding.ts";
 import { computed } from "vue";
 
 const props = defineProps<{
-  home: PsLocation;
+  home: Location;
   steps: Step[];
 }>();
 
 const furthest = computed(() => {
   let maxDist = -1;
-  let loc: PsLocation;
+  let loc: Location;
 
   for (const { location } of props.steps) {
     const dist = distance(props.home, location);

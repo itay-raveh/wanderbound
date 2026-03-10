@@ -12,9 +12,14 @@ import "quasar/src/css/index.sass";
 import App from "./App.vue";
 import router from "./router";
 
-import { client } from "./api/client.gen";
+import { client } from "@/client/client.gen";
 
-client.setConfig({ withCredentials: true });
+
+client.setConfig({
+  baseURL: import.meta.env.VITE_BACKEND_URL,
+  withCredentials: true,
+});
+
 
 const app = createApp(App);
 

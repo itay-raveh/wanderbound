@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { getHikeDistance, type Segment, type Step } from "@/api";
+import { type Segment, type Step } from "@/client";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { date } from "quasar";
-import { onMounted, useTemplateRef, watch } from "vue";
+import { onBeforeUnmount, onMounted, useTemplateRef, watch } from "vue";
 
 const props = defineProps<{
   steps: Step[];
@@ -41,6 +41,11 @@ onMounted(() => {
   draw().catch(console.log);
 });
 
+onBeforeUnmount(() => {
+  map?.remove();
+  map = null;
+});
+
 watch(() => props.segments, draw);
 
 type LatLon = [number, number];
@@ -69,7 +74,7 @@ function getAngle(p0: LatLon, p1: LatLon): number {
 
 const MAP_PADDING = 100;
 
-async function draw() {
+function draw() {
   if (!map) return;
 
   // Clear old layers (keep tile layers)
@@ -169,16 +174,11 @@ async function draw() {
         const time_text =
           dt_hours <= 24 ? `${dt_hours} hours` : `${dt_days} days`;
 
-        const { data: lengthMeters } = await getHikeDistance({
-          body: segment.points,
-        });
-
         L.marker(pos, {
           icon: L.divIcon({
             className: "path-icon",
             html: `<div class="column items-center text-center text-white text-weight-bold" style="text-shadow: 0 0 4px black;">
             <i class="q-icon material-icons" style="font-size: ${iconSize}px;">hiking</i>
-            <span style="font-size: ${iconSize / 3}px">${Math.ceil(lengthMeters / 1000)} KM</span>
             <span style="font-size: ${iconSize / 4}px">${time_text}</span>
           </div>`,
             iconSize: [iconSize * 2, iconSize * 2],

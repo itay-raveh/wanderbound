@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { type Album, getSegments, getStepRanges } from "@/api";
+import { type Album, readSegments, readSteps } from "@/client";
 import MapPage from "./album/MapPage.vue";
 import OverviewPage from "./album/overview/OverviewPage.vue";
 import Step from "./album/Step.vue";
@@ -12,7 +12,7 @@ const props = defineProps<{
 }>();
 
 const steps = computedAsync(async () => {
-  const { data: steps } = await getStepRanges({
+  const { data: steps } = await readSteps({
     path: { aid: props.album.id },
     body: toRangeList(props.album.steps_ranges),
   });
@@ -21,7 +21,7 @@ const steps = computedAsync(async () => {
 
 const segments = computedAsync(async () => {
   if (!steps.value) return null;
-  const { data: segments } = await getSegments({
+  const { data: segments } = await readSegments({
     path: { aid: props.album.id },
     query: {
       first: steps.value[0]!.idx,

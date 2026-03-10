@@ -1,8 +1,7 @@
 [project]
-name = "psagen"
+name = "app"
 version = "0.1.0"
-requires-python = ">=3.14"
-authors = [{ name = "Itay Raveh", email = "itay.raveh@proton.me" }]
+requires-python = ">=3.14,<4.0"
 
 dependencies = [
     "Pillow~=12.0",
@@ -14,36 +13,27 @@ dependencies = [
     "uvicorn<1",
     "sqlalchemy~=2.0",
     "sqlmodel<1",
-    "aiosqlite<1",
     "safezip<1",
+    "psycopg[binary]~=3.1",
+    "alembic~=1.12",
     "numpy~=2.0",
     "httpx<1",
     "hishel[httpx]~=1.0",
     "httpx-retries<1",
     "polars>=1.38.1,<2",
+    "ty>=0.0.21",
 ]
 
 [dependency-groups]
-dev = ["ruff<1", "basedpyright~=1.0", "deptry<1", "taskipy~=1.0", "pytest~=9.0"]
+dev = ["ruff<1", "ty<1", "deptry<1", "pytest~=9.0"]
 
 [build-system]
-requires = ["uv_build~=0.9.0"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-name = "app"
-module-root = "src"
-
-[tool.taskipy.tasks]
-format = "ruff format ."
-check = "ruff check . --fix --unsafe-fixes"
-types = "basedpyright"
-deps = "deptry ."
-lint = "task format && task check && task types && task deps"
-test = "pytest -s"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
+exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -60,6 +50,12 @@ ignore = [
     "D401",   # imperative mood in docstring
     "D413",   # blank line after last docstring section
     "E741",   # ambiguous variable name
+    "TID252", # relative parent imports are fine in an app
+    "ANN401", # Any is unavoidable in some cases
+    "N802",   # uppercase property names for settings
+    "ARG001", # FastAPI path params are used for routing, not in function body
+    "TC001",  # Pydantic/FastAPI need runtime type access
+    "TC003",  # same as above for stdlib types
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -76,27 +72,26 @@ combine-as-imports = true
 [tool.ruff.lint.mccabe]
 max-complexity = 8
 
-[tool.pyright]
-include = ["src/**/*.py"]
-reportUnusedCallResult = false
-reportPrivateUsage = false
-reportImplicitOverride = false
-reportUnannotatedClassAttribute = false
+[tool.ty.rules]
+invalid-type-form = "ignore"  # ty false positive on properties named `datetime`
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
 
 [tool.deptry.per_rule_ignores]
 # DEP002 = "Unused dependency"
 DEP002 = [
-    "taskipy",
     "ruff",
     "deptry",
     "uvicorn",
     "python-multipart",
-    "aiosqlite",
 ]
 # DEP003 = "Transitive dependency"
 DEP003 = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["."]
 strict = true

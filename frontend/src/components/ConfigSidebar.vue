@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { getAlbum, updateAlbumSettings } from "@/api";
+import { readAlbum, updateAlbum } from "@/client";
 import { useAlbum } from "@/utils/albumStore.ts";
 import { useUserLocation } from "@/utils/geocoding.ts";
 import { toRangeList } from "@/utils/ranges";
@@ -24,13 +24,13 @@ const emit = defineEmits<{
 const selectedTrip = ref<string | null>(null);
 
 const onTripSelected = async ({ value: aid }: { value: string }) => {
-  const { data } = await getAlbum({ path: { aid } });
+  const { data } = await readAlbum({ path: { aid } });
   album.value = data;
 };
 
 albumStore.$subscribe((_, { album }) => {
   if (album)
-    void updateAlbumSettings({
+    void updateAlbum({
       path: { aid: album.id },
       body: album,
     });

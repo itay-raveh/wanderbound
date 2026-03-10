@@ -1,46 +1,21 @@
-# Python
+.idea
+.vscode/*
+!.vscode/extensions.json
+.venv
+.claude
+node_modules/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-*.egg-info/
-*.egg
-pycrucible_payload
-
-# Virtual environments
-.venv/
-
-# Node
-node_modules/
 dist/
-dist-ssr/
-
-# Logs
-*.log
-
-# IDE
-.vscode/
-!.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*.sw?
-*~
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.local
-
-# App data
-*.env
-backend/data
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.env
 
 # Generated
-frontend/public/countries
-frontend/src/api
+frontend/src/client/
+frontend/public/countries/
 
-# Test
-playwright-report/
-test-results/
+# App data
+backend/data/

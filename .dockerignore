@@ -1,29 +1,16 @@
-# Git
-.git/
+.git
+.github
+.vscode
+.env
+.gitattributes
 .gitignore
+.pre-commit-config.yaml
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-.pytest_cache/
-.ruff_cache/
-backend/typings/
+**/.venv
+**/__pycache__
+**/*.egg-info
+**/node_modules
 
-# Node (not needed in Docker — frontend is built in a separate stage)
-frontend/node_modules/
-
-# IDE
-.vscode/
-.idea/
-
-# Data & logs
-*.log
-backend/data/
-backend/database.db
-backend/users/
-backend/cache/
-
-# Misc
-*.env
-user_data.zip
+backend/tests
+backend/data
+frontend/dist

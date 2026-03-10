@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { updateVideoFrame } from "@/api";
+import { updateVideoFrame } from "@/client";
 import {
   clearDraggedPhoto,
   draggedPhoto,

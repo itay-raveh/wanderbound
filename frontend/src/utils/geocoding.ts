@@ -1,7 +1,7 @@
 import { ref } from "vue";
-import { client } from "@/api/client.gen.ts";
+import { client } from "@/client/client.gen.ts";
 import { defineStore } from "pinia";
-import { type Location } from "@/api";
+import { type Location } from "@/client";
 
 let _locationCache: Location | null = null;
 

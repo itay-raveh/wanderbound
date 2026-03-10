@@ -9,8 +9,7 @@ Tests cover:
   - Robustness (empty steps, no GPS, single step, minimal input)
 """
 
-from __future__ import annotations
-
+import datetime as _dt_mod
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -55,7 +54,7 @@ class _Step:
     _hours: float
 
     @property
-    def datetime(self) -> datetime:
+    def datetime(self) -> _dt_mod.datetime:
         return _dt(self._hours)
 
 

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { type Album, type Step } from "@/api";
+import { type Album, type Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";

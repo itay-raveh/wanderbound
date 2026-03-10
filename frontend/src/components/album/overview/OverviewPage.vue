@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album, Segment, Step } from "@/api";
+import type { Album, Segment, Step } from "@/client";
 import { useUserLocation } from "@/utils/geocoding.ts";
 import { computed } from "vue";
 import { date } from "quasar";

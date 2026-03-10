@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { type PsLocation } from "@/api";
+import { type Location } from "@/client";
 
-defineProps<{ icon: string; location: PsLocation }>();
+defineProps<{ icon: string; location: Location }>();
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album, Step } from "@/api";
+import type { Album, Step } from "@/client";
 import {
   clearDraggedPhoto,
   draggedPhoto,

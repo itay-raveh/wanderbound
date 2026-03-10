@@ -52,8 +52,7 @@ for idx, row in gdf.iterrows():
         continue
 
     # Flip the geometry vertically for standard SVG rendering
-    geom_flipped = shapely.affinity.scale(geom, xfact=1.0, yfact=-1.0,
-                                          origin=(0, 0))
+    geom_flipped = shapely.affinity.scale(geom, xfact=1.0, yfact=-1.0, origin=(0, 0))
 
     # Calculate the SVG viewBox
     minx, miny, maxx, maxy = geom_flipped.bounds
@@ -66,20 +65,19 @@ for idx, row in gdf.iterrows():
     # Generate SVG paths and clean up hardcoded styles
     svg_paths = geom_flipped.svg()
     svg_paths = re.sub(r'fill="[^"]+"', 'fill="currentColor"', svg_paths)
-    svg_paths = re.sub(r'stroke="[^"]+"', '', svg_paths)
-    svg_paths = re.sub(r'stroke-width="[^"]+"', '', svg_paths)
-    svg_paths = re.sub(r'opacity="[^"]+"', '', svg_paths)
+    svg_paths = re.sub(r'stroke="[^"]+"', "", svg_paths)
+    svg_paths = re.sub(r'stroke-width="[^"]+"', "", svg_paths)
+    svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
 
     # Write the standalone SVG file containing a targeted symbol
     svg_filepath = os.path.join(output_dir, f"{symbol_id}.svg")
     with open(svg_filepath, "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write('<svg xmlns="http://www.w3.org/2000/svg">\n')
-        f.write(
-            f'  <symbol id="map" viewBox="{minx} {miny} {width} {height}">\n')
-        f.write(f'    {svg_paths}\n')
-        f.write('  </symbol>\n')
-        f.write('</svg>\n')
+        f.write(f'  <symbol id="map" viewBox="{minx} {miny} {width} {height}">\n')
+        f.write(f"    {svg_paths}\n")
+        f.write("  </symbol>\n")
+        f.write("</svg>\n")
 
 # 5. Export the master dictionary
 with open(json_filename, "w", encoding="utf-8") as jf:

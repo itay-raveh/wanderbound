@@ -3,8 +3,8 @@ import vue from "@vitejs/plugin-vue";
 import path from "path";
 import { defineConfig } from "vite";
 
-// https://vite.dev/config/
 export default defineConfig({
+  envDir: path.resolve(__dirname, ".."),
   plugins: [
     vue({
       template: { transformAssetUrls },
@@ -18,10 +18,6 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api/v1": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
       "/nominatim": {
         target: "https://nominatim.openstreetmap.org",
         changeOrigin: true,

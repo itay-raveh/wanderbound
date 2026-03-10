@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { chooseTextDir } from "@/utils/text";
-import type { Album, Step } from "@/api";
+import type { Album, Step } from "@/client";
 import { date } from "quasar";
 import { computed } from "vue";
 

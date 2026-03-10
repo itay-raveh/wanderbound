@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { getAlbumNames } from "@/api";
+import { readAlbumIds } from "@/client";
 import ConfigSidebar from "@/components/ConfigSidebar.vue";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -18,7 +18,7 @@ const albumNames = ref<string[]>();
 
 onMounted(async () => {
   try {
-    const { data } = await getAlbumNames({});
+    const { data } = await readAlbumIds({});
     albumNames.value = data;
   } catch {
     await router.push("/register");
