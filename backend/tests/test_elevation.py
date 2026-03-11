@@ -181,6 +181,7 @@ class TestCorrectPeaks:
         elevs = [500.0, 5236.0, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json([(5327, "Pico Austria")])
         )
@@ -200,6 +201,7 @@ class TestCorrectPeaks:
         elevs = [500.0, 5400.0, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json([(5327, "Pico Austria")])
         )
@@ -219,6 +221,7 @@ class TestCorrectPeaks:
         elevs = [500.0, dem_val, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json([(osm_val, "Far Peak")])
         )
@@ -238,6 +241,7 @@ class TestCorrectPeaks:
         elevs = [500.0, dem_val, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json([(osm_val, "Boundary Peak")])
         )
@@ -255,6 +259,7 @@ class TestCorrectPeaks:
         elevs = [500.0, 5236.0, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json(
                 [
@@ -290,6 +295,7 @@ class TestCorrectPeaks:
         elevs = [500.0, 5236.0, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(return_value=_overpass_json([]))
 
         with patch("app.logic.spatial.peaks.client") as mock_client:
@@ -305,6 +311,7 @@ class TestCorrectPeaks:
         elevs = [500.0, 4500.0, 1000.0, 5000.0, 500.0]
 
         mock_response = AsyncMock()
+        mock_response.status_code = 200
         mock_response.aread = AsyncMock(
             return_value=_overpass_json(
                 [
