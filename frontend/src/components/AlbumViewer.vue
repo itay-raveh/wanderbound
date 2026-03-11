@@ -156,7 +156,7 @@ const sections = computed<Section[]>(() => {
 
 // Editor mode: scaled down with borders
 .album-container:not(.print-mode) {
-  contain: strict;
+  contain: layout style paint;
 
   .page-container {
     scale: 0.8;

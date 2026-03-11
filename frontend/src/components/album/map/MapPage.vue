@@ -16,9 +16,13 @@ const { map, init, fitBounds } = useMapbox({ container });
 onMounted(() => {
   init();
   map.value?.on("load", () => {
-    void drawSegmentsAndMarkers(map.value!, {
+    const m = map.value!;
+    // Force recalculate size after CSS is applied
+    m.resize();
+    void drawSegmentsAndMarkers(m, {
       segments: props.segments,
       steps: props.steps,
+      skipMapMatching: true,
     }).then((coords) => fitBounds(coords, 100));
   });
 });
@@ -31,5 +35,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .map-page {
   padding: 0 !important;
+  position: relative;
+  overflow: hidden;
 }
 </style>

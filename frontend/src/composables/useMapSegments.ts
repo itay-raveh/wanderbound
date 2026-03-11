@@ -6,7 +6,6 @@
 import type { Segment, Step } from "@/client";
 import { mediaUrl } from "@/utils/media";
 import { matchRoute } from "@/utils/mapMatching";
-import { greatCircle, point } from "@turf/turf";
 import mapboxgl from "mapbox-gl";
 
 const LAYER_PREFIX = "seg-";
@@ -68,48 +67,75 @@ function addLine(
 }
 
 // ---------------------------------------------------------------------------
+// Flight arc with exaggerated curvature
+// ---------------------------------------------------------------------------
+
+/** Build a curved arc between two points with exaggerated curvature. */
+function buildFlightArc(
+  startLon: number,
+  startLat: number,
+  endLon: number,
+  endLat: number,
+  steps = 64,
+): [number, number][] {
+  const midLon = (startLon + endLon) / 2;
+  const midLat = (startLat + endLat) / 2;
+
+  // Perpendicular offset for curvature (proportional to distance)
+  const dx = endLon - startLon;
+  const dy = endLat - startLat;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const offset = dist * 0.2; // 20% of distance = exaggerated curve
+
+  // Offset perpendicular to the line (always curve left/up for consistency)
+  const controlLon = midLon + (dy / dist) * offset;
+  const controlLat = midLat - (dx / dist) * offset;
+
+  const arc: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    // Quadratic Bézier
+    const lon = u * u * startLon + 2 * u * t * controlLon + t * t * endLon;
+    const lat = u * u * startLat + 2 * u * t * controlLat + t * t * endLat;
+    arc.push([lon, lat]);
+  }
+  return arc;
+}
+
+// ---------------------------------------------------------------------------
 // Segment drawing
 // ---------------------------------------------------------------------------
 
 function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   const start = seg.points[0]!;
   const end = seg.points[seg.points.length - 1]!;
-  const arc = greatCircle(point([start.lon, start.lat]), point([end.lon, end.lat]));
+  const arcCoords = buildFlightArc(start.lon, start.lat, end.lon, end.lat);
 
-  m.addSource(id, { type: "geojson", data: arc });
-  m.addLayer({
-    id,
-    type: "line",
-    source: id,
-    layout: { "line-cap": "round" },
-    paint: {
-      "line-color": "rgba(255, 255, 255, 0.8)",
-      "line-width": faint ? 1 : 1.5,
-      "line-dasharray": [2, 4],
-      "line-opacity": faint ? 0.2 : 0.7,
-    },
+  addLine(m, id, arcCoords, {
+    "line-color": "rgba(255, 255, 255, 0.85)",
+    "line-width": faint ? 1 : 2,
+    "line-dasharray": [2, 4],
+    "line-opacity": faint ? 0.2 : 0.8,
   });
 
-  if (!faint) addFlightIcon(m, arc);
-}
+  if (!faint) {
+    // Place flight icon at ~55% along the arc
+    const midIdx = Math.floor(arcCoords.length * 0.55);
+    const midCoord = arcCoords[midIdx]!;
+    const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)]!;
+    const angle =
+      (Math.atan2(nextCoord[1] - midCoord[1], nextCoord[0] - midCoord[0]) * 180) / Math.PI;
 
-function addFlightIcon(m: mapboxgl.Map, arc: ReturnType<typeof greatCircle>) {
-  const geom = arc.geometry;
-  const arcCoords = geom.type === "LineString" ? geom.coordinates : (geom.coordinates[0] ?? []);
-  const midIdx = Math.floor(arcCoords.length * 0.55);
-  const midCoord = arcCoords[midIdx];
-  const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)];
-  if (!midCoord || !nextCoord) return;
-
-  const angle = (Math.atan2(nextCoord[1]! - midCoord[1]!, nextCoord[0]! - midCoord[0]!) * 180) / Math.PI;
-  const el = document.createElement("div");
-  el.className = FLIGHT_ICON_CLASS;
-  el.innerHTML = `<span class="material-icons" style="
-    font-size: 16px; color: rgba(255,255,255,0.9);
-    transform: rotate(${90 - angle}deg);
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-  ">flight</span>`;
-  new mapboxgl.Marker({ element: el }).setLngLat([midCoord[0]!, midCoord[1]!]).addTo(m);
+    const el = document.createElement("div");
+    el.className = FLIGHT_ICON_CLASS;
+    el.innerHTML = `<span class="material-icons" style="
+      font-size: 18px; color: rgba(255,255,255,0.95);
+      transform: rotate(${90 - angle}deg);
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    ">flight</span>`;
+    new mapboxgl.Marker({ element: el }).setLngLat(midCoord).addTo(m);
+  }
 }
 
 function drawHike(
@@ -126,16 +152,14 @@ function drawHike(
   });
 }
 
-async function drawMatched(
+function drawDrivingOrWalking(
   m: mapboxgl.Map,
   id: string,
-  rawCoords: [number, number][],
-  profile: "driving" | "walking",
+  coords: [number, number][],
+  kind: "driving" | "walking",
   faint: boolean,
 ) {
-  const coords = (await matchRoute(rawCoords, profile)) ?? rawCoords;
-  const isDriving = profile === "driving";
-
+  const isDriving = kind === "driving";
   addLine(m, id, coords, {
     "line-color": isDriving ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.7)",
     "line-width": faint ? 1 : isDriving ? 2.5 : 1.5,
@@ -153,6 +177,8 @@ interface DrawOptions {
   steps: Step[];
   style?: "normal" | "faint";
   hikeAccent?: string;
+  /** Skip map-matching API calls (use raw GPS coords). Faster for overview maps. */
+  skipMapMatching?: boolean;
 }
 
 /** Draw segments and step markers. Returns all coords for fitBounds. */
@@ -162,9 +188,12 @@ export async function drawSegmentsAndMarkers(
 ): Promise<[number, number][]> {
   cleanup(m);
 
-  const { segments, steps, style = "normal", hikeAccent } = options;
+  const { segments, steps, style = "normal", hikeAccent, skipMapMatching = false } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
+
+  // Collect map-matching promises to run in parallel
+  const matchingTasks: Promise<void>[] = [];
 
   for (const [i, seg] of segments.entries()) {
     const id = `${LAYER_PREFIX}${i}`;
@@ -179,15 +208,23 @@ export async function drawSegmentsAndMarkers(
         allCoords.push(...coords);
         break;
       case "walking":
-        await drawMatched(m, id, coords, "walking", faint);
-        allCoords.push(...coords);
-        break;
       case "driving":
-        await drawMatched(m, id, coords, "driving", faint);
+        if (skipMapMatching) {
+          drawDrivingOrWalking(m, id, coords, seg.kind, faint);
+        } else {
+          matchingTasks.push(
+            matchRoute(coords, seg.kind).then((matched) => {
+              drawDrivingOrWalking(m, id, matched ?? coords, seg.kind, faint);
+            }),
+          );
+        }
         allCoords.push(...coords);
         break;
     }
   }
+
+  // Run all map-matching calls in parallel
+  await Promise.all(matchingTasks);
 
   for (const step of steps) {
     const lngLat: [number, number] = [step.location.lon, step.location.lat];
