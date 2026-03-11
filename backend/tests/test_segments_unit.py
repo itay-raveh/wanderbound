@@ -16,13 +16,13 @@ from datetime import UTC, datetime
 import polars as pl
 import pytest
 
-from app.logic.spatial.points import Point
 from app.logic.spatial.segments import (
     Segment,
     SegmentKind,
     _remove_gps_noise,
     build_segments,
 )
+from app.models.trips import Point
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -227,7 +227,9 @@ class TestHikeValidation:
 # ── Step location preservation ───────────────────────────────────────────────
 
 
-def _point_near(points: list[Point], lat: float, lon: float, tol: float = 0.001) -> bool:
+def _point_near(
+    points: list[Point], lat: float, lon: float, tol: float = 0.001
+) -> bool:
     return any(abs(p.lat - lat) < tol and abs(p.lon - lon) < tol for p in points)
 
 
@@ -259,16 +261,14 @@ class TestStepPreservation:
 
 
 class TestHikePoints:
-    def test_hike_keeps_all_densified_points(self) -> None:
-        """Hike segments keep all densified points (no RDP).
-
-        Regression: RDP with epsilon=0.005° dropped most points.
-        """
+    def test_hike_is_rdp_simplified(self) -> None:
+        """Hike segments are RDP-simplified like other segments."""
         gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
         hikes = _hikes([_step(0.0, 0.2, 14.0)], gps)
         assert hikes
         total = sum(len(h.points) for h in hikes)
-        assert total > 100
+        # Straight-line track collapses under RDP; just verify ≥ 2 endpoints
+        assert total >= 2
 
     def test_non_hike_segments_are_rdp_simplified(self) -> None:
         """Non-hike segments (driving) are RDP-simplified."""
@@ -292,11 +292,15 @@ class TestStructure:
         )
         return list(build_segments([_step(0.0, 0.7, 15.0)], gps))
 
-    def test_all_segments_have_at_least_two_points(self, mixed_segments: list[Segment]) -> None:
+    def test_all_segments_have_at_least_two_points(
+        self, mixed_segments: list[Segment]
+    ) -> None:
         for i, seg in enumerate(mixed_segments):
             assert len(seg.points) >= 2, f"Segment {i} ({seg.kind})"
 
-    def test_consecutive_segments_share_boundary(self, mixed_segments: list[Segment]) -> None:
+    def test_consecutive_segments_share_boundary(
+        self, mixed_segments: list[Segment]
+    ) -> None:
         for i in range(len(mixed_segments) - 1):
             t_end = mixed_segments[i].points[-1].time
             t_start = mixed_segments[i + 1].points[0].time

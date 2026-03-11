@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { chooseTextDir } from "@/utils/text";
 import type { Album, Step } from "@/client";
+import MediaItem from "./MediaItem.vue";
 import { date } from "quasar";
 import { computed } from "vue";
 
@@ -11,6 +12,10 @@ const props = defineProps<{
   steps: Step[];
   isBack?: boolean;
 }>();
+
+const coverMedia = computed(() =>
+  props.isBack ? props.album.back_cover_photo : props.album.front_cover_photo,
+);
 
 const dates = computed(() => {
   const start = new Date(props.steps[0]!.datetime);
@@ -42,34 +47,47 @@ const dates = computed(() => {
 
 <template>
   <div class="page-container relative-position">
-    <q-img
+    <MediaItem
+      v-if="coverMedia"
+      :media="coverMedia"
+      :album-id="album.id"
+      :step-id="0"
       :class="{ dimmed: !isBack }"
-      :src="isBack ? album.back_cover_photo : album.front_cover_photo"
       class="fit"
-      fit="cover"
     />
     <div
       v-if="!isBack"
       class="absolute-top-left fit column justify-center items-center text-center q-gutter-sm"
     >
-      <div class="bg-dark text-h6 q-pa-sm rounded-borders text-weight-bold">
+      <div class="cover-date-badge text-h6 q-pa-sm rounded-borders text-weight-bold">
         {{ dates }}
       </div>
       <div
         v-if="album.title"
         :dir="chooseTextDir(album.title)"
-        class="text-h1 text-weight-bold"
-        style="text-shadow: 0 0 5px black"
+        class="text-h1 text-weight-bold cover-title-shadow"
       >
         {{ album.title }}
       </div>
       <div
         v-if="album.subtitle"
         :dir="chooseTextDir(album.subtitle)"
-        class="text-h5"
+        class="text-h5 cover-title-shadow"
       >
         {{ album.subtitle }}
       </div>
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.cover-date-badge {
+  background: var(--bg-deep);
+  color: var(--text-bright);
+}
+
+.cover-title-shadow {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  color: white;
+}
+</style>

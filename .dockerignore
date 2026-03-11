@@ -1,16 +1,26 @@
-.git
-.github
-.vscode
-.env
-.gitattributes
-.gitignore
-.pre-commit-config.yaml
+# Ignore everything by default
+*
 
-**/.venv
-**/__pycache__
-**/*.egg-info
-**/node_modules
+# Backend
+!backend/app/
+!backend/scripts/
+!backend/pyproject.toml
+!backend/alembic.ini
 
-backend/tests
-backend/data
-frontend/dist
+# Frontend
+!frontend/src/
+!frontend/public/
+!frontend/index.html
+!frontend/package.json
+!frontend/tsconfig*.json
+!frontend/vite.config.ts
+!frontend/openapi-ts.config.ts
+!frontend/openapi.json
+!frontend/nginx.conf
+!frontend/env.d.ts
+
+# Root config used by both
+!pyproject.toml
+!uv.lock
+!package.json
+!bun.lock

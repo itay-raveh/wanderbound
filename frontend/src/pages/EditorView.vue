@@ -1,74 +1,100 @@
 <script lang="ts" setup>
-import { readAlbumIds } from "@/client";
 import ConfigSidebar from "@/components/ConfigSidebar.vue";
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import { useAlbum } from "@/utils/albumStore.ts";
-import { storeToRefs } from "pinia";
 import AlbumViewer from "@/components/AlbumViewer.vue";
+import EditorHeader from "@/components/editor/EditorHeader.vue";
+import { useUserQuery } from "@/queries/useUserQuery";
+import { useAlbumQuery } from "@/queries/useAlbumQuery";
+import { deleteUser } from "@/client";
+import { ref, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 
 const router = useRouter();
 const $q = useQuasar();
 
-const albumStore = useAlbum();
-const { album } = storeToRefs(albumStore);
+const LAST_ALBUM_KEY = "last-album-id";
+const selectedAlbumId = ref<string | null>(localStorage.getItem(LAST_ALBUM_KEY));
 
-const albumNames = ref<string[]>();
-
-onMounted(async () => {
-  try {
-    const { data } = await readAlbumIds({});
-    albumNames.value = data;
-  } catch {
-    await router.push("/register");
-  }
+watch(selectedAlbumId, (id) => {
+  if (id) localStorage.setItem(LAST_ALBUM_KEY, id);
+  else localStorage.removeItem(LAST_ALBUM_KEY);
 });
 
-const handlePrint = async () => {
-  console.log("Print: start");
+const { data: userData, user, isKm, isCelsius, error: userError } = useUserQuery();
+const albumIds = computed(() => userData.value?.album_ids ?? null);
+const { data: album } = useAlbumQuery(selectedAlbumId);
 
-  $q.loading.show({
-    delay: 400,
-  });
+watch(userError, (err) => {
+  if (err) void router.push("/register");
+});
 
-  document.querySelectorAll("img").forEach((img: HTMLImageElement) => {
-    console.log("Loading image: " + img.src);
-    img.loading = "eager";
-  });
-
-  await new Promise((r) => setTimeout(r, 2000));
-  $q.loading.hide();
-  await new Promise((r) => setTimeout(r, 500));
-
-  console.log("Print: end");
-
-  window.print();
-};
+async function onDeleteUser() {
+  try {
+    await deleteUser();
+    await router.push("/register");
+  } catch {
+    $q.notify({ type: "negative", message: "Failed to delete user." });
+  }
+}
 </script>
 
 <template>
-  <q-page class="row q-pa-md q-gutter-x-md" padding>
-    <div class="col-3 section print-hide">
-      <ConfigSidebar
-        v-if="albumNames"
-        :tripNames="albumNames"
-        @print="handlePrint"
-      />
-    </div>
+  <q-page class="editor-page">
+    <EditorHeader
+      class="print-hide"
+      :user="user"
+      :is-km="isKm"
+      :is-celsius="isCelsius"
+      @delete="onDeleteUser"
+    />
 
-    <div class="col section">
-      <AlbumViewer v-if="album" :album="album" />
+    <div class="editor-content">
+      <div class="sidebar-col print-hide">
+        <ConfigSidebar
+          v-if="albumIds"
+          v-model:album-id="selectedAlbumId"
+          :album="album ?? undefined"
+          :albumIds="albumIds"
+        />
+      </div>
+
+      <div class="viewer-col">
+        <AlbumViewer v-if="album" :album="album" />
+      </div>
     </div>
   </q-page>
 </template>
 
 <style lang="scss" scoped>
-@media not print {
-  .section {
-    background: #1f2a47;
-    border-radius: 12px;
-  }
+.editor-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.editor-content {
+  display: flex;
+  flex: 1;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  min-height: 0;
+}
+
+.sidebar-col {
+  width: 22rem;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-radius: 0.75rem;
+  overflow-y: auto;
+}
+
+.viewer-col {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-secondary);
+  border-radius: 0.75rem;
+  overflow-y: auto;
 }
 
 @media print {
@@ -81,6 +107,14 @@ const handlePrint = async () => {
     padding: 0;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .editor-content {
+    padding: 0;
   }
 }
 </style>

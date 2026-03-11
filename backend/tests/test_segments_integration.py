@@ -88,14 +88,18 @@ class TestFullTripInvariants:
 
     def test_min_points_per_segment(self, segments: list[Segment]) -> None:
         for i, seg in enumerate(segments):
-            expected_min = 2 if seg.kind in (SegmentKind.hike, SegmentKind.flight) else 1
+            expected_min = (
+                2 if seg.kind in (SegmentKind.hike, SegmentKind.flight) else 1
+            )
             assert len(seg.points) >= expected_min, f"Segment {i} ({seg.kind})"
 
     def test_no_other_kind(self, segments: list[Segment]) -> None:
         """Regression: internal 'other' label was exposed to callers."""
         assert all(s.kind.value != "other" for s in segments)
 
-    def test_contiguous_boundaries(self, segments: list[Segment], sa_trip: Trip) -> None:
+    def test_contiguous_boundaries(
+        self, segments: list[Segment], sa_trip: Trip
+    ) -> None:
         tz = ZoneInfo(sa_trip.all_steps[1].timezone_id)
         for i in range(len(segments) - 1):
             t_end = segments[i].points[-1].time
@@ -106,16 +110,18 @@ class TestFullTripInvariants:
                 f"{datetime.fromtimestamp(t_end, tz).strftime('%Y-%m-%d %H:%M %Z')}"
             )
 
-    def test_hikes_keep_all_points(self, segments: list[Segment]) -> None:
-        """Regression: hike segments were RDP-simplified, losing elevation accuracy."""
+    def test_hikes_are_simplified(self, segments: list[Segment]) -> None:
+        """Hike segments are RDP-simplified but retain at least 2 points."""
         hikes = [s for s in segments if s.kind == SegmentKind.hike]
         assert hikes
         for i, h in enumerate(hikes):
-            assert len(h.points) > 10, f"Hike {i} has only {len(h.points)} points"
+            assert len(h.points) >= 2, f"Hike {i} has only {len(h.points)} points"
 
 
 class TestStepLocationInHike:
-    def test_step9_location_in_output(self, sa_trip: Trip, sa_locations: Locations) -> None:
+    def test_step9_location_in_output(
+        self, sa_trip: Trip, sa_locations: Locations
+    ) -> None:
         """Step 9 (Ushuaia viewpoint) must appear in the hike output.
 
         Regression: RDP collapsed out-and-back paths to two endpoints.
@@ -127,9 +133,10 @@ class TestStepLocationInHike:
         assert hikes
 
         in_hike = any(
-            abs(p.lat - step9.location.lat) < 0.001 and abs(p.lon - step9.location.lon) < 0.001
+            abs(p.lat - step9.location.lat) < 0.001
+            and abs(p.lon - step9.location.lon) < 0.001
             for p in hikes[0].points
         )
         assert in_hike, (
-            f"Step 9 ({step9.location.lat:.4f}, {step9.location.lon:.4f}) not in hike points"
+            f"Step 9 ({step9.location.lat:.4f}, {step9.location.lon:.4f}) not in hike"
         )

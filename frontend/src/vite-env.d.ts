@@ -8,6 +8,7 @@ declare module '*.vue' {
 
 interface ImportMetaEnv {
   readonly VITE_BACKEND_URL: string
+  readonly VITE_MAPBOX_TOKEN: string
 }
 
 interface ImportMeta {

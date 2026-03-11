@@ -2,14 +2,13 @@
   {
     "code": "00",
     "colors": [
-      "#080808"
+      "#808080"
     ]
   },
   {
     "code": "DZ",
     "colors": [
       "#008000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -17,7 +16,6 @@
     "code": "AO",
     "colors": [
       "#FF0000",
-      "#000000",
       "#FFFF00"
     ]
   },
@@ -32,9 +30,7 @@
   {
     "code": "BW",
     "colors": [
-      "#76ACDC",
-      "#000000",
-      "#FFFFFF"
+      "#76ACDC"
     ]
   },
   {
@@ -50,7 +46,6 @@
     "code": "BI",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
@@ -67,7 +62,6 @@
     "code": "CV",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000",
       "#FFFF00"
     ]
@@ -76,11 +70,10 @@
     "country": "Central African Republic",
     "code": "CF",
     "colors": [
+      "#FF0000",
       "#0000FF",
-      "#FFFFFF",
       "#008000",
-      "#FFFF00",
-      "#FF0000"
+      "#FFFF00"
     ]
   },
   {
@@ -94,11 +87,10 @@
   {
     "code": "KM",
     "colors": [
+      "#008000",
       "#FFFF00",
-      "#FFFFFF",
       "#FF0000",
-      "#0000FF",
-      "#008000"
+      "#0000FF"
     ]
   },
   {
@@ -124,16 +116,13 @@
     "colors": [
       "#75AADB",
       "#008000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
   {
     "code": "EG",
     "colors": [
-      "#FF0000",
-      "#FFFFFF",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
@@ -141,7 +130,6 @@
     "code": "GQ",
     "colors": [
       "#008000",
-      "#FFFFFF",
       "#FF0000",
       "#007FFF"
     ]
@@ -149,9 +137,9 @@
   {
     "code": "ER",
     "colors": [
-      "#008000",
-      "#007FFF",
       "#FF0000",
+      "#007FFF",
+      "#008000",
       "#FFFF00"
     ]
   },
@@ -161,9 +149,7 @@
     "colors": [
       "#3C5EBA",
       "#FFD700",
-      "#B30404",
-      "#000000",
-      "#FFFFFF"
+      "#B30404"
     ]
   },
   {
@@ -188,8 +174,7 @@
     "colors": [
       "#FF0000",
       "#00008B",
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
@@ -197,8 +182,7 @@
     "colors": [
       "#FF0000",
       "#FFFF00",
-      "#008000",
-      "#000000"
+      "#008000"
     ]
   },
   {
@@ -215,8 +199,7 @@
     "colors": [
       "#FF0000",
       "#FFFF00",
-      "#008000",
-      "#000000"
+      "#008000"
     ]
   },
   {
@@ -224,33 +207,27 @@
     "code": "CI",
     "colors": [
       "#FFA500",
-      "#FFFFFF",
       "#008000"
     ]
   },
   {
     "code": "KE",
     "colors": [
-      "#000000",
       "#FF0000",
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "code": "LS",
     "colors": [
       "#00008B",
-      "#FFFFFF",
-      "#008000",
-      "#000000"
+      "#008000"
     ]
   },
   {
     "code": "LR",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#00008B"
     ]
   },
@@ -258,23 +235,19 @@
     "code": "LY",
     "colors": [
       "#FF0000",
-      "#000000",
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "code": "MG",
     "colors": [
       "#FC3B2E",
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "code": "MW",
     "colors": [
-      "#000000",
       "#FF0000",
       "#008000"
     ]
@@ -315,10 +288,8 @@
     "code": "MZ",
     "colors": [
       "#008000",
-      "#000000",
       "#FFFF00",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -327,7 +298,6 @@
       "#0000FF",
       "#FF0000",
       "#008000",
-      "#FFFFFF",
       "#FFFF00"
     ]
   },
@@ -335,15 +305,13 @@
     "code": "NE",
     "colors": [
       "#E05206",
-      "#FFFFFF",
       "#0DB02B"
     ]
   },
   {
     "code": "NG",
     "colors": [
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
@@ -360,8 +328,7 @@
     "colors": [
       "#12AD2B",
       "#FFFF00",
-      "#FF0000",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
@@ -378,7 +345,6 @@
       "#0000FF",
       "#FFFF00",
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
@@ -387,47 +353,39 @@
     "code": "SL",
     "colors": [
       "#008000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
   {
     "code": "SO",
     "colors": [
-      "#007FFF",
-      "#FFFFFF"
+      "#007FFF"
     ]
   },
   {
     "country": "South Africa",
     "code": "ZA",
     "colors": [
-      "#FF0000",
       "#008000",
+      "#FF0000",
       "#0000FF",
-      "#FFD700",
-      "#000000",
-      "#FFFFFF"
+      "#FFD700"
     ]
   },
   {
     "country": "South Sudan",
     "code": "SS",
     "colors": [
-      "#000000",
       "#FF0000",
       "#008000",
       "#0000FF",
-      "#FFFF00",
-      "#FFFFFF"
+      "#FFFF00"
     ]
   },
   {
     "code": "SD",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
-      "#000000",
       "#008000"
     ]
   },
@@ -436,8 +394,7 @@
     "colors": [
       "#008000",
       "#FFFF00",
-      "#007FFF",
-      "#000000"
+      "#007FFF"
     ]
   },
   {
@@ -445,21 +402,18 @@
     "colors": [
       "#008000",
       "#FFFF00",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "TN",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "UG",
     "colors": [
-      "#000000",
       "#FFFF00",
       "#FF0000"
     ]
@@ -469,7 +423,6 @@
     "colors": [
       "#008000",
       "#FF0000",
-      "#000000",
       "#FFA500"
     ]
   },
@@ -478,17 +431,14 @@
     "colors": [
       "#008000",
       "#FFFF00",
-      "#FF0000",
-      "#000000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "AI",
     "colors": [
       "#FF861F",
-      "#93CCEA",
-      "#FFFFFF"
+      "#93CCEA"
     ]
   },
   {
@@ -496,17 +446,15 @@
     "code": "AG",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF",
-      "#000000",
       "#FFFF00"
     ]
   },
   {
     "code": "AW",
     "colors": [
-      "#FBE870",
       "#4997D0",
+      "#FBE870",
       "#FF8833",
       "#ED0A3F"
     ]
@@ -515,32 +463,28 @@
     "code": "BS",
     "colors": [
       "#40E0D0",
-      "#FFFF00",
-      "#000000"
+      "#FFFF00"
     ]
   },
   {
     "code": "BB",
     "colors": [
       "#00008B",
-      "#FFFF00",
-      "#000000"
+      "#FFFF00"
     ]
   },
   {
     "code": "BZ",
     "colors": [
       "#0066CC",
-      "#FF3F34",
-      "#FFFFFF"
+      "#FF3F34"
     ]
   },
   {
     "code": "BM",
     "colors": [
       "#ED0A3F",
-      "#0066FF",
-      "#FFFFFF"
+      "#0066FF"
     ]
   },
   {
@@ -548,15 +492,13 @@
     "code": "VG",
     "colors": [
       "#29AB87",
-      "#FBE870",
-      "#FFFFFF"
+      "#FBE870"
     ]
   },
   {
     "code": "CA",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -564,8 +506,7 @@
     "code": "KY",
     "colors": [
       "#3F26BF",
-      "#FF3F34",
-      "#FFFFFF"
+      "#FF3F34"
     ]
   },
   {
@@ -573,7 +514,6 @@
     "code": "CR",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -581,7 +521,6 @@
     "code": "CU",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -590,8 +529,7 @@
     "code": "CW",
     "colors": [
       "#0000FF",
-      "#FFFF00",
-      "#FFFFFF"
+      "#FFFF00"
     ]
   },
   {
@@ -599,8 +537,6 @@
     "colors": [
       "#008000",
       "#FFFF00",
-      "#000000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -609,7 +545,6 @@
     "code": "DO",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -617,31 +552,28 @@
     "country": "El Salvador",
     "code": "SV",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "GD",
     "colors": [
+      "#ED0A3F",
       "#01A368",
-      "#F8D568",
-      "#ED0A3F"
+      "#F8D568"
     ]
   },
   {
     "code": "GP",
     "colors": [
       "#01A368",
-      "#ED0A3F",
-      "#FFFFFF"
+      "#ED0A3F"
     ]
   },
   {
     "code": "GT",
     "colors": [
-      "#0066FF",
-      "#FFFFFF"
+      "#0066FF"
     ]
   },
   {
@@ -654,22 +586,19 @@
   {
     "code": "HN",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "JM",
     "colors": [
       "#008000",
-      "#FFD700",
-      "#000000"
+      "#FFD700"
     ]
   },
   {
     "code": "MQ",
     "colors": [
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -677,32 +606,27 @@
     "code": "MX",
     "colors": [
       "#008000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
   {
     "code": "MS",
     "colors": [
-      "#000000",
       "#1CAC78",
       "#23145D",
-      "#EE204D",
-      "#FFFFFF"
+      "#EE204D"
     ]
   },
   {
     "code": "NI",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "PA",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -711,7 +635,6 @@
     "code": "PR",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -720,8 +643,7 @@
     "code": "KN",
     "colors": [
       "#008000",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -729,9 +651,7 @@
     "code": "LC",
     "colors": [
       "#50BFE6",
-      "#FAFA37",
-      "#000000",
-      "#FFFFFF"
+      "#FAFA37"
     ]
   },
   {
@@ -747,7 +667,6 @@
     "code": "PM",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -762,20 +681,17 @@
   },
   {
     "country": "Sint Maarten",
-    "code": "MF",
+    "code": "SX",
     "colors": [
       "#ED0A3F",
-      "#FCF686",
-      "#FFFFFF"
+      "#FCF686"
     ]
   },
   {
     "country": "Trinidad and Tobago",
     "code": "TT",
     "colors": [
-      "#FF0000",
-      "#FFFFFF",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
@@ -784,8 +700,7 @@
     "colors": [
       "#436CB9",
       "#3AA8C1",
-      "#D05340",
-      "#FFFFFF"
+      "#D05340"
     ]
   },
   {
@@ -793,7 +708,6 @@
     "code": "US",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#00008B"
     ]
   },
@@ -801,7 +715,6 @@
     "country": "US Virgin Islands",
     "code": "VI",
     "colors": [
-      "#FFFFFF",
       "#FFFF66",
       "#0066FF"
     ]
@@ -809,8 +722,7 @@
   {
     "code": "AR",
     "colors": [
-      "#75AADB",
-      "#FFFFFF"
+      "#75AADB"
     ]
   },
   {
@@ -832,7 +744,6 @@
     "code": "CL",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -863,37 +774,35 @@
   {
     "code": "GY",
     "colors": [
-      "#FCF686",
-      "#119430"
+      "#119430",
+      "#FCF686"
     ]
   },
   {
     "code": "PY",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
   {
     "code": "PE",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "SR",
     "colors": [
-      "#FFFFFF",
-      "#01A368"
+      "#008000",
+      "#FF0000",
+      "#FFFF00"
     ]
   },
   {
     "code": "UY",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
@@ -907,10 +816,8 @@
   {
     "code": "AF",
     "colors": [
-      "#000000",
       "#FF0000",
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
@@ -932,32 +839,27 @@
   {
     "code": "BH",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "BD",
     "colors": [
-      "#F4263F",
       "#006A4D",
-      "#FF9900"
+      "#F4263F"
     ]
   },
   {
     "code": "BT",
     "colors": [
       "#E48400",
-      "#FFD700",
-      "#FFFFFF"
+      "#FFD700"
     ]
   },
   {
     "code": "BN",
     "colors": [
       "#FFFF00",
-      "#000000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -978,39 +880,34 @@
   {
     "code": "GE",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "country": "Hong Kong",
     "code": "HK",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "IN",
     "colors": [
       "#FFA500",
-      "#00008B",
-      "#FFFFFF",
-      "#008000"
+      "#008000",
+      "#00008B"
     ]
   },
   {
     "code": "ID",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "IR",
     "colors": [
       "#008000",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -1018,30 +915,24 @@
     "code": "IQ",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
-      "#000000",
       "#008000"
     ]
   },
   {
     "code": "IL",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "JP",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "JO",
     "colors": [
-      "#000000",
-      "#FFFFFF",
       "#008000",
       "#FF0000"
     ]
@@ -1058,7 +949,6 @@
     "code": "KP",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -1066,19 +956,15 @@
     "country": "Korea, South",
     "code": "KR",
     "colors": [
-      "#FFFFFF",
       "#FF0000",
-      "#0000FF",
-      "#000000"
+      "#0000FF"
     ]
   },
   {
     "code": "KW",
     "colors": [
       "#008000",
-      "#FFFFFF",
-      "#FF0000",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
@@ -1092,44 +978,41 @@
     "code": "LA",
     "colors": [
       "#FF0000",
-      "#00008B",
-      "#FFFFFF"
+      "#00008B"
     ]
   },
   {
     "code": "LB",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
   {
     "code": "MO",
     "colors": [
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "code": "MY",
     "colors": [
-      "#FFD700",
-      "#000000"
+      "#FF0000",
+      "#0000FF",
+      "#FFD700"
     ]
   },
   {
     "code": "MV",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "MN",
     "colors": [
-      "#0000FF",
       "#FF0000",
+      "#0000FF",
       "#FFFF00"
     ]
   },
@@ -1138,38 +1021,32 @@
     "colors": [
       "#FFFF00",
       "#008000",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "NP",
     "colors": [
       "#DC143C",
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "OM",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
   {
     "code": "PK",
     "colors": [
-      "#006400",
-      "#FFFFFF"
+      "#006400"
     ]
   },
   {
     "code": "PS",
     "colors": [
-      "#000000",
-      "#FFFFFF",
       "#008000",
       "#FF0000"
     ]
@@ -1179,30 +1056,26 @@
     "colors": [
       "#0000FF",
       "#FF0000",
-      "#FFFFFF",
       "#FFFF00"
     ]
   },
   {
     "code": "QA",
     "colors": [
-      "#800000",
-      "#FFFFFF"
+      "#800000"
     ]
   },
   {
     "country": "Saudi Arabia",
     "code": "SA",
     "colors": [
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "code": "SG",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1217,24 +1090,20 @@
     "code": "SY",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
-      "#000000",
       "#008000"
     ]
   },
   {
     "code": "TW",
     "colors": [
-      "#0000FF",
-      "#FFFFFF",
-      "#FF0000"
+      "#FF0000",
+      "#0000FF"
     ]
   },
   {
     "code": "TJ",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
@@ -1242,7 +1111,6 @@
     "code": "TH",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -1251,40 +1119,33 @@
     "code": "TL",
     "colors": [
       "#FF0000",
-      "#FFFF00",
-      "#000000",
-      "#FFFFFF"
+      "#FFFF00"
     ]
   },
   {
     "code": "TR",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "TM",
     "colors": [
-      "#008000",
-      "#FFFFFF"
+      "#008000"
     ]
   },
   {
     "country": "United Arab Emirates",
     "code": "AE",
     "colors": [
-      "#FF0000",
       "#008000",
-      "#FFFFFF",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
     "code": "UZ",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000",
       "#008000"
     ]
@@ -1299,16 +1160,13 @@
   {
     "code": "YE",
     "colors": [
-      "#FF0000",
-      "#FFFFFF",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
     "code": "AL",
     "colors": [
-      "#FF0000",
-      "#000000"
+      "#FF0000"
     ]
   },
   {
@@ -1322,22 +1180,21 @@
   {
     "code": "AT",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "BY",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
   {
     "code": "BE",
     "colors": [
-      "#FF0000"
+      "#FF0000",
+      "#FFD700"
     ]
   },
   {
@@ -1351,7 +1208,6 @@
   {
     "code": "BG",
     "colors": [
-      "#FFFFFF",
       "#008000",
       "#FF0000"
     ]
@@ -1360,22 +1216,19 @@
     "code": "HR",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
   {
     "code": "CY",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "country": "Czech Republic",
     "code": "CZ",
     "colors": [
-      "#FFFFFF",
       "#FF0000",
       "#0000CC"
     ]
@@ -1383,22 +1236,18 @@
   {
     "code": "DK",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "EE",
     "colors": [
-      "#0000FF",
-      "#000000",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "FI",
     "colors": [
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -1406,14 +1255,12 @@
     "code": "FR",
     "colors": [
       "#0000FF",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
   {
     "code": "DE",
     "colors": [
-      "#000000",
       "#FF0000",
       "#FFD700"
     ]
@@ -1421,15 +1268,13 @@
   {
     "code": "GR",
     "colors": [
-      "#0000FF",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
     "code": "HU",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#008000"
     ]
   },
@@ -1437,7 +1282,6 @@
     "code": "IS",
     "colors": [
       "#0000CC",
-      "#FFFFFF",
       "#FF0000"
     ]
   },
@@ -1445,30 +1289,28 @@
     "code": "IE",
     "colors": [
       "#008000",
-      "#0000FF"
+      "#FFA500"
     ]
   },
   {
     "code": "IT",
     "colors": [
       "#008000",
-      "#FFFFFF",
-      "#FF0000"
+      "#FF0000",
+      "#0066CC"
     ]
   },
   {
     "code": "XK",
     "colors": [
       "#0000FF",
-      "#FFFF00",
-      "#FFFFFF"
+      "#FFFF00"
     ]
   },
   {
     "code": "LV",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1490,15 +1332,13 @@
     "code": "LU",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#75AADB"
     ]
   },
   {
     "code": "MT",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1512,8 +1352,7 @@
   {
     "code": "MC",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1541,22 +1380,20 @@
     "code": "NO",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#00008B"
     ]
   },
   {
     "code": "PL",
     "colors": [
-      "#FFFFFF",
       "#FF0000"
     ]
   },
   {
     "code": "PT",
     "colors": [
-      "#008000",
-      "#FF0000"
+      "#FF0000",
+      "#008000"
     ]
   },
   {
@@ -1570,7 +1407,6 @@
   {
     "code": "RU",
     "colors": [
-      "#FFFFFF",
       "#0000FF",
       "#FF0000"
     ]
@@ -1579,7 +1415,6 @@
     "country": "San Marino",
     "code": "SM",
     "colors": [
-      "#FFFFFF",
       "#007FFF"
     ]
   },
@@ -1587,14 +1422,12 @@
     "code": "RS",
     "colors": [
       "#FF0000",
-      "#0000CC",
-      "#FFFFFF"
+      "#0000CC"
     ]
   },
   {
     "code": "SK",
     "colors": [
-      "#FFFFFF",
       "#00008B",
       "#FF0000"
     ]
@@ -1602,7 +1435,6 @@
   {
     "code": "SI",
     "colors": [
-      "#FFFFFF",
       "#0000FF",
       "#FF0000"
     ]
@@ -1624,8 +1456,7 @@
   {
     "code": "CH",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1640,7 +1471,6 @@
     "code": "GB",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000CC"
     ]
   },
@@ -1649,8 +1479,7 @@
     "code": "AS",
     "colors": [
       "#1A63C2",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1664,8 +1493,7 @@
     "country": "Cook Islands",
     "code": "CK",
     "colors": [
-      "#01796F",
-      "#FFFFFF"
+      "#0000FF"
     ]
   },
   {
@@ -1678,8 +1506,7 @@
     "country": "French Polynesia",
     "code": "PF",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
@@ -1694,15 +1521,15 @@
     "code": "NC",
     "colors": [
       "#A6AAAE",
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "country": "New Zealand",
     "code": "NZ",
     "colors": [
-      "#000000"
+      "#0000FF",
+      "#FF0000"
     ]
   },
   {
@@ -1716,7 +1543,6 @@
     "code": "WS",
     "colors": [
       "#FF0000",
-      "#FFFFFF",
       "#0000FF"
     ]
   },
@@ -1724,24 +1550,273 @@
     "country": "Solomon Islands",
     "code": "SB",
     "colors": [
+      "#0048ba",
       "#497E48",
-      "#FFFF00",
-      "#0048ba"
+      "#FFFF00"
     ]
   },
   {
     "code": "TO",
     "colors": [
-      "#FF0000",
-      "#FFFFFF"
+      "#FF0000"
     ]
   },
   {
     "code": "TV",
     "colors": [
       "#76D7EA",
-      "#FFFF66",
-      "#FFFFFF"
+      "#FFFF66"
+    ]
+  },
+  {
+    "code": "AQ",
+    "colors": [
+      "#4997D0"
+    ]
+  },
+  {
+    "code": "AX",
+    "colors": [
+      "#0066CC",
+      "#FFD700",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "BL",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "BQ",
+    "colors": [
+      "#FF0000",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "BV",
+    "colors": [
+      "#FF0000",
+      "#00008B"
+    ]
+  },
+  {
+    "code": "CC",
+    "colors": [
+      "#008000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "CX",
+    "colors": [
+      "#008000",
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "EH",
+    "colors": [
+      "#FF0000",
+      "#008000"
+    ]
+  },
+  {
+    "code": "FK",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "FM",
+    "colors": [
+      "#75AADB"
+    ]
+  },
+  {
+    "code": "FO",
+    "colors": [
+      "#FF0000",
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "GG",
+    "colors": [
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "GI",
+    "colors": [
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "GL",
+    "colors": [
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "GS",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "HM",
+    "colors": [
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "IM",
+    "colors": [
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "IO",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "JE",
+    "colors": [
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "KI",
+    "colors": [
+      "#FF0000",
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "MH",
+    "colors": [
+      "#0000FF",
+      "#FFA500"
+    ]
+  },
+  {
+    "code": "MP",
+    "colors": [
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "NF",
+    "colors": [
+      "#008000"
+    ]
+  },
+  {
+    "code": "NR",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "PG",
+    "colors": [
+      "#FF0000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "PN",
+    "colors": [
+      "#0000FF"
+    ]
+  },
+  {
+    "code": "PW",
+    "colors": [
+      "#75AADB",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "RE",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "SH",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "SJ",
+    "colors": [
+      "#FF0000",
+      "#00008B"
+    ]
+  },
+  {
+    "code": "TF",
+    "colors": [
+      "#0000FF",
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "TK",
+    "colors": [
+      "#0000FF",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "UM",
+    "colors": [
+      "#FF0000",
+      "#00008B"
+    ]
+  },
+  {
+    "code": "VA",
+    "colors": [
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "VU",
+    "colors": [
+      "#FF0000",
+      "#008000",
+      "#FFD700"
+    ]
+  },
+  {
+    "code": "WF",
+    "colors": [
+      "#FF0000"
+    ]
+  },
+  {
+    "code": "YT",
+    "colors": [
+      "#0000FF"
     ]
   }
 ]

@@ -12,6 +12,7 @@ RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
 ARG VITE_BACKEND_URL
+ARG VITE_MAPBOX_TOKEN
 
 RUN bun run build
 

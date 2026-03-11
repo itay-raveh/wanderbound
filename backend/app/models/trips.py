@@ -1,21 +1,37 @@
 import math
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Self
 from zoneinfo import ZoneInfo
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     BeforeValidator,
     Field,
     HttpUrl,
+    computed_field,
 )
 
 from app.core.config import settings
 from app.logic.country_colors import CountryCode
-from app.logic.spatial.points import Lat, Lon, Point
+from app.logic.spatial.types import Lat, Lon
 
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]
+
+
+class Point(BaseModel):
+    lat: Lat
+    lon: Lon
+    time: float
+
+    def __lt__(self, other: Point) -> bool:
+        return self.time < other.time
+
+    @computed_field(return_type=datetime)
+    @property
+    def datetime(self) -> AwareDatetime:
+        return datetime.fromtimestamp(self.time, UTC)
 
 
 class Locations(BaseModel):
@@ -55,12 +71,15 @@ class PSStep(BaseModel):
         return f"{self.slug}_{self.id}"
 
     @property
-    def datetime(self) -> datetime:
+    def datetime(self) -> AwareDatetime:
         return datetime.fromtimestamp(self.timestamp, ZoneInfo(self.timezone_id))
 
     @property
     def is_long_description(self) -> bool:
-        return _calculate_visual_length(self.description) > settings.long_description_threshold
+        return (
+            _calculate_visual_length(self.description)
+            > settings.long_description_threshold
+        )
 
 
 class TripCoverPhoto(BaseModel):

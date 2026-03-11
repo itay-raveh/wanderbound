@@ -1,25 +1,18 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="256" height="256" rx="56" fill="#1E1E2E"/>
+  <!-- Left page -->
+  <path d="M24 56 Q76 40, 128 56 L128 220 Q76 204, 24 220Z" fill="#0063D1"/>
+  <!-- Right page -->
+  <path d="M232 56 Q180 40, 128 56 L128 220 Q180 204, 232 220Z" fill="#0558B8"/>
 
-  <!-- Album / open book -->
-  <rect x="40" y="48" width="176" height="160" rx="8" fill="#2A2A3E" stroke="#3A3A52" stroke-width="2"/>
-  <line x1="128" y1="48" x2="128" y2="208" stroke="#3A3A52" stroke-width="2"/>
+  <!-- Compass needle — rotated ~25° off vertical -->
+  <g transform="rotate(-25, 128, 138)">
+    <!-- North half -->
+    <polygon points="128,68 158,138 98,138" fill="white"/>
+    <!-- South half -->
+    <polygon points="128,208 158,138 98,138" fill="white"/>
+  </g>
 
-  <!-- Travel route across album pages -->
-  <path d="M68 172 C88 128, 104 104, 116 112 C128 120, 124 142, 140 128 C156 114, 168 84, 192 76"
-        stroke="url(#route)" stroke-width="5" stroke-linecap="round" fill="none"/>
-
-  <!-- Step markers -->
-  <circle cx="68" cy="172" r="7" fill="#4A9EFF"/>
-  <circle cx="116" cy="112" r="6" fill="#6DADFF"/>
-  <circle cx="140" cy="128" r="6" fill="#C4A832"/>
-  <circle cx="192" cy="76" r="7" fill="#FFD700"/>
-
-  <defs>
-    <linearGradient id="route" x1="68" y1="172" x2="192" y2="76" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4A9EFF"/>
-      <stop offset="1" stop-color="#FFD700"/>
-    </linearGradient>
-  </defs>
+  <!-- Compass center circle -->
+  <circle cx="128" cy="138" r="18" fill="white"/>
+  <circle cx="128" cy="138" r="9" fill="#0063D1"/>
 </svg>

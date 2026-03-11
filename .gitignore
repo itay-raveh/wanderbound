@@ -7,10 +7,16 @@ node_modules/
 __pycache__/
 *.py[cod]
 dist/
+dist-ssr/
+*.local
+*.log
+.DS_Store
+*.sw?
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/playwright/.auth/
 .env
 
 # Generated

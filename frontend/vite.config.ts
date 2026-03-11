@@ -9,20 +9,13 @@ export default defineConfig({
     vue({
       template: { transformAssetUrls },
     }),
-    quasar({}),
+    quasar({
+      sassVariables: path.resolve(__dirname, "src/quasar-variables.sass"),
+    }),
   ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  server: {
-    proxy: {
-      "/nominatim": {
-        target: "https://nominatim.openstreetmap.org",
-        changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/nominatim/, ""),
-      },
     },
   },
 });

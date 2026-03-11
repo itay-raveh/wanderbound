@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import OverviewLocationCircle from "@/components/album/overview/OverviewLocationCircle.vue";
 import { type Location, type Step } from "@/client";
-import { distance } from "@/utils/geocoding.ts";
+import { useUserQuery } from "@/queries/useUserQuery";
+import { chooseTextDir } from "@/utils/text";
+import { distance, point } from "@turf/turf";
 import { computed } from "vue";
 
 const props = defineProps<{
@@ -9,75 +10,208 @@ const props = defineProps<{
   steps: Step[];
 }>();
 
+const { formatDistance, distanceUnit, formatDate } = useUserQuery();
+
 const furthest = computed(() => {
   let maxDist = -1;
-  let loc: Location;
+  let bestStep = props.steps[0]!;
+  const homePoint = point([props.home.lon, props.home.lat]);
 
-  for (const { location } of props.steps) {
-    const dist = distance(props.home, location);
-
+  for (const step of props.steps) {
+    const dist = distance(
+      homePoint,
+      point([step.location.lon, step.location.lat]),
+      { units: "kilometers" },
+    );
     if (dist > maxDist) {
       maxDist = dist;
-      loc = location;
+      bestStep = step;
     }
   }
 
+  const dateStr = formatDate(new Date(bestStep.datetime), {
+    month: "short",
+    day: "numeric",
+  });
   return {
-    location: loc!,
-    distKm: Math.round(maxDist).toLocaleString(),
+    location: bestStep.location,
+    dist: formatDistance(maxDist),
+    date: dateStr,
+    dateDir: chooseTextDir(dateStr),
   };
 });
 </script>
 
 <template>
-  <div class="row fit q-pa-xl justify-between items-end arrow-bg">
-    <OverviewLocationCircle
-      :location="home"
-      class="items-start col-4"
-      icon="sym_o_home"
-    />
-    <div class="col relative-position full-height">
-      <div
-        class="absolute-center full-width text-center text-uppercase text-grey-6"
-      >
-        Furthest point from home
-      </div>
-      <div :style="{ top: '-10%' }" class="absolute bg-dark rounded-borders">
-        <div class="text-h6 text-weight-bold q-mx-sm q-mb-xs">
-          <span> {{ furthest.distKm }}</span>
-          <span class="text-super text-grey-5">KM</span>
+  <div class="furthest">
+    <div class="fp-top">
+      <q-icon name="home" size="1.375rem" class="fp-top-icon" />
+      <q-icon name="place" size="1.375rem" class="fp-top-icon" />
+    </div>
+
+    <div class="fp-body">
+      <!-- Home -->
+      <div class="fp-info">
+        <div class="fp-name">{{ home.name }}</div>
+        <div class="fp-sub">
+          <q-img
+            :src="`https://flagcdn.com/${home.country_code.toLowerCase()}.svg`"
+            class="fp-flag"
+            loading="eager"
+          />
+          <span>{{ home.detail }}</span>
         </div>
-        <div class="bottom-arrow"></div>
+      </div>
+
+      <!-- Trail with distance badge -->
+      <div class="fp-trail">
+        <div class="fp-line" />
+        <div class="column">
+          <span class="fp-tag">Furthest from home</span>
+          <div class="fp-badge">
+            <span class="fp-dist">{{ furthest.dist }}</span>
+            <span class="fp-unit">{{ distanceUnit() }}</span>
+          </div>
+        </div>
+        <div class="fp-line" />
+      </div>
+
+      <!-- Furthest -->
+      <div class="fp-info right">
+        <div class="fp-name">{{ furthest.location.name }}</div>
+        <div class="fp-sub">
+          <span :dir="furthest.dateDir">{{ furthest.date }}</span>
+          <span class="fp-sep">·</span>
+          <span>{{ furthest.location.detail }}</span>
+          <q-img
+            :src="`https://flagcdn.com/${furthest.location.country_code.toLowerCase()}.svg`"
+            class="fp-flag"
+          />
+        </div>
       </div>
     </div>
-    <OverviewLocationCircle
-      :location="furthest.location"
-      class="items-end col-4"
-      icon="sym_o_place"
-    />
   </div>
 </template>
 
 <style lang="scss" scoped>
-.arrow-bg {
-  background-size: 75%;
-  background-position: center 0;
-  background-repeat: no-repeat;
-  background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDEwMDAgMzAwIiBmaWxsPSIjOTlhIiBzdHJva2U9IiM5OWEiPjxkZWZzPjxtYXJrZXIgaWQ9ImEiIG1hcmtlcldpZHRoPSIxMCIgbWFya2VySGVpZ2h0PSIxMCIgcmVmWD0iNSIgcmVmWT0iNSI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjEiLz48L21hcmtlcj48bWFya2VyIGlkPSJiIiBtYXJrZXJXaWR0aD0iMTAiIG1hcmtlckhlaWdodD0iMTAiIHJlZlg9IjEuNSIgcmVmWT0iMS41IiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Im0tMSAwIDQgMS41TDAgM3oiLz48L21hcmtlcj48L2RlZnM+PHBhdGggZD0iTTUwIDI1MHE0NTAtMjAwIDkwMCAwIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIgbWFya2VyLXN0YXJ0PSJ1cmwoI2EpIiBtYXJrZXItZW5kPSJ1cmwoI2IpIi8+PC9zdmc+);
+.furthest {
+  margin: 0 3rem;
+  padding: 0.625rem 0.75rem;
+  border-left: 3px solid var(--fp-accent);
+  background: color-mix(
+    in srgb,
+    var(--fp-accent) 6%,
+    var(--page-bg, var(--bg))
+  );
+  border-radius: 0.375rem;
+  --fp-accent: #00897b;
+  z-index: 1;
 }
 
-.text-super {
-  font-size: 0.5em;
-  margin-left: 0.5em;
-  vertical-align: super;
+.fp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.bottom-arrow {
-  width: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 5px solid var(--q-dark);
-  position: absolute;
-  left: 50%;
+.fp-tag {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fp-accent);
+}
+
+.fp-top-icon {
+  color: var(--fp-accent);
+  opacity: 0.6;
+  font-variation-settings: "FILL" 0;
+}
+
+.fp-body {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* ── Endpoints ────────────────────────── */
+
+.fp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.fp-info.right {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.fp-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+
+.fp-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.5625rem;
+  color: var(--text-muted);
+}
+
+.fp-flag {
+  width: 0.875rem;
+  height: 0.625rem;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.fp-sep {
+  opacity: 0.4;
+}
+
+/* ── Trail ────────────────────────────── */
+
+.fp-trail {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.fp-line {
+  flex: 1;
+  border-top: 1.5px dashed color-mix(in srgb, var(--fp-accent) 40%, transparent);
+}
+
+.fp-badge {
+  display: flex;
+  justify-content: center;
+  gap: 0.2rem;
+  background: color-mix(
+    in srgb,
+    var(--fp-accent) 12%,
+    var(--page-bg, var(--bg))
+  );
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.fp-dist {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-bright);
+}
+
+.fp-unit {
+  font-size: 0.5rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
 }
 </style>

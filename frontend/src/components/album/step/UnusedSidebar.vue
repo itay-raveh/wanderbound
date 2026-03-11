@@ -1,11 +1,7 @@
 <script lang="ts" setup>
-import {
-  clearDraggedPhoto,
-  draggedPhoto,
-  draggedSourceCallback,
-} from "@/utils/dragState";
-import { ref } from "vue";
-import MediaItem from "../layouts/MediaItem.vue";
+import { ref, watch } from "vue";
+import { VueDraggable } from "vue-draggable-plus";
+import MediaItem from "../MediaItem.vue";
 
 const props = defineProps<{
   assets: Array<string>;
@@ -14,78 +10,45 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  "update:unused": [unused: string[]];
+  "update:unused-photos": [unused: string[]];
 }>();
 
-const isDragOver = ref(false);
+const localUnused = ref([...props.assets]);
 
-function removeUnused(photoToRemove: string) {
-  if (!props.assets) return;
-  const newUnused = [...props.assets];
-  const idx = newUnused.findIndex((p) => p === photoToRemove);
-  if (idx >= 0) {
-    newUnused.splice(idx, 1);
-    emit("update:unused", newUnused);
-  }
-}
+watch(
+  () => props.assets,
+  (val) => {
+    localUnused.value = [...val];
+  },
+);
 
-function insertUnused(data: {
-  targetPhoto: string;
-  photo: string;
-  position: "before" | "after";
-}) {
-  if (!props.assets) return;
-  const newUnused = [...props.assets];
-  const targetIdx = newUnused.findIndex((p) => p === data.targetPhoto);
-  if (targetIdx >= 0) {
-    const insertIdx = data.position === "before" ? targetIdx : targetIdx + 1;
-    newUnused.splice(insertIdx, 0, data.photo);
-    emit("update:unused", newUnused);
-  }
-}
-
-function onDropUnused(e: DragEvent) {
-  isDragOver.value = false;
-  if (!draggedPhoto || !props.assets) return;
-
-  if (!(e.target as HTMLElement).closest(".media-item")) {
-    const newUnused = [...props.assets, draggedPhoto];
-    if (draggedSourceCallback) draggedSourceCallback();
-    clearDraggedPhoto();
-    emit("update:unused", newUnused);
-  }
+function onDragChange() {
+  emit("update:unused-photos", [...localUnused.value]);
 }
 </script>
 
 <template>
   <div class="wrapper">
     <div class="header">Unused Photos</div>
-    <div
-      :class="{ 'drag-over': isDragOver }"
+    <VueDraggable
+      v-model="localUnused"
       class="container"
-      @dragover.prevent="isDragOver = true"
-      @dragleave.prevent="isDragOver = false"
-      @drop.prevent="onDropUnused"
+      group="photos"
+      :animation="200"
+      @change="onDragChange"
     >
       <MediaItem
-        v-for="photo in assets"
+        v-for="photo in localUnused"
         :key="photo"
-        :album-name="albumName"
+        :album-id="albumName"
         :media="photo"
         :step-id="stepId"
         class="photo-item"
-        @remove-self="removeUnused(photo)"
-        @insert-at="
-          insertUnused({
-            targetPhoto: photo,
-            photo: $event.photo,
-            position: $event.position,
-          })
-        "
       />
-    </div>
+    </VueDraggable>
   </div>
 </template>
+
 <style lang="scss" scoped>
 .wrapper {
   width: 20%;
@@ -98,7 +61,7 @@ function onDropUnused(e: DragEvent) {
   margin-bottom: 10rem;
 
   border-radius: 10px;
-  background: var(--q-dark-page);
+  background: var(--bg-secondary);
   box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
 
   display: flex;
@@ -110,7 +73,7 @@ function onDropUnused(e: DragEvent) {
   text-align: center;
   font-weight: bold;
   font-size: 1.25rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .container {
@@ -121,6 +84,7 @@ function onDropUnused(e: DragEvent) {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  min-height: 100px;
 
   .photo-item {
     width: 90%;

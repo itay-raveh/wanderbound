@@ -1,5 +1,7 @@
 import http
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, Response
@@ -7,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.deps import USER_COOKIE
 from app.api.v1.router import router as v1_router
+from app.core.browser import clear_browser, set_browser
 from app.core.config import settings
 from app.core.logging import config_logger
 
@@ -22,10 +25,28 @@ def custom_generate_unique_id(route: APIRoute) -> str:
     return route.name
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+    settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
+
+    from playwright.async_api import async_playwright  # noqa: PLC0415
+
+    pw = await async_playwright().start()
+    browser = await pw.chromium.launch()
+    set_browser(browser)
+    logger.info("Playwright browser launched")
+    yield
+    clear_browser()
+    await browser.close()
+    await pw.stop()
+    logger.info("Playwright browser closed")
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
+    lifespan=lifespan,
 )
 
 # Set all CORS enabled origins

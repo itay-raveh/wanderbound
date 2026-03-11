@@ -1,4 +1,5 @@
 import { createPinia } from "pinia";
+import { PiniaColada } from "@pinia/colada";
 import { Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp } from "vue";
 
@@ -9,25 +10,28 @@ import "@quasar/extras/material-symbols-outlined/material-symbols-outlined.css";
 // Import Quasar css
 import "quasar/src/css/index.sass";
 
+// Import Mapbox CSS
+import "mapbox-gl/dist/mapbox-gl.css";
+
 import App from "./App.vue";
 import router from "./router";
 
 import { client } from "@/client/client.gen";
 
+import { initDarkMode } from "@/composables/useDarkMode";
 
 client.setConfig({
-  baseURL: import.meta.env.VITE_BACKEND_URL,
-  withCredentials: true,
+  baseUrl: import.meta.env.VITE_BACKEND_URL,
+  credentials: "include",
 });
-
 
 const app = createApp(App);
 
 app.use(createPinia());
+app.use(PiniaColada);
 app.use(router);
 app.use(Quasar, {
   config: {
-    dark: true,
     loading: {},
     loadingBar: {
       color: "info",
@@ -36,7 +40,7 @@ app.use(Quasar, {
       primary: "#0063d1",
       secondary: "#0802b3",
       accent: "#2d254c",
-      "dark-page": "#1a1a2e",
+      "dark-page": "#1E1E2E",
       dark: "#252540",
       positive: "#21BA45",
       negative: "#C10015",
@@ -47,4 +51,5 @@ app.use(Quasar, {
   plugins: { Notify, LoadingBar, Loading },
 });
 
+initDarkMode();
 app.mount("#app");

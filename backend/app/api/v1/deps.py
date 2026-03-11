@@ -1,8 +1,10 @@
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Cookie, Depends, HTTPException, Path, status
+from playwright.async_api import Browser
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.browser import get_browser
 from app.core.logging import config_logger
 from app.models.db import Album, AlbumId, User, engine
 
@@ -22,7 +24,9 @@ SessionDep = Annotated[AsyncSession, Depends(_get_session)]
 USER_COOKIE = "uid"
 
 
-async def _get_user(session: SessionDep, uid: Annotated[int | None, Cookie()] = None) -> User:
+async def _get_user(
+    session: SessionDep, uid: Annotated[int | None, Cookie()] = None
+) -> User:
     if uid is None or (user := await session.get(User, uid)) is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
 
@@ -33,9 +37,13 @@ async def _get_user(session: SessionDep, uid: Annotated[int | None, Cookie()] = 
 UserDep = Annotated[User, Depends(_get_user)]
 
 
-async def _get_album(aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep) -> Album:
+async def _get_album(
+    aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
+) -> Album:
     # noinspection PyTypeChecker
     return await session.get_one(Album, (user.id, aid))
 
 
 AlbumDep = Annotated[Album, Depends(_get_album)]
+
+BrowserDep = Annotated[Browser, Depends(get_browser)]

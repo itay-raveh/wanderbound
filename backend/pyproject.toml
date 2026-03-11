@@ -20,8 +20,9 @@ dependencies = [
     "httpx<1",
     "hishel[httpx]~=1.0",
     "httpx-retries<1",
-    "polars>=1.38.1,<2",
-    "ty>=0.0.21",
+    "polars~=1.38",
+    "playwright~=1.52",
+    "coloraide~=8.7",
 ]
 
 [dependency-groups]
@@ -32,7 +33,6 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
-line-length = 100
 exclude = ["alembic"]
 
 [tool.ruff.lint]

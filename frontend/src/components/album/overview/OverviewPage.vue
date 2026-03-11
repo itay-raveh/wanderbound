@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import type { Album, Segment, Step } from "@/client";
-import { useUserLocation } from "@/utils/geocoding.ts";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
 import { date } from "quasar";
-import OverviewCountryColumn from "@/components/album/overview/OverviewCountryColumn.vue";
-import OverviewStatItem from "@/components/album/overview/OverviewStatItem.vue";
-import OverviewFurthestPoint from "@/components/album/overview/OverviewFurthestPoint.vue";
+import { length, lineString } from "@turf/turf";
+import OverviewExtremes from "./OverviewExtremes.vue";
+import OverviewFurthestPoint from "./OverviewFurthestPoint.vue";
 
 const props = defineProps<{
   album: Album;
@@ -13,22 +13,25 @@ const props = defineProps<{
   segments: Segment[];
 }>();
 
-const userLocation = useUserLocation();
+const { user, formatDistance, isKm, locale } = useUserQuery();
 
-const stepsCount = computed(() => props.steps.length.toLocaleString());
+const stepsCount = computed(() =>
+  props.steps.length.toLocaleString(locale.value),
+);
 
 const { getDateDiff } = date;
 
 const daysCount = computed(() => {
   const start = new Date(props.steps[0]!.datetime);
   const end = new Date(props.steps[props.steps.length - 1]!.datetime);
-  return getDateDiff(end, start, "days");
+  return getDateDiff(end, start, "days").toLocaleString(locale.value);
 });
 
 const photosCount = computed(() =>
   props.steps
     .flatMap(({ pages }) => pages.flatMap((page) => page.length))
-    .reduce((a, b) => a + b, 0),
+    .reduce((a, b) => a + b, 0)
+    .toLocaleString(locale.value),
 );
 
 const countries = computed(() =>
@@ -39,72 +42,263 @@ const countries = computed(() =>
         location.detail,
       ]),
     ),
-    // When the user has a step in no-mans-land.
-    // Polarsteps marks that '00'.
-    // Obviously we don't need that in our country list.
   ).filter(([code]) => code !== "00"),
 );
 
-const totalKm = computed(() => {
-  return Math.round(
-    props.segments.reduce((acc, seg) => acc + seg.length_km, 0),
-  ).toLocaleString();
+const totalDistance = computed(() => {
+  const km = props.segments.reduce((acc, seg) => {
+    if (seg.points.length < 2) return acc;
+    const coords = seg.points.map((p) => [p.lon, p.lat] as [number, number]);
+    return acc + length(lineString(coords), { units: "kilometers" });
+  }, 0);
+  return formatDistance(km);
 });
+
+const stats = computed(() => [
+  {
+    value: daysCount.value,
+    label: "Days",
+    icon: "sym_o_calendar_month",
+    color: "#5c6bc0",
+  },
+  {
+    value: totalDistance.value,
+    label: isKm.value ? "Km" : "Mi",
+    icon: "sym_o_explore",
+    color: "#26a69a",
+  },
+  {
+    value: photosCount.value,
+    label: "Photos",
+    icon: "sym_o_photo_camera",
+    color: "#ef6c00",
+  },
+  {
+    value: stepsCount.value,
+    label: "Steps",
+    icon: "sym_o_timeline",
+    color: "#ab47bc",
+  },
+]);
 </script>
 
 <template>
-  <div class="page-container row">
-    <OverviewCountryColumn :countries="countries" class="col-4" />
-    <div class="col bg column items-center">
-      <div
-        :style="{ width: '60%' }"
-        class="col-8 column justify-evenly q-pt-xl"
-      >
-        <div class="row justify-between">
-          <OverviewStatItem
-            :value="daysCount"
-            class="col-5"
-            icon="sym_o_calendar_month"
-            unit="Days"
-          />
-          <OverviewStatItem
-            :value="totalKm"
-            class="col-5"
-            icon="sym_o_explore"
-            unit="Kilometers"
-          />
-        </div>
-        <div class="row justify-between">
-          <OverviewStatItem
-            :value="photosCount"
-            class="col-5"
-            icon="sym_o_photo_camera"
-            unit="Photos"
-          />
-          <OverviewStatItem
-            :value="stepsCount"
-            class="col-5"
-            icon="sym_o_timeline"
-            unit="Steps"
-          />
+  <div class="page-container overview">
+    <!-- Content (centered vertically) -->
+    <div class="overview-content">
+      <!-- Stats -->
+      <div class="stats-row">
+        <div
+          v-for="(stat, i) in stats"
+          :key="i"
+          class="stat"
+          :style="{ '--sc': stat.color }"
+        >
+          <q-icon :name="stat.icon" size="2.5rem" class="stat-watermark" />
+          <span class="stat-number">{{ stat.value }}</span>
+          <span class="stat-label">{{ stat.label }}</span>
         </div>
       </div>
-      <div class="col fit">
-        <OverviewFurthestPoint
-          v-if="userLocation.location"
-          :home="userLocation.location"
-          :steps="steps"
-        />
+
+      <!-- Countries -->
+      <div class="countries-strip">
+        <div v-for="[code, name] in countries" :key="code" class="country-chip">
+          <div
+            class="country-accent"
+            :style="{
+              background: String(album.colors[code] || 'var(--q-primary)'),
+            }"
+          />
+          <q-img
+            :src="`https://flagcdn.com/${code.toLowerCase()}.svg`"
+            :alt="name"
+            class="country-flag"
+            loading="eager"
+          />
+          <span class="country-name">{{ name }}</span>
+        </div>
       </div>
+
+      <!-- Extremes -->
+      <OverviewExtremes :steps="steps" />
+
+      <!-- Furthest point from home -->
+      <OverviewFurthestPoint
+        v-if="user?.living_location"
+        :home="user.living_location"
+        :steps="steps"
+      />
     </div>
+
+    <!-- Cloud silhouettes (top) -->
+    <svg class="clouds" viewBox="0 0 1200 400" preserveAspectRatio="none">
+      <path
+        d="M0 200 C150 170, 300 120, 500 150 C700 180, 850 100, 1200 140 L1200 0 L0 0Z"
+        fill="var(--text)"
+        opacity="0.02"
+      />
+      <path
+        d="M0 140 C200 110, 350 80, 600 100 C850 120, 1000 60, 1200 90 L1200 0 L0 0Z"
+        fill="var(--text)"
+        opacity="0.035"
+      />
+      <path
+        d="M0 80 C180 60, 400 40, 650 55 C900 70, 1050 30, 1200 50 L1200 0 L0 0Z"
+        fill="var(--text)"
+        opacity="0.025"
+      />
+    </svg>
+
+    <!-- Rolling hills (bottom) -->
+    <svg class="hills" viewBox="0 0 1200 400" preserveAspectRatio="none">
+      <path
+        d="M0 280 C200 230, 350 260, 550 220 C750 180, 950 240, 1200 200 L1200 400 L0 400Z"
+        fill="var(--text)"
+        opacity="0.025"
+      />
+      <path
+        d="M0 310 C180 270, 400 300, 600 260 C800 230, 1000 280, 1200 250 L1200 400 L0 400Z"
+        fill="var(--text)"
+        opacity="0.04"
+      />
+      <path
+        d="M0 340 C250 310, 450 330, 650 300 C850 275, 1000 310, 1200 290 L1200 400 L0 400Z"
+        fill="var(--text)"
+        opacity="0.06"
+      />
+      <path
+        d="M0 365 C200 345, 400 360, 600 340 C800 325, 1000 350, 1200 335 L1200 400 L0 400Z"
+        fill="var(--text)"
+        opacity="0.08"
+      />
+    </svg>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.bg {
-  background-size: 100%;
-  background-position: 100%;
-  background-repeat: no-repeat;
-  background-image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjE0OSIgaGVpZ2h0PSIyNDgwIiB2aWV3Qm94PSIwIDAgMjE0OSAyNDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZyBvcGFjaXR5PSIwLjI0Ij4KPG1hc2sgaWQ9Im1hc2swXzI2XzIxOCIgc3R5bGU9Im1hc2stdHlwZTpsdW1pbmFuY2UiIG1hc2tVbml0cz0idXNlclNwYWNlT25Vc2UiIHg9IjAiIHk9IjAiIHdpZHRoPSIyMTQ5IiBoZWlnaHQ9IjI0ODAiPgo8cmVjdCB3aWR0aD0iMjE0OSIgaGVpZ2h0PSIyNDgwIiBmaWxsPSJ3aGl0ZSIvPgo8L21hc2s+CjxnIG1hc2s9InVybCgjbWFzazBfMjZfMjE4KSI+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNNzYuNTE1NiAxODg0LjgzQzc2LjUxNTYgMTg4NC44MyA0OTIuNzk3IDE4MjIuMzYgNzUxLjAzMSAxNjc5LjU5QzEwMDkuMjcgMTUzNi44MyAxMDYzLjI1IDE3ODEuNzUgMTI3NS44NiAxNzgxLjc1QzE0ODguNDcgMTc4MS43NSAxODcxLjQyIDE3NjguNjQgMTk2Mi45NyAxNzE1LjY0QzIwNTQuNTIgMTY2Mi42NCAyMDY2LjI1IDE2NTUuMTYgMjE0MC4xMSAxNjc3LjIyQzIyMTMuOTcgMTY5OS4yOCAyMjM1Ljk3IDIyMjIuMTcgMjIzNS45NyAyMjIyLjE3TDY2NC4yMDMgMjIzOC44OUw3Ni41MTU2IDE4ODQuODNaIiBmaWxsPSIjRTlFQUVDIi8+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTA1OS42OSAyMTU4LjExQzEwNTkuNjkgMjE1OC4xMSAxOTY1LjMgMTkxNy44MSAyMTY1LjUyIDE3NDQuODRDMjM2NS43MyAxNTcxLjg3IDIyMzYuNTkgMjMwNi44MSAyMjM2LjU5IDIzMDYuODFDMjIzNi41OSAyMzA2LjgxIDE2NjQuNTYgMjM2My40NCAxNjQ3LjkxIDIzNjMuNDRDMTYzMS4yNSAyMzYzLjQ0IDEwNTkuNjkgMjE1OC4xMSAxMDU5LjY5IDIxNTguMTFaIiBmaWxsPSIjQkRDMUM3Ii8+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMi4yODEyNSAxODYxLjU5QzIuMjgxMjUgMTg2MS41OSAzMTYuMzQ0IDE5MTAuMTcgNDIyLjQyMiAxOTk4LjE0QzUyOC41IDIwODYuMTEgNTAxLjcwMyAyMDc1LjUyIDU4My4wNDcgMjA3NS41MkM2NjQuMzkxIDIwNzUuNTIgNjEwLjkyMiAyMTc4LjgxIDgxOS40MjIgMjE0OC4yNUMxMDI3LjkyIDIxMTcuNjkgOTYzLjAxNiAyMTc4Ljk3IDEwNjYuODYgMjEzOS4xMkMxMTcwLjcgMjA5OS4yOCAxMTkxLjEyIDIxNzIuNTkgMTI3Ny40NSAyMTcyLjU5QzEzNjMuNzggMjE3Mi41OSAxNTQzLjQxIDIxNzkuNDcgMTYwNi44NCAyMjE3Ljc4QzE2NzAuMjggMjI1Ni4wOSAxNzg0LjM5IDIyMzIuMTkgMTg2NC4zOCAyMjgxLjI1QzE5NDQuMzYgMjMzMC4zMSAyMDE5LjA4IDIxODcuNjYgMjExOS41OCAyMTgwLjEyQzIyMjAuMDggMjE3Mi41OSAyMjk3LjE2IDIyMDguMiAyMjk3LjE2IDIyMDguMkwyMjcxLjkxIDI1MjkuODhMLTI3LjQ1MzEgMjQ5OC42NkwyLjI4MTI1IDE4NjEuNTlaIiBmaWxsPSIjOTE5OEExIi8+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNLTEwLjcwMzMgMjEwOS42MUMtMTAuNzAzMyAyMTA5LjYxIDE3Ni4wNjIgMjE0Ny44NCAyNzEuMDMxIDIxOTUuNDJDMzY2IDIyNDMgNDg5Ljg1OSAyMjY3LjQ4IDUzMi4yNSAyMjY3LjQ4QzU3NC42NDEgMjI2Ny40OCA2MTkuNzUgMjIyNS45MSA2NzQuOTA2IDIyMjUuOTFDNzMwLjA2MiAyMjI1LjkxIDc5MC4xNzIgMjIxNC4yNyA4NTUgMjI1MS43OEM5MTkuODI4IDIyODkuMyAxMDg5LjUgMjI1My42OSAxMjM0LjY0IDIzMTQuOThDMTM3OS43OCAyMzc2LjI4IDE0NTMuNzggMjM5NS4yMiAxNTA1Ljk1IDIzOTUuMjJDMTU1OC4xMiAyMzk1LjIyIDE2NzcuMzMgMjQ5Mi45OCAxNjc3LjMzIDI0OTIuOThILTIxLjMyMzJMLTEwLjcwMzMgMjEwOS42MVoiIGZpbGw9IiM1NDVCNjMiLz4KPC9nPgo8L2c+Cjwvc3ZnPg==);
+.overview {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── Content wrapper (fills page, centers vertically) ── */
+
+.overview-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  flex: 1;
+  z-index: 1;
+  position: relative;
+}
+
+/* ── Decorative backgrounds ──────────── */
+
+.clouds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 40%;
+  pointer-events: none;
+}
+
+.hills {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 40%;
+  pointer-events: none;
+}
+
+/* ── Stats ─────────────────────────────── */
+
+.stats-row {
+  display: flex;
+  justify-content: space-evenly;
+  padding: 0 3rem;
+}
+
+.stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.5rem 1.5rem;
+  overflow: hidden;
+}
+
+.stat-watermark {
+  position: absolute;
+  top: 0.125rem;
+  right: 0;
+  color: var(--sc);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.stat-number {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--sc);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* ── Countries ─────────────────────────── */
+
+.countries-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.875rem 3rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--border-color) 40%, transparent);
+}
+
+.country-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+}
+
+.country-accent {
+  width: 3px;
+  height: 1.375rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.country-flag {
+  width: 1.625rem;
+  height: 1.125rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.country-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 </style>

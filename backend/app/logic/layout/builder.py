@@ -69,7 +69,9 @@ def _landscape_pages(items: Sequence[Path]) -> Iterable[list[Path]]:
         yield from _pages_of(items[cut:], 3)
 
 
-def _build_pages(portraits: Sequence[Path], landscapes: Sequence[Path]) -> Iterable[list[Path]]:
+def _build_pages(
+    portraits: Sequence[Path], landscapes: Sequence[Path]
+) -> Iterable[list[Path]]:
     mixed = _optimal_mixed_count(len(portraits), len(landscapes))
 
     # 1 portrait + 2 landscape mixed pages

@@ -39,7 +39,9 @@ def rdp_mask(
 
         if line_len == 0.0:
             # Start and end are exactly the same point
-            dists = np.hypot(window_pts[:, 0] - line_start[0], window_pts[:, 1] - line_start[1])
+            dists = np.hypot(
+                window_pts[:, 0] - line_start[0], window_pts[:, 1] - line_start[1]
+            )
         else:
             # Perpendicular distance = |cross_product(line_vec, point_vec)| / line_len
             cross_prods = np.abs(

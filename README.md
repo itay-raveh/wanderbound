@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.svg" width="128" height="128" alt="Polarsteps Album Generator">
+  <img src="frontend/public/logo.svg" width="128" height="128" alt="Polarsteps Album Generator">
 </p>
 
 # Polarsteps Album Generator
@@ -56,9 +56,9 @@ Don't trust anyone with your photos and personal data :)
 
 ### Important Environment Variables
 
-| Variable                  | Required | Description                                                      |
-|---------------------------|----------|------------------------------------------------------------------|
-| `VISUAL_CROSSING_API_KEY` | No       | For detailed weather data; falls back to Polarsteps step weather |
+| Variable            | Required | Description        |
+|---------------------|----------|--------------------|
+| `VITE_MAPBOX_TOKEN` | Yes      | Free; For the maps |
 
 
 ## Development

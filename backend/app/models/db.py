@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, computed_field
 from safezip import safe_extract
-from sqlalchemy import ForeignKeyConstraint
+from sqlalchemy import ForeignKeyConstraint, TypeDecorator
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
@@ -26,6 +26,24 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
+class PydanticJSON(TypeDecorator[Any]):
+    """JSON column that deserializes into a Pydantic model."""
+
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self, model_class: type[BaseModel]) -> None:
+        super().__init__()
+        self.model_class = model_class
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return self.model_class.model_validate(value)
+        return value
+
+
 engine = create_async_engine(
     str(settings.SQLALCHEMY_DATABASE_URI),
     json_serializer=lambda obj: json.dumps(obj, default=_json_default),
@@ -35,7 +53,12 @@ engine = create_async_engine(
 
 class User(SQLModel, table=True):
     id: int = Field(primary_key=True)
-    living_location: Location = Field(sa_column=Column(JSON, nullable=False))
+    first_name: str = Field(max_length=100)
+    last_name: str = Field(max_length=100)
+    profile_image_path: str | None = Field(default=None, max_length=500)
+    living_location: Location = Field(
+        sa_column=Column(PydanticJSON(Location), nullable=False)
+    )
     locale: str = Field(regex="^[a-z]{2}_[A-Z]{2}$", max_length=5)
     unit_is_km: bool
     temperature_is_celsius: bool
@@ -61,11 +84,12 @@ class User(SQLModel, table=True):
         folder = Path(tempfile.mkdtemp(dir=settings.USERS_FOLDER))
         safe_extract(file, folder)
 
-        # Create the user from the folder and then remove the user data
+        # Create the user from the folder
         user = cls.model_validate_json((folder / "user" / "user.json").read_bytes())
-        shutil.rmtree(folder / "user")
 
         # Rename the tmp folder
+        if user.folder.exists():
+            shutil.rmtree(user.folder)
         folder.rename(user.folder)
 
         return user
@@ -117,7 +141,9 @@ class StepLayout(SQLModel):
 
 class Step(StepLayout, table=True):
     __table_args__ = (
-        ForeignKeyConstraint(["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(
+            ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
+        ),
     )
 
     uid: int = Field(primary_key=True, foreign_key="user.id")
@@ -129,9 +155,9 @@ class Step(StepLayout, table=True):
     description: str
     timestamp: float
     timezone_id: str = Field(max_length=255)
-    location: Location = Field(sa_column=Column(JSON, nullable=False))
+    location: Location = Field(sa_column=Column(PydanticJSON(Location), nullable=False))
     elevation: int
-    weather: Weather = Field(sa_column=Column(JSON, nullable=False))
+    weather: Weather = Field(sa_column=Column(PydanticJSON(Weather), nullable=False))
 
     @computed_field(return_type=datetime)
     @property

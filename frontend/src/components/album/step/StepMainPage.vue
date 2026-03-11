@@ -1,39 +1,43 @@
 <script lang="ts" setup>
-import type { Album, Step } from "@/client";
-import {
-  clearDraggedPhoto,
-  draggedPhoto,
-  draggedSourceCallback,
-} from "@/utils/dragState";
+import type { Step } from "@/client";
+import type { DescriptionType } from "@/composables/usePageDescription";
+import { usePrintMode } from "@/composables/usePrintReady";
+import { useUserQuery } from "@/queries/useUserQuery";
+import { mediaUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
-import { computed, ref } from "vue";
+import { computed } from "vue";
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const props = defineProps<{
-  album: Album;
+  colors: Record<string, string>;
   step: Step;
+  descriptionType: DescriptionType;
+  mainPageText: string;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   "update:cover": [path: string];
 }>();
 
-const isLongDesc = computed(() => {
-  return props.step.description.length > 500;
+const isLongDesc = computed(
+  () => props.descriptionType === "long" || props.descriptionType === "extra-long",
+);
+
+const printMode = usePrintMode();
+const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
+
+const countryMapUrl = computed(() => {
+  const { lat, lon } = props.step.location;
+  const raw = props.colors[props.step.location.country_code];
+  const color = (typeof raw === "string" ? raw : "#FF0000").replace("#", "");
+  return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/pin-s+${color}(${lon},${lat})/${lon},${lat},4,0/160x160@2x?access_token=${MAPBOX_TOKEN}`;
 });
+
+const { formatTemp, formatElevation, formatDate, isKm } = useUserQuery();
 
 function weatherIconUrl(iconName: string): string {
   return `https://basmilius.github.io/weather-icons/production/fill/all/${iconName}.svg`;
-}
-
-const isDragOver = ref(false);
-
-function onDropCover() {
-  isDragOver.value = false;
-  if (!draggedPhoto) return;
-
-  emit("update:cover", draggedPhoto);
-  if (draggedSourceCallback) draggedSourceCallback();
-  clearDraggedPhoto();
 }
 </script>
 
@@ -43,23 +47,17 @@ function onDropCover() {
       <div>
         <div class="map-coords-container">
           <div class="map-icon">
-            <div class="map-svg-container">
-              <q-icon
-                :name="`svguse:countries/${step.location.country_code}.svg#map`"
-                class="map"
-                color="primary"
-              >
-              </q-icon>
-              <div
-                :style="`left: ${step.location.lat}%; top: ${step.location.lon}%; background: ${album.colors[step.location.country_code]}`"
-                class="map-location-dot"
-              />
-            </div>
+            <img
+              :src="countryMapUrl"
+              :alt="step.location.country_code"
+              :loading="imgLoading"
+              class="country-map-img"
+            />
           </div>
           <div v-if="step.location" class="coordinates">
-            {{ step.location.lat.toFixed(4) }}° N<br />{{
+            {{ step.location.lat.toFixed(4) }}&deg; N<br />{{
               step.location.lon.toFixed(4)
-            }}° E
+            }}&deg; E
           </div>
         </div>
         <div class="country">
@@ -73,29 +71,21 @@ function onDropCover() {
       </div>
 
       <div
-        v-if="!isLongDesc && step.description"
-        :dir="chooseTextDir(step.description)"
+        v-if="!isLongDesc && mainPageText"
+        :dir="chooseTextDir(mainPageText)"
         class="description short"
       >
-        {{ step.description }}
+        {{ mainPageText }}
       </div>
 
       <div class="metadata-section">
         <div class="metadata">
           <div class="metadata-item">
             <div class="metadata-label">
-              {{
-                new Date(step.datetime).toLocaleDateString("default", {
-                  month: "long",
-                })
-              }}
+              {{ formatDate(new Date(step.datetime), { month: "long" }) }}
             </div>
             <div class="metadata-value">
-              {{
-                new Date(step.datetime).toLocaleDateString("default", {
-                  day: "numeric",
-                })
-              }}
+              {{ formatDate(new Date(step.datetime), { day: "numeric" }) }}
             </div>
           </div>
           <div class="metadata-item">
@@ -104,20 +94,20 @@ function onDropCover() {
                 :src="weatherIconUrl(step.weather.night.icon)"
                 class="weather-icon"
               />
-              {{ Math.round(step.weather.night.temp) }}°
+              {{ formatTemp(step.weather.night.temp) }}
             </div>
             <div class="metadata-value">
               <q-icon
                 :src="weatherIconUrl(step.weather.day.icon)"
                 class="weather-icon"
               />
-              {{ Math.round(step.weather.day.temp) }}°
+              {{ formatTemp(step.weather.day.temp) }}
             </div>
           </div>
           <div class="metadata-item">
-            <div class="metadata-label">m.a.s.l</div>
+            <div class="metadata-label">{{ isKm ? 'm.a.s.l' : 'ft a.s.l' }}</div>
             <div class="metadata-value">
-              {{ Math.round(step.elevation) }}
+              {{ formatElevation(step.elevation) }}
             </div>
           </div>
         </div>
@@ -125,12 +115,12 @@ function onDropCover() {
         <div class="progress-container">
           <div class="progress-bar">
             <div
-              :style="`width: ${step.idx}%; background: ${album.colors[step.location.country_code]}`"
+              :style="`width: ${step.idx}%; background: ${colors[step.location.country_code]}`"
               class="progress-fill"
             ></div>
           </div>
           <div
-            :style="`border-bottom-color: ${album.colors[step.location.country_code]}; left: ${step.idx}%; transform: translateX(-55%)`"
+            :style="`border-bottom-color: ${colors[step.location.country_code]}; left: ${step.idx}%; transform: translateX(-55%)`"
             class="counter-arrow"
           ></div>
           <div
@@ -138,7 +128,7 @@ function onDropCover() {
             class="counter-wrapper"
           >
             <div
-              :style="`background: ${album.colors[step.location.country_code]}`"
+              :style="`background: ${colors[step.location.country_code]}`"
               class="counter"
             >
               STEP {{ step.idx }}
@@ -150,31 +140,24 @@ function onDropCover() {
 
     <div class="content">
       <div
-        v-if="isLongDesc && step.description"
-        :dir="chooseTextDir(step.description)"
+        v-if="isLongDesc && mainPageText"
+        :dir="chooseTextDir(mainPageText)"
         class="description long"
       >
-        {{ step.description }}
+        {{ mainPageText }}
       </div>
       <q-img
         v-else-if="step.cover"
-        :class="{ 'drag-over': isDragOver }"
-        :src="`/api/v1/${step.cover}`"
+        :src="mediaUrl(step.cover)"
+        :loading="imgLoading"
         class="main-image cover-photo"
-        @dragover.prevent="isDragOver = true"
-        @dragleave.prevent="isDragOver = false"
-        @drop.prevent="onDropCover"
       />
       <div
         v-else
-        :class="{ 'drag-over': isDragOver }"
-        class="main-image cover-photo flex flex-center bg-grey-3"
-        style="min-height: 100%; width: 100%"
-        @dragover.prevent="isDragOver = true"
-        @dragleave.prevent="isDragOver = false"
-        @drop.prevent="onDropCover"
+        class="main-image cover-photo flex flex-center"
+        style="min-height: 100%; width: 100%; background: var(--bg-secondary)"
       >
-        <span>Drop Step Cover</span>
+        <span style="color: var(--text-muted)">Drop Step Cover</span>
       </div>
     </div>
 
@@ -185,7 +168,8 @@ function onDropCover() {
 <style lang="scss" scoped>
 .data {
   flex: 1;
-  background: var(--q-dark);
+  background: var(--bg);
+  color: var(--text);
   padding: 3rem 1.5rem 3rem 4rem;
   display: flex;
   flex-direction: column;
@@ -197,7 +181,7 @@ function onDropCover() {
   aspect-ratio: 1 / 1.414;
   display: flex;
   min-height: 100%;
-  background-color: var(--q-dark);
+  background-color: var(--bg);
 }
 
 .main-image {
@@ -223,7 +207,7 @@ function onDropCover() {
 .page.with-long-desc .content {
   width: 100%;
   min-height: 300px;
-  background: var(--q-dark);
+  background: var(--bg);
 }
 
 /* Location & Metadata Components */
@@ -235,11 +219,10 @@ function onDropCover() {
 }
 
 .coordinates {
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .country {
-  font-family: inherit;
   text-transform: uppercase;
   margin-bottom: 0.5rem;
 }
@@ -263,7 +246,7 @@ function onDropCover() {
 .metadata-label {
   font-size: 0.8rem;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
@@ -281,7 +264,7 @@ function onDropCover() {
 .metadata-value {
   font-size: 1.4rem;
   font-weight: bold;
-  color: #e5e7eb;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -311,7 +294,7 @@ function onDropCover() {
 .progress-bar {
   width: 100%;
   height: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
 }
 
 .progress-fill {
@@ -355,7 +338,7 @@ function onDropCover() {
 .description {
   width: 100%;
   font-size: 0.9rem;
-  color: #d1d5db;
+  color: var(--text-muted);
   white-space: pre-wrap;
   text-align: justify;
 }
@@ -381,31 +364,13 @@ function onDropCover() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  border-radius: 4px;
 }
-.map-svg-container {
-  position: relative;
-}
-.map-svg-container :deep(svg) {
-  display: block;
-  max-width: 5rem;
-  max-height: 5rem;
-  width: auto;
-  height: auto;
-}
-/* Make SVG country outlines visible on dark backgrounds */
-.map-svg-container :deep(svg path) {
-  fill: rgba(255, 255, 255, 0.15);
-  stroke: none;
-}
-.map-location-dot {
-  position: absolute;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow:
-    0 0.125rem 0.375rem rgba(0, 0, 0, 0.3),
-    0 0 0.75rem currentColor;
+.country-map-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 // Step Index
@@ -414,14 +379,7 @@ function onDropCover() {
   top: 0;
   left: -4rem;
   font-size: 4rem;
+  color: var(--text-muted);
 }
 
-@media print {
-  :deep(.map-svg-container svg path) {
-    stroke: none !important;
-  }
-  .description {
-    color: #333 !important;
-  }
-}
 </style>

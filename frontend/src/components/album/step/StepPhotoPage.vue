@@ -1,86 +1,50 @@
 <script lang="ts" setup>
-import {
-  clearDraggedPhoto,
-  draggedPhoto,
-  draggedSourceCallback,
-} from "@/utils/dragState";
-import { ref } from "vue";
-import MediaItem from "../layouts/MediaItem.vue";
+import { ref, watch } from "vue";
+import { VueDraggable } from "vue-draggable-plus";
+import MediaItem from "../MediaItem.vue";
 
 const props = defineProps<{
   page: string[];
   stepId: number;
-  albumName: string;
+  albumId: string;
 }>();
 
 const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
 
-const isDragOver = ref(false);
+const localPage = ref([...props.page]);
 
-function removePhoto(photoToRemove: string) {
-  const newPage = [...props.page];
-  const idx = newPage.findIndex((p) => p === photoToRemove);
-  if (idx >= 0) {
-    newPage.splice(idx, 1);
-    emit("update:page", newPage);
-  }
-}
+watch(
+  () => props.page,
+  (val) => {
+    localPage.value = [...val];
+  },
+);
 
-function insertPhoto(data: {
-  targetPhoto: string;
-  photo: string;
-  position: "before" | "after";
-}) {
-  const newPage = [...props.page];
-  const targetIdx = newPage.findIndex((p) => p === data.targetPhoto);
-  if (targetIdx >= 0) {
-    const insertIdx = data.position === "before" ? targetIdx : targetIdx + 1;
-    newPage.splice(insertIdx, 0, data.photo);
-    emit("update:page", newPage);
-  }
-}
-
-function onDropPage(e: DragEvent) {
-  isDragOver.value = false;
-  if (!draggedPhoto) return;
-
-  if (!(e.target as HTMLElement).closest(".media-item")) {
-    const newPage = [...props.page, draggedPhoto];
-    if (draggedSourceCallback) draggedSourceCallback();
-    clearDraggedPhoto();
-    emit("update:page", newPage);
-  }
+function onDragChange() {
+  emit("update:page", [...localPage.value]);
 }
 </script>
 
 <template>
-  <div
-    :class="{ 'drag-over': isDragOver }"
-    class="page page-container"
-    @dragover.prevent="isDragOver = true"
-    @dragleave.prevent="isDragOver = false"
-    @drop.prevent="onDropPage"
-  >
-    <div class="container">
+  <div class="page page-container">
+    <VueDraggable
+      v-model="localPage"
+      class="container"
+      group="photos"
+      :animation="200"
+      @change="onDragChange"
+    >
       <MediaItem
-        v-for="photo in page"
+        v-for="photo in localPage"
         :key="photo"
-        :album-name="albumName"
+        :albumId="albumId"
         :media="photo"
-        :step-id="stepId"
+        :stepId="stepId"
         class="item"
-        @remove-self="removePhoto(photo)"
-        @insert-at="
-          insertPhoto({
-            targetPhoto: photo,
-            photo: $event.photo,
-            position: $event.position,
-          })
-        "
       />
-    </div>
+    </VueDraggable>
   </div>
 </template>
 
@@ -95,7 +59,7 @@ function onDropPage(e: DragEvent) {
   width: 100%;
   height: 100%;
   display: grid;
-  gap: 5mm;
+  gap: var(--gap-color-size, 5mm);
   align-items: stretch;
   justify-items: stretch;
 }

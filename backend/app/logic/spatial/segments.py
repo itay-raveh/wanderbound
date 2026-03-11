@@ -26,13 +26,11 @@ The five-stage pipeline
                   elapsed, 2 km path, 1 km displacement from start.  Flights
                   shorter than 100 km are also discarded.  Rejects become "other".
 
-  5  Emit         Convert to ``Segment`` objects.  Non-hike segments are RDP-
-                  simplified for rendering efficiency.  Hike segments keep every
-                  densified point: the full geometry is needed for accurate
-                  elevation-based distance calculations.  "other" is resolved
-                  into "walking" (≤ 6.5 km/h avg) or "driving" (faster).
-                  Consecutive segments share a boundary point so the map path
-                  has no gaps.
+  5  Emit         Convert to ``Segment`` objects.  All segments (including
+                  hikes) are RDP-simplified for rendering efficiency.  "other"
+                  is resolved into "walking" (≤ 6.5 km/h avg) or "driving"
+                  (faster).  Consecutive segments share a boundary point so
+                  the map path has no gaps.
 
 Key decisions
 --------------------
@@ -50,11 +48,10 @@ Step waypoints as ground-truth anchors
     widened accordingly.  The flag is computed once in ``build_segments`` and
     threaded through as a keyword argument.
 
-Hike segments keep all points
-    Hike segments are *not* RDP-simplified.  The densified intermediate points
-    carry the elevation profile needed for 3-D distance calculation.  Discarding
-    even a few points can drop the turnaround of an out-and-back route, breaking
-    the rendered path on the map.
+All segments are RDP-simplified
+    Hike segments are simplified with the same epsilon as other segments.
+    Elevation-based 3-D distance is computed in the frontend using Mapbox's
+    continuous terrain DEM, which is not limited by GPS point density.
 
 Walking vs driving
     Both emerge from the pipeline as the internal label "other".  At emit time,
@@ -84,19 +81,19 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 import polars as pl
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from app.core.logging import config_logger
+from app.models.trips import Point
 
-from .points import Point
 from .simplify import rdp_mask
+from .types import HasLatLon
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-import datetime as _dt
 
-_log = config_logger(__name__)
+logger = config_logger(__name__)
 
 # ── Speed thresholds for edge classification ──────────────────────────────────
 # GPS underreports speed on winding trails; a sustained hike reads ≤ 6.5 km/h
@@ -111,7 +108,9 @@ FLIGHT_MIN_SPEED_KMH = 200.0  # edge speed at or above this → classified airbo
 # stationary-overnight noise that accumulate path length without real movement.
 HIKE_MIN_DURATION_H = 2.0  # elapsed time (hours)
 HIKE_MIN_DISTANCE_KM = 2.0  # total GPS-measured path length (km)
-HIKE_MIN_DISPLACEMENT_KM = 1.0  # straight-line distance from start to the farthest point (km)
+HIKE_MIN_DISPLACEMENT_KM = (
+    1.0  # straight-line distance from start to the farthest point (km)
+)
 
 # ── Flight segment validity ───────────────────────────────────────────────────
 # Distinguishes a long freeway drive (which can briefly hit high speed) from
@@ -177,15 +176,12 @@ HIKE_ANCHOR_MIN_H = 1.5
 CAMP_PREV_ANCHOR_MIN_H = 1.0
 
 # ── Output ────────────────────────────────────────────────────────────────────
-# Tolerance for RDP simplification of non-hike segments, in degrees.
+# Tolerance for RDP simplification, in degrees.
 # 0.005° ≈ 500 m at mid-latitudes: keeps major turns, drops GPS micro-wobble.
-# Hike segments are NOT simplified (see module docstring).
+# All segment types (including hikes) use the same epsilon.  The frontend
+# queries Mapbox's continuous terrain DEM for elevation-based 3D distance,
+# so accuracy is not limited by GPS point density.
 RDP_EPSILON_DEG = 0.005
-
-
-class _HasLatLon(Protocol):
-    lat: float
-    lon: float
 
 
 class StepLike(Protocol):
@@ -194,10 +190,10 @@ class StepLike(Protocol):
     Matches both ``Step`` and ``PSStep`` objects.
     """
 
-    location: _HasLatLon
+    location: HasLatLon
 
     @property
-    def datetime(self) -> _dt.datetime: ...
+    def datetime(self) -> AwareDatetime: ...
 
 
 class SegmentKind(StrEnum):
@@ -221,7 +217,9 @@ def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
     """Convert an iterable of Points to a column-oriented Polars DataFrame."""
     points = list(pts)
     if not points:
-        return pl.DataFrame(schema={"lat": pl.Float64, "lon": pl.Float64, "time": pl.Float64})
+        return pl.DataFrame(
+            schema={"lat": pl.Float64, "lon": pl.Float64, "time": pl.Float64}
+        )
     return pl.DataFrame(
         {
             "lat": [p.lat for p in points],
@@ -259,10 +257,15 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
     Row 0 always gets gap_h=0, dist_km=0, speed_kmh=0.
     """
     return df.with_columns(
-        ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(0.0).alias("gap_h"),
+        ((pl.col("time") - pl.col("time").shift(1)) / 3600.0)
+        .fill_null(0.0)
+        .alias("gap_h"),
         (
             _haversine_m(
-                pl.col("lat").shift(1), pl.col("lon").shift(1), pl.col("lat"), pl.col("lon")
+                pl.col("lat").shift(1),
+                pl.col("lon").shift(1),
+                pl.col("lat"),
+                pl.col("lon"),
             ).fill_null(0.0)
             / 1000.0
         ).alias("dist_km"),
@@ -282,7 +285,9 @@ def _dedup_by_time(df: pl.DataFrame) -> pl.DataFrame:
     removes the duplicate without risking removal of legitimately close GPS
     readings (phones log no faster than ~1 Hz).
     """
-    return df.filter((pl.col("time") - pl.col("time").shift(1)).abs().fill_null(1) > 0.001)
+    return df.filter(
+        (pl.col("time") - pl.col("time").shift(1)).abs().fill_null(1) > 0.001
+    )
 
 
 def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
@@ -354,7 +359,8 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
 
     Without densification, a hiker with GPS logging every 60 s at 5 km/h
     produces one point every ~80 m.  A two-hour hike might have only ~150
-    raw points: enough for labeling, but not enough for accurate elevation-based distance.
+    raw points: enough for labeling, but not enough for accurate
+    elevation-based distance.
     Densification fills the gaps linearly in space and time.
 
     Only edges that would be labeled "hike" are densified:
@@ -383,10 +389,13 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     speeds = df["speed_kmh"].to_numpy()[1:]
 
     should_densify = (
-        (speeds <= DENSIFY_MAX_SPEED_KMH) & (dists > DENSIFY_RESOLUTION_KM) & (dts < MAX_HIKE_GAP_H)
+        (speeds <= DENSIFY_MAX_SPEED_KMH)
+        & (dists > DENSIFY_RESOLUTION_KM)
+        & (dts < MAX_HIKE_GAP_H)
     )
 
-    # n_pts[i] = number of output points for edge i (subdivisions if densifying, else 1 endpoint)
+    # n_pts[i] = output points per edge
+    # (subdivisions if densifying, else 1 endpoint)
     n_pts: np.typing.NDArray[np.int_] = np.where(
         should_densify, np.ceil(dists / DENSIFY_RESOLUTION_KM).astype(int), 1
     )
@@ -404,7 +413,9 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
         {
             "lat": np.concatenate([[lats[0]], lats[i0] + (lats[i1] - lats[i0]) * frac]),
             "lon": np.concatenate([[lons[0]], lons[i0] + (lons[i1] - lons[i0]) * frac]),
-            "time": np.concatenate([[times[0]], times[i0] + (times[i1] - times[i0]) * frac]),
+            "time": np.concatenate(
+                [[times[0]], times[i0] + (times[i1] - times[i0]) * frac]
+            ),
         }
     )
 
@@ -417,17 +428,25 @@ def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFra
       2. Sort both streams; merge them chronologically via heapq.merge.
       3. Deduplicate on time (step + coincident GPS point → keep one).
       4. Mark step rows, then remove GPS noise (steps are immune).
-      5. Compute edge metrics so densification can read them without recomputing haversine.
+      5. Compute edge metrics so densification can read them
+         without recomputing haversine.
       6. Densify hike-speed edges; re-mark step rows (densified rows aren't steps).
       7. Recompute edge metrics for the densified points.
     """
-    t0 = steps[0].datetime.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    t1 = steps[-1].datetime.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp()
+    t0 = (
+        steps[0].datetime.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    )
+    t1 = (
+        steps[-1]
+        .datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+        .timestamp()
+    )
 
     # Both inputs must be sorted for heapq.merge to work correctly.
     gps = sorted(p for p in locations if t0 <= p.time <= t1)
     step_pts = sorted(
-        Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()) for s in steps
+        Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp())
+        for s in steps
     )
     step_times = [p.time for p in step_pts]
 
@@ -441,7 +460,9 @@ def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFra
     df = df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
     df = _remove_gps_noise(df)
     df = _add_edge_metrics(df)
-    df = _densify_hike_edges(df)  # uses precomputed metrics; drops all columns except lat/lon/time
+    df = _densify_hike_edges(
+        df
+    )  # uses precomputed metrics; drops all columns except lat/lon/time
     df = _add_edge_metrics(df)
     # Re-mark after densification: interpolated rows won't match step_times.
     return df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
@@ -535,7 +556,8 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
       - Duration < NOISE_GAP_MAX_H         (short absence)
       - Avg speed ≤ HIKE_MAX_SPEED_KMH     (moved at walking pace)
       - Next hike run ≥ HIKE_ANCHOR_MIN_H  (the gap is in the *middle* of a hike,
-                                             not at the end where post-hike drift accumulates)
+                                             not at the tail where
+                                             post-hike drift accumulates)
 
     Relabeling is done via forward-fill: the "other" run's mode is nulled and
     filled from the preceding hike label.
@@ -561,7 +583,9 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
         .forward_fill()
         .alias("mode"),
     )
-    return df.drop(["run_id", "run_mode", "run_h", "run_dist_km", "run_speed_kmh", "next_run_h"])
+    return df.drop(
+        ["run_id", "run_mode", "run_h", "run_dist_km", "run_speed_kmh", "next_run_h"]
+    )
 
 
 def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
@@ -608,9 +632,15 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
 
     # Camp: the following hike anchor guard is only needed for short windows;
     # on long windows the distance cap (1 km) is the primary protection.
-    nxt_ok_camp = pl.lit(value=True) if long_window else (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
+    nxt_ok_camp = (
+        pl.lit(value=True)
+        if long_window
+        else (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
+    )
     prv_ok_camp = (
-        (pl.col("prev_run_h") >= CAMP_PREV_ANCHOR_MIN_H) if long_window else pl.lit(value=True)
+        (pl.col("prev_run_h") >= CAMP_PREV_ANCHOR_MIN_H)
+        if long_window
+        else pl.lit(value=True)
     )
     is_camp_gap = (
         between_hikes
@@ -621,7 +651,9 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
     )
 
     prv_ok_blackout = (
-        (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H) if long_window else pl.lit(value=True)
+        (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
+        if long_window
+        else pl.lit(value=True)
     )
     is_blackout_gap = (
         between_hikes
@@ -638,7 +670,9 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
         .alias("merged_mode"),
     )
     df = df.join(stats.select("run_id", "merged_mode"), on="run_id")
-    return df.with_columns(pl.col("merged_mode").alias("mode")).drop(["run_id", "merged_mode"])
+    return df.with_columns(pl.col("merged_mode").alias("mode")).drop(
+        ["run_id", "merged_mode"]
+    )
 
 
 def _absorb(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
@@ -684,7 +718,9 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         .alias("disp_km"),
     )
 
-    ok_flight = (pl.col("seg_mode") == "flight") & (pl.col("tot_km") >= FLIGHT_MIN_DISTANCE_KM)
+    ok_flight = (pl.col("seg_mode") == "flight") & (
+        pl.col("tot_km") >= FLIGHT_MIN_DISTANCE_KM
+    )
     ok_hike = (
         (pl.col("seg_mode") == "hike")
         & (pl.col("tot_km") >= HIKE_MIN_DISTANCE_KM)
@@ -716,7 +752,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
     For each output group (output_id):
       - Flight: keep only first and last point; skip if it departs before
                   the first step (pre-trip GPS noise).
-      - Hike: keep all densified points (no RDP: see module docstring).
+      - Hike: RDP-simplify (same epsilon as other segments).
       - Other: RDP-simplify, then resolve to walking or driving by avg speed.
 
     Stitching: each segment's first point is checked against the previous
@@ -741,11 +777,15 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
             lo = gdf["lon"].to_numpy()
             ti = gdf["time"].to_numpy()
 
-            if kind == "hike":
-                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la))]
-            else:
-                mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
-                pts = [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if mask[i]]
+            mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
+            # Force step waypoints to survive simplification
+            if "is_step" in gdf.columns:
+                mask |= gdf["is_step"].to_numpy()
+            pts = [
+                Point(lat=la[i], lon=lo[i], time=ti[i])
+                for i in range(len(la))
+                if mask[i]
+            ]
         # Prepend the previous segment's last point if there is a time gap,
         # ensuring the map polyline is visually continuous.
         if prev_last_pt is not None and (not pts or pts[0].time > prev_last_pt.time):
@@ -760,7 +800,9 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
             total_km = float(gdf["dist_km"].sum())
             avg_speed = total_km / total_h if total_h > 0 else 0.0
             seg_kind = (
-                SegmentKind.driving if avg_speed > HIKE_MAX_SPEED_KMH else SegmentKind.walking
+                SegmentKind.driving
+                if avg_speed > HIKE_MAX_SPEED_KMH
+                else SegmentKind.walking
             )
         else:
             seg_kind = SegmentKind(kind)
@@ -795,7 +837,7 @@ def build_segments(
     if not steps:
         raise ValueError("build_segments requires at least one step")
 
-    _log.debug(
+    logger.debug(
         "build_segments: %d step(s), window %s → %s",
         len(steps),
         steps[0].datetime.strftime("%Y-%m-%d"),
@@ -803,7 +845,7 @@ def build_segments(
     )
 
     df = _ingest(steps, locations)
-    _log.debug("Ingested %d points after noise removal", df.height)
+    logger.debug("Ingested %d points after noise removal", df.height)
 
     if df.is_empty():
         return iter([])
@@ -816,9 +858,15 @@ def build_segments(
     df = _validate_segments(df)
 
     mode_counts = df.group_by("final_mode").len().sort("final_mode")
-    _log.debug(
+    logger.debug(
         "Segments: %s",
-        dict(zip(mode_counts["final_mode"].to_list(), mode_counts["len"].to_list(), strict=False)),
+        dict(
+            zip(
+                mode_counts["final_mode"].to_list(),
+                mode_counts["len"].to_list(),
+                strict=False,
+            )
+        ),
     )
 
     return _emit_segments(df, steps)

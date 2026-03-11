@@ -10,10 +10,4 @@ export default defineConfigWithVueTs(
   },
   pluginVue.configs["flat/essential"],
   vueTsConfigs.recommendedTypeChecked,
-  {
-    rules: {
-      "vue/multi-word-component-names": "off",
-      "vue/no-mutating-props": "off", // Props come from Pinia store, mutated directly by design
-    },
-  },
 );

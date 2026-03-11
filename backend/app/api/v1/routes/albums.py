@@ -1,22 +1,23 @@
-from collections.abc import Sequence
 from itertools import chain
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from fastapi.responses import Response as RawResponse
 from pydantic import BaseModel
 from sqlmodel import select
 
+from app.api.v1.deps import USER_COOKIE
+from app.core.config import settings
+from app.core.logging import config_logger
 from app.logic.spatial.segments import Segment, build_segments
 from app.models.db import Album, AlbumId, AlbumSettings, Step, StepIdx, StepLayout
 from app.models.trips import Locations
 
-from ..deps import AlbumDep, SessionDep, UserDep
+from ..deps import AlbumDep, BrowserDep, SessionDep, UserDep
+
+_log = config_logger(__name__)
 
 router = APIRouter(prefix="/albums", tags=["albums"])
-
-
-@router.get("/")
-async def read_album_ids(user: UserDep, session: SessionDep) -> Sequence[str]:
-    return (await session.scalars(select(Album.id).where(Album.uid == user.id))).all()
 
 
 @router.get("/{aid}")
@@ -43,23 +44,38 @@ class Range(BaseModel):
     end: int
 
 
+class StepsAndSegments(BaseModel):
+    steps: list[Step]
+    segments: list[Segment]
+
+
 @router.post("/{aid}/steps")
 async def read_steps(
     aid: AlbumId,
     ranges: list[Range],
     user: UserDep,
     session: SessionDep,
-) -> Sequence[Step]:
+) -> StepsAndSegments:
     indexes = list(chain(*(range(rng.start, rng.end + 1) for rng in ranges)))
 
     # noinspection PyUnresolvedReferences
-    return (
-        await session.scalars(
-            select(Step)
-            .where(Step.uid == user.id, Step.aid == aid, Step.idx.in_(indexes))  # type: ignore[unresolved-attribute]
-            .order_by(Step.idx)  # type: ignore[invalid-argument-type]
-        )
-    ).all()
+    steps = list(
+        (
+            await session.scalars(
+                select(Step)
+                .where(Step.uid == user.id, Step.aid == aid, Step.idx.in_(indexes))  # type: ignore[unresolved-attribute]
+                .order_by(Step.idx)  # type: ignore[invalid-argument-type]
+            )
+        ).all()
+    )
+
+    if steps:
+        locations = Locations.from_trip_dir(user.trips_folder / aid).locations
+        segments = list(build_segments(steps, locations))  # type: ignore[invalid-argument-type]
+    else:
+        segments = []
+
+    return StepsAndSegments(steps=steps, segments=segments)
 
 
 @router.patch("/{aid}/steps/{sid}")
@@ -79,20 +95,31 @@ async def update_step(
     return step
 
 
-@router.get("/{aid}/segments")
-async def read_segments(
+@router.post("/{aid}/pdf")
+async def export_pdf(
     aid: AlbumId,
-    first: StepIdx,
-    last: StepIdx,
     user: UserDep,
-    session: SessionDep,
-) -> Sequence[Segment]:
-    # Get steps ordered by time
-    stmt = (
-        select(Step)
-        .where(Step.uid == user.id, Step.aid == aid, Step.idx >= first, Step.idx <= last)
-        .order_by(Step.idx)  # type: ignore[invalid-argument-type]
+    browser: BrowserDep,
+    dark: Annotated[bool, Query()] = True,  # noqa: FBT002
+) -> RawResponse:
+    context = await browser.new_context()
+    await context.add_cookies(
+        [
+            {"name": USER_COOKIE, "value": str(user.id), "url": settings.FRONTEND_URL},
+        ]
     )
-    steps = (await session.scalars(stmt)).all()
-    locations = Locations.from_trip_dir(user.trips_folder / aid).locations
-    return list(build_segments(steps, locations))  # type: ignore[invalid-argument-type]
+    page = await context.new_page()
+    url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
+    _log.info("PDF: navigating to %s", url)
+    await page.goto(url, wait_until="networkidle")
+    pdf_bytes = await page.pdf(
+        format="A4",
+        landscape=True,
+        print_background=True,
+    )
+    await context.close()
+    return RawResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{aid}.pdf"'},
+    )
