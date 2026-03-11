@@ -23,7 +23,6 @@ onMounted(() => {
     void drawSegmentsAndMarkers(m, {
       segments: props.segments,
       steps: props.steps,
-      skipMapMatching: true,
     }).then((coords) => fitBounds(coords, 100));
   });
 });

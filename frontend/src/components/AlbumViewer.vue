@@ -148,35 +148,31 @@ const sections = computed<Section[]>(() => {
 </template>
 
 <style lang="scss" scoped>
-.page-container {
+// :deep needed because page-containers live inside child components
+:deep(.page-container) {
   width: 297mm;
   height: 210mm;
   background-color: var(--page-bg, var(--bg));
 }
 
-// Editor mode: zoom shrinks pages and their layout footprint
+// Editor mode: zoom shrinks pages and their layout footprint.
+// zoom (unlike scale) changes layout dimensions so Mapbox etc. size correctly.
 .album-container:not(.print-mode) {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
   padding: 0.75rem;
 
-  .page-container {
+  :deep(.page-container) {
     zoom: 0.65;
     border: 1px dashed rgba(255, 255, 255, 0.25);
-    flex-shrink: 0;
+    margin: 0 auto 0.75rem;
   }
 }
 
-// Print mode: exact page sizing, no editor chrome
-.album-container.print-mode {
-  .page-container {
-    overflow: hidden;
-    break-after: page;
-    break-inside: avoid;
-    box-sizing: border-box;
-  }
+// Print mode: exact A4 sizing, no editor chrome
+.album-container.print-mode :deep(.page-container) {
+  overflow: hidden;
+  break-after: page;
+  break-inside: avoid;
+  box-sizing: border-box;
 }
 
 @media print {
@@ -184,7 +180,7 @@ const sections = computed<Section[]>(() => {
     padding: 0;
   }
 
-  .page-container {
+  :deep(.page-container) {
     break-after: always;
     break-inside: avoid;
     margin: 0;

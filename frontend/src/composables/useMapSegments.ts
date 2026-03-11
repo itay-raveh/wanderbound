@@ -169,6 +169,22 @@ function drawDrivingOrWalking(
 }
 
 // ---------------------------------------------------------------------------
+// Map-matching heuristic
+// ---------------------------------------------------------------------------
+
+/** Decide whether map-matching is worthwhile based on step count and segments. */
+function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
+  // Many steps → zoomed out overview → raw GPS is fine
+  if (steps.length > 8) return false;
+  // No driving/walking to match
+  const matchable = segments.filter((s) => s.kind === "driving" || s.kind === "walking");
+  if (matchable.length === 0) return false;
+  // Too many matchable segments → too many API calls
+  if (matchable.length > 6) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -177,8 +193,6 @@ interface DrawOptions {
   steps: Step[];
   style?: "normal" | "faint";
   hikeAccent?: string;
-  /** Skip map-matching API calls (use raw GPS coords). Faster for overview maps. */
-  skipMapMatching?: boolean;
 }
 
 /** Draw segments and step markers. Returns all coords for fitBounds. */
@@ -188,9 +202,10 @@ export async function drawSegmentsAndMarkers(
 ): Promise<[number, number][]> {
   cleanup(m);
 
-  const { segments, steps, style = "normal", hikeAccent, skipMapMatching = false } = options;
+  const { segments, steps, style = "normal", hikeAccent } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
+  const useMatching = shouldMapMatch(steps, segments);
 
   // Collect map-matching promises to run in parallel
   const matchingTasks: Promise<void>[] = [];
@@ -209,14 +224,14 @@ export async function drawSegmentsAndMarkers(
         break;
       case "walking":
       case "driving":
-        if (skipMapMatching) {
-          drawDrivingOrWalking(m, id, coords, seg.kind, faint);
-        } else {
+        if (useMatching) {
           matchingTasks.push(
             matchRoute(coords, seg.kind).then((matched) => {
               drawDrivingOrWalking(m, id, matched ?? coords, seg.kind, faint);
             }),
           );
+        } else {
+          drawDrivingOrWalking(m, id, coords, seg.kind, faint);
         }
         allCoords.push(...coords);
         break;
