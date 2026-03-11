@@ -16,8 +16,8 @@ const props = defineProps<{
 }>();
 
 const container = useTemplateRef("hike-map");
-const { map, init, fitBounds } = useMapbox({ container });
-const { distanceUnit, isKm } = useUserQuery();
+const { distanceUnit, isKm, locale } = useUserQuery();
+const { map, init, fitBounds } = useMapbox({ container, locale: locale.value });
 
 const hikeAccent = computed(() =>
   getComputedStyle(document.documentElement)
@@ -149,7 +149,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
-  padding: 0 !important;
 }
 
 .hike-map {

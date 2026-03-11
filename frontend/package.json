@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hey-api/client-fetch": "^0.13.1",
+    "@mapbox/mapbox-gl-language": "^1.0.1",
     "@mapbox/mapbox-gl-supported": "^3.0.0",
     "@pinia/colada": "^1.0.0",
     "@quasar/extras": "^1.17.0",

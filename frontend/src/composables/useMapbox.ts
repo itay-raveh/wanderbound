@@ -1,3 +1,4 @@
+import MapboxLanguage from "@mapbox/mapbox-gl-language";
 import mapboxgl from "mapbox-gl";
 
 import { onBeforeUnmount, shallowRef, ref, type Ref } from "vue";
@@ -10,6 +11,8 @@ export interface UseMapboxOptions {
   interactive?: boolean;
   onReady?: (map: mapboxgl.Map) => void;
   preserveDrawingBuffer?: boolean;
+  /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Uses language part. */
+  locale?: string;
 }
 
 export function useMapbox(options: UseMapboxOptions) {
@@ -28,6 +31,10 @@ export function useMapbox(options: UseMapboxOptions) {
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
       fadeDuration: 0,
     });
+
+    // Set map labels to user's language
+    const lang = options.locale?.split("-")[0] ?? navigator.language.split("-")[0];
+    m.addControl(new MapboxLanguage({ defaultLanguage: lang }));
 
     m.on("idle", () => {
       try {

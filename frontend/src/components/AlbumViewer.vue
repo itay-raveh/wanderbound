@@ -154,14 +154,18 @@ const sections = computed<Section[]>(() => {
   background-color: var(--page-bg, var(--bg));
 }
 
-// Editor mode: scaled down with borders
+// Editor mode: zoom shrinks pages and their layout footprint
 .album-container:not(.print-mode) {
-  contain: layout style paint;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
 
   .page-container {
-    scale: 0.8;
-    padding: 5mm;
-    border: 1px dashed white;
+    zoom: 0.65;
+    border: 1px dashed rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
   }
 }
 
