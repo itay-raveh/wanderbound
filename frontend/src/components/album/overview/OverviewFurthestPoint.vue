@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { distance, point } from "@turf/turf";
 import { computed } from "vue";
@@ -55,7 +56,7 @@ const furthest = computed(() => {
         <div class="fp-name">{{ home.name }}</div>
         <div class="fp-sub">
           <q-img
-            :src="`https://flagcdn.com/${home.country_code.toLowerCase()}.svg`"
+            :src="flagUrl(home.country_code)"
             class="fp-flag"
             loading="eager"
           />
@@ -84,7 +85,7 @@ const furthest = computed(() => {
           <span class="fp-sep">·</span>
           <span>{{ furthest.location.detail }}</span>
           <q-img
-            :src="`https://flagcdn.com/${furthest.location.country_code.toLowerCase()}.svg`"
+            :src="flagUrl(furthest.location.country_code)"
             class="fp-flag"
           />
         </div>

@@ -28,11 +28,14 @@ function onDragChange() {
 </script>
 
 <template>
-  <div class="wrapper">
-    <div class="header">Unused Photos</div>
+  <div class="unused-tray">
+    <div class="tray-header">
+      <q-icon name="photo_library" size="1rem" />
+      <span>{{ localUnused.length }} unused photo{{ localUnused.length !== 1 ? 's' : '' }}</span>
+    </div>
     <VueDraggable
       v-model="localUnused"
-      class="container"
+      class="tray-track"
       group="photos"
       :animation="200"
       @change="onDragChange"
@@ -43,57 +46,71 @@ function onDragChange() {
         :album-id="albumName"
         :media="photo"
         :step-id="stepId"
-        class="photo-item"
+        class="tray-item"
       />
     </VueDraggable>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.wrapper {
-  width: 20%;
-  height: 100%;
-
+.unused-tray {
   position: sticky;
-  right: 0;
-  top: 5rem;
-  margin-top: 5rem;
-  margin-bottom: 10rem;
-
-  border-radius: 10px;
-  background: var(--bg-secondary);
-  box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
-
-  display: flex;
-  flex-direction: column;
+  bottom: 0;
+  z-index: 10;
+  width: 100%;
+  max-width: calc(297mm * var(--editor-zoom));
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 1rem 0 1.5rem;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.header {
-  padding: 1rem;
-  text-align: center;
-  font-weight: bold;
-  font-size: 1.25rem;
-  color: var(--text-muted);
-}
-
-.container {
-  padding: 1rem 0;
-  overflow-y: auto;
-  flex: 1;
+.tray-header {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  min-height: 100px;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
 
-  .photo-item {
-    width: 90%;
-    height: auto;
+.tray-track {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0;
+  min-height: 4.5rem;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+  }
+}
+
+.tray-item {
+  width: 6rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
   }
 }
 
 @media print {
-  .wrapper {
+  .unused-tray {
     display: none !important;
   }
 }

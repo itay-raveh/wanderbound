@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
+import { weatherIconUrl } from "@/utils/weather";
 import { computed } from "vue";
 
 const props = defineProps<{
@@ -9,10 +11,6 @@ const props = defineProps<{
 }>();
 
 const { formatTemp, formatElevation, formatDate } = useUserQuery();
-
-function wxIcon(name: string): string {
-  return `https://basmilius.github.io/weather-icons/production/fill/all/${name}.svg`;
-}
 
 interface Record {
   type: "temp" | "elev";
@@ -89,7 +87,7 @@ const records = computed<Record[]>(() => {
       value: formatTemp(coldFeels),
       ...meta(coldStep),
       color: "#42a5f5",
-      icon: wxIcon(coldIcon),
+      icon: weatherIconUrl(coldIcon),
       qIcon: false,
     },
     {
@@ -98,7 +96,7 @@ const records = computed<Record[]>(() => {
       value: formatTemp(hotFeels),
       ...meta(hotStep),
       color: "#ef6c00",
-      icon: wxIcon(hotStep.weather.day.icon),
+      icon: weatherIconUrl(hotStep.weather.day.icon),
       qIcon: false,
     },
     {
@@ -131,7 +129,7 @@ const records = computed<Record[]>(() => {
       <div class="record-place">{{ r.place }}</div>
       <div class="record-meta">
         <q-img
-          :src="`https://flagcdn.com/${r.countryCode.toLowerCase()}.svg`"
+          :src="flagUrl(r.countryCode)"
           class="record-flag"
           loading="eager"
         />

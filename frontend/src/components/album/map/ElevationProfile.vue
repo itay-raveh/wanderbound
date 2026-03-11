@@ -1,106 +1,195 @@
 <script lang="ts" setup>
-import { distance, point } from "@turf/turf";
+import { KM_TO_MI, M_TO_FT } from "@/utils/units";
 import { computed } from "vue";
 
 interface ElevationPoint {
-  lat: number;
-  lon: number;
   elevation: number;
+  dist: number;
 }
 
 const props = defineProps<{
   points: ElevationPoint[];
   accent: string;
+  totalDistKm?: number;
+  isKm?: boolean;
 }>();
 
-const profileData = computed(() => {
-  if (props.points.length < 2) return { path: "", viewBox: "0 0 100 50" };
+const chart = computed(() => {
+  if (props.points.length < 2) return null;
 
-  // Cumulative distance along the track
-  const distances: number[] = [0];
-  for (let i = 1; i < props.points.length; i++) {
-    const prev = props.points[i - 1]!;
-    const curr = props.points[i]!;
-    const d = distance(
-      point([prev.lon, prev.lat]),
-      point([curr.lon, curr.lat]),
-      { units: "kilometers" },
-    );
-    distances.push(distances[i - 1]! + d);
-  }
+  const totalDist = props.totalDistKm ?? props.points[props.points.length - 1]!.dist;
+  if (totalDist === 0) return null;
 
-  const totalDist = distances[distances.length - 1]!;
-  if (totalDist === 0) return { path: "", viewBox: "0 0 100 50" };
+  const elevations = props.points.map((p) => p.elevation);
+  const minElev = Math.min(...elevations);
+  const maxElev = Math.max(...elevations);
+  const range = maxElev - minElev || 1;
 
-  const values = props.points.map((p) => p.elevation);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-  const range = maxVal - minVal || 1;
+  // Add ~10% padding above and below
+  const padded = range * 0.1;
+  const yMin = minElev - padded;
+  const yMax = maxElev + padded;
+  const yRange = yMax - yMin;
 
-  const width = 400;
-  const height = 80;
-  const pad = 4;
+  // Layout constants
+  const leftPad = 40; // space for Y-axis labels
+  const rightPad = 8;
+  const topPad = 6;
+  const bottomPad = 16; // space for X-axis labels
+  const width = 500;
+  const height = 90;
+  const plotW = width - leftPad - rightPad;
+  const plotH = height - topPad - bottomPad;
 
-  // Downsample to max 200 points for the SVG path
-  const step = Math.max(1, Math.floor(props.points.length / 200));
-  const sampled: { x: number; y: number }[] = [];
+  // Map data to pixel coords
+  const dataPoints = props.points.map((p) => ({
+    x: leftPad + (p.dist / totalDist) * plotW,
+    y: topPad + (1 - (p.elevation - yMin) / yRange) * plotH,
+  }));
 
-  for (let i = 0; i < props.points.length; i += step) {
-    const x = pad + (distances[i]! / totalDist) * (width - 2 * pad);
-    const normalized = (values[i]! - minVal) / range;
-    const y = height - pad - normalized * (height - 2 * pad);
-    sampled.push({ x, y });
-  }
-
-  if (sampled.length === 0)
-    return { path: "", viewBox: `0 0 ${width} ${height}` };
-
-  const linePath = sampled
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`)
+  const linePath = dataPoints
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
     .join(" ");
 
-  const last = sampled[sampled.length - 1]!;
-  const first = sampled[0]!;
-  const areaPath = `${linePath} L${last.x},${height - pad} L${first.x},${height - pad} Z`;
+  const last = dataPoints[dataPoints.length - 1]!;
+  const first = dataPoints[0]!;
+  const areaPath = `${linePath} L${last.x.toFixed(1)},${topPad + plotH} L${first.x.toFixed(1)},${topPad + plotH} Z`;
+
+  // Unit conversion for displayed values
+  const elevFactor = props.isKm !== false ? 1 : M_TO_FT;
+
+  // Y-axis labels (min, mid, max) — converted to display units
+  const midElev = (minElev + maxElev) / 2;
+  const yLabels = [
+    { value: Math.round(maxElev * elevFactor), y: topPad + (1 - (maxElev - yMin) / yRange) * plotH },
+    { value: Math.round(midElev * elevFactor), y: topPad + (1 - (midElev - yMin) / yRange) * plotH },
+    { value: Math.round(minElev * elevFactor), y: topPad + (1 - (minElev - yMin) / yRange) * plotH },
+  ];
+  const elevUnit = props.isKm !== false ? "m" : "ft";
+
+  // X-axis labels: 0, ~1/3, ~2/3, end
+  const distKm = totalDist;
+  const unit = props.isKm !== false ? "km" : "mi";
+  const distVal = props.isKm !== false ? distKm : distKm * KM_TO_MI;
+  const fracs = [0, 0.33, 0.67, 1];
+  const xLabels = fracs.map((f) => ({
+    text: (distVal * f).toFixed(f === 0 ? 0 : 1),
+    x: leftPad + f * plotW,
+  }));
+
+  // Horizontal grid lines at each Y label
+  const gridLines = yLabels.map((l) => ({
+    y: l.y,
+    x1: leftPad,
+    x2: leftPad + plotW,
+  }));
 
   return {
     linePath,
     areaPath,
     viewBox: `0 0 ${width} ${height}`,
+    yLabels,
+    elevUnit,
+    xLabels,
+    gridLines,
+    unit,
+    leftPad,
+    plotW,
+    topPad,
+    plotH,
   };
 });
 </script>
 
 <template>
   <svg
-    :viewBox="profileData.viewBox"
+    v-if="chart"
+    :viewBox="chart.viewBox"
     class="elevation-chart"
-    preserveAspectRatio="none"
   >
     <defs>
       <linearGradient id="elev-gradient" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" :stop-color="`${accent}66`" />
-        <stop offset="100%" :stop-color="`${accent}0D`" />
+        <stop offset="0%" :stop-color="`${accent}55`" />
+        <stop offset="100%" :stop-color="`${accent}08`" />
       </linearGradient>
     </defs>
-    <path
-      v-if="profileData.areaPath"
-      :d="profileData.areaPath"
-      fill="url(#elev-gradient)"
+
+    <!-- Grid lines -->
+    <line
+      v-for="(g, i) in chart.gridLines"
+      :key="`grid-${i}`"
+      :x1="g.x1"
+      :y1="g.y"
+      :x2="g.x2"
+      :y2="g.y"
+      stroke="rgba(255,255,255,0.15)"
+      stroke-width="0.5"
     />
+
+    <!-- Area fill -->
+    <path :d="chart.areaPath" fill="url(#elev-gradient)" />
+
+    <!-- Line stroke -->
     <path
-      v-if="profileData.linePath"
-      :d="profileData.linePath"
+      :d="chart.linePath"
       fill="none"
       :stroke="accent"
       stroke-width="1.5"
+      stroke-linejoin="round"
     />
+
+    <!-- Y-axis labels (elevation in m or ft) -->
+    <text
+      v-for="(l, i) in chart.yLabels"
+      :key="`y-${i}`"
+      :x="chart.leftPad - 4"
+      :y="l.y + 1"
+      text-anchor="end"
+      class="axis-label"
+    >{{ l.value }}</text>
+
+    <!-- Y-axis unit -->
+    <text
+      :x="chart.leftPad - 4"
+      :y="chart.topPad - 1"
+      text-anchor="end"
+      class="axis-label unit-label"
+    >{{ chart.elevUnit }}</text>
+
+    <!-- X-axis labels (distance) -->
+    <text
+      v-for="(l, i) in chart.xLabels"
+      :key="`x-${i}`"
+      :x="l.x"
+      :y="chart.topPad + chart.plotH + 11"
+      :text-anchor="i === 0 ? 'start' : i === chart.xLabels.length - 1 ? 'end' : 'middle'"
+      class="axis-label"
+    >{{ l.text }}</text>
+
+    <!-- Unit label at end -->
+    <text
+      :x="chart.leftPad + chart.plotW"
+      :y="chart.topPad + chart.plotH + 11"
+      text-anchor="start"
+      class="axis-label unit-label"
+    > {{ chart.unit }}</text>
   </svg>
 </template>
 
 <style lang="scss" scoped>
 .elevation-chart {
   width: 100%;
-  height: 100%;
+}
+
+.axis-label {
+  font-size: 5.5px;
+  fill: rgba(255, 255, 255, 0.75);
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 500;
+}
+
+.unit-label {
+  font-size: 5px;
+  fill: rgba(255, 255, 255, 0.45);
 }
 </style>

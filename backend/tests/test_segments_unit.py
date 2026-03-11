@@ -313,10 +313,6 @@ class TestStructure:
 
 
 class TestRobustness:
-    def test_empty_steps_raises(self) -> None:
-        with pytest.raises(ValueError, match="at least one step"):
-            list(build_segments([], []))
-
     def test_no_gps_does_not_crash(self) -> None:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 0.1, 14.0)]
         segments = list(build_segments(steps, []))

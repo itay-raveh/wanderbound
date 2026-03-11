@@ -14,9 +14,9 @@ from app.logic.country_colors import build_country_colors
 from app.logic.layout import build_step_layout
 from app.logic.spatial.elevation import elevations
 from app.logic.spatial.peaks import correct_peaks
-from app.logic.weather import Weather, build_weathers
+from app.logic.weather import build_weathers
 from app.models.db import Album, Step, User, engine
-from app.models.trips import Location, PSStep, Trip
+from app.models.trips import PSStep, Trip
 
 from ..deps import USER_COOKIE, SessionDep, UserDep
 
@@ -25,16 +25,7 @@ logger = config_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-async def _fetch_elevations(locs: list[Location]) -> list[float]:
-    raw = [e async for e in elevations(locs)]
-    return list(await correct_peaks(locs, raw))
-
-
-async def _fetch_weathers(steps: list[PSStep]) -> list[Weather]:
-    return [w async for w in build_weathers(steps)]
-
-
-_layout_semaphore = asyncio.Semaphore(30)
+_layout_semaphore = asyncio.Semaphore(10)
 
 
 async def _fetch_layouts(
@@ -89,9 +80,11 @@ async def create_user(file: UploadFile, response: Response) -> User:
         db_objects.append(album)
 
         locs = [step.location for step in trip.all_steps]
-        elevs = await _fetch_elevations(locs)
+        raw = [e async for e in elevations(locs)]
+        elevs = await correct_peaks(locs, raw)
         logger.info("Fetched elevations")
-        weathers = await _fetch_weathers(trip.all_steps)
+
+        weathers = [w async for w in build_weathers(trip.all_steps)]
         logger.info("Fetched weathers")
 
         layouts = await _fetch_layouts(user, album.id, trip.all_steps)

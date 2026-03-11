@@ -9,7 +9,7 @@ const props = defineProps<{
 }>();
 
 const pathContent = ref("");
-const viewBox = ref("");
+const rawViewBox = ref("");
 
 const fillColor = computed(() => props.color ?? "currentColor");
 
@@ -23,13 +23,31 @@ function toSvgCoords(lat: number, lon: number): [number, number] {
 }
 
 const pin = computed(() => {
-  if (!viewBox.value) return null;
+  if (!rawViewBox.value) return null;
   const [x, y] = toSvgCoords(props.lat, props.lon);
-  const parts = viewBox.value.split(" ").map(Number);
+  const parts = rawViewBox.value.split(" ").map(Number);
   const w = parts[2]!;
-  // Pin radius relative to viewBox size
-  const r = w * 0.03;
+  const h = parts[3]!;
+  // Use diagonal to get consistent visual size regardless of country aspect ratio
+  const diag = Math.sqrt(w * w + h * h);
+  const r = diag * 0.025;
   return { x, y, r };
+});
+
+// Expand viewBox so the pin is never clipped at edges
+const viewBox = computed(() => {
+  if (!rawViewBox.value || !pin.value) return rawViewBox.value;
+  const parts = rawViewBox.value.split(" ").map(Number);
+  let [minX, minY, w, h] = parts as [number, number, number, number];
+  const { x, y, r } = pin.value;
+  const pad = r * 3;
+
+  if (x - pad < minX) { const d = minX - (x - pad); minX -= d; w += d; }
+  if (y - pad < minY) { const d = minY - (y - pad); minY -= d; h += d; }
+  if (x + pad > minX + w) w = x + pad - minX;
+  if (y + pad > minY + h) h = y + pad - minY;
+
+  return `${minX} ${minY} ${w} ${h}`;
 });
 
 async function loadSvg(code: string) {
@@ -39,7 +57,7 @@ async function loadSvg(code: string) {
     const text = await res.text();
 
     const vbMatch = text.match(/viewBox="([^"]+)"/);
-    if (vbMatch) viewBox.value = vbMatch[1]!;
+    if (vbMatch) rawViewBox.value = vbMatch[1]!;
 
     const innerMatch = text.match(/<symbol[^>]*>([\s\S]*?)<\/symbol>/);
     if (innerMatch) pathContent.value = innerMatch[1]!;
@@ -64,6 +82,15 @@ watch(
     class="country-silhouette"
     preserveAspectRatio="xMidYMid meet"
   >
+    <defs>
+      <filter :id="`glow-${countryCode}`" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" :stdDeviation="pin ? pin.r * 0.8 : 2" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
     <!-- eslint-disable vue/no-v-html -->
     <g :style="{ color: fillColor }" v-html="pathContent" />
     <circle
@@ -71,9 +98,8 @@ watch(
       :cx="pin.x"
       :cy="pin.y"
       :r="pin.r"
-      fill="var(--q-primary)"
-      stroke="white"
-      :stroke-width="pin.r * 0.4"
+      fill="white"
+      :filter="`url(#glow-${countryCode})`"
     />
   </svg>
 </template>

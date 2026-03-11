@@ -32,35 +32,9 @@ The five-stage pipeline
                   (faster).  Consecutive segments share a boundary point so
                   the map path has no gaps.
 
-Key decisions
---------------------
-
-Step waypoints as ground-truth anchors
-    A step is where the user *was*.  We inject each step as a synthetic GPS
-    point, protect it from noise-removal, and relax both the speed check and
-    the gap limit for edges touching it.  Without this, an out-and-back hike
-    where GPS was silent on the way to the trailhead would be split into
-    several disconnected "other" segments.
-
-``long_window`` flag
-    When the requested time window spans more than 24 hours, overnight GPS
-    silences are expected.  All gap thresholds and absorption windows are
-    widened accordingly.  The flag is computed once in ``build_segments`` and
-    threaded through as a keyword argument.
-
-All segments are RDP-simplified
-    Hike segments are simplified with the same epsilon as other segments.
-    Elevation-based 3-D distance is computed in the frontend using Mapbox's
-    continuous terrain DEM, which is not limited by GPS point density.
-
-Walking vs driving
-    Both emerge from the pipeline as the internal label "other".  At emit time,
-    the segment's average speed determines the public label: ≤ 6.5 km/h →
-    ``walking`` (city strolls, GPS blackouts on foot), faster → ``driving``
-    (bus, taxi, boat).
 
 Column schema (flowing through the pipeline)
-────────────────────────────────────────────
+--------------------------------------------
   lat, lon, time    coordinates and Unix timestamp (seconds since epoch)
   gap_h             hours elapsed since the previous point (0 for row 0)
   dist_km           haversine distance from the previous point (km)
@@ -77,17 +51,17 @@ from __future__ import annotations
 import heapq
 import math
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
-from pydantic import AwareDatetime, BaseModel
+from pydantic import BaseModel
 
 from app.core.logging import config_logger
+from app.models.db import Step
 from app.models.trips import Point
 
 from .simplify import rdp_mask
-from .types import HasLatLon
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -112,19 +86,9 @@ HIKE_MIN_DISPLACEMENT_KM = (
     1.0  # straight-line distance from start to the farthest point (km)
 )
 
-# ── Flight segment validity ───────────────────────────────────────────────────
-# Distinguishes a long freeway drive (which can briefly hit high speed) from
-# an actual commercial flight.
 FLIGHT_MIN_DISTANCE_KM = 100.0
 
-# ── Maximum time gap for a hike edge (labeling stage) ───────────────────────
-# An edge whose gap exceeds the limit is labeled "other", not "hike".
-# Three variants because the acceptable silence length depends on context:
-MAX_HIKE_GAP_H = 2.0  # default: short single-day window
-MAX_HIKE_GAP_STEP_H = 3.5  # edge adjacent to a step waypoint: step is a reliable
-# anchor even when GPS was silent for several hours
-MAX_HIKE_GAP_LONG_H = 4.5  # multi-day window (> 24 h total span): overnight GPS
-# gaps are common in mountain terrain
+MAX_HIKE_GAP_H = 4.0
 
 # ── GPS noise removal ─────────────────────────────────────────────────────────
 # Any point with an apparent incoming speed above this is a GPS teleport and is
@@ -162,8 +126,11 @@ CAMP_GAP_MAX_H = 20.0  # a full overnight absence can be up to ~20 h
 
 # Blackout gap: phone stops logging mid-hike (mountain terrain, low battery).
 # Absorbed when the gap moves at hike speed: confirming the person kept walking.
-BLACKOUT_GAP_MAX_H = 6.0  # short windows (≤ 24 h span)
-BLACKOUT_GAP_LONG_MAX_H = 24.0  # long windows (> 24 h span)
+# Short blackouts (< 6 h) only need the following hike anchor; long blackouts
+# (6-24 h, e.g. overnight GPS silence) need both anchors to avoid merging an
+# evening city walk with the next morning's hike.
+BLACKOUT_GAP_SHORT_MAX_H = 6.0
+BLACKOUT_GAP_LONG_MAX_H = 24.0
 
 # Both absorption passes require a minimum hike run on each side of the gap —
 # the "anchor" criterion.  Kept lower than HIKE_MIN_DURATION_H so that a
@@ -175,25 +142,8 @@ HIKE_ANCHOR_MIN_H = 1.5
 # overnight camp merge back to the previous day's hike.
 CAMP_PREV_ANCHOR_MIN_H = 1.0
 
-# ── Output ────────────────────────────────────────────────────────────────────
 # Tolerance for RDP simplification, in degrees.
-# 0.005° ≈ 500 m at mid-latitudes: keeps major turns, drops GPS micro-wobble.
-# All segment types (including hikes) use the same epsilon.  The frontend
-# queries Mapbox's continuous terrain DEM for elevation-based 3D distance,
-# so accuracy is not limited by GPS point density.
-RDP_EPSILON_DEG = 0.005
-
-
-class StepLike(Protocol):
-    """Structural type accepted by the pipeline.
-
-    Matches both ``Step`` and ``PSStep`` objects.
-    """
-
-    location: HasLatLon
-
-    @property
-    def datetime(self) -> AwareDatetime: ...
+RDP_EPSILON_DEG = 0.001
 
 
 class SegmentKind(StrEnum):
@@ -229,12 +179,13 @@ def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
     )
 
 
-# Earth radius in meters
-R = 6371000.0
+_EARTH_RADIUS_KM = 6371.0
 
 
 # https://en.wikipedia.org/wiki/Haversine_formula#Formulation
-def _haversine_m(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr) -> pl.Expr:
+def _haversine_km(
+    lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr
+) -> pl.Expr:
     to_rad = math.pi / 180.0
     phi_1 = lat1 * to_rad
     phi_2 = lat2 * to_rad
@@ -247,7 +198,7 @@ def _haversine_m(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr) -> 
     a = (d_phi / 2).sin() ** 2 + phi_1.cos() * phi_2.cos() * (d_lambda / 2).sin() ** 2
     c = 2 * pl.arctan2(a.sqrt(), (1 - a).sqrt())
 
-    return c * R
+    return c * _EARTH_RADIUS_KM
 
 
 def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
@@ -261,13 +212,12 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
         .fill_null(0.0)
         .alias("gap_h"),
         (
-            _haversine_m(
+            _haversine_km(
                 pl.col("lat").shift(1),
                 pl.col("lon").shift(1),
                 pl.col("lat"),
                 pl.col("lon"),
             ).fill_null(0.0)
-            / 1000.0
         ).alias("dist_km"),
     ).with_columns(
         pl.when(pl.col("gap_h") > 0)
@@ -420,7 +370,7 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFrame:
+def _ingest(steps: Sequence[Step], locations: Iterable[Point]) -> pl.DataFrame:
     """Build the initial pipeline DataFrame from steps and raw GPS locations.
 
     Steps:
@@ -473,7 +423,7 @@ def _ingest(steps: Sequence[StepLike], locations: Iterable[Point]) -> pl.DataFra
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _label_edges(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
+def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     """Assign a transport mode label to every edge.
 
     Priority (highest wins):
@@ -494,14 +444,7 @@ def _label_edges(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
     flight_mask = is_flight_edge | is_flight_edge.shift(-1, fill_value=False)
 
     step_adjacent = pl.col("is_step") | pl.col("is_step").shift(1, fill_value=False)
-    gap_limit = (
-        pl.when(step_adjacent)
-        .then(pl.lit(MAX_HIKE_GAP_STEP_H))
-        .when(pl.lit(long_window))
-        .then(pl.lit(MAX_HIKE_GAP_LONG_H))
-        .otherwise(pl.lit(MAX_HIKE_GAP_H))
-    )
-    within_gap_limit = pl.col("gap_h") < gap_limit
+    within_gap_limit = pl.col("gap_h") < pl.lit(MAX_HIKE_GAP_H)
     at_hike_speed = pl.col("speed_kmh") <= HIKE_MAX_SPEED_KMH
     is_hike_edge = (at_hike_speed | (step_adjacent & ~flight_mask)) & within_gap_limit
 
@@ -588,7 +531,7 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
+def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
     """Pass 2: absorb overnight camps and mid-hike GPS blackouts.
 
     Only "other" runs sandwiched between two hike runs are considered.
@@ -606,7 +549,7 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
     Blackout gap (GPS stopped logging mid-hike)
         Phone died / lost signal on a mountain.  Absorbed when:
           • avg speed ≤ HIKE_MAX_SPEED_KMH    (confirms on-foot movement)
-          • duration < BLACKOUT_GAP_MAX_H     (6 h short / 24 h long window)
+          • duration < BLACKOUT_GAP_SHORT_MAX_H (or LONG_MAX_H with both anchors)
           • both surrounding hike runs ≥ HIKE_ANCHOR_MIN_H
 
     Thresholds widen on long windows (> 24 h) where overnight gaps are normal.
@@ -619,11 +562,6 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
         pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
     )
 
-    # Effective thresholds: widened for multi-day windows
-    camp_max_h = CAMP_GAP_MAX_H if long_window else NOISE_GAP_MAX_H
-    camp_max_km = CAMP_GAP_MAX_DIST_KM if long_window else NOISE_GAP_MAX_DIST_KM
-    blackout_max_h = BLACKOUT_GAP_LONG_MAX_H if long_window else BLACKOUT_GAP_MAX_H
-
     between_hikes = (
         (pl.col("run_mode") == "other")
         & (pl.col("prev_run_mode") == "hike")
@@ -632,36 +570,36 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
 
     # Camp: the following hike anchor guard is only needed for short windows;
     # on long windows the distance cap (1 km) is the primary protection.
-    nxt_ok_camp = (
-        pl.lit(value=True)
-        if long_window
-        else (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
-    )
-    prv_ok_camp = (
-        (pl.col("prev_run_h") >= CAMP_PREV_ANCHOR_MIN_H)
-        if long_window
-        else pl.lit(value=True)
-    )
     is_camp_gap = (
         between_hikes
-        & (pl.col("run_dist_km") < camp_max_km)
-        & (pl.col("run_h") < camp_max_h)
-        & nxt_ok_camp
-        & prv_ok_camp
+        & (pl.col("run_dist_km") < CAMP_GAP_MAX_DIST_KM)
+        & (pl.col("run_h") < CAMP_GAP_MAX_H)
+        & (pl.col("prev_run_h") >= CAMP_PREV_ANCHOR_MIN_H)
     )
 
-    prv_ok_blackout = (
-        (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
-        if long_window
-        else pl.lit(value=True)
-    )
-    is_blackout_gap = (
+    # Short blackout (< 6 h): GPS dropped out briefly mid-hike.  Only the
+    # following hike anchor is required — the preceding fragment may be tiny
+    # when the gap sits right at the start of a hike (e.g. transport → trailhead).
+    is_short_blackout = (
         between_hikes
         & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
-        & (pl.col("run_h") < blackout_max_h)
+        & (pl.col("run_h") < BLACKOUT_GAP_SHORT_MAX_H)
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
-        & prv_ok_blackout
     )
+
+    # Long blackout (6-24 h): overnight GPS silence on a multi-day hike.
+    # Both anchors required to avoid merging an evening city walk with the
+    # next morning's hike through an overnight gap.
+    is_long_blackout = (
+        between_hikes
+        & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
+        & (pl.col("run_h") >= BLACKOUT_GAP_SHORT_MAX_H)
+        & (pl.col("run_h") < BLACKOUT_GAP_LONG_MAX_H)
+        & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
+        & (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
+    )
+
+    is_blackout_gap = is_short_blackout | is_long_blackout
 
     stats = stats.with_columns(
         pl.when(is_camp_gap | is_blackout_gap)
@@ -675,10 +613,10 @@ def _absorb_long_gaps(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
     )
 
 
-def _absorb(df: pl.DataFrame, *, long_window: bool) -> pl.DataFrame:
+def _absorb(df: pl.DataFrame) -> pl.DataFrame:
     """Run both absorption passes and assign segment IDs."""
     df = _absorb_noise_gaps(df)
-    df = _absorb_long_gaps(df, long_window=long_window)
+    df = _absorb_long_gaps(df)
     return df.with_columns(pl.col("mode").rle_id().alias("segment_id"))
 
 
@@ -706,13 +644,12 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         pl.col("gap_h").sum().alias("tot_h"),
         pl.col("dist_km").sum().alias("tot_km"),
         (
-            _haversine_m(
+            _haversine_km(
                 pl.col("lat").first(),
                 pl.col("lon").first(),
                 pl.col("lat"),
                 pl.col("lon"),
             )
-            / 1000.0
         )
         .max()
         .alias("disp_km"),
@@ -746,7 +683,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segment]:
+def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[Segment]:
     """Convert the validated DataFrame to Segment objects.
 
     For each output group (output_id):
@@ -817,8 +754,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[StepLike]) -> Iterable[Segm
 
 
 def build_segments(
-    steps: Sequence[StepLike],
-    locations: Iterable[Point],
+    steps: Sequence[Step], locations: Iterable[Point]
 ) -> Iterable[Segment]:
     """Segment a Polarsteps trip into typed movement segments.
 
@@ -830,14 +766,8 @@ def build_segments(
     Yields:
         ``Segment`` objects in chronological order, each with a ``kind``
         (hike / flight / walking / driving) and a list of ``Point`` objects.
-
-    Raises:
-        ValueError: if ``steps`` is empty.
     """
-    if not steps:
-        raise ValueError("build_segments requires at least one step")
-
-    logger.debug(
+    logger.info(
         "build_segments: %d step(s), window %s → %s",
         len(steps),
         steps[0].datetime.strftime("%Y-%m-%d"),
@@ -845,28 +775,12 @@ def build_segments(
     )
 
     df = _ingest(steps, locations)
-    logger.debug("Ingested %d points after noise removal", df.height)
+    logger.info("Ingested %d points after noise removal", df.height)
 
     if df.is_empty():
         return iter([])
 
-    total_span_h = (float(df["time"].max()) - float(df["time"].min())) / 3600  # type: ignore[invalid-argument-type]
-    long_window = bool(total_span_h > 24)
-
-    df = _label_edges(df, long_window=long_window)
-    df = _absorb(df, long_window=long_window)
+    df = _label_edges(df)
+    df = _absorb(df)
     df = _validate_segments(df)
-
-    mode_counts = df.group_by("final_mode").len().sort("final_mode")
-    logger.debug(
-        "Segments: %s",
-        dict(
-            zip(
-                mode_counts["final_mode"].to_list(),
-                mode_counts["len"].to_list(),
-                strict=False,
-            )
-        ),
-    )
-
     return _emit_segments(df, steps)

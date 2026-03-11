@@ -5,11 +5,6 @@ from hishel.httpx import AsyncCacheTransport
 from httpx import AsyncClient
 from httpx_retries import Retry, RetryTransport
 
-from app.core.logging import config_logger
-
-config_logger("httpx")
-config_logger("httpx_retries")
-
 
 class _CacheOnlySuccess(BaseFilter[Response]):
     def needs_body(self) -> bool:

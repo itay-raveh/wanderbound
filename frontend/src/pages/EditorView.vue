@@ -69,7 +69,8 @@ async function onDeleteUser() {
 .editor-page {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -82,15 +83,16 @@ async function onDeleteUser() {
 }
 
 .sidebar-col {
-  width: 22rem;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 18rem;
+  max-width: 30rem;
   background: var(--bg-secondary);
   border-radius: 0.75rem;
   overflow-y: auto;
 }
 
 .viewer-col {
-  flex: 1;
+  flex: 2;
   min-width: 0;
   background: var(--bg-secondary);
   border-radius: 0.75rem;

@@ -6,12 +6,14 @@ import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { usePageDescription } from "@/composables/usePageDescription";
 import { useStepMutation } from "@/queries/useStepMutation";
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { VueDraggable } from "vue-draggable-plus";
 
 const props = defineProps<{
   albumId: string;
   colors: Record<string, string>;
   step: Step;
+  tripStart: string;
   stepsRanges: string;
   printMode?: boolean;
 }>();
@@ -23,6 +25,9 @@ const stepMutation = useStepMutation(
   () => props.albumId,
   () => props.stepsRanges,
 );
+
+// Temporary list for the drop zone — when a photo lands here, create a new page
+const dropZoneList = ref<string[]>([]);
 
 function saveLayout(patch: Partial<StepLayout>) {
   const layout: StepLayout = {
@@ -51,43 +56,62 @@ function onUnusedUpdate(unused: string[]) {
 function addPage() {
   saveLayout({ pages: [...props.step.pages, []] });
 }
+
+function onDropZoneChange() {
+  if (dropZoneList.value.length > 0) {
+    // A photo was dropped — create a new page with it
+    const photos = [...dropZoneList.value];
+    dropZoneList.value = [];
+    saveLayout({ pages: [...props.step.pages, photos] });
+  }
+}
 </script>
 
 <template>
-  <div class="step">
-    <div class="pages">
-      <StepMainPage
-        :colors="colors"
-        :step="step"
-        :description-type="desc.type"
-        :main-page-text="desc.mainPageText"
-        @update:cover="onCoverUpdate"
-      />
+  <div class="step-entry">
+    <StepMainPage
+      :colors="colors"
+      :step="step"
+      :trip-start="tripStart"
+      :description-type="desc.type"
+      :main-page-text="desc.mainPageText"
+      @update:cover="onCoverUpdate"
+    />
 
-      <StepTextPage
-        v-for="(text, i) in desc.continuationTexts"
-        :key="`text-${i}`"
-        :text="text"
-        :step-name="step.name"
-        :location-name="step.location.name"
-      />
+    <StepTextPage
+      v-for="(text, i) in desc.continuationTexts"
+      :key="`text-${i}`"
+      :text="text"
+      :step-name="step.name"
+      :location-name="step.location.name"
+    />
 
-      <StepPhotoPage
-        v-for="(page, idx) in step.pages"
-        :key="`page-${idx}`"
-        :album-id="albumId"
-        :page="page"
-        :step-id="step.idx"
-        @update:page="onPageUpdate(idx, $event)"
-      />
+    <StepPhotoPage
+      v-for="(page, idx) in step.pages"
+      :key="`page-${idx}`"
+      :album-id="albumId"
+      :page="page"
+      :step-id="step.idx"
+      @update:page="onPageUpdate(idx, $event)"
+    />
 
-      <div v-if="!printMode" class="add-container">
-        <button class="add-btn" title="Add Photo Page" @click="addPage">
-          +
-        </button>
+    <!-- Add page drop zone (editor only) -->
+    <VueDraggable
+      v-if="!printMode"
+      v-model="dropZoneList"
+      class="add-zone"
+      group="photos"
+      :animation="200"
+      @change="onDropZoneChange"
+    >
+      <div class="add-zone-content" @click="addPage">
+        <q-icon name="add_photo_alternate" size="1.5rem" />
+        <span class="add-label">Add Photo Page</span>
+        <span class="add-hint">or drop a photo here</span>
       </div>
-    </div>
+    </VueDraggable>
 
+    <!-- Unused photos tray (editor only) -->
     <UnusedSidebar
       v-if="!printMode"
       :album-name="albumId"
@@ -99,46 +123,59 @@ function addPage() {
 </template>
 
 <style lang="scss" scoped>
-.step {
-  display: flex;
-}
-
-.pages {
+.step-entry {
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
-.add-container {
-  display: flex;
-  justify-content: center;
-  padding: 20px 0;
-  width: 100%;
-  max-width: 297mm;
-  margin: 0 auto;
+.add-zone {
+  width: calc(297mm * var(--editor-zoom));
+  margin: 0.5rem auto;
+  min-height: 3.5rem;
 }
 
-.add-btn {
-  background-color: var(--q-primary);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  font-size: 24px;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+.add-zone-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 1rem;
+  border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
   transition:
-    transform 0.2s,
-    background-color 0.2s;
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+
+  &:hover {
+    border-color: var(--q-primary);
+    color: var(--q-primary);
+  }
 }
 
-.add-btn:hover {
-  transform: scale(1.1);
-  background-color: var(--q-primary);
-  filter: brightness(0.9);
+// When SortableJS is dragging over, the zone gets the sortable-chosen class
+.add-zone:has(.sortable-ghost) .add-zone-content,
+.add-zone.sortable-drag-over .add-zone-content {
+  border-color: var(--q-primary);
+  background: color-mix(in srgb, var(--q-primary) 8%, transparent);
+  color: var(--q-primary);
+}
+
+.add-label {
+  font-size: 0.9rem;
+}
+
+.add-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.6;
 }
 
 @media print {
@@ -153,7 +190,8 @@ function addPage() {
     page-break-inside: avoid;
     flex-shrink: 0;
   }
-  .add-container {
+
+  .add-zone {
     display: none !important;
   }
 }

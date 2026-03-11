@@ -92,8 +92,9 @@ const sections = computed<Section[]>(() => {
             segments: m.segments,
             hikeSegment,
           });
+        } else {
+          result.push({ type: "map", steps: m.steps, segments: m.segments });
         }
-        result.push({ type: "map", steps: m.steps, segments: m.segments });
       }
     }
     result.push({ type: "step", step });
@@ -111,29 +112,33 @@ const sections = computed<Section[]>(() => {
   <div
     v-if="steps && segments"
     :class="['album-container', { 'print-mode': printMode }]"
-    class="scroll-y fit"
   >
     <CoverPage :album="album" :steps="steps" />
     <CoverPage :album="album" :steps="steps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
     <template v-for="(section, i) in sections" :key="i">
-      <MapPage
-        v-if="section.type === 'map'"
-        :segments="section.segments"
-        :steps="section.steps"
-      />
-      <HikeMapPage
-        v-else-if="section.type === 'hike'"
-        :segments="section.segments"
-        :steps="section.steps"
-        :hike-segment="section.hikeSegment"
-      />
+      <!-- Map pages wrapped so transform: scale doesn't misalign -->
+      <div v-if="section.type === 'map'" class="map-wrapper">
+        <MapPage
+          :segments="section.segments"
+          :steps="section.steps"
+        />
+      </div>
+      <div v-else-if="section.type === 'hike'" class="map-wrapper">
+        <HikeMapPage
+          :segments="section.segments"
+          :steps="section.steps"
+          :hike-segment="section.hikeSegment"
+          :colors="(album.colors as Record<string, string>)"
+        />
+      </div>
       <StepEntry
         v-else-if="section.type === 'step'"
         :album-id="album.id"
         :colors="(album.colors as Record<string, string>)"
         :step="section.step"
+        :trip-start="steps[0]!.datetime"
         :steps-ranges="album.steps_ranges"
         :print-mode="printMode"
       />
@@ -155,15 +160,38 @@ const sections = computed<Section[]>(() => {
   background-color: var(--page-bg, var(--bg));
 }
 
-// Editor mode: zoom shrinks pages and their layout footprint.
-// zoom (unlike scale) changes layout dimensions so Mapbox etc. size correctly.
+// Editor mode: zoom shrinks pages for preview.
+// Map pages use a wrapper + transform: scale (zoom breaks Mapbox canvas sizing).
 .album-container:not(.print-mode) {
+  --editor-zoom: 0.70;
   padding: 0.75rem;
 
   :deep(.page-container) {
-    zoom: 0.65;
-    border: 1px dashed rgba(255, 255, 255, 0.25);
+    zoom: var(--editor-zoom);
+    border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);
     margin: 0 auto 0.75rem;
+
+    &.drag-over {
+      border-color: var(--q-primary);
+    }
+  }
+
+  // Map wrapper: fixed layout size matching zoomed page dimensions
+  .map-wrapper {
+    width: calc(297mm * var(--editor-zoom));
+    height: calc(210mm * var(--editor-zoom));
+    margin: 0 auto 0.75rem;
+    overflow: hidden;
+    border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);
+
+    // Inner page-container: full A4, scaled to fit wrapper
+    :deep(.page-container) {
+      zoom: 1;
+      border: none;
+      margin: 0;
+      transform: scale(var(--editor-zoom));
+      transform-origin: top left;
+    }
   }
 }
 
@@ -175,6 +203,18 @@ const sections = computed<Section[]>(() => {
   box-sizing: border-box;
 }
 
+.album-container.print-mode .map-wrapper {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  border: none;
+  margin: 0;
+
+  :deep(.page-container) {
+    transform: none;
+  }
+}
+
 @media print {
   .album-container {
     padding: 0;
@@ -184,6 +224,18 @@ const sections = computed<Section[]>(() => {
     break-after: always;
     break-inside: avoid;
     margin: 0;
+  }
+
+  .map-wrapper {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    margin: 0 !important;
+
+    :deep(.page-container) {
+      transform: none !important;
+    }
   }
 }
 </style>

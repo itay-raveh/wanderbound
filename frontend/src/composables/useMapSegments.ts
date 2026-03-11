@@ -4,7 +4,7 @@
  * Used by both MapPage (overview) and HikeMapPage (hike-focused).
  */
 import type { Segment, Step } from "@/client";
-import { mediaUrl } from "@/utils/media";
+import { mediaUrl, posterPath } from "@/utils/media";
 import { matchRoute } from "@/utils/mapMatching";
 import mapboxgl from "mapbox-gl";
 
@@ -66,6 +66,19 @@ function addLine(
   });
 }
 
+function addCircle(
+  m: mapboxgl.Map,
+  id: string,
+  coord: [number, number],
+  paint: mapboxgl.CirclePaint,
+) {
+  m.addSource(id, {
+    type: "geojson",
+    data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coord } },
+  });
+  m.addLayer({ id, type: "circle", source: id, paint });
+}
+
 // ---------------------------------------------------------------------------
 // Flight arc with exaggerated curvature
 // ---------------------------------------------------------------------------
@@ -114,9 +127,9 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
 
   addLine(m, id, arcCoords, {
     "line-color": "rgba(255, 255, 255, 0.85)",
-    "line-width": faint ? 1 : 2,
-    "line-dasharray": [2, 4],
-    "line-opacity": faint ? 0.2 : 0.8,
+    "line-width": faint ? 0.8 : 1.2,
+    "line-dasharray": [2, 3],
+    "line-opacity": faint ? 0.2 : 0.7,
   });
 
   if (!faint) {
@@ -143,13 +156,35 @@ function drawHike(
   id: string,
   coords: [number, number][],
   faint: boolean,
-  accent?: string,
+  color?: string,
 ) {
+  const hikeColor = color ?? "#4A90D9";
+
+  if (!faint) {
+    // Dark stroke behind the colored line for contrast on satellite imagery
+    addLine(m, `${id}-stroke`, coords, {
+      "line-color": "rgba(0, 0, 0, 0.5)",
+      "line-width": 7,
+      "line-opacity": 1,
+    });
+  }
+
   addLine(m, id, coords, {
-    "line-color": faint ? "rgba(255,255,255,0.3)" : (accent ?? "#FF6B35"),
-    "line-width": faint ? 1.5 : 3,
+    "line-color": faint ? "rgba(255,255,255,0.3)" : hikeColor,
+    "line-width": faint ? 1.5 : 4,
     "line-opacity": faint ? 0.3 : 1,
   });
+
+  if (!faint && coords.length >= 2) {
+    const endpointPaint: mapboxgl.CirclePaint = {
+      "circle-radius": 6,
+      "circle-color": hikeColor,
+      "circle-stroke-color": "rgba(0,0,0,0.4)",
+      "circle-stroke-width": 2,
+    };
+    addCircle(m, `${id}-start-pt`, coords[0]!, endpointPaint);
+    addCircle(m, `${id}-end-pt`, coords[coords.length - 1]!, endpointPaint);
+  }
 }
 
 function drawDrivingOrWalking(
@@ -192,7 +227,10 @@ interface DrawOptions {
   segments: Segment[];
   steps: Step[];
   style?: "normal" | "faint";
-  hikeAccent?: string;
+  /** Skip cleanup of existing layers/markers (for layered drawing). */
+  skipCleanup?: boolean;
+  /** Color for hike trail lines. */
+  hikeColor?: string;
 }
 
 /** Draw segments and step markers. Returns all coords for fitBounds. */
@@ -200,9 +238,9 @@ export async function drawSegmentsAndMarkers(
   m: mapboxgl.Map,
   options: DrawOptions,
 ): Promise<[number, number][]> {
-  cleanup(m);
+  if (!options.skipCleanup) cleanup(m);
 
-  const { segments, steps, style = "normal", hikeAccent } = options;
+  const { segments, steps, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
   const useMatching = shouldMapMatch(steps, segments);
@@ -210,8 +248,9 @@ export async function drawSegmentsAndMarkers(
   // Collect map-matching promises to run in parallel
   const matchingTasks: Promise<void>[] = [];
 
+  const stylePrefix = faint ? "f-" : "";
   for (const [i, seg] of segments.entries()) {
-    const id = `${LAYER_PREFIX}${i}`;
+    const id = `${LAYER_PREFIX}${stylePrefix}${i}`;
     const coords: [number, number][] = seg.points.map((p) => [p.lon, p.lat]);
 
     switch (seg.kind) {
@@ -219,22 +258,24 @@ export async function drawSegmentsAndMarkers(
         drawFlight(m, id, seg, faint);
         break;
       case "hike":
-        drawHike(m, id, coords, faint, hikeAccent);
+        drawHike(m, id, coords, faint, options.hikeColor);
         allCoords.push(...coords);
         break;
       case "walking":
-      case "driving":
+      case "driving": {
+        const kind = seg.kind;
         if (useMatching) {
           matchingTasks.push(
-            matchRoute(coords, seg.kind).then((matched) => {
-              drawDrivingOrWalking(m, id, matched ?? coords, seg.kind, faint);
+            matchRoute(coords, kind).then((matched) => {
+              drawDrivingOrWalking(m, id, matched ?? coords, kind, faint);
             }),
           );
         } else {
-          drawDrivingOrWalking(m, id, coords, seg.kind, faint);
+          drawDrivingOrWalking(m, id, coords, kind, faint);
         }
         allCoords.push(...coords);
         break;
+      }
     }
   }
 
@@ -247,7 +288,8 @@ export async function drawSegmentsAndMarkers(
 
     const el = document.createElement("div");
     el.className = MARKER_CLASS;
-    el.style.backgroundImage = `url(${mediaUrl(step.cover)})`;
+    const coverPath = posterPath(step.cover);
+    el.style.backgroundImage = `url(${mediaUrl(coverPath)})`;
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
 

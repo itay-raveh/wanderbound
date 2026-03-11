@@ -4,6 +4,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
 import { date } from "quasar";
 import { length, lineString } from "@turf/turf";
+import { flagUrl } from "@/utils/media";
 import OverviewExtremes from "./OverviewExtremes.vue";
 import OverviewFurthestPoint from "./OverviewFurthestPoint.vue";
 
@@ -59,25 +60,25 @@ const stats = computed(() => [
     value: daysCount.value,
     label: "Days",
     icon: "sym_o_calendar_month",
-    color: "#5c6bc0",
+    color: "#3f51b5",
   },
   {
     value: totalDistance.value,
     label: isKm.value ? "Km" : "Mi",
     icon: "sym_o_explore",
-    color: "#26a69a",
+    color: "#00897b",
   },
   {
     value: photosCount.value,
     label: "Photos",
     icon: "sym_o_photo_camera",
-    color: "#ef6c00",
+    color: "#e65100",
   },
   {
     value: stepsCount.value,
     label: "Steps",
     icon: "sym_o_timeline",
-    color: "#ab47bc",
+    color: "#8e24aa",
   },
 ]);
 </script>
@@ -110,7 +111,7 @@ const stats = computed(() => [
             }"
           />
           <q-img
-            :src="`https://flagcdn.com/${code.toLowerCase()}.svg`"
+            :src="flagUrl(code)"
             :alt="name"
             class="country-flag"
             loading="eager"
@@ -135,17 +136,17 @@ const stats = computed(() => [
       <path
         d="M0 200 C150 170, 300 120, 500 150 C700 180, 850 100, 1200 140 L1200 0 L0 0Z"
         fill="var(--text)"
-        opacity="0.02"
+        opacity="0.04"
       />
       <path
         d="M0 140 C200 110, 350 80, 600 100 C850 120, 1000 60, 1200 90 L1200 0 L0 0Z"
         fill="var(--text)"
-        opacity="0.035"
+        opacity="0.06"
       />
       <path
         d="M0 80 C180 60, 400 40, 650 55 C900 70, 1050 30, 1200 50 L1200 0 L0 0Z"
         fill="var(--text)"
-        opacity="0.025"
+        opacity="0.04"
       />
     </svg>
 
@@ -154,22 +155,22 @@ const stats = computed(() => [
       <path
         d="M0 280 C200 230, 350 260, 550 220 C750 180, 950 240, 1200 200 L1200 400 L0 400Z"
         fill="var(--text)"
-        opacity="0.025"
+        opacity="0.04"
       />
       <path
         d="M0 310 C180 270, 400 300, 600 260 C800 230, 1000 280, 1200 250 L1200 400 L0 400Z"
         fill="var(--text)"
-        opacity="0.04"
+        opacity="0.07"
       />
       <path
         d="M0 340 C250 310, 450 330, 650 300 C850 275, 1000 310, 1200 290 L1200 400 L0 400Z"
         fill="var(--text)"
-        opacity="0.06"
+        opacity="0.1"
       />
       <path
         d="M0 365 C200 345, 400 360, 600 340 C800 325, 1000 350, 1200 335 L1200 400 L0 400Z"
         fill="var(--text)"
-        opacity="0.08"
+        opacity="0.13"
       />
     </svg>
   </div>

@@ -13,17 +13,23 @@ const props = defineProps<{
 
 const { locale } = useUserQuery();
 const container = useTemplateRef("map");
-const { map, init, fitBounds } = useMapbox({ container, locale: locale.value });
+const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
+
+function doLoad() {
+  const m = map.value;
+  if (!m) return;
+  m.resize();
+  void drawSegmentsAndMarkers(m, {
+    segments: props.segments,
+    steps: props.steps,
+  }).then((coords) => fitBounds(coords, 60));
+}
 
 onMounted(() => {
   init();
+  startResizeObserver();
   map.value?.on("load", () => {
-    const m = map.value!;
-    m.resize();
-    void drawSegmentsAndMarkers(m, {
-      segments: props.segments,
-      steps: props.steps,
-    }).then((coords) => fitBounds(coords, 100));
+    requestAnimationFrame(doLoad);
   });
 });
 </script>

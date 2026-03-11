@@ -1,3 +1,4 @@
+from collections import Counter
 from itertools import chain
 from typing import Annotated
 
@@ -15,7 +16,7 @@ from app.models.trips import Locations
 
 from ..deps import AlbumDep, BrowserDep, SessionDep, UserDep
 
-_log = config_logger(__name__)
+logger = config_logger(__name__)
 
 router = APIRouter(prefix="/albums", tags=["albums"])
 
@@ -69,11 +70,16 @@ async def read_steps(
         ).all()
     )
 
-    if steps:
-        locations = Locations.from_trip_dir(user.trips_folder / aid).locations
-        segments = list(build_segments(steps, locations))  # type: ignore[invalid-argument-type]
-    else:
-        segments = []
+    if not steps:
+        return StepsAndSegments(steps=[], segments=[])
+
+    locations = Locations.from_trip_dir(user.trips_folder / aid).locations
+    segments = list(build_segments(steps, locations))  # type: ignore[invalid-argument-type]
+
+    logger.info(
+        "Segments: %s",
+        Counter(s.kind.name for s in segments),
+    )
 
     return StepsAndSegments(steps=steps, segments=segments)
 
@@ -110,7 +116,7 @@ async def export_pdf(
     )
     page = await context.new_page()
     url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
-    _log.info("PDF: navigating to %s", url)
+    logger.info("PDF: navigating to %s", url)
     await page.goto(url, wait_until="networkidle")
     pdf_bytes = await page.pdf(
         format="A4",

@@ -1,9 +1,15 @@
-import MapboxLanguage from "@mapbox/mapbox-gl-language";
 import mapboxgl from "mapbox-gl";
 
-import { onBeforeUnmount, shallowRef, ref, type Ref } from "vue";
+import { onBeforeUnmount, shallowRef, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// Register RTL text plugin once (needed for Hebrew/Arabic label rendering)
+mapboxgl.setRTLTextPlugin(
+  "https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js",
+  null, // no callback
+  true, // lazy: only load when RTL text is encountered
+);
 
 export interface UseMapboxOptions {
   container: Ref<HTMLElement | null>;
@@ -11,8 +17,12 @@ export interface UseMapboxOptions {
   interactive?: boolean;
   onReady?: (map: mapboxgl.Map) => void;
   preserveDrawingBuffer?: boolean;
-  /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Uses language part. */
-  locale?: string;
+  /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Accepts ref/getter. */
+  locale?: MaybeRefOrGetter<string>;
+}
+
+function langFromLocale(locale: string | undefined): string {
+  return locale?.split("-")[0] || navigator.language.split("-")[0] || "en";
 }
 
 export function useMapbox(options: UseMapboxOptions) {
@@ -22,6 +32,8 @@ export function useMapbox(options: UseMapboxOptions) {
   function init() {
     if (!options.container.value || map.value) return;
 
+    const lang = langFromLocale(toValue(options.locale));
+
     const m = new mapboxgl.Map({
       container: options.container.value,
       style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
@@ -30,18 +42,7 @@ export function useMapbox(options: UseMapboxOptions) {
       attributionControl: false,
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
       fadeDuration: 0,
-    });
-
-    // Set map labels to user's language
-    const lang = options.locale?.split("-")[0] ?? navigator.language.split("-")[0];
-    m.addControl(new MapboxLanguage({ defaultLanguage: lang }));
-
-    m.on("idle", () => {
-      try {
-        imageData.value = m.getCanvas().toDataURL("image/png");
-      } catch {
-        // canvas tainted or not ready
-      }
+      language: lang,
     });
 
     m.on("load", () => {
@@ -51,12 +52,27 @@ export function useMapbox(options: UseMapboxOptions) {
     map.value = m;
   }
 
+  // Update language dynamically when locale changes
+  if (options.locale) {
+    watch(
+      () => toValue(options.locale),
+      (newLocale) => {
+        const m = map.value;
+        if (!m) return;
+        m.setLanguage(langFromLocale(newLocale));
+      },
+    );
+  }
+
   function destroy() {
     map.value?.remove();
     map.value = null;
   }
 
-  function fitBounds(coords: [number, number][], padding: number = 80) {
+  function fitBounds(
+    coords: [number, number][],
+    padding: number | { top: number; bottom: number; left: number; right: number } = 80,
+  ) {
     if (!map.value || coords.length === 0) return;
     const bounds = new mapboxgl.LngLatBounds();
     for (const [lng, lat] of coords) {
@@ -65,7 +81,33 @@ export function useMapbox(options: UseMapboxOptions) {
     map.value.fitBounds(bounds, { padding, duration: 0 });
   }
 
-  onBeforeUnmount(destroy);
+  function capture() {
+    try {
+      const m = map.value;
+      if (m) imageData.value = m.getCanvas().toDataURL("image/png");
+    } catch {
+      // canvas tainted or not ready
+    }
+  }
 
-  return { map, imageData, init, fitBounds };
+  // Auto-resize map when container dimensions change (CSS zoom settling, etc.)
+  let resizeObserver: ResizeObserver | null = null;
+  let resizeRaf = 0;
+
+  function startResizeObserver() {
+    const el = options.container.value;
+    if (!el) return;
+    resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => map.value?.resize());
+    });
+    resizeObserver.observe(el);
+  }
+
+  onBeforeUnmount(() => {
+    resizeObserver?.disconnect();
+    destroy();
+  });
+
+  return { map, imageData, init, fitBounds, capture, startResizeObserver };
 }

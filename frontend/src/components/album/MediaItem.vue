@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { mediaUrl } from "@/utils/media";
-import { computed, ref } from "vue";
+import { mediaUrl, posterPath } from "@/utils/media";
+import { computed, nextTick, ref } from "vue";
 
 const props = defineProps<{
   media: string;
   albumId: string;
   stepId: number;
+  cover?: boolean;
 }>();
 
 const printMode = usePrintMode();
@@ -15,7 +16,12 @@ const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 
 const isVideo = computed(() => props.media.endsWith(".mp4"));
 const src = computed(() => mediaUrl(props.media));
-const posterSrc = computed(() => mediaUrl(props.media.replace(".mp4", ".jpg")));
+const posterCacheBust = ref<number>();
+const posterSrc = computed(() => {
+  if (!isVideo.value) return "";
+  const base = mediaUrl(posterPath(props.media));
+  return posterCacheBust.value != null ? `${base}?v=${posterCacheBust.value}` : base;
+});
 
 const playing = ref(false);
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -29,14 +35,30 @@ function togglePlay() {
   } else {
     void videoRef.value.play();
     playing.value = true;
+    void nextTick(() => videoRef.value?.focus());
   }
 }
 
-function setFrame() {
+async function setFrame() {
   if (!videoRef.value) return;
-  frameMutation.mutate({ video: videoRef.value.src, timestamp: videoRef.value.currentTime });
+  await frameMutation.mutateAsync({ video: props.media.replace(/^trip\//, ""), timestamp: videoRef.value.currentTime });
+  posterCacheBust.value = Date.now();
   videoRef.value.pause();
   playing.value = false;
+}
+
+const FRAME_STEP = 1 / 30; // ~1 frame at 30fps
+
+function scrub(delta: number) {
+  if (!videoRef.value) return;
+  videoRef.value.pause();
+  videoRef.value.currentTime = Math.max(0, videoRef.value.currentTime + delta);
+}
+
+function onVideoKey(e: KeyboardEvent) {
+  if (e.key === "Enter") { e.preventDefault(); void setFrame(); }
+  else if (e.key === "," || e.key === "<") { e.preventDefault(); scrub(-FRAME_STEP); }
+  else if (e.key === "." || e.key === ">") { e.preventDefault(); scrub(FRAME_STEP); }
 }
 </script>
 
@@ -47,16 +69,18 @@ function setFrame() {
         v-show="!playing"
         :src="posterSrc"
         class="fill"
-        fit="cover"
+        :fit="cover ? 'cover' : 'contain'"
         loading="eager"
       />
       <video
         v-show="playing"
         ref="videoRef"
         :src="src"
-        class="fill"
+        class="fill video-playing"
+        controls
         preload="none"
         @ended="playing = false"
+        @keydown="onVideoKey"
       />
       <div v-if="!playing" class="play-overlay" @click="togglePlay">
         <q-icon name="play_arrow" size="3rem" color="white" />
@@ -77,7 +101,7 @@ function setFrame() {
         :src="isVideo ? posterSrc : src"
         :loading="imgLoading"
         class="fill"
-        fit="cover"
+        :fit="cover ? 'cover' : 'contain'"
       />
     </template>
   </div>
@@ -89,7 +113,9 @@ function setFrame() {
   overflow: hidden;
   user-select: none;
   cursor: grab;
-  background: var(--surface);
+  background: transparent;
+  width: 100%;
+  height: 100%;
 
   &:active {
     cursor: grabbing;
@@ -99,7 +125,11 @@ function setFrame() {
 .fill {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+}
+
+.video-playing {
+  object-fit: contain;
+  background: black;
 }
 
 .play-overlay {
@@ -109,11 +139,16 @@ function setFrame() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  background: rgba(0, 0, 0, 0.3);
-  transition: background 0.2s;
 
-  &:hover {
+  :deep(.q-icon) {
     background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    padding: 0.5rem;
+    transition: background 0.2s;
+  }
+
+  &:hover :deep(.q-icon) {
+    background: rgba(0, 0, 0, 0.7);
   }
 }
 

@@ -3,7 +3,8 @@ import type { Segment, Step } from "@/client";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { distance, point } from "@turf/turf";
+import { KM_TO_MI, M_TO_FT } from "@/utils/units";
+import { length as turfLength, lineChunk, lineString } from "@turf/turf";
 import { onMounted, useTemplateRef, computed, ref } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -13,19 +14,21 @@ const props = defineProps<{
   steps: Step[];
   segments: Segment[];
   hikeSegment: Segment;
+  colors: Record<string, string>;
 }>();
 
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
-const { map, init, fitBounds } = useMapbox({ container, locale: locale.value });
+const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
 
-const hikeAccent = computed(() =>
-  getComputedStyle(document.documentElement)
-    .getPropertyValue("--hike-accent")
-    .trim() || "#FF6B35",
-);
+const countryColor = computed(() => {
+  if (!props.steps.length) return "#4A90D9";
+  const code = props.steps[0]!.location.country_code;
+  return props.colors[code] ?? "#4A90D9";
+});
 
-const hikeElevations = ref<number[]>([]);
+/** Elevation samples at regular intervals along the path. */
+const elevationSamples = ref<{ lat: number; lon: number; elevation: number; dist: number }[]>([]);
 
 const stats = computed(() => {
   const pts = props.hikeSegment.points;
@@ -35,54 +38,86 @@ const stats = computed(() => {
   const endTime = pts[pts.length - 1]!.time;
   const hours = (endTime - startTime) / 3600;
 
+  const samples = elevationSamples.value;
+  const hasElev = samples.length >= 2;
+
+  // Slope-corrected 3D distance: on steep terrain, trails must switchback,
+  // making the actual horizontal distance longer than the GPS chord.
+  // MAX_TRAIL_GRADE is the steepest maintained trail grade (~15%).
+  const MAX_TRAIL_GRADE = 0.20;
   let totalKm = 0;
   let elevGain = 0;
-  const elevs = hikeElevations.value;
-  const hasElev = elevs.length === pts.length;
 
-  for (let i = 1; i < pts.length; i++) {
-    const horiz = distance(
-      point([pts[i - 1]!.lon, pts[i - 1]!.lat]),
-      point([pts[i]!.lon, pts[i]!.lat]),
-      { units: "kilometers" },
-    );
-    if (hasElev) {
-      const dElev = (elevs[i]! - elevs[i - 1]!) / 1000;
-      totalKm += Math.sqrt(horiz ** 2 + dElev ** 2);
-      if (elevs[i]! > elevs[i - 1]!) elevGain += elevs[i]! - elevs[i - 1]!;
-    } else {
-      totalKm += horiz;
+  if (hasElev) {
+    for (let i = 1; i < samples.length; i++) {
+      const dh = (samples[i]!.dist - samples[i - 1]!.dist) * 1000; // chord (m)
+      const de = samples[i]!.elevation - samples[i - 1]!.elevation;
+      // Trail can't be shorter than the chord, and can't be steeper than
+      // MAX_TRAIL_GRADE — whichever constraint binds gives the longer estimate.
+      const horizontalM = Math.max(dh, Math.abs(de) / MAX_TRAIL_GRADE);
+      totalKm += Math.sqrt(horizontalM * horizontalM + de * de) / 1000;
+
+      if (de > 0) elevGain += de;
     }
+  } else {
+    const coords: [number, number][] = pts.map((p) => [p.lon, p.lat]);
+    totalKm = turfLength(lineString(coords), { units: "kilometers" });
   }
 
-  const dist = isKm.value ? totalKm : totalKm * 0.621371;
-  const elev = isKm.value ? elevGain : elevGain * 3.28084;
+  const dist = isKm.value ? totalKm : totalKm * KM_TO_MI;
+  const elev = isKm.value ? elevGain : elevGain * M_TO_FT;
 
   return {
     distance: dist.toFixed(1),
-    duration: hours >= 24 ? `${Math.round(hours / 24)}d` : `${Math.round(hours)}h`,
+    duration: hours >= 24 ? `${Math.ceil(hours / 24)}d` : `${Math.round(hours)}h`,
     elevGain: Math.round(elev),
   };
 });
 
-const profilePoints = computed(() => {
-  const elevs = hikeElevations.value;
-  if (elevs.length !== props.hikeSegment.points.length) return [];
-  return props.hikeSegment.points.map((p, i) => ({
-    lat: p.lat,
-    lon: p.lon,
-    elevation: elevs[i]!,
-  }));
-});
+const profilePoints = computed(() => elevationSamples.value);
+const totalDistKm = computed(() =>
+  elevationSamples.value.length >= 2
+    ? elevationSamples.value[elevationSamples.value.length - 1]!.dist
+    : 0,
+);
 
+/**
+ * Sample elevation at regular intervals along the hike path using turf.lineChunk.
+ */
 function queryElevations(m: mapboxgl.Map) {
-  hikeElevations.value = props.hikeSegment.points.map(
-    (pt) => m.queryTerrainElevation(new mapboxgl.LngLat(pt.lon, pt.lat)) ?? 0,
-  );
+  const pts = props.hikeSegment.points;
+  if (pts.length < 2) return;
+
+  const coords: [number, number][] = pts.map((p) => [p.lon, p.lat]);
+  const line = lineString(coords);
+  const totalDist = turfLength(line, { units: "kilometers" });
+
+  // Target ~500 samples, minimum 20m spacing
+  const chunkKm = Math.max(0.02, totalDist / 500);
+  const chunks = lineChunk(line, chunkKm, { units: "kilometers" }).features;
+
+  const samples: { lat: number; lon: number; elevation: number; dist: number }[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i]!.geometry.coordinates[0]!;
+    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(c[0]!, c[1]!)) ?? 0;
+    samples.push({ lat: c[1]!, lon: c[0]!, elevation: elev, dist: i * chunkKm });
+  }
+
+  // Add the final point of the last chunk
+  const lastChunk = chunks[chunks.length - 1]!;
+  const lastCoords = lastChunk.geometry.coordinates;
+  const lastPt = lastCoords[lastCoords.length - 1]!;
+  const lastElev = m.queryTerrainElevation(new mapboxgl.LngLat(lastPt[0]!, lastPt[1]!)) ?? 0;
+  samples.push({ lat: lastPt[1]!, lon: lastPt[0]!, elevation: lastElev, dist: totalDist });
+
+  elevationSamples.value = samples;
 }
 
 onMounted(() => {
   init();
+  startResizeObserver();
+
   map.value?.on("load", () => {
     const m = map.value!;
 
@@ -106,20 +141,25 @@ onMounted(() => {
         style: "faint",
       });
 
-      // Prominent hike + step markers
+      // Prominent hike + step markers (skip cleanup to keep faint layers)
       const coords = await drawSegmentsAndMarkers(m, {
         segments: [props.hikeSegment],
         steps: props.steps,
-        hikeAccent: hikeAccent.value,
+        skipCleanup: true,
+        hikeColor: countryColor.value,
       });
 
-      fitBounds(coords, 80);
+      // Asymmetric padding: more at bottom for the elevation chart overlay
+      const el = container.value;
+      const bottomPad = el ? el.clientHeight * 0.27 : 200;
+      fitBounds(coords, { top: 80, right: 80, bottom: bottomPad, left: 80 });
 
       // Query elevations once terrain tiles are loaded
       m.once("idle", () => queryElevations(m));
     })();
   });
 });
+
 </script>
 
 <template>
@@ -138,22 +178,26 @@ onMounted(() => {
         <span class="stat-unit">{{ isKm ? 'm+' : 'ft+' }}</span>
       </div>
     </div>
-    <div class="elevation-strip">
-      <ElevationProfile :points="profilePoints" :accent="hikeAccent" />
+    <div class="elevation-overlay">
+      <ElevationProfile
+        :points="profilePoints"
+        :accent="countryColor"
+        :total-dist-km="totalDistKm"
+        :is-km="isKm"
+      />
     </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .hike-page {
-  display: flex;
-  flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
 .hike-map {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .hike-overlay {
@@ -186,10 +230,23 @@ onMounted(() => {
   opacity: 0.7;
 }
 
-.elevation-strip {
+.elevation-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 25%;
-  min-height: 80px;
-  background: var(--bg);
-  padding: 0.5rem 1rem;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 1.5rem 0.5rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(24, 24, 28, 0.65) 18%,
+    rgba(24, 24, 28, 0.92) 32%,
+    rgb(24, 24, 28) 48%
+  );
 }
 </style>

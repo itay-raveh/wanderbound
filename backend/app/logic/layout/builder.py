@@ -106,16 +106,20 @@ async def build_step_layout(
 
     media: list[Media] = [m async for m in _step_media(user, step_dir)]
 
+    def media_path(m: Media) -> Path:
+        """Use the .mp4 source for videos so the frontend can detect them."""
+        return m.src if isinstance(m, Video) else m.path
+
     # Split and sort portraits (closest to 4/5 first)
     portraits = [
-        p.path
+        media_path(p)
         for p in sorted(
             (p for p in media if p.is_portrait),
             key=lambda p: p.aspect_ratio,
             reverse=True,
         )
     ]
-    landscapes = [p.path for p in media if not p.is_portrait]
+    landscapes = [media_path(p) for p in media if not p.is_portrait]
 
     # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]
