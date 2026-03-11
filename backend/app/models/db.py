@@ -6,7 +6,7 @@ from pathlib import Path, PurePath
 from typing import Any, BinaryIO, Self
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, TypeAdapter, computed_field
 from safezip import safe_extract
 from sqlalchemy import ForeignKeyConstraint, TypeDecorator
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -14,8 +14,9 @@ from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 from app.core.config import settings
 from app.logic.country_colors import CountryCode, HexColor
+from app.logic.spatial.segments import SegmentKind
 from app.logic.weather import Weather
-from app.models.trips import Location
+from app.models.trips import Location, Point
 
 
 def _json_default(obj: Any) -> Any:
@@ -27,21 +28,23 @@ def _json_default(obj: Any) -> Any:
 
 
 class PydanticJSON(TypeDecorator[Any]):
-    """JSON column that deserializes into a Pydantic model."""
+    """JSON column that deserializes via Pydantic TypeAdapter.
+
+    Works with both single models (``PydanticJSON(Location)``) and generic
+    types like ``PydanticJSON(list[Point])``.
+    """
 
     impl = JSON
     cache_ok = True
 
-    def __init__(self, model_class: type[BaseModel]) -> None:
+    def __init__(self, tp: type) -> None:
         super().__init__()
-        self.model_class = model_class
+        self._adapter = TypeAdapter(tp)
 
     def process_result_value(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
         if value is None:
             return None
-        if isinstance(value, dict):
-            return self.model_class.model_validate(value)
-        return value
+        return self._adapter.validate_python(value)
 
 
 engine = create_async_engine(
@@ -127,6 +130,7 @@ class Album(AlbumSettings, table=True):
 
     user: User = Relationship(back_populates="albums")
     steps: list[Step] = Relationship(back_populates="album", cascade_delete=True)
+    segments: list[Segment] = Relationship(back_populates="album", cascade_delete=True)
     colors: dict[CountryCode, HexColor] = Field(sa_column=Column(JSON, nullable=False))
 
 
@@ -163,3 +167,22 @@ class Step(StepLayout, table=True):
     @property
     def datetime(self) -> datetime:
         return datetime.fromtimestamp(self.timestamp, tz=ZoneInfo(self.timezone_id))
+
+
+class Segment(SQLModel, table=True):
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
+        ),
+    )
+
+    uid: int = Field(primary_key=True, foreign_key="user.id")
+    aid: AlbumId = Field(primary_key=True)
+    start_time: float = Field(primary_key=True)
+    end_time: float = Field(primary_key=True)
+
+    album: Album = Relationship(back_populates="segments")
+    kind: SegmentKind
+    points: list[Point] = Field(
+        sa_column=Column(PydanticJSON(list[Point]), nullable=False)
+    )

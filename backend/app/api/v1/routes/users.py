@@ -14,9 +14,10 @@ from app.logic.country_colors import build_country_colors
 from app.logic.layout import build_step_layout
 from app.logic.spatial.elevation import elevations
 from app.logic.spatial.peaks import correct_peaks
+from app.logic.spatial.segments import build_segments
 from app.logic.weather import build_weathers
-from app.models.db import Album, Step, User, engine
-from app.models.trips import PSStep, Trip
+from app.models.db import Album, Segment, Step, User, engine
+from app.models.trips import Locations, PSStep, Trip
 
 from ..deps import USER_COOKIE, SessionDep, UserDep
 
@@ -56,7 +57,7 @@ async def create_user(file: UploadFile, response: Response) -> User:
     response.set_cookie(USER_COOKIE, str(user.id))
 
     # Collect all DB objects to persist
-    db_objects: list[User | Album | Step] = [user]
+    db_objects: list[User | Album | Step | Segment] = [user]
 
     for trip_dir in user.trips_folder.iterdir():
         trip = Trip.from_trip_dir(trip_dir)
@@ -90,26 +91,42 @@ async def create_user(file: UploadFile, response: Response) -> User:
         layouts = await _fetch_layouts(user, album.id, trip.all_steps)
         logger.info("Built layouts")
 
+        db_steps: list[Step] = []
         for idx, (step, elevation, weather, (cover, pages)) in enumerate(
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
         ):
-            db_objects.append(
-                Step(
-                    uid=user.id,
-                    aid=album.id,
-                    idx=idx,
-                    name=step.name,
-                    description=step.description,
-                    timestamp=step.timestamp,
-                    timezone_id=step.timezone_id,
-                    location=step.location,
-                    elevation=elevation,
-                    weather=weather,
-                    cover=cover,
-                    pages=pages,
-                    unused=[],
-                )
+            db_step = Step(
+                uid=user.id,
+                aid=album.id,
+                idx=idx,
+                name=step.name,
+                description=step.description,
+                timestamp=step.timestamp,
+                timezone_id=step.timezone_id,
+                location=step.location,
+                elevation=elevation,
+                weather=weather,
+                cover=cover,
+                pages=pages,
+                unused=[],
             )
+            db_steps.append(db_step)
+            db_objects.append(db_step)
+
+        # Build segments from all steps + GPS locations
+        locations = Locations.from_trip_dir(trip_dir).locations
+        db_objects.extend(
+            Segment(
+                uid=user.id,
+                aid=album.id,
+                start_time=seg.points[0].time,
+                end_time=seg.points[-1].time,
+                kind=seg.kind,
+                points=seg.points,
+            )
+            for seg in build_segments(db_steps, locations)
+        )
+        logger.info("Built segments")
 
     # Open a fresh session only for the DB write
     async with AsyncSession(engine) as session:

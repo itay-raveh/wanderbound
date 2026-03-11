@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import countryBounds from "@/../public/countries/bounds.json";
+import countryBounds from "@/countries/bounds.json";
 import { computed } from "vue";
 
 const props = defineProps<{

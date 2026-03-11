@@ -1,4 +1,3 @@
-from collections import Counter
 from itertools import chain
 from typing import Annotated
 
@@ -10,9 +9,15 @@ from sqlmodel import select
 from app.api.v1.deps import USER_COOKIE
 from app.core.config import settings
 from app.core.logging import config_logger
-from app.logic.spatial.segments import Segment, build_segments
-from app.models.db import Album, AlbumId, AlbumSettings, Step, StepIdx, StepLayout
-from app.models.trips import Locations
+from app.models.db import (
+    Album,
+    AlbumId,
+    AlbumSettings,
+    Segment,
+    Step,
+    StepIdx,
+    StepLayout,
+)
 
 from ..deps import AlbumDep, BrowserDep, SessionDep, UserDep
 
@@ -73,12 +78,22 @@ async def read_steps(
     if not steps:
         return StepsAndSegments(steps=[], segments=[])
 
-    locations = Locations.from_trip_dir(user.trips_folder / aid).locations
-    segments = list(build_segments(steps, locations))  # type: ignore[invalid-argument-type]
-
-    logger.info(
-        "Segments: %s",
-        Counter(s.kind.name for s in segments),
+    # Load pre-computed segments overlapping the requested steps' time window
+    range_start = steps[0].timestamp
+    range_end = steps[-1].timestamp
+    segments = list(
+        (
+            await session.scalars(
+                select(Segment)
+                .where(
+                    Segment.uid == user.id,
+                    Segment.aid == aid,
+                    Segment.start_time <= range_end,  # type: ignore[operator]
+                    Segment.end_time >= range_start,  # type: ignore[operator]
+                )
+                .order_by(Segment.start_time)  # type: ignore[invalid-argument-type]
+            )
+        ).all()
     )
 
     return StepsAndSegments(steps=steps, segments=segments)

@@ -26,7 +26,7 @@ The five-stage pipeline
                   elapsed, 2 km path, 1 km displacement from start.  Flights
                   shorter than 100 km are also discarded.  Rejects become "other".
 
-  5  Emit         Convert to ``Segment`` objects.  All segments (including
+  5  Emit         Convert to ``SegmentData`` objects.  All segments (including
                   hikes) are RDP-simplified for rendering efficiency.  "other"
                   is resolved into "walking" (≤ 6.5 km/h avg) or "driving"
                   (faster).  Consecutive segments share a boundary point so
@@ -58,13 +58,14 @@ import polars as pl
 from pydantic import BaseModel
 
 from app.core.logging import config_logger
-from app.models.db import Step
 from app.models.trips import Point
 
 from .simplify import rdp_mask
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
+    from app.models.db import Step
 
 
 logger = config_logger(__name__)
@@ -129,8 +130,15 @@ CAMP_GAP_MAX_H = 20.0  # a full overnight absence can be up to ~20 h
 # Short blackouts (< 6 h) only need the following hike anchor; long blackouts
 # (6-24 h, e.g. overnight GPS silence) need both anchors to avoid merging an
 # evening city walk with the next morning's hike.
+#
+# Distance caps: short blackouts (daytime, < 6 h) can legitimately cover more
+# distance (bus/walk to trailhead) so only reject extreme cases.  Long blackouts
+# (overnight, 6-24 h) with significant distance likely include driving — a real
+# overnight blackout has only GPS drift (< 1 km) or modest displacement.
 BLACKOUT_GAP_SHORT_MAX_H = 6.0
 BLACKOUT_GAP_LONG_MAX_H = 24.0
+BLACKOUT_GAP_SHORT_MAX_DIST_KM = 10.0
+BLACKOUT_GAP_LONG_MAX_DIST_KM = 4.0
 
 # Both absorption passes require a minimum hike run on each side of the gap —
 # the "anchor" criterion.  Kept lower than HIKE_MIN_DURATION_H so that a
@@ -153,7 +161,7 @@ class SegmentKind(StrEnum):
     driving = "driving"
 
 
-class Segment(BaseModel):
+class SegmentData(BaseModel):
     kind: SegmentKind
     points: list[Point]
 
@@ -583,6 +591,7 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
     is_short_blackout = (
         between_hikes
         & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
+        & (pl.col("run_dist_km") < BLACKOUT_GAP_SHORT_MAX_DIST_KM)
         & (pl.col("run_h") < BLACKOUT_GAP_SHORT_MAX_H)
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
     )
@@ -593,6 +602,7 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
     is_long_blackout = (
         between_hikes
         & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
+        & (pl.col("run_dist_km") < BLACKOUT_GAP_LONG_MAX_DIST_KM)
         & (pl.col("run_h") >= BLACKOUT_GAP_SHORT_MAX_H)
         & (pl.col("run_h") < BLACKOUT_GAP_LONG_MAX_H)
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
@@ -683,8 +693,8 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[Segment]:
-    """Convert the validated DataFrame to Segment objects.
+def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
+    """Convert the validated DataFrame to SegmentData objects.
 
     For each output group (output_id):
       - Flight: keep only first and last point; skip if it departs before
@@ -745,7 +755,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[Segment]
             seg_kind = SegmentKind(kind)
 
         prev_last_pt = pts[-1]
-        yield Segment(kind=seg_kind, points=pts)
+        yield SegmentData(kind=seg_kind, points=pts)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -755,7 +765,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[Segment]
 
 def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
-) -> Iterable[Segment]:
+) -> Iterable[SegmentData]:
     """Segment a Polarsteps trip into typed movement segments.
 
     Args:
@@ -764,7 +774,7 @@ def build_segments(
         locations: Raw GPS points for the trip (need not be pre-filtered).
 
     Yields:
-        ``Segment`` objects in chronological order, each with a ``kind``
+        ``SegmentData`` objects in chronological order, each with a ``kind``
         (hike / flight / walking / driving) and a list of ``Point`` objects.
     """
     logger.info(

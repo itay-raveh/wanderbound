@@ -32,7 +32,9 @@ gdf = gdf.to_crs(epsg=3857)
 output_dir = "public/countries"
 os.makedirs(output_dir, exist_ok=True)
 
-json_filename = output_dir + "/bounds.json"
+bounds_dir = "src/countries"
+os.makedirs(bounds_dir, exist_ok=True)
+json_filename = bounds_dir + "/bounds.json"
 bounds_dict = {}
 
 print(f"Generating individual SVGs in '/{output_dir}' and {json_filename}...")
@@ -69,14 +71,14 @@ for idx, row in gdf.iterrows():
     svg_paths = re.sub(r'stroke-width="[^"]+"', "", svg_paths)
     svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
 
-    # Write the standalone SVG file containing a targeted symbol
+    # Write the standalone SVG file with paths in a <g> (no <symbol> viewport issues)
     svg_filepath = os.path.join(output_dir, f"{symbol_id}.svg")
     with open(svg_filepath, "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write('<svg xmlns="http://www.w3.org/2000/svg">\n')
-        f.write(f'  <symbol id="map" viewBox="{minx} {miny} {width} {height}">\n')
-        f.write(f"    {svg_paths}\n")
-        f.write("  </symbol>\n")
+        f.write(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{minx} {miny} {width} {height}">\n'
+        )
+        f.write(f'  <g id="map">{svg_paths}</g>\n')
         f.write("</svg>\n")
 
 # 5. Export the master dictionary

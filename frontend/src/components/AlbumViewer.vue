@@ -53,14 +53,14 @@ const sections = computed<Section[]>(() => {
     const rangeSteps = allSteps.filter(
       (s) => s.idx >= r.start && s.idx <= r.end,
     );
-    const rangeSegments = allSegments.filter((seg) => {
-      if (seg.points.length < 2 || rangeSteps.length === 0) return false;
-      const segStart = seg.points[0]!.time;
-      const segEnd = seg.points[seg.points.length - 1]!.time;
-      const rangeStart = rangeSteps[0]!.timestamp;
-      const rangeEnd = rangeSteps[rangeSteps.length - 1]!.timestamp;
-      return segStart <= rangeEnd && segEnd >= rangeStart;
-    });
+    const rangeStart = rangeSteps[0]?.timestamp;
+    const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
+    const rangeSegments =
+      rangeStart == null || rangeEnd == null
+        ? []
+        : allSegments.filter(
+            (seg) => seg.start_time <= rangeEnd && seg.end_time >= rangeStart,
+          );
     return {
       start: r.start,
       end: r.end,
