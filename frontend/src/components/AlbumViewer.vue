@@ -101,15 +101,6 @@ const sections = computed<Section[]>(() => {
 
   if (mapRanges.length === 0 && allSegments.length > 0) {
     result.unshift({ type: "map", steps: allSteps, segments: allSegments });
-    const hikeSegment = allSegments.find((s) => s.kind === "hike");
-    if (hikeSegment) {
-      result.splice(1, 0, {
-        type: "hike",
-        steps: allSteps,
-        segments: allSegments,
-        hikeSegment,
-      });
-    }
   }
 
   return result;
