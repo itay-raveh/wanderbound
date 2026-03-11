@@ -2,10 +2,11 @@
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/usePageDescription";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { getCountryColor } from "@/utils/colors";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { weatherIconUrl } from "@/utils/weather";
-import { Dark } from "quasar";
+import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "./CountrySilhouette.vue";
 
@@ -27,19 +28,9 @@ const dir = computed(() => {
 });
 
 const countryColor = computed(() => {
-  const raw = props.colors[props.step.location.country_code];
-  const hex = typeof raw === "string" ? raw : "#4A90D9";
-  if (Dark.isActive) return hex;
-  return adjustColor(hex, 50);
+  const hex = getCountryColor(props.colors, props.step.location.country_code);
+  return Dark.isActive ? hex : qColors.lighten(hex, 30);
 });
-
-function adjustColor(hex: string, amount: number): string {
-  const h = hex.replace("#", "");
-  const r = Math.min(255, parseInt(h.substring(0, 2), 16) + amount);
-  const g = Math.min(255, parseInt(h.substring(2, 4), 16) + amount);
-  const b = Math.min(255, parseInt(h.substring(4, 6), 16) + amount);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
 
 function toDMS(decimal: number, isLat: boolean): string {
   const abs = Math.abs(decimal);

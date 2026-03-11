@@ -1,6 +1,6 @@
 import mapboxgl from "mapbox-gl";
 
-import { onBeforeUnmount, shallowRef, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
+import { onBeforeUnmount, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -27,7 +27,6 @@ function langFromLocale(locale: string | undefined): string {
 
 export function useMapbox(options: UseMapboxOptions) {
   const map = shallowRef<mapboxgl.Map | null>(null);
-  const imageData = ref<string | null>(null);
 
   function init() {
     if (!options.container.value || map.value) return;
@@ -81,15 +80,6 @@ export function useMapbox(options: UseMapboxOptions) {
     map.value.fitBounds(bounds, { padding, duration: 0 });
   }
 
-  function capture() {
-    try {
-      const m = map.value;
-      if (m) imageData.value = m.getCanvas().toDataURL("image/png");
-    } catch {
-      // canvas tainted or not ready
-    }
-  }
-
   // Auto-resize map when container dimensions change (CSS zoom settling, etc.)
   let resizeObserver: ResizeObserver | null = null;
   let resizeRaf = 0;
@@ -109,5 +99,5 @@ export function useMapbox(options: UseMapboxOptions) {
     destroy();
   });
 
-  return { map, imageData, init, fitBounds, capture, startResizeObserver };
+  return { map, init, fitBounds, startResizeObserver };
 }

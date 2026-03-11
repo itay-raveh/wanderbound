@@ -3,8 +3,9 @@ import type { Segment, Step } from "@/client";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { getCountryColor } from "@/utils/colors";
 import { KM_TO_MI, M_TO_FT } from "@/utils/units";
-import { length as turfLength, lineChunk, lineString } from "@turf/turf";
+import { along, length as turfLength, lineString } from "@turf/turf";
 import { onMounted, useTemplateRef, computed, ref } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -22,9 +23,8 @@ const { distanceUnit, isKm, locale } = useUserQuery();
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
 
 const countryColor = computed(() => {
-  if (!props.steps.length) return "#4A90D9";
-  const code = props.steps[0]!.location.country_code;
-  return props.colors[code] ?? "#4A90D9";
+  if (!props.steps.length) return getCountryColor({}, "");
+  return getCountryColor(props.colors, props.steps[0]!.location.country_code);
 });
 
 /** Elevation samples at regular intervals along the path. */
@@ -43,7 +43,6 @@ const stats = computed(() => {
 
   // Slope-corrected 3D distance: on steep terrain, trails must switchback,
   // making the actual horizontal distance longer than the GPS chord.
-  // MAX_TRAIL_GRADE is the steepest maintained trail grade (~15%).
   const MAX_TRAIL_GRADE = 0.20;
   let totalKm = 0;
   let elevGain = 0;
@@ -74,7 +73,6 @@ const stats = computed(() => {
   };
 });
 
-const profilePoints = computed(() => elevationSamples.value);
 const totalDistKm = computed(() =>
   elevationSamples.value.length >= 2
     ? elevationSamples.value[elevationSamples.value.length - 1]!.dist
@@ -82,7 +80,7 @@ const totalDistKm = computed(() =>
 );
 
 /**
- * Sample elevation at regular intervals along the hike path using turf.lineChunk.
+ * Sample elevation at regular intervals along the hike path using turf.along.
  */
 function queryElevations(m: mapboxgl.Map) {
   const pts = props.hikeSegment.points;
@@ -94,22 +92,25 @@ function queryElevations(m: mapboxgl.Map) {
 
   // Target ~500 samples, minimum 20m spacing
   const chunkKm = Math.max(0.02, totalDist / 500);
-  const chunks = lineChunk(line, chunkKm, { units: "kilometers" }).features;
+  const numSamples = Math.floor(totalDist / chunkKm);
 
   const samples: { lat: number; lon: number; elevation: number; dist: number }[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
-    const c = chunks[i]!.geometry.coordinates[0]!;
-    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(c[0]!, c[1]!)) ?? 0;
-    samples.push({ lat: c[1]!, lon: c[0]!, elevation: elev, dist: i * chunkKm });
+  for (let i = 0; i <= numSamples; i++) {
+    const dist = i * chunkKm;
+    const pt = along(line, dist, { units: "kilometers" });
+    const [lon, lat] = pt.geometry.coordinates;
+    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon!, lat!)) ?? 0;
+    samples.push({ lat: lat!, lon: lon!, elevation: elev, dist });
   }
 
-  // Add the final point of the last chunk
-  const lastChunk = chunks[chunks.length - 1]!;
-  const lastCoords = lastChunk.geometry.coordinates;
-  const lastPt = lastCoords[lastCoords.length - 1]!;
-  const lastElev = m.queryTerrainElevation(new mapboxgl.LngLat(lastPt[0]!, lastPt[1]!)) ?? 0;
-  samples.push({ lat: lastPt[1]!, lon: lastPt[0]!, elevation: lastElev, dist: totalDist });
+  // Add the final point if not already at the end
+  if (numSamples * chunkKm < totalDist) {
+    const lastPt = along(line, totalDist, { units: "kilometers" });
+    const [lon, lat] = lastPt.geometry.coordinates;
+    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon!, lat!)) ?? 0;
+    samples.push({ lat: lat!, lon: lon!, elevation: elev, dist: totalDist });
+  }
 
   elevationSamples.value = samples;
 }
@@ -180,7 +181,7 @@ onMounted(() => {
     </div>
     <div class="elevation-overlay">
       <ElevationProfile
-        :points="profilePoints"
+        :points="elevationSamples"
         :accent="countryColor"
         :total-dist-km="totalDistKm"
         :is-km="isKm"

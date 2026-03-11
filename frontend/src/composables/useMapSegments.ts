@@ -4,6 +4,7 @@
  * Used by both MapPage (overview) and HikeMapPage (hike-focused).
  */
 import type { Segment, Step } from "@/client";
+import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
 import { mediaUrl, posterPath } from "@/utils/media";
 import { matchRoute } from "@/utils/mapMatching";
 import mapboxgl from "mapbox-gl";
@@ -158,7 +159,7 @@ function drawHike(
   faint: boolean,
   color?: string,
 ) {
-  const hikeColor = color ?? "#4A90D9";
+  const hikeColor = color ?? DEFAULT_COUNTRY_COLOR;
 
   if (!faint) {
     // Dark stroke behind the colored line for contrast on satellite imagery

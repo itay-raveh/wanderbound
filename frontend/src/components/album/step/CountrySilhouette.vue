@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { ref, computed, watch } from "vue";
+import countryBounds from "@/../public/countries/bounds.json";
+import { computed } from "vue";
 
 const props = defineProps<{
   countryCode: string;
@@ -8,10 +9,16 @@ const props = defineProps<{
   color?: string;
 }>();
 
-const pathContent = ref("");
-const rawViewBox = ref("");
+const bounds = countryBounds as Record<string, [number, number, number, number]>;
 
 const fillColor = computed(() => props.color ?? "currentColor");
+const code = computed(() => props.countryCode.toLowerCase());
+const svgHref = computed(() => `/countries/${code.value}.svg#map`);
+
+const rawViewBox = computed(() => {
+  const b = bounds[code.value];
+  return b ? `${b[0]} ${b[1]} ${b[2]} ${b[3]}` : null;
+});
 
 // Convert lat/lon → Web Mercator (EPSG:3857), then flip Y (matching the SVG generation script)
 function toSvgCoords(lat: number, lon: number): [number, number] {
@@ -23,12 +30,11 @@ function toSvgCoords(lat: number, lon: number): [number, number] {
 }
 
 const pin = computed(() => {
-  if (!rawViewBox.value) return null;
+  const b = bounds[code.value];
+  if (!b) return null;
   const [x, y] = toSvgCoords(props.lat, props.lon);
-  const parts = rawViewBox.value.split(" ").map(Number);
-  const w = parts[2]!;
-  const h = parts[3]!;
-  // Use diagonal to get consistent visual size regardless of country aspect ratio
+  const w = b[2];
+  const h = b[3];
   const diag = Math.sqrt(w * w + h * h);
   const r = diag * 0.025;
   return { x, y, r };
@@ -37,8 +43,8 @@ const pin = computed(() => {
 // Expand viewBox so the pin is never clipped at edges
 const viewBox = computed(() => {
   if (!rawViewBox.value || !pin.value) return rawViewBox.value;
-  const parts = rawViewBox.value.split(" ").map(Number);
-  let [minX, minY, w, h] = parts as [number, number, number, number];
+  const b = bounds[code.value]!;
+  let [minX, minY, w, h] = b;
   const { x, y, r } = pin.value;
   const pad = r * 3;
 
@@ -49,35 +55,11 @@ const viewBox = computed(() => {
 
   return `${minX} ${minY} ${w} ${h}`;
 });
-
-async function loadSvg(code: string) {
-  try {
-    const res = await fetch(`/countries/${code}.svg`);
-    if (!res.ok) return;
-    const text = await res.text();
-
-    const vbMatch = text.match(/viewBox="([^"]+)"/);
-    if (vbMatch) rawViewBox.value = vbMatch[1]!;
-
-    const innerMatch = text.match(/<symbol[^>]*>([\s\S]*?)<\/symbol>/);
-    if (innerMatch) pathContent.value = innerMatch[1]!;
-  } catch {
-    /* country SVG not available */
-  }
-}
-
-watch(
-  () => props.countryCode,
-  (code) => {
-    if (code) void loadSvg(code.toLowerCase());
-  },
-  { immediate: true },
-);
 </script>
 
 <template>
   <svg
-    v-if="viewBox && pathContent"
+    v-if="viewBox"
     :viewBox="viewBox"
     class="country-silhouette"
     preserveAspectRatio="xMidYMid meet"
@@ -91,8 +73,7 @@ watch(
         </feMerge>
       </filter>
     </defs>
-    <!-- eslint-disable vue/no-v-html -->
-    <g :style="{ color: fillColor }" v-html="pathContent" />
+    <use :href="svgHref" :style="{ color: fillColor }" />
     <circle
       v-if="pin"
       :cx="pin.x"
