@@ -137,10 +137,10 @@ async function drawMatched(
   const isDriving = profile === "driving";
 
   addLine(m, id, coords, {
-    "line-color": isDriving ? "rgba(255, 255, 255, 0.5)" : "rgba(255, 255, 255, 0.6)",
-    "line-width": faint ? 0.8 : 1.5,
+    "line-color": isDriving ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.7)",
+    "line-width": faint ? 1 : isDriving ? 2.5 : 1.5,
     "line-dasharray": isDriving ? [1, 0] : [1, 3],
-    "line-opacity": faint ? 0.15 : isDriving ? 0.4 : 0.5,
+    "line-opacity": faint ? 0.3 : isDriving ? 0.8 : 0.6,
   });
 }
 

@@ -25,5 +25,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="map" class="page-container" />
+  <div ref="map" class="page-container map-page" />
 </template>
+
+<style lang="scss" scoped>
+.map-page {
+  padding: 0 !important;
+}
+</style>

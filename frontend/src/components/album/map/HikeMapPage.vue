@@ -149,6 +149,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
+  padding: 0 !important;
 }
 
 .hike-map {

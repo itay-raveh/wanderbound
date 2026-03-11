@@ -22,6 +22,7 @@ export function useMapbox(options: UseMapboxOptions) {
     const m = new mapboxgl.Map({
       container: options.container.value,
       style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
+      projection: "mercator",
       interactive: options.interactive ?? false,
       attributionControl: false,
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
