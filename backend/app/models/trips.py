@@ -82,16 +82,12 @@ class PSStep(BaseModel):
         )
 
 
-class TripCoverPhoto(BaseModel):
-    path: HttpUrl
-
-
 class Trip(BaseModel):
     id: int
     slug: str
     title: str = Field(alias="name")
     subtitle: NullableStr = Field(alias="summary")
-    cover_photo: TripCoverPhoto
+    cover_photo_path: HttpUrl
     step_count: int
     all_steps: list[PSStep]
 

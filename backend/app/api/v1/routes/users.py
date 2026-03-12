@@ -267,8 +267,8 @@ async def _process_trip(
         steps_ranges=f"0-{len(trip.all_steps) - 1}",
         title=trip.title,
         subtitle=trip.subtitle,
-        front_cover_photo=str(trip.cover_photo.path),
-        back_cover_photo=str(trip.cover_photo.path),
+        front_cover_photo=str(trip.cover_photo_path),
+        back_cover_photo=str(trip.cover_photo_path),
     )
     layouts = await _fetch_layouts(
         user,
