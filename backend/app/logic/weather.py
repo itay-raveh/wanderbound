@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterable
 from typing import TYPE_CHECKING
 
-import httpx
 from pydantic import BaseModel
 
 from app.core.client import client
 from app.core.logging import config_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Awaitable, Callable, Sequence
 
     from app.models.trips import PSStep
 
@@ -127,10 +125,10 @@ def _weather_from_result(
 ) -> Weather | None:
     """Extract weather for a specific step's date from a location result."""
     date_str = str(step.datetime.date())
-    if date_str not in loc.daily.time:
+    try:
+        day_idx = loc.daily.time.index(date_str)
+    except ValueError:
         return None
-
-    day_idx = loc.daily.time.index(date_str)
     wmo_code = loc.daily.weather_code[day_idx]
     d = loc.daily
     return Weather(
@@ -150,8 +148,8 @@ def _weather_from_result(
 async def _fetch_one(
     step: PSStep,
     sem: asyncio.Semaphore,
-) -> _LocationResult | None:
-    """Fetch weather for a single step (1 location, 1 day)."""
+) -> Weather:
+    """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     async with sem:
         try:
@@ -166,34 +164,38 @@ async def _fetch_one(
                     "timezone": "auto",
                 },
             )
-            if response.status_code != 200:
-                logger.warning(
-                    "Open-Meteo returned %d for %s",
-                    response.status_code,
-                    step.location.detail,
-                )
-                return None
-            return _LocationResult.model_validate(response.json())
-        except httpx.HTTPError, ValueError, KeyError:
-            logger.exception("Weather fetch failed for %s", step.location.detail)
-            return None
-
-
-async def build_weathers(steps: Sequence[PSStep]) -> AsyncIterable[Weather]:
-    sem = asyncio.Semaphore(_WEATHER_CONCURRENCY)
-    results = await asyncio.gather(*(_fetch_one(s, sem) for s in steps))
-
-    for step, maybe_result in zip(steps, results, strict=True):
-        if (
-            maybe_result is None
-            or (weather := _weather_from_result(step, maybe_result)) is None
-        ):
-            yield Weather(
-                day=WeatherData(
-                    temp=step.weather_temperature,
-                    feels_like=step.weather_temperature,
-                    icon=step.weather_condition,
-                )
+        except Exception as e:
+            msg = f"Weather API unavailable for {step.location.detail}"
+            raise RuntimeError(msg) from e
+        if response.status_code != 200:
+            msg = (
+                f"Weather API returned {response.status_code}"
+                f" for {step.location.detail}"
             )
-        else:
-            yield weather
+            raise RuntimeError(msg)
+        result = _LocationResult.model_validate(response.json())
+        weather = _weather_from_result(step, result)
+        if weather is None:
+            msg = f"No weather data for {step.location.detail} on {date_str}"
+            raise RuntimeError(msg)
+        return weather
+
+
+async def build_weathers(
+    steps: Sequence[PSStep],
+    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
+) -> list[Weather]:
+    """Fetch weather for all steps.  Raises on any failure."""
+    sem = asyncio.Semaphore(_WEATHER_CONCURRENCY)
+    total = len(steps)
+    completed = 0
+
+    async def _one(step: PSStep) -> Weather:
+        nonlocal completed
+        weather = await _fetch_one(step, sem)
+        completed += 1
+        if on_progress:
+            await on_progress(completed, total)
+        return weather
+
+    return list(await asyncio.gather(*(_one(s) for s in steps)))

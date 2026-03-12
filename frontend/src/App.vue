@@ -11,6 +11,27 @@ import { RouterView } from "vue-router";
 </template>
 
 <style lang="scss">
+/* ── Design tokens (theme-independent) ── */
+
+:root {
+  /* Type scale — derived from Quasar SASS overrides in quasar-variables.sass.
+     Use Quasar classes (text-h6, text-body2, etc.) for text elements.
+     Use these vars for icon sizing, :deep() overrides, and edge cases. */
+  --text-xs: #{$overline-font-size};
+  --text-sm: #{$caption-font-size};
+  --text-base: #{$body2-font-size};
+  --text-md: #{$subtitle2-font-size};
+  --text-lg: #{$subtitle1-font-size};
+  --text-xl: #{$h6-font-size};
+
+  /* Border radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+}
+
+/* ── Theme colors ── */
+
 .body--dark {
   --page-bg: #1E1E2E;
   --bg: #1E1E2E;

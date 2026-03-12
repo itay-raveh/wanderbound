@@ -4,7 +4,7 @@ import RegisterStep from "./RegisterStep.vue";
 
 <template>
   <RegisterStep :number="1" title="Get your data from Polarsteps">
-    <p class="step-text">
+    <p class="step-text text-body2">
       Log in at
       <a href="https://www.polarsteps.com" target="_blank">polarsteps.com</a>
       on a desktop computer. Go to
@@ -18,7 +18,6 @@ import RegisterStep from "./RegisterStep.vue";
 
 <style scoped>
 .step-text {
-  font-size: 0.8rem;
   line-height: 1.6;
   color: var(--text-muted);
   margin: 0;

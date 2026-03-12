@@ -8,8 +8,8 @@ defineProps<{
 <template>
   <div class="step">
     <div class="step-header">
-      <div class="step-number">{{ number }}</div>
-      <div class="step-title" v-html="title" />
+      <div class="step-number text-caption">{{ number }}</div>
+      <div class="step-title text-h6" v-html="title" />
     </div>
     <div class="step-body">
       <slot />
@@ -31,7 +31,6 @@ defineProps<{
   border-radius: 50%;
   background: color-mix(in srgb, var(--q-primary) 12%, transparent);
   color: var(--q-primary);
-  font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -40,7 +39,6 @@ defineProps<{
 }
 
 .step-title {
-  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-bright);
 }

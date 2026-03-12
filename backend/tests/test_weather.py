@@ -65,10 +65,6 @@ def _om_response(  # noqa: PLR0913
     }
 
 
-async def _collect(steps: list) -> list:
-    return [w async for w in build_weathers(steps)]
-
-
 # ── _wmo_icon ───────────────────────────────────────────────────────────
 
 
@@ -161,7 +157,7 @@ class TestWeatherFromResult:
 class TestBuildWeathers:
     @pytest.mark.anyio
     async def test_empty_steps(self) -> None:
-        assert await _collect([]) == []
+        assert await build_weathers([]) == []
 
     @pytest.mark.anyio
     async def test_single_step(self) -> None:
@@ -179,7 +175,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = await _collect([step])
+            result = await build_weathers([step])
 
         assert len(result) == 1
         assert result[0].day.temp == 5.0
@@ -201,7 +197,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(side_effect=[mock_r1, mock_r2])
-            result = await _collect([s1, s2])
+            result = await build_weathers([s1, s2])
 
         assert len(result) == 2
         assert result[0].day.temp == 5.0
@@ -210,21 +206,12 @@ class TestBuildWeathers:
         assert result[1].day.icon == "rain"
 
     @pytest.mark.anyio
-    async def test_http_error_falls_back(self) -> None:
-        step = _make_step(
-            0,
-            0,
-            1704067200.0,
-            weather_temperature=22.0,
-            weather_condition="cloudy",
-        )
+    async def test_http_error_raises(self) -> None:
+        step = _make_step(0, 0, 1704067200.0)
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
-            result = await _collect([step])
-
-        assert len(result) == 1
-        assert result[0].day.temp == 22.0
-        assert result[0].day.icon == "cloudy"
+            with pytest.raises(RuntimeError, match="Weather API"):
+                await build_weathers([step])
 
     @pytest.mark.anyio
     async def test_night_uses_daily_code(self) -> None:
@@ -235,27 +222,18 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = await _collect([step])
+            result = await build_weathers([step])
 
         assert result[0].day.icon == "rain"
         assert result[0].night is not None
         assert result[0].night.icon == "rain"
 
     @pytest.mark.anyio
-    async def test_429_falls_back(self) -> None:
-        step = _make_step(
-            0,
-            0,
-            1704067200.0,
-            weather_temperature=18.0,
-            weather_condition="clear-day",
-        )
+    async def test_429_raises(self) -> None:
+        step = _make_step(0, 0, 1704067200.0)
         mock_response = MagicMock(status_code=429)
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = await _collect([step])
-
-        assert len(result) == 1
-        assert result[0].day.temp == 18.0
-        assert result[0].day.icon == "clear-day"
+            with pytest.raises(RuntimeError, match="Weather API returned 429"):
+                await build_weathers([step])

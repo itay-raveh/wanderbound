@@ -1,37 +1,38 @@
 <script lang="ts" setup>
 import { client } from "@/client/client.gen";
+import type { UserCreated } from "@/client/types.gen";
 import { useQuasar } from "quasar";
-import { useRouter } from "vue-router";
 import RegisterStep from "./RegisterStep.vue";
+import ChunkedUploader from "./ChunkedUploader";
+
+const emit = defineEmits<{
+  uploaded: [data: UserCreated];
+}>();
 
 const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users`;
 
-const router = useRouter();
 const $q = useQuasar();
 
-async function onUploaded() {
-  await router.push("/");
+function onUploaded(info: { data: UserCreated }) {
+  emit("uploaded", info.data);
 }
 
-function onFailed(info: { xhr: XMLHttpRequest }) {
-  const status = info.xhr?.status;
+function onFailed() {
   $q.notify({
     type: "negative",
-    message: `Upload failed. ${status ? `Server returned ${status}.` : "Please try again"}`,
+    message: "Upload failed. Please try again.",
   });
 }
 </script>
 
 <template>
   <RegisterStep :number="2" title="Upload your <code>user_data.zip</code>">
-    <q-uploader
+    <ChunkedUploader
       accept=".zip"
       auto-upload
       class="uploader"
-      field-name="file"
       label="Drop .zip file here or click to browse"
       :url="uploadUrl"
-      with-credentials
       bordered
       flat
       @failed="onFailed"
@@ -43,7 +44,7 @@ function onFailed(info: { xhr: XMLHttpRequest }) {
 <style scoped>
 .uploader {
   width: 100%;
-  border-radius: 0.625rem;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface) 50%, transparent);
   transition:
     border-color 0.2s ease,
@@ -71,7 +72,7 @@ function onFailed(info: { xhr: XMLHttpRequest }) {
 }
 
 .uploader :deep(.q-uploader__title) {
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
   font-weight: 500;
 }
 </style>

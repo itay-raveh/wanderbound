@@ -3,7 +3,7 @@
     <q-img src="/logo.svg" class="hero-logo" />
     <div class="hero-text">
       <span class="text-h5 hero-title">Polarsteps Album Generator</span>
-      <span class="text-subtitle1 hero-subtitle">
+      <span class="text-subtitle2 hero-subtitle">
         Turn your trips into beautiful photo albums
       </span>
     </div>
@@ -33,23 +33,10 @@
 }
 
 .hero-title {
-  font-weight: 700;
   color: var(--text-bright);
 }
 
 .hero-subtitle {
-  font-size: 0.875rem;
   color: var(--text-faint);
-}
-
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

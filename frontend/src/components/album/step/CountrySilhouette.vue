@@ -9,7 +9,7 @@ const props = defineProps<{
   color?: string;
 }>();
 
-const bounds = countryBounds as Record<string, [number, number, number, number]>;
+const bounds = countryBounds as unknown as Record<string, [number, number, number, number]>;
 
 const fillColor = computed(() => props.color ?? "currentColor");
 const code = computed(() => props.countryCode.toLowerCase());

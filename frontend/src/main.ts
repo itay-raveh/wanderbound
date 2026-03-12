@@ -13,6 +13,9 @@ import "quasar/src/css/index.sass";
 // Import Mapbox CSS
 import "mapbox-gl/dist/mapbox-gl.css";
 
+// Import shared animations
+import "@/styles/animations.css";
+
 import App from "./App.vue";
 import router from "./router";
 
