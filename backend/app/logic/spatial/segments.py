@@ -1,54 +1,29 @@
 """Segment a Polarsteps GPS track into typed movement segments.
 
-The five-stage pipeline
------------------------
+Pipeline: ingest → label → absorb → validate → emit.
 
-  1  Ingest       Merge steps + GPS into one time-sorted stream.  Remove GPS
-                  teleports and spikes.  Densify hike-speed edges to ~15 m
-                  resolution so short hikes with sparse GPS are detectable.
-                  Compute per-edge metrics: gap_h, dist_km, speed_kmh.
+  1. Ingest    Merge steps + GPS, remove teleports/spikes, densify slow edges.
+  2. Label     Classify edges as hike / flight / other by speed + gap.
+  3. Absorb    Fold GPS noise, overnight camps, and blackouts back into hikes.
+  4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement)
+               and short flights (< 100 km).  Rejects become "other".
+  5. Emit      RDP-simplify, resolve "other" → walking/driving, stitch gaps.
 
-  2  Label        Classify each edge (consecutive-point pair) as "hike",
-                  "flight", or "other" using speed and time-gap thresholds.
-                  Edges adjacent to a step waypoint bypass the speed check —
-                  the step anchors the path even when GPS was silent.
+DataFrame columns through the pipeline::
 
-  3  Absorb       Merge short "other" interruptions back into the surrounding
-                  hike in two passes:
-                    a) Noise gaps: small gaps (< 4 km, < 3 h, hike speed)
-                                      that are clearly GPS dropout, not transport.
-                    b) Long gaps: overnight camps (GPS barely moved) and
-                                      GPS blackouts in mountain terrain (hike
-                                      speed confirmed); applied only on multi-day
-                                      windows where overnight gaps are expected.
-
-  4  Validate     Discard hike candidates that don't clear minimum bars: 2 h
-                  elapsed, 2 km path, 1 km displacement from start.  Flights
-                  shorter than 100 km are also discarded.  Rejects become "other".
-
-  5  Emit         Convert to ``SegmentData`` objects.  All segments (including
-                  hikes) are RDP-simplified for rendering efficiency.  "other"
-                  is resolved into "walking" (≤ 6.5 km/h avg) or "driving"
-                  (faster).  Consecutive segments share a boundary point so
-                  the map path has no gaps.
-
-
-Column schema (flowing through the pipeline)
---------------------------------------------
-  lat, lon, time    coordinates and Unix timestamp (seconds since epoch)
-  gap_h             hours elapsed since the previous point (0 for row 0)
-  dist_km           haversine distance from the previous point (km)
-  speed_kmh         dist_km / gap_h  (0 when gap_h == 0)
-  is_step           True for rows injected from a manual step waypoint
-  mode              edge label after labeling + absorption: "hike" | "flight" | "other"
-  segment_id        RLE run-length ID: groups consecutive rows with the same mode
-  final_mode        validated label; undersized segments downgraded to "other"
-  output_id         RLE run-length ID of final_mode; one value per emitted Segment
+    lat, lon, time   coordinates + Unix timestamp
+    gap_h            hours since previous point
+    dist_km          haversine km from previous point
+    speed_kmh        dist_km / gap_h
+    is_step          True for step waypoints (immune to noise removal)
+    mode             hike | flight | other (after label + absorb)
+    segment_id       RLE group ID on mode
+    final_mode       after validation (undersized → other)
+    output_id        RLE group ID on final_mode
 """
 
 from __future__ import annotations
 
-import heapq
 import math
 from enum import StrEnum
 from typing import TYPE_CHECKING, cast
@@ -70,88 +45,61 @@ if TYPE_CHECKING:
 
 logger = config_logger(__name__)
 
-# ── Speed thresholds for edge classification ──────────────────────────────────
-# GPS underreports speed on winding trails; a sustained hike reads ≤ 6.5 km/h
-# while the actual trail pace is ~8 km/h.  Slow motorized transport (tuk-tuks,
-# minibuses) typically exceeds 6.5 km/h even in traffic.
-HIKE_MAX_SPEED_KMH = 6.5  # edge speed at or below this → classified on foot
-FLIGHT_MIN_SPEED_KMH = 200.0  # edge speed at or above this → classified airborne
+# ── Edge classification ───────────────────────────────────────────────────────
+# GPS underreports speed on winding trails (~6.5 km/h vs ~8 km/h actual).
+# Motorized transport (tuk-tuks, minibuses) typically exceeds this even in traffic.
+HIKE_MAX_SPEED_KMH = 6.5
+FLIGHT_MIN_SPEED_KMH = 200.0
 
-# ── Hike segment validity: all three must be satisfied ──────────────────────
-# A hike that clears fewer than all three bars is downgraded to "walking".
-# Displacement (start → the farthest point) filters out hostel GPS drift and
-# stationary-overnight noise that accumulate path length without real movement.
-HIKE_MIN_DURATION_H = 2.0  # elapsed time (hours)
-HIKE_MIN_DISTANCE_KM = 2.0  # total GPS-measured path length (km)
-HIKE_MIN_DISPLACEMENT_KM = (
-    1.0  # straight-line distance from start to the farthest point (km)
-)
+# ── Hike validity (all three must pass, otherwise downgraded to "walking") ───
+# Displacement = max distance from start, filters hostel GPS drift.
+HIKE_MIN_DURATION_H = 2.0
+HIKE_MIN_DISTANCE_KM = 2.0
+HIKE_MIN_DISPLACEMENT_KM = 1.0
 
 FLIGHT_MIN_DISTANCE_KM = 100.0
-
 MAX_HIKE_GAP_H = 4.0
 
-# ── GPS noise removal ─────────────────────────────────────────────────────────
-# Any point with an apparent incoming speed above this is a GPS teleport and is
-# dropped.  1 000 km/h is comfortably above any real-world transport including
-# supersonic jets, so only impossible GPS jumps are removed.
-# Step waypoints are immune: they are always kept.
+# ── GPS noise ────────────────────────────────────────────────────────────────
+# > 1000 km/h = impossible GPS jump.  Step waypoints are immune.
 TELEPORT_MAX_SPEED_KMH = 1000.0
 
-# ── GPS densification ─────────────────────────────────────────────────────────
-# Sparse GPS tracks (one point per minute) can miss short hikes entirely.
-# We interpolate hike-speed edges to DENSIFY_RESOLUTION_KM point spacing so
-# the labeller sees a continuous dense stream instead of a few long edges.
-# Only slow edges (≤ DENSIFY_MAX_SPEED_KMH) are densified; fast edges (cabs,
-# planes) stay as single long edges: they naturally become segment boundaries.
+# ── Densification ────────────────────────────────────────────────────────────
+# Interpolate slow edges to ~15 m spacing so sparse GPS doesn't hide short hikes.
 DENSIFY_MAX_SPEED_KMH = 5.0
-DENSIFY_RESOLUTION_KM = 0.015  # ~15 m between interpolated points
+DENSIFY_RESOLUTION_KM = 0.015
 
-# ── Gap absorption: pass 1: small noise gaps ─────────────────────────────────
-# A short "other" run sandwiched between two hike runs is relabeled "hike"
-# when it fits these caps AND moves at hike speed (looks like GPS noise, not
-# real transport).  The cap on the following hike block prevents absorbing a
-# gap that sits right at the END of a hike (post-hike hotel GPS drift).
-NOISE_GAP_MAX_DIST_KM = 4.0  # total distance of the "other" run (km)
-NOISE_GAP_MAX_H = 3.0  # total duration of the "other" run (hours)
+# ── Absorption pass 1: noise gaps ────────────────────────────────────────────
+# Short "other" between two hikes at hike speed → fold back into hike.
+# Requires a following hike anchor to avoid absorbing post-hike hotel drift.
+NOISE_GAP_MAX_DIST_KM = 4.0
+NOISE_GAP_MAX_H = 3.0
 
-# ── Gap absorption: pass 2: overnight camps and GPS blackouts ────────────────
+# ── Absorption pass 2: camps + blackouts ─────────────────────────────────────
 
-# Camp gap: hiker sleeps at nearly the same spot for hours; GPS barely moves.
-# Absorbed purely on distance: no speed check: because the tight distance cap
-# already prevents real transport from being absorbed, and adding a speed check
-# would incorrectly reject short walks-to-trailhead (e.g. 7 km/h for 30 min)
-# that are semantically part of the same hiking activity.
-CAMP_GAP_MAX_DIST_KM = 1.0  # GPS must stay within this radius (km)
-CAMP_GAP_MAX_H = 20.0  # a full overnight absence can be up to ~20 h
+# Camp: GPS barely moved overnight.  No speed check — tight distance cap
+# prevents transport; a speed check would reject walks-to-trailhead.
+CAMP_GAP_MAX_DIST_KM = 1.0
+CAMP_GAP_MAX_H = 20.0
 
-# Blackout gap: phone stops logging mid-hike (mountain terrain, low battery).
-# Absorbed when the gap moves at hike speed: confirming the person kept walking.
-# Short blackouts (< 6 h) only need the following hike anchor; long blackouts
-# (6-24 h, e.g. overnight GPS silence) need both anchors to avoid merging an
-# evening city walk with the next morning's hike.
-#
-# Distance caps: short blackouts (daytime, < 6 h) can legitimately cover more
-# distance (bus/walk to trailhead) so only reject extreme cases.  Long blackouts
-# (overnight, 6-24 h) with significant distance likely include driving — a real
-# overnight blackout has only GPS drift (< 1 km) or modest displacement.
+# Blackout: phone stopped logging mid-hike.  Absorbed at hike speed.
+# Short (< 6 h): only following anchor needed.  Long (6-24 h): both anchors,
+# to avoid merging evening city walk with next morning's hike.
+# Distance caps: short can cover more (bus to trailhead); long with significant
+# distance likely includes driving (real overnight has only GPS drift).
 BLACKOUT_GAP_SHORT_MAX_H = 6.0
 BLACKOUT_GAP_LONG_MAX_H = 24.0
 BLACKOUT_GAP_SHORT_MAX_DIST_KM = 10.0
 BLACKOUT_GAP_LONG_MAX_DIST_KM = 4.0
 
-# Both absorption passes require a minimum hike run on each side of the gap —
-# the "anchor" criterion.  Kept lower than HIKE_MIN_DURATION_H so that a
-# 1.5-hour GPS fragment before a mountain camp still qualifies as an anchor.
+# Anchor: min hike run adjacent to a gap.  Lower than HIKE_MIN_DURATION_H
+# so a 1.5 h fragment before a mountain camp still qualifies.
 HIKE_ANCHOR_MIN_H = 1.5
-
-# For the camp merge specifically, the *preceding* hike run has a lower bar than
-# the following one.  This guards against a brief evening city walk anchoring an
-# overnight camp merge back to the previous day's hike.
+# Camp merge needs a lower bar on the *preceding* hike to guard against
+# a brief evening city walk anchoring an overnight merge.
 CAMP_PREV_ANCHOR_MIN_H = 1.0
 
-# Tolerance for RDP simplification, in degrees.
-RDP_EPSILON_DEG = 0.001
+RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 
 class SegmentKind(StrEnum):
@@ -236,103 +184,60 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _dedup_by_time(df: pl.DataFrame) -> pl.DataFrame:
-    """Remove points within 1 ms of the preceding point.
-
-    When a step waypoint is injected at a timestamp that matches an existing
-    GPS point, ``heapq.merge`` places them consecutively.  The 1 ms threshold
-    removes the duplicate without risking removal of legitimately close GPS
-    readings (phones log no faster than ~1 Hz).
-    """
+    """Drop points within 1 ms of the previous (step/GPS collisions)."""
     return df.filter(
         (pl.col("time") - pl.col("time").shift(1)).abs().fill_null(1) > 0.001
     )
 
 
+def _deg_dist(shift: int = 1) -> pl.Expr:
+    """Euclidean degree-distance to the point ``shift`` rows back (1° ≈ 80 km)."""
+    return (
+        (pl.col("lat") - pl.col("lat").shift(shift)) ** 2
+        + (pl.col("lon") - pl.col("lon").shift(shift)) ** 2
+    ).sqrt()
+
+
 def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
-    """Drop GPS teleports and spikes, leaving step waypoints untouched.
+    """Drop teleports (impossible speed) and spikes (triangle inequality).
 
-    Uses degree-based distance approximation (1° ≈ 80 km) rather than
-    haversine: fast enough for outlier detection, accurate enough since we
-    only need to separate "impossible jumps" from "real movement".
-
-    Two passes:
-      • Teleports: points with apparent incoming speed > TELEPORT_MAX_SPEED_KMH.
-      • Spikes: points that detour far from the prev→next straight line
-                     (large triangle inequality violation), indicating a single
-                     bad GPS fix rather than real movement.
-
-    Step waypoints are always kept regardless of apparent speed.
+    Step waypoints are always kept.
     """
     has_is_step = "is_step" in df.columns
+    is_step = pl.col("is_step") if has_is_step else pl.lit(value=False)
+    keep_cols = ["lat", "lon", "time"] + (["is_step"] if has_is_step else [])
+
     if df.height < 2:
         return df
 
-    # Euclidean distance in degrees / elapsed hours ≈ speed in ~80-km units
-    dd = (
-        (
-            (pl.col("lat") - pl.col("lat").shift(1)) ** 2
-            + (pl.col("lon") - pl.col("lon").shift(1)) ** 2
-        )
-        .sqrt()
-        .fill_null(0.0)
-    )
+    # Teleports: apparent speed > 1000 km/h
     dt = ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(1.0)
-    approx_speed = dd / dt
-
-    df = df.with_columns(approx_speed.alias("approx_speed"))
-
-    keep = pl.col("approx_speed") <= TELEPORT_MAX_SPEED_KMH / 80.0
-    if has_is_step:
-        keep = keep | pl.col("is_step")
-    df = df.filter(keep)
-
-    keep_cols = ["lat", "lon", "time"] + (["is_step"] if has_is_step else [])
+    speed = _deg_dist().fill_null(0.0) / dt
+    df = df.filter(is_step | (speed <= TELEPORT_MAX_SPEED_KMH / 80.0))
 
     if df.height < 3:
         return df.select(keep_cols)
 
-    # Spike detection: point is far from both neighbors but prev→next is short
-    dd2 = (
-        (
-            (pl.col("lat") - pl.col("lat").shift(1)) ** 2
-            + (pl.col("lon") - pl.col("lon").shift(1)) ** 2
-        )
-        .sqrt()
-        .fill_null(0.0)
-    )
+    # Spikes: far from prev neighbor but prev→next is short (triangle inequality)
+    dd = _deg_dist().fill_null(0.0)
     across = (
         (pl.col("lat").shift(1) - pl.col("lat").shift(-1)) ** 2
         + (pl.col("lon").shift(1) - pl.col("lon").shift(-1)) ** 2
     ).sqrt()
-    spike = ((dd2 > 0.5 / 80.0) & (across < dd2 * 0.5)).fill_null(value=False)
-    if has_is_step:
-        spike = spike & ~pl.col("is_step")
+    spike = (~is_step & (dd > 0.5 / 80.0) & (across < dd * 0.5)).fill_null(value=False)
     df = df.filter(~spike)
 
     return df.select(keep_cols)
 
 
 def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
-    """Interpolate hike-speed edges to DENSIFY_RESOLUTION_KM point spacing.
+    """Linearly interpolate slow edges to ~15 m spacing.
 
-    Without densification, a hiker with GPS logging every 60 s at 5 km/h
-    produces one point every ~80 m.  A two-hour hike might have only ~150
-    raw points: enough for labeling, but not enough for accurate
-    elevation-based distance.
-    Densification fills the gaps linearly in space and time.
+    Only densifies edges at hike speed, within gap limit, and sparser than
+    the target resolution.  Vectorized via NumPy repeat/cumsum.
 
-    Only edges that would be labeled "hike" are densified:
-      • speed   ≤ DENSIFY_MAX_SPEED_KMH   (hike pace, not a cab ride)
-      • gap_h   < MAX_HIKE_GAP_H          (not a multi-hour silence)
-      • dist_km > DENSIFY_RESOLUTION_KM   (already dense enough otherwise)
-
-    The densification is fully vectorized using NumPy repeat/cumsum: no
-    Python loop.  ``df`` must already have ``dist_km``, ``gap_h``, and
-    ``speed_kmh`` columns (computed by ``_add_edge_metrics``).  The output
-    contains only ``lat``, ``lon``, ``time``; the caller must re-run
-    ``_add_edge_metrics`` afterwards.  The ``is_step`` column is also dropped;
-    the time-based ``is_in`` check in ``_ingest`` re-marks step rows after
-    densification.
+    Outputs only lat/lon/time — caller must re-run _add_edge_metrics and
+    re-mark step rows afterwards.
     """
     lats = df["lat"].to_numpy()
     lons = df["lon"].to_numpy()
@@ -341,7 +246,6 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     if len(lats) < 2:
         return df
 
-    # Edge metrics (row 0 is always 0; edges start at row 1)
     dists = df["dist_km"].to_numpy()[1:]
     dts = df["gap_h"].to_numpy()[1:]
     speeds = df["speed_kmh"].to_numpy()[1:]
@@ -352,15 +256,10 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
         & (dts < MAX_HIKE_GAP_H)
     )
 
-    # n_pts[i] = output points per edge
-    # (subdivisions if densifying, else 1 endpoint)
     n_pts: np.typing.NDArray[np.int_] = np.where(
         should_densify, np.ceil(dists / DENSIFY_RESOLUTION_KM).astype(int), 1
     )
 
-    #   edge_idx[k]     = which edge output point k belongs to
-    #   local_step[k]   = position within that edge (0-based)
-    #   frac[k]         = interpolation fraction → 1/n, 2/n, …, n/n (= endpoint)
     edge_idx = np.repeat(np.arange(len(n_pts)), n_pts)
     cum_before = np.concatenate([[0], n_pts[:-1].cumsum()])
     local_step = np.arange(cast("np.int_", n_pts.sum())) - cum_before[edge_idx]
@@ -379,50 +278,25 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _ingest(steps: Sequence[Step], locations: Iterable[Point]) -> pl.DataFrame:
-    """Build the initial pipeline DataFrame from steps and raw GPS locations.
-
-    Steps:
-      1. Filter GPS to the day-boundary window covering the steps.
-      2. Sort both streams; merge them chronologically via heapq.merge.
-      3. Deduplicate on time (step + coincident GPS point → keep one).
-      4. Mark step rows, then remove GPS noise (steps are immune).
-      5. Compute edge metrics so densification can read them
-         without recomputing haversine.
-      6. Densify hike-speed edges; re-mark step rows (densified rows aren't steps).
-      7. Recompute edge metrics for the densified points.
-    """
-    t0 = (
-        steps[0].datetime.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    )
-    t1 = (
-        steps[-1]
-        .datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
-        .timestamp()
-    )
-
-    # Both inputs must be sorted for heapq.merge to work correctly.
-    gps = sorted(p for p in locations if t0 <= p.time <= t1)
+    """Merge steps + GPS into a clean, densified DataFrame with edge metrics."""
     step_pts = sorted(
         Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp())
         for s in steps
     )
     step_times = [p.time for p in step_pts]
 
-    df = _points_to_df(heapq.merge(step_pts, gps))
+    df = _points_to_df(sorted([*step_pts, *locations]))
     if df.height == 0:
         return df
 
     df = _dedup_by_time(df)
-    # Mark steps BEFORE noise removal so they survive even when surrounded by
-    # distant GPS points (e.g. the user was at a remote viewpoint with no signal).
+    # Mark steps before noise removal so they survive
     df = df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
     df = _remove_gps_noise(df)
     df = _add_edge_metrics(df)
-    df = _densify_hike_edges(
-        df
-    )  # uses precomputed metrics; drops all columns except lat/lon/time
+    df = _densify_hike_edges(df)
     df = _add_edge_metrics(df)
-    # Re-mark after densification: interpolated rows won't match step_times.
+    # Re-mark: densified rows aren't steps
     return df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
 
 
@@ -432,23 +306,13 @@ def _ingest(steps: Sequence[Step], locations: Iterable[Point]) -> pl.DataFrame:
 
 
 def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
-    """Assign a transport mode label to every edge.
+    """Classify each edge as flight / hike / other by speed and gap.
 
-    Priority (highest wins):
-      1. Flight: speed ≥ FLIGHT_MIN_SPEED_KMH on this edge OR the next
-                   (both takeoff and landing edges are labeled flight).
-      2. Hike: (speed ≤ HIKE_MAX_SPEED_KMH, OR edge is step-adjacent)
-                   AND gap_h < gap_limit.
-      3. Other: everything else (motorized transport, hotel drift, …).
-
-    Step-adjacent edges (edges that start or end at a step waypoint) get two
-    relaxations: the speed check is bypassed and the gap limit is wider.  This
-    is correct because the step records where the user *was*, not how fast they
-    got there: GPS simply didn't capture the walk.
+    Flight wins over hike (both takeoff + landing edges are marked).
+    Step-adjacent edges bypass the speed check — the step anchors the path
+    even when GPS was silent.
     """
     is_flight_edge = pl.col("speed_kmh") >= FLIGHT_MIN_SPEED_KMH
-    # Both the takeoff and landing edges of a flight read as flight-speed —
-    # mark them together so the segment includes both endpoints.
     flight_mask = is_flight_edge | is_flight_edge.shift(-1, fill_value=False)
 
     step_adjacent = pl.col("is_step") | pl.col("is_step").shift(1, fill_value=False)
@@ -472,13 +336,7 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Compute run-level statistics for the current ``mode`` labeling.
-
-    Returns ``(df_with_run_id, stats)`` where stats is sorted by ``run_id``
-    and contains: ``run_id``, ``run_mode``, ``run_h``, ``run_dist_km``,
-    ``run_speed_kmh``.  Both absorption passes call this before adding their
-    own neighbor-aware columns (next_run_h, prev_run_mode, …).
-    """
+    """RLE-group by mode and compute per-run duration, distance, speed."""
     df = df.with_columns(pl.col("mode").rle_id().alias("run_id"))
     stats = (
         df.group_by("run_id")
@@ -499,19 +357,10 @@ def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
 
 
 def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
-    """Pass 1: fold small GPS-noise gaps back into the surrounding hike.
+    """Fold short GPS-dropout gaps (< 4 km, < 3 h, hike speed) back into hike.
 
-    Works on run-length-encoded "mode" runs.  An "other" run is relabeled
-    "hike" when it satisfies all of:
-      - Distance < NOISE_GAP_MAX_DIST_KM   (didn't travel far → probably not transport)
-      - Duration < NOISE_GAP_MAX_H         (short absence)
-      - Avg speed ≤ HIKE_MAX_SPEED_KMH     (moved at walking pace)
-      - Next hike run ≥ HIKE_ANCHOR_MIN_H  (the gap is in the *middle* of a hike,
-                                             not at the tail where
-                                             post-hike drift accumulates)
-
-    Relabeling is done via forward-fill: the "other" run's mode is nulled and
-    filled from the preceding hike label.
+    Requires a following hike anchor so we don't absorb post-hike drift.
+    Nulls the gap's mode and forward-fills from the preceding hike.
     """
     df, stats = _run_stats(df)
     stats = stats.with_columns(
@@ -540,27 +389,11 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
-    """Pass 2: absorb overnight camps and mid-hike GPS blackouts.
+    """Absorb overnight camps and GPS blackouts between two hike runs.
 
-    Only "other" runs sandwiched between two hike runs are considered.
-    Two independent merge criteria: camp and blackout: are OR-ed together.
-
-    Camp gap (GPS stationary overnight)
-        Hiker sleeps at camp; GPS barely drifts.  Absorbed when:
-          - distance < CAMP_GAP_MAX_DIST_KM   (GPS stayed in one place)
-          - duration < CAMP_GAP_MAX_H         (overnight absence, up to 20 h)
-          - prev hike ≥ CAMP_PREV_ANCHOR_MIN_H (guard against a brief evening
-                                                city walk anchoring the merge)
-        No speed check: the distance cap already prevents real transport, and
-        a speed check would incorrectly reject the walk to the trailhead.
-
-    Blackout gap (GPS stopped logging mid-hike)
-        Phone died / lost signal on a mountain.  Absorbed when:
-          • avg speed ≤ HIKE_MAX_SPEED_KMH    (confirms on-foot movement)
-          • duration < BLACKOUT_GAP_SHORT_MAX_H (or LONG_MAX_H with both anchors)
-          • both surrounding hike runs ≥ HIKE_ANCHOR_MIN_H
-
-    Thresholds widen on long windows (> 24 h) where overnight gaps are normal.
+    Camp: GPS barely moved (< 1 km), up to 20 h.
+    Blackout: phone stopped logging at hike speed.  Short (< 6 h) needs
+    following anchor; long (6-24 h) needs both anchors + distance cap.
     """
     df, stats = _run_stats(df)
     stats = stats.with_columns(
@@ -576,8 +409,6 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
         & (pl.col("next_run_mode") == "hike")
     )
 
-    # Camp: the following hike anchor guard is only needed for short windows;
-    # on long windows the distance cap (1 km) is the primary protection.
     is_camp_gap = (
         between_hikes
         & (pl.col("run_dist_km") < CAMP_GAP_MAX_DIST_KM)
@@ -585,31 +416,24 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
         & (pl.col("prev_run_h") >= CAMP_PREV_ANCHOR_MIN_H)
     )
 
-    # Short blackout (< 6 h): GPS dropped out briefly mid-hike.  Only the
-    # following hike anchor is required — the preceding fragment may be tiny
-    # when the gap sits right at the start of a hike (e.g. transport → trailhead).
-    is_short_blackout = (
-        between_hikes
-        & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
-        & (pl.col("run_dist_km") < BLACKOUT_GAP_SHORT_MAX_DIST_KM)
-        & (pl.col("run_h") < BLACKOUT_GAP_SHORT_MAX_H)
+    # Blackout: hike speed + following anchor always required.
+    # Short (< 6 h): generous distance cap.
+    # Long (6-24 h): tight distance + both anchors.
+    at_hike_speed = between_hikes & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
+    is_short = pl.col("run_h") < BLACKOUT_GAP_SHORT_MAX_H
+    is_blackout_gap = (
+        at_hike_speed
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
+        & (
+            (is_short & (pl.col("run_dist_km") < BLACKOUT_GAP_SHORT_MAX_DIST_KM))
+            | (
+                ~is_short
+                & (pl.col("run_h") < BLACKOUT_GAP_LONG_MAX_H)
+                & (pl.col("run_dist_km") < BLACKOUT_GAP_LONG_MAX_DIST_KM)
+                & (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
+            )
+        )
     )
-
-    # Long blackout (6-24 h): overnight GPS silence on a multi-day hike.
-    # Both anchors required to avoid merging an evening city walk with the
-    # next morning's hike through an overnight gap.
-    is_long_blackout = (
-        between_hikes
-        & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
-        & (pl.col("run_dist_km") < BLACKOUT_GAP_LONG_MAX_DIST_KM)
-        & (pl.col("run_h") >= BLACKOUT_GAP_SHORT_MAX_H)
-        & (pl.col("run_h") < BLACKOUT_GAP_LONG_MAX_H)
-        & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
-        & (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
-    )
-
-    is_blackout_gap = is_short_blackout | is_long_blackout
 
     stats = stats.with_columns(
         pl.when(is_camp_gap | is_blackout_gap)
@@ -636,19 +460,7 @@ def _absorb(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
-    """Downgrade segments that don't clear minimum size thresholds.
-
-    Hike candidates must satisfy all three bars (duration, path length,
-    displacement).  Displacement: the max distance from the starting point
-    reached anywhere on the segment: filters out hotel GPS drift that
-    accumulates path length while the person is stationary.
-
-    Flight candidates must cover at least FLIGHT_MIN_DISTANCE_KM to distinguish
-    them from fast-moving ground transport.
-
-    Anything that fails validation is relabeled "other" and will be resolved
-    into walking or driving at emit time.
-    """
+    """Downgrade undersized hikes and short flights to "other"."""
     stats = df.group_by("segment_id").agg(
         pl.col("mode").first().alias("seg_mode"),
         pl.col("gap_h").sum().alias("tot_h"),
@@ -693,19 +505,31 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
+    return Point(lat=gdf["lat"][idx], lon=gdf["lon"][idx], time=gdf["time"][idx])
+
+
+def _simplify_points(gdf: pl.DataFrame) -> list[Point]:
+    """RDP-simplify a group, keeping step waypoints."""
+    la, lo, ti = gdf["lat"].to_numpy(), gdf["lon"].to_numpy(), gdf["time"].to_numpy()
+    mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
+    if "is_step" in gdf.columns:
+        mask |= gdf["is_step"].to_numpy()
+    return [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if mask[i]]
+
+
+def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
+    """Resolve "other" → walking/driving by average speed."""
+    if kind != "other":
+        return SegmentKind(kind)
+    total_h = float(gdf["gap_h"].sum())
+    total_km = float(gdf["dist_km"].sum())
+    avg = total_km / total_h if total_h > 0 else 0.0
+    return SegmentKind.driving if avg > HIKE_MAX_SPEED_KMH else SegmentKind.walking
+
+
 def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
-    """Convert the validated DataFrame to SegmentData objects.
-
-    For each output group (output_id):
-      - Flight: keep only first and last point; skip if it departs before
-                  the first step (pre-trip GPS noise).
-      - Hike: RDP-simplify (same epsilon as other segments).
-      - Other: RDP-simplify, then resolve to walking or driving by avg speed.
-
-    Stitching: each segment's first point is checked against the previous
-    segment's last point.  If there is a time gap (RDP pruning or GPS blackout),
-    the previous last point is prepended so the rendered path is fully connected.
-    """
+    """Yield SegmentData: simplify, resolve kinds, stitch consecutive segments."""
     first_step_dt = steps[0].datetime
     prev_last_pt: Point | None = None
 
@@ -713,49 +537,21 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
         kind = cast("str", gdf["final_mode"][0])
 
         if kind == "flight":
-            pts: list[Point] = [
-                Point(lat=gdf["lat"][0], lon=gdf["lon"][0], time=gdf["time"][0]),
-                Point(lat=gdf["lat"][-1], lon=gdf["lon"][-1], time=gdf["time"][-1]),
-            ]
+            pts = [_gdf_to_point(gdf, 0), _gdf_to_point(gdf, -1)]
             if pts[0].datetime < first_step_dt:
                 continue
         else:
-            la = gdf["lat"].to_numpy()
-            lo = gdf["lon"].to_numpy()
-            ti = gdf["time"].to_numpy()
+            pts = _simplify_points(gdf)
 
-            mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
-            # Force step waypoints to survive simplification
-            if "is_step" in gdf.columns:
-                mask |= gdf["is_step"].to_numpy()
-            pts = [
-                Point(lat=la[i], lon=lo[i], time=ti[i])
-                for i in range(len(la))
-                if mask[i]
-            ]
-        # Prepend the previous segment's last point if there is a time gap,
-        # ensuring the map polyline is visually continuous.
+        # Stitch: prepend previous endpoint if there's a time gap
         if prev_last_pt is not None and (not pts or pts[0].time > prev_last_pt.time):
             pts = [prev_last_pt, *pts]
 
         if len(pts) < 2:
             continue
 
-        # Resolve "other" → walking / driving based on average speed
-        if kind == "other":
-            total_h = float(gdf["gap_h"].sum())
-            total_km = float(gdf["dist_km"].sum())
-            avg_speed = total_km / total_h if total_h > 0 else 0.0
-            seg_kind = (
-                SegmentKind.driving
-                if avg_speed > HIKE_MAX_SPEED_KMH
-                else SegmentKind.walking
-            )
-        else:
-            seg_kind = SegmentKind(kind)
-
         prev_last_pt = pts[-1]
-        yield SegmentData(kind=seg_kind, points=pts)
+        yield SegmentData(kind=_resolve_kind(kind, gdf), points=pts)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -766,17 +562,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
 def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
 ) -> Iterable[SegmentData]:
-    """Segment a Polarsteps trip into typed movement segments.
-
-    Args:
-        steps:     Ordered sequence of Polarsteps step waypoints covering the
-                   desired time window.  Must contain at least one step.
-        locations: Raw GPS points for the trip (need not be pre-filtered).
-
-    Yields:
-        ``SegmentData`` objects in chronological order, each with a ``kind``
-        (hike / flight / walking / driving) and a list of ``Point`` objects.
-    """
+    """Run the full pipeline: ingest → label → absorb → validate → emit."""
     logger.info(
         "build_segments: %d step(s), window %s → %s",
         len(steps),
