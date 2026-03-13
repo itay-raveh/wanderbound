@@ -4,8 +4,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from sqlalchemy.exc import NoResultFound
 
 from app.api.v1.deps import USER_COOKIE
 from app.api.v1.router import router as v1_router
@@ -60,6 +62,11 @@ if settings.all_cors_origins:
     )
 
 app.include_router(v1_router, prefix=settings.API_V1_STR)
+
+
+@app.exception_handler(NoResultFound)
+async def _not_found(_request: Request, _exc: NoResultFound) -> PlainTextResponse:
+    return PlainTextResponse("Not Found", status.HTTP_404_NOT_FOUND)
 
 
 @app.middleware("http")

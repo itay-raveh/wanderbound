@@ -8,13 +8,13 @@ from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.logic.weather import Weather
 from app.models.polarsteps import Location
 from app.models.types import AlbumId, StepIdx, UserId
+from app.services.open_meteo import Weather
 
 
 class StepLayout(SQLModel):
-    cover: str
+    cover: str | None = None
     pages: list[list[str]] = Field(sa_column=Column(JSON, nullable=False))
     unused: list[str] = Field(sa_column=Column(JSON, nullable=False))
 

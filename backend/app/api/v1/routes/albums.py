@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query
 from fastapi.responses import Response
 
 from app.api.v1.deps import USER_COOKIE
@@ -19,11 +19,8 @@ logger = config_logger(__name__)
 async def _get_album(
     aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
 ) -> Album:
-    album = await session.get(Album, (user.id, aid))
-    if album is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
     # noinspection PyTypeChecker
-    return album
+    return await session.get_one(Album, (user.id, aid))
 
 
 AlbumDep = Annotated[Album, Depends(_get_album)]
@@ -82,21 +79,27 @@ async def export_pdf(
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> Response:
     context = await get_browser().new_context()
-    await context.add_cookies(
-        [
-            {"name": USER_COOKIE, "value": str(user.id), "url": settings.FRONTEND_URL},
-        ]
-    )
-    page = await context.new_page()
-    url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
-    logger.info("PDF: navigating to %s", url)
-    await page.goto(url, wait_until="networkidle")
-    pdf_bytes = await page.pdf(
-        format="A4",
-        landscape=True,
-        print_background=True,
-    )
-    await context.close()
+    try:
+        await context.add_cookies(
+            [
+                {
+                    "name": USER_COOKIE,
+                    "value": str(user.id),
+                    "url": settings.FRONTEND_URL,
+                },
+            ]
+        )
+        page = await context.new_page()
+        url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
+        logger.info("PDF: navigating to %s", url)
+        await page.goto(url, wait_until="networkidle")
+        pdf_bytes = await page.pdf(
+            format="A4",
+            landscape=True,
+            print_background=True,
+        )
+    finally:
+        await context.close()
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

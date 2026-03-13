@@ -551,6 +551,9 @@ def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
 ) -> Iterable[SegmentBase]:
     """Run the full pipeline: ingest → label → absorb → validate → emit."""
+    if not steps:
+        return iter([])
+
     logger.info(
         "build_segments: %d step(s), window %s → %s",
         len(steps),

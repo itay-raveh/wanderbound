@@ -1,4 +1,5 @@
 import asyncio
+import json
 from pathlib import Path
 from typing import Annotated, Self
 
@@ -6,13 +7,13 @@ from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 from pydantic import BaseModel, StringConstraints
 
-MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4", ".png"})
+MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
 
-# {uuid4}_{uuid4}.(jpg|mp4|png)
+# {uuid4}_{uuid4}.(jpg|mp4)
 _UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 MediaName = Annotated[
-    str, StringConstraints(pattern=rf"^{_UUID4}_{_UUID4}\.(jpg|mp4|png)$")
+    str, StringConstraints(pattern=rf"^{_UUID4}_{_UUID4}\.(jpg|mp4)$")
 ]
 
 
@@ -23,6 +24,41 @@ def normalize_name(raw: str) -> str:
 
 def is_video(name: str) -> bool:
     return name.endswith(".mp4")
+
+
+async def _video_dimensions(path: Path) -> tuple[int, int]:
+    """Get video display dimensions via ffprobe, accounting for rotation."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height:stream_tags=rotate",
+        "-of",
+        "json",
+        str(path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {stderr.decode()}")
+    streams = json.loads(stdout).get("streams", [])
+    if not streams:
+        raise RuntimeError(f"No video stream found in {path}")
+    stream = streams[0]
+    w, h = stream["width"], stream["height"]
+    rotation = abs(int(stream.get("tags", {}).get("rotate", "0")))
+    if rotation in (90, 270):
+        w, h = h, w
+    return w, h
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
 
 
 class Photo(BaseModel):
@@ -45,10 +81,8 @@ class Photo(BaseModel):
     def load(cls, path: Path) -> Self:
         with Image.open(path) as img:
             width, height = img.size
-            # Orientations 5-8 involve a 90-degree rotation
             if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
                 width, height = height, width
-
         return cls(
             path=normalize_name(path.name),
             width=width,
@@ -58,82 +92,24 @@ class Photo(BaseModel):
 
 class Video(Photo):
     src: str  # MediaName (just the filename, .mp4)
-    timestamp: float
 
     @classmethod
-    async def extract(cls, path: Path, timestamp: float = 1) -> Self:
-        frame_path = await extract_frame(path, timestamp)
-        frame = Photo.load(frame_path)
-
+    async def probe(cls, path: Path) -> Self:
+        """Get video dimensions via ffprobe — no frame extraction."""
+        w, h = await _video_dimensions(path)
         return cls(
-            path=frame.path,
-            width=frame.width,
-            height=frame.height,
+            path=normalize_name(path.with_suffix(".jpg").name),
+            width=w,
+            height=h,
             src=normalize_name(path.name),
-            timestamp=timestamp,
         )
 
 
 Media = Video | Photo
 
 
-async def _hdr_transfer(video: Path) -> str | None:
-    """Return the HDR transfer curve name, or None for SDR content."""
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=color_transfer",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        str(video),
-    ]
-
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-
-    stdout, _ = await process.communicate()
-
-    if process.returncode != 0:
-        return None
-
-    curve = stdout.decode("utf-8").strip().lower()
-
-    if curve in (
-        "smpte2084",  # HDR10, HDR10+, Dolby Vision (PQ-based profiles)
-        "arib-std-b67",  # HLG — iPhone Dolby Vision Profile 8.4
-    ):
-        return curve
-
-    return None
-
-
-# https://ericswpark.com/blog/2022/2022-12-14-ffmpeg-convert-hdr-to-sdr/
-# https://ayosec.github.io/ffmpeg-filters-docs/8.0/Filters/Video/zscale.html
-# https://ayosec.github.io/ffmpeg-filters-docs/7.1/Filters/Video/tonemap.html
-def _hdr_to_sdr_filter(transfer: str) -> str:
-    """Build an HDR-to-SDR tone mapping filter chain."""
-    return (
-        # Linearize with explicit input color space parameters
-        f"zscale=tin={transfer}:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=1000,"
-        # 32-bit float for precise tone mapping
-        "format=gbrpf32le,"
-        # Filmic tone mapping — preserves detail in darks and highlights
-        "tonemap=hable:desat=0,"
-        # Convert to SDR color space, full range for PNG output
-        "zscale=p=bt709:t=bt709:m=bt709:r=full,"
-        "format=rgb24"
-    )
-
-
-async def extract_frame(video: Path, timestamp: float) -> Path:
-    frame_path = video.with_suffix(".png")
+async def extract_frame(video: Path, timestamp: float = 1) -> Path:
+    frame_path = video.with_suffix(".jpg")
 
     command = [
         "ffmpeg",
@@ -144,15 +120,10 @@ async def extract_frame(video: Path, timestamp: float) -> Path:
         str(video),
         "-frames:v",
         "1",
+        "-q:v",
+        "2",
+        str(frame_path),
     ]
-
-    # Add HDR-to-SDR tone mapping if needed
-    transfer = await _hdr_transfer(video)
-    if transfer:
-        command.extend(["-vf", _hdr_to_sdr_filter(transfer)])
-
-    # Optimize PNG compression
-    command.extend(["-pred", "mixed", str(frame_path)])
 
     process = await asyncio.create_subprocess_exec(
         *command,

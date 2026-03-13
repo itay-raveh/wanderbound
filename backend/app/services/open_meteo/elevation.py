@@ -1,21 +1,21 @@
-import asyncio
 from itertools import batched
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from app.core.client import client
 from app.core.logging import config_logger
 
-from .types import HasLatLon
+from . import client
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
+    from app.logic.spatial.types import HasLatLon
+
 logger = config_logger(__name__)
 
 
-class OpenMeteoElevationsResult(BaseModel):
+class _ElevationResult(BaseModel):
     elevation: list[float]
 
 
@@ -23,9 +23,7 @@ OPEN_METEO_MAX_PER_REQUEST = 100
 
 
 async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
-    for i, batch in enumerate(batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False)):
-        if i > 0:
-            await asyncio.sleep(1)  # Rate limit between batches
+    for batch in batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False):
         response = await client.get(
             "https://api.open-meteo.com/v1/elevation",
             params={
@@ -36,7 +34,7 @@ async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
         )
         response.raise_for_status()
 
-        result = OpenMeteoElevationsResult.model_validate_json(await response.aread())
+        result = _ElevationResult.model_validate_json(await response.aread())
 
         for elev in result.elevation:
             yield elev

@@ -1,34 +1,28 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import type { ProcessingPhase, TripMeta } from "@/client/types.gen";
-import type { StreamState } from "@/composables/useProcessingStream";
+import { PHASE_ORDER } from "@/composables/useProcessingStream";
+import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 
 const props = defineProps<{
   trips: TripMeta[];
   state: StreamState;
   tripIndex: number;
-  phase: ProcessingPhase | null;
-  phaseDone: number;
+  phaseDone: PhaseDone;
 }>();
-
-const phaseTotal = computed(() => props.trips[props.tripIndex]?.step_count ?? 0);
-
-const PHASE_ORDER: ProcessingPhase[] = [
-  "elevations",
-  "weather",
-  "layouts",
-];
 
 const PHASE_LABELS: Record<ProcessingPhase, string> = {
   elevations: "Mapping terrain",
   weather: "Checking weather",
   layouts: "Arranging photos",
+  frames: "Extracting video frames",
 };
 
 const PHASE_ICONS: Record<ProcessingPhase, string> = {
   elevations: "terrain",
   weather: "thermostat",
   layouts: "photo_library",
+  frames: "videocam",
 };
 
 type ItemStatus = "pending" | "active" | "done";
@@ -44,21 +38,39 @@ const tripStatuses = computed(() =>
   props.trips.map((_, i) => tripStatus(i)),
 );
 
-function phaseStatus(tripIdx: number, phase: ProcessingPhase): ItemStatus {
-  const trip = tripStatus(tripIdx);
-  if (trip === "done") return "done";
-  if (trip === "pending") return "pending";
-  if (!props.phase) return "pending";
-  const currentIdx = PHASE_ORDER.indexOf(props.phase);
-  const phaseIdx = PHASE_ORDER.indexOf(phase);
-  if (phaseIdx < currentIdx) return "done";
-  if (phaseIdx > currentIdx) return "pending";
-  return props.phaseDone >= phaseTotal.value ? "done" : "active";
+function phaseStatus(phase: ProcessingPhase): ItemStatus {
+  const { done, total } = props.phaseDone[phase];
+  if (done >= total && total > 0) return "done";
+  if (total > 0) return "active";
+  return "pending";
 }
 
-const progressPercent = computed(() => {
-  if (!phaseTotal.value) return 0;
-  return Math.round((props.phaseDone / phaseTotal.value) * 100);
+const phaseStatuses = computed(() =>
+  Object.fromEntries(PHASE_ORDER.map((p) => [p, phaseStatus(p)])) as Record<ProcessingPhase, ItemStatus>,
+);
+
+function phasePercent(phase: ProcessingPhase): number {
+  const { done, total } = props.phaseDone[phase];
+  if (!total) return 0;
+  return Math.round((done / total) * 100);
+}
+
+const anyPhaseStarted = computed(() =>
+  PHASE_ORDER.some((p) => props.phaseDone[p].total > 0),
+);
+
+const overallPercent = computed(() => {
+  let totalSum = 0;
+  let doneSum = 0;
+  for (const p of PHASE_ORDER) {
+    const { done, total } = props.phaseDone[p];
+    if (total > 0) {
+      totalSum += total;
+      doneSum += done;
+    }
+  }
+  if (!totalSum) return 0;
+  return Math.round((doneSum / totalSum) * 100);
 });
 </script>
 
@@ -96,12 +108,12 @@ const progressPercent = computed(() => {
         </div>
 
         <!-- Phase progress (only for active trip) -->
-        <div v-if="tripStatuses[i] === 'active' && phase" class="phases">
+        <div v-if="tripStatuses[i] === 'active' && anyPhaseStarted" class="phases">
           <div
             v-for="p in PHASE_ORDER"
             :key="p"
             class="phase text-caption"
-            :class="phaseStatus(i, p)"
+            :class="phaseStatuses[p]"
           >
             <q-icon
               :name="PHASE_ICONS[p]"
@@ -109,23 +121,32 @@ const progressPercent = computed(() => {
               class="phase-icon"
             />
             <span class="phase-label">{{ PHASE_LABELS[p] }}</span>
+
             <q-icon
-              v-if="phaseStatus(i, p) === 'done'"
+              v-if="phaseStatuses[p] === 'done'"
               name="check_circle"
               size="var(--text-sm)"
               class="phase-check"
             />
+            <span v-else-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-count text-overline">
+              {{ phaseDone[p].done }}/{{ phaseDone[p].total }}
+            </span>
+
+            <!-- Per-phase mini progress bar (only for multi-item phases) -->
+            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track">
+              <div
+                class="phase-fill"
+                :style="{ width: `${phasePercent(p)}%` }"
+              />
+            </div>
           </div>
 
-          <!-- Progress bar -->
+          <!-- Overall progress bar -->
           <div class="progress-track">
             <div
               class="progress-fill"
-              :style="{ width: `${progressPercent}%` }"
+              :style="{ width: `${overallPercent}%` }"
             />
-          </div>
-          <div class="progress-label text-overline">
-            {{ phaseDone }} / {{ phaseTotal }}
           </div>
         </div>
       </div>
@@ -285,7 +306,15 @@ const progressPercent = computed(() => {
 }
 
 .phase-label {
-  flex: 1;
+  white-space: nowrap;
+}
+
+.phase-count {
+  color: var(--text-faint);
+  text-transform: none;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .phase-check {
@@ -293,7 +322,25 @@ const progressPercent = computed(() => {
   opacity: 0.6;
 }
 
-/* ── Progress bar ── */
+/* ── Per-phase mini progress ── */
+
+.phase-track {
+  flex: 1;
+  height: 0.1875rem;
+  border-radius: 0.09375rem;
+  background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+  overflow: hidden;
+  min-width: 2rem;
+}
+
+.phase-fill {
+  height: 100%;
+  border-radius: 0.09375rem;
+  background: var(--q-primary);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Overall progress bar ── */
 
 .progress-track {
   height: 0.25rem;
@@ -322,13 +369,5 @@ const progressPercent = computed(() => {
     transparent
   );
   animation: shimmer 2s ease-in-out infinite;
-}
-
-.progress-label {
-  color: var(--text-faint);
-  text-transform: none;
-  margin-top: 0.25rem;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 </style>

@@ -4,10 +4,12 @@ from typing import Annotated
 import httpx
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
-from app.core.client import client
+from app.core.http import cached_client
 from app.core.logging import config_logger
 
 from .types import HasLatLon
+
+_client = cached_client(use_body_key=True)
 
 PEAK_MIN_PROMINENCE = 300
 PEAK_SEARCH_RADIUS = 500
@@ -69,7 +71,7 @@ async def correct_peaks(
     query = f"[out:json][timeout:10];({around_clauses});out;"
     logger.debug("Overpass query for %d peaks: %s", len(high_indices), query)
     try:
-        response = await client.post(
+        response = await _client.post(
             "https://overpass-api.de/api/interpreter", data={"data": query}
         )
         if response.status_code != 200:

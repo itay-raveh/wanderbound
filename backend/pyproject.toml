@@ -23,6 +23,7 @@ dependencies = [
     "polars~=1.38",
     "playwright~=1.52",
     "coloraide~=8.7",
+    "aiolimiter>=1.2.1",
 ]
 
 [dependency-groups]

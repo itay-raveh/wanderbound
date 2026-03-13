@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { ProcessingPhase, TripMeta, User } from "@/client/types.gen";
-import type { StreamState } from "@/composables/useProcessingStream";
+import type { TripMeta, User } from "@/client/types.gen";
+import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import TripTimeline from "./TripTimeline.vue";
 
 const props = defineProps<{
@@ -9,8 +9,7 @@ const props = defineProps<{
   user: User;
   state: StreamState;
   tripIndex: number;
-  phase: ProcessingPhase | null;
-  phaseDone: number;
+  phaseDone: PhaseDone;
   errorDetail: string | null;
 }>();
 
@@ -69,7 +68,6 @@ const totalCountries = computed(() => {
       :trips="trips"
       :state="state"
       :trip-index="tripIndex"
-      :phase="phase"
       :phase-done="phaseDone"
     />
 

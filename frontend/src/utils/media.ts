@@ -13,9 +13,9 @@ export function isVideo(name: string): boolean {
   return name.endsWith(".mp4");
 }
 
-/** Convert a video .mp4 path to its extracted poster .png path. */
+/** Convert a video .mp4 path to its extracted poster .jpg path. */
 export function posterPath(path: string): string {
-  return isVideo(path) ? path.replace(".mp4", ".png") : path;
+  return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
 }
 
 /** Build flagcdn URL for a country code. */

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UserCreated } from "@/client/types.gen";
@@ -11,6 +11,8 @@ import ZipUploader from "@/components/register/ZipUploader.vue";
 import UnsupportedBanner from "@/components/register/UnsupportedBanner.vue";
 import ProcessingProgress from "@/components/register/ProcessingProgress.vue";
 
+const STORAGE_KEY = "processing_upload_result";
+
 const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
@@ -20,17 +22,32 @@ const uploadResult = ref<UserCreated | null>(null);
 
 const stream = useProcessingStream();
 
+onMounted(() => {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      uploadResult.value = JSON.parse(stored) as UserCreated;
+      stream.start();
+    }
+  } catch {
+    sessionStorage.removeItem(STORAGE_KEY);
+  }
+});
+
 function onUploaded(data: UserCreated) {
   uploadResult.value = data;
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   stream.start();
 }
 
 function onRetry() {
   stream.abort();
   uploadResult.value = null;
+  sessionStorage.removeItem(STORAGE_KEY);
 }
 
 function onDone() {
+  sessionStorage.removeItem(STORAGE_KEY);
   void router.push("/");
 }
 </script>
@@ -55,7 +72,6 @@ function onDone() {
         :user="uploadResult!.user"
         :state="stream.state.value"
         :trip-index="stream.tripIndex.value"
-        :phase="stream.phase.value"
         :phase-done="stream.phaseDone.value"
         :error-detail="stream.errorDetail.value"
         @retry="onRetry"

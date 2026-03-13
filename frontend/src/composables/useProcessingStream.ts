@@ -5,23 +5,41 @@ export type { ProcessingPhase };
 
 export type StreamState = "idle" | "running" | "done" | "error";
 
+export interface PhaseProgress {
+  done: number;
+  total: number;
+}
+
+export type PhaseDone = Record<ProcessingPhase, PhaseProgress>;
+
+export const PHASE_ORDER: ProcessingPhase[] = [
+  "elevations",
+  "weather",
+  "layouts",
+  "frames",
+];
+
 export interface UseProcessingStream {
   start(): void;
   abort(): void;
   state: Ref<StreamState>;
   tripIndex: Ref<number>;
-  phase: Ref<ProcessingPhase | null>;
-  phaseDone: Ref<number>;
+  phaseDone: Ref<PhaseDone>;
   errorDetail: Ref<string | null>;
 }
 
 type RawSseEvent = { type: string } & Record<string, unknown>;
 
+function freshPhaseDone(): PhaseDone {
+  return Object.fromEntries(
+    PHASE_ORDER.map((p) => [p, { done: 0, total: 0 }]),
+  ) as PhaseDone;
+}
+
 export function useProcessingStream(): UseProcessingStream {
   const state = ref<StreamState>("idle");
   const tripIndex = ref(0);
-  const phase = ref<ProcessingPhase | null>(null);
-  const phaseDone = ref(0);
+  const phaseDone = ref<PhaseDone>(freshPhaseDone());
   const errorDetail = ref<string | null>(null);
   let controller: AbortController | null = null;
 
@@ -29,8 +47,7 @@ export function useProcessingStream(): UseProcessingStream {
     controller = new AbortController();
     state.value = "running";
     tripIndex.value = 0;
-    phase.value = null;
-    phaseDone.value = 0;
+    phaseDone.value = freshPhaseDone();
     errorDetail.value = null;
 
     try {
@@ -45,12 +62,13 @@ export function useProcessingStream(): UseProcessingStream {
         switch (event.type) {
           case "trip_start":
             tripIndex.value = event.trip_index as number;
-            phase.value = null;
-            phaseDone.value = 0;
+            phaseDone.value = freshPhaseDone();
             break;
           case "phase":
-            phase.value = event.phase as ProcessingPhase;
-            phaseDone.value = event.done as number;
+            phaseDone.value[event.phase as ProcessingPhase] = {
+              done: event.done as number,
+              total: event.total as number,
+            };
             break;
           case "error":
             state.value = "error";
@@ -59,7 +77,7 @@ export function useProcessingStream(): UseProcessingStream {
         }
       }
 
-      state.value = "done";
+      if (!controller?.signal.aborted) state.value = "done";
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
@@ -70,8 +88,8 @@ export function useProcessingStream(): UseProcessingStream {
   function abort() {
     controller?.abort();
     state.value = "idle";
-    phase.value = null;
-    phaseDone.value = 0;
+    tripIndex.value = 0;
+    phaseDone.value = freshPhaseDone();
     errorDetail.value = null;
   }
 
@@ -80,7 +98,6 @@ export function useProcessingStream(): UseProcessingStream {
     abort,
     state,
     tripIndex,
-    phase,
     phaseDone,
     errorDetail,
   };

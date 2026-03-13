@@ -4,7 +4,7 @@ import logging
 
 from rich.logging import RichHandler
 
-_LOG_LEVEL = logging.INFO
+_LOG_LEVEL = logging.DEBUG
 
 
 def config_logger(name: str) -> logging.Logger:

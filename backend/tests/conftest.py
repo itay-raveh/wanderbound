@@ -1,8 +1,15 @@
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 
 from app.models.polarsteps import PSLocations, PSTrip
+
+
+async def collect_async[T](it: AsyncIterator[T]) -> list[T]:
+    """Exhaust an async iterator into a list."""
+    return [item async for item in it]
+
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 

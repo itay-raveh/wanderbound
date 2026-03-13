@@ -5,27 +5,38 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.core.logging import config_logger
 from app.logic.country_colors import build_country_colors
-from app.logic.layout import build_step_layout
-from app.logic.layout.media import MEDIA_EXTENSIONS, MediaName, normalize_name
-from app.logic.spatial.elevation import elevations
+from app.logic.layout import Layout, build_step_layout
+from app.logic.layout.media import (
+    MEDIA_EXTENSIONS,
+    extract_frame,
+    normalize_name,
+)
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
-from app.logic.weather import Weather, build_weathers
 from app.models.album import Album
 from app.models.polarsteps import Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
+from app.services.open_meteo import Weather, build_weathers, elevations
 
 logger = config_logger(__name__)
 
-type ProcessingPhase = Literal["elevations", "weather", "layouts"]
+type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames"]
 type DbRow = Album | Step | Segment
+
+# Peak memory per ffmpeg frame-extraction process (~80 MB for 1080p video).
+FFMPEG_MEMORY_PER_PROCESS_MB = 80
+FFMPEG_MEMORY_BUDGET_MB = 1600
+_ffmpeg_sem = asyncio.Semaphore(
+    max(1, FFMPEG_MEMORY_BUDGET_MB // FFMPEG_MEMORY_PER_PROCESS_MB)
+)
 
 
 class TripStart(BaseModel):
@@ -37,6 +48,7 @@ class PhaseUpdate(BaseModel):
     type: Literal["phase"] = "phase"
     phase: ProcessingPhase
     done: int
+    total: int
 
 
 class ErrorData(BaseModel):
@@ -54,16 +66,14 @@ async def _fetch_layouts(
     user: User,
     aid: str,
     steps: list[PSStep],
-) -> AsyncIterator[tuple[int, tuple[MediaName, list[list[MediaName]]]]]:
+) -> AsyncIterator[tuple[int, Layout | None]]:
     """Yield (index, layout) as each completes (concurrent, unordered)."""
-    sem = asyncio.Semaphore(10)
 
     async def _one(
         idx: int,
         step: PSStep,
-    ) -> tuple[int, tuple[MediaName, list[list[MediaName]]]]:
-        async with sem:
-            return idx, await build_step_layout(user, aid, step)
+    ) -> tuple[int, Layout | None]:
+        return idx, await build_step_layout(user, aid, step)
 
     for coro in asyncio.as_completed([_one(i, s) for i, s in enumerate(steps)]):
         yield await coro
@@ -88,7 +98,7 @@ def _build_trip_objects(  # noqa: PLR0913
     locations: list[Point],
     elevs: Sequence[float],
     weathers: Sequence[Weather],
-    layouts: Sequence[tuple[MediaName, list[list[MediaName]]]],
+    layouts: Sequence[Layout | None],
 ) -> list[DbRow]:
     album = Album(
         uid=user.id,
@@ -114,11 +124,11 @@ def _build_trip_objects(  # noqa: PLR0913
             location=ps.location,
             elevation=elev,
             weather=wthr,
-            cover=cover,
-            pages=pages,
+            cover=layout[0] if layout else None,
+            pages=layout[1] if layout else [],
             unused=[],
         )
-        for idx, (ps, elev, wthr, (cover, pages)) in enumerate(
+        for idx, (ps, elev, wthr, layout) in enumerate(
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
         )
     ]
@@ -136,7 +146,7 @@ def _build_trip_objects(  # noqa: PLR0913
     return [album, *steps, *segments]
 
 
-async def _process_trip(
+async def _process_trip(  # noqa: C901, PLR0915
     user: User,
     trip_dir: Path,
     db_out: list[DbRow],
@@ -147,34 +157,110 @@ async def _process_trip(
     logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
     locs = [s.location for s in trip.all_steps]
 
-    # Phases run sequentially so the SSE stream can report per-item progress.
+    queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
 
-    raw: list[float] = []
-    async for elev in elevations(locs):
-        raw.append(elev)
-        yield PhaseUpdate(phase="elevations", done=len(raw))
-    elevs = await correct_peaks(locs, raw)
-
+    # Result containers shared with the phase tasks.
+    elevs_raw: list[float] = []
+    elevs_corrected: list[float] = []
     weather_by_idx: dict[int, Weather] = {}
-    async for idx, weather in build_weathers(trip.all_steps):
-        weather_by_idx[idx] = weather
-        yield PhaseUpdate(phase="weather", done=len(weather_by_idx))
-    weathers = [weather_by_idx[i] for i in range(len(trip.all_steps))]
+    layout_by_idx: dict[int, Layout | None] = {}
 
-    layout_by_idx: dict[int, tuple[MediaName, list[list[MediaName]]]] = {}
-    async for idx, layout in _fetch_layouts(user, aid, trip.all_steps):
-        layout_by_idx[idx] = layout
-        yield PhaseUpdate(phase="layouts", done=len(layout_by_idx))
+    n_steps = len(trip.all_steps)
+
+    async def _run_elevations() -> None:
+        await queue.put(PhaseUpdate(phase="elevations", done=0, total=n_steps))
+        async for elev in elevations(locs):
+            elevs_raw.append(elev)
+            await queue.put(
+                PhaseUpdate(phase="elevations", done=len(elevs_raw), total=n_steps)
+            )
+        elevs_corrected.extend(await correct_peaks(locs, elevs_raw))
+
+    async def _run_weather() -> None:
+        await queue.put(PhaseUpdate(phase="weather", done=0, total=n_steps))
+        async for idx, weather in build_weathers(trip.all_steps):
+            weather_by_idx[idx] = weather
+            await queue.put(
+                PhaseUpdate(phase="weather", done=len(weather_by_idx), total=n_steps)
+            )
+
+    async def _run_media_pipeline() -> None:
+        """Layouts → flatten → frame extraction (sequential pipeline).
+
+        Runs as one TaskGroup member so frame extraction starts as soon as
+        layouts finish, without waiting for the API calls to complete.
+        """
+        # 1. Build layouts (reads from step sub-directories)
+        await queue.put(PhaseUpdate(phase="layouts", done=0, total=n_steps))
+        async for idx, layout in _fetch_layouts(user, aid, trip.all_steps):
+            layout_by_idx[idx] = layout
+            await queue.put(
+                PhaseUpdate(phase="layouts", done=len(layout_by_idx), total=n_steps)
+            )
+
+        # 2. Flatten media (move files to album root, remove sub-dirs)
+        await asyncio.to_thread(_flatten_media, trip_dir)
+
+        # 3. Extract video frames from flattened files
+        video_paths = list(trip_dir.iterdir())  # noqa: ASYNC240
+        video_paths = [p for p in video_paths if p.suffix.lower() == ".mp4"]
+        if video_paths:
+            total = len(video_paths)
+            await queue.put(PhaseUpdate(phase="frames", done=0, total=total))
+
+            async def _extract_one(p: Path) -> None:
+                async with _ffmpeg_sem:
+                    await extract_frame(p)
+
+            for done, coro in enumerate(
+                asyncio.as_completed([_extract_one(p) for p in video_paths]),
+                1,
+            ):
+                try:
+                    await coro
+                except (RuntimeError, OSError) as exc:
+                    logger.warning("Frame extraction failed: %s", exc)
+                await queue.put(PhaseUpdate(phase="frames", done=done, total=total))
+
+    async def _run_all() -> None:
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(_run_elevations())
+                tg.create_task(_run_weather())
+                tg.create_task(_run_media_pipeline())
+        finally:
+            await queue.put(None)
+
+    runner = asyncio.create_task(_run_all())
+
+    try:
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield event
+    finally:
+        if not runner.done():
+            runner.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await runner
+
+    # Re-raise phase errors (only reached on normal sentinel break,
+    # not on generator close where the finally terminates the generator).
+    await runner
+
+    weathers = [weather_by_idx[i] for i in range(len(trip.all_steps))]
     layouts = [layout_by_idx[i] for i in range(len(trip.all_steps))]
 
-    await asyncio.to_thread(_flatten_media, trip_dir)
-
     db_out.extend(
-        _build_trip_objects(user, aid, trip, locations, elevs, weathers, layouts),
+        _build_trip_objects(
+            user, aid, trip, locations, elevs_corrected, weathers, layouts
+        ),
     )
 
 
-async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
+async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
+    """Core processing logic — yields events for a full processing run."""
     trip_dirs = sorted(user.trips_folder.iterdir())
     all_objects: list[DbRow] = []
     try:
@@ -190,12 +276,95 @@ async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
         return
 
     try:
-        album_ids = [obj.id for obj in all_objects if isinstance(obj, Album)]
-        user.album_ids = album_ids
         async with AsyncSession(engine) as session:
             session.add_all(all_objects)
-            await session.merge(user)
             await session.commit()
-    except Exception:
+    except SQLAlchemyError:
         logger.exception("DB save failed")
         yield ErrorData(detail="Processing failed. Please try again later.")
+
+
+# ---------------------------------------------------------------------------
+# Processing session: per-user lock + reconnectable progress
+# ---------------------------------------------------------------------------
+
+
+_SESSION_TTL = 300  # seconds before a completed session is evicted
+
+
+def _evict_session(uid: int, session: ProcessingSession) -> None:
+    """Remove a completed session if it hasn't been replaced."""
+    if _sessions.get(uid) is session:
+        del _sessions[uid]
+
+
+class ProcessingSession:
+    """Runs processing in a background task; clients subscribe to events."""
+
+    def __init__(self, user: User) -> None:
+        self._events: list[ProcessingEvent] = []
+        self._done = False
+        self._notify = asyncio.Event()
+        self._uid = user.id
+        self._task = asyncio.create_task(self._run(user))
+
+    async def _run(self, user: User) -> None:
+        try:
+            async for event in _run_processing(user):
+                self._events.append(event)
+                self._notify.set()
+        finally:
+            self._done = True
+            self._notify.set()
+            # Schedule cleanup so abandoned sessions don't leak memory.
+            # Delay gives reconnecting clients time to attach.
+            asyncio.get_running_loop().call_later(
+                _SESSION_TTL,
+                _evict_session,
+                self._uid,
+                self,
+            )
+
+    @property
+    def is_done(self) -> bool:
+        return self._done
+
+    async def subscribe(self) -> AsyncIterator[ProcessingEvent]:
+        """Yield all events (past and future) until processing completes."""
+        idx = 0
+        while True:
+            while idx < len(self._events):
+                yield self._events[idx]
+                idx += 1
+            if self._done:
+                break
+            self._notify.clear()
+            # Re-check after clear to avoid race with producer
+            if idx < len(self._events) or self._done:
+                continue
+            await self._notify.wait()
+
+
+_sessions: dict[int, ProcessingSession] = {}
+
+
+async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
+    """Start or reconnect to a user's processing session."""
+    session = _sessions.get(user.id)
+
+    if session is not None:
+        logger.info(
+            "User %s reconnecting to %s processing session",
+            user.id,
+            "completed" if session.is_done else "active",
+        )
+        async for event in session.subscribe():
+            yield event
+        return
+
+    # Start new session
+    session = ProcessingSession(user)
+    _sessions[user.id] = session
+
+    async for event in session.subscribe():
+        yield event

@@ -7,6 +7,9 @@ from app.core.logging import config_logger
 
 from .media import Media, Photo, Video
 
+# Global limit on concurrent ffprobe processes across all users.
+_ffprobe_sem = asyncio.Semaphore(8)
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Iterable, Sequence
     from pathlib import Path
@@ -16,6 +19,8 @@ if TYPE_CHECKING:
     from app.models.user import User
 
     from .media import MediaName
+
+type Layout = tuple[MediaName, list[list[MediaName]]]
 
 logger = config_logger(__name__)
 
@@ -88,23 +93,35 @@ def _build_pages(
     yield from _landscape_pages(landscapes[2 * mixed :])
 
 
+def _load_photos(folder: Path) -> list[Photo]:
+    """Load photo metadata from a folder (sync — runs in thread pool)."""
+    return [
+        Photo.load(p)
+        for p in folder.iterdir()
+        if p.is_file() and p.suffix.lower() == ".jpg"
+    ]
+
+
 async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
     photo_folder = step_dir / "photos"
     if photo_folder.exists():
-        for photo in (Photo.load(path) for path in photo_folder.iterdir()):
+        for photo in await asyncio.to_thread(_load_photos, photo_folder):
             yield photo
 
     video_folder = step_dir / "videos"
     if video_folder.exists():
-        async for video in asyncio.as_completed(
-            Video.extract(path) for path in video_folder.iterdir()
+
+        async def _probe(p: Path) -> Video:
+            async with _ffprobe_sem:
+                return await Video.probe(p)
+
+        for coro in asyncio.as_completed(
+            [_probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"]
         ):
-            yield await video
+            yield await coro
 
 
-async def build_step_layout(
-    user: User, aid: AlbumId, step: PSStep
-) -> tuple[MediaName, list[list[MediaName]]]:
+async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | None:
     step_dir = user.trips_folder / aid / step.folder_name
 
     media: list[Media] = [m async for m in _step_media(step_dir)]
@@ -123,6 +140,10 @@ async def build_step_layout(
         )
     ]
     landscapes = [media_name(p) for p in media if not p.is_portrait]
+
+    if not portraits and not landscapes:
+        logger.debug("Step '%s' has no media files, skipping layout", step.name)
+        return None
 
     # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]

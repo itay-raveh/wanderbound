@@ -40,15 +40,6 @@ def _extract_user(file: BinaryIO) -> User:
 async def user_from_zip(file: BinaryIO) -> UserCreated:
     user = await asyncio.to_thread(_extract_user, file)
 
-    async with AsyncSession(engine) as session:
-        existing = await session.get(User, user.id)
-        if existing:
-            await session.delete(existing)
-            await session.flush()
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-
     trips: list[TripMeta] = []
     for trip_dir in sorted(user.trips_folder.iterdir()):
         trip = PSTrip.from_trip_dir(trip_dir)
@@ -60,5 +51,16 @@ async def user_from_zip(file: BinaryIO) -> UserCreated:
                 country_codes=list({s.location.country_code for s in trip.all_steps}),
             )
         )
+
+    user.album_ids = [t.id for t in trips]
+
+    async with AsyncSession(engine) as session:
+        existing = await session.get(User, user.id)
+        if existing:
+            await session.delete(existing)
+            await session.flush()
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
 
     return UserCreated(user=user, trips=trips)
