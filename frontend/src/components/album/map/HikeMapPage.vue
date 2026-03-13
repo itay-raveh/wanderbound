@@ -3,6 +3,8 @@ import type { Segment, Step } from "@/client";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { useAlbumStore } from "@/stores/useAlbumStore";
+import { storeToRefs } from "pinia";
 import { getCountryColor } from "@/utils/colors";
 import { KM_TO_MI, M_TO_FT } from "@/utils/units";
 import { along, length as turfLength, lineString } from "@turf/turf";
@@ -18,6 +20,7 @@ const props = defineProps<{
   colors: Record<string, string>;
 }>();
 
+const { albumId } = storeToRefs(useAlbumStore());
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
@@ -139,6 +142,7 @@ onMounted(() => {
       await drawSegmentsAndMarkers(m, {
         segments: otherSegments,
         steps: [],
+        albumId: albumId.value,
         style: "faint",
       });
 
@@ -146,6 +150,7 @@ onMounted(() => {
       const coords = await drawSegmentsAndMarkers(m, {
         segments: [props.hikeSegment],
         steps: props.steps,
+        albumId: albumId.value,
         skipCleanup: true,
         hikeColor: countryColor.value,
       });

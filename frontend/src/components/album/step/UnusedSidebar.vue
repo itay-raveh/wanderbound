@@ -6,7 +6,6 @@ import MediaItem from "../MediaItem.vue";
 const props = defineProps<{
   assets: Array<string>;
   stepId: number;
-  albumName: string;
 }>();
 
 const emit = defineEmits<{
@@ -43,7 +42,6 @@ function onDragChange() {
       <MediaItem
         v-for="photo in localUnused"
         :key="photo"
-        :album-id="albumName"
         :media="photo"
         :step-id="stepId"
         class="tray-item"

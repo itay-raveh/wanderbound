@@ -1,25 +1,27 @@
 <script lang="ts" setup>
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { mediaUrl, posterPath } from "@/utils/media";
+import { useAlbumStore } from "@/stores/useAlbumStore";
+import { isVideo as checkVideo, mediaUrl, posterPath } from "@/utils/media";
+import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
 
 const props = defineProps<{
   media: string;
-  albumId: string;
   stepId: number;
   cover?: boolean;
 }>();
 
+const { albumId } = storeToRefs(useAlbumStore());
 const printMode = usePrintMode();
 const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 
-const isVideo = computed(() => props.media.endsWith(".mp4"));
-const src = computed(() => mediaUrl(props.media));
+const isVideo = computed(() => checkVideo(props.media));
+const src = computed(() => mediaUrl(props.media, albumId.value));
 const posterCacheBust = ref<number>();
 const posterSrc = computed(() => {
   if (!isVideo.value) return "";
-  const base = mediaUrl(posterPath(props.media));
+  const base = mediaUrl(posterPath(props.media), albumId.value);
   return posterCacheBust.value != null ? `${base}?v=${posterCacheBust.value}` : base;
 });
 
@@ -41,7 +43,7 @@ function togglePlay() {
 
 async function setFrame() {
   if (!videoRef.value) return;
-  await frameMutation.mutateAsync({ video: props.media.replace(/^trip\//, ""), timestamp: videoRef.value.currentTime });
+  await frameMutation.mutateAsync({ name: props.media, timestamp: videoRef.value.currentTime });
   posterCacheBust.value = Date.now();
   videoRef.value.pause();
   playing.value = false;

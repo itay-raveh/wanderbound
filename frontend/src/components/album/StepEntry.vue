@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step, StepLayout } from "@/client";
+import type { Step, StepUpdate } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
@@ -10,27 +10,22 @@ import { computed, ref } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 
 const props = defineProps<{
-  albumId: string;
   colors: Record<string, string>;
   step: Step;
   tripStart: string;
-  stepsRanges: string;
   printMode?: boolean;
 }>();
 
 const descRef = computed(() => props.step.description);
 const desc = usePageDescription(descRef);
 
-const stepMutation = useStepMutation(
-  () => props.albumId,
-  () => props.stepsRanges,
-);
+const stepMutation = useStepMutation();
 
 // Temporary list for the drop zone — when a photo lands here, create a new page
 const dropZoneList = ref<string[]>([]);
 
-function saveLayout(patch: Partial<StepLayout>) {
-  const layout: StepLayout = {
+function saveLayout(patch: Partial<StepUpdate>) {
+  const layout: StepUpdate = {
     cover: props.step.cover,
     pages: props.step.pages,
     unused: props.step.unused,
@@ -89,7 +84,6 @@ function onDropZoneChange() {
     <StepPhotoPage
       v-for="(page, idx) in step.pages"
       :key="`page-${idx}`"
-      :album-id="albumId"
       :page="page"
       :step-id="step.idx"
       @update:page="onPageUpdate(idx, $event)"
@@ -114,7 +108,6 @@ function onDropZoneChange() {
     <!-- Unused photos tray (editor only) -->
     <UnusedSidebar
       v-if="!printMode"
-      :album-name="albumId"
       :assets="step.unused"
       :step-id="step.idx"
       @update:unused-photos="onUnusedUpdate"

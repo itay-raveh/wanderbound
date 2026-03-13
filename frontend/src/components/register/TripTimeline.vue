@@ -1,51 +1,42 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type {
-  TripMeta,
-  ProgressData,
-  ProcessingPhase,
-} from "@/client/types.gen";
-import type { StreamState } from "@/composables/useProcessingStream";
+import type { TripMeta } from "@/client/types.gen";
+import type { ProcessingPhase, StreamState } from "@/composables/useProcessingStream";
 
 const props = defineProps<{
   trips: TripMeta[];
-  progress: ProgressData | null;
   state: StreamState;
+  tripIndex: number;
+  phase: ProcessingPhase | null;
+  phaseDone: number;
 }>();
+
+const phaseTotal = computed(() => props.trips[props.tripIndex]?.step_count ?? 0);
 
 const PHASE_ORDER: ProcessingPhase[] = [
   "elevations",
   "weather",
   "layouts",
-  "segments",
-  "saving",
 ];
 
 const PHASE_LABELS: Record<ProcessingPhase, string> = {
   elevations: "Mapping terrain",
   weather: "Checking weather",
   layouts: "Arranging photos",
-  segments: "Tracing routes",
-  saving: "Saving",
 };
 
 const PHASE_ICONS: Record<ProcessingPhase, string> = {
   elevations: "terrain",
   weather: "thermostat",
   layouts: "photo_library",
-  segments: "route",
-  saving: "cloud_upload",
 };
 
 type ItemStatus = "pending" | "active" | "done";
 
 function tripStatus(index: number): ItemStatus {
   if (props.state === "done") return "done";
-  if (!props.progress) {
-    return props.state === "running" && index === 0 ? "active" : "pending";
-  }
-  if (index < props.progress.trip_index) return "done";
-  if (index === props.progress.trip_index) return "active";
+  if (index < props.tripIndex) return "done";
+  if (index === props.tripIndex) return "active";
   return "pending";
 }
 
@@ -53,31 +44,21 @@ const tripStatuses = computed(() =>
   props.trips.map((_, i) => tripStatus(i)),
 );
 
-const activePhaseStatuses = computed<Record<ProcessingPhase, ItemStatus>>(() => {
-  const result = {} as Record<ProcessingPhase, ItemStatus>;
-  const currentIdx = props.progress
-    ? PHASE_ORDER.indexOf(props.progress.phase)
-    : -1;
-  for (const [i, phase] of PHASE_ORDER.entries()) {
-    result[phase] =
-      i < currentIdx ? "done" : i === currentIdx ? "active" : "pending";
-  }
-  return result;
-});
-
-function phaseStatus(
-  tripIndex: number,
-  phase: ProcessingPhase,
-): ItemStatus {
-  if (!props.progress) return "pending";
-  if (tripIndex < props.progress.trip_index) return "done";
-  if (tripIndex > props.progress.trip_index) return "pending";
-  return activePhaseStatuses.value[phase];
+function phaseStatus(tripIdx: number, phase: ProcessingPhase): ItemStatus {
+  const trip = tripStatus(tripIdx);
+  if (trip === "done") return "done";
+  if (trip === "pending") return "pending";
+  if (!props.phase) return "pending";
+  const currentIdx = PHASE_ORDER.indexOf(props.phase);
+  const phaseIdx = PHASE_ORDER.indexOf(phase);
+  if (phaseIdx < currentIdx) return "done";
+  if (phaseIdx > currentIdx) return "pending";
+  return props.phaseDone >= phaseTotal.value ? "done" : "active";
 }
 
 const progressPercent = computed(() => {
-  if (!props.progress || props.progress.total === 0) return 0;
-  return Math.round((props.progress.step / props.progress.total) * 100);
+  if (!phaseTotal.value) return 0;
+  return Math.round((props.phaseDone / phaseTotal.value) * 100);
 });
 </script>
 
@@ -115,21 +96,21 @@ const progressPercent = computed(() => {
         </div>
 
         <!-- Phase progress (only for active trip) -->
-        <div v-if="tripStatuses[i] === 'active' && progress" class="phases">
+        <div v-if="tripStatuses[i] === 'active' && phase" class="phases">
           <div
-            v-for="phase in PHASE_ORDER"
-            :key="phase"
+            v-for="p in PHASE_ORDER"
+            :key="p"
             class="phase text-caption"
-            :class="phaseStatus(i, phase)"
+            :class="phaseStatus(i, p)"
           >
             <q-icon
-              :name="PHASE_ICONS[phase]"
+              :name="PHASE_ICONS[p]"
               size="var(--text-sm)"
               class="phase-icon"
             />
-            <span class="phase-label">{{ PHASE_LABELS[phase] }}</span>
+            <span class="phase-label">{{ PHASE_LABELS[p] }}</span>
             <q-icon
-              v-if="phaseStatus(i, phase) === 'done'"
+              v-if="phaseStatus(i, p) === 'done'"
               name="check_circle"
               size="var(--text-sm)"
               class="phase-check"
@@ -144,7 +125,7 @@ const progressPercent = computed(() => {
             />
           </div>
           <div class="progress-label text-overline">
-            {{ progress.step }} / {{ progress.total }}
+            {{ phaseDone }} / {{ phaseTotal }}
           </div>
         </div>
       </div>

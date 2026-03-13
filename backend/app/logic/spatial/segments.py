@@ -25,22 +25,22 @@ DataFrame columns through the pipeline::
 from __future__ import annotations
 
 import math
-from enum import StrEnum
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
-from pydantic import BaseModel
 
 from app.core.logging import config_logger
-from app.models.trips import Point
+from app.models.polarsteps import Point
+from app.models.segment import SegmentBase
+from app.models.types import SegmentKind
 
 from .simplify import rdp_mask
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    from app.models.db import Step
+    from app.models.step import Step
 
 
 logger = config_logger(__name__)
@@ -102,16 +102,7 @@ CAMP_PREV_ANCHOR_MIN_H = 1.0
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 
-class SegmentKind(StrEnum):
-    flight = "flight"
-    hike = "hike"
-    walking = "walking"
-    driving = "driving"
-
-
-class SegmentData(BaseModel):
-    kind: SegmentKind
-    points: list[Point]
+SegmentData = SegmentBase
 
 
 # ═══════════════════════════════════════════════════════════════════

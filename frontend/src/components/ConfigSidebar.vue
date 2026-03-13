@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album, AlbumSettings } from "@/client";
+import type { Album, AlbumUpdate } from "@/client";
 import { toRangeList } from "@/utils/ranges";
 import { chooseTextDir } from "@/utils/text";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
@@ -15,21 +15,12 @@ const albumId = defineModel<string | null>("albumId");
 const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
 const pdfMutation = useExportPdfMutation(() => props.album?.id ?? "");
 
-function save(patch: Partial<AlbumSettings>) {
+function save(patch: AlbumUpdate) {
   if (!props.album) return;
-  const settings: AlbumSettings = {
-    title: props.album.title,
-    subtitle: props.album.subtitle,
-    steps_ranges: props.album.steps_ranges,
-    maps_ranges: props.album.maps_ranges,
-    front_cover_photo: props.album.front_cover_photo,
-    back_cover_photo: props.album.back_cover_photo,
-    ...patch,
-  };
-  albumMutation.mutate(settings);
+  albumMutation.mutate(patch);
 }
 
-const onTripSelected = ({ value: aid }: { value: string }) => {
+const onTripSelected = (aid: string) => {
   albumId.value = aid;
 };
 

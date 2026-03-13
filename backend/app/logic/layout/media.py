@@ -1,14 +1,32 @@
 import asyncio
 from pathlib import Path
-from typing import Self
+from typing import Annotated, Self
 
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
+
+MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4", ".png"})
+
+# {uuid4}_{uuid4}.(jpg|mp4|png)
+_UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+MediaName = Annotated[
+    str, StringConstraints(pattern=rf"^{_UUID4}_{_UUID4}\.(jpg|mp4|png)$")
+]
+
+
+def normalize_name(raw: str) -> str:
+    """Fix the .jpg.jpg double-extension from the Polarsteps ZIP format."""
+    return raw.replace(".jpg.jpg", ".jpg")
+
+
+def is_video(name: str) -> bool:
+    return name.endswith(".mp4")
 
 
 class Photo(BaseModel):
-    path: Path
+    path: str  # MediaName (just the filename)
     width: int
     height: int
 
@@ -20,11 +38,11 @@ class Photo(BaseModel):
         return self.width / self.height
 
     @property
-    def is_portrait(self) -> float:
+    def is_portrait(self) -> bool:
         return self.aspect_ratio <= 4 / 5
 
     @classmethod
-    def load(cls, root: Path, path: Path) -> Self:
+    def load(cls, path: Path) -> Self:
         with Image.open(path) as img:
             width, height = img.size
             # Orientations 5-8 involve a 90-degree rotation
@@ -32,26 +50,26 @@ class Photo(BaseModel):
                 width, height = height, width
 
         return cls(
-            path=path.relative_to(root),
+            path=normalize_name(path.name),
             width=width,
             height=height,
         )
 
 
 class Video(Photo):
-    src: Path
+    src: str  # MediaName (just the filename, .mp4)
     timestamp: float
 
     @classmethod
-    async def extract(cls, root: Path, path: Path, timestamp: float = 1) -> Self:
+    async def extract(cls, path: Path, timestamp: float = 1) -> Self:
         frame_path = await extract_frame(path, timestamp)
-        frame = Photo.load(root, frame_path)
+        frame = Photo.load(frame_path)
 
         return cls(
             path=frame.path,
             width=frame.width,
             height=frame.height,
-            src=path.relative_to(root),
+            src=normalize_name(path.name),
             timestamp=timestamp,
         )
 
@@ -100,7 +118,7 @@ async def _hdr_transfer(video: Path) -> str | None:
 # https://ayosec.github.io/ffmpeg-filters-docs/8.0/Filters/Video/zscale.html
 # https://ayosec.github.io/ffmpeg-filters-docs/7.1/Filters/Video/tonemap.html
 def _hdr_to_sdr_filter(transfer: str) -> str:
-    """Build an HDR-to-SDR tone mapping filter chain for the given transfer curve."""
+    """Build an HDR-to-SDR tone mapping filter chain."""
     return (
         # Linearize with explicit input color space parameters
         f"zscale=tin={transfer}:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=1000,"

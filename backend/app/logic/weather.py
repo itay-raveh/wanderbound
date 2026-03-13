@@ -9,9 +9,9 @@ from app.core.client import client
 from app.core.logging import config_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Sequence
+    from collections.abc import AsyncIterator, Sequence
 
-    from app.models.trips import PSStep
+    from app.models.polarsteps import PSStep
 
 logger = config_logger(__name__)
 
@@ -181,21 +181,9 @@ async def _fetch_one(
         return weather
 
 
-async def build_weathers(
-    steps: Sequence[PSStep],
-    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
-) -> list[Weather]:
-    """Fetch weather for all steps.  Raises on any failure."""
+async def build_weathers(steps: Sequence[PSStep]) -> AsyncIterator[Weather]:
+    """Yield weather for each step (concurrent, in order)."""
     sem = asyncio.Semaphore(_WEATHER_CONCURRENCY)
-    total = len(steps)
-    completed = 0
-
-    async def _one(step: PSStep) -> Weather:
-        nonlocal completed
-        weather = await _fetch_one(step, sem)
-        completed += 1
-        if on_progress:
-            await on_progress(completed, total)
-        return weather
-
-    return list(await asyncio.gather(*(_one(s) for s in steps)))
+    tasks = [asyncio.create_task(_fetch_one(s, sem)) for s in steps]
+    for task in tasks:
+        yield await task

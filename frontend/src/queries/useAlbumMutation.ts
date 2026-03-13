@@ -1,6 +1,6 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateAlbum } from "@/client";
-import type { Album, AlbumSettings } from "@/client";
+import type { Album, AlbumUpdate } from "@/client";
 import { Notify } from "quasar";
 import { queryKeys } from "./keys";
 
@@ -8,18 +8,18 @@ export function useAlbumMutation(aid: () => string) {
   const cache = useQueryCache();
 
   return useMutation({
-    mutation: async (settings: AlbumSettings) => {
+    mutation: async (update: AlbumUpdate) => {
       const { data } = await updateAlbum({
         path: { aid: aid() },
-        body: settings,
+        body: update,
       });
       return data;
     },
-    onMutate: (settings) => {
+    onMutate: (update) => {
       const key = queryKeys.album(aid());
       const prev = cache.getQueryData<Album>(key);
       if (prev) {
-        cache.setQueryData(key, { ...prev, ...settings });
+        cache.setQueryData(key, { ...prev, ...update });
       }
       return prev;
     },
@@ -28,9 +28,6 @@ export function useAlbumMutation(aid: () => string) {
         cache.setQueryData(queryKeys.album(aid()), prev);
       }
       Notify.create({ type: "negative", message: "Failed to save album settings" });
-    },
-    onSettled: () => {
-      void cache.invalidateQueries({ key: queryKeys.album(aid()), exact: true });
     },
   });
 }

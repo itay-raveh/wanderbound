@@ -5,6 +5,10 @@ services:
     ports:
       - "5432:5432"
 
+  prestart:
+    volumes:
+      - ./backend:/app/backend
+
   backend:
     restart: "no"
     ports:

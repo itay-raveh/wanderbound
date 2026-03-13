@@ -14,7 +14,7 @@ export function useUserQuery() {
     staleTime: Infinity,
   });
 
-  const user = computed(() => query.data.value?.user);
+  const user = computed(() => query.data.value);
   const locale = computed(() => user.value?.locale.replace("_", "-") ?? "en");
   const isKm = computed(() => user.value?.unit_is_km ?? true);
   const isCelsius = computed(() => user.value?.temperature_is_celsius ?? true);

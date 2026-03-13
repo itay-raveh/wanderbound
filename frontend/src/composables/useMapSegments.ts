@@ -227,6 +227,7 @@ function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
 interface DrawOptions {
   segments: Segment[];
   steps: Step[];
+  albumId: string;
   style?: "normal" | "faint";
   /** Skip cleanup of existing layers/markers (for layered drawing). */
   skipCleanup?: boolean;
@@ -241,7 +242,7 @@ export async function drawSegmentsAndMarkers(
 ): Promise<[number, number][]> {
   if (!options.skipCleanup) cleanup(m);
 
-  const { segments, steps, style = "normal" } = options;
+  const { segments, steps, albumId, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
   const useMatching = shouldMapMatch(steps, segments);
@@ -290,7 +291,7 @@ export async function drawSegmentsAndMarkers(
     const el = document.createElement("div");
     el.className = MARKER_CLASS;
     const coverPath = posterPath(step.cover);
-    el.style.backgroundImage = `url(${mediaUrl(coverPath)})`;
+    el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)})`;
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
 

@@ -157,7 +157,7 @@ class TestWeatherFromResult:
 class TestBuildWeathers:
     @pytest.mark.anyio
     async def test_empty_steps(self) -> None:
-        assert await build_weathers([]) == []
+        assert [w async for w in build_weathers([])] == []
 
     @pytest.mark.anyio
     async def test_single_step(self) -> None:
@@ -175,7 +175,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = await build_weathers([step])
+            result = [w async for w in build_weathers([step])]
 
         assert len(result) == 1
         assert result[0].day.temp == 5.0
@@ -197,7 +197,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(side_effect=[mock_r1, mock_r2])
-            result = await build_weathers([s1, s2])
+            result = [w async for w in build_weathers([s1, s2])]
 
         assert len(result) == 2
         assert result[0].day.temp == 5.0
@@ -211,7 +211,8 @@ class TestBuildWeathers:
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
             with pytest.raises(RuntimeError, match="Weather API"):
-                await build_weathers([step])
+                async for _ in build_weathers([step]):
+                    pass
 
     @pytest.mark.anyio
     async def test_night_uses_daily_code(self) -> None:
@@ -222,7 +223,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = await build_weathers([step])
+            result = [w async for w in build_weathers([step])]
 
         assert result[0].day.icon == "rain"
         assert result[0].night is not None
@@ -236,4 +237,5 @@ class TestBuildWeathers:
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
             with pytest.raises(RuntimeError, match="Weather API returned 429"):
-                await build_weathers([step])
+                async for _ in build_weathers([step]):
+                    pass

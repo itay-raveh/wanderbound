@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from app.models.trips import Locations, Trip
+from app.models.polarsteps import PSLocations, PSTrip
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
@@ -16,10 +16,10 @@ def sa_trip_dir() -> Path:
 
 
 @pytest.fixture(scope="module")
-def sa_trip(sa_trip_dir: Path) -> Trip:
-    return Trip.from_trip_dir(sa_trip_dir)
+def sa_trip(sa_trip_dir: Path) -> PSTrip:
+    return PSTrip.from_trip_dir(sa_trip_dir)
 
 
 @pytest.fixture(scope="module")
-def sa_locations(sa_trip_dir: Path) -> Locations:
-    return Locations.from_trip_dir(sa_trip_dir)
+def sa_locations(sa_trip_dir: Path) -> PSLocations:
+    return PSLocations.from_trip_dir(sa_trip_dir)

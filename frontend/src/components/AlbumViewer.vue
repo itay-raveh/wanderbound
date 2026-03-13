@@ -1,27 +1,48 @@
 <script lang="ts" setup>
-import type { Album, Segment, Step } from "@/client";
+import type { Album, AlbumData, Segment, Step } from "@/client";
 import MapPage from "./album/map/MapPage.vue";
 import HikeMapPage from "./album/map/HikeMapPage.vue";
 import OverviewPage from "./album/overview/OverviewPage.vue";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { useStepsQuery } from "@/queries/useStepsQuery";
+import { useAlbumStore } from "@/stores/useAlbumStore";
 import { toRangeList } from "@/utils/ranges";
-import { computed } from "vue";
+import { computed, watch } from "vue";
+
+function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
+  return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
+}
 
 
 const props = defineProps<{
   album: Album;
+  data: AlbumData;
   printMode?: boolean;
 }>();
 
-const albumId = computed(() => props.album.id);
-const stepsRanges = computed(() => props.album.steps_ranges);
-const { data } = useStepsQuery(albumId, stepsRanges);
+const albumStore = useAlbumStore();
+watch(() => props.album.id, (id) => { albumStore.albumId = id; }, { immediate: true });
 
-const steps = computed(() => data.value?.steps ?? null);
-const segments = computed(() => data.value?.segments ?? null);
+// Filter steps/segments by the album's steps_ranges setting.
+const stepsIndexes = computed(() => {
+  const ranges = toRangeList(props.album.steps_ranges);
+  const set = new Set<number>();
+  for (const r of ranges) {
+    for (let i = r.start; i <= r.end; i++) set.add(i);
+  }
+  return set;
+});
+
+const steps = computed(() =>
+  props.data.steps.filter((s) => stepsIndexes.value.has(s.idx)),
+);
+
+const segments = computed(() => {
+  const s = steps.value;
+  if (s.length === 0) return [];
+  return segmentsOverlapping(props.data.segments, s[0]!.timestamp, s[s.length - 1]!.timestamp);
+});
 
 // In print mode, provide a flag so child components can set loading="eager".
 // Playwright's networkidle wait handles the rest.
@@ -35,8 +56,6 @@ type Section =
   | { type: "step"; step: Step };
 
 const sections = computed<Section[]>(() => {
-  if (!steps.value || !segments.value) return [];
-
   const allSteps = steps.value;
   const allSegments = segments.value;
 
@@ -58,9 +77,7 @@ const sections = computed<Section[]>(() => {
     const rangeSegments =
       rangeStart == null || rangeEnd == null
         ? []
-        : allSegments.filter(
-            (seg) => seg.start_time <= rangeEnd && seg.end_time >= rangeStart,
-          );
+        : segmentsOverlapping(allSegments, rangeStart, rangeEnd);
     return {
       start: r.start,
       end: r.end,
@@ -110,7 +127,7 @@ const sections = computed<Section[]>(() => {
 
 <template>
   <div
-    v-if="steps && segments"
+    v-if="steps.length"
     :class="['album-container', { 'print-mode': printMode }]"
   >
     <CoverPage :album="album" :steps="steps" />
@@ -135,11 +152,9 @@ const sections = computed<Section[]>(() => {
       </div>
       <StepEntry
         v-else-if="section.type === 'step'"
-        :album-id="album.id"
         :colors="(album.colors as Record<string, string>)"
         :step="section.step"
         :trip-start="steps[0]!.datetime"
-        :steps-ranges="album.steps_ranges"
         :print-mode="printMode"
       />
     </template>

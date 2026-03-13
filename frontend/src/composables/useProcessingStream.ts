@@ -1,6 +1,7 @@
 import { ref, type Ref } from "vue";
 import { processUser } from "@/client";
-import type { ProgressData } from "@/client/types.gen";
+
+export type ProcessingPhase = "elevations" | "weather" | "layouts";
 
 export type StreamState = "idle" | "running" | "done" | "error";
 
@@ -8,25 +9,28 @@ export interface UseProcessingStream {
   start(): void;
   abort(): void;
   state: Ref<StreamState>;
-  progress: Ref<ProgressData | null>;
+  tripIndex: Ref<number>;
+  phase: Ref<ProcessingPhase | null>;
+  phaseDone: Ref<number>;
   errorDetail: Ref<string | null>;
 }
 
-type RawSseEvent = { type: string; detail?: string } & Record<
-  string,
-  unknown
->;
+type RawSseEvent = { type: string } & Record<string, unknown>;
 
 export function useProcessingStream(): UseProcessingStream {
   const state = ref<StreamState>("idle");
-  const progress = ref<ProgressData | null>(null);
+  const tripIndex = ref(0);
+  const phase = ref<ProcessingPhase | null>(null);
+  const phaseDone = ref(0);
   const errorDetail = ref<string | null>(null);
   let controller: AbortController | null = null;
 
   async function start() {
     controller = new AbortController();
     state.value = "running";
-    progress.value = null;
+    tripIndex.value = 0;
+    phase.value = null;
+    phaseDone.value = 0;
     errorDetail.value = null;
 
     try {
@@ -39,24 +43,23 @@ export function useProcessingStream(): UseProcessingStream {
       for await (const raw of stream) {
         const event = raw as unknown as RawSseEvent;
         switch (event.type) {
-          case "progress":
-            progress.value = event as unknown as ProgressData;
+          case "trip_start":
+            tripIndex.value = event.trip_index as number;
+            phase.value = null;
+            phaseDone.value = 0;
             break;
-          case "done":
-            state.value = "done";
-            return;
+          case "phase":
+            phase.value = event.phase as ProcessingPhase;
+            phaseDone.value = event.done as number;
+            break;
           case "error":
             state.value = "error";
-            errorDetail.value = event.detail ?? "Processing failed";
+            errorDetail.value = (event.detail as string) ?? "Processing failed";
             return;
         }
       }
 
-      // Stream ended without done/error
-      if (state.value === "running") {
-        state.value = "error";
-        errorDetail.value = "Connection lost. Please try again.";
-      }
+      state.value = "done";
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
@@ -67,9 +70,18 @@ export function useProcessingStream(): UseProcessingStream {
   function abort() {
     controller?.abort();
     state.value = "idle";
-    progress.value = null;
+    phase.value = null;
+    phaseDone.value = 0;
     errorDetail.value = null;
   }
 
-  return { start: () => void start(), abort, state, progress, errorDetail };
+  return {
+    start: () => void start(),
+    abort,
+    state,
+    tripIndex,
+    phase,
+    phaseDone,
+    errorDetail,
+  };
 }

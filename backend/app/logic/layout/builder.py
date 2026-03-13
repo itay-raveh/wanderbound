@@ -11,8 +11,11 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Iterable, Sequence
     from pathlib import Path
 
-    from app.models.db import AlbumId, User
-    from app.models.trips import PSStep
+    from app.models.polarsteps import PSStep
+    from app.models.types import AlbumId
+    from app.models.user import User
+
+    from .media import MediaName
 
 logger = config_logger(__name__)
 
@@ -47,12 +50,12 @@ def _three_page_count(n: int) -> int:
     return -n % 4
 
 
-def _pages_of(items: Iterable[Path], size: int) -> Iterable[list[Path]]:
+def _pages_of(items: Iterable[str], size: int) -> Iterable[list[str]]:
     """Yield pages of the given size from items."""
     yield from (list(batch) for batch in batched(items, size, strict=False))
 
 
-def _landscape_pages(items: Sequence[Path]) -> Iterable[list[Path]]:
+def _landscape_pages(items: Sequence[str]) -> Iterable[list[str]]:
     """Yield optimally packed landscape pages (sizes 4, 3, 1)."""
     n = len(items)
 
@@ -70,8 +73,8 @@ def _landscape_pages(items: Sequence[Path]) -> Iterable[list[Path]]:
 
 
 def _build_pages(
-    portraits: Sequence[Path], landscapes: Sequence[Path]
-) -> Iterable[list[Path]]:
+    portraits: Sequence[str], landscapes: Sequence[str]
+) -> Iterable[list[str]]:
     mixed = _optimal_mixed_count(len(portraits), len(landscapes))
 
     # 1 portrait + 2 landscape mixed pages
@@ -85,41 +88,41 @@ def _build_pages(
     yield from _landscape_pages(landscapes[2 * mixed :])
 
 
-async def _step_media(user: User, step_dir: Path) -> AsyncIterable[Media]:
+async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
     photo_folder = step_dir / "photos"
     if photo_folder.exists():
-        for photo in (Photo.load(user.folder, path) for path in photo_folder.iterdir()):
+        for photo in (Photo.load(path) for path in photo_folder.iterdir()):
             yield photo
 
     video_folder = step_dir / "videos"
     if video_folder.exists():
         async for video in asyncio.as_completed(
-            Video.extract(user.folder, path) for path in video_folder.iterdir()
+            Video.extract(path) for path in video_folder.iterdir()
         ):
             yield await video
 
 
 async def build_step_layout(
     user: User, aid: AlbumId, step: PSStep
-) -> tuple[Path, list[list[Path]]]:
+) -> tuple[MediaName, list[list[MediaName]]]:
     step_dir = user.trips_folder / aid / step.folder_name
 
-    media: list[Media] = [m async for m in _step_media(user, step_dir)]
+    media: list[Media] = [m async for m in _step_media(step_dir)]
 
-    def media_path(m: Media) -> Path:
+    def media_name(m: Media) -> str:
         """Use the .mp4 source for videos so the frontend can detect them."""
         return m.src if isinstance(m, Video) else m.path
 
     # Split and sort portraits (closest to 4/5 first)
     portraits = [
-        media_path(p)
+        media_name(p)
         for p in sorted(
             (p for p in media if p.is_portrait),
             key=lambda p: p.aspect_ratio,
             reverse=True,
         )
     ]
-    landscapes = [media_path(p) for p in media if not p.is_portrait]
+    landscapes = [media_name(p) for p in media if not p.is_portrait]
 
     # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]
@@ -131,6 +134,4 @@ async def build_step_layout(
         else:
             landscapes.remove(cover)
 
-    pages = list(_build_pages(portraits, landscapes))
-
-    return cover, pages
+    return cover, list(_build_pages(portraits, landscapes))

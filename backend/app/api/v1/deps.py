@@ -1,12 +1,11 @@
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Cookie, Depends, HTTPException, Path, status
-from playwright.async_api import Browser
+from fastapi import Cookie, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.browser import get_browser
+from app.core.db import engine
 from app.core.logging import config_logger
-from app.models.db import Album, AlbumId, User, engine
+from app.models.user import User
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -35,15 +34,3 @@ async def _get_user(
 
 
 UserDep = Annotated[User, Depends(_get_user)]
-
-
-async def _get_album(
-    aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
-) -> Album:
-    # noinspection PyTypeChecker
-    return await session.get_one(Album, (user.id, aid))
-
-
-AlbumDep = Annotated[Album, Depends(_get_album)]
-
-BrowserDep = Annotated[Browser, Depends(get_browser)]

@@ -1,40 +1,39 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep } from "@/client";
-import type { StepsAndSegments, StepLayout } from "@/client";
+import type { AlbumData, StepUpdate } from "@/client";
+import { useAlbumStore } from "@/stores/useAlbumStore";
 import { Notify } from "quasar";
 import { queryKeys } from "./keys";
 
-export function useStepMutation(
-  aid: () => string,
-  stepsRanges: () => string,
-) {
+export function useStepMutation() {
   const cache = useQueryCache();
+  const albumStore = useAlbumStore();
 
   return useMutation({
-    mutation: async (payload: { sid: number; layout: StepLayout }) => {
+    mutation: async (payload: { sid: number; layout: StepUpdate }) => {
       const { data } = await updateStep({
-        path: { aid: aid(), sid: payload.sid },
+        path: { aid: albumStore.albumId, sid: payload.sid },
         body: payload.layout,
       });
       return data;
     },
     onMutate: (payload) => {
-      const key = queryKeys.steps(aid(), stepsRanges());
-      const prev = cache.getQueryData<StepsAndSegments>(key);
+      const aid = albumStore.albumId;
+      const key = queryKeys.albumData(aid);
+      const prev = cache.getQueryData<AlbumData>(key);
       if (prev) {
-        const updated = {
+        cache.setQueryData(key, {
           ...prev,
           steps: prev.steps.map((s) =>
             s.idx === payload.sid ? { ...s, ...payload.layout } : s,
           ),
-        };
-        cache.setQueryData(key, updated);
+        });
       }
-      return prev;
+      return { prev, aid };
     },
-    onError: (_error, _vars, prev) => {
-      if (prev) {
-        cache.setQueryData(queryKeys.steps(aid(), stepsRanges()), prev);
+    onError: (_error, _vars, ctx) => {
+      if (ctx?.prev) {
+        cache.setQueryData(queryKeys.albumData(ctx.aid), ctx.prev);
       }
       Notify.create({ type: "negative", message: "Failed to save step layout" });
     },

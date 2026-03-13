@@ -34,7 +34,7 @@ class Point(BaseModel):
         return datetime.fromtimestamp(self.time, UTC)
 
 
-class Locations(BaseModel):
+class PSLocations(BaseModel):
     locations: list[Point]
 
     @classmethod
@@ -82,7 +82,7 @@ class PSStep(BaseModel):
         )
 
 
-class Trip(BaseModel):
+class PSTrip(BaseModel):
     id: int
     slug: str
     title: str = Field(alias="name")

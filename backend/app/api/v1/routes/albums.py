@@ -1,27 +1,34 @@
-from itertools import chain
 from typing import Annotated
 
-from fastapi import APIRouter, Query
-from fastapi.responses import Response as RawResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi.responses import Response
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.v1.deps import USER_COOKIE
+from app.core.browser import get_browser
 from app.core.config import settings
 from app.core.logging import config_logger
-from app.models.db import (
-    Album,
-    AlbumId,
-    AlbumSettings,
-    Segment,
-    Step,
-    StepIdx,
-    StepLayout,
-)
+from app.models.album import Album, AlbumData, AlbumUpdate
+from app.models.step import Step, StepUpdate
+from app.models.types import AlbumId, StepIdx
 
-from ..deps import AlbumDep, BrowserDep, SessionDep, UserDep
+from ..deps import SessionDep, UserDep
 
 logger = config_logger(__name__)
+
+
+async def _get_album(
+    aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
+) -> Album:
+    album = await session.get(Album, (user.id, aid))
+    if album is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    # noinspection PyTypeChecker
+    return album
+
+
+AlbumDep = Annotated[Album, Depends(_get_album)]
 
 router = APIRouter(prefix="/albums", tags=["albums"])
 
@@ -31,85 +38,50 @@ async def read_album(aid: AlbumId, album: AlbumDep) -> Album:
     return album
 
 
+@router.get("/{aid}/data")
+async def read_album_data(
+    aid: AlbumId, user: UserDep, session: SessionDep
+) -> AlbumData:
+    album = (
+        await session.scalars(
+            select(Album)
+            .where(Album.uid == user.id, Album.id == aid)
+            .options(
+                selectinload(Album.steps),  # type: ignore[arg-type]
+                selectinload(Album.segments),  # type: ignore[arg-type]
+            )
+        )
+    ).one_or_none()
+    if album is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return AlbumData(steps=album.steps, segments=album.segments)
+
+
 @router.patch("/{aid}")
 async def update_album(
     aid: AlbumId,
-    update: AlbumSettings,
+    update: AlbumUpdate,
     album: AlbumDep,
     session: SessionDep,
 ) -> Album:
-    album.sqlmodel_update(update)
+    album.sqlmodel_update(update.model_dump(exclude_unset=True))
     session.add(album)
     await session.commit()
     await session.refresh(album)
     return album
 
 
-class Range(BaseModel):
-    start: int
-    end: int
-
-
-class StepsAndSegments(BaseModel):
-    steps: list[Step]
-    segments: list[Segment]
-
-
-@router.post("/{aid}/steps")
-async def read_steps(
-    aid: AlbumId,
-    ranges: list[Range],
-    user: UserDep,
-    session: SessionDep,
-) -> StepsAndSegments:
-    indexes = list(chain(*(range(rng.start, rng.end + 1) for rng in ranges)))
-
-    # noinspection PyUnresolvedReferences
-    steps = list(
-        (
-            await session.scalars(
-                select(Step)
-                .where(Step.uid == user.id, Step.aid == aid, Step.idx.in_(indexes))  # type: ignore[unresolved-attribute]
-                .order_by(Step.idx)  # type: ignore[invalid-argument-type]
-            )
-        ).all()
-    )
-
-    if not steps:
-        return StepsAndSegments(steps=[], segments=[])
-
-    # Load pre-computed segments overlapping the requested steps' time window
-    range_start = steps[0].timestamp
-    range_end = steps[-1].timestamp
-    segments = list(
-        (
-            await session.scalars(
-                select(Segment)
-                .where(
-                    Segment.uid == user.id,
-                    Segment.aid == aid,
-                    Segment.start_time <= range_end,  # type: ignore[operator]
-                    Segment.end_time >= range_start,  # type: ignore[operator]
-                )
-                .order_by(Segment.start_time)  # type: ignore[invalid-argument-type]
-            )
-        ).all()
-    )
-
-    return StepsAndSegments(steps=steps, segments=segments)
-
-
 @router.patch("/{aid}/steps/{sid}")
 async def update_step(
     aid: AlbumId,
     sid: StepIdx,
-    update: StepLayout,
+    update: StepUpdate,
     user: UserDep,
     session: SessionDep,
 ) -> Step:
     # noinspection PyTypeChecker
     step: Step = await session.get_one(Step, (user.id, aid, sid))
-    step.sqlmodel_update(update)
+    step.sqlmodel_update(update.model_dump(exclude_unset=True))
     session.add(step)
     await session.commit()
     await session.refresh(step)
@@ -120,10 +92,9 @@ async def update_step(
 async def export_pdf(
     aid: AlbumId,
     user: UserDep,
-    browser: BrowserDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
-) -> RawResponse:
-    context = await browser.new_context()
+) -> Response:
+    context = await get_browser().new_context()
     await context.add_cookies(
         [
             {"name": USER_COOKIE, "value": str(user.id), "url": settings.FRONTEND_URL},
@@ -139,7 +110,7 @@ async def export_pdf(
         print_background=True,
     )
     await context.close()
-    return RawResponse(
+    return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{aid}.pdf"'},

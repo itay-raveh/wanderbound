@@ -3,6 +3,8 @@ import type { Segment, Step } from "@/client";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { useAlbumStore } from "@/stores/useAlbumStore";
+import { storeToRefs } from "pinia";
 import { onMounted, useTemplateRef } from "vue";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -11,6 +13,7 @@ const props = defineProps<{
   segments: Segment[];
 }>();
 
+const { albumId } = storeToRefs(useAlbumStore());
 const { locale } = useUserQuery();
 const container = useTemplateRef("map");
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
@@ -22,6 +25,7 @@ function doLoad() {
   void drawSegmentsAndMarkers(m, {
     segments: props.segments,
     steps: props.steps,
+    albumId: albumId.value,
   }).then(() => {
     // Fit bounds to step locations, not segment paths — a driving segment
     // spanning days could pull the viewport far beyond the relevant area.

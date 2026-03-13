@@ -48,7 +48,6 @@ const dates = computed(() => {
     <MediaItem
       v-if="coverMedia"
       :media="coverMedia"
-      :album-id="album.id"
       :step-id="0"
       cover
       :class="{ 'cover-dimmed': !isBack }"

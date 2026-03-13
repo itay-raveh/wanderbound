@@ -1,13 +1,16 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
+import { useAlbumStore } from "@/stores/useAlbumStore";
 import { mediaUrl, posterPath } from "@/utils/media";
+import { storeToRefs } from "pinia";
 import MediaItem from "../MediaItem.vue";
+
+const { albumId } = storeToRefs(useAlbumStore());
 
 const props = defineProps<{
   page: string[];
   stepId: number;
-  albumId: string;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +41,7 @@ function detectOrientation(media: string) {
   img.onerror = () => {
     orientations.value[media] = "l"; // fallback to landscape
   };
-  img.src = mediaUrl(posterPath(media));
+  img.src = mediaUrl(posterPath(media), albumId.value);
 }
 
 watch(
@@ -72,7 +75,6 @@ const layoutClass = computed(() => {
       <MediaItem
         v-for="photo in localPage"
         :key="photo"
-        :albumId="albumId"
         :media="photo"
         :stepId="stepId"
         class="item"

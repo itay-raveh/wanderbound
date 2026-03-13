@@ -1,4 +1,7 @@
-import type { Range } from "@/client";
+export interface Range {
+  start: number;
+  end: number;
+}
 
 /**
  * Parse a serialized SliceList string (e.g. "0-20, 30-40") into an array of

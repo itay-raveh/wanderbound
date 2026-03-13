@@ -15,11 +15,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.logic.spatial.segments import SegmentKind, build_segments
+from app.logic.spatial.segments import build_segments
+from app.models.types import SegmentKind
 
 if TYPE_CHECKING:
-    from app.logic.spatial.segments import SegmentData
-    from app.models.trips import Locations, Trip
+    from app.models.polarsteps import PSLocations, PSTrip
+    from app.models.segment import SegmentBase
 
 # Tolerance for hike start/end times: GPS can be sparse so allow ±30 min.
 _TOL_S = 30 * 60
@@ -32,18 +33,18 @@ def _cmp(ts: float, dt_str: str, tz: ZoneInfo) -> float:
 
 
 @pytest.fixture(scope="module")
-def all_segments(sa_trip: Trip, sa_locations: Locations) -> list[SegmentData]:
+def all_segments(sa_trip: PSTrip, sa_locations: PSLocations) -> list[SegmentBase]:
     """Build segments once from the full trip (all steps + GPS)."""
     steps = sorted(sa_trip.all_steps, key=lambda s: s.timestamp)
     return list(build_segments(steps, sa_locations.locations))
 
 
 def _hikes_in_window(
-    segments: list[SegmentData],
+    segments: list[SegmentBase],
     steps: list,
     start: int,
     end: int,
-) -> list[SegmentData]:
+) -> list[SegmentBase]:
     """Return hike segments whose midpoint falls within the step range's day window."""
     t0 = (
         steps[start]
@@ -90,8 +91,8 @@ class TestKnownHikes:
         start: int,
         end: int,
         expected_hikes: list[tuple[str, str]],
-        sa_trip: Trip,
-        all_segments: list[SegmentData],
+        sa_trip: PSTrip,
+        all_segments: list[SegmentBase],
     ) -> None:
         steps = sa_trip.all_steps
         tz_start = ZoneInfo(steps[start].timezone_id)
@@ -119,19 +120,19 @@ class TestKnownHikes:
 class TestFullTripInvariants:
     """Structural invariants verified against the full trip."""
 
-    def test_min_points_per_segment(self, all_segments: list[SegmentData]) -> None:
+    def test_min_points_per_segment(self, all_segments: list[SegmentBase]) -> None:
         for i, seg in enumerate(all_segments):
             expected_min = (
                 2 if seg.kind in (SegmentKind.hike, SegmentKind.flight) else 1
             )
             assert len(seg.points) >= expected_min, f"Segment {i} ({seg.kind})"
 
-    def test_no_other_kind(self, all_segments: list[SegmentData]) -> None:
+    def test_no_other_kind(self, all_segments: list[SegmentBase]) -> None:
         """Regression: internal 'other' label was exposed to callers."""
         assert all(s.kind.value != "other" for s in all_segments)
 
     def test_contiguous_boundaries(
-        self, all_segments: list[SegmentData], sa_trip: Trip
+        self, all_segments: list[SegmentBase], sa_trip: PSTrip
     ) -> None:
         tz = ZoneInfo(sa_trip.all_steps[1].timezone_id)
         for i in range(len(all_segments) - 1):
@@ -143,7 +144,7 @@ class TestFullTripInvariants:
                 f"{datetime.fromtimestamp(t_end, tz).strftime('%Y-%m-%d %H:%M %Z')}"
             )
 
-    def test_hikes_are_simplified(self, all_segments: list[SegmentData]) -> None:
+    def test_hikes_are_simplified(self, all_segments: list[SegmentBase]) -> None:
         """Hike segments are RDP-simplified but retain at least 2 points."""
         hikes = [s for s in all_segments if s.kind == SegmentKind.hike]
         assert hikes
@@ -153,7 +154,7 @@ class TestFullTripInvariants:
 
 class TestStepLocationInHike:
     def test_step9_location_in_output(
-        self, sa_trip: Trip, all_segments: list[SegmentData]
+        self, sa_trip: PSTrip, all_segments: list[SegmentBase]
     ) -> None:
         """Step 9 (Ushuaia viewpoint) must appear in the hike output.
 

@@ -4,6 +4,7 @@ import AlbumViewer from "@/components/AlbumViewer.vue";
 import EditorHeader from "@/components/editor/EditorHeader.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
+import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
 import { deleteUser } from "@/client";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -23,6 +24,7 @@ watch(selectedAlbumId, (id) => {
 const { data: userData, user, isKm, isCelsius, error: userError } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
+const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
 
 watch(userError, (err) => {
   if (err) void router.push("/register");
@@ -59,7 +61,7 @@ async function onDeleteUser() {
       </div>
 
       <div class="viewer-col">
-        <AlbumViewer v-if="album" :album="album" />
+        <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
       </div>
     </div>
   </q-page>
