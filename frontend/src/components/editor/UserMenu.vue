@@ -3,6 +3,7 @@ import type { User } from "@/client";
 import { useUserMutation } from "@/queries/useUserMutation";
 import { ref } from "vue";
 import DeleteDialog from "./DeleteDialog.vue";
+import { matPerson, matStraighten, matThermostat, matLanguage, matDeleteOutline } from "@quasar/extras/material-icons";
 
 const LOCALE_OPTIONS = [
   { label: "English (US)", value: "en_US" },
@@ -41,14 +42,14 @@ const deleting = ref(false);
     <q-avatar v-if="user.profile_image_path" size="1.5rem">
       <img :src="user.profile_image_path" :alt="user.first_name" />
     </q-avatar>
-    <q-icon v-else name="person" size="1rem" />
+    <q-icon v-else :name="matPerson" size="1rem" />
     <span class="user-name">{{ user.first_name }}</span>
 
     <q-menu class="user-menu" anchor="bottom right" self="top right" :offset="[0, 4]">
       <div class="menu-content">
         <div class="menu-section">
           <div class="menu-row">
-            <q-icon name="straighten" size="1rem" />
+            <q-icon :name="matStraighten" size="1rem" />
             <span class="menu-label">{{ isKm ? 'Kilometers' : 'Miles' }}</span>
             <q-toggle
               :model-value="isKm"
@@ -58,7 +59,7 @@ const deleting = ref(false);
             />
           </div>
           <div class="menu-row">
-            <q-icon name="thermostat" size="1rem" />
+            <q-icon :name="matThermostat" size="1rem" />
             <span class="menu-label">{{ isCelsius ? 'Celsius' : 'Fahrenheit' }}</span>
             <q-toggle
               :model-value="isCelsius"
@@ -68,7 +69,7 @@ const deleting = ref(false);
             />
           </div>
           <div class="menu-row">
-            <q-icon name="language" size="1rem" />
+            <q-icon :name="matLanguage" size="1rem" />
             <q-select
               :model-value="user.locale"
               :options="LOCALE_OPTIONS"
@@ -84,7 +85,7 @@ const deleting = ref(false);
         </div>
         <div class="menu-divider" />
         <button class="menu-danger-btn" @click="showDeleteConfirm = true">
-          <q-icon name="delete_outline" size="1rem" />
+          <q-icon :name="matDeleteOutline" size="1rem" />
           Delete all data
         </button>
       </div>

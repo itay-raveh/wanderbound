@@ -1,14 +1,28 @@
 <script lang="ts" setup>
 import type { Album, AlbumData, Segment, Step } from "@/client";
-import MapPage from "./album/map/MapPage.vue";
-import HikeMapPage from "./album/map/HikeMapPage.vue";
-import OverviewPage from "./album/overview/OverviewPage.vue";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
+import LazySection from "./LazySection.vue";
 import { provideAlbumId } from "@/composables/useAlbumId";
 import { providePrintMode } from "@/composables/usePrintReady";
+import { PAGE_CHARS } from "@/composables/usePageDescription";
 import { toRangeList } from "@/utils/ranges";
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
+
+// Async components — splits turf/mapbox-gl out of the main chunk.
+const MapPage = defineAsyncComponent(() => import("./album/map/MapPage.vue"));
+const HikeMapPage = defineAsyncComponent(() => import("./album/map/HikeMapPage.vue"));
+const OverviewPage = defineAsyncComponent(() => import("./album/overview/OverviewPage.vue"));
+
+/** Number of album pages a section will render (for lazy placeholder sizing). */
+function sectionPageCount(section: Section): number {
+  if (section.type === "map" || section.type === "hike") return 1;
+  const step = section.step;
+  const descLen = (step.description || "").length;
+  let pages = 1 + step.pages.length;
+  if (descLen > PAGE_CHARS) pages += Math.ceil((descLen - PAGE_CHARS) / PAGE_CHARS);
+  return pages;
+}
 
 function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
@@ -134,7 +148,12 @@ const sections = computed<Section[]>(() => {
     <CoverPage :album="album" :steps="steps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
-    <template v-for="(section, i) in sections" :key="i">
+    <LazySection
+      v-for="(section, i) in sections"
+      :key="i"
+      :page-count="sectionPageCount(section)"
+      :has-chrome="section.type === 'step'"
+    >
       <!-- Map pages wrapped so transform: scale doesn't misalign -->
       <div v-if="section.type === 'map'" class="map-wrapper">
         <MapPage
@@ -157,7 +176,7 @@ const sections = computed<Section[]>(() => {
         :trip-start="steps[0]!.datetime"
         :print-mode="printMode"
       />
-    </template>
+    </LazySection>
   </div>
   <div v-else class="fit relative-position">
     <q-inner-loading
@@ -173,6 +192,7 @@ const sections = computed<Section[]>(() => {
   width: 297mm;
   height: 210mm;
   background-color: var(--page-bg, var(--bg));
+  contain: content;
 }
 
 // Editor mode: zoom shrinks pages for preview.

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from .media import MediaName
 
-type Layout = tuple[MediaName, list[list[MediaName]]]
+type Layout = tuple[MediaName, list[list[MediaName]], dict[MediaName, str]]
 
 logger = config_logger(__name__)
 
@@ -145,6 +145,11 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
         logger.debug("Step '%s' has no media files, skipping layout", step.name)
         return None
 
+    # Build orientation map from already-computed is_portrait
+    orientations: dict[str, str] = {
+        media_name(m): "p" if m.is_portrait else "l" for m in media
+    }
+
     # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]
 
@@ -155,4 +160,4 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
         else:
             landscapes.remove(cover)
 
-    return cover, list(_build_pages(portraits, landscapes))
+    return cover, list(_build_pages(portraits, landscapes)), orientations

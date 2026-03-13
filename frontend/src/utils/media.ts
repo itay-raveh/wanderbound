@@ -1,10 +1,7 @@
 import { client } from "@/client/client.gen";
 
-/** Build a full URL for a media asset.
- *  Absolute URLs (http/https) are returned as-is (cover photos).
- *  Otherwise resolves via the album-scoped media endpoint. */
+/** Build a full URL for a media asset via the album-scoped media endpoint. */
 export function mediaUrl(name: string, albumId: string): string {
-  if (name.startsWith("http://") || name.startsWith("https://")) return name;
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
 }
 
@@ -16,6 +13,16 @@ export function isVideo(name: string): boolean {
 /** Convert a video .mp4 path to its extracted poster .jpg path. */
 export function posterPath(path: string): string {
   return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
+}
+
+export const THUMB_WIDTHS = [400, 800, 1600] as const;
+export const SIZES_FULL = "calc(297mm * 0.70)";
+export const SIZES_HALF = "calc(297mm * 0.70 * 0.5)";
+
+/** Build srcset string for pre-generated WebP thumbnails. */
+export function mediaSrcset(name: string, albumId: string): string {
+  const base = mediaUrl(name, albumId);
+  return THUMB_WIDTHS.map((w) => `${base}?w=${w} ${w}w`).join(", ");
 }
 
 /** Build flagcdn URL for a country code. */

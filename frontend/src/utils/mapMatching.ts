@@ -4,7 +4,8 @@
  * Long traces are split into overlapping chunks to avoid the API's
  * 100-coordinate limit without aggressive simplification.
  */
-import { lineString, simplify } from "@turf/turf";
+import { lineString } from "@turf/helpers";
+import simplify from "@turf/simplify";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const MAX_COORDS = 100;

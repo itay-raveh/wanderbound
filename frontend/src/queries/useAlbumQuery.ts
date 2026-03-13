@@ -12,5 +12,6 @@ export function useAlbumQuery(aid: Ref<string | null>) {
       return data;
     },
     enabled: () => !!aid.value,
+    staleTime: 5 * 60 * 1000,
   });
 }

@@ -8,6 +8,7 @@ import { usePageDescription } from "@/composables/usePageDescription";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { computed, ref } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
+import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   colors: Record<string, string>;
@@ -86,6 +87,7 @@ function onDropZoneChange() {
       :key="`page-${idx}`"
       :page="page"
       :step-id="step.idx"
+      :orientations="step.orientations ?? {}"
       @update:page="onPageUpdate(idx, $event)"
     />
 
@@ -99,7 +101,7 @@ function onDropZoneChange() {
       @change="onDropZoneChange"
     >
       <div class="add-zone-content" @click="addPage">
-        <q-icon name="add_photo_alternate" size="1.5rem" />
+        <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
         <span class="add-label">Add Photo Page</span>
         <span class="add-hint">or drop a photo here</span>
       </div>

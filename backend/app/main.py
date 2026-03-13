@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.exc import NoResultFound
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.v1.deps import USER_COOKIE
 from app.api.v1.router import router as v1_router
@@ -60,6 +61,9 @@ if settings.all_cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# GZip responses ≥ 500 bytes (added after CORS so it wraps the response last).
+app.add_middleware(GZipMiddleware, minimum_size=500)  # type: ignore[arg-type]
 
 app.include_router(v1_router, prefix=settings.API_V1_STR)
 

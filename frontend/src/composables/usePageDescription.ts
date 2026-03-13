@@ -11,7 +11,7 @@ const SHORT_THRESHOLD = 1200;
  * Full-page two-column layout fits ~60 lines × 65 chars ≈ 3900.
  * Conservative estimate for the long threshold.
  */
-const PAGE_CHARS = 3600;
+export const PAGE_CHARS = 3600;
 
 const CHARS_PER_LINE = 65;
 

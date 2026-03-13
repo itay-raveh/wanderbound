@@ -1,15 +1,12 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
-import { useAlbumId } from "@/composables/useAlbumId";
-import { mediaUrl, posterPath } from "@/utils/media";
 import MediaItem from "../MediaItem.vue";
-
-const albumId = useAlbumId();
 
 const props = defineProps<{
   page: string[];
   stepId: number;
+  orientations: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
@@ -29,33 +26,9 @@ function onDragChange() {
   emit("update:page", [...localPage.value]);
 }
 
-// Detect image orientations to choose the right 3-item layout
-const orientations = ref<Record<string, "p" | "l">>({});
-
-function detectOrientation(media: string) {
-  const img = new Image();
-  img.onload = () => {
-    orientations.value[media] = img.naturalHeight > img.naturalWidth ? "p" : "l";
-  };
-  img.onerror = () => {
-    orientations.value[media] = "l"; // fallback to landscape
-  };
-  img.src = mediaUrl(posterPath(media), albumId.value);
-}
-
-watch(
-  () => props.page,
-  (page) => {
-    for (const m of page) {
-      if (!orientations.value[m]) detectOrientation(m);
-    }
-  },
-  { immediate: true },
-);
-
 const layoutClass = computed(() => {
   if (localPage.value.length !== 3) return "";
-  const o = localPage.value.map((m) => orientations.value[m]);
+  const o = localPage.value.map((m) => props.orientations[m]);
   if (o.every((v) => v === "p")) return "three-portraits";
   if (o[0] === "p" && o[1] === "l" && o[2] === "l") return "one-portrait-two-landscapes";
   return "";
@@ -76,6 +49,7 @@ const layoutClass = computed(() => {
         :key="photo"
         :media="photo"
         :stepId="stepId"
+        :cols="localPage.length === 1 ? 1 : 2"
         class="item"
       />
     </VueDraggable>

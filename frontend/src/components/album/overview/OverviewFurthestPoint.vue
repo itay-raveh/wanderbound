@@ -3,8 +3,10 @@ import { type Location, type Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
-import { distance, point } from "@turf/turf";
+import distance from "@turf/distance";
+import { point } from "@turf/helpers";
 import { computed } from "vue";
+import { matHome, matPlace } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   home: Location;
@@ -46,8 +48,8 @@ const furthest = computed(() => {
 <template>
   <div class="furthest">
     <div class="fp-top">
-      <q-icon name="home" size="1.375rem" class="fp-top-icon" />
-      <q-icon name="place" size="1.375rem" class="fp-top-icon" />
+      <q-icon :name="matHome" size="1.375rem" class="fp-top-icon" />
+      <q-icon :name="matPlace" size="1.375rem" class="fp-top-icon" />
     </div>
 
     <div class="fp-body">

@@ -6,10 +6,11 @@ import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
 import { KM_TO_MI, M_TO_FT } from "@/utils/units";
-import { along, length as turfLength, lineString } from "@turf/turf";
+import along from "@turf/along";
+import { lineString } from "@turf/helpers";
+import turfLength from "@turf/length";
 import { onMounted, useTemplateRef, computed, ref } from "vue";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 import ElevationProfile from "./ElevationProfile.vue";
 
 const props = defineProps<{

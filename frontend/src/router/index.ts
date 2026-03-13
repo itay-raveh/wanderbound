@@ -1,6 +1,4 @@
 import EditorView from "@/pages/EditorView.vue";
-import RegisterView from "@/pages/RegisterView.vue";
-import PrintView from "@/pages/PrintView.vue";
 import { createRouter, createWebHistory } from "vue-router";
 
 const router = createRouter({
@@ -14,12 +12,12 @@ const router = createRouter({
     {
       path: "/register",
       name: "register",
-      component: RegisterView,
+      component: () => import("@/pages/RegisterView.vue"),
     },
     {
       path: "/print/:aid",
       name: "print",
-      component: PrintView,
+      component: () => import("@/pages/PrintView.vue"),
     },
   ],
 });

@@ -3,6 +3,8 @@ import { computed } from "vue";
 import type { TripMeta, User } from "@/client/types.gen";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import TripTimeline from "./TripTimeline.vue";
+import { symOutlinedLuggage, symOutlinedPinDrop, symOutlinedPublic } from "@quasar/extras/material-symbols-outlined";
+import { matErrorOutline, matRefresh, matArrowForward } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   trips: TripMeta[];
@@ -45,17 +47,17 @@ const totalCountries = computed(() => {
 
       <div class="stats">
         <span class="stat text-overline">
-          <q-icon name="sym_o_luggage" size="var(--text-md)" />
+          <q-icon :name="symOutlinedLuggage" size="var(--text-md)" />
           {{ trips.length }} trip{{ trips.length !== 1 ? "s" : "" }}
         </span>
         <span class="stat-dot" />
         <span class="stat text-overline">
-          <q-icon name="sym_o_pin_drop" size="var(--text-md)" />
+          <q-icon :name="symOutlinedPinDrop" size="var(--text-md)" />
           {{ totalSteps }} steps
         </span>
         <span class="stat-dot" />
         <span class="stat text-overline">
-          <q-icon name="sym_o_public" size="var(--text-md)" />
+          <q-icon :name="symOutlinedPublic" size="var(--text-md)" />
           {{ totalCountries }} countr{{ totalCountries !== 1 ? "ies" : "y" }}
         </span>
       </div>
@@ -75,11 +77,11 @@ const totalCountries = computed(() => {
     <template v-if="state === 'error'">
       <div class="divider" />
       <div class="error-banner">
-        <q-icon name="error_outline" size="1.25rem" class="error-icon" />
+        <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon" />
         <div class="error-body">
           <span class="text-body2 error-msg">{{ errorDetail }}</span>
           <button class="retry-btn text-body2" @click="$emit('retry')">
-            <q-icon name="refresh" size="var(--text-md)" />
+            <q-icon :name="matRefresh" size="var(--text-md)" />
             Try again
           </button>
         </div>
@@ -91,7 +93,7 @@ const totalCountries = computed(() => {
       <div class="divider" />
       <button class="done-btn text-subtitle1" @click="$emit('done')">
         Open your album
-        <q-icon name="arrow_forward" size="1rem" />
+        <q-icon :name="matArrowForward" size="1rem" />
       </button>
     </template>
   </div>

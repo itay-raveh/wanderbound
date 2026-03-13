@@ -2,13 +2,15 @@
 import { useAlbumId } from "@/composables/useAlbumId";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { isVideo as checkVideo, mediaUrl, posterPath } from "@/utils/media";
+import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF } from "@/utils/media";
 import { computed, nextTick, ref } from "vue";
+import { matPlayArrow } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   media: string;
   stepId: number;
   cover?: boolean;
+  cols?: 1 | 2;
 }>();
 
 const albumId = useAlbumId();
@@ -22,6 +24,15 @@ const posterSrc = computed(() => {
   if (!isVideo.value) return "";
   const base = mediaUrl(posterPath(props.media), albumId.value);
   return posterCacheBust.value != null ? `${base}?v=${posterCacheBust.value}` : base;
+});
+
+const imgSrcset = computed(() => {
+  if (printMode) return undefined;
+  return mediaSrcset(isVideo.value ? posterPath(props.media) : props.media, albumId.value);
+});
+const imgSizes = computed(() => {
+  if (!imgSrcset.value) return undefined;
+  return (props.cols ?? 1) >= 2 ? SIZES_HALF : SIZES_FULL;
 });
 
 const playing = ref(false);
@@ -69,6 +80,8 @@ function onVideoKey(e: KeyboardEvent) {
       <q-img
         v-show="!playing"
         :src="posterSrc"
+        :srcset="imgSrcset"
+        :sizes="imgSizes"
         class="fill"
         :fit="cover ? 'cover' : 'contain'"
         loading="eager"
@@ -84,7 +97,7 @@ function onVideoKey(e: KeyboardEvent) {
         @keydown="onVideoKey"
       />
       <div v-if="!playing" class="play-overlay" @click="togglePlay">
-        <q-icon name="play_arrow" size="3rem" color="white" />
+        <q-icon :name="matPlayArrow" size="3rem" color="white" />
       </div>
       <q-btn
         v-if="playing"
@@ -100,6 +113,8 @@ function onVideoKey(e: KeyboardEvent) {
     <template v-else>
       <q-img
         :src="isVideo ? posterSrc : src"
+        :srcset="imgSrcset"
+        :sizes="imgSizes"
         :loading="imgLoading"
         class="fill"
         :fit="cover ? 'cover' : 'contain'"

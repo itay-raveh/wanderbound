@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { matWarning } from "@quasar/extras/material-icons";
+
 defineProps<{
   reason: string | null;
 }>();
@@ -7,7 +9,7 @@ defineProps<{
 <template>
   <div class="banner">
     <div class="banner-header">
-      <q-icon name="warning" size="sm" class="banner-icon" />
+      <q-icon :name="matWarning" size="sm" class="banner-icon" />
       <span class="text-subtitle1 banner-title">Browser not supported</span>
     </div>
     <p class="text-body2 banner-text">

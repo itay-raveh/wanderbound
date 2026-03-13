@@ -3,8 +3,10 @@ import type { Album, Segment, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
 import { date } from "quasar";
-import { length, lineString } from "@turf/turf";
+import { lineString } from "@turf/helpers";
+import length from "@turf/length";
 import { flagUrl } from "@/utils/media";
+import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
 import OverviewExtremes from "./OverviewExtremes.vue";
 import OverviewFurthestPoint from "./OverviewFurthestPoint.vue";
 
@@ -59,25 +61,25 @@ const stats = computed(() => [
   {
     value: daysCount.value,
     label: "Days",
-    icon: "sym_o_calendar_month",
+    icon: symOutlinedCalendarMonth,
     color: "#3f51b5",
   },
   {
     value: totalDistance.value,
     label: isKm.value ? "Km" : "Mi",
-    icon: "sym_o_explore",
+    icon: symOutlinedExplore,
     color: "#00897b",
   },
   {
     value: photosCount.value,
     label: "Photos",
-    icon: "sym_o_photo_camera",
+    icon: symOutlinedPhotoCamera,
     color: "#e65100",
   },
   {
     value: stepsCount.value,
     label: "Steps",
-    icon: "sym_o_timeline",
+    icon: symOutlinedTimeline,
     color: "#8e24aa",
   },
 ]);

@@ -3,9 +3,6 @@ import { PiniaColada } from "@pinia/colada";
 import { Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp } from "vue";
 
-// Import icon libraries
-import "@quasar/extras/material-icons/material-icons.css";
-import "@quasar/extras/material-symbols-outlined/material-symbols-outlined.css";
 
 // Import Quasar css
 import "quasar/src/css/index.sass";

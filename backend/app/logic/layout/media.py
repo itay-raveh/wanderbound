@@ -1,13 +1,36 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.ExifTags import Base as ExifBase
+from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
+THUMB_WIDTHS = (400, 800, 1600)
+type ThumbWidth = Literal[400, 800, 1600]
+THUMB_QUALITY = 80
+
+
+def generate_thumbnails(path: Path) -> None:
+    """Pre-generate WebP thumbnails at multiple widths for a given image."""
+    thumbs_base = path.parent / ".thumbs"
+    with Image.open(path) as raw:
+        transposed = ImageOps.exif_transpose(raw) or raw
+        orig_w, orig_h = transposed.size
+        for width in THUMB_WIDTHS:
+            if width >= orig_w:
+                continue  # don't upscale
+            out_dir = thumbs_base / str(width)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            ratio = width / orig_w
+            thumb = transposed.resize(
+                (width, round(orig_h * ratio)), Resampling.LANCZOS
+            )
+            thumb.save(out_dir / f"{path.stem}.webp", "WEBP", quality=THUMB_QUALITY)
+
 
 # {uuid4}_{uuid4}.(jpg|mp4)
 _UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"

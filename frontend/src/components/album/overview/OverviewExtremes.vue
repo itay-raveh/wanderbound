@@ -5,6 +5,7 @@ import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { weatherIconUrl } from "@/utils/weather";
 import { computed } from "vue";
+import { matLandscape } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   steps: Step[];
@@ -105,7 +106,7 @@ const records = computed<Record[]>(() => {
       value: formatElevation(highestStep.elevation),
       ...meta(highestStep),
       color: "#8d6e63",
-      icon: "landscape",
+      icon: matLandscape,
       qIcon: true,
     },
   ];

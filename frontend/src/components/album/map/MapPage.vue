@@ -5,7 +5,6 @@ import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { onMounted, useTemplateRef } from "vue";
-import "mapbox-gl/dist/mapbox-gl.css";
 
 const props = defineProps<{
   steps: Step[];

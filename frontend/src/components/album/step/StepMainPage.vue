@@ -3,7 +3,7 @@ import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/usePageDescription";
 import { useAlbumId } from "@/composables/useAlbumId";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { mediaUrl } from "@/utils/media";
+import { mediaUrl, mediaSrcset, SIZES_HALF } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
@@ -55,6 +55,8 @@ const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
       <q-img
         v-else-if="step.cover"
         :src="mediaUrl(step.cover, albumId)"
+        :srcset="printMode ? undefined : mediaSrcset(step.cover, albumId)"
+        :sizes="printMode ? undefined : SIZES_HALF"
         :loading="imgLoading"
         class="cover-photo"
       />

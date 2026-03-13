@@ -1,20 +1,22 @@
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
+from app.core.http import cached_client
 from app.core.logging import config_logger
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
     MEDIA_EXTENSIONS,
     extract_frame,
+    generate_thumbnails,
     normalize_name,
 )
 from app.logic.spatial.peaks import correct_peaks
@@ -28,7 +30,7 @@ from app.services.open_meteo import Weather, build_weathers, elevations
 
 logger = config_logger(__name__)
 
-type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames"]
+type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames", "thumbs"]
 type DbRow = Album | Step | Segment
 
 # Peak memory per ffmpeg frame-extraction process (~80 MB for 1080p video).
@@ -37,6 +39,36 @@ FFMPEG_MEMORY_BUDGET_MB = 1600
 _ffmpeg_sem = asyncio.Semaphore(
     max(1, FFMPEG_MEMORY_BUDGET_MB // FFMPEG_MEMORY_PER_PROCESS_MB)
 )
+_pillow_sem = asyncio.Semaphore(4)  # CPU-bound thumbnail generation
+
+
+async def _run_phase(
+    phase: ProcessingPhase,
+    files: list[Path],
+    worker: Callable[[Path], Coroutine[Any, Any, None]],
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> None:
+    """Run a concurrent processing phase with progress reporting."""
+    if not files:
+        return
+    total = len(files)
+    await queue.put(PhaseUpdate(phase=phase, done=0, total=total))
+    for done, coro in enumerate(asyncio.as_completed([worker(p) for p in files]), 1):
+        try:
+            await coro
+        except (RuntimeError, OSError) as exc:
+            logger.warning("%s failed: %s", phase, exc)
+        await queue.put(PhaseUpdate(phase=phase, done=done, total=total))
+
+
+_cover_client = cached_client()
+
+
+async def _download_cover(url: HttpUrl, dest: Path) -> None:
+    """Download a Polarsteps cover photo into the album media folder."""
+    resp = await _cover_client.get(str(url))
+    resp.raise_for_status()
+    await asyncio.to_thread(dest.write_bytes, resp.content)
 
 
 class TripStart(BaseModel):
@@ -99,6 +131,7 @@ def _build_trip_objects(  # noqa: PLR0913
     elevs: Sequence[float],
     weathers: Sequence[Weather],
     layouts: Sequence[Layout | None],
+    cover_name: str,
 ) -> list[DbRow]:
     album = Album(
         uid=user.id,
@@ -109,8 +142,8 @@ def _build_trip_objects(  # noqa: PLR0913
         steps_ranges=f"0-{len(trip.all_steps) - 1}",
         title=trip.title,
         subtitle=trip.subtitle,
-        front_cover_photo=str(trip.cover_photo_path),
-        back_cover_photo=str(trip.cover_photo_path),
+        front_cover_photo=cover_name,
+        back_cover_photo=cover_name,
     )
     steps = [
         Step(
@@ -127,6 +160,7 @@ def _build_trip_objects(  # noqa: PLR0913
             cover=layout[0] if layout else None,
             pages=layout[1] if layout else [],
             unused=[],
+            orientations=layout[2] if layout else {},
         )
         for idx, (ps, elev, wthr, layout) in enumerate(
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
@@ -158,6 +192,10 @@ async def _process_trip(  # noqa: C901, PLR0915
     locs = [s.location for s in trip.all_steps]
 
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
+
+    # Extract cover filename from the URL path (already {uuid}_{uuid}.jpg).
+    cover_url_path = trip.cover_photo_path.path or ""
+    cover_name = normalize_name(Path(cover_url_path).name)
 
     # Result containers shared with the phase tasks.
     elevs_raw: list[float] = []
@@ -201,26 +239,31 @@ async def _process_trip(  # noqa: C901, PLR0915
         # 2. Flatten media (move files to album root, remove sub-dirs)
         await asyncio.to_thread(_flatten_media, trip_dir)
 
+        # 2b. Download trip cover photo into the album directory
+        cover_dest = trip_dir / cover_name
+        if not cover_dest.exists():
+            await _download_cover(trip.cover_photo_path, cover_dest)
+
         # 3. Extract video frames from flattened files
-        video_paths = list(trip_dir.iterdir())  # noqa: ASYNC240
-        video_paths = [p for p in video_paths if p.suffix.lower() == ".mp4"]
-        if video_paths:
-            total = len(video_paths)
-            await queue.put(PhaseUpdate(phase="frames", done=0, total=total))
+        all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
+        video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
+        existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
 
-            async def _extract_one(p: Path) -> None:
-                async with _ffmpeg_sem:
-                    await extract_frame(p)
+        async def _extract_one(p: Path) -> None:
+            async with _ffmpeg_sem:
+                await extract_frame(p)
 
-            for done, coro in enumerate(
-                asyncio.as_completed([_extract_one(p) for p in video_paths]),
-                1,
-            ):
-                try:
-                    await coro
-                except (RuntimeError, OSError) as exc:
-                    logger.warning("Frame extraction failed: %s", exc)
-                await queue.put(PhaseUpdate(phase="frames", done=done, total=total))
+        await _run_phase("frames", video_paths, _extract_one, queue)
+
+        # 4. Generate WebP thumbnails for all .jpg files (including video posters)
+        poster_jpgs = [p.with_suffix(".jpg") for p in video_paths]
+        jpg_files = existing_jpgs + [p for p in poster_jpgs if p.is_file()]
+
+        async def _thumb_one(p: Path) -> None:
+            async with _pillow_sem:
+                await asyncio.to_thread(generate_thumbnails, p)
+
+        await _run_phase("thumbs", jpg_files, _thumb_one, queue)
 
     async def _run_all() -> None:
         try:
@@ -254,7 +297,14 @@ async def _process_trip(  # noqa: C901, PLR0915
 
     db_out.extend(
         _build_trip_objects(
-            user, aid, trip, locations, elevs_corrected, weathers, layouts
+            user,
+            aid,
+            trip,
+            locations,
+            elevs_corrected,
+            weathers,
+            layouts,
+            cover_name,
         ),
     )
 

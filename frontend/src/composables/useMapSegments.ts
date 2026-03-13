@@ -143,11 +143,11 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
 
     const el = document.createElement("div");
     el.className = FLIGHT_ICON_CLASS;
-    el.innerHTML = `<span class="material-icons" style="
-      font-size: 18px; color: rgba(255,255,255,0.95);
+    el.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" style="
+      color: rgba(255,255,255,0.95);
       transform: rotate(${90 - angle}deg);
       filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-    ">flight</span>`;
+    "><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg>`;
     new mapboxgl.Marker({ element: el }).setLngLat(midCoord).addTo(m);
   }
 }
@@ -290,8 +290,10 @@ export async function drawSegmentsAndMarkers(
 
     const el = document.createElement("div");
     el.className = MARKER_CLASS;
-    const coverPath = posterPath(step.cover);
-    el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)})`;
+    if (step.cover) {
+      const coverPath = posterPath(step.cover);
+      el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)})`;
+    }
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
 

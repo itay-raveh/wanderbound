@@ -4,6 +4,7 @@ import { toRangeList } from "@/utils/ranges";
 import { chooseTextDir } from "@/utils/text";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useExportPdfMutation } from "@/queries/useExportPdfMutation";
+import { symOutlinedFlightTakeoff, symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 
 const props = defineProps<{
   albumIds: string[];
@@ -76,7 +77,7 @@ async function onExportPdf() {
           @update:model-value="onTripSelected"
         >
           <template #prepend>
-            <q-icon name="sym_o_flight_takeoff" size="1.125rem" class="field-icon" />
+            <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" class="field-icon" />
           </template>
         </q-select>
       </div>
@@ -173,7 +174,7 @@ async function onExportPdf() {
         @click="onExportPdf"
       >
         <q-spinner-dots v-if="pdfMutation.isLoading.value" size="1.25rem" color="white" />
-        <q-icon v-else name="sym_o_picture_as_pdf" size="1.25rem" />
+        <q-icon v-else :name="symOutlinedPictureAsPdf" size="1.25rem" />
         <span>{{ pdfMutation.isLoading.value ? "Generating..." : "Export PDF" }}</span>
       </button>
     </div>

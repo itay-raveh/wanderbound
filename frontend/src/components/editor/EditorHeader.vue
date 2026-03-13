@@ -2,6 +2,7 @@
 import type { User } from "@/client";
 import { useQuasar } from "quasar";
 import UserMenu from "./UserMenu.vue";
+import { matLightMode, matDarkMode } from "@quasar/extras/material-icons";
 
 defineProps<{
   user?: User;
@@ -29,7 +30,7 @@ const $q = useQuasar();
         :title="$q.dark.isActive ? 'Switch to light mode' : 'Switch to dark mode'"
         @click="$q.dark.toggle()"
       >
-        <q-icon :name="$q.dark.isActive ? 'light_mode' : 'dark_mode'" size="1.15rem" />
+        <q-icon :name="$q.dark.isActive ? matLightMode : matDarkMode" size="1.15rem" />
       </button>
 
       <UserMenu

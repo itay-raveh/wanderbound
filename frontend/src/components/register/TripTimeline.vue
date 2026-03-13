@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { ProcessingPhase, TripMeta } from "@/client/types.gen";
 import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary, matVideocam, matImage } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   trips: TripMeta[];
@@ -16,13 +17,15 @@ const PHASE_LABELS: Record<ProcessingPhase, string> = {
   weather: "Checking weather",
   layouts: "Arranging photos",
   frames: "Extracting video frames",
+  thumbs: "Generating thumbnails",
 };
 
 const PHASE_ICONS: Record<ProcessingPhase, string> = {
-  elevations: "terrain",
-  weather: "thermostat",
-  layouts: "photo_library",
-  frames: "videocam",
+  elevations: matTerrain,
+  weather: matThermostat,
+  layouts: matPhotoLibrary,
+  frames: matVideocam,
+  thumbs: matImage,
 };
 
 type ItemStatus = "pending" | "active" | "done";
@@ -87,7 +90,7 @@ const overallPercent = computed(() => {
         <div class="trip-dot">
           <q-icon
             v-if="tripStatuses[i] === 'done'"
-            name="check"
+            :name="matCheck"
             size="var(--text-sm)"
           />
           <div
@@ -124,7 +127,7 @@ const overallPercent = computed(() => {
 
             <q-icon
               v-if="phaseStatuses[p] === 'done'"
-              name="check_circle"
+              :name="matCheckCircle"
               size="var(--text-sm)"
               class="phase-check"
             />

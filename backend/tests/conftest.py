@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from app.models.polarsteps import PSLocations, PSTrip
 
@@ -9,6 +10,14 @@ from app.models.polarsteps import PSLocations, PSTrip
 async def collect_async[T](it: AsyncIterator[T]) -> list[T]:
     """Exhaust an async iterator into a list."""
     return [item async for item in it]
+
+
+def create_test_jpeg(path: Path, width: int, height: int) -> Path:
+    """Create a minimal JPEG file with given dimensions for testing."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGB", (width, height), color="red")
+    img.save(path, "JPEG")
+    return path
 
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"

@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
+import { matPhotoLibrary } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   assets: Array<string>;
@@ -29,7 +30,7 @@ function onDragChange() {
 <template>
   <div class="unused-tray">
     <div class="tray-header">
-      <q-icon name="photo_library" size="1rem" />
+      <q-icon :name="matPhotoLibrary" size="1rem" />
       <span>{{ localUnused.length }} unused photo{{ localUnused.length !== 1 ? 's' : '' }}</span>
     </div>
     <VueDraggable

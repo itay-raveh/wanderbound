@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { matDeleteOutline } from "@quasar/extras/material-icons";
+
 const show = defineModel<boolean>({ required: true });
 
 defineProps<{
@@ -14,7 +16,7 @@ defineEmits<{
   <q-dialog v-model="show">
     <div class="confirm-dialog">
       <div class="confirm-icon">
-        <q-icon name="delete_outline" size="1.5rem" />
+        <q-icon :name="matDeleteOutline" size="1.5rem" />
       </div>
       <h3 class="confirm-title">Delete all data?</h3>
       <p class="confirm-text">

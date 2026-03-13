@@ -1,16 +1,28 @@
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from app.logic.layout.media import MediaName, extract_frame, is_video
+from app.logic.layout.media import (
+    MediaName,
+    ThumbWidth,
+    extract_frame,
+    generate_thumbnails,
+    is_video,
+)
 from app.models.types import AlbumId
 from app.models.user import User
 
 from ..deps import UserDep
 
 router = APIRouter(prefix="/albums", tags=["assets"])
+
+# 1 year, immutable — media files never change in-place.  Video poster
+# thumbnails are cache-busted by the frontend (?v=<timestamp>) after
+# frame extraction, so they can use the same aggressive caching.
+_CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 
 
 def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
@@ -21,8 +33,26 @@ def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
 
 
 @router.get("/{aid}/media/{name}")
-async def get_media(aid: AlbumId, name: MediaName, user: UserDep) -> FileResponse:
-    return FileResponse(_resolve_media(user, aid, name))
+async def get_media(
+    aid: AlbumId,
+    name: MediaName,
+    user: UserDep,
+    w: ThumbWidth | None = None,
+) -> FileResponse:
+    if w is not None:
+        album_dir = user.trips_folder / aid
+        thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
+        if thumb.is_file():
+            return FileResponse(
+                thumb,
+                media_type="image/webp",
+                headers={"Cache-Control": _CACHE_IMMUTABLE},
+            )
+        # Fall through to original if thumb doesn't exist
+    return FileResponse(
+        _resolve_media(user, aid, name),
+        headers={"Cache-Control": _CACHE_IMMUTABLE},
+    )
 
 
 @router.patch("/{aid}/media/{name}")
@@ -34,4 +64,5 @@ async def update_video_frame(
 ) -> None:
     if not is_video(name):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a video")
-    await extract_frame(_resolve_media(user, aid, name), timestamp)
+    poster_path = await extract_frame(_resolve_media(user, aid, name), timestamp)
+    await asyncio.to_thread(generate_thumbnails, poster_path)
