@@ -1,12 +1,11 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
-import { useAlbumStore } from "@/stores/useAlbumStore";
+import { useAlbumId } from "@/composables/useAlbumId";
 import { mediaUrl, posterPath } from "@/utils/media";
-import { storeToRefs } from "pinia";
 import MediaItem from "../MediaItem.vue";
 
-const { albumId } = storeToRefs(useAlbumStore());
+const albumId = useAlbumId();
 
 const props = defineProps<{
   page: string[];

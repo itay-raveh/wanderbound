@@ -19,9 +19,12 @@ target_metadata = SQLModel.metadata
 
 
 def render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | Literal[False]:
-    """Render PydanticJSON columns as plain sa.JSON() in migrations."""
+    """Render PydanticJSON columns as plain sa.JSON() in migrations.
+
+    No need to add ``import sqlalchemy as sa`` — Alembic already emits it
+    for any migration that references ``sa.Column``.
+    """
     if type_ == "type" and isinstance(obj, PydanticJSON):
-        autogen_context.imports.add("import sqlalchemy as sa")
         return "sa.JSON()"
     return False
 

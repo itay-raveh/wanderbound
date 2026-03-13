@@ -1,7 +1,7 @@
 import { ref, type Ref } from "vue";
-import { processUser } from "@/client";
+import { processUser, type ProcessingPhase } from "@/client";
 
-export type ProcessingPhase = "elevations" | "weather" | "layouts";
+export type { ProcessingPhase };
 
 export type StreamState = "idle" | "running" | "done" | "error";
 

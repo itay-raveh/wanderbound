@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { TripMeta, User } from "@/client/types.gen";
-import type { ProcessingPhase, StreamState } from "@/composables/useProcessingStream";
+import type { ProcessingPhase, TripMeta, User } from "@/client/types.gen";
+import type { StreamState } from "@/composables/useProcessingStream";
 import TripTimeline from "./TripTimeline.vue";
 
 const props = defineProps<{

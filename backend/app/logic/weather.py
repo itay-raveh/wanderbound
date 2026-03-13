@@ -181,9 +181,14 @@ async def _fetch_one(
         return weather
 
 
-async def build_weathers(steps: Sequence[PSStep]) -> AsyncIterator[Weather]:
-    """Yield weather for each step (concurrent, in order)."""
+async def build_weathers(
+    steps: Sequence[PSStep],
+) -> AsyncIterator[tuple[int, Weather]]:
+    """Yield (index, weather) as each completes (concurrent, unordered)."""
     sem = asyncio.Semaphore(_WEATHER_CONCURRENCY)
-    tasks = [asyncio.create_task(_fetch_one(s, sem)) for s in steps]
-    for task in tasks:
-        yield await task
+
+    async def _one(idx: int, step: PSStep) -> tuple[int, Weather]:
+        return idx, await _fetch_one(step, sem)
+
+    for coro in asyncio.as_completed([_one(i, s) for i, s in enumerate(steps)]):
+        yield await coro

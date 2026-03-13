@@ -8,7 +8,6 @@ Create Date: 2026-03-12 22:45:06.069779
 from alembic import op
 import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '8ec97bc11b0c'

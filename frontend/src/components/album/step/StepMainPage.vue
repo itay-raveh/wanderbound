@@ -1,15 +1,14 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/usePageDescription";
+import { useAlbumId } from "@/composables/useAlbumId";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { useAlbumStore } from "@/stores/useAlbumStore";
 import { mediaUrl } from "@/utils/media";
-import { storeToRefs } from "pinia";
 import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
 
-const { albumId } = storeToRefs(useAlbumStore());
+const albumId = useAlbumId();
 
 const props = defineProps<{
   colors: Record<string, string>;

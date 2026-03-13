@@ -102,9 +102,6 @@ CAMP_PREV_ANCHOR_MIN_H = 1.0
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 
-SegmentData = SegmentBase
-
-
 # ═══════════════════════════════════════════════════════════════════
 #  Stage 1: Ingest
 # ═══════════════════════════════════════════════════════════════════
@@ -519,8 +516,8 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
     return SegmentKind.driving if avg > HIKE_MAX_SPEED_KMH else SegmentKind.walking
 
 
-def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
-    """Yield SegmentData: simplify, resolve kinds, stitch consecutive segments."""
+def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentBase]:
+    """Yield SegmentBase: simplify, resolve kinds, stitch consecutive segments."""
     first_step_dt = steps[0].datetime
     prev_last_pt: Point | None = None
 
@@ -542,7 +539,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
             continue
 
         prev_last_pt = pts[-1]
-        yield SegmentData(kind=_resolve_kind(kind, gdf), points=pts)
+        yield SegmentBase(kind=_resolve_kind(kind, gdf), points=pts)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -552,7 +549,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
 
 def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
-) -> Iterable[SegmentData]:
+) -> Iterable[SegmentBase]:
     """Run the full pipeline: ingest → label → absorb → validate → emit."""
     logger.info(
         "build_segments: %d step(s), window %s → %s",

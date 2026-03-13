@@ -2,8 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import Response
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 
 from app.api.v1.deps import USER_COOKIE
 from app.core.browser import get_browser
@@ -40,20 +38,9 @@ async def read_album(aid: AlbumId, album: AlbumDep) -> Album:
 
 @router.get("/{aid}/data")
 async def read_album_data(
-    aid: AlbumId, user: UserDep, session: SessionDep
+    aid: AlbumId, album: AlbumDep, session: SessionDep
 ) -> AlbumData:
-    album = (
-        await session.scalars(
-            select(Album)
-            .where(Album.uid == user.id, Album.id == aid)
-            .options(
-                selectinload(Album.steps),  # type: ignore[arg-type]
-                selectinload(Album.segments),  # type: ignore[arg-type]
-            )
-        )
-    ).one_or_none()
-    if album is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    await session.refresh(album, attribute_names=["steps", "segments"])
     return AlbumData(steps=album.steps, segments=album.segments)
 
 

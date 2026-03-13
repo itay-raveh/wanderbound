@@ -17,7 +17,7 @@ from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
 from app.logic.weather import Weather, build_weathers
 from app.models.album import Album
-from app.models.polarsteps import PSLocations, PSStep, PSTrip
+from app.models.polarsteps import Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
@@ -83,13 +83,13 @@ def _flatten_media(album_dir: Path) -> None:
 
 def _build_trip_objects(  # noqa: PLR0913
     user: User,
+    aid: str,
     trip: PSTrip,
-    trip_dir: Path,
+    locations: list[Point],
     elevs: Sequence[float],
     weathers: Sequence[Weather],
     layouts: Sequence[tuple[MediaName, list[list[MediaName]]]],
 ) -> list[DbRow]:
-    aid = trip_dir.name
     album = Album(
         uid=user.id,
         id=aid,
@@ -122,7 +122,6 @@ def _build_trip_objects(  # noqa: PLR0913
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
         )
     ]
-    locations = PSLocations.from_trip_dir(trip_dir).locations
     segments = [
         Segment(
             uid=user.id,
@@ -142,7 +141,9 @@ async def _process_trip(
     trip_dir: Path,
     db_out: list[DbRow],
 ) -> AsyncIterator[PhaseUpdate]:
+    aid = trip_dir.name
     trip = PSTrip.from_trip_dir(trip_dir)
+    locations = PSLocations.from_trip_dir(trip_dir).locations
     logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
     locs = [s.location for s in trip.all_steps]
 
@@ -154,13 +155,14 @@ async def _process_trip(
         yield PhaseUpdate(phase="elevations", done=len(raw))
     elevs = await correct_peaks(locs, raw)
 
-    weathers: list[Weather] = []
-    async for weather in build_weathers(trip.all_steps):
-        weathers.append(weather)
-        yield PhaseUpdate(phase="weather", done=len(weathers))
+    weather_by_idx: dict[int, Weather] = {}
+    async for idx, weather in build_weathers(trip.all_steps):
+        weather_by_idx[idx] = weather
+        yield PhaseUpdate(phase="weather", done=len(weather_by_idx))
+    weathers = [weather_by_idx[i] for i in range(len(trip.all_steps))]
 
     layout_by_idx: dict[int, tuple[MediaName, list[list[MediaName]]]] = {}
-    async for idx, layout in _fetch_layouts(user, trip_dir.name, trip.all_steps):
+    async for idx, layout in _fetch_layouts(user, aid, trip.all_steps):
         layout_by_idx[idx] = layout
         yield PhaseUpdate(phase="layouts", done=len(layout_by_idx))
     layouts = [layout_by_idx[i] for i in range(len(trip.all_steps))]
@@ -168,7 +170,7 @@ async def _process_trip(
     await asyncio.to_thread(_flatten_media, trip_dir)
 
     db_out.extend(
-        _build_trip_objects(user, trip, trip_dir, elevs, weathers, layouts),
+        _build_trip_objects(user, aid, trip, locations, elevs, weathers, layouts),
     )
 
 

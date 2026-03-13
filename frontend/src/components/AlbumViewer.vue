@@ -5,10 +5,10 @@ import HikeMapPage from "./album/map/HikeMapPage.vue";
 import OverviewPage from "./album/overview/OverviewPage.vue";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
+import { provideAlbumId } from "@/composables/useAlbumId";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { useAlbumStore } from "@/stores/useAlbumStore";
 import { toRangeList } from "@/utils/ranges";
-import { computed, watch } from "vue";
+import { computed } from "vue";
 
 function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
@@ -21,8 +21,8 @@ const props = defineProps<{
   printMode?: boolean;
 }>();
 
-const albumStore = useAlbumStore();
-watch(() => props.album.id, (id) => { albumStore.albumId = id; }, { immediate: true });
+const albumId = computed(() => props.album.id);
+provideAlbumId(albumId);
 
 // Filter steps/segments by the album's steps_ranges setting.
 const stepsIndexes = computed(() => {

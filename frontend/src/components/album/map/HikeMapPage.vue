@@ -1,10 +1,9 @@
 <script lang="ts" setup>
 import type { Segment, Step } from "@/client";
+import { useAlbumId } from "@/composables/useAlbumId";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { useAlbumStore } from "@/stores/useAlbumStore";
-import { storeToRefs } from "pinia";
 import { getCountryColor } from "@/utils/colors";
 import { KM_TO_MI, M_TO_FT } from "@/utils/units";
 import { along, length as turfLength, lineString } from "@turf/turf";
@@ -20,7 +19,7 @@ const props = defineProps<{
   colors: Record<string, string>;
 }>();
 
-const { albumId } = storeToRefs(useAlbumStore());
+const albumId = useAlbumId();
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });

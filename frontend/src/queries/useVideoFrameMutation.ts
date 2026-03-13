@@ -1,15 +1,15 @@
 import { useMutation } from "@pinia/colada";
 import { updateVideoFrame } from "@/client";
-import { useAlbumStore } from "@/stores/useAlbumStore";
+import { useAlbumId } from "@/composables/useAlbumId";
 import { Notify } from "quasar";
 
 export function useVideoFrameMutation() {
-  const albumStore = useAlbumStore();
+  const albumId = useAlbumId();
 
   return useMutation({
     mutation: async (payload: { name: string; timestamp: number }) => {
       const { data } = await updateVideoFrame({
-        path: { aid: albumStore.albumId, name: payload.name },
+        path: { aid: albumId.value, name: payload.name },
         query: { timestamp: payload.timestamp },
       });
       return data;

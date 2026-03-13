@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -178,10 +179,12 @@ class TestBuildWeathers:
             result = [w async for w in build_weathers([step])]
 
         assert len(result) == 1
-        assert result[0].day.temp == 5.0
-        assert result[0].day.icon == "partly-cloudy-day-snow"
-        assert result[0].night is not None
-        assert result[0].night.temp == -2.0
+        idx, w = result[0]
+        assert idx == 0
+        assert w.day.temp == 5.0
+        assert w.day.icon == "partly-cloudy-day-snow"
+        assert w.night is not None
+        assert w.night.temp == -2.0
 
     @pytest.mark.anyio
     async def test_multiple_steps(self) -> None:
@@ -190,14 +193,16 @@ class TestBuildWeathers:
         resp1 = _om_response(["2024-01-01"], temp_max=[5.0], wmo_daily=[73])
         resp2 = _om_response(["2024-01-02"], temp_max=[12.0], wmo_daily=[63])
 
-        mock_r1 = MagicMock(status_code=200)
-        mock_r1.json.return_value = resp1
-        mock_r2 = MagicMock(status_code=200)
-        mock_r2.json.return_value = resp2
+        responses = {"2024-01-01": resp1, "2024-01-02": resp2}
+
+        async def _route(*_args: Any, **kwargs: Any) -> MagicMock:
+            r = MagicMock(status_code=200)
+            r.json.return_value = responses[kwargs["params"]["start_date"]]
+            return r
 
         with patch("app.logic.weather.client") as mc:
-            mc.get = AsyncMock(side_effect=[mock_r1, mock_r2])
-            result = [w async for w in build_weathers([s1, s2])]
+            mc.get = _route
+            result = dict([w async for w in build_weathers([s1, s2])])
 
         assert len(result) == 2
         assert result[0].day.temp == 5.0
@@ -223,7 +228,7 @@ class TestBuildWeathers:
 
         with patch("app.logic.weather.client") as mc:
             mc.get = AsyncMock(return_value=mock_response)
-            result = [w async for w in build_weathers([step])]
+            result = dict([w async for w in build_weathers([step])])
 
         assert result[0].day.icon == "rain"
         assert result[0].night is not None

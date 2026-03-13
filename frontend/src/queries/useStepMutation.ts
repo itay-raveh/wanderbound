@@ -1,24 +1,24 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep } from "@/client";
 import type { AlbumData, StepUpdate } from "@/client";
-import { useAlbumStore } from "@/stores/useAlbumStore";
+import { useAlbumId } from "@/composables/useAlbumId";
 import { Notify } from "quasar";
 import { queryKeys } from "./keys";
 
 export function useStepMutation() {
   const cache = useQueryCache();
-  const albumStore = useAlbumStore();
+  const albumId = useAlbumId();
 
   return useMutation({
     mutation: async (payload: { sid: number; layout: StepUpdate }) => {
       const { data } = await updateStep({
-        path: { aid: albumStore.albumId, sid: payload.sid },
+        path: { aid: albumId.value, sid: payload.sid },
         body: payload.layout,
       });
       return data;
     },
     onMutate: (payload) => {
-      const aid = albumStore.albumId;
+      const aid = albumId.value;
       const key = queryKeys.albumData(aid);
       const prev = cache.getQueryData<AlbumData>(key);
       if (prev) {

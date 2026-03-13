@@ -1,9 +1,8 @@
 <script lang="ts" setup>
+import { useAlbumId } from "@/composables/useAlbumId";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { useAlbumStore } from "@/stores/useAlbumStore";
 import { isVideo as checkVideo, mediaUrl, posterPath } from "@/utils/media";
-import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
 
 const props = defineProps<{
@@ -12,7 +11,7 @@ const props = defineProps<{
   cover?: boolean;
 }>();
 
-const { albumId } = storeToRefs(useAlbumStore());
+const albumId = useAlbumId();
 const printMode = usePrintMode();
 const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 
