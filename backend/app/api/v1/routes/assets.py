@@ -37,18 +37,20 @@ async def get_media(
     user: UserDep,
     w: int | None = None,
 ) -> FileResponse:
+    resolved = _resolve_media(user, aid, name)
     if w is not None:
         album_dir = user.trips_folder / aid
         thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
+        if not thumb.is_file():
+            await generate_thumbnails(resolved)
         if thumb.is_file():
             return FileResponse(
                 thumb,
                 media_type="image/webp",
                 headers={"Cache-Control": _CACHE_IMMUTABLE},
             )
-        # Fall through to original if thumb doesn't exist
     return FileResponse(
-        _resolve_media(user, aid, name),
+        resolved,
         headers={"Cache-Control": _CACHE_IMMUTABLE},
     )
 
