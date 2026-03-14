@@ -1,9 +1,18 @@
 <script lang="ts" setup>
-import type { User } from "@/client";
+import { deleteUser } from "@/client";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
+import { useQuasar } from "quasar";
 import { ref } from "vue";
+import { useRouter } from "vue-router";
 import DeleteDialog from "./DeleteDialog.vue";
-import { matPerson, matStraighten, matThermostat, matLanguage, matDeleteOutline } from "@quasar/extras/material-icons";
+import {
+  matPerson,
+  matLightMode,
+  matDarkMode,
+  matDeleteOutline,
+  matSettings,
+} from "@quasar/extras/material-icons";
 
 const LOCALE_OPTIONS = [
   { label: "English (US)", value: "en_US" },
@@ -22,160 +31,308 @@ const LOCALE_OPTIONS = [
   { label: "Русский", value: "ru_RU" },
 ];
 
-defineProps<{
-  user: User;
-  isKm: boolean;
-  isCelsius: boolean;
-}>();
-
-defineEmits<{
-  delete: [];
-}>();
-
+const router = useRouter();
+const { user, isKm, isCelsius } = useUserQuery();
 const { mutate: patch } = useUserMutation();
+const $q = useQuasar();
+
+const menuOpen = ref(false);
 const showDeleteConfirm = ref(false);
 const deleting = ref(false);
+
+async function handleDelete() {
+  deleting.value = true;
+  try {
+    await deleteUser();
+    await router.push("/register");
+  } catch {
+    $q.notify({ type: "negative", message: "Failed to delete user." });
+  } finally {
+    deleting.value = false;
+  }
+}
 </script>
 
 <template>
-  <div class="user-pill">
-    <q-avatar v-if="user.profile_image_path" size="1.5rem">
-      <img :src="user.profile_image_path" :alt="user.first_name" />
-    </q-avatar>
-    <q-icon v-else :name="matPerson" size="1rem" />
-    <span class="user-name">{{ user.first_name }}</span>
-
-    <q-menu class="user-menu" anchor="bottom right" self="top right" :offset="[0, 4]">
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="menu-row">
-            <q-icon :name="matStraighten" size="1rem" />
-            <span class="menu-label">{{ isKm ? 'Kilometers' : 'Miles' }}</span>
-            <q-toggle
-              :model-value="isKm"
-              dense
-              size="sm"
-              @update:model-value="patch({ unit_is_km: $event })"
-            />
-          </div>
-          <div class="menu-row">
-            <q-icon :name="matThermostat" size="1rem" />
-            <span class="menu-label">{{ isCelsius ? 'Celsius' : 'Fahrenheit' }}</span>
-            <q-toggle
-              :model-value="isCelsius"
-              dense
-              size="sm"
-              @update:model-value="patch({ temperature_is_celsius: $event })"
-            />
-          </div>
-          <div class="menu-row">
-            <q-icon :name="matLanguage" size="1rem" />
-            <q-select
-              :model-value="user.locale"
-              :options="LOCALE_OPTIONS"
-              class="locale-select"
-              dense
-              borderless
-              emit-value
-              map-options
-              options-dense
-              @update:model-value="patch({ locale: $event })"
-            />
-          </div>
-        </div>
-        <div class="menu-divider" />
-        <button class="menu-danger-btn" @click="showDeleteConfirm = true">
-          <q-icon :name="matDeleteOutline" size="1rem" />
-          Delete all data
-        </button>
+  <template v-if="user">
+    <button class="settings-trigger" :class="{ open: menuOpen }">
+      <q-avatar v-if="user.profile_image_path" size="2rem" class="trigger-avatar">
+        <img :src="user.profile_image_path" :alt="user.first_name" />
+      </q-avatar>
+      <div v-else class="trigger-avatar-fallback">
+        <q-icon :name="matPerson" size="1.125rem" />
       </div>
-    </q-menu>
-  </div>
+      <span class="trigger-name">{{ user.first_name }}</span>
 
-  <DeleteDialog v-model="showDeleteConfirm" :deleting="deleting" @confirm="$emit('delete')" />
+      <div class="trigger-divider" />
+      <q-icon :name="matSettings" size="1.125rem" class="trigger-gear" />
+
+      <q-menu
+        v-model="menuOpen"
+        class="settings-popover"
+        anchor="bottom right"
+        self="top right"
+        :offset="[0, 8]"
+      >
+        <div class="settings-card">
+          <!-- Appearance -->
+          <section class="card-section">
+            <h4 class="section-title">Appearance</h4>
+            <div class="seg-track">
+              <button
+                :class="{ active: !$q.dark.isActive }"
+                class="seg-btn"
+                @click="$q.dark.set(false)"
+              >
+                <q-icon :name="matLightMode" size="0.875rem" />
+                Light
+              </button>
+              <button
+                :class="{ active: $q.dark.isActive }"
+                class="seg-btn"
+                @click="$q.dark.set(true)"
+              >
+                <q-icon :name="matDarkMode" size="0.875rem" />
+                Dark
+              </button>
+            </div>
+          </section>
+
+          <!-- Units -->
+          <section class="card-section">
+            <h4 class="section-title">Units</h4>
+            <div class="unit-row">
+              <span class="unit-label">Distance</span>
+              <div class="seg-track compact">
+                <button
+                  :class="{ active: isKm }"
+                  class="seg-btn"
+                  @click="patch({ unit_is_km: true })"
+                >km</button>
+                <button
+                  :class="{ active: !isKm }"
+                  class="seg-btn"
+                  @click="patch({ unit_is_km: false })"
+                >mi</button>
+              </div>
+            </div>
+            <div class="unit-row">
+              <span class="unit-label">Temperature</span>
+              <div class="seg-track compact">
+                <button
+                  :class="{ active: isCelsius }"
+                  class="seg-btn"
+                  @click="patch({ temperature_is_celsius: true })"
+                >°C</button>
+                <button
+                  :class="{ active: !isCelsius }"
+                  class="seg-btn"
+                  @click="patch({ temperature_is_celsius: false })"
+                >°F</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Language -->
+          <section class="card-section">
+            <h4 class="section-title">Language</h4>
+            <div class="locale-wrapper">
+              <q-select
+                :model-value="user.locale"
+                :options="LOCALE_OPTIONS"
+                dense
+                borderless
+                emit-value
+                map-options
+                options-dense
+                menu-anchor="bottom start"
+                menu-self="top start"
+                @update:model-value="patch({ locale: $event })"
+              />
+            </div>
+          </section>
+
+          <div class="card-divider" />
+
+          <button class="danger-btn" @click="showDeleteConfirm = true">
+            <q-icon :name="matDeleteOutline" size="1rem" />
+            Delete all data
+          </button>
+        </div>
+      </q-menu>
+    </button>
+
+    <DeleteDialog v-model="showDeleteConfirm" :deleting="deleting" @confirm="handleDelete" />
+  </template>
 </template>
 
 <style lang="scss" scoped>
-.user-pill {
+.settings-trigger {
+  all: unset;
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.625rem 0.25rem 0.25rem;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.35rem;
   border-radius: 2rem;
   border: 1px solid var(--border-color);
   background: var(--surface);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: all 0.15s ease;
   color: var(--text-muted);
 
-  &:hover {
+  &:hover,
+  &.open {
+    border-color: color-mix(in srgb, var(--text) 30%, transparent);
     background: var(--border-color);
   }
 }
 
-.user-name {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text);
-}
-</style>
-
-<style lang="scss">
-/* Teleported — must be unscoped */
-
-.user-menu {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+.trigger-avatar {
+  flex-shrink: 0;
 }
 
-.menu-content {
-  padding: 0.375rem;
-  min-width: 12rem;
-}
-
-.menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.menu-row {
+.trigger-avatar-fallback {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--q-primary) 15%, var(--surface));
+  color: var(--q-primary);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.5rem;
-  border-radius: 0.375rem;
-  color: var(--text);
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.trigger-name {
   font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.menu-label {
-  flex: 1;
-}
-
-.menu-divider {
-  height: 1px;
+.trigger-divider {
+  width: 1px;
+  height: 1.25rem;
   background: var(--border-color);
-  margin: 0.375rem 0;
+  flex-shrink: 0;
 }
 
-.locale-select {
-  flex: 1;
-  min-width: 0;
+.trigger-gear {
+  color: var(--text-faint);
+  transition: all 0.25s ease;
 
-  .q-field__native > span {
+  .settings-trigger:hover &,
+  .settings-trigger.open & {
+    color: var(--text);
+    transform: rotate(45deg);
+  }
+}
+
+// ─── Settings Card (rendered inside teleported QMenu, but scoped attrs are preserved) ───
+
+.settings-card {
+  padding: 0.75rem;
+  min-width: 15rem;
+}
+
+.card-section {
+  &:not(:first-child) {
+    margin-top: 0.75rem;
+  }
+}
+
+.section-title {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 0 0 0.4rem;
+  padding: 0 0.125rem;
+}
+
+.seg-track {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, black 10%, var(--bg-secondary));
+}
+
+.seg-btn {
+  all: unset;
+  cursor: pointer;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+
+  &:hover:not(.active) {
+    color: var(--text);
+  }
+
+  &.active {
+    background: var(--bg-secondary);
+    color: var(--text-bright);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.1),
+      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  }
+}
+
+.seg-track.compact {
+  width: 6rem;
+  flex-shrink: 0;
+
+  .seg-btn {
+    padding: 0.25rem 0.5rem;
+    font-weight: 600;
+  }
+}
+
+.unit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  &:not(:last-child) {
+    margin-bottom: 0.375rem;
+  }
+}
+
+.unit-label {
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.locale-wrapper {
+  background: color-mix(in srgb, black 10%, var(--bg-secondary));
+  border-radius: 0.5rem;
+  padding: 0 0.5rem;
+
+  :deep(.q-field__native > span) {
     font-size: 0.8125rem;
     color: var(--text);
   }
 
-  .q-field__append {
+  :deep(.q-field__append) {
     color: var(--text-faint);
   }
 }
 
-.menu-danger-btn {
+.card-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.75rem 0;
+}
+
+.danger-btn {
   all: unset;
   cursor: pointer;
   display: flex;
@@ -184,7 +341,7 @@ const deleting = ref(false);
   width: 100%;
   padding: 0.375rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--danger);
   box-sizing: border-box;
@@ -193,5 +350,17 @@ const deleting = ref(false);
   &:hover {
     background: color-mix(in srgb, var(--danger) 12%, transparent);
   }
+}
+</style>
+
+<style lang="scss">
+/* QMenu creates its own wrapper element outside our template — must be unscoped */
+.settings-popover {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem !important;
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
 }
 </style>

@@ -5,13 +5,10 @@ import EditorHeader from "@/components/editor/EditorHeader.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
-import { deleteUser } from "@/client";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useQuasar } from "quasar";
 
 const router = useRouter();
-const $q = useQuasar();
 
 const LAST_ALBUM_KEY = "last-album-id";
 const selectedAlbumId = ref<string | null>(localStorage.getItem(LAST_ALBUM_KEY));
@@ -21,7 +18,7 @@ watch(selectedAlbumId, (id) => {
   else localStorage.removeItem(LAST_ALBUM_KEY);
 });
 
-const { data: userData, user, isKm, isCelsius, error: userError } = useUserQuery();
+const { data: userData, error: userError } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
@@ -29,26 +26,11 @@ const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
 watch(userError, (err) => {
   if (err) void router.push("/register");
 });
-
-async function onDeleteUser() {
-  try {
-    await deleteUser();
-    await router.push("/register");
-  } catch {
-    $q.notify({ type: "negative", message: "Failed to delete user." });
-  }
-}
 </script>
 
 <template>
   <q-page class="editor-page">
-    <EditorHeader
-      class="print-hide"
-      :user="user"
-      :is-km="isKm"
-      :is-celsius="isCelsius"
-      @delete="onDeleteUser"
-    />
+    <EditorHeader class="print-hide" />
 
     <div class="editor-content">
       <div class="sidebar-col print-hide">
