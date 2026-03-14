@@ -1,3 +1,7 @@
+# Architecture Reference
+
+Read `ARCHITECTURE.md` before exploring the codebase — it maps every file, data flow, and key type. **After any structural change** (new/moved/deleted files, changed data flows, new dependencies, schema changes), update `ARCHITECTURE.md` to match.
+
 # Project Philosophy
 
 This is a personal project in very early pre-alpha. There are NO users, NO backward compatibility concerns, NO legacy constraints. We prefer to redo things correctly from scratch over preserving existing code.

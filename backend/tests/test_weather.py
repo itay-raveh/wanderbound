@@ -1,5 +1,6 @@
 """Tests for Open-Meteo weather fetching and WMO code mapping."""
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -170,7 +171,7 @@ class TestBuildWeathers:
             wmo_daily=[71],
         )
         mock_response = MagicMock(status_code=200)
-        mock_response.json.return_value = resp_data
+        mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
             "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)
@@ -196,7 +197,7 @@ class TestBuildWeathers:
 
         async def _route(_url: Any, *, params: dict[str, Any]) -> MagicMock:
             r = MagicMock(status_code=200)
-            r.json.return_value = responses[params["start_date"]]
+            r.content = json.dumps(responses[params["start_date"]]).encode()
             return r
 
         with patch("app.services.open_meteo.client.get", side_effect=_route):
@@ -226,7 +227,7 @@ class TestBuildWeathers:
         step = _make_step(52.52, 13.41, 1704067200.0)
         resp_data = _om_response(["2024-01-01"], wmo_daily=[63])
         mock_response = MagicMock(status_code=200)
-        mock_response.json.return_value = resp_data
+        mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
             "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)
@@ -265,7 +266,7 @@ class TestBuildWeathers:
             wmo_daily=[1],
         )
         mock_response = MagicMock(status_code=200)
-        mock_response.json.return_value = resp_data
+        mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
             "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)

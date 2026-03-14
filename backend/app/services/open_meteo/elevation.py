@@ -30,7 +30,7 @@ async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
         )
         response.raise_for_status()
 
-        result = _ElevationResult.model_validate_json(await response.aread())
+        result = _ElevationResult.model_validate_json(response.content)
 
         for elev in result.elevation:
             yield elev

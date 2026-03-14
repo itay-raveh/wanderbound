@@ -126,7 +126,7 @@ async def _fetch_one(step: PSStep) -> Weather:
     if response.status_code != 200:
         msg = f"Weather API returned {response.status_code} for {step.location.detail}"
         raise RuntimeError(msg)
-    result = _LocationResult.model_validate(response.json())
+    result = _LocationResult.model_validate_json(response.content)
     weather = _weather_from_result(step, result)
     if weather is None:
         msg = f"No weather data for {step.location.detail} on {date_str}"

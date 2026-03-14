@@ -81,7 +81,7 @@ async def correct_peaks(
                 response.text[:200],
             )
             return elevs
-        osm = OverpassResponse.model_validate_json(await response.aread())
+        osm = OverpassResponse.model_validate_json(response.content)
     except (httpx.HTTPError, ValidationError) as exc:
         logger.warning("Overpass peak query failed: %s", exc)
         return elevs
