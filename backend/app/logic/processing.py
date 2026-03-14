@@ -39,7 +39,6 @@ FFMPEG_MEMORY_BUDGET_MB = 1600
 _ffmpeg_sem = asyncio.Semaphore(
     max(1, FFMPEG_MEMORY_BUDGET_MB // FFMPEG_MEMORY_PER_PROCESS_MB)
 )
-_pillow_sem = asyncio.Semaphore(4)  # CPU-bound thumbnail generation
 
 
 async def _run_phase(
@@ -260,8 +259,8 @@ async def _process_trip(  # noqa: C901, PLR0915
         jpg_files = existing_jpgs + [p for p in poster_jpgs if p.is_file()]
 
         async def _thumb_one(p: Path) -> None:
-            async with _pillow_sem:
-                await asyncio.to_thread(generate_thumbnails, p)
+            async with _ffmpeg_sem:
+                await generate_thumbnails(p)
 
         await _run_phase("thumbs", jpg_files, _thumb_one, queue)
 

@@ -1,4 +1,3 @@
-import asyncio
 from pathlib import Path
 from typing import Annotated
 
@@ -65,4 +64,4 @@ async def update_video_frame(
     if not is_video(name):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a video")
     poster_path = await extract_frame(_resolve_media(user, aid, name), timestamp)
-    await asyncio.to_thread(generate_thumbnails, poster_path)
+    await generate_thumbnails(poster_path)

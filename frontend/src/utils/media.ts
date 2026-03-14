@@ -15,7 +15,7 @@ export function posterPath(path: string): string {
   return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
 }
 
-export const THUMB_WIDTHS = [400, 800, 1600] as const;
+export const THUMB_WIDTHS = [400, 1200] as const;
 export const SIZES_FULL = "calc(297mm * 0.70)";
 export const SIZES_HALF = "calc(297mm * 0.70 * 0.5)";
 

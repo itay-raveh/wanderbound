@@ -3,33 +3,74 @@ import json
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
-from PIL import Image, ImageOps
+from PIL import Image
 from PIL.ExifTags import Base as ExifBase
-from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
-THUMB_WIDTHS = (400, 800, 1600)
-type ThumbWidth = Literal[400, 800, 1600]
+THUMB_WIDTHS = (400, 1200)
+type ThumbWidth = Literal[400, 1200]
 THUMB_QUALITY = 80
 
 
-def generate_thumbnails(path: Path) -> None:
-    """Pre-generate WebP thumbnails at multiple widths for a given image."""
+def _get_image_width(path: Path) -> int:
+    """Get display width of an image, accounting for EXIF rotation."""
+    with Image.open(path) as img:
+        w, h = img.size
+        if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
+            w, h = h, w
+        return w
+
+
+async def generate_thumbnails(path: Path) -> None:
+    """Pre-generate WebP thumbnails via ffmpeg (single process, multiple outputs).
+
+    ffmpeg handles EXIF auto-rotation, JPEG decoding, scaling, and WebP
+    encoding much faster than Pillow — especially for large images.
+    """
+    orig_w = await asyncio.to_thread(_get_image_width, path)
+    widths = [w for w in THUMB_WIDTHS if w < orig_w]
+    if not widths:
+        return
+
     thumbs_base = path.parent / ".thumbs"
-    with Image.open(path) as raw:
-        transposed = ImageOps.exif_transpose(raw) or raw
-        orig_w, orig_h = transposed.size
-        for width in THUMB_WIDTHS:
-            if width >= orig_w:
-                continue  # don't upscale
-            out_dir = thumbs_base / str(width)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            ratio = width / orig_w
-            thumb = transposed.resize(
-                (width, round(orig_h * ratio)), Resampling.LANCZOS
-            )
-            thumb.save(out_dir / f"{path.stem}.webp", "WEBP", quality=THUMB_QUALITY)
+    stem = path.stem
+
+    # Build ffmpeg command with split filter for all widths in one pass.
+    n = len(widths)
+    split_labels = "".join(f"[s{i}]" for i in range(n))
+    filter_parts = [f"[0:v]split={n}{split_labels}"]
+    cmd: list[str] = ["ffmpeg", "-y", "-i", str(path)]
+    maps: list[str] = []
+
+    for i, w in enumerate(widths):
+        out_dir = thumbs_base / str(w)
+        await asyncio.to_thread(out_dir.mkdir, parents=True, exist_ok=True)
+        out_path = out_dir / f"{stem}.webp"
+        filter_parts.append(f"[s{i}]scale={w}:-1[out{i}]")
+        maps.extend(
+            [
+                "-map",
+                f"[out{i}]",
+                "-c:v",
+                "libwebp",
+                "-quality",
+                str(THUMB_QUALITY),
+                str(out_path),
+            ]
+        )
+
+    cmd.extend(["-filter_complex", "; ".join(filter_parts)])
+    cmd.extend(maps)
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"Thumbnail generation failed: {stderr.decode()}")
 
 
 # {uuid4}_{uuid4}.(jpg|mp4)

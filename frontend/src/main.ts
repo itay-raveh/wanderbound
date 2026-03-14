@@ -4,6 +4,10 @@ import { Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp } from "vue";
 
 
+// Quasar's built-in components (q-uploader, q-select, etc.) reference
+// material-icons by string name, so the font CSS must stay loaded.
+import "@quasar/extras/material-icons/material-icons.css";
+
 // Import Quasar css
 import "quasar/src/css/index.sass";
 
