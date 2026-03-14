@@ -153,6 +153,7 @@ const sections = computed<Section[]>(() => {
       :key="i"
       :page-count="sectionPageCount(section)"
       :has-chrome="section.type === 'step'"
+      :eager="section.type === 'map' || section.type === 'hike'"
     >
       <!-- Map pages wrapped so transform: scale doesn't misalign -->
       <div v-if="section.type === 'map'" class="map-wrapper">

@@ -292,7 +292,7 @@ export async function drawSegmentsAndMarkers(
     el.className = MARKER_CLASS;
     if (step.cover) {
       const coverPath = posterPath(step.cover);
-      el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)})`;
+      el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)}?w=400)`;
     }
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }

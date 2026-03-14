@@ -2,16 +2,18 @@
 import { usePrintMode } from "@/composables/usePrintReady";
 import { onMounted, onUnmounted, ref } from "vue";
 
-defineProps<{
+const props = defineProps<{
   /** Number of album pages in this section (drives placeholder height). */
   pageCount?: number;
   /** Whether this section includes editor-only chrome (add-zone, unused tray). */
   hasChrome?: boolean;
+  /** Skip lazy loading — mount content immediately. */
+  eager?: boolean;
 }>();
 
 const printMode = usePrintMode();
 const el = ref<HTMLElement>();
-const visible = ref(printMode);
+const visible = ref(printMode || props.eager);
 
 let observer: IntersectionObserver | null = null;
 
