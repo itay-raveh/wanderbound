@@ -2,9 +2,9 @@ import asyncio
 import logging
 from itertools import batched
 from math import ceil
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
-from .media import Media, Photo, Video
+from .media import Media, MediaName, Photo, Video
 
 # Global limit on concurrent ffprobe processes across all users.
 _ffprobe_sem = asyncio.Semaphore(8)
@@ -17,9 +17,12 @@ if TYPE_CHECKING:
     from app.models.types import AlbumId
     from app.models.user import User
 
-    from .media import MediaName
 
-type Layout = tuple[MediaName, list[list[MediaName]], dict[MediaName, str]]
+class Layout(NamedTuple):
+    cover: MediaName
+    pages: list[list[MediaName]]
+    orientations: dict[MediaName, str]
+
 
 logger = logging.getLogger(__name__)
 
@@ -157,4 +160,4 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
         else:
             landscapes.remove(cover)
 
-    return cover, list(_build_pages(portraits, landscapes)), orientations
+    return Layout(cover, list(_build_pages(portraits, landscapes)), orientations)

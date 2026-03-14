@@ -138,7 +138,7 @@ def _build_trip_objects(  # noqa: PLR0913
     merged_orientations: dict[str, str] = {cover_name: cover_orientation}
     for layout in layouts:
         if layout:
-            merged_orientations.update(layout[2])
+            merged_orientations.update(layout.orientations)
 
     album = Album(
         uid=user.id,
@@ -165,8 +165,8 @@ def _build_trip_objects(  # noqa: PLR0913
             location=ps.location,
             elevation=elev,
             weather=wthr,
-            cover=layout[0] if layout else None,
-            pages=layout[1] if layout else [],
+            cover=layout.cover if layout else None,
+            pages=layout.pages if layout else [],
             unused=[],
         )
         for idx, (ps, elev, wthr, layout) in enumerate(
