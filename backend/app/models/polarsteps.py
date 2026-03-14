@@ -60,8 +60,6 @@ class PSStep(BaseModel):
     timestamp: float = Field(validation_alias="start_time")
     timezone_id: str
     location: Location
-    weather_condition: str
-    weather_temperature: float
 
     def __lt__(self, other: PSStep) -> bool:
         return self.datetime < other.datetime
