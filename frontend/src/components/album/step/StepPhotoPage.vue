@@ -18,11 +18,16 @@ const localPage = ref([...props.page]);
 watch(
   () => props.page,
   (val) => {
+    if (
+      val.length === localPage.value.length &&
+      val.every((v, i) => v === localPage.value[i])
+    )
+      return;
     localPage.value = [...val];
   },
 );
 
-function onDragChange() {
+function emitPage() {
   emit("update:page", [...localPage.value]);
 }
 
@@ -42,7 +47,8 @@ const layoutClass = computed(() => {
       :class="['container', layoutClass]"
       group="photos"
       :animation="200"
-      @change="onDragChange"
+      @update="emitPage"
+      @add="emitPage"
     >
       <MediaItem
         v-for="photo in localPage"

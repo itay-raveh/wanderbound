@@ -18,11 +18,16 @@ const localUnused = ref([...props.assets]);
 watch(
   () => props.assets,
   (val) => {
+    if (
+      val.length === localUnused.value.length &&
+      val.every((v, i) => v === localUnused.value[i])
+    )
+      return;
     localUnused.value = [...val];
   },
 );
 
-function onDragChange() {
+function emitUnused() {
   emit("update:unused-photos", [...localUnused.value]);
 }
 </script>
@@ -38,7 +43,8 @@ function onDragChange() {
       class="tray-track"
       group="photos"
       :animation="200"
-      @change="onDragChange"
+      @update="emitUnused"
+      @add="emitUnused"
     >
       <MediaItem
         v-for="photo in localUnused"

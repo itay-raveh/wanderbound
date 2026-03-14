@@ -87,7 +87,7 @@ async def access_log(
         request.client.host if request.client else "unknown",
         request.client.port if request.client else "unknown",
         request.method,
-        request.url.path,
+        request.url.path + (f"?{request.url.query}" if request.url.query else ""),
         "on red" if response.status_code >= 400 else "on green",
         response.status_code,
         http.HTTPStatus(response.status_code).phrase,
