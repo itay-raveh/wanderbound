@@ -276,8 +276,8 @@ async def _process_trip(  # noqa: C901, PLR0915
         await _run_phase("frames", video_paths, _extract_one, queue)
 
         # 4. Generate WebP thumbnails for all .jpg files (including video posters)
-        poster_jpgs = [p.with_suffix(".jpg") for p in video_paths]
-        jpg_files = existing_jpgs + [p for p in poster_jpgs if p.is_file()]
+        poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
+        jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
 
         async def _thumb_one(p: Path) -> None:
             async with _ffmpeg_sem:
