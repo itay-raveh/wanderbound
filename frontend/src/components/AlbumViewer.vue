@@ -7,12 +7,30 @@ import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { PAGE_CHARS } from "@/composables/usePageDescription";
 import { toRangeList } from "@/utils/ranges";
-import { computed, defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent, defineComponent, h } from "vue";
+
+// Fallback for async components that fail to load (e.g. mapbox-gl in headless Chromium).
+// Renders an empty page-container so page count stays correct and a blank page appears in the PDF.
+const EmptyPage = defineComponent({
+  render: () => h("div", { class: "page-container" }),
+});
 
 // Async components — splits turf/mapbox-gl out of the main chunk.
-const MapPage = defineAsyncComponent(() => import("./album/map/MapPage.vue"));
-const HikeMapPage = defineAsyncComponent(() => import("./album/map/HikeMapPage.vue"));
-const OverviewPage = defineAsyncComponent(() => import("./album/overview/OverviewPage.vue"));
+const MapPage = defineAsyncComponent({
+  loader: () => import("./album/map/MapPage.vue"),
+  errorComponent: EmptyPage,
+  timeout: 10_000,
+});
+const HikeMapPage = defineAsyncComponent({
+  loader: () => import("./album/map/HikeMapPage.vue"),
+  errorComponent: EmptyPage,
+  timeout: 10_000,
+});
+const OverviewPage = defineAsyncComponent({
+  loader: () => import("./album/overview/OverviewPage.vue"),
+  errorComponent: EmptyPage,
+  timeout: 10_000,
+});
 
 /** Number of album pages a section will render (for lazy placeholder sizing). */
 function sectionPageCount(section: Section): number {
@@ -23,6 +41,7 @@ function sectionPageCount(section: Section): number {
   if (descLen > PAGE_CHARS) pages += Math.ceil((descLen - PAGE_CHARS) / PAGE_CHARS);
   return pages;
 }
+
 
 function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
@@ -70,12 +89,6 @@ const totalDays = computed(() => {
   return Math.max(1, Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1);
 });
 provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
-
-// In print mode, provide a flag so child components can set loading="eager".
-// Playwright's networkidle wait handles the rest.
-if (props.printMode) {
-  providePrintMode();
-}
 
 type Section =
   | { type: "map"; steps: Step[]; segments: Segment[] }
@@ -150,12 +163,23 @@ const sections = computed<Section[]>(() => {
 
   return result;
 });
+
+/** Total page-container count: covers (2) + overview (1) + sections. */
+const expectedPageCount = computed(() =>
+  3 + sections.value.reduce((n, s) => n + sectionPageCount(s), 0),
+);
+
+// In print mode, provide a flag so child components can set loading="eager".
+if (props.printMode) {
+  providePrintMode();
+}
 </script>
 
 <template>
   <div
     v-if="steps.length"
     :class="['album-container', { 'print-mode': printMode }]"
+    :data-expected-pages="expectedPageCount"
   >
     <CoverPage :album="album" :steps="steps" />
     <CoverPage :album="album" :steps="steps" is-back />
@@ -240,8 +264,11 @@ const sections = computed<Section[]>(() => {
   }
 }
 
-// Print mode: exact A4 sizing, no editor chrome
+// Print mode: exact A4 sizing, no editor chrome.
+// contain:content is removed (inherited from base rule) because it creates
+// an isolated formatting context that can cause sub-pixel clipping at edges.
 .album-container.print-mode :deep(.page-container) {
+  contain: none;
   overflow: hidden;
   break-after: page;
   break-inside: avoid;

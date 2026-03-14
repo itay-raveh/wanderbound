@@ -33,22 +33,26 @@ export function useMapbox(options: UseMapboxOptions) {
 
     const lang = langFromLocale(toValue(options.locale));
 
-    const m = new mapboxgl.Map({
-      container: options.container.value,
-      style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
-      projection: "mercator",
-      interactive: options.interactive ?? false,
-      attributionControl: false,
-      preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
-      fadeDuration: 0,
-      language: lang,
-    });
+    try {
+      const m = new mapboxgl.Map({
+        container: options.container.value,
+        style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
+        projection: "mercator",
+        interactive: options.interactive ?? false,
+        attributionControl: false,
+        preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
+        fadeDuration: 0,
+        language: lang,
+      });
 
-    m.on("load", () => {
-      options.onReady?.(m);
-    });
+      m.on("load", () => {
+        options.onReady?.(m);
+      });
 
-    map.value = m;
+      map.value = m;
+    } catch (e) {
+      console.warn("[mapbox] failed to initialise map:", e);
+    }
   }
 
   // Update language dynamically when locale changes

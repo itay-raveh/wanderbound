@@ -122,6 +122,14 @@ function onVideoKey(e: KeyboardEvent) {
         </button>
       </div>
     </template>
+    <template v-else-if="printMode">
+      <img
+        :src="isVideo ? posterSrc : src"
+        loading="eager"
+        class="fill"
+        :style="{ objectFit: cover ? 'cover' : 'contain' }"
+      >
+    </template>
     <template v-else>
       <q-img
         :src="isVideo ? posterSrc : src"

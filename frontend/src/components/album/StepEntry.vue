@@ -104,28 +104,30 @@ function addPage() {
   saveLayout({ pages: [...props.step.pages, []] });
 }
 
-useDraggable(dropZoneRef, dropZoneList, {
-  group: "photos",
-  animation: 200,
-  onAdd: () => {
-    if (dropZoneList.value.length === 0) return;
-    const photos = [...dropZoneList.value];
-    dropZoneList.value = [];
-    const cleaned = withoutPhotos(new Set(photos));
-    saveLayout({ ...cleaned, pages: [...cleaned.pages, photos] });
-  },
-});
+if (!printMode) {
+  useDraggable(dropZoneRef, dropZoneList, {
+    group: "photos",
+    animation: 200,
+    onAdd: () => {
+      if (dropZoneList.value.length === 0) return;
+      const photos = [...dropZoneList.value];
+      dropZoneList.value = [];
+      const cleaned = withoutPhotos(new Set(photos));
+      saveLayout({ ...cleaned, pages: [...cleaned.pages, photos] });
+    },
+  });
 
-useDraggable(coverDropRef, coverDropList, {
-  group: "photos",
-  animation: 200,
-  onAdd: () => {
-    if (coverDropList.value.length === 0) return;
-    const photo = coverDropList.value[0]!;
-    coverDropList.value = [];
-    onCoverUpdate(photo);
-  },
-});
+  useDraggable(coverDropRef, coverDropList, {
+    group: "photos",
+    animation: 200,
+    onAdd: () => {
+      if (coverDropList.value.length === 0) return;
+      const photo = coverDropList.value[0]!;
+      coverDropList.value = [];
+      onCoverUpdate(photo);
+    },
+  });
+}
 </script>
 
 <template>

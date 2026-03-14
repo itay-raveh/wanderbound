@@ -20,7 +20,7 @@ if (typeof document !== "undefined" && !document.getElementById("map-segment-sty
   style.textContent = `
     .${MARKER_CLASS} {
       width: 36px; height: 36px; border-radius: 50%;
-      border: 2px solid white; background-size: cover; background-position: center;
+      border: 2px solid white; background-color: #333; background-size: cover; background-position: center;
       box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: default;
     }
     .${FLIGHT_ICON_CLASS} { pointer-events: none; line-height: 1; }
@@ -39,7 +39,8 @@ function cleanup(m: mapboxgl.Map) {
   for (const id of Object.keys(m.getStyle()?.sources ?? {})) {
     if (id.startsWith(LAYER_PREFIX)) m.removeSource(id);
   }
-  document
+  // Scope marker removal to this map's container (not the entire document)
+  m.getContainer()
     .querySelectorAll(`.${MARKER_CLASS}, .${FLIGHT_ICON_CLASS}`)
     .forEach((el) => el.remove());
 }

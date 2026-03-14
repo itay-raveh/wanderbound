@@ -30,7 +30,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     from playwright.async_api import async_playwright  # noqa: PLC0415
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch()
+    browser = await pw.chromium.launch(args=["--use-gl=angle"])
     set_browser(browser)
     logger.info("Playwright browser launched")
     yield
