@@ -4,7 +4,9 @@ import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
 import { provideAlbumId } from "@/composables/useAlbumId";
+import { provideAlbumColors } from "@/composables/useAlbumColors";
 import { providePrintMode } from "@/composables/usePrintReady";
+import { provideTripProgress } from "@/composables/useTripProgress";
 import { PAGE_CHARS } from "@/composables/usePageDescription";
 import { toRangeList } from "@/utils/ranges";
 import { computed, defineAsyncComponent } from "vue";
@@ -38,6 +40,9 @@ const props = defineProps<{
 const albumId = computed(() => props.album.id);
 provideAlbumId(albumId);
 
+const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
+provideAlbumColors(albumColors);
+
 // Filter steps/segments by the album's steps_ranges setting.
 const stepsIndexes = computed(() => {
   const ranges = toRangeList(props.album.steps_ranges);
@@ -57,6 +62,18 @@ const segments = computed(() => {
   if (s.length === 0) return [];
   return segmentsOverlapping(props.data.segments, s[0]!.timestamp, s[s.length - 1]!.timestamp);
 });
+
+const tripStart = computed(() => steps.value[0]?.datetime ?? "");
+const totalDays = computed(() => {
+  const s = steps.value;
+  if (s.length < 2) return 1;
+  const first = new Date(s[0]!.datetime);
+  const last = new Date(s[s.length - 1]!.datetime);
+  first.setHours(0, 0, 0, 0);
+  last.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1);
+});
+provideTripProgress({ tripStart, totalDays });
 
 // In print mode, provide a flag so child components can set loading="eager".
 // Playwright's networkidle wait handles the rest.
@@ -167,14 +184,11 @@ const sections = computed<Section[]>(() => {
           :segments="section.segments"
           :steps="section.steps"
           :hike-segment="section.hikeSegment"
-          :colors="(album.colors as Record<string, string>)"
         />
       </div>
       <StepEntry
         v-else-if="section.type === 'step'"
-        :colors="(album.colors as Record<string, string>)"
         :step="section.step"
-        :trip-start="steps[0]!.datetime"
         :print-mode="printMode"
       />
     </LazySection>

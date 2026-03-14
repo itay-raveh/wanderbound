@@ -11,9 +11,7 @@ import { useDraggable } from "vue-draggable-plus";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
-  colors: Record<string, string>;
   step: Step;
-  tripStart: string;
   printMode?: boolean;
 }>();
 
@@ -110,9 +108,7 @@ useDraggable(dropZoneRef, dropZoneList, {
 <template>
   <div class="step-entry">
     <StepMainPage
-      :colors="colors"
       :step="step"
-      :trip-start="tripStart"
       :description-type="desc.type"
       :main-page-text="desc.mainPageText"
       @update:cover="onCoverUpdate"

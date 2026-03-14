@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { Segment, Step } from "@/client";
 import { useAlbumId } from "@/composables/useAlbumId";
+import { useAlbumColors } from "@/composables/useAlbumColors";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -17,17 +18,17 @@ const props = defineProps<{
   steps: Step[];
   segments: Segment[];
   hikeSegment: Segment;
-  colors: Record<string, string>;
 }>();
 
 const albumId = useAlbumId();
+const colors = useAlbumColors();
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });
 
 const countryColor = computed(() => {
   if (!props.steps.length) return getCountryColor({}, "");
-  return getCountryColor(props.colors, props.steps[0]!.location.country_code);
+  return getCountryColor(colors.value, props.steps[0]!.location.country_code);
 });
 
 /** Elevation samples at regular intervals along the path. */

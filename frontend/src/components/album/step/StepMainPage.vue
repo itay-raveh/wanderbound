@@ -11,9 +11,7 @@ import StepMetaPanel from "./StepMetaPanel.vue";
 const albumId = useAlbumId();
 
 const props = defineProps<{
-  colors: Record<string, string>;
   step: Step;
-  tripStart: string;
   descriptionType: DescriptionType;
   mainPageText: string;
 }>();
@@ -36,8 +34,6 @@ const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
   <div :class="{ 'long-desc': isLongDesc }" class="page-container step-main">
     <StepMetaPanel
       :step="step"
-      :colors="colors"
-      :trip-start="tripStart"
       :description-type="descriptionType"
       :main-page-text="mainPageText"
       :compact="isLongDesc"

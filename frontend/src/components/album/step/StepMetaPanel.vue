@@ -9,15 +9,18 @@ import { weatherIconUrl } from "@/utils/weather";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "./CountrySilhouette.vue";
+import { useAlbumColors } from "@/composables/useAlbumColors";
+import { useTripProgress } from "@/composables/useTripProgress";
 
 const props = defineProps<{
   step: Step;
-  colors: Record<string, string>;
-  tripStart: string;
   descriptionType: DescriptionType;
   mainPageText: string;
   compact?: boolean;
 }>();
+
+const colors = useAlbumColors();
+const { tripStart, totalDays } = useTripProgress();
 
 const { formatTemp, formatElevationValue, formatDate, isKm, locale } = useUserQuery();
 
@@ -28,7 +31,7 @@ const dir = computed(() => {
 });
 
 const countryColor = computed(() => {
-  const hex = getCountryColor(props.colors, props.step.location.country_code);
+  const hex = getCountryColor(colors.value, props.step.location.country_code);
   return Dark.isActive ? hex : qColors.lighten(hex, 30);
 });
 
@@ -51,14 +54,16 @@ const coords = computed(() => ({
 }));
 
 const dayNumber = computed(() => {
-  const start = new Date(props.tripStart);
+  const start = new Date(tripStart.value);
   const current = new Date(props.step.datetime);
   start.setHours(0, 0, 0, 0);
   current.setHours(0, 0, 0, 0);
   return Math.floor((current.getTime() - start.getTime()) / 86_400_000) + 1;
 });
 
-const progressPercent = computed(() => Math.min(dayNumber.value, 100));
+const progressPercent = computed(() =>
+  Math.min(100, Math.round((dayNumber.value / totalDays.value) * 100)),
+);
 
 const dateStr = computed(() => {
   const d = new Date(props.step.datetime);
@@ -134,11 +139,11 @@ const dateStr = computed(() => {
       </div>
 
       <!-- Progress bar with day badge -->
-      <div class="progress-section">
+      <div class="progress-section" dir="ltr" :style="{ '--progress': `${progressPercent}%` }">
         <div class="progress-track">
           <div :style="{ width: `${progressPercent}%` }" class="progress-fill" />
         </div>
-        <div class="badge-wrap">
+        <div class="badge-rail">
           <div class="badge-arrow" />
           <div class="step-badge">DAY {{ dayNumber }}</div>
         </div>
@@ -236,7 +241,7 @@ const dateStr = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-bottom: 2rem;
+  padding-bottom: 2.5rem;
 }
 
 // ─── Stats Bar ───
@@ -304,9 +309,7 @@ const dateStr = computed(() => {
 
 // ─── Progress Section ───
 .progress-section {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  position: relative;
 }
 
 .progress-track {
@@ -323,14 +326,19 @@ const dateStr = computed(() => {
   background: v-bind(countryColor);
 }
 
-.badge-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.badge-rail {
+  position: relative;
+  width: 100%;
+  // Reserve space: arrow (5px) + badge (~1rem)
+  height: calc(5px + 1.1rem);
   margin-top: 0.25rem;
 }
 
 .badge-arrow {
+  position: absolute;
+  top: 0;
+  left: var(--progress);
+  transform: translateX(-50%);
   width: 0;
   height: 0;
   border-left: 5px solid transparent;
@@ -338,7 +346,13 @@ const dateStr = computed(() => {
   border-bottom: 5px solid v-bind(countryColor);
 }
 
+// Badge clamped to stay within the track edges.
+// 1px overlap with arrow (top: 4px instead of 5px) prevents sub-pixel gaps.
 .step-badge {
+  --half-w: 1.75rem;
+  position: absolute;
+  top: 4px;
+  left: clamp(0px, calc(var(--progress) - var(--half-w)), calc(100% - 2 * var(--half-w)));
   font-size: 0.55rem;
   font-weight: 700;
   color: var(--text-bright);
