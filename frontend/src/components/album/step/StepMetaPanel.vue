@@ -9,8 +9,7 @@ import { weatherIconUrl } from "@/utils/weather";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "./CountrySilhouette.vue";
-import { useAlbumColors } from "@/composables/useAlbumColors";
-import { useTripProgress } from "@/composables/useTripProgress";
+import { useAlbum } from "@/composables/useAlbum";
 
 const props = defineProps<{
   step: Step;
@@ -19,8 +18,7 @@ const props = defineProps<{
   compact?: boolean;
 }>();
 
-const colors = useAlbumColors();
-const { tripStart, totalDays } = useTripProgress();
+const { colors, tripStart, totalDays } = useAlbum();
 
 const { formatTemp, formatElevationValue, formatDate, isKm, locale } = useUserQuery();
 

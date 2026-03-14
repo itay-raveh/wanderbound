@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { Segment, Step } from "@/client";
-import { useAlbumId } from "@/composables/useAlbumId";
-import { useAlbumColors } from "@/composables/useAlbumColors";
+import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -20,8 +19,7 @@ const props = defineProps<{
   hikeSegment: Segment;
 }>();
 
-const albumId = useAlbumId();
-const colors = useAlbumColors();
+const { albumId, colors } = useAlbum();
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });

@@ -3,10 +3,8 @@ import type { Album, AlbumData, Segment, Step } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
-import { provideAlbumId } from "@/composables/useAlbumId";
-import { provideAlbumColors } from "@/composables/useAlbumColors";
+import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { provideTripProgress } from "@/composables/useTripProgress";
 import { PAGE_CHARS } from "@/composables/usePageDescription";
 import { toRangeList } from "@/utils/ranges";
 import { computed, defineAsyncComponent } from "vue";
@@ -38,10 +36,7 @@ const props = defineProps<{
 }>();
 
 const albumId = computed(() => props.album.id);
-provideAlbumId(albumId);
-
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
-provideAlbumColors(albumColors);
 
 // Filter steps/segments by the album's steps_ranges setting.
 const stepsIndexes = computed(() => {
@@ -73,7 +68,7 @@ const totalDays = computed(() => {
   last.setHours(0, 0, 0, 0);
   return Math.max(1, Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1);
 });
-provideTripProgress({ tripStart, totalDays });
+provideAlbum({ albumId, colors: albumColors, tripStart, totalDays });
 
 // In print mode, provide a flag so child components can set loading="eager".
 // Playwright's networkidle wait handles the rest.

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { useAlbumId } from "@/composables/useAlbumId";
+import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
@@ -13,7 +13,7 @@ const props = defineProps<{
   cols?: 1 | 2;
 }>();
 
-const albumId = useAlbumId();
+const { albumId } = useAlbum();
 const printMode = usePrintMode();
 const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 

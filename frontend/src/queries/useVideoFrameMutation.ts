@@ -1,10 +1,10 @@
 import { useMutation } from "@pinia/colada";
 import { updateVideoFrame } from "@/client";
-import { useAlbumId } from "@/composables/useAlbumId";
+import { useAlbum } from "@/composables/useAlbum";
 import { Notify } from "quasar";
 
 export function useVideoFrameMutation() {
-  const albumId = useAlbumId();
+  const { albumId } = useAlbum();
 
   return useMutation({
     mutation: async (payload: { name: string; timestamp: number }) => {

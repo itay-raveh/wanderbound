@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Segment, Step } from "@/client";
-import { useAlbumId } from "@/composables/useAlbumId";
+import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "@/composables/useMapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -11,7 +11,7 @@ const props = defineProps<{
   segments: Segment[];
 }>();
 
-const albumId = useAlbumId();
+const { albumId } = useAlbum();
 const { locale } = useUserQuery();
 const container = useTemplateRef("map");
 const { map, init, fitBounds, startResizeObserver } = useMapbox({ container, locale });

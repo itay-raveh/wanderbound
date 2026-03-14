@@ -1,14 +1,14 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/usePageDescription";
-import { useAlbumId } from "@/composables/useAlbumId";
+import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { mediaUrl, mediaSrcset, SIZES_HALF } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
 
-const albumId = useAlbumId();
+const { albumId } = useAlbum();
 
 const props = defineProps<{
   step: Step;
