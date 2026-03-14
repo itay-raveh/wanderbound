@@ -1,7 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import Annotated, Literal, Self
+from typing import Annotated, Self
 
 from PIL import Image, ImageOps
 from PIL.ExifTags import Base as ExifBase
@@ -10,7 +10,6 @@ from pydantic import BaseModel, StringConstraints
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
 THUMB_WIDTHS = (400, 1200)
-type ThumbWidth = Literal[400, 1200]
 THUMB_QUALITY = 80
 
 

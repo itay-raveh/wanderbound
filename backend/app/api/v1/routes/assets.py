@@ -6,7 +6,6 @@ from fastapi.responses import FileResponse
 
 from app.logic.layout.media import (
     MediaName,
-    ThumbWidth,
     extract_frame,
     generate_thumbnails,
     is_video,
@@ -36,7 +35,7 @@ async def get_media(
     aid: AlbumId,
     name: MediaName,
     user: UserDep,
-    w: ThumbWidth | None = None,
+    w: int | None = None,
 ) -> FileResponse:
     if w is not None:
         album_dir = user.trips_folder / aid
