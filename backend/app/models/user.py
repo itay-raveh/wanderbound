@@ -1,11 +1,17 @@
 from pathlib import Path
+from typing import Annotated
 
+from pydantic import StringConstraints
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import settings
 from app.core.db import PydanticJSON, all_optional
 from app.models.polarsteps import Location
 from app.models.types import AlbumId, UserId
+
+Locale = Annotated[
+    str, StringConstraints(pattern=r"^[a-z]{2}_[A-Z]{2}$", min_length=5, max_length=5)
+]
 
 
 class UserBase(SQLModel):
@@ -15,7 +21,7 @@ class UserBase(SQLModel):
     living_location: Location = Field(
         sa_column=Column(PydanticJSON(Location), nullable=False)
     )
-    locale: str = Field(regex="^[a-z]{2}_[A-Z]{2}$", min_length=5, max_length=5)
+    locale: Locale
     unit_is_km: bool
     temperature_is_celsius: bool
 
