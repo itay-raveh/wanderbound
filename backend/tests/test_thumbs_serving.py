@@ -60,19 +60,15 @@ class TestGetMediaThumbnail:
         assert Path(response.path) == (tmp_path / _AID / _NAME).resolve()
 
     @pytest.mark.anyio
-    async def test_generates_on_demand_when_thumb_missing(self, tmp_path: Path) -> None:
-        """If the thumbnail doesn't exist, generate it on-demand and serve WebP."""
+    async def test_falls_through_when_thumb_missing(self, tmp_path: Path) -> None:
+        """If the thumbnail doesn't exist, fall through to original."""
         album_dir = tmp_path / _AID
-        # Create original but DON'T pre-generate thumbnails
         create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
         response = await get_media(_AID, _NAME, user, w=1200)
 
-        stem = Path(_NAME).stem
-        thumb_path = album_dir / ".thumbs" / "1200" / f"{stem}.webp"
-        assert Path(response.path) == thumb_path
-        assert response.media_type == "image/webp"
+        assert Path(response.path) == (album_dir / _NAME).resolve()
 
     @pytest.mark.anyio
     async def test_all_thumb_widths_servable(self, tmp_path: Path) -> None:
@@ -94,6 +90,16 @@ class TestGetMediaThumbnail:
         response = await get_media(_AID, _NAME, user, w=1200)
 
         assert "immutable" in response.headers["cache-control"]
+
+    @pytest.mark.anyio
+    async def test_ignores_invalid_width(self, tmp_path: Path) -> None:
+        """?w= with a non-standard width serves the original."""
+        await _setup_album_with_thumbs(tmp_path)
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user, w=9999)
+
+        assert Path(response.path) == (tmp_path / _AID / _NAME).resolve()
 
     @pytest.mark.anyio
     async def test_falls_through_for_small_original(self, tmp_path: Path) -> None:

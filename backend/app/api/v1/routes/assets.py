@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from app.logic.layout.media import (
+    THUMB_WIDTHS,
     MediaName,
     extract_frame,
     generate_thumbnails,
@@ -37,12 +38,9 @@ async def get_media(
     user: UserDep,
     w: int | None = None,
 ) -> FileResponse:
-    resolved = _resolve_media(user, aid, name)
-    if w is not None:
+    if w is not None and w in THUMB_WIDTHS:
         album_dir = user.trips_folder / aid
         thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
-        if not thumb.is_file():
-            await generate_thumbnails(resolved)
         if thumb.is_file():
             return FileResponse(
                 thumb,
@@ -50,7 +48,7 @@ async def get_media(
                 headers={"Cache-Control": _CACHE_IMMUTABLE},
             )
     return FileResponse(
-        resolved,
+        _resolve_media(user, aid, name),
         headers={"Cache-Control": _CACHE_IMMUTABLE},
     )
 
