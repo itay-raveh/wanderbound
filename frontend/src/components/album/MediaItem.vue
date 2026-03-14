@@ -4,7 +4,7 @@ import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF } from "@/utils/media";
 import { computed, nextTick, ref } from "vue";
-import { matPlayArrow } from "@quasar/extras/material-icons";
+import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   media: string;
@@ -97,18 +97,22 @@ function onVideoKey(e: KeyboardEvent) {
         @keydown="onVideoKey"
       />
       <div v-if="!playing" class="play-overlay" @click="togglePlay">
-        <q-icon :name="matPlayArrow" size="3rem" color="white" />
+        <div class="play-icon">
+          <q-icon :name="matPlayArrow" />
+        </div>
       </div>
-      <q-btn
-        v-if="playing"
-        class="frame-btn"
-        dense
-        flat
-        label="Set Frame"
-        size="xs"
-        text-color="white"
-        @click="setFrame"
-      />
+      <div v-if="playing" class="frame-bar">
+        <button class="frame-step-btn" title="Previous frame (,)" @click="scrub(-FRAME_STEP)">
+          <q-icon :name="matChevronLeft" />
+        </button>
+        <button class="set-frame-btn" @click="setFrame">
+          <q-icon :name="matCheck" size="1.1rem" />
+          <span>Use as poster</span>
+        </button>
+        <button class="frame-step-btn" title="Next frame (.)" @click="scrub(FRAME_STEP)">
+          <q-icon :name="matChevronRight" />
+        </button>
+      </div>
     </template>
     <template v-else>
       <q-img
@@ -125,6 +129,7 @@ function onVideoKey(e: KeyboardEvent) {
 
 <style lang="scss" scoped>
 .media-item {
+  container-type: size;
   position: relative;
   overflow: hidden;
   user-select: none;
@@ -148,6 +153,8 @@ function onVideoKey(e: KeyboardEvent) {
   background: black;
 }
 
+// Play button — scales with container so it looks right in both
+// full-size page cells and the small unused-photos tray.
 .play-overlay {
   position: absolute;
   inset: 0;
@@ -155,30 +162,95 @@ function onVideoKey(e: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.play-icon {
+  // Scale with the smaller container dimension, capped at 3.5rem
+  --size: min(3.5rem, 40cqmin);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  transition: background 0.2s;
 
   :deep(.q-icon) {
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 50%;
-    padding: 0.5rem;
-    transition: background 0.2s;
+    font-size: calc(var(--size) * 0.55);
+    color: white;
   }
 
-  &:hover :deep(.q-icon) {
+  .play-overlay:hover & {
     background: rgba(0, 0, 0, 0.7);
   }
 }
 
-.frame-btn {
+// Frame selection toolbar — appears above native video controls
+.frame-bar {
   position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 4px;
+  bottom: 3.5rem; // clear native controls
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  border-radius: 2rem;
+  padding: 0.2rem;
+}
+
+.frame-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: background 0.15s;
+
+  :deep(.q-icon) {
+    font-size: 1.25rem;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+.set-frame-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: none;
+  border-radius: 1.5rem;
+  background: white;
+  color: #111;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem 0.35rem 0.6rem;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+
+  &:hover {
+    background: #e0e0e0;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
 }
 
 @media print {
   .play-overlay,
-  .frame-btn {
+  .frame-bar {
     display: none !important;
   }
 }
