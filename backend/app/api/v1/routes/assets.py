@@ -18,10 +18,11 @@ from ..deps import UserDep
 
 router = APIRouter(prefix="/albums", tags=["assets"])
 
-# 1 year, immutable — media files never change in-place.  Video poster
-# thumbnails are cache-busted by the frontend (?v=<timestamp>) after
-# frame extraction, so they can use the same aggressive caching.
+# Photos and videos never change in-place → cache forever.
 _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
+# Video posters (.jpg with a sibling .mp4) can change when the user
+# picks a new frame, so the browser must revalidate on each load.
+_CACHE_REVALIDATE = "public, no-cache"
 
 
 def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
@@ -38,18 +39,24 @@ async def get_media(
     user: UserDep,
     w: int | None = None,
 ) -> FileResponse:
+    album_dir = user.trips_folder / aid
+    # Video posters (.jpg with a sibling .mp4) can be re-extracted by the user.
+    is_poster = (
+        name.endswith(".jpg") and (album_dir / Path(name).with_suffix(".mp4")).is_file()
+    )
+    cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
+
     if w is not None and w in THUMB_WIDTHS:
-        album_dir = user.trips_folder / aid
         thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
         if thumb.is_file():
             return FileResponse(
                 thumb,
                 media_type="image/webp",
-                headers={"Cache-Control": _CACHE_IMMUTABLE},
+                headers={"Cache-Control": cache},
             )
     return FileResponse(
         _resolve_media(user, aid, name),
-        headers={"Cache-Control": _CACHE_IMMUTABLE},
+        headers={"Cache-Control": cache},
     )
 
 

@@ -115,6 +115,51 @@ class TestGetMediaThumbnail:
         assert Path(response.path) == (album_dir / _NAME).resolve()
 
 
+# ── Video poster cache headers ────────────────────────────────────────────
+
+
+class TestVideoPosterCaching:
+    @pytest.mark.anyio
+    async def test_poster_uses_no_cache(self, tmp_path: Path) -> None:
+        """Video posters (.jpg with sibling .mp4) use no-cache."""
+        album_dir = tmp_path / _AID
+        album_dir.mkdir(parents=True)
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
+        # Create sibling .mp4 so the poster is detected
+        (album_dir / Path(_NAME).with_suffix(".mp4")).touch()
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user)
+
+        assert "no-cache" in response.headers["cache-control"]
+
+    @pytest.mark.anyio
+    async def test_poster_thumb_uses_no_cache(self, tmp_path: Path) -> None:
+        """Video poster thumbnails also use no-cache."""
+        album_dir = tmp_path / _AID
+        album_dir.mkdir(parents=True)
+        src = create_test_jpeg(album_dir / _NAME, 4000, 3000)
+        await generate_thumbnails(src)
+        (album_dir / Path(_NAME).with_suffix(".mp4")).touch()
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user, w=400)
+
+        assert "no-cache" in response.headers["cache-control"]
+
+    @pytest.mark.anyio
+    async def test_regular_photo_uses_immutable(self, tmp_path: Path) -> None:
+        """Regular photos (no sibling .mp4) use immutable cache."""
+        album_dir = tmp_path / _AID
+        album_dir.mkdir(parents=True)
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user)
+
+        assert "immutable" in response.headers["cache-control"]
+
+
 # ── update_video_frame regenerates thumbnails ───────────────────────────────
 
 
