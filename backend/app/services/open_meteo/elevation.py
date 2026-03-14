@@ -3,16 +3,12 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from app.core.logging import config_logger
-
 from . import client
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
     from app.logic.spatial.types import HasLatLon
-
-logger = config_logger(__name__)
 
 
 class _ElevationResult(BaseModel):

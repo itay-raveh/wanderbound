@@ -1,9 +1,8 @@
 import asyncio
+import logging
 from itertools import batched
 from math import ceil
 from typing import TYPE_CHECKING
-
-from app.core.logging import config_logger
 
 from .media import Media, Photo, Video
 
@@ -22,7 +21,7 @@ if TYPE_CHECKING:
 
 type Layout = tuple[MediaName, list[list[MediaName]], dict[MediaName, str]]
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _portrait_page_count(n: int) -> int:

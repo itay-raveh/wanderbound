@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 from collections.abc import AsyncIterable
 from zipfile import BadZipFile
@@ -13,14 +14,13 @@ from fastapi import (
 from fastapi.sse import EventSourceResponse
 from safezip import SafezipError
 
-from app.core.logging import config_logger
 from app.logic.processing import ProcessingEvent, process_stream
 from app.logic.upload import UserCreated, user_from_zip
 from app.models.user import User, UserUpdate
 
 from ..deps import USER_COOKIE, SessionDep, UserDep
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -35,6 +35,7 @@ async def create_user(file: UploadFile, response: Response) -> UserCreated:
     try:
         result = await user_from_zip(file.file)
     except (BadZipFile, SafezipError, OSError) as e:
+        logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
         raise HTTPException(
             status.HTTP_406_NOT_ACCEPTABLE,
             detail="Bad ZIP",
@@ -73,3 +74,4 @@ async def delete_user(user: UserDep, session: SessionDep, response: Response) ->
     await session.delete(user)
     await session.commit()
     response.delete_cookie(USER_COOKIE)
+    logger.info("User %d deleted", user.id)

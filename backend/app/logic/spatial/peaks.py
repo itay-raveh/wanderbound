@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable, Sequence
 from typing import Annotated
 
@@ -5,7 +6,6 @@ import httpx
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
 from app.core.http import cached_client
-from app.core.logging import config_logger
 
 from .types import HasLatLon
 
@@ -15,7 +15,7 @@ PEAK_MIN_PROMINENCE = 300
 PEAK_SEARCH_RADIUS = 500
 PEAK_MAX_DEVIATION = 0.1
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _parse_ele(v: str | float) -> float:

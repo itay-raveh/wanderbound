@@ -19,7 +19,8 @@ services:
       - --reload
       - --host
       - "0.0.0.0"
-      - --no-access-log
+      - --log-config
+      - logging.json
     develop:
       watch:
         - path: ./backend

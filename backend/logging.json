@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {},
+  "handlers": {
+    "rich": {
+      "class": "rich.logging.RichHandler",
+      "rich_tracebacks": true,
+      "markup": true
+    },
+    "access": {
+      "class": "app.core.logging.AccessHandler",
+      "rich_tracebacks": true,
+      "markup": true
+    }
+  },
+  "loggers": {
+    "": {
+      "level": "WARNING",
+      "handlers": ["rich"]
+    },
+    "app": {
+      "level": "DEBUG",
+      "handlers": ["rich"],
+      "propagate": false
+    },
+    "uvicorn": {
+      "level": "INFO",
+      "handlers": ["rich"],
+      "propagate": false
+    },
+    "uvicorn.access": {
+      "level": "INFO",
+      "handlers": ["access"],
+      "propagate": false
+    },
+    "sqlalchemy.engine": {
+      "level": "WARNING",
+      "propagate": true
+    },
+    "httpx": {
+      "level": "WARNING",
+      "propagate": true
+    },
+    "httpcore": {
+      "level": "WARNING",
+      "propagate": true
+    },
+    "hishel": {
+      "level": "WARNING",
+      "propagate": true
+    },
+    "PIL": {
+      "level": "WARNING",
+      "propagate": true
+    },
+    "playwright": {
+      "level": "WARNING",
+      "propagate": true
+    }
+  }
+}

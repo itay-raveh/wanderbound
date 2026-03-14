@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -10,7 +11,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.core.http import cached_client
-from app.core.logging import config_logger
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -29,7 +29,7 @@ from app.models.step import Step
 from app.models.user import User
 from app.services.open_meteo import Weather, build_weathers, elevations
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames", "thumbs"]
 type DbRow = Album | Step | Segment
@@ -258,7 +258,10 @@ async def _process_trip(  # noqa: C901, PLR0915
             cover_photo = await asyncio.to_thread(Photo.load, cover_dest)
             cover_orientation = cover_photo.orientation
         except Exception:  # noqa: BLE001
-            logger.warning("Could not determine cover orientation, defaulting to 'l'")
+            logger.warning(
+                "Could not determine cover orientation for %s, defaulting to 'l'",
+                cover_name,
+            )
             cover_orientation = "l"
 
         # 3. Extract video frames from flattened files
@@ -337,7 +340,7 @@ async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
             async for event in _process_trip(user, trip_dir, all_objects):
                 yield event
     except Exception:
-        logger.exception("Processing failed")
+        logger.exception("Processing failed for user %d", user.id)
         yield ErrorData(
             detail="Processing failed. Please try again later.",
         )
@@ -347,8 +350,11 @@ async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
         async with AsyncSession(engine) as session:
             session.add_all(all_objects)
             await session.commit()
+        logger.info(
+            "Saved %d objects to database for user %d", len(all_objects), user.id
+        )
     except SQLAlchemyError:
-        logger.exception("DB save failed")
+        logger.exception("DB save failed for user %d", user.id)
         yield ErrorData(detail="Processing failed. Please try again later.")
 
 
@@ -422,7 +428,7 @@ async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
 
     if session is not None:
         logger.info(
-            "User %s reconnecting to %s processing session",
+            "User %d reconnecting to %s processing session",
             user.id,
             "completed" if session.is_done else "active",
         )

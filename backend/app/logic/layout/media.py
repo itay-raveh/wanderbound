@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Annotated, Self
 
@@ -7,6 +8,8 @@ from PIL import Image, ImageOps
 from PIL.ExifTags import Base as ExifBase
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
+
+logger = logging.getLogger(__name__)
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
 THUMB_WIDTHS = (400, 1200)
@@ -84,6 +87,7 @@ async def _video_dimensions(path: Path) -> tuple[int, int]:
                 break
     if rotation in (90, 270):
         w, h = h, w
+    logger.debug("ffprobe %s: %dx%d (rotation=%d)", path.name, w, h, rotation)
     return w, h
 
 

@@ -6,16 +6,12 @@ from typing import TYPE_CHECKING
 import httpx
 from pydantic import BaseModel
 
-from app.core.logging import config_logger
-
 from . import client
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
     from app.models.polarsteps import PSStep
-
-logger = config_logger(__name__)
 
 _WMO_ICONS: dict[int, str] = {
     0: "clear-day",

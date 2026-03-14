@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -6,14 +7,13 @@ from fastapi.responses import Response
 from app.api.v1.deps import USER_COOKIE
 from app.core.browser import get_browser
 from app.core.config import settings
-from app.core.logging import config_logger
 from app.models.album import Album, AlbumData, AlbumUpdate
 from app.models.step import Step, StepUpdate
 from app.models.types import AlbumId, StepIdx
 
 from ..deps import SessionDep, UserDep
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 async def _get_album(
@@ -91,13 +91,13 @@ async def export_pdf(
         )
         page = await context.new_page()
         url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
-        logger.info("PDF: navigating to %s", url)
         await page.goto(url, wait_until="networkidle")
         pdf_bytes = await page.pdf(
             format="A4",
             landscape=True,
             print_background=True,
         )
+        logger.info("PDF generated for album %s: %d bytes", aid, len(pdf_bytes))
     finally:
         await context.close()
     return Response(

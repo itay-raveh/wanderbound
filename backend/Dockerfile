@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY ./backend/scripts /app/backend/scripts
 
-COPY ./backend/pyproject.toml ./backend/alembic.ini /app/backend/
+COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/logging.json /app/backend/
 
 COPY ./backend/app /app/backend/app
 
@@ -47,4 +47,4 @@ RUN playwright install chromium --with-deps
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "3"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "3", "--log-config", "logging.json"]

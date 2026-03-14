@@ -24,13 +24,13 @@ DataFrame columns through the pipeline::
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
 
-from app.core.logging import config_logger
 from app.models.polarsteps import Point
 from app.models.segment import SegmentBase
 from app.models.types import SegmentKind
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from app.models.step import Step
 
 
-logger = config_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # ── Edge classification ───────────────────────────────────────────────────────
 # GPS underreports speed on winding trails (~6.5 km/h vs ~8 km/h actual).

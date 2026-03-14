@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 import tempfile
 from pathlib import Path
@@ -13,6 +14,8 @@ from app.core.db import engine
 from app.logic.country_colors import CountryCode
 from app.models.polarsteps import PSTrip
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 class TripMeta(BaseModel):
@@ -63,4 +66,5 @@ async def user_from_zip(file: BinaryIO) -> UserCreated:
         await session.commit()
         await session.refresh(user)
 
+    logger.info("User %d created from ZIP: %d trip(s)", user.id, len(trips))
     return UserCreated(user=user, trips=trips)
