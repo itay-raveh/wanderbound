@@ -28,9 +28,18 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 _CACHE_REVALIDATE = "public, no-cache"
 
 
+def _album_dir(user: User, aid: AlbumId) -> Path:
+    """Resolve the album directory, rejecting path traversal in ``aid``."""
+    resolved = (user.trips_folder / aid).resolve()
+    if not resolved.is_relative_to(user.trips_folder):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return resolved
+
+
 def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
-    resolved = (user.trips_folder / aid / name).resolve()
-    if not resolved.is_relative_to(user.trips_folder / aid) or not resolved.is_file():
+    album = _album_dir(user, aid)
+    resolved = (album / name).resolve()
+    if not resolved.is_relative_to(album) or not resolved.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     return resolved
 
@@ -42,7 +51,7 @@ async def get_media(
     user: UserDep,
     w: int | None = None,
 ) -> FileResponse:
-    album_dir = user.trips_folder / aid
+    album_dir = _album_dir(user, aid)
     # Video posters (.jpg with a sibling .mp4) can be re-extracted by the user.
     is_poster = (
         name.endswith(".jpg") and (album_dir / Path(name).with_suffix(".mp4")).is_file()
