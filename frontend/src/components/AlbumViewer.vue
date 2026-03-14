@@ -37,6 +37,7 @@ const props = defineProps<{
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
+const albumOrientations = computed(() => (props.album.orientations ?? {}) as Record<string, string>);
 
 // Filter steps/segments by the album's steps_ranges setting.
 const stepsIndexes = computed(() => {
@@ -68,7 +69,7 @@ const totalDays = computed(() => {
   last.setHours(0, 0, 0, 0);
   return Math.max(1, Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1);
 });
-provideAlbum({ albumId, colors: albumColors, tripStart, totalDays });
+provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
 
 // In print mode, provide a flag so child components can set loading="eager".
 // Playwright's networkidle wait handles the rest.

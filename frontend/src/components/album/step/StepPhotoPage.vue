@@ -2,11 +2,13 @@
 import { computed, ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
+import { useAlbum } from "@/composables/useAlbum";
+
+const { orientations } = useAlbum();
 
 const props = defineProps<{
   page: string[];
   stepId: number;
-  orientations: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
@@ -33,7 +35,7 @@ function emitPage() {
 
 const layoutClass = computed(() => {
   if (localPage.value.length !== 3) return "";
-  const o = localPage.value.map((m) => props.orientations[m]);
+  const o = localPage.value.map((m) => orientations.value[m]);
   if (o.every((v) => v === "p")) return "three-portraits";
   if (o[0] === "p" && o[1] === "l" && o[2] === "l") return "one-portrait-two-landscapes";
   return "";

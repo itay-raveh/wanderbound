@@ -19,6 +19,11 @@ export const THUMB_WIDTHS = [400, 1200] as const;
 export const SIZES_FULL = "calc(297mm * 0.70)";
 export const SIZES_HALF = "calc(297mm * 0.70 * 0.5)";
 
+/** Build a single thumbnail URL at the given width (defaults to smallest). */
+export function mediaThumbUrl(name: string, albumId: string, width: number = THUMB_WIDTHS[0]): string {
+  return `${mediaUrl(name, albumId)}?w=${width}`;
+}
+
 /** Build srcset string for pre-generated WebP thumbnails. */
 export function mediaSrcset(name: string, albumId: string): string {
   const base = mediaUrl(name, albumId);

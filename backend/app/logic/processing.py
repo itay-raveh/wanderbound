@@ -15,6 +15,7 @@ from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
     MEDIA_EXTENSIONS,
+    Photo,
     extract_frame,
     generate_thumbnails,
     normalize_name,
@@ -131,7 +132,14 @@ def _build_trip_objects(  # noqa: PLR0913
     weathers: Sequence[Weather],
     layouts: Sequence[Layout | None],
     cover_name: str,
+    cover_orientation: str,
 ) -> list[DbRow]:
+    # Merge all per-step orientations into a single album-level map.
+    merged_orientations: dict[str, str] = {cover_name: cover_orientation}
+    for layout in layouts:
+        if layout:
+            merged_orientations.update(layout[2])
+
     album = Album(
         uid=user.id,
         id=aid,
@@ -143,6 +151,7 @@ def _build_trip_objects(  # noqa: PLR0913
         subtitle=trip.subtitle,
         front_cover_photo=cover_name,
         back_cover_photo=cover_name,
+        orientations=merged_orientations,
     )
     steps = [
         Step(
@@ -159,7 +168,6 @@ def _build_trip_objects(  # noqa: PLR0913
             cover=layout[0] if layout else None,
             pages=layout[1] if layout else [],
             unused=[],
-            orientations=layout[2] if layout else {},
         )
         for idx, (ps, elev, wthr, layout) in enumerate(
             zip(trip.all_steps, elevs, weathers, layouts, strict=True)
@@ -201,6 +209,7 @@ async def _process_trip(  # noqa: C901, PLR0915
     elevs_corrected: list[float] = []
     weather_by_idx: dict[int, Weather] = {}
     layout_by_idx: dict[int, Layout | None] = {}
+    cover_orientation = "l"  # default; updated after cover photo is available
 
     n_steps = len(trip.all_steps)
 
@@ -242,6 +251,15 @@ async def _process_trip(  # noqa: C901, PLR0915
         cover_dest = trip_dir / cover_name
         if not cover_dest.exists():
             await _download_cover(trip.cover_photo_path, cover_dest)
+
+        # 2c. Determine cover photo orientation
+        nonlocal cover_orientation
+        try:
+            cover_photo = await asyncio.to_thread(Photo.load, cover_dest)
+            cover_orientation = cover_photo.orientation
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not determine cover orientation, defaulting to 'l'")
+            cover_orientation = "l"
 
         # 3. Extract video frames from flattened files
         all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
@@ -304,6 +322,7 @@ async def _process_trip(  # noqa: C901, PLR0915
             weathers,
             layouts,
             cover_name,
+            cover_orientation,
         ),
     )
 

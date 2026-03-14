@@ -121,7 +121,7 @@ useDraggable(coverDropRef, coverDropList, {
   animation: 200,
   onAdd: () => {
     if (coverDropList.value.length === 0) return;
-    const photo = coverDropList.value[0];
+    const photo = coverDropList.value[0]!;
     coverDropList.value = [];
     onCoverUpdate(photo);
   },
@@ -152,7 +152,6 @@ useDraggable(coverDropRef, coverDropList, {
       :key="`page-${idx}`"
       :page="page"
       :step-id="step.idx"
-      :orientations="step.orientations ?? {}"
       @update:page="onPageUpdate(idx, $event)"
     />
 

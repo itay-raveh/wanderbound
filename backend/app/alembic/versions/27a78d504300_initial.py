@@ -1,16 +1,17 @@
-"""initial revision
+"""initial
 
-Revision ID: 8ec97bc11b0c
+Revision ID: 27a78d504300
 Revises:
-Create Date: 2026-03-12 22:45:06.069779
+Create Date: 2026-03-14 08:21:50.375591
 
 """
 from alembic import op
 import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 
+
 # revision identifiers, used by Alembic.
-revision = '8ec97bc11b0c'
+revision = '27a78d504300'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -40,6 +41,7 @@ def upgrade():
     sa.Column('uid', sa.Integer(), nullable=False),
     sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('colors', sa.JSON(), nullable=False),
+    sa.Column('orientations', sa.JSON(), nullable=False),
     sa.ForeignKeyConstraint(['uid'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('uid', 'id')
     )
@@ -55,7 +57,7 @@ def upgrade():
     sa.PrimaryKeyConstraint('uid', 'aid', 'start_time', 'end_time')
     )
     op.create_table('step',
-    sa.Column('cover', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('cover', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('pages', sa.JSON(), nullable=False),
     sa.Column('unused', sa.JSON(), nullable=False),
     sa.Column('uid', sa.Integer(), nullable=False),

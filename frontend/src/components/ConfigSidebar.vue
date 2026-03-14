@@ -2,9 +2,12 @@
 import type { Album, AlbumUpdate } from "@/client";
 import { toRangeList } from "@/utils/ranges";
 import { chooseTextDir } from "@/utils/text";
+import { isVideo } from "@/utils/media";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useExportPdfMutation } from "@/queries/useExportPdfMutation";
+import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import { symOutlinedFlightTakeoff, symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
+import { computed } from "vue";
 
 const props = defineProps<{
   albumIds: string[];
@@ -46,6 +49,13 @@ const toTitleCase = (str: string) =>
       /\w\S*/g,
       (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase(),
     );
+
+const landscapePhotos = computed(() => {
+  const orientations = (props.album?.orientations ?? {}) as Record<string, string>;
+  return Object.keys(orientations).filter(
+    (name) => orientations[name] === "l" && !isVideo(name),
+  );
+});
 
 async function onExportPdf() {
   if (!props.album) return;
@@ -113,21 +123,19 @@ async function onExportPdf() {
         <!-- Cover photos -->
         <div class="section">
           <div class="section-label">Covers</div>
-          <q-input
+          <CoverPhotoPicker
             :model-value="album.front_cover_photo"
-            class="sidebar-field field-mono"
-            dense
-            outlined
+            :album-id="album.id"
+            :photos="landscapePhotos"
             label="Front Cover"
-            @update:model-value="save({ front_cover_photo: String($event) })"
+            @update:model-value="save({ front_cover_photo: $event })"
           />
-          <q-input
+          <CoverPhotoPicker
             :model-value="album.back_cover_photo"
-            class="sidebar-field field-mono"
-            dense
-            outlined
+            :album-id="album.id"
+            :photos="landscapePhotos"
             label="Back Cover"
-            @update:model-value="save({ back_cover_photo: String($event) })"
+            @update:model-value="save({ back_cover_photo: $event })"
           />
         </div>
 
@@ -284,15 +292,6 @@ async function onExportPdf() {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-}
-
-.field-mono {
-  &:deep(.q-field__native),
-  &:deep(.q-field__input) {
-    font-size: 0.6875rem;
-    font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
-    opacity: 0.85;
   }
 }
 

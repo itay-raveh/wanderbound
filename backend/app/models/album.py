@@ -36,6 +36,9 @@ class Album(AlbumBase, table=True):
         sa_relationship_kwargs={"order_by": "Segment.start_time"},
     )
     colors: dict[CountryCode, HexColor] = Field(sa_column=Column(JSON, nullable=False))
+    orientations: dict[str, str] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
 
 
 class AlbumData(BaseModel):

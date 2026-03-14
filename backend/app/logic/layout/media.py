@@ -108,6 +108,10 @@ class Photo(BaseModel):
     def is_portrait(self) -> bool:
         return self.aspect_ratio <= 4 / 5
 
+    @property
+    def orientation(self) -> str:
+        return "p" if self.is_portrait else "l"
+
     @classmethod
     def load(cls, path: Path) -> Self:
         with Image.open(path) as img:

@@ -17,9 +17,6 @@ class StepLayout(SQLModel):
     cover: str | None = None
     pages: list[list[str]] = Field(sa_column=Column(JSON, nullable=False))
     unused: list[str] = Field(sa_column=Column(JSON, nullable=False))
-    orientations: dict[str, str] = Field(
-        default_factory=dict, sa_column=Column(JSON, nullable=False)
-    )
 
 
 @all_optional

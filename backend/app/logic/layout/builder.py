@@ -146,9 +146,7 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
         return None
 
     # Build orientation map from already-computed is_portrait
-    orientations: dict[str, str] = {
-        media_name(m): "p" if m.is_portrait else "l" for m in media
-    }
+    orientations: dict[str, str] = {media_name(m): m.orientation for m in media}
 
     # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]
