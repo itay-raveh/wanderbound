@@ -2,7 +2,7 @@
 import { useAlbumId } from "@/composables/useAlbumId";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF } from "@/utils/media";
+import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
 import { computed, nextTick, ref } from "vue";
 import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
 
@@ -28,7 +28,15 @@ const posterSrc = computed(() => {
 
 const imgSrcset = computed(() => {
   if (printMode) return undefined;
-  return mediaSrcset(isVideo.value ? posterPath(props.media) : props.media, albumId.value);
+  const name = isVideo.value ? posterPath(props.media) : props.media;
+  // After a frame change, bust the srcset URLs too so the browser
+  // doesn't serve stale cached thumbnails.
+  const v = posterCacheBust.value;
+  if (v != null) {
+    const base = mediaUrl(name, albumId.value);
+    return THUMB_WIDTHS.map((w) => `${base}?w=${w}&v=${v} ${w}w`).join(", ");
+  }
+  return mediaSrcset(name, albumId.value);
 });
 const imgSizes = computed(() => {
   if (!imgSrcset.value) return undefined;
