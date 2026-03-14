@@ -59,7 +59,7 @@ async def _video_dimensions(path: Path) -> tuple[int, int]:
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=width,height:stream_tags=rotate",
+        "stream=width,height:stream_tags=rotate:stream_side_data=rotation",
         "-of",
         "json",
         str(path),
@@ -74,7 +74,14 @@ async def _video_dimensions(path: Path) -> tuple[int, int]:
         raise RuntimeError(f"No video stream found in {path}")
     stream = streams[0]
     w, h = stream["width"], stream["height"]
+    # Legacy: rotate tag in stream metadata
     rotation = abs(int(stream.get("tags", {}).get("rotate", "0")))
+    # Modern: display matrix in side_data_list (newer iOS/Android)
+    if rotation == 0:
+        for sd in stream.get("side_data_list", []):
+            if "rotation" in sd:
+                rotation = abs(int(sd["rotation"]))
+                break
     if rotation in (90, 270):
         w, h = h, w
     return w, h
