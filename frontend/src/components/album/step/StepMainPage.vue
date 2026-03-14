@@ -1,14 +1,10 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/usePageDescription";
-import { useAlbum } from "@/composables/useAlbum";
-import { usePrintMode } from "@/composables/usePrintReady";
-import { mediaUrl, mediaSrcset, SIZES_HALF } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
+import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
-
-const { albumId } = useAlbum();
 
 const props = defineProps<{
   step: Step;
@@ -16,18 +12,11 @@ const props = defineProps<{
   mainPageText: string;
 }>();
 
-defineEmits<{
-  "update:cover": [path: string];
-}>();
-
 const isLongDesc = computed(
   () =>
     props.descriptionType === "long" ||
     props.descriptionType === "extra-long",
 );
-
-const printMode = usePrintMode();
-const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 </script>
 
 <template>
@@ -48,17 +37,18 @@ const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
       >
         {{ mainPageText }}
       </div>
-      <q-img
-        v-else-if="step.cover"
-        :src="mediaUrl(step.cover, albumId)"
-        :srcset="printMode ? undefined : mediaSrcset(step.cover, albumId)"
-        :sizes="printMode ? undefined : SIZES_HALF"
-        :loading="imgLoading"
-        class="cover-photo"
-      />
-      <div v-else class="cover-placeholder">
-        <span>Drop Step Cover</span>
-      </div>
+      <template v-else>
+        <MediaItem
+          v-if="step.cover"
+          :media="step.cover"
+          :step-id="step.idx"
+          cover
+          class="cover-media"
+        />
+        <div v-else class="cover-placeholder">
+          <span>Drop Step Cover</span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -81,10 +71,12 @@ const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
   min-height: 0;
 }
 
-.cover-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.cover-media {
+  cursor: default;
+
+  &:active {
+    cursor: default;
+  }
 }
 
 .cover-placeholder {

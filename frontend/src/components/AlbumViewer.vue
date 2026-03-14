@@ -184,7 +184,6 @@ const sections = computed<Section[]>(() => {
       <StepEntry
         v-else-if="section.type === 'step'"
         :step="section.step"
-        :print-mode="printMode"
       />
     </LazySection>
   </div>

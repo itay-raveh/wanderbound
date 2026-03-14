@@ -4,7 +4,9 @@ import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
+import { useDragState } from "@/composables/useDragState";
 import { usePageDescription } from "@/composables/usePageDescription";
+import { usePrintMode } from "@/composables/usePrintReady";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { computed, ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
@@ -12,18 +14,22 @@ import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   step: Step;
-  printMode?: boolean;
 }>();
+
+const printMode = usePrintMode();
+const isDragging = useDragState();
 
 const descRef = computed(() => props.step.description);
 const desc = usePageDescription(descRef);
 
 const stepMutation = useStepMutation();
 
-// Drop zone — useDraggable attaches SortableJS directly to the DOM element,
+// Drop zones — useDraggable attaches SortableJS directly to the DOM element,
 // avoiding the v-model sync issues that VueDraggable has with static children.
 const dropZoneRef = ref<HTMLElement | null>(null);
 const dropZoneList = ref<string[]>([]);
+const coverDropRef = ref<HTMLElement | null>(null);
+const coverDropList = ref<string[]>([]);
 
 function saveLayout(patch: Partial<StepUpdate>) {
   const layout: StepUpdate = {
@@ -36,7 +42,13 @@ function saveLayout(patch: Partial<StepUpdate>) {
 }
 
 function onCoverUpdate(cover: string) {
-  saveLayout({ cover });
+  const oldCover = props.step.cover;
+  const { pages, unused } = withoutPhotos(new Set([cover]));
+  saveLayout({
+    cover,
+    pages,
+    unused: oldCover ? [...unused, oldCover] : unused,
+  });
 }
 
 /** Remove a set of photos from all pages and unused list atomically. */
@@ -103,16 +115,29 @@ useDraggable(dropZoneRef, dropZoneList, {
     saveLayout({ ...cleaned, pages: [...cleaned.pages, photos] });
   },
 });
+
+useDraggable(coverDropRef, coverDropList, {
+  group: "photos",
+  animation: 200,
+  onAdd: () => {
+    if (coverDropList.value.length === 0) return;
+    const photo = coverDropList.value[0];
+    coverDropList.value = [];
+    onCoverUpdate(photo);
+  },
+});
 </script>
 
 <template>
   <div class="step-entry">
-    <StepMainPage
-      :step="step"
-      :description-type="desc.type"
-      :main-page-text="desc.mainPageText"
-      @update:cover="onCoverUpdate"
-    />
+    <div class="cover-drop-wrapper">
+      <StepMainPage
+        :step="step"
+        :description-type="desc.type"
+        :main-page-text="desc.mainPageText"
+      />
+      <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
+    </div>
 
     <StepTextPage
       v-for="(text, i) in desc.continuationTexts"
@@ -156,6 +181,44 @@ useDraggable(dropZoneRef, dropZoneList, {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.cover-drop-wrapper {
+  position: relative;
+}
+
+.cover-drop-overlay {
+  position: absolute;
+  // Cover only the right side (content panel, not meta panel)
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 42%;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+
+  &.drag-active {
+    pointer-events: auto;
+  }
+
+  :deep(*) {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+}
+
+// Highlight cover area when dragging over
+.cover-drop-wrapper:has(.cover-drop-overlay .sortable-ghost) .cover-drop-overlay {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+    pointer-events: none;
+  }
 }
 
 .add-zone {
