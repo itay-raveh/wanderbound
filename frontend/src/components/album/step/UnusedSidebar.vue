@@ -45,7 +45,6 @@ function onDragChange() {
         :key="photo"
         :media="photo"
         :step-id="stepId"
-        class="tray-item"
       />
     </VueDraggable>
   </div>
@@ -93,18 +92,20 @@ function onDragChange() {
     background: var(--border-color);
     border-radius: 2px;
   }
-}
 
-.tray-item {
-  width: 6rem;
-  height: 4.5rem;
-  flex-shrink: 0;
-  border-radius: 0.25rem;
-  overflow: hidden;
-  cursor: grab;
+  // Constrain ALL children — including SortableJS ghost clones dragged
+  // in from photo pages, which would otherwise retain their large page size.
+  > :deep(*) {
+    width: 6rem;
+    height: 4.5rem;
+    flex-shrink: 0;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    cursor: grab;
 
-  &:active {
-    cursor: grabbing;
+    &:active {
+      cursor: grabbing;
+    }
   }
 }
 
