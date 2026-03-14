@@ -34,12 +34,9 @@ logger = logging.getLogger(__name__)
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames", "thumbs"]
 type DbRow = Album | Step | Segment
 
-# Peak memory per ffmpeg frame-extraction process (~80 MB for 1080p video).
-FFMPEG_MEMORY_PER_PROCESS_MB = 80
-FFMPEG_MEMORY_BUDGET_MB = 1600
-_ffmpeg_sem = asyncio.Semaphore(
-    max(1, FFMPEG_MEMORY_BUDGET_MB // FFMPEG_MEMORY_PER_PROCESS_MB)
-)
+# Limit concurrent heavy media work (ffmpeg frame extraction, Pillow thumbnails).
+# Budget: ~1600 MB total / ~80 MB per ffmpeg process = 20 slots.
+_media_sem = asyncio.Semaphore(20)
 
 
 async def _run_phase(
@@ -270,7 +267,7 @@ async def _process_trip(  # noqa: C901, PLR0915
         existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
 
         async def _extract_one(p: Path) -> None:
-            async with _ffmpeg_sem:
+            async with _media_sem:
                 await extract_frame(p)
 
         await _run_phase("frames", video_paths, _extract_one, queue)
@@ -280,7 +277,7 @@ async def _process_trip(  # noqa: C901, PLR0915
         jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
 
         async def _thumb_one(p: Path) -> None:
-            async with _ffmpeg_sem:
+            async with _media_sem:
                 await generate_thumbnails(p)
 
         await _run_phase("thumbs", jpg_files, _thumb_one, queue)
