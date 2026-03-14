@@ -93,6 +93,11 @@ function onDragChange() {
     border-radius: 2px;
   }
 
+  // Hide video play overlay — videos are just static thumbnails in the tray.
+  :deep(.play-overlay) {
+    display: none;
+  }
+
   // Constrain ALL children — including SortableJS ghost clones dragged
   // in from photo pages, which would otherwise retain their large page size.
   > :deep(*) {
