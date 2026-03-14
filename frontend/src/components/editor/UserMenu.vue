@@ -82,7 +82,7 @@ async function handleDelete() {
               <button
                 :class="{ active: !$q.dark.isActive }"
                 class="seg-btn"
-                @click="$q.dark.set(false)"
+                @click="$q.dark.isActive && $q.dark.set(false)"
               >
                 <q-icon :name="matLightMode" size="0.875rem" />
                 Light
@@ -90,7 +90,7 @@ async function handleDelete() {
               <button
                 :class="{ active: $q.dark.isActive }"
                 class="seg-btn"
-                @click="$q.dark.set(true)"
+                @click="$q.dark.isActive || $q.dark.set(true)"
               >
                 <q-icon :name="matDarkMode" size="0.875rem" />
                 Dark
@@ -107,12 +107,12 @@ async function handleDelete() {
                 <button
                   :class="{ active: isKm }"
                   class="seg-btn"
-                  @click="patch({ unit_is_km: true })"
+                  @click="isKm || patch({ unit_is_km: true })"
                 >km</button>
                 <button
                   :class="{ active: !isKm }"
                   class="seg-btn"
-                  @click="patch({ unit_is_km: false })"
+                  @click="isKm && patch({ unit_is_km: false })"
                 >mi</button>
               </div>
             </div>
@@ -122,12 +122,12 @@ async function handleDelete() {
                 <button
                   :class="{ active: isCelsius }"
                   class="seg-btn"
-                  @click="patch({ temperature_is_celsius: true })"
+                  @click="isCelsius || patch({ temperature_is_celsius: true })"
                 >°C</button>
                 <button
                   :class="{ active: !isCelsius }"
                   class="seg-btn"
-                  @click="patch({ temperature_is_celsius: false })"
+                  @click="isCelsius && patch({ temperature_is_celsius: false })"
                 >°F</button>
               </div>
             </div>
@@ -147,7 +147,7 @@ async function handleDelete() {
                 options-dense
                 menu-anchor="bottom start"
                 menu-self="top start"
-                @update:model-value="patch({ locale: $event })"
+                @update:model-value="$event !== user.locale && patch({ locale: $event })"
               />
             </div>
           </section>
@@ -177,7 +177,7 @@ async function handleDelete() {
   border: 1px solid var(--border-color);
   background: var(--surface);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
   color: var(--text-muted);
 
   &:hover,
@@ -218,7 +218,7 @@ async function handleDelete() {
 
 .trigger-gear {
   color: var(--text-faint);
-  transition: all 0.25s ease;
+  transition: color 0.25s ease, transform 0.25s ease;
 
   .settings-trigger:hover &,
   .settings-trigger.open & {
@@ -271,7 +271,7 @@ async function handleDelete() {
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 
   &:hover:not(.active) {
     color: var(--text);
