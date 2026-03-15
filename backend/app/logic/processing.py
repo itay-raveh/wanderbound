@@ -40,6 +40,21 @@ type DbRow = Album | Step | Segment
 _media_sem = asyncio.Semaphore(20)
 
 
+async def _track_iter[T](
+    phase: ProcessingPhase,
+    total: int,
+    source: AsyncIterator[T],
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> list[T]:
+    """Consume an async iterator while reporting progress to the queue."""
+    await queue.put(PhaseUpdate(phase=phase, done=0, total=total))
+    results: list[T] = []
+    async for item in source:
+        results.append(item)
+        await queue.put(PhaseUpdate(phase=phase, done=len(results), total=total))
+    return results
+
+
 async def _run_phase(
     phase: ProcessingPhase,
     files: list[Path],
@@ -201,7 +216,6 @@ async def _process_trip(  # noqa: C901, PLR0915
     cover_url_path = trip.cover_photo_path.path or ""
     cover_name = normalize_name(Path(cover_url_path).name)
 
-    elevs_raw: list[float] = []
     elevs_corrected: list[float] = []
     weather_by_idx: dict[int, Weather] = {}
     layout_by_idx: dict[int, Layout | None] = {}
@@ -210,21 +224,13 @@ async def _process_trip(  # noqa: C901, PLR0915
     n_steps = len(trip.all_steps)
 
     async def _run_elevations() -> None:
-        await queue.put(PhaseUpdate(phase="elevations", done=0, total=n_steps))
-        async for elev in elevations(locs):
-            elevs_raw.append(elev)
-            await queue.put(
-                PhaseUpdate(phase="elevations", done=len(elevs_raw), total=n_steps)
-            )
-        elevs_corrected.extend(await correct_peaks(locs, elevs_raw))
+        raw = await _track_iter("elevations", n_steps, elevations(locs), queue)
+        elevs_corrected.extend(await correct_peaks(locs, raw))
 
     async def _run_weather() -> None:
-        await queue.put(PhaseUpdate(phase="weather", done=0, total=n_steps))
-        async for idx, weather in build_weathers(trip.all_steps):
-            weather_by_idx[idx] = weather
-            await queue.put(
-                PhaseUpdate(phase="weather", done=len(weather_by_idx), total=n_steps)
-            )
+        weather_by_idx.update(
+            await _track_iter("weather", n_steps, build_weathers(trip.all_steps), queue)
+        )
 
     async def _run_media_pipeline() -> None:
         """Layouts → flatten → frame extraction (sequential pipeline).
@@ -233,12 +239,11 @@ async def _process_trip(  # noqa: C901, PLR0915
         layouts finish, without waiting for the API calls to complete.
         """
         # 1. Build layouts (reads from step sub-directories)
-        await queue.put(PhaseUpdate(phase="layouts", done=0, total=n_steps))
-        async for idx, layout in _fetch_layouts(user, aid, trip.all_steps):
-            layout_by_idx[idx] = layout
-            await queue.put(
-                PhaseUpdate(phase="layouts", done=len(layout_by_idx), total=n_steps)
+        layout_by_idx.update(
+            await _track_iter(
+                "layouts", n_steps, _fetch_layouts(user, aid, trip.all_steps), queue
             )
+        )
 
         # 2. Flatten media (move files to album root, remove sub-dirs)
         await asyncio.to_thread(_flatten_media, trip_dir)
