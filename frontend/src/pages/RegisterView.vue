@@ -53,7 +53,7 @@ function onDone() {
 </script>
 
 <template>
-  <q-page class="register-page">
+  <div class="register-page">
     <div class="register-content">
       <RegisterHero />
 
@@ -78,11 +78,12 @@ function onDone() {
         @done="onDone"
       />
     </div>
-  </q-page>
+  </div>
 </template>
 
 <style scoped>
 .register-page {
+  min-height: 100vh;
   background: linear-gradient(
     to bottom,
     color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),

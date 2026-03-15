@@ -107,14 +107,9 @@ onMounted(waitForPrintReady);
 </template>
 
 <style lang="scss">
-// Reset ALL wrapper margins/padding so page-containers touch page edges.
 html,
 body,
-#app,
-.q-layout,
-.q-page-container,
-.q-page-container > *,
-.q-page {
+#app {
   margin: 0 !important;
   padding: 0 !important;
   background: var(--page-bg, var(--bg)) !important;

@@ -20,15 +20,11 @@
 
 ---
 
-## 2025-03-15 — Bidirectional lazy loading for map sections (WebGL context leak)
+## 2025-03-15 — Lazy section scroll performance (WebGL context leak)
 
-**Status:** `DONE`
+**Status:** `DONE` — Resolved via mount-once + `content-visibility: auto` instead of bidirectional unmounting. The bidirectional approach (mount/unmount on scroll) caused severe jank from destroying and recreating entire component trees. Now sections mount once and stay in the DOM; the browser natively skips rendering off-screen sections via `content-visibility: auto` with `contain-intrinsic-height` for stable scroll positioning. IntersectionObserver uses the actual scroll container (`.viewer-col`) as root for reliable pre-loading. Maps use `eager: true` so they mount immediately. WebGL context count is bounded by the number of map sections per album (typically <16).
 
-**Problem:** `LazySection.vue` uses IntersectionObserver to mount sections when they scroll into view, but once mounted, sections are never unmounted — the observer disconnects on first reveal. Each `MapPage` and `HikeMapPage` creates a Mapbox GL context with a WebGL canvas. For a long album with 20+ map sections, all WebGL contexts remain alive simultaneously. Browsers cap WebGL contexts at ~16; beyond that, earlier maps go blank or the browser drops contexts silently.
-
-**Proposed fix:** Make LazySection bidirectional — keep the observer running and set `visible = false` when the section scrolls more than 3 viewport heights away. Mapbox maps already handle cleanup via `useMapbox`'s `onUnmounted`. Alternatively, implement a global "visibility budget" composable that caps the number of simultaneously mounted map instances at 4-6, unmounting the oldest when a new one enters the viewport.
-
-**Files affected:** ~3 — `LazySection.vue`, potentially `useMapbox.ts`, `AlbumViewer.vue`
+**Files changed:** `LazySection.vue`, `EditorView.vue`, `useScrollContainer.ts` (new), `App.vue`.
 
 ---
 

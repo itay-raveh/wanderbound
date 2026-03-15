@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { usePrintMode } from "@/composables/usePrintReady";
-import { onMounted, onUnmounted, ref } from "vue";
+import { SCROLL_CONTAINER_KEY } from "@/composables/useScrollContainer";
+import { inject, onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps<{
   /** Number of album pages in this section (drives placeholder height). */
@@ -12,20 +13,26 @@ const props = defineProps<{
 }>();
 
 const printMode = usePrintMode();
+const scrollContainer = inject(SCROLL_CONTAINER_KEY, ref(undefined));
 const el = ref<HTMLElement>();
-const visible = ref(printMode || props.eager);
+const mounted = ref(printMode || props.eager);
 
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (printMode || props.eager || !el.value) return;
+  if (mounted.value || !el.value) return;
   observer = new IntersectionObserver(
     ([entry]) => {
-      if (entry) visible.value = entry.isIntersecting;
+      if (entry?.isIntersecting) {
+        mounted.value = true;
+        observer!.disconnect();
+        observer = null;
+      }
     },
-    // Mount 2 viewport-heights before visible, unmount when scrolled beyond.
-    // Prevents WebGL context exhaustion from too many simultaneous maps.
-    { rootMargin: "200% 0px" },
+    {
+      root: scrollContainer.value ?? null,
+      rootMargin: "200% 0px",
+    },
   );
   observer.observe(el.value);
 });
@@ -36,25 +43,40 @@ onUnmounted(() => observer?.disconnect());
 <template>
   <div
     ref="el"
-    :class="{ 'lazy-placeholder': !visible && pageCount }"
+    :class="{
+      'lazy-section': mounted,
+      'lazy-placeholder': !mounted && pageCount,
+    }"
     :style="
-      !visible && pageCount
+      !mounted && pageCount
         ? {
             '--section-pages': pageCount,
             '--section-chrome': hasChrome ? '10rem' : '0rem',
           }
-        : undefined
+        : mounted && pageCount
+          ? { '--section-pages': pageCount }
+          : undefined
     "
   >
-    <slot v-if="visible" />
+    <slot v-if="mounted" />
   </div>
 </template>
 
 <style scoped>
+/* Before first mount: fixed-height placeholder so scroll position is stable. */
 .lazy-placeholder {
   min-height: calc(
     var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
     + var(--section-chrome, 0rem)
+  );
+}
+
+/* After mount: content-visibility lets the browser skip rendering for
+   off-screen sections without destroying the DOM (no unmount/remount jank). */
+.lazy-section {
+  content-visibility: auto;
+  contain-intrinsic-height: auto calc(
+    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
   );
 }
 </style>

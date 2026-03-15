@@ -98,6 +98,7 @@ frontend/
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
+      useScrollContainer.ts  provide/inject for scroll container ref (IntersectionObserver root)
       usePrintReady.ts       provide/inject for print mode boolean
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/

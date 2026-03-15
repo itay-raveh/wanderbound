@@ -31,7 +31,7 @@ let fullMeasure: HTMLDivElement | null = null;
 let contMeasure: HTMLDivElement | null = null;
 
 const COMMON_STYLE = [
-  "position:absolute",
+  "position:fixed",
   "visibility:hidden",
   "pointer-events:none",
   "z-index:-1",

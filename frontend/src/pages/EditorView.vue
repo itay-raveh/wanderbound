@@ -5,8 +5,9 @@ import EditorHeader from "@/components/editor/EditorHeader.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
-import { ref, computed, watch } from "vue";
+import { provide, ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
+import { SCROLL_CONTAINER_KEY } from "@/composables/useScrollContainer";
 
 const router = useRouter();
 
@@ -26,10 +27,13 @@ const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
 watch(userError, (err) => {
   if (err) void router.push("/register");
 });
+
+const viewerCol = ref<HTMLElement>();
+provide(SCROLL_CONTAINER_KEY, viewerCol);
 </script>
 
 <template>
-  <q-page class="editor-page">
+  <div class="editor-page">
     <EditorHeader class="print-hide" />
 
     <div class="editor-content">
@@ -42,11 +46,11 @@ watch(userError, (err) => {
         />
       </div>
 
-      <div class="viewer-col">
+      <div ref="viewerCol" class="viewer-col">
         <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
       </div>
     </div>
-  </q-page>
+  </div>
 </template>
 
 <style lang="scss" scoped>
@@ -81,6 +85,7 @@ watch(userError, (err) => {
   background: var(--bg-secondary);
   border-radius: 0.75rem;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 @media print {

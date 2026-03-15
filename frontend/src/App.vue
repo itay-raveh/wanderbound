@@ -3,14 +3,17 @@ import { RouterView } from "vue-router";
 </script>
 
 <template>
-  <q-layout>
-    <q-page-container>
-      <RouterView />
-    </q-page-container>
-  </q-layout>
+  <RouterView />
 </template>
 
 <style lang="scss">
+/* Prevent page-level scroll — each view manages its own scroll container. */
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
 /* Design tokens (theme-independent) */
 
 :root {
