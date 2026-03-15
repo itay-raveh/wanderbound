@@ -14,10 +14,6 @@ const LAYER_PREFIX = "seg-";
 const MARKER_CLASS = "map-step-marker";
 const FLIGHT_ICON_CLASS = "map-flight-icon";
 
-// ---------------------------------------------------------------------------
-// Cleanup
-// ---------------------------------------------------------------------------
-
 function cleanup(m: mapboxgl.Map) {
   for (const layer of m.getStyle()?.layers ?? []) {
     if (layer.id.startsWith(LAYER_PREFIX)) m.removeLayer(layer.id);
@@ -30,10 +26,6 @@ function cleanup(m: mapboxgl.Map) {
     .querySelectorAll(`.${MARKER_CLASS}, .${FLIGHT_ICON_CLASS}`)
     .forEach((el) => el.remove());
 }
-
-// ---------------------------------------------------------------------------
-// Line helpers
-// ---------------------------------------------------------------------------
 
 function addLine(
   m: mapboxgl.Map,
@@ -67,10 +59,6 @@ function addCircle(
   m.addLayer({ id, type: "circle", source: id, paint });
 }
 
-// ---------------------------------------------------------------------------
-// Flight arc with exaggerated curvature
-// ---------------------------------------------------------------------------
-
 function buildFlightArc(
   startLon: number,
   startLat: number,
@@ -102,10 +90,6 @@ function buildFlightArc(
   }
   return arc;
 }
-
-// ---------------------------------------------------------------------------
-// Segment drawing
-// ---------------------------------------------------------------------------
 
 function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   const start = seg.points[0]!;
@@ -190,10 +174,6 @@ function drawDrivingOrWalking(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Map-matching heuristic
-// ---------------------------------------------------------------------------
-
 function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
   // Many steps → zoomed out overview → raw GPS is fine
   if (steps.length > 8) return false;
@@ -204,10 +184,6 @@ function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
   if (matchable.length > 6) return false;
   return true;
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 interface DrawOptions {
   segments: Segment[];

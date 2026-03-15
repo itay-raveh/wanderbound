@@ -90,11 +90,6 @@ async def _video_dimensions(path: Path) -> tuple[int, int]:
     return w, h
 
 
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
-
-
 class Media(BaseModel):
     name: str
     width: int

@@ -355,11 +355,6 @@ async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
         yield ErrorData(detail="Processing failed. Please try again later.")
 
 
-# ---------------------------------------------------------------------------
-# Processing session: per-user lock + reconnectable progress
-# ---------------------------------------------------------------------------
-
-
 _SESSION_TTL = 300  # seconds before a completed session is evicted
 
 
