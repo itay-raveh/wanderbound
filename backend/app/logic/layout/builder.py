@@ -26,25 +26,6 @@ class Layout(NamedTuple):
 
 logger = logging.getLogger(__name__)
 
-# Must match frontend usePageDescription.ts SHORT_THRESHOLD / CHARS_PER_LINE
-# so backend and frontend agree on whether the cover photo appears on the main page.
-# Values derived from A4 landscape step panel: ~502px wide, 0.9rem/1.5 line-height.
-_CHARS_PER_LINE = 65
-_LONG_DESCRIPTION_THRESHOLD = 1200
-
-
-def _visual_length(text: str) -> int:
-    if not text:
-        return 0
-    lines = 0
-    for para in text.split("\n"):
-        lines += ceil(len(para) / _CHARS_PER_LINE) if para else 1
-    return lines * _CHARS_PER_LINE
-
-
-def _is_long_description(description: str) -> bool:
-    return _visual_length(description) > _LONG_DESCRIPTION_THRESHOLD
-
 
 def _portrait_page_count(n: int) -> int:
     """Min pages for n portraits (page sizes 3, 2, 1)."""
@@ -159,12 +140,5 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
 
     orientations: dict[str, str] = {m.name: m.orientation for m in media}
     cover = portraits[0] if portraits else landscapes[0]
-
-    # If it appears on the step page, remove it from the photo pages
-    if not _is_long_description(step.description):
-        if cover in portraits:
-            portraits.remove(cover)
-        else:
-            landscapes.remove(cover)
 
     return Layout(cover, list(_build_pages(portraits, landscapes)), orientations)

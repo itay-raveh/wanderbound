@@ -5,7 +5,7 @@ import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { useDragState } from "@/composables/useDragState";
-import { usePageDescription } from "@/composables/usePageDescription";
+import { filterCoverFromPages, useTextMeasure } from "@/composables/useTextMeasure";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { computed, ref } from "vue";
@@ -19,8 +19,11 @@ const props = defineProps<{
 const printMode = usePrintMode();
 const isDragging = useDragState();
 
-const descRef = computed(() => props.step.description);
-const desc = usePageDescription(descRef);
+const desc = useTextMeasure(computed(() => props.step.description ?? ""));
+
+const photoPages = computed(() =>
+  filterCoverFromPages(props.step.pages, props.step.cover, desc.value.type === "short"),
+);
 
 const stepMutation = useStepMutation();
 
@@ -150,11 +153,11 @@ if (!printMode) {
     />
 
     <StepPhotoPage
-      v-for="(page, idx) in step.pages"
-      :key="`page-${idx}`"
+      v-for="{ originalIdx, page } in photoPages"
+      :key="`page-${originalIdx}`"
       :page="page"
       :step-id="step.idx"
-      @update:page="onPageUpdate(idx, $event)"
+      @update:page="onPageUpdate(originalIdx, $event)"
     />
 
     <!-- Add page drop zone (editor only) -->

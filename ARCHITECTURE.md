@@ -97,7 +97,7 @@ frontend/
       useDarkMode.ts         Quasar Dark mode with localStorage persistence
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
-      usePageDescription.ts  Text layout: short / long / extra-long with paragraph-aware splitting
+      useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
       usePrintReady.ts       provide/inject for print mode boolean
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/
@@ -251,7 +251,7 @@ segment
 | Type | Location | Purpose |
 |------|----------|---------|
 | `AlbumContext` | `composables/useAlbum.ts` | Injected context: albumId, colors, orientations, tripStart, totalDays |
-| `DescriptionType` | `composables/usePageDescription.ts` | "short" / "long" / "extra-long" text layout classification |
+| `DescriptionType` | `composables/useTextMeasure.ts` | "short" / "long" / "extra-long" text layout classification |
 | `ProcessingPhase` | Generated from backend | "elevations" / "weather" / "layouts" / "frames" / "thumbs" |
 | All API types | `client/types.gen.ts` | Auto-generated from backend OpenAPI schema |
 

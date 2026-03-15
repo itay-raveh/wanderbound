@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import type { DescriptionType } from "@/composables/usePageDescription";
+import type { DescriptionType } from "@/composables/useTextMeasure";
 import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";

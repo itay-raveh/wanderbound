@@ -5,7 +5,7 @@ import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { PAGE_CHARS, visualLength } from "@/composables/usePageDescription";
+import { filterCoverFromPages, measureDescription } from "@/composables/useTextMeasure";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { toRangeList } from "@/utils/ranges";
 import { MS_PER_DAY } from "@/utils/units";
@@ -48,10 +48,9 @@ function sectionKey(section: Section): string {
 function sectionPageCount(section: Section): number {
   if (section.type === "map" || section.type === "hike") return 1;
   const step = section.step;
-  const descLen = visualLength(step.description || "");
-  let pages = 1 + step.pages.length;
-  if (descLen > PAGE_CHARS) pages += Math.ceil((descLen - PAGE_CHARS) / PAGE_CHARS);
-  return pages;
+  const layout = measureDescription(step.description || "");
+  const pages = filterCoverFromPages(step.pages, step.cover, layout.type === "short");
+  return 1 + pages.length + layout.continuationTexts.length;
 }
 
 
@@ -176,9 +175,11 @@ const sections = computed<Section[]>(() => {
   return result;
 });
 
+const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
+
 /** Total page-container count: covers (2) + overview (1) + sections. */
 const expectedPageCount = computed(() =>
-  3 + sections.value.reduce((n, s) => n + sectionPageCount(s), 0),
+  3 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 
 // In print mode, provide a flag so child components can set loading="eager".
@@ -198,9 +199,9 @@ if (props.printMode) {
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
     <LazySection
-      v-for="section in sections"
+      v-for="(section, i) in sections"
       :key="sectionKey(section)"
-      :page-count="sectionPageCount(section)"
+      :page-count="sectionPageCounts[i]"
       :has-chrome="section.type === 'step'"
       :eager="section.type === 'map' || section.type === 'hike'"
     >

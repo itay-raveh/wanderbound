@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import type { DescriptionType } from "@/composables/usePageDescription";
+import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
 import { flagUrl } from "@/utils/media";

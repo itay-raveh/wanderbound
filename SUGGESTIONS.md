@@ -2,13 +2,9 @@
 
 ## 2025-03-15 — Eliminate `_visual_length` / text-layout duplication across backend and frontend
 
-**Status:** `PENDING`
+**Status:** `DONE` — Resolved via DOM-measured text layout instead of the proposed backend approach. Deleted `_visual_length`, `_is_long_description`, and all "Must match" constants from both backend (`builder.py`) and frontend (`usePageDescription.ts`). Backend now always includes cover in pages; frontend measures text fit using hidden DOM containers (`useTextMeasure.ts`) and decides layout type at render time. Zero duplication, self-adjusting to CSS changes.
 
-**Problem:** `_visual_length()` in `backend/app/logic/layout/builder.py:36` and `visualLength()` in `frontend/src/composables/usePageDescription.ts:8` implement the same character-counting algorithm. `_LONG_DESCRIPTION_THRESHOLD = 1200` and `SHORT_THRESHOLD = 1200` are the same constant defined in both places. Comments in both files explicitly say "Must match." This will inevitably drift, producing broken PDF layouts.
-
-**Proposed fix:** Move all text-length classification to the backend. At processing time, compute `description_type: "short" | "long" | "extra-long"` and `continuation_count: int` for each step and store them in the `step` table. The frontend reads these from the API response and drops `usePageDescription.ts` entirely (or reduces it to a lookup). This eliminates the duplication at its root.
-
-**Files affected:** ~6 — `builder.py`, `step.py` (model), migration, `usePageDescription.ts`, `StepEntry.vue`, `AlbumViewer.vue`
+**Files changed:** `builder.py`, `useTextMeasure.ts` (new), `AlbumViewer.vue`, `StepEntry.vue`, `StepMainPage.vue`, `StepMetaPanel.vue`. `usePageDescription.ts` deleted.
 
 ---
 
