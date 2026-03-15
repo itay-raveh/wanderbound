@@ -8,6 +8,14 @@ export interface TextLayout {
   continuationTexts: string[];
 }
 
+// --- Measurement cache (cleared when fonts finish loading) ---
+const cache = new Map<string, TextLayout>();
+
+function cached(text: string, layout: TextLayout): TextLayout {
+  cache.set(text, layout);
+  return layout;
+}
+
 // --- Font readiness tracking (reactive — triggers recomputation in computed contexts) ---
 const fontsLoaded = ref(false);
 if (typeof document !== "undefined") {
@@ -16,9 +24,6 @@ if (typeof document !== "undefined") {
     cache.clear();
   });
 }
-
-// --- Measurement cache (cleared when fonts finish loading) ---
-const cache = new Map<string, TextLayout>();
 
 // --- Hidden DOM containers (created once on first use) ---
 let metaMeasure: HTMLDivElement | null = null;
@@ -140,13 +145,20 @@ function splitByParagraphs(
   text: string,
 ): [string, string] {
   const paras = text.split("\n");
+
+  // Pre-build joined prefixes so each binary search probe is O(1) lookup
+  const prefixes: string[] = new Array(paras.length);
+  for (let i = 0; i < paras.length; i++) {
+    prefixes[i] = i === 0 ? paras[0]! : prefixes[i - 1]! + "\n" + paras[i]!;
+  }
+
   let lo = 0;
   let hi = paras.length - 1;
   let mainEnd = 0;
 
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    container.textContent = paras.slice(0, mid + 1).join("\n");
+    container.textContent = prefixes[mid]!;
     if (container.scrollHeight <= container.clientHeight) {
       mainEnd = mid + 1;
       lo = mid + 1;
@@ -157,7 +169,7 @@ function splitByParagraphs(
 
   if (mainEnd === 0 && paras.length > 0) mainEnd = 1;
   if (mainEnd >= paras.length) return [text, ""];
-  return [paras.slice(0, mainEnd).join("\n"), paras.slice(mainEnd).join("\n")];
+  return [prefixes[mainEnd - 1]!, paras.slice(mainEnd).join("\n")];
 }
 
 // --- Public API ---
@@ -165,22 +177,16 @@ function splitByParagraphs(
 export function measureDescription(text: string): TextLayout {
   if (!fontsLoaded.value) return estimateLayout(text);
 
-  const cached = cache.get(text);
-  if (cached) return cached;
+  const hit = cache.get(text);
+  if (hit) return hit;
 
   ensureContainers();
 
-  if (fits(metaMeasure!, text)) {
-    const result: TextLayout = { type: "short", mainPageText: text, continuationTexts: [] };
-    cache.set(text, result);
-    return result;
-  }
+  if (fits(metaMeasure!, text))
+    return cached(text, { type: "short", mainPageText: text, continuationTexts: [] });
 
-  if (fits(fullMeasure!, text)) {
-    const result: TextLayout = { type: "long", mainPageText: text, continuationTexts: [] };
-    cache.set(text, result);
-    return result;
-  }
+  if (fits(fullMeasure!, text))
+    return cached(text, { type: "long", mainPageText: text, continuationTexts: [] });
 
   const [mainPageText, remainder] = splitByParagraphs(fullMeasure!, text);
   const continuationTexts: string[] = [];
@@ -192,9 +198,7 @@ export function measureDescription(text: string): TextLayout {
     remaining = rest;
   }
 
-  const result: TextLayout = { type: "extra-long", mainPageText, continuationTexts };
-  cache.set(text, result);
-  return result;
+  return cached(text, { type: "extra-long", mainPageText, continuationTexts });
 }
 
 export function useTextMeasure(description: Ref<string>): ComputedRef<TextLayout> {
