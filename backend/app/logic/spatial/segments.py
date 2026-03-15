@@ -30,11 +30,10 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
+from simplification.cutil import simplify_coords_idx  # ty: ignore[unresolved-import]
 
 from app.models.polarsteps import Point
 from app.models.segment import SegmentData, SegmentKind
-
-from .simplify import rdp_mask
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -505,10 +504,11 @@ def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
 def _simplify_points(gdf: pl.DataFrame) -> list[Point]:
     """RDP-simplify a group, keeping step waypoints."""
     la, lo, ti = gdf["lat"].to_numpy(), gdf["lon"].to_numpy(), gdf["time"].to_numpy()
-    mask = rdp_mask(la, lo, RDP_EPSILON_DEG)
+    keep = np.zeros(len(la), dtype=bool)
+    keep[simplify_coords_idx(np.column_stack((lo, la)), RDP_EPSILON_DEG)] = True
     if "is_step" in gdf.columns:
-        mask |= gdf["is_step"].to_numpy()
-    return [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if mask[i]]
+        keep |= gdf["is_step"].to_numpy()
+    return [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if keep[i]]
 
 
 def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:

@@ -94,6 +94,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "rich" },
     { name = "safezip" },
+    { name = "simplification" },
     { name = "sqlalchemy" },
     { name = "sqlmodel" },
     { name = "uvicorn" },
@@ -126,6 +127,7 @@ requires-dist = [
     { name = "python-multipart", specifier = "<1" },
     { name = "rich", specifier = "~=14.0" },
     { name = "safezip", specifier = "<1" },
+    { name = "simplification", specifier = "~=0.7" },
     { name = "sqlalchemy", specifier = "~=2.0" },
     { name = "sqlmodel", specifier = "<1" },
     { name = "uvicorn", specifier = "<1" },
@@ -759,6 +761,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ef/2d/8eb04f2fcadbd7c3fc2a6d7b7a7bb883d840471cfc683e4c13f3934fe036/safezip-0.1.4.tar.gz", hash = "sha256:9f8d42e36c1be5cf0abe8464f5147401c7150eb847961dfbd88df457371b1cc7", size = 32248, upload-time = "2026-03-03T22:45:40.425Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/90/9e/e04571f7d373919848cde6c542a03c3c570949227fa107b19a21a149ad96/safezip-0.1.4-py3-none-any.whl", hash = "sha256:24d24739bc8a3cbbc8c6771bd6dbbadf4ffeafd0e4c8045b56ad27b26c332299", size = 35080, upload-time = "2026-03-03T22:45:39.233Z" },
+]
+
+[[package]]
+name = "simplification"
+version = "0.7.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/87/5b8c915eb053d0353604d07a30727b533bd5ebf323351e12b94a031c1538/simplification-0.7.14.tar.gz", hash = "sha256:cfb8ba09dd4dd4b4d236ddd51c4ab084b3040af4a5a37a713b5ab219fe154a47", size = 1437445, upload-time = "2025-10-20T22:45:24.512Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/77/bc7ed55e0c06e08e65f034bc8cbeec4e43e1fc07c1148e9383dc30770946/simplification-0.7.14-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:c7dda5fe7fad775da1a184dad846fbb0c7fc0edad9e2df61f2632f43e382402f", size = 280923, upload-time = "2025-10-20T22:45:17.733Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/36/471be47e1689dc060fbce4f7e43a2572427bc856611952e927e09607fa24/simplification-0.7.14-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a3619edfdc431b1b3144a6109c2157912833b8e7ccc0fea3692aff5dd3c3adcf", size = 264750, upload-time = "2025-10-20T22:45:18.963Z" },
+    { url = "https://files.pythonhosted.org/packages/20/dd/29d25819cf526ddfddf7872ce8dc69482ea76468d77437f2fb84750c32a7/simplification-0.7.14-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:350e9bf19d962892bbdf5bbd2a982da24cb2e4c86b471b6bb8f9b6a367d9dc55", size = 727399, upload-time = "2025-10-20T22:45:20.168Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/38/b2170dad2977604a1ad90268b9721cc122d3d26de9d6bd3ecb88cded260f/simplification-0.7.14-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:15389a0a5bbb0d406a43e609ec17c139b3cdfb9be397b80abf0ee009c5aabe77", size = 749181, upload-time = "2025-10-20T22:45:21.532Z" },
+    { url = "https://files.pythonhosted.org/packages/64/a9/9214a52d775ab280971e9b98a7755d9546a77fcff033b0a49d0bcf946c36/simplification-0.7.14-cp314-cp314-win_amd64.whl", hash = "sha256:3cce00c7a14bbf7682443dee9e6b9f05a7645491a8d09e81c385218475e9ebe7", size = 183593, upload-time = "2025-10-20T22:45:23.21Z" },
 ]
 
 [[package]]

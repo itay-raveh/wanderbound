@@ -24,6 +24,7 @@ dependencies = [
     "playwright~=1.52",
     "coloraide~=8.7",
     "aiolimiter>=1.2.1",
+    "simplification~=0.7",
 ]
 
 [dependency-groups]

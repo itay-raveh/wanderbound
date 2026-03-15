@@ -56,7 +56,6 @@ backend/
         media.py             Photo/Video models, ffprobe, ffmpeg frame extraction, thumbnail generation
       spatial/
         segments.py          GPS segmentation pipeline (ingest → label → absorb → validate → emit)
-        simplify.py          Ramer-Douglas-Peucker line simplification
         peaks.py             OSM Overpass peak correction for DEM elevations
     services/
       open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
