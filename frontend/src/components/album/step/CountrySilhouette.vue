@@ -11,6 +11,9 @@ const props = defineProps<{
 
 const bounds = countryBounds as unknown as Record<string, [number, number, number, number]>;
 
+/** Web Mercator (EPSG:3857) half-circumference in metres: π × 6 378 137 */
+const WEB_MERCATOR_EXTENT = 20037508.34;
+
 const fillColor = computed(() => props.color ?? "currentColor");
 const code = computed(() => props.countryCode.toLowerCase());
 const svgHref = computed(() => `/countries/${code.value}.svg#map`);
@@ -22,10 +25,10 @@ const rawViewBox = computed(() => {
 
 // Convert lat/lon → Web Mercator (EPSG:3857), then flip Y (matching the SVG generation script)
 function toSvgCoords(lat: number, lon: number): [number, number] {
-  const x = (lon * 20037508.34) / 180;
+  const x = (lon * WEB_MERCATOR_EXTENT) / 180;
   const latRad = (lat * Math.PI) / 180;
   const y =
-    (Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * 20037508.34) / Math.PI;
+    (Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * WEB_MERCATOR_EXTENT) / Math.PI;
   return [x, -y];
 }
 
