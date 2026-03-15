@@ -22,6 +22,10 @@
 - Vue Router for all navigation — no manual `window.location`
 - `computed` for derived state — never `watch` to sync one ref into another
 - Handle loading/error/empty states consistently — use a shared composable or pattern, not ad-hoc per component
+- Use `v-model` and built-in directives — don't reimplement two-way binding
+- Colocate components with their route when possible
+- Derive frontend state from the backend wherever possible — don't maintain parallel data models that duplicate what the API already provides
+- Prefer native HTML elements and CSS over heavy component libraries — unless the project has already committed to one
 
 ## File Naming
 - Components: PascalCase (`UserCard.vue`)

@@ -25,20 +25,7 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - Use parameterized queries always — never f-strings or string concatenation for SQL
 - Prefer database-level constraints (unique, check, not-null) over application-level validation
 
-**Vue:**
-- Use Composition API (`<script setup>`) — not Options API
-- Use composables (`use*` functions) for reusable logic — not mixins or HOCs
-- Use Vue Router for routing — don't build custom navigation
-- Use Pinia for shared state — don't roll custom stores or event buses
-- Use `v-model` and built-in directives — don't reimplement two-way binding
-- Colocate components with their route when possible
-- Keep components small and single-purpose — if a component exceeds ~150 lines, it's probably doing too much; split it
-- API calls belong in composables or a thin API layer — not scattered across components
-- Use TypeScript with strict mode — types are documentation
-- Derive frontend state from the backend wherever possible — don't maintain parallel data models that duplicate what the API already provides
-- Use Vue's built-in reactivity (`ref`, `computed`, `watch`) correctly — don't fight it with manual DOM manipulation or redundant state
-- Handle loading, error, and empty states consistently — pick one pattern and reuse it, don't reinvent per component
-- Prefer native HTML elements and CSS over heavy component libraries — unless the project has already committed to one
+**Vue:** See `frontend/CLAUDE.md` for frontend conventions and architecture.
 
 **Docker / Nginx:**
 - Keep Dockerfiles minimal — multi-stage builds, small base images
