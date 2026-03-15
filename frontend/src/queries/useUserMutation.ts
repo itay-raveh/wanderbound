@@ -24,7 +24,7 @@ export function useUserMutation() {
       if (prev) {
         cache.setQueryData(queryKeys.user(), prev);
       }
-      Notify.create({ type: "negative", message: "Failed to update preference." });
+      Notify.create({ type: "negative", message: "Failed to update preference" });
     },
     onSettled: () => {
       void cache.invalidateQueries({ key: queryKeys.user(), exact: true });
