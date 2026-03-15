@@ -30,7 +30,7 @@ export function mediaSrcset(name: string, albumId: string): string {
   return THUMB_WIDTHS.map((w) => `${base}?w=${w} ${w}w`).join(", ");
 }
 
-/** Build flagcdn URL for a country code (w120 PNG — crisp at small display sizes). */
+/** Build flagcdn URL for a country code (w160 PNG — crisp at small display sizes). */
 export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 }
