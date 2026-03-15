@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.services.open_meteo.weather import (
+from app.services.open_meteo import (
     _LocationResult,
     _weather_from_result,
     _wmo_icon,
@@ -174,7 +174,7 @@ class TestBuildWeathers:
         mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
-            "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)
+            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
         ):
             result = [w async for w in build_weathers([step])]
 
@@ -200,7 +200,7 @@ class TestBuildWeathers:
             r.content = json.dumps(responses[params["start_date"]]).encode()
             return r
 
-        with patch("app.services.open_meteo.client.get", side_effect=_route):
+        with patch("app.services.open_meteo._get", side_effect=_route):
             result = dict([w async for w in build_weathers([s1, s2])])
 
         assert len(result) == 2
@@ -214,7 +214,7 @@ class TestBuildWeathers:
         step = _make_step(0, 0, 1704067200.0)
         with (
             patch(
-                "app.services.open_meteo.client.get",
+                "app.services.open_meteo._get",
                 AsyncMock(side_effect=httpx.HTTPError("fail")),
             ),
             pytest.raises(RuntimeError, match="Weather API"),
@@ -230,7 +230,7 @@ class TestBuildWeathers:
         mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
-            "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)
+            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
         ):
             result = dict([w async for w in build_weathers([step])])
 
@@ -245,7 +245,7 @@ class TestBuildWeathers:
 
         with (
             patch(
-                "app.services.open_meteo.client.get",
+                "app.services.open_meteo._get",
                 AsyncMock(return_value=mock_response),
             ),
             pytest.raises(RuntimeError, match="Weather API returned 429"),
@@ -269,7 +269,7 @@ class TestBuildWeathers:
         mock_response.content = json.dumps(resp_data).encode()
 
         with patch(
-            "app.services.open_meteo.client.get", AsyncMock(return_value=mock_response)
+            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
         ) as mc:
             result = [w async for w in build_weathers(steps)]
 

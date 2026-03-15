@@ -1,17 +1,91 @@
+"""Open-Meteo API client: DEM elevations and historical weather.
+
+Both endpoints share an IP-based rate limit (480/min). Rate limiting
+sits between the cache and network layers so cache hits bypass it.
+"""
+
 from __future__ import annotations
 
 import asyncio
+from itertools import batched
 from typing import TYPE_CHECKING
 
 import httpx
+from aiolimiter import AsyncLimiter
+from httpx import AsyncBaseTransport, AsyncHTTPTransport, Request, Response
 from pydantic import BaseModel
 
-from . import client
+from app.core.http import cached_client
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
+    from app.logic.spatial.types import HasLatLon
     from app.models.polarsteps import PSStep
+
+
+# ── Rate-limited HTTP client ────────────────────────────────────────────
+
+
+class _RateLimitedTransport(AsyncBaseTransport):
+    """Rate-limits on cache miss only.
+
+    For the elevation API each coordinate in the batch counts as one call,
+    so the weight is derived from the comma-separated ``latitude`` param.
+    """
+
+    def __init__(self, limiter: AsyncLimiter) -> None:
+        self._transport = AsyncHTTPTransport()
+        self._limiter = limiter
+
+    async def handle_async_request(self, request: Request) -> Response:
+        weight = 1
+        lat = request.url.params.get("latitude", "")
+        if "," in lat:
+            weight = lat.count(",") + 1
+        await self._limiter.acquire(weight)
+        return await self._transport.handle_async_request(request)
+
+
+# Free tier: 600 calls/min, 5 000/hr.  We stay under with 480/min.
+_limiter = AsyncLimiter(480, 60)
+
+_client = cached_client(transport=_RateLimitedTransport(limiter=_limiter))
+
+
+async def _get(url: str, *, params: dict) -> Response:
+    return await _client.get(url, params=params)
+
+
+# ── Elevation ────────────────────────────────────────────────────────────
+
+
+class _ElevationResult(BaseModel):
+    elevation: list[float]
+
+
+OPEN_METEO_MAX_PER_REQUEST = 100
+
+
+async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
+    for batch in batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False):
+        response = await _get(
+            "https://api.open-meteo.com/v1/elevation",
+            params={
+                "latitude": ",".join(str(loc.lat) for loc in batch),
+                "longitude": ",".join(str(loc.lon) for loc in batch),
+                "model": "srtm_gl1",
+            },
+        )
+        response.raise_for_status()
+
+        result = _ElevationResult.model_validate_json(response.content)
+
+        for elev in result.elevation:
+            yield elev
+
+
+# ── Weather ──────────────────────────────────────────────────────────────
 
 _WMO_ICONS: dict[int, str] = {
     0: "clear-day",
@@ -109,7 +183,7 @@ async def _fetch_one(step: PSStep) -> Weather:
     """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     try:
-        response = await client.get(
+        response = await _get(
             "https://archive-api.open-meteo.com/v1/archive",
             params={
                 "latitude": round(step.location.lat, 2),

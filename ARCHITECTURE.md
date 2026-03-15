@@ -22,16 +22,15 @@ All env vars in root `.env`. Compose reads it via `env_file`. Frontend build-tim
 ```
 backend/
   app/
-    main.py                 FastAPI app, lifespan (Playwright browser), middleware
+    main.py                 FastAPI app, lifespan (Playwright browser on app.state), middleware
     core/
       config.py             Pydantic Settings (reads ../.env)
       db.py                 Async SQLAlchemy engine, PydanticJSON column type, all_optional helper
-      browser.py            Playwright browser singleton (set/get/clear)
       http.py               Shared httpx AsyncClient factory (SQLite cache + retries)
       logging.py            Rich-based access log handler
     api/v1/
       router.py             Mounts users, albums, assets routers + /health
-      deps.py               SessionDep, UserDep (cookie-based uid auth), USER_COOKIE
+      deps.py               SessionDep, UserDep (cookie-based uid auth), BrowserDep, USER_COOKIE
       routes/
         users.py            POST (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
@@ -59,10 +58,7 @@ backend/
         simplify.py          Ramer-Douglas-Peucker line simplification
         peaks.py             OSM Overpass peak correction for DEM elevations
     services/
-      open_meteo/
-        client.py            Rate-limited + cached httpx client for Open-Meteo APIs
-        elevation.py         Batch DEM elevation lookups (SRTM GL1)
-        weather.py           Historical weather (archive API), WMO icon mapping
+      open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
     alembic/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Single initial migration (user, album, step, segment tables)
@@ -241,7 +237,7 @@ segment
 | `SegmentBase` | `models/segment.py` | Pipeline output (kind + points), also base for Segment table |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
 | `Point` | `models/polarsteps.py` | GPS point (lat, lon, time) — used in segments and locations |
-| `Weather`, `WeatherData` | `services/open_meteo/weather.py` | Day/night weather with WMO icon names |
+| `Weather`, `WeatherData` | `services/open_meteo.py` | Day/night weather with WMO icon names |
 | `ProcessingEvent` | `logic/processing.py` | Discriminated union: TripStart | PhaseUpdate | ErrorData |
 | `MediaName` | `logic/layout/media.py` | Annotated str with UUID_UUID.(jpg|mp4) pattern |
 | `Photo`, `Video` | `logic/layout/media.py` | Media metadata (dimensions, orientation, aspect ratio) |
@@ -263,7 +259,7 @@ Cookie-based, no encryption. The `uid` cookie holds the Polarsteps user ID (inte
 
 | API | Client | Caching | Rate Limit |
 |-----|--------|---------|------------|
-| Open-Meteo Elevation | `services/open_meteo/client.py` | SQLite, 30 days | 480/min (weighted by batch size) |
+| Open-Meteo Elevation | `services/open_meteo.py` | SQLite, 30 days | 480/min (weighted by batch size) |
 | Open-Meteo Archive Weather | same client | same | same limiter |
 | Overpass (OSM peaks) | `logic/spatial/peaks.py` | SQLite, 30 days (POST body key) | None (low volume) |
 | Mapbox Map Matching | `utils/mapMatching.ts` (frontend) | None | Per-token limit |

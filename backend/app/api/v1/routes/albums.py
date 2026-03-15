@@ -4,14 +4,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 from fastapi.responses import Response
 
-from app.api.v1.deps import USER_COOKIE
-from app.core.browser import get_browser
 from app.core.config import settings
 from app.models.album import Album, AlbumData, AlbumUpdate
 from app.models.step import Step, StepUpdate
 from app.models.types import AlbumId, StepIdx
 
-from ..deps import SessionDep, UserDep
+from ..deps import USER_COOKIE, BrowserDep, SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +72,10 @@ async def update_step(
 async def export_pdf(
     aid: AlbumId,
     user: UserDep,
+    browser: BrowserDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> Response:
-    context = await get_browser().new_context(
+    context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         device_scale_factor=2,
     )

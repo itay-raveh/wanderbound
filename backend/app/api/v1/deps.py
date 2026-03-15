@@ -1,7 +1,8 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
+from playwright.async_api import Browser
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
@@ -35,3 +36,10 @@ async def _get_user(
 
 
 UserDep = Annotated[User, Depends(_get_user)]
+
+
+def _get_browser(request: Request) -> Browser:
+    return request.app.state.browser
+
+
+BrowserDep = Annotated[Browser, Depends(_get_browser)]

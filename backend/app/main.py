@@ -10,7 +10,6 @@ from sqlalchemy.exc import NoResultFound
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.v1.router import router as v1_router
-from app.core.browser import clear_browser, set_browser
 from app.core.config import settings
 
 if TYPE_CHECKING:
@@ -24,17 +23,16 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
 
     from playwright.async_api import async_playwright  # noqa: PLC0415
 
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(args=["--use-gl=angle"])
-    set_browser(browser)
+    app.state.browser = browser
     logger.info("Playwright browser launched")
     yield
-    clear_browser()
     await browser.close()
     await pw.stop()
     logger.info("Playwright browser closed")

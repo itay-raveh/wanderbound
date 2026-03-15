@@ -23,7 +23,7 @@ from app.logic.spatial.peaks import (
     _parse_ele,
     correct_peaks,
 )
-from app.services.open_meteo.elevation import OPEN_METEO_MAX_PER_REQUEST, elevations
+from app.services.open_meteo import OPEN_METEO_MAX_PER_REQUEST, elevations
 from tests.conftest import collect_async
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ class TestElevations:
         expected = [100.0, 200.0, 300.0, 400.0, 500.0]
 
         with patch(
-            "app.services.open_meteo.client.get",
+            "app.services.open_meteo._get",
             AsyncMock(return_value=_elev_response(expected)),
         ) as mc:
             result = [e async for e in elevations(locs)]
@@ -358,7 +358,7 @@ class TestElevations:
         batch2 = list(range(20))
 
         with patch(
-            "app.services.open_meteo.client.get",
+            "app.services.open_meteo._get",
             AsyncMock(
                 side_effect=[
                     _elev_response([float(x) for x in batch1]),
@@ -382,7 +382,7 @@ class TestElevations:
         )
 
         with (
-            patch("app.services.open_meteo.client.get", AsyncMock(return_value=resp)),
+            patch("app.services.open_meteo._get", AsyncMock(return_value=resp)),
             pytest.raises(httpx.HTTPStatusError),
         ):
             await collect_async(elevations(locs))
