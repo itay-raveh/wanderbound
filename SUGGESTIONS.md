@@ -23,3 +23,15 @@
 **Proposed fix:** Make the backend the single source of truth. Store `is_long_description` as a boolean field on the `Step` DB model at build time, and have the frontend read it instead of re-computing. Alternatively, align the constants so both sides agree (same line width, same threshold).
 
 **What breaks:** Frontend rendering changes for descriptions in the disagreement range (~12-18 lines). Steps that currently show a cover + short description panel may switch to full-page text layout, or vice versa.
+
+## 2026-03-15 — Derive SIZES_FULL/SIZES_HALF from shared editor zoom constant
+
+**Status:** PENDING
+
+**What:** The editor zoom factor `0.70` is defined as a CSS variable `--editor-zoom: 0.70` in `AlbumViewer.vue:235` and duplicated as a literal in `SIZES_FULL = "calc(297mm * 0.70)"` and `SIZES_HALF = "calc(297mm * 0.70 * 0.5)"` in `media.ts:19-20`. The CSS variable controls the actual displayed page width; the JS constants tell the browser what image width to request via the `sizes` attribute on `<img>` tags.
+
+**Why:** If the zoom factor changes (e.g., for a wider sidebar or responsive breakpoints), the `sizes` attribute won't match the actual rendered width. The browser would then load wrong-sized thumbnails — either too large (wasted bandwidth) or too small (blurry images). The `sizes` attribute can't use CSS `var()`, so the two values can't share a single CSS variable.
+
+**Proposed fix:** Define `EDITOR_ZOOM = 0.70` as a JS constant in `media.ts`. Derive `SIZES_FULL` and `SIZES_HALF` from it. In `AlbumViewer.vue`, import the constant and set the CSS variable via `v-bind` or an inline style, keeping CSS-land and JS-land in sync from one source.
+
+**What breaks:** Minor refactor of how `--editor-zoom` is set in AlbumViewer.vue (from static CSS to `v-bind` or inline style).
