@@ -64,7 +64,7 @@ const layoutClass = computed(() => {
   width: 100%;
   height: 100%;
   display: grid;
-  gap: var(--gap-color-size, 5mm);
+  gap: 5mm;
   align-items: stretch;
   justify-items: stretch;
 }
