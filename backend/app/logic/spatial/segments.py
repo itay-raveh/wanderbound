@@ -61,8 +61,12 @@ FLIGHT_MIN_DISTANCE_KM = 100.0
 MAX_HIKE_GAP_H = 4.0
 
 # ── GPS noise ────────────────────────────────────────────────────────────────
+# Approximate km per degree at mid-latitudes (used for cheap degree-space checks).
+_KM_PER_DEG = 80.0
 # > 1000 km/h = impossible GPS jump.  Step waypoints are immune.
 TELEPORT_MAX_SPEED_KMH = 1000.0
+# Spike detection: point > 0.5 km from neighbor where skipping it is much shorter.
+SPIKE_MIN_DIST_KM = 0.5
 
 # ── Densification ────────────────────────────────────────────────────────────
 # Interpolate slow edges to ~15 m spacing so sparse GPS doesn't hide short hikes.
@@ -179,7 +183,7 @@ def _dedup_by_time(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _deg_dist(shift: int = 1) -> pl.Expr:
-    """Euclidean degree-distance to the point ``shift`` rows back (1° ≈ 80 km)."""
+    """Degree-distance to the point ``shift`` rows back."""
     return (
         (pl.col("lat") - pl.col("lat").shift(shift)) ** 2
         + (pl.col("lon") - pl.col("lon").shift(shift)) ** 2
@@ -201,7 +205,7 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
     # Teleports: apparent speed > 1000 km/h
     dt = ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(1.0)
     speed = _deg_dist().fill_null(0.0) / dt
-    df = df.filter(is_step | (speed <= TELEPORT_MAX_SPEED_KMH / 80.0))
+    df = df.filter(is_step | (speed <= TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG))
 
     if df.height < 3:
         return df.select(keep_cols)
@@ -212,7 +216,9 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
         (pl.col("lat").shift(1) - pl.col("lat").shift(-1)) ** 2
         + (pl.col("lon").shift(1) - pl.col("lon").shift(-1)) ** 2
     ).sqrt()
-    spike = (~is_step & (dd > 0.5 / 80.0) & (across < dd * 0.5)).fill_null(value=False)
+    spike = (
+        ~is_step & (dd > SPIKE_MIN_DIST_KM / _KM_PER_DEG) & (across < dd * 0.5)
+    ).fill_null(value=False)
     df = df.filter(~spike)
 
     return df.select(keep_cols)
