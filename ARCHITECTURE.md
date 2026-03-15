@@ -46,6 +46,7 @@ backend/
       polarsteps.py         Pydantic models for Polarsteps ZIP data (PSTrip, PSStep, PSLocations, Point, Location)
       __init__.py            Imports all tables so Alembic sees them
     logic/
+      pdf.py                Playwright PDF renderer (browser context, cookies, print emulation)
       upload.py             Extract ZIP → create User + discover trips → save to DB
       processing.py         ProcessingSession (background task with SSE reconnect), 5-phase pipeline:
                               elevations → weather → layouts/flatten/frames/thumbs → DB commit
