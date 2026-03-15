@@ -15,7 +15,7 @@ export const PAGE_CHARS = 3600;
 
 const CHARS_PER_LINE = 65;
 
-function visualLength(text: string): number {
+export function visualLength(text: string): number {
   if (!text) return 0;
   let lines = 0;
   for (const para of text.split("\n")) {

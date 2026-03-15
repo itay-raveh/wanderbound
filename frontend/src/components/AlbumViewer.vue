@@ -5,7 +5,7 @@ import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { PAGE_CHARS } from "@/composables/usePageDescription";
+import { PAGE_CHARS, visualLength } from "@/composables/usePageDescription";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { toRangeList } from "@/utils/ranges";
 import { MS_PER_DAY } from "@/utils/units";
@@ -40,7 +40,7 @@ const OverviewPage = defineAsyncComponent({
 function sectionPageCount(section: Section): number {
   if (section.type === "map" || section.type === "hike") return 1;
   const step = section.step;
-  const descLen = (step.description || "").length;
+  const descLen = visualLength(step.description || "");
   let pages = 1 + step.pages.length;
   if (descLen > PAGE_CHARS) pages += Math.ceil((descLen - PAGE_CHARS) / PAGE_CHARS);
   return pages;
