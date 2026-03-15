@@ -96,6 +96,7 @@ frontend/
       useMapbox.ts           Mapbox GL map lifecycle (init, destroy, fitBounds, resize observer, locale)
       useDarkMode.ts         Quasar Dark mode with localStorage persistence
       useDragState.ts        Global drag-in-progress boolean (document-level events)
+      useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       usePageDescription.ts  Text layout: short / long / extra-long with paragraph-aware splitting
       usePrintReady.ts       provide/inject for print mode boolean
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
