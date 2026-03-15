@@ -7,26 +7,12 @@ import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
 import { matchRoute } from "@/utils/mapMatching";
+import "@/styles/map-segments.css";
 import mapboxgl from "mapbox-gl";
 
 const LAYER_PREFIX = "seg-";
 const MARKER_CLASS = "map-step-marker";
 const FLIGHT_ICON_CLASS = "map-flight-icon";
-
-// Inject marker styles once
-if (typeof document !== "undefined" && !document.getElementById("map-segment-styles")) {
-  const style = document.createElement("style");
-  style.id = "map-segment-styles";
-  style.textContent = `
-    .${MARKER_CLASS} {
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 2px solid white; background-color: #333; background-size: cover; background-position: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: default;
-    }
-    .${FLIGHT_ICON_CLASS} { pointer-events: none; line-height: 1; }
-  `;
-  document.head.appendChild(style);
-}
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -135,7 +121,7 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   });
 
   if (!faint) {
-    // Place flight icon at ~55% along the arc
+    // Slightly past midpoint (55%) so the icon sits on the descending side of the arc
     const midIdx = Math.floor(arcCoords.length * 0.55);
     const midCoord = arcCoords[midIdx]!;
     const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)]!;

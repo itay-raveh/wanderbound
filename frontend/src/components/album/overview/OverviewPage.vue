@@ -5,6 +5,7 @@ import { computed } from "vue";
 import { date } from "quasar";
 import { lineString } from "@turf/helpers";
 import length from "@turf/length";
+import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
 import { flagUrl } from "@/utils/media";
 import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
 import OverviewExtremes from "./OverviewExtremes.vue";
@@ -68,7 +69,7 @@ const stats = computed(() => [
     value: totalDistance.value,
     label: isKm.value ? "Km" : "Mi",
     icon: symOutlinedExplore,
-    color: "#00897b",
+    color: OVERVIEW_DISTANCE_COLOR,
   },
   {
     value: photosCount.value,

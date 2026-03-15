@@ -1,0 +1,16 @@
+.map-step-marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background-color: #333;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+.map-flight-icon {
+  pointer-events: none;
+  line-height: 1;
+}

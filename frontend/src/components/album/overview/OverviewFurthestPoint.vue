@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
+import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
@@ -107,7 +108,7 @@ const furthest = computed(() => {
     var(--page-bg, var(--bg))
   );
   border-radius: 0.375rem;
-  --fp-accent: #00897b;
+  --fp-accent: v-bind(OVERVIEW_DISTANCE_COLOR);
   z-index: 1;
 }
 

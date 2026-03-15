@@ -93,7 +93,6 @@ frontend/
     composables/
       useAlbum.ts            provide/inject for AlbumContext (albumId, colors, orientations, tripStart, totalDays)
       useMapbox.ts           Mapbox GL map lifecycle (init, destroy, fitBounds, resize observer, locale)
-      useMapSegments.ts      Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
       useDarkMode.ts         Quasar Dark mode with localStorage persistence
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       usePageDescription.ts  Text layout: short / long / extra-long with paragraph-aware splitting
@@ -143,9 +142,11 @@ frontend/
       weather.ts             weatherIconUrl (basmilius CDN)
       ranges.ts              toRangeList parser ("0-5, 10-15" → [{start, end}])
       mapMatching.ts         Mapbox Map Matching API (chunked, with Douglas-Peucker fallback)
+      mapSegments.ts         Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes
+      map-segments.css       Marker + flight icon styles for Mapbox GL overlays
     countries/
       bounds.json            Country bounding boxes for SVG viewports
   openapi-ts.config.ts       Points to live backend for client generation
