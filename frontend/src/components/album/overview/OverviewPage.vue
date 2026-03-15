@@ -110,12 +110,12 @@ const stats = computed(() => [
               background: String(album.colors[code] || 'var(--q-primary)'),
             }"
           />
-          <q-img
+          <img
             :src="flagUrl(code)"
             :alt="name"
             class="country-flag"
             loading="eager"
-          />
+          >
           <span class="country-name">{{ name }}</span>
         </div>
       </div>

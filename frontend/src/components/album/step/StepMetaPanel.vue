@@ -94,7 +94,7 @@ const dateStr = computed(() => {
     <!-- Country + Step name -->
     <div class="name-block">
       <div class="country-row">
-        <q-img :src="flagUrl(step.location.country_code)" class="flag" />
+        <img :src="flagUrl(step.location.country_code)" class="flag" alt="">
         <span>{{ step.location.detail }}</span>
       </div>
       <h2 class="step-name">{{ step.name }}</h2>

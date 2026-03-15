@@ -85,15 +85,14 @@ function onVideoKey(e: KeyboardEvent) {
 <template>
   <div class="media-item" data-media>
     <template v-if="isVideo && !printMode">
-      <q-img
+      <img
         v-show="!playing"
         :src="posterSrc"
         :srcset="imgSrcset"
         :sizes="imgSizes"
-        class="fill"
-        :fit="cover ? 'cover' : 'contain'"
+        :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
-      />
+      >
       <video
         v-show="playing"
         ref="videoRef"
@@ -122,23 +121,14 @@ function onVideoKey(e: KeyboardEvent) {
         </button>
       </div>
     </template>
-    <template v-else-if="printMode">
-      <img
-        :src="isVideo ? posterSrc : src"
-        loading="eager"
-        class="fill"
-        :style="{ objectFit: cover ? 'cover' : 'contain' }"
-      >
-    </template>
     <template v-else>
-      <q-img
+      <img
         :src="isVideo ? posterSrc : src"
         :srcset="imgSrcset"
         :sizes="imgSizes"
         :loading="imgLoading"
-        class="fill"
-        :fit="cover ? 'cover' : 'contain'"
-      />
+        :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
+      >
     </template>
   </div>
 </template>
@@ -162,6 +152,14 @@ function onVideoKey(e: KeyboardEvent) {
 .fill {
   width: 100%;
   height: 100%;
+}
+
+.fit-cover {
+  object-fit: cover;
+}
+
+.fit-contain {
+  object-fit: contain;
 }
 
 .video-playing {

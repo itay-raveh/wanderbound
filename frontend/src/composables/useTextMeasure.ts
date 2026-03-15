@@ -212,7 +212,7 @@ export interface IndexedPage {
 
 export function filterCoverFromPages(
   pages: string[][],
-  cover: string | null,
+  cover: string | null | undefined,
   isShort: boolean,
 ): IndexedPage[] {
   if (!isShort || !cover) {

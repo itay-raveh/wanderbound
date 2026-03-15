@@ -39,7 +39,7 @@ const OverviewPage = defineAsyncComponent({
 function sectionKey(section: Section): string {
   switch (section.type) {
     case "step": return `step-${section.step.idx}`;
-    case "map": return `map-${section.steps[0]?.idx}-${section.steps.at(-1)?.idx}`;
+    case "map": return `map-${section.steps[0]?.idx}-${section.steps[section.steps.length - 1]?.idx}`;
     case "hike": return `hike-${section.hikeSegment.start_time}`;
   }
 }
@@ -239,7 +239,7 @@ if (props.printMode) {
   width: var(--page-width);
   height: var(--page-height);
   background-color: var(--page-bg, var(--bg));
-  contain: content;
+  contain: strict;
 }
 
 // Editor mode: zoom shrinks pages for preview.
@@ -252,6 +252,8 @@ if (props.printMode) {
     zoom: var(--editor-zoom);
     border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);
     margin: 0 auto 0.75rem;
+    content-visibility: auto;
+    contain-intrinsic-height: auto var(--page-height);
 
     &.drag-over {
       border-color: var(--q-primary);
@@ -273,13 +275,13 @@ if (props.printMode) {
       margin: 0;
       transform: scale(var(--editor-zoom));
       transform-origin: top left;
+      content-visibility: visible;
     }
   }
 }
 
-// Print mode: exact A4 sizing, no editor chrome.
-// contain:content is removed (inherited from base rule) because it creates
-// an isolated formatting context that can cause sub-pixel clipping at edges.
+// Print mode: override contain:strict from base rule — size containment
+// prevents intrinsic sizing that break-after/page relies on.
 .album-container.print-mode :deep(.page-container) {
   contain: none;
   overflow: hidden;

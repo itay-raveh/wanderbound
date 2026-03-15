@@ -29,13 +29,12 @@ function select(name: string) {
 <template>
   <div class="picker">
     <button class="picker-trigger" @click="open = !open">
-      <q-img
+      <img
         v-if="thumbUrl"
         :src="thumbUrl"
         class="trigger-thumb"
-        fit="cover"
-        no-spinner
-      />
+        alt=""
+      >
       <div v-else class="trigger-thumb trigger-empty" />
       <span class="trigger-label">{{ label }}</span>
       <q-icon
@@ -59,13 +58,12 @@ function select(name: string) {
             :class="{ selected: photo === modelValue }"
             @click="select(photo)"
           >
-            <q-img
+            <img
               :src="mediaThumbUrl(photo, albumId)"
-              fit="cover"
               loading="lazy"
-              no-spinner
               class="cell-img"
-            />
+              alt=""
+            >
           </button>
         </div>
       </div>
@@ -102,6 +100,7 @@ function select(name: string) {
   height: 3rem;
   border-radius: 0.25rem;
   flex-shrink: 0;
+  object-fit: cover;
 }
 
 .trigger-empty {
@@ -170,5 +169,6 @@ function select(name: string) {
 .cell-img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 </style>

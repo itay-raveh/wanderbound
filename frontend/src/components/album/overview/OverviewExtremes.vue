@@ -129,11 +129,12 @@ const records = computed<ExtremeRecord[]>(() => {
       <div class="record-value">{{ r.value }}</div>
       <div class="record-place">{{ r.place }}</div>
       <div class="record-meta">
-        <q-img
+        <img
           :src="flagUrl(r.countryCode)"
           class="record-flag"
           loading="eager"
-        />
+          alt=""
+        >
         <span>{{ r.country }}</span>
         <span class="record-sep">·</span>
         <span :dir="r.dateDir">{{ r.date }}</span>

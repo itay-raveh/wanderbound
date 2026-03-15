@@ -58,11 +58,12 @@ const furthest = computed(() => {
       <div class="fp-info">
         <div class="fp-name">{{ home.name }}</div>
         <div class="fp-sub">
-          <q-img
+          <img
             :src="flagUrl(home.country_code)"
             class="fp-flag"
             loading="eager"
-          />
+            alt=""
+          >
           <span>{{ home.detail }}</span>
         </div>
       </div>
@@ -87,10 +88,11 @@ const furthest = computed(() => {
           <span :dir="furthest.dateDir">{{ furthest.date }}</span>
           <span class="fp-sep">·</span>
           <span>{{ furthest.location.detail }}</span>
-          <q-img
+          <img
             :src="flagUrl(furthest.location.country_code)"
             class="fp-flag"
-          />
+            alt=""
+          >
         </div>
       </div>
     </div>
