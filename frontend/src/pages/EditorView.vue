@@ -38,7 +38,7 @@ watch(userError, (err) => {
           v-if="albumIds"
           v-model:album-id="selectedAlbumId"
           :album="album ?? undefined"
-          :albumIds="albumIds"
+          :album-ids="albumIds"
         />
       </div>
 
