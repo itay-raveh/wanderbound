@@ -93,8 +93,11 @@ async def export_pdf(
             ]
         )
         page = await context.new_page()
-        page.on("console", lambda msg: logger.info("Browser: %s", msg.text))
-        page.on("pageerror", lambda err: logger.error("Browser error: %s", err))
+        page.on("console", lambda msg: logger.debug("Browser: %s", msg.text))
+        page.on(
+            "pageerror",
+            lambda _: logger.warning("Browser page error during PDF render"),
+        )
         # Activate @media print CSS before navigation so layout matches PDF output.
         await page.emulate_media(media="print")
         url = f"{settings.FRONTEND_URL}/print/{aid}?dark={'true' if dark else 'false'}"
