@@ -55,7 +55,6 @@ export function useMapbox(options: UseMapboxOptions) {
     }
   }
 
-  // Update language dynamically when locale changes
   if (options.locale) {
     watch(
       () => toValue(options.locale),
