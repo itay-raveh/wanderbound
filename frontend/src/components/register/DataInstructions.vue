@@ -3,7 +3,8 @@ import RegisterStep from "./RegisterStep.vue";
 </script>
 
 <template>
-  <RegisterStep :number="1" title="Get your data from Polarsteps">
+  <RegisterStep :number="1">
+    <template #title>Get your data from Polarsteps</template>
     <p class="step-text text-body2">
       Log in at
       <a href="https://www.polarsteps.com" target="_blank">polarsteps.com</a>

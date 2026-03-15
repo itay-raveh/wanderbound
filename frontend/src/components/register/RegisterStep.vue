@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 defineProps<{
   number: number;
-  title: string;
 }>();
 </script>
 
@@ -9,7 +8,7 @@ defineProps<{
   <div class="step">
     <div class="step-header">
       <div class="step-number text-caption">{{ number }}</div>
-      <div class="step-title text-h6" v-html="title" />
+      <div class="step-title text-h6"><slot name="title" /></div>
     </div>
     <div class="step-body">
       <slot />

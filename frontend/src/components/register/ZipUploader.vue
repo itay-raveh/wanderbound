@@ -26,7 +26,8 @@ function onFailed() {
 </script>
 
 <template>
-  <RegisterStep :number="2" title="Upload your <code>user_data.zip</code>">
+  <RegisterStep :number="2">
+    <template #title>Upload your <code>user_data.zip</code></template>
     <q-uploader
       accept=".zip"
       auto-upload
