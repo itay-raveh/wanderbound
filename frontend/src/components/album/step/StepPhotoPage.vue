@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
+import { useLocalCopy } from "@/composables/useLocalCopy";
 
 const { orientations } = useAlbum();
 
@@ -15,19 +16,7 @@ const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
 
-const localPage = ref([...props.page]);
-
-watch(
-  () => props.page,
-  (val) => {
-    if (
-      val.length === localPage.value.length &&
-      val.every((v, i) => v === localPage.value[i])
-    )
-      return;
-    localPage.value = [...val];
-  },
-);
+const localPage = useLocalCopy(() => props.page);
 
 function emitPage() {
   emit("update:page", [...localPage.value]);

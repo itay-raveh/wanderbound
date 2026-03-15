@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
+import { useLocalCopy } from "@/composables/useLocalCopy";
 
 const props = defineProps<{
   assets: Array<string>;
@@ -13,19 +13,7 @@ const emit = defineEmits<{
   "update:unused-photos": [unused: string[]];
 }>();
 
-const localUnused = ref([...props.assets]);
-
-watch(
-  () => props.assets,
-  (val) => {
-    if (
-      val.length === localUnused.value.length &&
-      val.every((v, i) => v === localUnused.value[i])
-    )
-      return;
-    localUnused.value = [...val];
-  },
-);
+const localUnused = useLocalCopy(() => props.assets);
 
 function emitUnused() {
   emit("update:unused-photos", [...localUnused.value]);
