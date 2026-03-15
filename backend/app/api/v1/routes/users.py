@@ -70,8 +70,9 @@ async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) ->
 
 @router.delete("")
 async def delete_user(user: UserDep, session: SessionDep, response: Response) -> None:
-    await asyncio.to_thread(shutil.rmtree, user.folder, ignore_errors=True)
+    folder = user.folder
     await session.delete(user)
     await session.commit()
+    await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
     response.delete_cookie(USER_COOKIE)
     logger.info("User %d deleted", user.id)
