@@ -186,8 +186,6 @@ const stats = computed(() => [
   position: relative;
 }
 
-/* fills page, centers vertically */
-
 .overview-content {
   display: flex;
   flex-direction: column;
