@@ -9,7 +9,7 @@
  * seamless: the browser picks the correct woff2 file via unicode-range.
  */
 
-/* ── Inter ── */
+/* Inter */
 
 /* cyrillic-ext */
 @font-face {
@@ -90,7 +90,7 @@
     U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* ── Heebo (Hebrew supplement) ──
+/* Heebo (Hebrew supplement)
  * Uses the same family name "Inter" so Hebrew glyphs are picked up
  * automatically via unicode-range, no CSS changes needed elsewhere.
  */

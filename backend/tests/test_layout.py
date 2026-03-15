@@ -12,7 +12,7 @@ from app.logic.layout.builder import (
     _three_page_count,
 )
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _paths(prefix: str, n: int) -> list[Path]:
@@ -25,7 +25,7 @@ VALID_LANDSCAPE_SIZES = {1, 3, 4}
 VALID_MIXED_SIZE = 3  # 1P + 2L
 
 
-# ── _portrait_page_count ────────────────────────────────────────────────────
+# _portrait_page_count
 
 
 class TestPortraitPageCount:
@@ -52,7 +52,7 @@ class TestPortraitPageCount:
             assert _portrait_page_count(n) == -(-n // 3)
 
 
-# ── _landscape_page_count ───────────────────────────────────────────────────
+# _landscape_page_count
 
 
 class TestLandscapePageCount:
@@ -83,7 +83,7 @@ class TestLandscapePageCount:
         assert _landscape_page_count(2) == 2
 
 
-# ── _three_page_count ───────────────────────────────────────────────────────
+# _three_page_count
 
 
 class TestThreePageCount:
@@ -99,7 +99,7 @@ class TestThreePageCount:
             assert _three_page_count(n) == -n % 4
 
 
-# ── _optimal_mixed_count ────────────────────────────────────────────────────
+# _optimal_mixed_count
 
 
 class TestOptimalMixedCount:
@@ -141,7 +141,7 @@ class TestOptimalMixedCount:
                     )
 
 
-# ── _pages_of ───────────────────────────────────────────────────────────────
+# _pages_of
 
 
 class TestPagesOf:
@@ -166,7 +166,7 @@ class TestPagesOf:
         assert sorted(p for page in pages for p in page) == sorted(items)
 
 
-# ── _landscape_pages ────────────────────────────────────────────────────────
+# _landscape_pages
 
 
 class TestLandscapePages:
@@ -208,7 +208,7 @@ class TestLandscapePages:
         assert sorted(flat) == sorted(items)
 
 
-# ── _build_pages (integration) ──────────────────────────────────────────────
+# Integration tests for _build_pages
 
 
 class TestBuildPages:

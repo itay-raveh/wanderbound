@@ -108,8 +108,6 @@ const totalCountries = computed(() => {
   animation: fadeUp 0.5s ease both;
 }
 
-/* ── Header ── */
-
 .header {
   display: flex;
   flex-direction: column;
@@ -166,8 +164,6 @@ const totalCountries = computed(() => {
   margin: 1.25rem 0;
 }
 
-/* ── Error ── */
-
 .error-banner {
   display: flex;
   gap: 0.625rem;
@@ -215,8 +211,6 @@ const totalCountries = computed(() => {
   border-color: var(--text-faint);
   background: var(--bg-secondary);
 }
-
-/* ── Done ── */
 
 .done-btn {
   display: flex;

@@ -16,7 +16,7 @@ from app.services.open_meteo import (
     build_weathers,
 )
 
-# ── Helpers ─────────────────────────────────────────────────────────────
+# Helpers
 
 
 @dataclass
@@ -65,7 +65,7 @@ def _om_response(  # noqa: PLR0913
     }
 
 
-# ── _wmo_icon ───────────────────────────────────────────────────────────
+# _wmo_icon
 
 
 class TestWmoIcon:
@@ -118,7 +118,7 @@ class TestWmoIcon:
         assert _wmo_icon(999) == "not-available"
 
 
-# ── _weather_from_result ────────────────────────────────────────────────
+# _weather_from_result
 
 
 class TestWeatherFromResult:
@@ -151,7 +151,7 @@ class TestWeatherFromResult:
         assert _weather_from_result(step, loc) is None
 
 
-# ── build_weathers ──────────────────────────────────────────────────────
+# build_weathers
 
 
 class TestBuildWeathers:

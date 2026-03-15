@@ -139,8 +139,6 @@ const furthest = computed(() => {
   margin-top: 0.25rem;
 }
 
-/* ── Endpoints ────────────────────────── */
-
 .fp-info {
   display: flex;
   flex-direction: column;
@@ -177,8 +175,6 @@ const furthest = computed(() => {
 .fp-sep {
   opacity: 0.4;
 }
-
-/* ── Trail ────────────────────────────── */
 
 .fp-trail {
   flex: 1;

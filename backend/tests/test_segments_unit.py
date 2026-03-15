@@ -23,7 +23,7 @@ from app.logic.spatial.segments import (
 from app.models.polarsteps import Point
 from app.models.segment import SegmentData, SegmentKind
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 # All synthetic tests use 2024-01-01 UTC as the base date.
 _BASE_TS = datetime(2024, 1, 1, tzinfo=UTC).timestamp()
@@ -108,7 +108,7 @@ def _hikes(steps: list[_Step], gps: list[Point]) -> list[SegmentData]:
     return [s for s in build_segments(steps, gps) if s.kind == SegmentKind.hike]
 
 
-# ── GPS noise removal ───────────────────────────────────────────────────────
+# GPS noise removal
 
 
 class TestNoiseRemoval:
@@ -165,7 +165,7 @@ class TestNoiseRemoval:
         assert _remove_gps_noise(_noise_df(rows)).height >= 1
 
 
-# ── Segment classification ───────────────────────────────────────────────────
+# Segment classification
 
 
 class TestClassification:
@@ -208,7 +208,7 @@ class TestClassification:
         assert _hikes([_step(0.0, 0.2, 14.0)], gps)
 
 
-# ── Hike validation thresholds ───────────────────────────────────────────────
+# Hike validation thresholds
 
 
 class TestHikeValidation:
@@ -223,7 +223,7 @@ class TestHikeValidation:
         assert not _hikes([_step(0.0, 0.009, 12.0)], gps)
 
 
-# ── Step location preservation ───────────────────────────────────────────────
+# Step location preservation
 
 
 def _point_near(
@@ -256,7 +256,7 @@ class TestStepPreservation:
         assert _point_near(hikes[0].points, 0.0, 0.15)
 
 
-# ── Hike point retention ────────────────────────────────────────────────────
+# Hike point retention
 
 
 class TestHikePoints:
@@ -278,7 +278,7 @@ class TestHikePoints:
                 assert len(seg.points) <= 10
 
 
-# ── Structural invariants ───────────────────────────────────────────────────
+# Structural invariants
 
 
 class TestStructure:
@@ -308,7 +308,7 @@ class TestStructure:
             )
 
 
-# ── Robustness ──────────────────────────────────────────────────────────────
+# Robustness
 
 
 class TestRobustness:

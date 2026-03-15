@@ -14,7 +14,7 @@ from app.logic.processing import (
 from app.models.user import User
 from tests.conftest import collect_async
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _mock_user(uid: int = 1) -> User:
@@ -24,7 +24,7 @@ def _mock_user(uid: int = 1) -> User:
     return user
 
 
-# ── Phase ordering ──────────────────────────────────────────────────────────
+# Phase ordering
 
 
 class TestThumbsPhaseInStream:

@@ -178,8 +178,6 @@ const overallPercent = computed(() => {
   opacity: 1;
 }
 
-/* ── Rail ── */
-
 .trip-rail {
   display: flex;
   flex-direction: column;
@@ -236,8 +234,6 @@ const overallPercent = computed(() => {
   background: var(--q-primary);
 }
 
-/* ── Trip content ── */
-
 .trip-content {
   flex: 1;
   min-width: 0;
@@ -267,8 +263,6 @@ const overallPercent = computed(() => {
   text-transform: none;
   flex-shrink: 0;
 }
-
-/* ── Phases ── */
 
 .phases {
   margin-top: 0.625rem;
@@ -325,8 +319,6 @@ const overallPercent = computed(() => {
   opacity: 0.6;
 }
 
-/* ── Per-phase mini progress ── */
-
 .phase-track {
   flex: 1;
   height: 0.1875rem;
@@ -342,8 +334,6 @@ const overallPercent = computed(() => {
   background: var(--q-primary);
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-/* ── Overall progress bar ── */
 
 .progress-track {
   height: 0.25rem;

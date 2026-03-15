@@ -9,7 +9,7 @@ from app.api.v1.routes.assets import get_media, update_video_frame
 from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnails
 from tests.conftest import create_test_jpeg
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 _AID = "test-album-id"
 _NAME = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.jpg"
@@ -32,7 +32,7 @@ async def _setup_album_with_thumbs(trips_folder: Path) -> Path:
     return album_dir
 
 
-# ── get_media with ?w= ──────────────────────────────────────────────────────
+# get_media with ?w=
 
 
 class TestGetMediaThumbnail:
@@ -115,7 +115,7 @@ class TestGetMediaThumbnail:
         assert Path(response.path) == (album_dir / _NAME).resolve()
 
 
-# ── Video poster cache headers ────────────────────────────────────────────
+# Video poster cache headers
 
 
 class TestVideoPosterCaching:
@@ -160,7 +160,7 @@ class TestVideoPosterCaching:
         assert "immutable" in response.headers["cache-control"]
 
 
-# ── update_video_frame regenerates thumbnails ───────────────────────────────
+# update_video_frame regenerates thumbnails
 
 
 class TestUpdateVideoFrameRegeneratesThumbnails:

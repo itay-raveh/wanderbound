@@ -11,7 +11,7 @@ import { RouterView } from "vue-router";
 </template>
 
 <style lang="scss">
-/* ── Design tokens (theme-independent) ── */
+/* Design tokens (theme-independent) */
 
 :root {
   /* Type scale — derived from Quasar SASS overrides in quasar-variables.sass. */
@@ -25,7 +25,7 @@ import { RouterView } from "vue-router";
   --radius-lg: 1rem;
 }
 
-/* ── Theme colors ── */
+/* Theme colors */
 
 .body--dark {
   --page-bg: #1E1E2E;

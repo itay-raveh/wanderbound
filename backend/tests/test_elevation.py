@@ -26,7 +26,7 @@ from app.logic.spatial.peaks import (
 from app.services.open_meteo import OPEN_METEO_MAX_PER_REQUEST, elevations
 from tests.conftest import collect_async
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 @dataclass
@@ -45,7 +45,7 @@ def _overpass_json(peaks: list[tuple[float, str]]) -> bytes:
     return json.dumps({"elements": elements}).encode()
 
 
-# ── _parse_ele ───────────────────────────────────────────────────────────────
+# _parse_ele
 
 
 class TestParseEle:
@@ -78,7 +78,7 @@ class TestParseEle:
             _parse_ele("not a number")
 
 
-# ── Pydantic models ─────────────────────────────────────────────────────────
+# Pydantic models
 
 
 class TestOverpassModels:
@@ -106,7 +106,7 @@ class TestOverpassModels:
         assert resp.elements == []
 
 
-# ── _local_peaks ─────────────────────────────────────────────────────────────
+# _local_peaks
 
 
 class TestLocalPeaks:
@@ -165,7 +165,7 @@ class TestLocalPeaks:
         assert list(_local_peaks([])) == []
 
 
-# ── correct_peaks ────────────────────────────────────────────────────────────
+# correct_peaks
 
 
 class TestCorrectPeaks:
@@ -322,7 +322,7 @@ class TestCorrectPeaks:
         assert result[2] == 1000.0  # unchanged
 
 
-# ── elevations (Open-Meteo DEM) ─────────────────────────────────────────────
+# elevations (Open-Meteo DEM)
 
 
 def _elev_response(values: list[float]) -> AsyncMock:

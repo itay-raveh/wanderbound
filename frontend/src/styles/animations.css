@@ -1,5 +1,3 @@
-/* ── Shared keyframe animations ── */
-
 @keyframes fadeUp {
   from {
     opacity: 0;

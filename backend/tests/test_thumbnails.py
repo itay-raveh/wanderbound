@@ -9,7 +9,7 @@ from PIL import Image
 from app.logic.layout.media import THUMB_QUALITY, THUMB_WIDTHS, generate_thumbnails
 from tests.conftest import create_test_jpeg
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _create_jpeg_with_exif_rotation(path: Path, width: int, height: int) -> Path:
@@ -28,7 +28,7 @@ def _create_jpeg_with_exif_rotation(path: Path, width: int, height: int) -> Path
     return path
 
 
-# ── generate_thumbnails ─────────────────────────────────────────────────────
+# generate_thumbnails
 
 
 class TestGenerateThumbnails:
@@ -155,7 +155,7 @@ class TestGenerateThumbnailsExif:
                 assert img.width == w
 
 
-# ── Constants ────────────────────────────────────────────────────────────────
+# Constants
 
 
 class TestThumbnailConstants:

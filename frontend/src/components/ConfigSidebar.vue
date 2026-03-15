@@ -203,8 +203,6 @@ async function onExportPdf() {
   padding: 0.25rem 0;
 }
 
-/* ── Sections ──────────────────────────────── */
-
 .section {
   display: flex;
   flex-direction: column;
@@ -226,7 +224,7 @@ async function onExportPdf() {
   margin: 0 1rem;
 }
 
-/* ── Quasar field overrides ────────────────── */
+/* Quasar field overrides */
 
 .sidebar-field {
   min-width: 0;
@@ -298,8 +296,6 @@ async function onExportPdf() {
 .field-icon {
   color: var(--text-faint);
 }
-
-/* ── Export footer ─────────────────────────── */
 
 .sidebar-footer {
   padding: 0.75rem 1rem;

@@ -12,7 +12,7 @@ from app.logic.country_colors import (
     build_country_colors,
 )
 
-# ── _delta_e ────────────────────────────────────────────────────────────────
+# _delta_e
 
 
 class TestDeltaE:
@@ -43,7 +43,7 @@ class TestDeltaE:
         assert _color_dist(hex1, hex2) == pytest.approx(expected)
 
 
-# ── _min_distance ───────────────────────────────────────────────────────────
+# _min_distance
 
 
 class TestMinDistance:
@@ -62,7 +62,7 @@ class TestMinDistance:
         assert d == pytest.approx(min(d_red, d_blue))
 
 
-# ── build_country_colors: edge cases ────────────────────────────────────────
+# build_country_colors: edge cases
 
 
 class TestBuildEdgeCases:
@@ -89,7 +89,7 @@ class TestBuildEdgeCases:
         assert "fr" in result
 
 
-# ── build_country_colors: structural invariants ─────────────────────────────
+# build_country_colors: structural invariants
 
 
 class TestBuildInvariants:
@@ -115,7 +115,7 @@ class TestBuildInvariants:
         assert r1 == r2
 
 
-# ── build_country_colors: greedy ordering ───────────────────────────────────
+# build_country_colors: greedy ordering
 
 
 class TestMostConstrainedFirst:
@@ -137,7 +137,7 @@ class TestMostConstrainedFirst:
         assert len(result) == 2
 
 
-# ── build_country_colors: real-world scenarios ──────────────────────────────
+# build_country_colors: real-world scenarios
 
 
 class TestRealWorldScenarios:
@@ -166,7 +166,7 @@ class TestRealWorldScenarios:
             assert color in candidates[code]
 
 
-# ── build_country_colors: with mocked data ─────────────────────────────────
+# build_country_colors: with mocked data
 
 
 class TestWithMockedCountries:
@@ -235,7 +235,7 @@ class TestWithMockedCountries:
         assert result["aa"] != "#ff0000"
 
 
-# ── JSON data integrity ─────────────────────────────────────────────────────
+# JSON data integrity
 
 
 class TestJsonIntegrity:

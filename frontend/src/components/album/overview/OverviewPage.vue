@@ -186,7 +186,7 @@ const stats = computed(() => [
   position: relative;
 }
 
-/* ── Content wrapper (fills page, centers vertically) ── */
+/* fills page, centers vertically */
 
 .overview-content {
   display: flex;
@@ -197,8 +197,6 @@ const stats = computed(() => [
   z-index: 1;
   position: relative;
 }
-
-/* ── Decorative backgrounds ──────────── */
 
 .clouds {
   position: absolute;
@@ -219,8 +217,6 @@ const stats = computed(() => [
   height: 40%;
   pointer-events: none;
 }
-
-/* ── Stats ─────────────────────────────── */
 
 .stats-row {
   display: flex;
@@ -262,8 +258,6 @@ const stats = computed(() => [
   letter-spacing: 0.06em;
   color: var(--text-muted);
 }
-
-/* ── Countries ─────────────────────────── */
 
 .countries-strip {
   display: flex;
