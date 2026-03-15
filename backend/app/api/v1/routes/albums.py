@@ -93,7 +93,7 @@ async def export_pdf(
         page.on("console", lambda msg: logger.debug("Browser: %s", msg.text))
         page.on(
             "pageerror",
-            lambda _: logger.warning("Browser page error during PDF render"),
+            lambda err: logger.warning("Browser page error during PDF render: %s", err),
         )
         # Activate @media print CSS before navigation so layout matches PDF output.
         await page.emulate_media(media="print")
