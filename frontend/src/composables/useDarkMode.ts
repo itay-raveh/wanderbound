@@ -5,7 +5,7 @@ const STORAGE_KEY = "album-dark-mode";
 
 export function initDarkMode() {
   const stored = localStorage.getItem(STORAGE_KEY);
-  const initial = stored === null ? "auto" : stored === "auto" ? "auto" : stored === "true";
+  const initial = stored === null || stored === "auto" ? "auto" : stored === "true";
   Dark.set(initial);
 
   watch(() => Dark.mode, (mode) => {
