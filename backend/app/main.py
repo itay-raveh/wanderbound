@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.exc import NoResultFound
-from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
