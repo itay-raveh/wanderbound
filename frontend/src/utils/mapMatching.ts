@@ -15,7 +15,6 @@ const CHUNK_SIZE = 90;
 /** Overlap between consecutive chunks for continuity at boundaries. */
 const CHUNK_OVERLAP = 10;
 
-/** Reduce a coordinate array to at most `max` points using Douglas-Peucker. */
 function reduceCoords(
   coords: [number, number][],
   max: number,
@@ -35,7 +34,6 @@ function reduceCoords(
   return result;
 }
 
-/** Match a single chunk (≤ MAX_COORDS points) against the Map Matching API. */
 async function matchChunk(
   coords: [number, number][],
   profile: "driving" | "walking",
@@ -64,7 +62,6 @@ async function matchChunk(
   }
 }
 
-/** Snap coordinates to roads/trails via the Mapbox Map Matching API. Returns null on failure. */
 export async function matchRoute(
   coords: [number, number][],
   profile: "driving" | "walking",

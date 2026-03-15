@@ -71,7 +71,6 @@ function addCircle(
 // Flight arc with exaggerated curvature
 // ---------------------------------------------------------------------------
 
-/** Build a curved arc between two points with exaggerated curvature. */
 function buildFlightArc(
   startLon: number,
   startLat: number,
@@ -195,7 +194,6 @@ function drawDrivingOrWalking(
 // Map-matching heuristic
 // ---------------------------------------------------------------------------
 
-/** Decide whether map-matching is worthwhile based on step count and segments. */
 function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
   // Many steps → zoomed out overview → raw GPS is fine
   if (steps.length > 8) return false;

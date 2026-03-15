@@ -7,7 +7,6 @@ export function providePrintMode(): void {
   provide(KEY, true);
 }
 
-/** Returns true when inside a print-mode AlbumViewer, false otherwise. */
 export function usePrintMode(): boolean {
   return inject(KEY, false) === true;
 }
