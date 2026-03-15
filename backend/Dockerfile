@@ -1,6 +1,5 @@
 FROM python:3.14-slim
 
-# Install ffmpeg
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libzimg2 \
     && rm -rf /var/lib/apt/lists/*
@@ -8,21 +7,16 @@ RUN apt-get update \
 
 ENV PYTHONUNBUFFERED=1
 
-# Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /uvx /bin/
 
-# Compile bytecode
 ENV UV_COMPILE_BYTECODE=1
 
-# uv Cache
 ENV UV_LINK_MODE=copy
 
 WORKDIR /app/
 
-# Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -34,7 +28,6 @@ COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/logging.json /app/
 
 COPY ./backend/app /app/backend/app
 
-# Sync the project
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -42,7 +35,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-# Install Playwright Chromium and its system dependencies
 RUN playwright install chromium --with-deps
 
 EXPOSE 8000
