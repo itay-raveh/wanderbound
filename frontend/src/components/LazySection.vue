@@ -8,7 +8,7 @@ const props = defineProps<{
   pageCount?: number;
   /** Whether this section includes editor-only chrome (add-zone, unused tray). */
   hasChrome?: boolean;
-  /** Skip lazy loading — mount content immediately. */
+  /** Skip lazy loading — mount content immediately and never unmount. */
   eager?: boolean;
 }>();
 
@@ -20,18 +20,22 @@ const mounted = ref(printMode || props.eager);
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (mounted.value || !el.value) return;
+  if (printMode || !el.value) return;
+
+  // Eager sections mount immediately and never unmount.
+  if (props.eager) return;
+
+  // Single observer with a large margin. Sections mount when within ~3
+  // viewports and unmount when beyond that. The large margin ensures
+  // mount/unmount transitions happen far off-screen — the user never
+  // sees placeholders flash during normal scrolling.
   observer = new IntersectionObserver(
     ([entry]) => {
-      if (entry?.isIntersecting) {
-        mounted.value = true;
-        observer!.disconnect();
-        observer = null;
-      }
+      if (entry) mounted.value = entry.isIntersecting;
     },
     {
       root: scrollContainer.value ?? null,
-      rootMargin: "200% 0px",
+      rootMargin: "300% 0px",
     },
   );
   observer.observe(el.value);
@@ -44,7 +48,7 @@ onUnmounted(() => observer?.disconnect());
   <div
     ref="el"
     :class="{
-      'lazy-section': mounted,
+      'lazy-section': mounted && !printMode,
       'lazy-placeholder': !mounted && pageCount,
     }"
     :style="
@@ -63,7 +67,7 @@ onUnmounted(() => observer?.disconnect());
 </template>
 
 <style scoped>
-/* Before first mount: fixed-height placeholder so scroll position is stable. */
+/* Unmounted: fixed-height placeholder so scroll position is stable. */
 .lazy-placeholder {
   min-height: calc(
     var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
@@ -71,8 +75,8 @@ onUnmounted(() => observer?.disconnect());
   );
 }
 
-/* After mount: content-visibility lets the browser skip rendering for
-   off-screen sections without destroying the DOM (no unmount/remount jank). */
+/* Mounted: content-visibility lets the browser skip rendering for
+   off-screen sections without destroying the DOM. */
 .lazy-section {
   content-visibility: auto;
   contain-intrinsic-height: auto calc(

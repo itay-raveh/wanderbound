@@ -92,6 +92,7 @@ function onVideoKey(e: KeyboardEvent) {
         :sizes="imgSizes"
         :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
+        decoding="async"
       >
       <video
         v-show="playing"
@@ -128,6 +129,7 @@ function onVideoKey(e: KeyboardEvent) {
         :sizes="imgSizes"
         :loading="imgLoading"
         :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
+        decoding="async"
       >
     </template>
   </div>

@@ -110,6 +110,8 @@ onMounted(waitForPrintReady);
 html,
 body,
 #app {
+  height: auto !important;
+  overflow: visible !important;
   margin: 0 !important;
   padding: 0 !important;
   background: var(--page-bg, var(--bg)) !important;

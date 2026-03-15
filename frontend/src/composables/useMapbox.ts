@@ -40,7 +40,7 @@ export function useMapbox(options: UseMapboxOptions) {
         projection: "mercator",
         interactive: options.interactive ?? false,
         attributionControl: false,
-        preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
+        preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
         fadeDuration: 0,
         language: lang,
       });

@@ -242,11 +242,13 @@ export function drawSegmentsAndMarkers(
             if (!matched) return;
             try {
               const source = m.getSource(id);
-              source?.setData({
-                type: "Feature",
-                properties: {},
-                geometry: { type: "LineString", coordinates: matched },
-              });
+              if (source && "setData" in source) {
+                source.setData({
+                  type: "Feature",
+                  properties: {},
+                  geometry: { type: "LineString", coordinates: matched },
+                });
+              }
             } catch {
               // Map was destroyed before matching resolved
             }

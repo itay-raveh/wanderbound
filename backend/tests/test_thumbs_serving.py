@@ -38,14 +38,14 @@ async def _setup_album_with_thumbs(trips_folder: Path) -> Path:
 class TestGetMediaThumbnail:
     @pytest.mark.anyio
     async def test_serves_thumbnail_when_w_specified(self, tmp_path: Path) -> None:
-        """?w=1200 returns the WebP thumbnail."""
+        """?w=800 returns the WebP thumbnail."""
         album_dir = await _setup_album_with_thumbs(tmp_path)
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=1200)
+        response = await get_media(_AID, _NAME, user, w=800)
 
         stem = Path(_NAME).stem
-        thumb_path = album_dir / ".thumbs" / "1200" / f"{stem}.webp"
+        thumb_path = album_dir / ".thumbs" / "800" / f"{stem}.webp"
         assert Path(response.path) == thumb_path
         assert response.media_type == "image/webp"
 
@@ -87,7 +87,7 @@ class TestGetMediaThumbnail:
         await _setup_album_with_thumbs(tmp_path)
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=1200)
+        response = await get_media(_AID, _NAME, user, w=800)
 
         assert "immutable" in response.headers["cache-control"]
 
@@ -103,13 +103,13 @@ class TestGetMediaThumbnail:
 
     @pytest.mark.anyio
     async def test_falls_through_for_small_original(self, tmp_path: Path) -> None:
-        """If original is 600px, ?w=1200 falls through (no thumb)."""
+        """If original is 600px, ?w=800 falls through (no thumb)."""
         album_dir = tmp_path / _AID
         src = create_test_jpeg(album_dir / _NAME, 600, 400)
-        await generate_thumbnails(src)  # only creates 400px thumb
+        await generate_thumbnails(src)  # only creates 200px thumb
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=1200)
+        response = await get_media(_AID, _NAME, user, w=800)
 
         # Should fall through to original
         assert Path(response.path) == (album_dir / _NAME).resolve()
@@ -143,7 +143,7 @@ class TestVideoPosterCaching:
         (album_dir / Path(_NAME).with_suffix(".mp4")).touch()
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=400)
+        response = await get_media(_AID, _NAME, user, w=200)
 
         assert "no-cache" in response.headers["cache-control"]
 

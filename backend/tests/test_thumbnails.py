@@ -63,22 +63,22 @@ class TestGenerateThumbnails:
         src = create_test_jpeg(tmp_path / "small.jpg", 600, 400)
         await generate_thumbnails(src)
 
-        # 600px original: only 400 should be generated
-        assert (tmp_path / ".thumbs" / "400" / "small.webp").exists()
-        assert not (tmp_path / ".thumbs" / "1200" / "small.webp").exists()
+        # 600px original: only 200 should be generated (800 >= 600, skipped)
+        assert (tmp_path / ".thumbs" / "200" / "small.webp").exists()
+        assert not (tmp_path / ".thumbs" / "800" / "small.webp").exists()
 
     @pytest.mark.anyio
     async def test_no_thumbnails_for_tiny_image(self, tmp_path: Path) -> None:
         """An image smaller than all thumbnail widths produces no thumbs."""
-        src = create_test_jpeg(tmp_path / "tiny.jpg", 200, 150)
+        src = create_test_jpeg(tmp_path / "tiny.jpg", 100, 75)
         await generate_thumbnails(src)
 
         assert not (tmp_path / ".thumbs").exists()
 
     @pytest.mark.anyio
     async def test_exact_width_match_skipped(self, tmp_path: Path) -> None:
-        """An image exactly 400px wide should NOT get a 400px thumbnail."""
-        src = create_test_jpeg(tmp_path / "exact.jpg", 400, 300)
+        """An image exactly 200px wide should NOT get a 200px thumbnail."""
+        src = create_test_jpeg(tmp_path / "exact.jpg", 200, 150)
         await generate_thumbnails(src)
 
         assert not (tmp_path / ".thumbs").exists()
