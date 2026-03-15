@@ -5,6 +5,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
+import { MS_PER_DAY } from "@/utils/units";
 import { weatherIconUrl } from "@/utils/weather";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
@@ -56,7 +57,7 @@ const dayNumber = computed(() => {
   const current = new Date(props.step.datetime);
   start.setHours(0, 0, 0, 0);
   current.setHours(0, 0, 0, 0);
-  return Math.floor((current.getTime() - start.getTime()) / 86_400_000) + 1;
+  return Math.floor((current.getTime() - start.getTime()) / MS_PER_DAY) + 1;
 });
 
 const progressPercent = computed(() =>

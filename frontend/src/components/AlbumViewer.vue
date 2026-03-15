@@ -8,6 +8,7 @@ import { providePrintMode } from "@/composables/usePrintReady";
 import { PAGE_CHARS } from "@/composables/usePageDescription";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { toRangeList } from "@/utils/ranges";
+import { MS_PER_DAY } from "@/utils/units";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 
 const editorZoom = `${EDITOR_ZOOM}`;
@@ -89,7 +90,7 @@ const totalDays = computed(() => {
   const last = new Date(s[s.length - 1]!.datetime);
   first.setHours(0, 0, 0, 0);
   last.setHours(0, 0, 0, 0);
-  return Math.max(1, Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1);
+  return Math.max(1, Math.floor((last.getTime() - first.getTime()) / MS_PER_DAY) + 1);
 });
 provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
 
