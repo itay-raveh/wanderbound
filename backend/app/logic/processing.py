@@ -131,7 +131,6 @@ def _build_trip_objects(  # noqa: PLR0913
     cover_name: str,
     cover_orientation: str,
 ) -> list[DbRow]:
-    # Merge all per-step orientations into a single album-level map.
     merged_orientations: dict[str, str] = {cover_name: cover_orientation}
     for layout in layouts:
         if layout:
@@ -201,7 +200,6 @@ async def _process_trip(  # noqa: C901, PLR0915
     cover_url_path = trip.cover_photo_path.path or ""
     cover_name = normalize_name(Path(cover_url_path).name)
 
-    # Result containers shared with the phase tasks.
     elevs_raw: list[float] = []
     elevs_corrected: list[float] = []
     weather_by_idx: dict[int, Weather] = {}
@@ -433,7 +431,6 @@ async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
             yield event
         return
 
-    # Start new session
     session = ProcessingSession(user)
     _sessions[user.id] = session
 

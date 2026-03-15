@@ -84,14 +84,10 @@ def _build_pages(
 ) -> Iterable[list[str]]:
     mixed = _optimal_mixed_count(len(portraits), len(landscapes))
 
-    # 1 portrait + 2 landscape mixed pages
     for i in range(mixed):
         yield [portraits[i], landscapes[2 * i], landscapes[2 * i + 1]]
 
-    # Portraits: batched by 3 — last batch of 1 or 2 is a valid page size
     yield from _pages_of(portraits[mixed:], 3)
-
-    # Landscapes: optimal 4/3 decomposition
     yield from _landscape_pages(landscapes[2 * mixed :])
 
 
@@ -147,10 +143,7 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
         logger.debug("Step '%s' has no media files, skipping layout", step.name)
         return None
 
-    # Build orientation map from already-computed is_portrait
     orientations: dict[str, str] = {media_name(m): m.orientation for m in media}
-
-    # Select cover: best portrait, or first asset
     cover = portraits[0] if portraits else landscapes[0]
 
     # If it appears on the step page, remove it from the photo pages
