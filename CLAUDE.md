@@ -2,7 +2,9 @@
 
 This is a personal project in very early pre-alpha. There are NO users, NO backward compatibility concerns, NO legacy constraints. Every part of this codebase — the schema, the architecture, the module boundaries, the feature design — is open to being rethought and rebuilt from scratch at any time. The question is never "how do I fix what's here" but "what's the right way to build this?"
 
-**Before making large changes, read `ARCHITECTURE.md` for codebase orientation.** Check `SUGGESTIONS.md` for pending architectural proposals (implement any marked `APPROVED`).
+See `ARCHITECTURE.md` for codebase orientation.
+
+Check `SUGGESTIONS.md` for pending architectural proposals (implement any marked `APPROVED`).
 
 ## Tech Stack
 
