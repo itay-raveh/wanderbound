@@ -12,13 +12,8 @@ import "@/styles/fonts.css";
 // material-icons by string name, so the font CSS must stay loaded.
 import "@quasar/extras/material-icons/material-icons.css";
 
-// Import Quasar css
 import "quasar/src/css/index.sass";
-
-// Import Mapbox CSS
 import "mapbox-gl/dist/mapbox-gl.css";
-
-// Import shared animations
 import "@/styles/animations.css";
 
 import App from "./App.vue";
