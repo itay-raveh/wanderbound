@@ -5,7 +5,7 @@
  */
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
-import { mediaUrl, posterPath } from "@/utils/media";
+import { mediaThumbUrl, posterPath } from "@/utils/media";
 import { matchRoute } from "@/utils/mapMatching";
 import mapboxgl from "mapbox-gl";
 
@@ -293,7 +293,7 @@ export async function drawSegmentsAndMarkers(
     el.className = MARKER_CLASS;
     if (step.cover) {
       const coverPath = posterPath(step.cover);
-      el.style.backgroundImage = `url(${mediaUrl(coverPath, albumId)}?w=400)`;
+      el.style.backgroundImage = `url(${mediaThumbUrl(coverPath, albumId)})`;
     }
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
