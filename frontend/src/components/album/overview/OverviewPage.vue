@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import type { Album, Segment, Step } from "@/client";
+import { useAlbum } from "@/composables/useAlbum";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
-import { date } from "quasar";
 import { lineString } from "@turf/helpers";
 import length from "@turf/length";
 import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
@@ -17,19 +17,16 @@ const props = defineProps<{
   segments: Segment[];
 }>();
 
+const { totalDays } = useAlbum();
 const { user, formatDistance, isKm, locale } = useUserQuery();
 
 const stepsCount = computed(() =>
   props.steps.length.toLocaleString(locale.value),
 );
 
-const { getDateDiff } = date;
-
-const daysCount = computed(() => {
-  const start = new Date(props.steps[0]!.datetime);
-  const end = new Date(props.steps[props.steps.length - 1]!.datetime);
-  return getDateDiff(end, start, "days").toLocaleString(locale.value);
-});
+const daysCount = computed(() =>
+  totalDays.value.toLocaleString(locale.value),
+);
 
 const photosCount = computed(() => {
   let n = 0;
