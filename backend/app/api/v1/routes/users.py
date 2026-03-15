@@ -41,7 +41,7 @@ async def create_user(file: UploadFile, response: Response) -> UserCreated:
             status.HTTP_406_NOT_ACCEPTABLE,
             detail="Bad ZIP",
         ) from e
-    response.set_cookie(USER_COOKIE, str(result.user.id))
+    response.set_cookie(USER_COOKIE, str(result.user.id), httponly=True, samesite="lax")
     return result
 
 

@@ -1,0 +1,71 @@
+# Suggestions
+
+## 2025-03-15 — Eliminate `_visual_length` / text-layout duplication across backend and frontend
+
+**Status:** `PENDING`
+
+**Problem:** `_visual_length()` in `backend/app/logic/layout/builder.py:36` and `visualLength()` in `frontend/src/composables/usePageDescription.ts:8` implement the same character-counting algorithm. `_LONG_DESCRIPTION_THRESHOLD = 1200` and `SHORT_THRESHOLD = 1200` are the same constant defined in both places. Comments in both files explicitly say "Must match." This will inevitably drift, producing broken PDF layouts.
+
+**Proposed fix:** Move all text-length classification to the backend. At processing time, compute `description_type: "short" | "long" | "extra-long"` and `continuation_count: int` for each step and store them in the `step` table. The frontend reads these from the API response and drops `usePageDescription.ts` entirely (or reduces it to a lookup). This eliminates the duplication at its root.
+
+**Files affected:** ~6 — `builder.py`, `step.py` (model), migration, `usePageDescription.ts`, `StepEntry.vue`, `AlbumViewer.vue`
+
+---
+
+## 2025-03-15 — Add PDF render concurrency cap
+
+**Status:** `PENDING`
+
+**Problem:** `render_album_pdf` in `backend/app/logic/pdf.py` creates a new Chromium browser context per request with no concurrency limit. Two simultaneous PDF exports both load all album images, Mapbox tiles, and fonts into separate Chromium processes. This can easily exhaust memory on the server (each context uses 200-500MB).
+
+**Proposed fix:** Add `_pdf_semaphore = asyncio.Semaphore(1)` in `pdf.py` and `async with _pdf_semaphore:` around the render body. This serializes PDF generation. If a second request arrives while one is rendering, it waits rather than OOMing the server.
+
+**Files affected:** 1 — `pdf.py`
+
+---
+
+## 2025-03-15 — Bidirectional lazy loading for map sections (WebGL context leak)
+
+**Status:** `PENDING`
+
+**Problem:** `LazySection.vue` uses IntersectionObserver to mount sections when they scroll into view, but once mounted, sections are never unmounted — the observer disconnects on first reveal. Each `MapPage` and `HikeMapPage` creates a Mapbox GL context with a WebGL canvas. For a long album with 20+ map sections, all WebGL contexts remain alive simultaneously. Browsers cap WebGL contexts at ~16; beyond that, earlier maps go blank or the browser drops contexts silently.
+
+**Proposed fix:** Make LazySection bidirectional — keep the observer running and set `visible = false` when the section scrolls more than 3 viewport heights away. Mapbox maps already handle cleanup via `useMapbox`'s `onUnmounted`. Alternatively, implement a global "visibility budget" composable that caps the number of simultaneously mounted map instances at 4-6, unmounting the oldest when a new one enters the viewport.
+
+**Files affected:** ~3 — `LazySection.vue`, potentially `useMapbox.ts`, `AlbumViewer.vue`
+
+---
+
+## 2025-03-15 — Strip unused `time` field from segment points in API response
+
+**Status:** `PENDING`
+
+**Problem:** Every `Segment` in the `AlbumData` response includes `points: list[Point]` where each `Point` has `{lat, lon, time}`. The frontend (`mapSegments.ts`) only reads `p.lon` and `p.lat` — `time` is never used. For a hike segment with 2,000 points, the `time` field adds ~20KB of unused JSON. Across 50 segments this is 200KB+ of wasted bandwidth on every album load.
+
+**Proposed fix:** Create a `SegmentPoint` schema with only `lat` and `lon` for the API response. Keep the full `Point` (with `time`) in the database for future use. This is a response-shape change, not a schema change.
+
+**Files affected:** ~3 — `segment.py` (add response model), `albums.py` (use it in response), `polarsteps.py` or a new schema
+
+---
+
+## 2025-03-15 — Progressive map matching (render GPS first, then matched geometry)
+
+**Status:** `PENDING`
+
+**Problem:** In `mapSegments.ts`, `drawSegmentsAndMarkers` awaits `Promise.all(matchingTasks)` before the function returns and `fitBounds` is called. For segments requiring 5+ map-matching API chunks (p99 latency 1-2s each), the map hangs with no content for several seconds after tiles load.
+
+**Proposed fix:** Draw raw GPS coordinates immediately as a preliminary line layer, then replace each segment's geometry progressively as each matching chunk resolves. This gives users an instant (approximate) map that refines itself. The raw GPS is already available in `segment.points`.
+
+**Files affected:** ~2 — `mapSegments.ts`, `mapMatching.ts`
+
+---
+
+## 2025-03-15 — Sign the auth cookie
+
+**Status:** `PENDING`
+
+**Problem:** The `uid` cookie is a plain integer (the Polarsteps user ID). Anyone who knows or guesses a user ID can authenticate as that user by setting `document.cookie = "uid=42"`. While `httponly` and `samesite` flags (just added) prevent JavaScript access and CSRF, the cookie value itself carries no proof of authentication — there's no server-side secret involved.
+
+**Proposed fix:** Use `itsdangerous.URLSafeSerializer` (already a transitive dep via Flask ecosystem, or add directly — 50KB, well-maintained) to sign the user ID with a server-side secret from `settings.SECRET_KEY`. The cookie becomes `uid=<signed_token>`. `UserDep` in `deps.py` verifies the signature before trusting the user ID. This makes cookie forgery impossible without the server secret.
+
+**Files affected:** ~3 — `config.py` (add SECRET_KEY), `users.py` (sign on set), `deps.py` (verify on read)
