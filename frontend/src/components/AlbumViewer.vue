@@ -6,8 +6,11 @@ import LazySection from "./LazySection.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { PAGE_CHARS } from "@/composables/usePageDescription";
+import { EDITOR_ZOOM } from "@/utils/media";
 import { toRangeList } from "@/utils/ranges";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
+
+const editorZoom = `${EDITOR_ZOOM}`;
 
 // Fallback for async components that fail to load (e.g. mapbox-gl in headless Chromium).
 // Renders an empty page-container so page count stays correct and a blank page appears in the PDF.
@@ -232,7 +235,7 @@ if (props.printMode) {
 // Editor mode: zoom shrinks pages for preview.
 // Map pages use a wrapper + transform: scale (zoom breaks Mapbox canvas sizing).
 .album-container:not(.print-mode) {
-  --editor-zoom: 0.70;
+  --editor-zoom: v-bind(editorZoom);
   padding: 0.75rem;
 
   :deep(.page-container) {

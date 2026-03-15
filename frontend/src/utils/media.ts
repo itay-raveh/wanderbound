@@ -16,8 +16,9 @@ export function posterPath(path: string): string {
 }
 
 export const THUMB_WIDTHS = [400, 1200] as const;
-export const SIZES_FULL = "calc(297mm * 0.70)";
-export const SIZES_HALF = "calc(297mm * 0.70 * 0.5)";
+export const EDITOR_ZOOM = 0.7;
+export const SIZES_FULL = `calc(297mm * ${EDITOR_ZOOM})`;
+export const SIZES_HALF = `calc(297mm * ${EDITOR_ZOOM} * 0.5)`;
 
 /** Build a single thumbnail URL at the given width (defaults to smallest). */
 export function mediaThumbUrl(name: string, albumId: string, width: number = THUMB_WIDTHS[0]): string {

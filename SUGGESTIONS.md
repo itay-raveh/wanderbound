@@ -26,7 +26,7 @@
 
 ## 2026-03-15 — Derive SIZES_FULL/SIZES_HALF from shared editor zoom constant
 
-**Status:** PENDING
+**Status:** DONE
 
 **What:** The editor zoom factor `0.70` is defined as a CSS variable `--editor-zoom: 0.70` in `AlbumViewer.vue:235` and duplicated as a literal in `SIZES_FULL = "calc(297mm * 0.70)"` and `SIZES_HALF = "calc(297mm * 0.70 * 0.5)"` in `media.ts:19-20`. The CSS variable controls the actual displayed page width; the JS constants tell the browser what image width to request via the `sizes` attribute on `<img>` tags.
 
