@@ -173,9 +173,8 @@ class TestBuildWeathers:
         mock_response = MagicMock(status_code=200)
         mock_response.content = json.dumps(resp_data).encode()
 
-        with patch(
-            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
-        ):
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=mock_response)
             result = [w async for w in build_weathers([step])]
 
         assert len(result) == 1
@@ -200,7 +199,8 @@ class TestBuildWeathers:
             r.content = json.dumps(responses[params["start_date"]]).encode()
             return r
 
-        with patch("app.services.open_meteo._get", side_effect=_route):
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(side_effect=_route)
             result = dict([w async for w in build_weathers([s1, s2])])
 
         assert len(result) == 2
@@ -212,15 +212,11 @@ class TestBuildWeathers:
     @pytest.mark.anyio
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
-        with (
-            patch(
-                "app.services.open_meteo._get",
-                AsyncMock(side_effect=httpx.HTTPError("fail")),
-            ),
-            pytest.raises(RuntimeError, match="Weather API"),
-        ):
-            async for _ in build_weathers([step]):
-                pass
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
+            with pytest.raises(RuntimeError, match="Weather API"):
+                async for _ in build_weathers([step]):
+                    pass
 
     @pytest.mark.anyio
     async def test_night_uses_daily_code(self) -> None:
@@ -229,9 +225,8 @@ class TestBuildWeathers:
         mock_response = MagicMock(status_code=200)
         mock_response.content = json.dumps(resp_data).encode()
 
-        with patch(
-            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
-        ):
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=mock_response)
             result = dict([w async for w in build_weathers([step])])
 
         assert result[0].day.icon == "rain"
@@ -243,15 +238,11 @@ class TestBuildWeathers:
         step = _make_step(0, 0, 1704067200.0)
         mock_response = MagicMock(status_code=429)
 
-        with (
-            patch(
-                "app.services.open_meteo._get",
-                AsyncMock(return_value=mock_response),
-            ),
-            pytest.raises(RuntimeError, match="Weather API returned 429"),
-        ):
-            async for _ in build_weathers([step]):
-                pass
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=mock_response)
+            with pytest.raises(RuntimeError, match="Weather API returned 429"):
+                async for _ in build_weathers([step]):
+                    pass
 
     @pytest.mark.anyio
     async def test_multiple_steps_own_api_call(self) -> None:
@@ -268,10 +259,9 @@ class TestBuildWeathers:
         mock_response = MagicMock(status_code=200)
         mock_response.content = json.dumps(resp_data).encode()
 
-        with patch(
-            "app.services.open_meteo._get", AsyncMock(return_value=mock_response)
-        ) as mc:
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=mock_response)
             result = [w async for w in build_weathers(steps)]
 
         assert len(result) == 3
-        assert mc.call_count == 3
+        assert mock_client.get.call_count == 3

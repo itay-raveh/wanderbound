@@ -340,14 +340,12 @@ class TestElevations:
         locs = [_Loc(i, i) for i in range(5)]
         expected = [100.0, 200.0, 300.0, 400.0, 500.0]
 
-        with patch(
-            "app.services.open_meteo._get",
-            AsyncMock(return_value=_elev_response(expected)),
-        ) as mc:
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=_elev_response(expected))
             result = [e async for e in elevations(locs)]
 
         assert result == expected
-        assert mc.call_count == 1
+        assert mock_client.get.call_count == 1
 
     @pytest.mark.anyio
     async def test_multiple_batches(self) -> None:
@@ -357,19 +355,17 @@ class TestElevations:
         batch1 = list(range(OPEN_METEO_MAX_PER_REQUEST))
         batch2 = list(range(20))
 
-        with patch(
-            "app.services.open_meteo._get",
-            AsyncMock(
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(
                 side_effect=[
                     _elev_response([float(x) for x in batch1]),
                     _elev_response([float(x) for x in batch2]),
                 ]
-            ),
-        ) as mc:
+            )
             result = [e async for e in elevations(locs)]
 
         assert len(result) == n
-        assert mc.call_count == 2
+        assert mock_client.get.call_count == 2
 
     @pytest.mark.anyio
     async def test_http_error_propagates(self) -> None:
@@ -381,8 +377,7 @@ class TestElevations:
             "500", request=MagicMock(), response=MagicMock()
         )
 
-        with (
-            patch("app.services.open_meteo._get", AsyncMock(return_value=resp)),
-            pytest.raises(httpx.HTTPStatusError),
-        ):
-            await collect_async(elevations(locs))
+        with patch("app.services.open_meteo._client") as mock_client:
+            mock_client.get = AsyncMock(return_value=resp)
+            with pytest.raises(httpx.HTTPStatusError):
+                await collect_async(elevations(locs))
