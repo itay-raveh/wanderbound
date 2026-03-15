@@ -54,10 +54,6 @@ _limiter = AsyncLimiter(480, 60)
 _client = cached_client(transport=_RateLimitedTransport(limiter=_limiter))
 
 
-async def _get(url: str, *, params: dict) -> Response:
-    return await _client.get(url, params=params)
-
-
 # ── Elevation ────────────────────────────────────────────────────────────
 
 
@@ -70,7 +66,7 @@ OPEN_METEO_MAX_PER_REQUEST = 100
 
 async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
     for batch in batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False):
-        response = await _get(
+        response = await _client.get(
             "https://api.open-meteo.com/v1/elevation",
             params={
                 "latitude": ",".join(str(loc.lat) for loc in batch),
@@ -173,7 +169,7 @@ async def _fetch_one(step: PSStep) -> Weather:
     """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     try:
-        response = await _get(
+        response = await _client.get(
             "https://archive-api.open-meteo.com/v1/archive",
             params={
                 "latitude": round(step.location.lat, 2),
