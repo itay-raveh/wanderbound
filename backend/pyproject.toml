@@ -25,6 +25,7 @@ dependencies = [
     "coloraide~=8.7",
     "aiolimiter>=1.2.1",
     "simplification~=0.7",
+    "pypdf>=6.8.0",
 ]
 
 [dependency-groups]
