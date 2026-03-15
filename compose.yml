@@ -69,7 +69,6 @@ services:
       args:
         - VITE_BACKEND_URL=https://api.${DOMAIN?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
-        - NODE_ENV=production
 
 volumes:
   db-data:

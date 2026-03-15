@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import math
 from itertools import batched
 from math import ceil
 from typing import TYPE_CHECKING, NamedTuple
@@ -39,7 +38,7 @@ def _visual_length(text: str) -> int:
         return 0
     lines = 0
     for para in text.split("\n"):
-        lines += math.ceil(len(para) / _CHARS_PER_LINE) if para else 1
+        lines += ceil(len(para) / _CHARS_PER_LINE) if para else 1
     return lines * _CHARS_PER_LINE
 
 
