@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const { formatTemp, formatElevation, formatDate } = useUserQuery();
 
-interface Record {
+interface ExtremeRecord {
   type: "temp" | "elev";
   label: string;
   value: string;
@@ -27,7 +27,7 @@ interface Record {
   qIcon: boolean;
 }
 
-const records = computed<Record[]>(() => {
+const records = computed<ExtremeRecord[]>(() => {
   const steps = props.steps;
   if (steps.length === 0) return [];
 
