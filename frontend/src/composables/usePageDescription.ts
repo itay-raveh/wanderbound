@@ -1,9 +1,9 @@
 import { computed, type Ref } from "vue";
 
 /**
- * The short description panel in StepMainPage is ~45% of A4 landscape width (≈502px)
- * and ~60% of A4 height (≈476px). At 0.9rem/1.5 line-height ≈ 22 lines × 65 chars ≈ 1430.
- * We use a conservative threshold since proportional fonts and Hebrew text vary.
+ * Must match backend builder.py _LONG_DESCRIPTION_THRESHOLD / _CHARS_PER_LINE so both
+ * agree on whether the cover photo appears on the main page vs. in photo pages.
+ * Derived from StepMainPage panel: ~502px wide, 0.9rem/1.5 line-height ≈ 22 lines × 65 chars.
  */
 const SHORT_THRESHOLD = 1200;
 

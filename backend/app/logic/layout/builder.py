@@ -27,11 +27,11 @@ class Layout(NamedTuple):
 
 logger = logging.getLogger(__name__)
 
-# Layout heuristic for deciding whether a step description is "long"
-# (takes the full main page, so cover stays in the photo pages).
-# Chars-per-line and threshold are tuned to the A4-landscape step layout.
-_CHARS_PER_LINE = 80
-_LONG_DESCRIPTION_THRESHOLD = 1000
+# Must match frontend usePageDescription.ts SHORT_THRESHOLD / CHARS_PER_LINE
+# so backend and frontend agree on whether the cover photo appears on the main page.
+# Values derived from A4 landscape step panel: ~502px wide, 0.9rem/1.5 line-height.
+_CHARS_PER_LINE = 65
+_LONG_DESCRIPTION_THRESHOLD = 1200
 
 
 def _visual_length(text: str) -> int:
