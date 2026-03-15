@@ -36,6 +36,14 @@ const OverviewPage = defineAsyncComponent({
   timeout: 10_000,
 });
 
+function sectionKey(section: Section): string {
+  switch (section.type) {
+    case "step": return `step-${section.step.idx}`;
+    case "map": return `map-${section.steps[0]?.idx}-${section.steps.at(-1)?.idx}`;
+    case "hike": return `hike-${section.hikeSegment.start_time}`;
+  }
+}
+
 /** Number of album pages a section will render (for lazy placeholder sizing). */
 function sectionPageCount(section: Section): number {
   if (section.type === "map" || section.type === "hike") return 1;
@@ -190,8 +198,8 @@ if (props.printMode) {
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
     <LazySection
-      v-for="(section, i) in sections"
-      :key="i"
+      v-for="section in sections"
+      :key="sectionKey(section)"
       :page-count="sectionPageCount(section)"
       :has-chrome="section.type === 'step'"
       :eager="section.type === 'map' || section.type === 'hike'"
