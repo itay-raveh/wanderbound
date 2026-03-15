@@ -5,7 +5,7 @@ from itertools import batched
 from math import ceil
 from typing import TYPE_CHECKING, NamedTuple
 
-from .media import Media, MediaName, Photo, Video
+from .media import Media, MediaName
 
 # Global limit on concurrent ffprobe processes across all users.
 _ffprobe_sem = asyncio.Semaphore(8)
@@ -112,10 +112,10 @@ def _build_pages(
     yield from _landscape_pages(landscapes[2 * mixed :])
 
 
-def _load_photos(folder: Path) -> list[Photo]:
+def _load_photos(folder: Path) -> list[Media]:
     """Load photo metadata from a folder (sync — runs in thread pool)."""
     return [
-        Photo.load(p)
+        Media.load(p)
         for p in folder.iterdir()
         if p.is_file() and p.suffix.lower() == ".jpg"
     ]
@@ -130,9 +130,9 @@ async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
     video_folder = step_dir / "videos"
     if video_folder.exists():
 
-        async def _probe(p: Path) -> Video:
+        async def _probe(p: Path) -> Media:
             async with _ffprobe_sem:
-                return await Video.probe(p)
+                return await Media.probe(p)
 
         for coro in asyncio.as_completed(
             [_probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"]

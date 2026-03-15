@@ -32,7 +32,7 @@ import numpy as np
 import polars as pl
 
 from app.models.polarsteps import Point
-from app.models.segment import SegmentBase, SegmentKind
+from app.models.segment import SegmentData, SegmentKind
 
 from .simplify import rdp_mask
 
@@ -521,8 +521,8 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
     return SegmentKind.driving if avg > HIKE_MAX_SPEED_KMH else SegmentKind.walking
 
 
-def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentBase]:
-    """Yield SegmentBase: simplify, resolve kinds, stitch consecutive segments."""
+def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
+    """Yield segments: simplify, resolve kinds, stitch consecutive segments."""
     first_step_ts = steps[0].datetime.timestamp()
     prev_last_pt: Point | None = None
 
@@ -544,7 +544,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentB
             continue
 
         prev_last_pt = pts[-1]
-        yield SegmentBase(kind=_resolve_kind(kind, gdf), points=pts)
+        yield SegmentData(kind=_resolve_kind(kind, gdf), points=pts)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -554,7 +554,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentB
 
 def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
-) -> Iterable[SegmentBase]:
+) -> Iterable[SegmentData]:
     """Run the full pipeline: ingest → label → absorb → validate → emit."""
     if not steps:
         return iter([])

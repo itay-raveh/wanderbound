@@ -15,7 +15,7 @@ from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
     MEDIA_EXTENSIONS,
-    Photo,
+    Media,
     extract_frame,
     generate_thumbnails,
     normalize_name,
@@ -251,7 +251,7 @@ async def _process_trip(  # noqa: C901, PLR0915
         # 2c. Determine cover photo orientation
         nonlocal cover_orientation
         try:
-            cover_photo = await asyncio.to_thread(Photo.load, cover_dest)
+            cover_photo = await asyncio.to_thread(Media.load, cover_dest)
             cover_orientation = cover_photo.orientation
         except Exception:  # noqa: BLE001
             logger.warning(

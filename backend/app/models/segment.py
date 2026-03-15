@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import NamedTuple
 
 from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
@@ -15,14 +16,14 @@ class SegmentKind(StrEnum):
     driving = "driving"
 
 
-class SegmentBase(SQLModel):
+class SegmentData(NamedTuple):
+    """Pipeline output from GPS segmentation (not a DB model)."""
+
     kind: SegmentKind
-    points: list[Point] = Field(
-        sa_column=Column(PydanticJSON(list[Point]), nullable=False)
-    )
+    points: list[Point]
 
 
-class Segment(SegmentBase, table=True):
+class Segment(SQLModel, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
@@ -33,3 +34,7 @@ class Segment(SegmentBase, table=True):
     aid: AlbumId = Field(primary_key=True)
     start_time: float = Field(primary_key=True)
     end_time: float = Field(primary_key=True)
+    kind: SegmentKind
+    points: list[Point] = Field(
+        sa_column=Column(PydanticJSON(list[Point]), nullable=False)
+    )

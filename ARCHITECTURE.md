@@ -236,13 +236,13 @@ segment
 |------|----------|---------|
 | `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) — step photo layout |
 | `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
-| `SegmentBase` | `models/segment.py` | Pipeline output (kind + points), also base for Segment table |
+| `SegmentData` | `models/segment.py` | NamedTuple(kind, points) — GPS segmentation pipeline output |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
 | `Point` | `models/polarsteps.py` | GPS point (lat, lon, time) — used in segments and locations |
 | `Weather`, `WeatherData` | `models/weather.py` | Day/night weather with WMO icon names |
 | `ProcessingEvent` | `logic/processing.py` | Discriminated union: TripStart | PhaseUpdate | ErrorData |
 | `MediaName` | `logic/layout/media.py` | Annotated str with UUID_UUID.(jpg|mp4) pattern |
-| `Photo`, `Video` | `logic/layout/media.py` | Media metadata (dimensions, orientation, aspect ratio) |
+| `Media` | `logic/layout/media.py` | Media metadata (dimensions, orientation, aspect ratio), with `load` (photo) and `probe` (video) factories |
 
 ### Frontend
 

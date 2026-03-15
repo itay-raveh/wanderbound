@@ -21,7 +21,7 @@ from app.logic.spatial.segments import (
     build_segments,
 )
 from app.models.polarsteps import Point
-from app.models.segment import SegmentBase, SegmentKind
+from app.models.segment import SegmentData, SegmentKind
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ def _segment_kinds(steps: list[_Step], gps: list[Point]) -> set[SegmentKind]:
     return {s.kind for s in build_segments(steps, gps)}
 
 
-def _hikes(steps: list[_Step], gps: list[Point]) -> list[SegmentBase]:
+def _hikes(steps: list[_Step], gps: list[Point]) -> list[SegmentData]:
     return [s for s in build_segments(steps, gps) if s.kind == SegmentKind.hike]
 
 
@@ -283,7 +283,7 @@ class TestHikePoints:
 
 class TestStructure:
     @pytest.fixture()
-    def mixed_segments(self) -> list[SegmentBase]:
+    def mixed_segments(self) -> list[SegmentData]:
         gps = (
             _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=40)
             + _track(0.0, 0.2, 0.0, 0.7, h0=14.5, h1=15.0, n=5)
@@ -292,13 +292,13 @@ class TestStructure:
         return list(build_segments([_step(0.0, 0.7, 15.0)], gps))
 
     def test_all_segments_have_at_least_two_points(
-        self, mixed_segments: list[SegmentBase]
+        self, mixed_segments: list[SegmentData]
     ) -> None:
         for i, seg in enumerate(mixed_segments):
             assert len(seg.points) >= 2, f"Segment {i} ({seg.kind})"
 
     def test_consecutive_segments_share_boundary(
-        self, mixed_segments: list[SegmentBase]
+        self, mixed_segments: list[SegmentData]
     ) -> None:
         for i in range(len(mixed_segments) - 1):
             t_end = mixed_segments[i].points[-1].time
