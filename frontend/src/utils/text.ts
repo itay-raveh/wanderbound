@@ -1,7 +1,5 @@
-export function chooseTextDir(text: string): "rtl" | "ltr" {
-  //  Hebrew                            Arabic
-  if (/[\u0590-\u05ff]/.test(text) || /[\u0600-\u06ff]/.test(text))
-    return "rtl";
+const RTL_PATTERN = /[\u0590-\u06FF]/;
 
-  return "ltr";
+export function chooseTextDir(text: string): "rtl" | "ltr" {
+  return RTL_PATTERN.test(text) ? "rtl" : "ltr";
 }
