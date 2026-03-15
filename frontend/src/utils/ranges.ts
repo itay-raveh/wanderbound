@@ -3,10 +3,6 @@ export interface Range {
   end: number;
 }
 
-/**
- * Parse a serialized SliceList string (e.g. "0-20, 30-40") into an array of
- * { start, end } ranges.
- */
 export function toRangeList(str: string): Range[] {
   if (!str || !str.trim()) return [];
   return str.split(",").map((part) => {

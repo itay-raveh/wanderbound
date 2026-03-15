@@ -31,7 +31,7 @@ const records = computed<ExtremeRecord[]>(() => {
   const steps = props.steps;
   if (steps.length === 0) return [];
 
-  // ── Temperature extremes (use feels_like, check night for coldest) ──
+  // Use feels_like for temperature; check night for coldest
   let coldStep = steps[0]!;
   let coldFeels = coldStep.weather.day.feels_like;
   let coldIsNight = false;
@@ -56,7 +56,7 @@ const records = computed<ExtremeRecord[]>(() => {
     }
   }
 
-  // ── Elevation extreme (highest only — lowest is often 0m / uninteresting) ──
+  // Highest only — lowest is often 0m / uninteresting
   let highestStep = steps[0]!;
 
   for (const step of steps) {

@@ -158,7 +158,6 @@ const dateStr = computed(() => {
   padding: 2.5rem 2.5rem 0 3rem;
 }
 
-// ─── Silhouette + Coords ───
 .silhouette-row {
   display: flex;
   gap: 1rem;
@@ -186,7 +185,6 @@ const dateStr = computed(() => {
   white-space: pre;
 }
 
-// ─── Name Block ───
 .name-block {
   display: flex;
   flex-direction: column;
@@ -222,7 +220,6 @@ const dateStr = computed(() => {
   color: var(--text-bright);
 }
 
-// ─── Description ───
 .description {
   font-size: 0.75rem;
   line-height: 1.65;
@@ -234,7 +231,6 @@ const dateStr = computed(() => {
   margin-bottom: 0.75rem;
 }
 
-// ─── Bottom Section ───
 .bottom-section {
   margin-top: auto;
   display: flex;
@@ -243,7 +239,6 @@ const dateStr = computed(() => {
   padding-bottom: 2.5rem;
 }
 
-// ─── Stats Bar ───
 .stats-bar {
   display: flex;
   align-items: flex-end;
@@ -279,7 +274,6 @@ const dateStr = computed(() => {
   color: var(--text-bright);
 }
 
-// ─── Weather ───
 .weather-col {
   gap: 0;
 }
@@ -306,7 +300,6 @@ const dateStr = computed(() => {
   flex-shrink: 0;
 }
 
-// ─── Progress Section ───
 .progress-section {
   position: relative;
 }
@@ -362,7 +355,6 @@ const dateStr = computed(() => {
   background: v-bind(countryColor);
 }
 
-// ─── Compact (long-desc) Mode ───
 .meta-panel.compact {
   display: grid;
   grid-template-columns: 1fr 1fr;

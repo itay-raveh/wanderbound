@@ -227,8 +227,7 @@ async function handleDelete() {
   }
 }
 
-// ─── Settings Card (rendered inside teleported QMenu, but scoped attrs are preserved) ───
-
+// Rendered inside teleported QMenu, but scoped attrs are preserved
 .settings-card {
   padding: 0.75rem;
   min-width: 15rem;

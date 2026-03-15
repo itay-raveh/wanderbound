@@ -1,8 +1,3 @@
-/**
- * Draw GPS segments and step markers on a Mapbox GL map.
- *
- * Used by both MapPage (overview) and HikeMapPage (hike-focused).
- */
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
