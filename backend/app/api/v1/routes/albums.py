@@ -1,9 +1,19 @@
+from collections.abc import AsyncIterable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
-from fastapi.responses import Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    status,
+)
+from fastapi.responses import FileResponse
+from fastapi.sse import EventSourceResponse
 
-from app.logic.pdf import render_album_pdf
+from app.logic.pdf import PdfEvent, pop_pdf_path, render_album_pdf_stream
 from app.models.album import Album, AlbumData, AlbumUpdate
 from app.models.ids import AlbumId, StepIdx
 from app.models.step import Step, StepUpdate
@@ -65,16 +75,35 @@ async def update_step(
     return step
 
 
-@router.post("/{aid}/pdf")
-async def export_pdf(
+@router.post(
+    "/{aid}/pdf/generate",
+    response_class=EventSourceResponse,
+    responses={200: {"model": list[PdfEvent]}},
+)
+async def generate_pdf(
     aid: AlbumId,
     user: UserDep,
     browser: BrowserDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
-) -> Response:
-    pdf_bytes = await render_album_pdf(browser, user, aid, dark=dark)
-    return Response(
-        content=pdf_bytes,
+) -> AsyncIterable[PdfEvent]:
+    async for event in render_album_pdf_stream(browser, user, aid, dark=dark):
+        yield event
+
+
+@router.get("/{aid}/pdf/download/{token}")
+async def download_pdf(
+    aid: AlbumId,
+    token: str,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    path = pop_pdf_path(token)
+    if path is None or not path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
+        )
+    background_tasks.add_task(path.unlink, missing_ok=True)
+    return FileResponse(
+        path,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{aid}.pdf"'},
+        filename=f"{aid}.pdf",
     )

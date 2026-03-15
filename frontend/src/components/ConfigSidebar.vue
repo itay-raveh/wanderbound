@@ -4,7 +4,7 @@ import { toRangeList } from "@/utils/ranges";
 import { chooseTextDir } from "@/utils/text";
 import { isVideo } from "@/utils/media";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { useExportPdfMutation } from "@/queries/useExportPdfMutation";
+import { usePdfExportStream } from "@/composables/usePdfExportStream";
 import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import { symOutlinedFlightTakeoff, symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 import { computed } from "vue";
@@ -17,7 +17,8 @@ const props = defineProps<{
 const albumId = defineModel<string | null>("albumId");
 
 const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
-const pdfMutation = useExportPdfMutation(() => props.album?.id ?? "");
+const pdf = usePdfExportStream(() => props.album?.id ?? "");
+const pdfBusy = computed(() => pdf.state.value !== "idle" && pdf.state.value !== "error");
 
 function save(patch: AlbumUpdate) {
   if (!props.album) return;
@@ -57,15 +58,9 @@ const landscapePhotos = computed(() => {
   );
 });
 
-async function onExportPdf() {
+function onExportPdf() {
   if (!props.album) return;
-  const blob = await pdfMutation.mutateAsync();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${props.album.title || props.album.id}.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  pdf.start();
 }
 </script>
 
@@ -178,13 +173,16 @@ async function onExportPdf() {
     <div v-if="album" class="sidebar-footer">
       <button
         class="export-btn"
-        :disabled="pdfMutation.isLoading.value"
+        :disabled="pdfBusy"
         @click="onExportPdf"
       >
-        <q-spinner-dots v-if="pdfMutation.isLoading.value" size="1.25rem" color="white" />
+        <q-spinner-dots v-if="pdfBusy" size="1.25rem" color="white" />
         <q-icon v-else :name="symOutlinedPictureAsPdf" size="1.25rem" />
-        <span>{{ pdfMutation.isLoading.value ? "Generating..." : "Export PDF" }}</span>
+        <span>{{ pdf.buttonLabel.value }}</span>
       </button>
+      <div v-if="pdfBusy" class="pdf-progress">
+        <div class="pdf-progress-bar" :style="{ width: `${pdf.progress.value * 100}%` }" />
+      </div>
     </div>
   </div>
 </template>
@@ -334,5 +332,20 @@ async function onExportPdf() {
     opacity: 0.65;
     cursor: not-allowed;
   }
+}
+
+.pdf-progress {
+  height: 3px;
+  margin-top: 0.375rem;
+  border-radius: 2px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.pdf-progress-bar {
+  height: 100%;
+  background: var(--q-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 </style>
