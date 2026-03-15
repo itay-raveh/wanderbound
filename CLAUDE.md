@@ -1,10 +1,8 @@
-# Architecture Reference
-
-Read `ARCHITECTURE.md` before exploring the codebase — it maps every file, data flow, and key type. **After any structural change** (new/moved/deleted files, changed data flows, new dependencies, schema changes), update `ARCHITECTURE.md` to match.
-
 # Project Philosophy
 
-This is a personal project in very early pre-alpha. There are NO users, NO backward compatibility concerns, NO legacy constraints. We prefer to redo things correctly from scratch over preserving existing code.
+This is a personal project in very early pre-alpha. There are NO users, NO backward compatibility concerns, NO legacy constraints. Every part of this codebase — the schema, the architecture, the module boundaries, the feature design — is open to being rethought and rebuilt from scratch at any time. The question is never "how do I fix what's here" but "what's the right way to build this?"
+
+**Before making large changes, read `ARCHITECTURE.md` for codebase orientation.** Check `SUGGESTIONS.md` for pending architectural proposals (implement any marked `APPROVED`).
 
 ## Tech Stack
 
@@ -43,13 +41,14 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 
 ## Core Principles
 
-- **Less code is better.** The best refactor deletes code. If something can be achieved in fewer lines without sacrificing clarity, do it.
-- **Use the platform and ecosystem.** Prefer built-in language features, standard library functions, and well-known packages over custom implementations. Never hand-roll something that a mature library already does well.
-- **Idiomatic and canonical.** Write code the way the language/framework community writes it. Follow the "blessed path." If there's a well-known pattern for something, use it — don't invent a novel approach.
-- **Single source of truth.** Every value, configuration, constant, or piece of knowledge must live in exactly one place. Derive everything else from that source. Hunt down and eliminate magic numbers, duplicated constants, and values that are implicitly calculated from other values.
-- **No future-proofing.** Do not add abstraction layers, extension points, plugin systems, or flexibility "for later." Solve today's problem in the simplest way. We will refactor when needs change — that is cheap and preferred.
-- **No backward compatibility.** There are no consumers of this code. Feel free to change any interface, rename anything, restructure any module. Breaking changes are free.
-- **Prefer bold changes over local hacks.** If the right fix requires restructuring a module, changing a function signature across 20 call sites, or deleting an entire file and rewriting it — do that. Do NOT add a workaround, shim, adapter, or compatibility layer.
+- **Think top-down, not bottom-up.** Before touching any code, ask: "If I were building this from scratch today, would I design it this way?" If no, redesign it — don't patch it. This applies at every level: the system architecture, the database schema, the module structure, the individual function.
+- **Less code is better.** The best change deletes code. An entire module replaced by a library. Five files merged into one. A 200-line feature rewritten in 40 lines with a better approach. Measure improvement in code deleted, not code added.
+- **Rewrite over patch.** If a module, feature, or system is built on the wrong foundation, do not layer fixes on top. Rewrite it from scratch with the right design. This is pre-alpha — rewrites are cheap, accumulated patches are expensive.
+- **Use the platform and ecosystem.** Prefer built-in language features, standard library functions, and well-known packages over custom implementations. If a mature library does it, delete your version. If the framework has a pattern for it, use that pattern.
+- **Idiomatic and canonical.** Write code the way the language/framework community writes it. Follow the "blessed path." If there's a well-known architecture for this kind of app, use it — don't invent a novel one.
+- **Single source of truth.** Every value, configuration, constant, or piece of knowledge must live in exactly one place. Derive everything else from that source. This applies to code, config, schema definitions, and documentation.
+- **No future-proofing.** Do not add abstraction layers, extension points, plugin systems, or flexibility "for later." Solve today's problem in the simplest way. We will redesign when needs change.
+- **No backward compatibility.** There are no users or consumers. Change any interface, rename anything, restructure any module, alter the schema, rewrite any feature. Breaking changes are free.
 
 ## Documentation
 
@@ -81,6 +80,14 @@ Add logging wherever it helps debugging, monitoring, or understanding system beh
 
 ## Anti-Patterns to Actively Eliminate
 
+**System level:**
+- A service, module, or layer that exists "for separation" but adds no value — merge or delete it
+- A schema designed around the code's needs rather than the domain's reality — reshape it
+- Data passing through unnecessary transformations, adapters, or serialization steps between layers
+- Hand-built infrastructure (auth, caching, queuing, task scheduling, rate limiting) when a standard tool exists
+- Artificial file/module separation (types.ts, constants.ts, utils.ts, helpers.ts) that scatters related code — colocate by feature
+
+**Code level:**
 - Custom utility functions that duplicate standard library or well-known package functionality
 - Abstraction layers with only one implementation
 - Configuration systems for things that could be constants
