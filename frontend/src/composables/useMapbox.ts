@@ -1,6 +1,6 @@
 import mapboxgl from "mapbox-gl";
 
-import { onBeforeUnmount, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
+import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -88,20 +88,23 @@ export function useMapbox(options: UseMapboxOptions) {
   let resizeObserver: ResizeObserver | null = null;
   let resizeRaf = 0;
 
-  function startResizeObserver() {
+  onMounted(() => {
+    init();
+
     const el = options.container.value;
-    if (!el) return;
-    resizeObserver = new ResizeObserver(() => {
-      cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(() => map.value?.resize());
-    });
-    resizeObserver.observe(el);
-  }
+    if (el) {
+      resizeObserver = new ResizeObserver(() => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => map.value?.resize());
+      });
+      resizeObserver.observe(el);
+    }
+  });
 
   onBeforeUnmount(() => {
     resizeObserver?.disconnect();
     destroy();
   });
 
-  return { map, init, fitBounds, startResizeObserver };
+  return { map, fitBounds };
 }

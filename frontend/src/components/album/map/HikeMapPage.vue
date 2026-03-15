@@ -9,7 +9,7 @@ import { KM_TO_MI, M_TO_FT } from "@/utils/units";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
-import { onMounted, useTemplateRef, computed, ref } from "vue";
+import { useTemplateRef, computed, ref } from "vue";
 import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
 
@@ -22,10 +22,6 @@ const props = defineProps<{
 const { albumId, colors } = useAlbum();
 const container = useTemplateRef("hike-map");
 const { distanceUnit, isKm, locale } = useUserQuery();
-const { map, init, fitBounds, startResizeObserver } = useMapbox({
-  container,
-  locale,
-});
 
 const countryColor = computed(() => {
   if (!props.steps.length) return getCountryColor({}, "");
@@ -128,13 +124,10 @@ function queryElevations(m: mapboxgl.Map) {
   elevationSamples.value = samples;
 }
 
-onMounted(() => {
-  init();
-  startResizeObserver();
-
-  map.value?.on("load", () => {
-    const m = map.value!;
-
+const { fitBounds } = useMapbox({
+  container,
+  locale,
+  onReady: (m) => {
     try {
       // Enable Mapbox terrain DEM for elevation queries
       m.addSource("mapbox-dem", {
@@ -185,7 +178,7 @@ onMounted(() => {
         console.warn("[hike-map] segment drawing failed:", e);
       }
     })();
-  });
+  },
 });
 </script>
 
