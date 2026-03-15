@@ -53,16 +53,9 @@ onUnmounted(() => observer?.disconnect());
 </template>
 
 <style scoped>
-/*
- * Placeholder height derived from the same CSS values that size actual pages:
- *   page height = 210mm (A4 landscape height)
- *   editor zoom = var(--editor-zoom, 1)   (set on .album-container)
- *   margin      = 0.75rem per page
- * Plus optional editor chrome (add-zone + unused sidebar).
- */
 .lazy-placeholder {
   min-height: calc(
-    var(--section-pages, 1) * (210mm * var(--editor-zoom, 1) + 0.75rem)
+    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
     + var(--section-chrome, 0rem)
   );
 }

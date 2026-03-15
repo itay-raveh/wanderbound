@@ -225,7 +225,7 @@ if (!printMode) {
 
 .add-zone {
   position: relative;
-  width: calc(297mm * var(--editor-zoom));
+  width: calc(var(--page-width) * var(--editor-zoom));
   margin: 0.5rem auto;
   min-height: 3.5rem;
 }
@@ -288,10 +288,10 @@ if (!printMode) {
 
 @media print {
   :deep(.page-container) {
-    width: 297mm !important;
-    height: 210mm !important;
-    max-width: 297mm !important;
-    max-height: 210mm !important;
+    width: var(--page-width) !important;
+    height: var(--page-height) !important;
+    max-width: var(--page-width) !important;
+    max-height: var(--page-height) !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
     page-break-after: always;

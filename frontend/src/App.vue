@@ -14,6 +14,10 @@ import { RouterView } from "vue-router";
 /* Design tokens (theme-independent) */
 
 :root {
+  /* A4 landscape page dimensions (single source of truth for album pages). */
+  --page-width: 297mm;
+  --page-height: 210mm;
+
   /* Type scale — derived from Quasar SASS overrides in quasar-variables.sass. */
   --text-sm: #{$caption-font-size};
   --text-base: #{$body2-font-size};

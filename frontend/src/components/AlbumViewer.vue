@@ -227,8 +227,8 @@ if (props.printMode) {
 <style lang="scss" scoped>
 // :deep needed because page-containers live inside child components
 :deep(.page-container) {
-  width: 297mm;
-  height: 210mm;
+  width: var(--page-width);
+  height: var(--page-height);
   background-color: var(--page-bg, var(--bg));
   contain: content;
 }
@@ -251,8 +251,8 @@ if (props.printMode) {
 
   // Map wrapper: fixed layout size matching zoomed page dimensions
   .map-wrapper {
-    width: calc(297mm * var(--editor-zoom));
-    height: calc(210mm * var(--editor-zoom));
+    width: calc(var(--page-width) * var(--editor-zoom));
+    height: calc(var(--page-height) * var(--editor-zoom));
     margin: 0 auto 0.75rem;
     overflow: hidden;
     border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);

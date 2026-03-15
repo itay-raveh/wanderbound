@@ -50,7 +50,7 @@ function emitUnused() {
   bottom: 0;
   z-index: 10;
   width: 100%;
-  max-width: calc(297mm * var(--editor-zoom));
+  max-width: calc(var(--page-width) * var(--editor-zoom));
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: 0.5rem;
