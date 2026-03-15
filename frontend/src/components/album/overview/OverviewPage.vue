@@ -30,12 +30,12 @@ const daysCount = computed(() => {
   return getDateDiff(end, start, "days").toLocaleString(locale.value);
 });
 
-const photosCount = computed(() =>
-  props.steps
-    .flatMap(({ pages }) => pages.flatMap((page) => page.length))
-    .reduce((a, b) => a + b, 0)
-    .toLocaleString(locale.value),
-);
+const photosCount = computed(() => {
+  let n = 0;
+  for (const { pages } of props.steps)
+    for (const page of pages) n += page.length;
+  return n.toLocaleString(locale.value);
+});
 
 const countries = computed(() =>
   Object.entries(
