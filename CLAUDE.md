@@ -32,6 +32,13 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - Use Pinia for shared state — don't roll custom stores or event buses
 - Use `v-model` and built-in directives — don't reimplement two-way binding
 - Colocate components with their route when possible
+- Keep components small and single-purpose — if a component exceeds ~150 lines, it's probably doing too much; split it
+- API calls belong in composables or a thin API layer — not scattered across components
+- Use TypeScript with strict mode — types are documentation
+- Derive frontend state from the backend wherever possible — don't maintain parallel data models that duplicate what the API already provides
+- Use Vue's built-in reactivity (`ref`, `computed`, `watch`) correctly — don't fight it with manual DOM manipulation or redundant state
+- Handle loading, error, and empty states consistently — pick one pattern and reuse it, don't reinvent per component
+- Prefer native HTML elements and CSS over heavy component libraries — unless the project has already committed to one
 
 **Docker / Nginx:**
 - Keep Dockerfiles minimal — multi-stage builds, small base images
@@ -108,7 +115,24 @@ Add logging wherever it helps debugging, monitoring, or understanding system beh
 - A schema designed around the code's needs rather than the domain's reality — reshape it
 - Data passing through unnecessary transformations, adapters, or serialization steps between layers
 - Hand-built infrastructure (auth, caching, queuing, task scheduling, rate limiting) when a standard tool exists
+- **Backend organized by type instead of domain** — `models/`, `schemas/`, `routers/` directories scattering related code. Reorganize by domain: `users/`, `items/`, etc., each containing its own models, schemas, router
+- Artificial file/module separation (types.ts, constants.ts, utils.ts, helpers.ts) that scatters related code — colocate by feature/domain
+- A `utils/` or `helpers/` grab bag — each utility belongs in the domain that uses it, or in `core/` if genuinely cross-cutting
+- Frontend and backend duplicating the same knowledge (validation rules, enums, constants, type shapes) — pick one source of truth
+- API response shapes that force the frontend to do heavy transformation — fix the API, not the frontend
 - Catch-all files that lump unrelated concepts (types.py, constants.ts, utils.ts, helpers.ts) — organize by domain instead, one concept per file. Exception: DB table classes can share a file when practical
+
+
+**Frontend level:**
+- God components (500+ line single-file components doing layout, logic, API calls, and state management) — split by responsibility
+- Prop drilling through 3+ levels — use Pinia or provide/inject
+- Duplicated API response types that don't match the backend — derive or share types from one source
+- Manual DOM manipulation (`document.querySelector`, `innerHTML`) — use Vue's reactivity and refs
+- Custom state synchronization logic when a Pinia store or a composable would do
+- Reimplementing form validation, date formatting, or HTTP error handling per-component — centralize in composables
+- Inconsistent error/loading/empty state handling across views — pick one pattern, make it a composable, use it everywhere
+- Fetching the same data in multiple components — lift to a shared composable or store
+- Fat API layer with per-endpoint wrapper functions that just call fetch — use a thin generic client
 
 **Code level:**
 - Custom utility functions that duplicate standard library or well-known package functionality
