@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import countryBounds from "@/countries/bounds.json";
+import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 
 const props = defineProps<{
@@ -15,6 +16,10 @@ const bounds = countryBounds as unknown as Record<string, [number, number, numbe
 const WEB_MERCATOR_EXTENT = 20037508.34;
 
 const fillColor = computed(() => props.color ?? "currentColor");
+const dotColor = computed(() => {
+  if (!props.color) return "currentColor";
+  return qColors.lighten(props.color, Dark.isActive ? 40 : -40);
+});
 const code = computed(() => props.countryCode.toLowerCase());
 const svgHref = computed(() => `/countries/${code.value}.svg#map`);
 
@@ -82,7 +87,7 @@ const viewBox = computed(() => {
       :cx="pin.x"
       :cy="pin.y"
       :r="pin.r"
-      fill="white"
+      :fill="dotColor"
       :filter="`url(#glow-${countryCode})`"
     />
   </svg>

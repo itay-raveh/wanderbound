@@ -356,10 +356,12 @@ const dateStr = computed(() => {
   margin-top: 0.25rem;
 }
 
+// Arrow + badge both clamped so the arrow never escapes the badge box.
+// 5px = arrow half-width (border-left/right).
 .badge-arrow {
   position: absolute;
   top: 0;
-  left: var(--progress);
+  left: clamp(5px, var(--progress), calc(100% - 5px));
   transform: translateX(-50%);
   width: 0;
   height: 0;
@@ -368,7 +370,6 @@ const dateStr = computed(() => {
   border-bottom: 5px solid v-bind(countryColor);
 }
 
-// Badge clamped to stay within the track edges.
 // 1px overlap with arrow (top: 4px instead of 5px) prevents sub-pixel gaps.
 .step-badge {
   --half-w: 1.75rem;
