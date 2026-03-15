@@ -89,6 +89,7 @@ DEP002 = [
     "deptry",
     "uvicorn",
     "python-multipart",
+    "psycopg",  # SQLAlchemy driver loaded via postgresql+psycopg:// URI
 ]
 # DEP003 = "Transitive dependency"
 DEP003 = ["app"]
