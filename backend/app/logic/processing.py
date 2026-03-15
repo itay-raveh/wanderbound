@@ -46,7 +46,6 @@ async def _track_iter[T](
     source: AsyncIterator[T],
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> list[T]:
-    """Consume an async iterator while reporting progress to the queue."""
     await queue.put(PhaseUpdate(phase=phase, done=0, total=total))
     results: list[T] = []
     async for item in source:
@@ -61,7 +60,6 @@ async def _run_phase(
     worker: Callable[[Path], Coroutine[Any, Any, None]],
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> None:
-    """Run a concurrent processing phase with progress reporting."""
     if not files:
         return
     total = len(files)
@@ -78,7 +76,6 @@ _cover_client = cached_client()
 
 
 async def _download_cover(url: HttpUrl, dest: Path) -> None:
-    """Download a Polarsteps cover photo into the album media folder."""
     resp = await _cover_client.get(str(url))
     resp.raise_for_status()
     await asyncio.to_thread(dest.write_bytes, resp.content)
@@ -332,7 +329,6 @@ async def _process_trip(  # noqa: C901, PLR0915
 
 
 async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
-    """Core processing logic — yields events for a full processing run."""
     trip_dirs = sorted(user.trips_folder.iterdir())
     all_objects: list[DbRow] = []
     try:

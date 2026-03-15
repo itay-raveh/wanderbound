@@ -35,7 +35,6 @@ _LONG_DESCRIPTION_THRESHOLD = 1200
 
 
 def _visual_length(text: str) -> int:
-    """Estimate character consumption by simulating line wrapping."""
     if not text:
         return 0
     lines = 0
@@ -79,7 +78,6 @@ def _three_page_count(n: int) -> int:
 
 
 def _pages_of(items: Iterable[str], size: int) -> Iterable[list[str]]:
-    """Yield pages of the given size from items."""
     yield from (list(batch) for batch in batched(items, size, strict=False))
 
 

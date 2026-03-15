@@ -110,7 +110,6 @@ RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 
 def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
-    """Convert an iterable of Points to a column-oriented Polars DataFrame."""
     points = list(pts)
     if not points:
         return pl.DataFrame(
@@ -440,7 +439,6 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _absorb(df: pl.DataFrame) -> pl.DataFrame:
-    """Run both absorption passes and assign segment IDs."""
     df = _absorb_noise_gaps(df)
     df = _absorb_long_gaps(df)
     return df.with_columns(pl.col("mode").rle_id().alias("segment_id"))
@@ -522,7 +520,6 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
 
 
 def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
-    """Yield segments: simplify, resolve kinds, stitch consecutive segments."""
     first_step_ts = steps[0].datetime.timestamp()
     prev_last_pt: Point | None = None
 
@@ -555,7 +552,6 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
 def build_segments(
     steps: Sequence[Step], locations: Iterable[Point]
 ) -> Iterable[SegmentData]:
-    """Run the full pipeline: ingest → label → absorb → validate → emit."""
     if not steps:
         return iter([])
 

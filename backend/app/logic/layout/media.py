@@ -33,7 +33,6 @@ def _generate_thumbnails_sync(path: Path) -> None:
 
 
 async def generate_thumbnails(path: Path) -> None:
-    """Pre-generate WebP thumbnails at multiple widths."""
     await asyncio.to_thread(_generate_thumbnails_sync, path)
 
 
@@ -55,7 +54,6 @@ def is_video(name: str) -> bool:
 
 
 async def _video_dimensions(path: Path) -> tuple[int, int]:
-    """Get video display dimensions via ffprobe, accounting for rotation."""
     proc = await asyncio.create_subprocess_exec(
         "ffprobe",
         "-v",
@@ -116,7 +114,6 @@ class Media(BaseModel):
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        """Load photo dimensions from a JPEG, accounting for EXIF rotation."""
         with Image.open(path) as img:
             width, height = img.size
             if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
@@ -129,7 +126,6 @@ class Media(BaseModel):
 
     @classmethod
     async def probe(cls, path: Path) -> Self:
-        """Get video display dimensions via ffprobe."""
         w, h = await _video_dimensions(path)
         return cls(
             name=normalize_name(path.name),
