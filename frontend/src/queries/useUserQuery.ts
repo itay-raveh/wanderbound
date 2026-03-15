@@ -47,6 +47,14 @@ export function useUserQuery() {
     return date.toLocaleDateString(locale.value, options);
   }
 
+  function formatDateRange(
+    start: Date,
+    end: Date,
+    options: Intl.DateTimeFormatOptions,
+  ): string {
+    return new Intl.DateTimeFormat(locale.value, options).formatRange(start, end);
+  }
+
   return {
     ...query,
     user,
@@ -59,5 +67,6 @@ export function useUserQuery() {
     formatElevationValue,
     formatElevation,
     formatDate,
+    formatDateRange,
   };
 }
