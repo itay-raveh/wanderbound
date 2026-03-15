@@ -179,6 +179,7 @@ if (!printMode) {
 
 <style lang="scss" scoped>
 .step-entry {
+  --meta-width: 42%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -194,7 +195,7 @@ if (!printMode) {
   top: 0;
   right: 0;
   bottom: 0;
-  left: 42%;
+  left: var(--meta-width);
   z-index: 1;
   overflow: hidden;
   pointer-events: none;

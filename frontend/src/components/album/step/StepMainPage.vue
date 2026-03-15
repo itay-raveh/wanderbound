@@ -62,7 +62,7 @@ const isLongDesc = computed(
 }
 
 .meta-side {
-  flex: 0 0 42%;
+  flex: 0 0 var(--meta-width);
 }
 
 .content-panel {
@@ -104,7 +104,6 @@ const isLongDesc = computed(
   box-sizing: border-box;
 }
 
-// ─── Long Description Layout ───
 .step-main.long-desc {
   flex-direction: column;
 
