@@ -80,7 +80,7 @@ async def update_video_frame(
     timestamp: Annotated[float, Query()],
 ) -> None:
     if not is_video(name):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a video")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Not a video")
     poster_path = await extract_frame(_resolve_media(user, aid, name), timestamp)
     await generate_thumbnails(poster_path)
     logger.info("Re-extracted frame for %s at t=%.1fs", name, timestamp)
