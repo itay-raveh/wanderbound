@@ -21,7 +21,8 @@ const props = defineProps<{
 
 const { colors, tripStart, totalDays } = useAlbum();
 
-const { formatTemp, formatElevationValue, formatDate, isKm, locale } = useUserQuery();
+const { formatTemp, formatElevationValue, formatDate, isKm, locale } =
+  useUserQuery();
 
 // RTL direction based on locale (Hebrew, Arabic)
 const dir = computed(() => {
@@ -31,7 +32,7 @@ const dir = computed(() => {
 
 const countryColor = computed(() => {
   const hex = getCountryColor(colors.value, props.step.location.country_code);
-  return Dark.isActive ? hex : qColors.lighten(hex, 30);
+  return qColors.lighten(hex, Dark.isActive ? -20 : 20);
 });
 
 function toDMS(decimal: number, isLat: boolean): string {
@@ -40,7 +41,13 @@ function toDMS(decimal: number, isLat: boolean): string {
   const mFull = (abs - d) * 60;
   const m = Math.floor(mFull);
   const s = Math.round((mFull - m) * 60);
-  const hemisphere = isLat ? (decimal >= 0 ? "N" : "S") : (decimal >= 0 ? "E" : "W");
+  const hemisphere = isLat
+    ? decimal >= 0
+      ? "N"
+      : "S"
+    : decimal >= 0
+      ? "E"
+      : "W";
   const dStr = String(d).padStart(3, " ");
   const mStr = String(m).padStart(2, " ");
   const sStr = String(s).padStart(2, " ");
@@ -94,7 +101,7 @@ const dateStr = computed(() => {
     <!-- Country + Step name -->
     <div class="name-block">
       <div class="country-row">
-        <img :src="flagUrl(step.location.country_code)" class="flag" alt="">
+        <img :src="flagUrl(step.location.country_code)" class="flag" alt="" />
         <span>{{ step.location.detail }}</span>
       </div>
       <h2 class="step-name">{{ step.name }}</h2>
@@ -121,26 +128,47 @@ const dateStr = computed(() => {
         <!-- Weather -->
         <div v-if="step.weather?.day" class="stat-col weather-col">
           <div v-if="step.weather?.night" class="weather-row weather-night">
-            <img :src="weatherIconUrl(step.weather.night.icon)" class="weather-icon-sm" alt="" />
-            <span class="stat-label">{{ formatTemp(step.weather.night.temp) }}</span>
+            <img
+              :src="weatherIconUrl(step.weather.night.icon)"
+              class="weather-icon-sm"
+              alt=""
+            />
+            <span class="stat-label">{{
+              formatTemp(step.weather.night.temp)
+            }}</span>
           </div>
           <div class="weather-row">
-            <img :src="weatherIconUrl(step.weather.day.icon)" class="weather-icon-lg" alt="" />
-            <span class="stat-value">{{ formatTemp(step.weather.day.temp) }}</span>
+            <img
+              :src="weatherIconUrl(step.weather.day.icon)"
+              class="weather-icon-lg"
+              alt=""
+            />
+            <span class="stat-value">{{
+              formatTemp(step.weather.day.temp)
+            }}</span>
           </div>
         </div>
 
         <!-- Elevation -->
         <div class="stat-col">
           <span class="stat-label">{{ isKm ? "M.A.S.L" : "FT A.S.L" }}</span>
-          <span class="stat-value">{{ formatElevationValue(step.elevation) }}</span>
+          <span class="stat-value">{{
+            formatElevationValue(step.elevation)
+          }}</span>
         </div>
       </div>
 
       <!-- Progress bar with day badge -->
-      <div class="progress-section" dir="ltr" :style="{ '--progress': `${progressPercent}%` }">
+      <div
+        class="progress-section"
+        dir="ltr"
+        :style="{ '--progress': `${progressPercent}%` }"
+      >
         <div class="progress-track">
-          <div :style="{ width: `${progressPercent}%` }" class="progress-fill" />
+          <div
+            :style="{ width: `${progressPercent}%` }"
+            class="progress-fill"
+          />
         </div>
         <div class="badge-rail">
           <div class="badge-arrow" />
@@ -176,7 +204,9 @@ const dateStr = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  font-family: "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-family:
+    "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", ui-monospace,
+    monospace;
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -344,7 +374,11 @@ const dateStr = computed(() => {
   --half-w: 1.75rem;
   position: absolute;
   top: 4px;
-  left: clamp(0px, calc(var(--progress) - var(--half-w)), calc(100% - 2 * var(--half-w)));
+  left: clamp(
+    0px,
+    calc(var(--progress) - var(--half-w)),
+    calc(100% - 2 * var(--half-w))
+  );
   font-size: 0.55rem;
   font-weight: 700;
   color: var(--text-bright);
