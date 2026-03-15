@@ -21,8 +21,6 @@ async def _get_session() -> AsyncGenerator[AsyncSession]:
 
 SessionDep = Annotated[AsyncSession, Depends(_get_session)]
 
-USER_COOKIE = "uid"
-
 
 async def _get_user(
     session: SessionDep, uid: Annotated[int | None, Cookie()] = None

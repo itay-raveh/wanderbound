@@ -24,13 +24,13 @@ backend/
   app/
     main.py                 FastAPI app, lifespan (Playwright browser on app.state), middleware
     core/
-      config.py             Pydantic Settings (reads ../.env)
+      config.py             Pydantic Settings (reads ../.env), USER_COOKIE constant
       db.py                 Async SQLAlchemy engine, PydanticJSON column type, all_optional helper
       http.py               Shared httpx AsyncClient factory (SQLite cache + retries)
       logging.py            Rich-based access log handler
     api/v1/
       router.py             Mounts users, albums, assets routers + /health
-      deps.py               SessionDep, UserDep (cookie-based uid auth), BrowserDep, USER_COOKIE
+      deps.py               SessionDep, UserDep (cookie-based uid auth), BrowserDep
       routes/
         users.py            POST (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf

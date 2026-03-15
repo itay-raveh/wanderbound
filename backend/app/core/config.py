@@ -70,3 +70,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
+
+USER_COOKIE = "uid"

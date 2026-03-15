@@ -1,8 +1,7 @@
 import logging
 from typing import TYPE_CHECKING
 
-from app.api.v1.deps import USER_COOKIE
-from app.core.config import settings
+from app.core.config import USER_COOKIE, settings
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser
