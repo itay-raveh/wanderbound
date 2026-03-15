@@ -69,3 +69,15 @@
 **Proposed fix:** Use `itsdangerous.URLSafeSerializer` (already a transitive dep via Flask ecosystem, or add directly — 50KB, well-maintained) to sign the user ID with a server-side secret from `settings.SECRET_KEY`. The cookie becomes `uid=<signed_token>`. `UserDep` in `deps.py` verifies the signature before trusting the user ID. This makes cookie forgery impossible without the server secret.
 
 **Files affected:** ~3 — `config.py` (add SECRET_KEY), `users.py` (sign on set), `deps.py` (verify on read)
+
+---
+
+## 2025-03-15 — Reduce Uvicorn workers to 1 (eliminate redundant Chromium browsers)
+
+**Status:** `PENDING`
+
+**Problem:** The production `CMD` in `backend/Dockerfile` runs Uvicorn with `--workers 3`. Each worker is a separate process that runs the FastAPI lifespan, which launches a Chromium browser instance via Playwright (`main.py:32`). This means 3 Chromium browsers are running simultaneously, consuming ~600MB–1.5GB of RAM collectively — for a feature (PDF export) used once per album editing session. Since all endpoints are `async def` and blocking work is offloaded to `asyncio.to_thread()`, a single worker handles concurrent I/O efficiently without multiple processes.
+
+**Proposed fix:** Remove `--workers 3` from the Dockerfile CMD (Uvicorn defaults to 1 worker). This cuts Chromium memory usage by ~66%. Combined with the PDF semaphore suggestion, a single worker with serialized PDF rendering handles all traffic without risk of OOM. If CPU-bound throughput becomes an issue later (e.g., image processing), the solution is to move that work to a task queue rather than adding Uvicorn workers.
+
+**Files affected:** 1 — `backend/Dockerfile`
