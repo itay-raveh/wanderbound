@@ -16,11 +16,12 @@ from httpx import AsyncBaseTransport, AsyncHTTPTransport, Request, Response
 from pydantic import BaseModel
 
 from app.core.http import cached_client
+from app.models.weather import Weather, WeatherData
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from app.logic.spatial.types import HasLatLon
+    from app.models.geo import HasLatLon
     from app.models.polarsteps import PSStep
 
 
@@ -117,17 +118,6 @@ _WMO_ICONS: dict[int, str] = {
     96: "thunderstorms-day-rain",
     99: "thunderstorms-day-rain",
 }
-
-
-class WeatherData(BaseModel):
-    temp: float
-    feels_like: float
-    icon: str
-
-
-class Weather(BaseModel):
-    day: WeatherData
-    night: WeatherData | None = None
 
 
 def _wmo_icon(code: int, *, night: bool = False) -> str:

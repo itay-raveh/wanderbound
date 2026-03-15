@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 from app.core.db import all_optional
-from app.logic.country_colors import CountryCode, HexColor
+from app.models.geo import CountryCode, HexColor
 
 from .segment import Segment
 from .step import Step

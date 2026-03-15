@@ -27,7 +27,8 @@ from app.models.polarsteps import Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
-from app.services.open_meteo import Weather, build_weathers, elevations
+from app.models.weather import Weather
+from app.services.open_meteo import build_weathers, elevations
 
 logger = logging.getLogger(__name__)
 

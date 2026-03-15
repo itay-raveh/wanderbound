@@ -1,15 +1,13 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
 from coloraide import Color
-from pydantic import BaseModel, StringConstraints, TypeAdapter
+from pydantic import BaseModel, TypeAdapter
+
+from app.models.geo import CountryCode, HexColor
 
 if TYPE_CHECKING:
     from collections.abc import Container, Iterable
-
-CountryCode = Annotated[str, StringConstraints(to_lower=True, pattern="[a-zA-Z]{2}|00")]
-
-HexColor = Annotated[str, StringConstraints(to_lower=True, pattern="#[0-9a-fA-F]{6}")]
 
 
 class CountryColors(BaseModel):

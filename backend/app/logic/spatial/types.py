@@ -1,9 +1,3 @@
-from typing import Protocol
+from app.models.geo import HasLatLon, Lat, Lon
 
-type Lat = float
-type Lon = float
-
-
-class HasLatLon(Protocol):
-    lat: Lat
-    lon: Lon
+__all__ = ["HasLatLon", "Lat", "Lon"]

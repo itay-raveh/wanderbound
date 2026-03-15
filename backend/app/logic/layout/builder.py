@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from itertools import batched
 from math import ceil
 from typing import TYPE_CHECKING, NamedTuple
@@ -25,6 +26,26 @@ class Layout(NamedTuple):
 
 
 logger = logging.getLogger(__name__)
+
+# Layout heuristic for deciding whether a step description is "long"
+# (takes the full main page, so cover stays in the photo pages).
+# Chars-per-line and threshold are tuned to the A4-landscape step layout.
+_CHARS_PER_LINE = 80
+_LONG_DESCRIPTION_THRESHOLD = 1000
+
+
+def _visual_length(text: str) -> int:
+    """Estimate character consumption by simulating line wrapping."""
+    if not text:
+        return 0
+    lines = 0
+    for para in text.split("\n"):
+        lines += math.ceil(len(para) / _CHARS_PER_LINE) if para else 1
+    return lines * _CHARS_PER_LINE
+
+
+def _is_long_description(description: str) -> bool:
+    return _visual_length(description) > _LONG_DESCRIPTION_THRESHOLD
 
 
 def _portrait_page_count(n: int) -> int:
@@ -147,7 +168,7 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
     cover = portraits[0] if portraits else landscapes[0]
 
     # If it appears on the step page, remove it from the photo pages
-    if not step.is_long_description:
+    if not _is_long_description(step.description):
         if cover in portraits:
             portraits.remove(cover)
         else:

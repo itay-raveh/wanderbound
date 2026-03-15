@@ -10,7 +10,7 @@ from sqlmodel import JSON, Column, Field, SQLModel
 from app.core.db import PydanticJSON, all_optional
 from app.models.polarsteps import Location
 from app.models.types import AlbumId, StepIdx, UserId
-from app.services.open_meteo import Weather
+from app.models.weather import Weather
 
 
 class StepLayout(SQLModel):

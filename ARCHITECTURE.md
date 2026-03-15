@@ -36,7 +36,9 @@ backend/
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
         assets.py           GET /{aid}/media/{name} (thumbnails + originals), PATCH (video frame re-extract)
     models/
-      types.py              UserId, AlbumId, StepIdx, SegmentKind enum
+      types.py              Generic IDs (UserId, AlbumId, StepIdx) + SegmentKind enum
+      geo.py                Lat, Lon, HasLatLon protocol, CountryCode, HexColor
+      weather.py            Weather, WeatherData (stored in step.weather JSON column)
       user.py               User table (SQLModel) + UserUpdate
       album.py              Album table + AlbumUpdate + AlbumData response model
       step.py               Step table + StepUpdate (layout fields: cover, pages, unused)
@@ -57,8 +59,10 @@ backend/
         segments.py          GPS segmentation pipeline (ingest → label → absorb → validate → emit)
         simplify.py          Ramer-Douglas-Peucker line simplification
         peaks.py             OSM Overpass peak correction for DEM elevations
+        types.py             Re-exports Lat, Lon, HasLatLon from models/types
     services/
       open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
+                              (Weather/WeatherData types live in models/types.py)
     alembic/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Single initial migration (user, album, step, segment tables)
@@ -237,7 +241,7 @@ segment
 | `SegmentBase` | `models/segment.py` | Pipeline output (kind + points), also base for Segment table |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
 | `Point` | `models/polarsteps.py` | GPS point (lat, lon, time) — used in segments and locations |
-| `Weather`, `WeatherData` | `services/open_meteo.py` | Day/night weather with WMO icon names |
+| `Weather`, `WeatherData` | `models/weather.py` | Day/night weather with WMO icon names |
 | `ProcessingEvent` | `logic/processing.py` | Discriminated union: TripStart | PhaseUpdate | ErrorData |
 | `MediaName` | `logic/layout/media.py` | Annotated str with UUID_UUID.(jpg|mp4) pattern |
 | `Photo`, `Video` | `logic/layout/media.py` | Media metadata (dimensions, orientation, aspect ratio) |

@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
-from app.logic.country_colors import CountryCode
+from app.models.geo import CountryCode
 from app.models.polarsteps import PSTrip
 from app.models.user import User
 

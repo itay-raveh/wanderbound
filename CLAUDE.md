@@ -39,6 +39,28 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - All environment-specific values via env vars or `.env` files — never hardcoded in Dockerfiles or nginx conf
 - Docker Compose as the single source for service topology, ports, and dependencies
 
+## Research
+
+Do not assume your training data is current. Actively search the web before making decisions.
+
+**When to research:**
+- Before choosing or recommending a library/package — check if it's still maintained, if a better alternative has emerged, and what the current community consensus is
+- Before implementing a pattern — search the official docs to verify the current recommended approach (APIs change, best practices evolve)
+- When replacing custom code with a library — read the library's actual docs to use it correctly, not from memory
+- When redesigning a feature or module — look for blog posts, official guides, or well-known open-source projects that solve the same problem to see how they approach it
+- When unsure about the idiomatic way to do something in the stack — search for current examples
+
+**What to search:**
+- Official docs first: FastAPI docs, Vue 3 docs, SQLAlchemy 2.x docs, Pinia docs, Pydantic v2 docs
+- PyPI / npm for package discovery — look for well-maintained, widely-used packages rather than hand-rolling
+- Blog posts, conference talks, and tutorials from known authors for architectural patterns
+- GitHub repos of well-regarded open-source projects in the same stack for structural inspiration
+
+**How to apply:**
+- If research reveals a better approach than what exists in the codebase, switch to it — don't preserve the old approach out of inertia
+- If research reveals a package that replaces custom code, adopt it and delete the custom code
+- If the current docs disagree with what's in the codebase, trust the docs
+
 ## Core Principles
 
 - **Think top-down, not bottom-up.** Before touching any code, ask: "If I were building this from scratch today, would I design it this way?" If no, redesign it — don't patch it. This applies at every level: the system architecture, the database schema, the module structure, the individual function.
@@ -48,6 +70,7 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - **Idiomatic and canonical.** Write code the way the language/framework community writes it. Follow the "blessed path." If there's a well-known architecture for this kind of app, use it — don't invent a novel one.
 - **Single source of truth.** Every value, configuration, constant, or piece of knowledge must live in exactly one place. Derive everything else from that source. This applies to code, config, schema definitions, and documentation.
 - **No future-proofing.** Do not add abstraction layers, extension points, plugin systems, or flexibility "for later." Solve today's problem in the simplest way. We will redesign when needs change.
+- **Research before building.** Do not rely solely on training knowledge. Before implementing or redesigning anything non-trivial, search the web for: the current official documentation of the libraries/frameworks involved, modern packages that might solve the problem, blog posts and community best practices for the specific pattern. Prefer approaches backed by current docs over remembered patterns that may be outdated. If you discover a better library, pattern, or approach through research — use it, even if it means rethinking the current implementation.
 - **No backward compatibility.** There are no users or consumers. Change any interface, rename anything, restructure any module, alter the schema, rewrite any feature. Breaking changes are free.
 
 ## Documentation
@@ -85,10 +108,12 @@ Add logging wherever it helps debugging, monitoring, or understanding system beh
 - A schema designed around the code's needs rather than the domain's reality — reshape it
 - Data passing through unnecessary transformations, adapters, or serialization steps between layers
 - Hand-built infrastructure (auth, caching, queuing, task scheduling, rate limiting) when a standard tool exists
-- Artificial file/module separation (types.ts, constants.ts, utils.ts, helpers.ts) that scatters related code — colocate by feature
+- Catch-all files that lump unrelated concepts (types.py, constants.ts, utils.ts, helpers.ts) — organize by domain instead, one concept per file. Exception: DB table classes can share a file when practical
 
 **Code level:**
 - Custom utility functions that duplicate standard library or well-known package functionality
+- Using a library's old API when a simpler, newer API exists — check the current docs
+- Dependencies that are unmaintained, deprecated, or superseded — search for the current best option
 - Abstraction layers with only one implementation
 - Configuration systems for things that could be constants
 - Wrapper types/classes around simple primitives

@@ -68,7 +68,5 @@ class Settings(BaseSettings):
     def USERS_FOLDER(self) -> Path:
         return self.DATA_FOLDER / "users"
 
-    long_description_threshold: int = Field(default=1000, gt=0)
-
 
 settings = Settings()  # type: ignore[call-arg]
