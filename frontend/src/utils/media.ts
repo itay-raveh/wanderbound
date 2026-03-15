@@ -15,6 +15,7 @@ export function posterPath(path: string): string {
   return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
 }
 
+// Must match backend logic/layout/media.py THUMB_WIDTHS — backend generates thumbnails at these sizes.
 export const THUMB_WIDTHS = [400, 1200] as const;
 export const EDITOR_ZOOM = 0.7;
 export const SIZES_FULL = `calc(297mm * ${EDITOR_ZOOM})`;
