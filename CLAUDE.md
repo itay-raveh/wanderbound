@@ -51,6 +51,34 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - **No backward compatibility.** There are no consumers of this code. Feel free to change any interface, rename anything, restructure any module. Breaking changes are free.
 - **Prefer bold changes over local hacks.** If the right fix requires restructuring a module, changing a function signature across 20 call sites, or deleting an entire file and rewriting it — do that. Do NOT add a workaround, shim, adapter, or compatibility layer.
 
+## Documentation
+
+Code should be self-documenting through clear names, types, and structure. Comments explain WHY, never WHAT.
+
+**Hierarchy (use the lightest level that works):**
+1. **No comment needed** (the default) — function name, parameter names, types, and return type tell the full story. Most code should be at this level.
+2. **One-line docstring** — when the function name alone leaves ambiguity about intent, a single sentence clarifying the WHY is enough. Example: `"""Retry with backoff because the upstream API rate-limits aggressively."""`
+3. **Full docstring** — only for genuinely complex functions: non-obvious algorithms, important preconditions or side effects, tricky edge cases. Keep it short even then.
+
+**Rules:**
+- Never comment WHAT the code does — if the code needs a WHAT comment, rename things until it doesn't
+- Never leave auto-generated boilerplate docstrings (e.g., `"""Get the user."""` on `get_user()`)
+- Never comment out code — delete it; git has history
+- TODO comments are acceptable only with a concrete description of what and why, never bare `# TODO`
+
+## Logging
+
+Add logging wherever it helps debugging, monitoring, or understanding system behavior. Keep it clean and useful.
+
+**Rules:**
+- Use Python's `logging` module in the backend and `console` methods (or a lightweight wrapper) in the frontend — no custom logging frameworks
+- Use appropriate levels: `debug` for development detail, `info` for normal operations worth recording, `warning` for recoverable issues, `error` for failures
+- Log messages should be concise and include relevant context (IDs, counts, operation names) — not raw objects or full stack traces at info level
+- **Never log secrets, tokens, passwords, PII, or full request/response bodies** — sanitize or omit sensitive fields
+- Prefer structured values in log messages (e.g., `logger.info("Created order", extra={"order_id": id, "items": count})`) over f-string prose
+- Don't log inside tight loops or hot paths — one log per operation, not per iteration
+- Log at boundaries: incoming requests, outgoing calls, DB queries, startup/shutdown, errors, retries
+
 ## Anti-Patterns to Actively Eliminate
 
 - Custom utility functions that duplicate standard library or well-known package functionality
@@ -68,3 +96,12 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - Raw SQL strings when SQLAlchemy ORM does it
 - Options API or mixins in Vue when Composition API and composables do it
 - Duplicated port numbers, hostnames, or DB names across Dockerfiles, nginx conf, docker-compose, and app config — define once in `.env` or `docker-compose.yml` and reference everywhere
+- Comments that describe WHAT code does — if the code needs a WHAT comment, the code is unclear
+- Boilerplate docstrings that restate the function name
+- Commented-out code (delete it, git has history)
+- Logs that dump raw objects, full request bodies, or sensitive data
+- Custom logging frameworks when the standard library works
+
+## Compaction Instructions
+
+When compacting, always preserve: the full list of files modified in this session, any test or build failures encountered, the current refactoring focus area, and any SUGGESTION that was discussed or approved.
