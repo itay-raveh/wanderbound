@@ -1,11 +1,8 @@
 <script lang="ts" setup>
 import type { Album, AlbumUpdate } from "@/client";
 import { toRangeList } from "@/utils/ranges";
-import { chooseTextDir } from "@/utils/text";
-import { isVideo } from "@/utils/media";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import { symOutlinedFlightTakeoff, symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 import { computed } from "vue";
 
@@ -51,13 +48,6 @@ const toTitleCase = (str: string) =>
       (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase(),
     );
 
-const landscapePhotos = computed(() => {
-  const orientations = (props.album?.orientations ?? {}) as Record<string, string>;
-  return Object.keys(orientations).filter(
-    (name) => orientations[name] === "l" && !isVideo(name),
-  );
-});
-
 function onExportPdf() {
   if (!props.album) return;
   pdf.start();
@@ -90,52 +80,6 @@ function onExportPdf() {
       <div class="divider" />
 
       <template v-if="album">
-        <!-- Album details -->
-        <div class="section">
-          <div class="section-label">Details</div>
-          <q-input
-            :model-value="album.title"
-            :dir="chooseTextDir(album.title)"
-            class="sidebar-field"
-            dense
-            outlined
-            label="Title"
-            @update:model-value="save({ title: String($event) })"
-          />
-          <q-input
-            :model-value="album.subtitle"
-            :dir="chooseTextDir(album.subtitle)"
-            class="sidebar-field"
-            dense
-            outlined
-            label="Subtitle"
-            @update:model-value="save({ subtitle: String($event) })"
-          />
-        </div>
-
-        <div class="divider" />
-
-        <!-- Cover photos -->
-        <div class="section">
-          <div class="section-label">Covers</div>
-          <CoverPhotoPicker
-            :model-value="album.front_cover_photo"
-            :album-id="album.id"
-            :photos="landscapePhotos"
-            label="Front Cover"
-            @update:model-value="save({ front_cover_photo: $event })"
-          />
-          <CoverPhotoPicker
-            :model-value="album.back_cover_photo"
-            :album-id="album.id"
-            :photos="landscapePhotos"
-            label="Back Cover"
-            @update:model-value="save({ back_cover_photo: $event })"
-          />
-        </div>
-
-        <div class="divider" />
-
         <!-- Ranges -->
         <div class="section">
           <div class="section-label">Ranges</div>
