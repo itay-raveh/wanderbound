@@ -43,13 +43,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ── Edge classification ───────────────────────────────────────────────────────
+# Edge classification
 # GPS underreports speed on winding trails (~6.5 km/h vs ~8 km/h actual).
 # Motorized transport (tuk-tuks, minibuses) typically exceeds this even in traffic.
 HIKE_MAX_SPEED_KMH = 6.5
 FLIGHT_MIN_SPEED_KMH = 200.0
 
-# ── Hike validity (all three must pass, otherwise downgraded to "walking") ───
+# Hike validity (all three must pass, otherwise downgraded to "walking")
 # Displacement = max distance from start, filters hostel GPS drift.
 HIKE_MIN_DURATION_H = 2.0
 HIKE_MIN_DISTANCE_KM = 2.0
@@ -58,7 +58,7 @@ HIKE_MIN_DISPLACEMENT_KM = 1.0
 FLIGHT_MIN_DISTANCE_KM = 100.0
 MAX_HIKE_GAP_H = 4.0
 
-# ── GPS noise ────────────────────────────────────────────────────────────────
+# GPS noise
 # Approximate km per degree at mid-latitudes (used for cheap degree-space checks).
 _KM_PER_DEG = 80.0
 # > 1000 km/h = impossible GPS jump.  Step waypoints are immune.
@@ -66,18 +66,18 @@ TELEPORT_MAX_SPEED_KMH = 1000.0
 # Spike detection: point > 0.5 km from neighbor where skipping it is much shorter.
 SPIKE_MIN_DIST_KM = 0.5
 
-# ── Densification ────────────────────────────────────────────────────────────
+# Densification
 # Interpolate slow edges to ~15 m spacing so sparse GPS doesn't hide short hikes.
 DENSIFY_MAX_SPEED_KMH = 5.0
 DENSIFY_RESOLUTION_KM = 0.015
 
-# ── Absorption pass 1: noise gaps ────────────────────────────────────────────
+# Absorption pass 1: noise gaps
 # Short "other" between two hikes at hike speed → fold back into hike.
 # Requires a following hike anchor to avoid absorbing post-hike hotel drift.
 NOISE_GAP_MAX_DIST_KM = 4.0
 NOISE_GAP_MAX_H = 3.0
 
-# ── Absorption pass 2: camps + blackouts ─────────────────────────────────────
+# Absorption pass 2: camps + blackouts
 
 # Camp: GPS barely moved overnight.  No speed check — tight distance cap
 # prevents transport; a speed check would reject walks-to-trailhead.
@@ -102,11 +102,6 @@ HIKE_ANCHOR_MIN_H = 1.5
 CAMP_PREV_ANCHOR_MIN_H = 1.0
 
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 1: Ingest
-# ═══════════════════════════════════════════════════════════════════
 
 
 def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
@@ -291,11 +286,6 @@ def _ingest(steps: Sequence[Step], locations: Iterable[Point]) -> pl.DataFrame:
     return df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 2: Label edges
-# ═══════════════════════════════════════════════════════════════════
-
-
 def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     """Classify each edge as flight / hike / other by speed and gap.
 
@@ -319,11 +309,6 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
         .otherwise(pl.lit("other"))
         .alias("mode"),
     )
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 3: Absorb gaps
-# ═══════════════════════════════════════════════════════════════════
 
 
 def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -444,11 +429,6 @@ def _absorb(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns(pl.col("mode").rle_id().alias("segment_id"))
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 4: Validate
-# ═══════════════════════════════════════════════════════════════════
-
-
 def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
     """Downgrade undersized hikes and short flights to "other"."""
     stats = df.group_by("segment_id").agg(
@@ -488,11 +468,6 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
 
     df = df.join(stats.select("segment_id", "final_mode"), on="segment_id")
     return df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 5: Emit
-# ═══════════════════════════════════════════════════════════════════
 
 
 def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
@@ -542,11 +517,6 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
 
         prev_last_pt = pts[-1]
         yield SegmentData(kind=_resolve_kind(kind, gdf), points=pts)
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Public API
-# ═══════════════════════════════════════════════════════════════════
 
 
 def build_segments(

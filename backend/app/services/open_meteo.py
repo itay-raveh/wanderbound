@@ -25,9 +25,6 @@ if TYPE_CHECKING:
     from app.models.polarsteps import PSStep
 
 
-# ── Rate-limited HTTP client ────────────────────────────────────────────
-
-
 class _RateLimitedTransport(AsyncBaseTransport):
     """Rate-limits on cache miss only.
 
@@ -54,9 +51,6 @@ _limiter = AsyncLimiter(480, 60)
 _client = cached_client(transport=_RateLimitedTransport(limiter=_limiter))
 
 
-# ── Elevation ────────────────────────────────────────────────────────────
-
-
 class _ElevationResult(BaseModel):
     elevation: list[float]
 
@@ -81,8 +75,6 @@ async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
         for elev in result.elevation:
             yield elev
 
-
-# ── Weather ──────────────────────────────────────────────────────────────
 
 _WMO_ICONS: dict[int, str] = {
     0: "clear-day",
