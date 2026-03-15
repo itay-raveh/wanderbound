@@ -71,5 +71,4 @@ class Settings(BaseSettings):
     long_description_threshold: int = Field(default=1000, gt=0)
 
 
-# noinspection PyArgumentList
 settings = Settings()  # type: ignore[call-arg]

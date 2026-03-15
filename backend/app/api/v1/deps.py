@@ -31,8 +31,6 @@ async def _get_user(
     if (user := await session.get(User, uid)) is None:
         logger.warning("Auth failed: unknown uid=%s", uid)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-
-    # noinspection PyTypeChecker
     return user
 
 

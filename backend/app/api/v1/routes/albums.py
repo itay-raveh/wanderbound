@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 async def _get_album(
     aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
 ) -> Album:
-    # noinspection PyTypeChecker
     return await session.get_one(Album, (user.id, aid))
 
 
@@ -63,7 +62,6 @@ async def update_step(
     user: UserDep,
     session: SessionDep,
 ) -> Step:
-    # noinspection PyTypeChecker
     step: Step = await session.get_one(Step, (user.id, aid, sid))
     step.sqlmodel_update(update.model_dump(exclude_unset=True))
     session.add(step)

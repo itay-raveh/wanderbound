@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-# noinspection PyProtectedMember
 from app.logic.layout.builder import (
     _build_pages,
     _landscape_page_count,
