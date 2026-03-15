@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.logic.spatial.segments import build_segments
-from app.models.types import SegmentKind
+from app.models.segment import SegmentKind
 
 if TYPE_CHECKING:
     from app.models.polarsteps import PSLocations, PSTrip

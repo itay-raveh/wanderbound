@@ -6,8 +6,8 @@ from fastapi.responses import Response
 
 from app.core.config import settings
 from app.models.album import Album, AlbumData, AlbumUpdate
+from app.models.ids import AlbumId, StepIdx
 from app.models.step import Step, StepUpdate
-from app.models.types import AlbumId, StepIdx
 
 from ..deps import USER_COOKIE, BrowserDep, SessionDep, UserDep
 

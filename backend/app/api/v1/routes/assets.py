@@ -12,7 +12,7 @@ from app.logic.layout.media import (
     generate_thumbnails,
     is_video,
 )
-from app.models.types import AlbumId
+from app.models.ids import AlbumId
 from app.models.user import User
 
 from ..deps import UserDep

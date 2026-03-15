@@ -6,8 +6,8 @@ from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import settings
 from app.core.db import PydanticJSON, all_optional
+from app.models.ids import AlbumId, UserId
 from app.models.polarsteps import Location
-from app.models.types import AlbumId, UserId
 
 Locale = Annotated[
     str, StringConstraints(pattern=r"^[a-z]{2}_[A-Z]{2}$", min_length=5, max_length=5)

@@ -21,8 +21,7 @@ from app.logic.spatial.segments import (
     build_segments,
 )
 from app.models.polarsteps import Point
-from app.models.segment import SegmentBase
-from app.models.types import SegmentKind
+from app.models.segment import SegmentBase, SegmentKind
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

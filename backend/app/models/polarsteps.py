@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Self
 from zoneinfo import ZoneInfo
@@ -9,7 +9,6 @@ from pydantic import (
     BeforeValidator,
     Field,
     HttpUrl,
-    computed_field,
 )
 
 from app.models.geo import CountryCode, Lat, Lon
@@ -24,11 +23,6 @@ class Point(BaseModel):
 
     def __lt__(self, other: Point) -> bool:
         return self.time < other.time
-
-    @computed_field(return_type=datetime)
-    @property
-    def datetime(self) -> AwareDatetime:
-        return datetime.fromtimestamp(self.time, UTC)
 
 
 class PSLocations(BaseModel):

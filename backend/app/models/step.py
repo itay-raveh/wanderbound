@@ -8,8 +8,8 @@ from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
+from app.models.ids import AlbumId, StepIdx, UserId
 from app.models.polarsteps import Location
-from app.models.types import AlbumId, StepIdx, UserId
 from app.models.weather import Weather
 
 

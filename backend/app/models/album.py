@@ -4,9 +4,9 @@ from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 from app.core.db import all_optional
 from app.models.geo import CountryCode, HexColor
 
+from .ids import AlbumId, UserId
 from .segment import Segment
 from .step import Step
-from .types import AlbumId, UserId
 
 
 class AlbumBase(SQLModel):

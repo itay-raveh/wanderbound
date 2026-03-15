@@ -32,8 +32,7 @@ import numpy as np
 import polars as pl
 
 from app.models.polarsteps import Point
-from app.models.segment import SegmentBase
-from app.models.types import SegmentKind
+from app.models.segment import SegmentBase, SegmentKind
 
 from .simplify import rdp_mask
 
@@ -524,7 +523,7 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
 
 def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentBase]:
     """Yield SegmentBase: simplify, resolve kinds, stitch consecutive segments."""
-    first_step_dt = steps[0].datetime
+    first_step_ts = steps[0].datetime.timestamp()
     prev_last_pt: Point | None = None
 
     for _, gdf in df.group_by("output_id", maintain_order=True):
@@ -532,7 +531,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentB
 
         if kind == "flight":
             pts = [_gdf_to_point(gdf, 0), _gdf_to_point(gdf, -1)]
-            if pts[0].datetime < first_step_dt:
+            if pts[0].time < first_step_ts:
                 continue
         else:
             pts = _simplify_points(gdf)

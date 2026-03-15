@@ -97,12 +97,9 @@ async def _video_dimensions(path: Path) -> tuple[int, int]:
 
 
 class Photo(BaseModel):
-    path: str  # MediaName (just the filename)
+    name: str  # .jpg filename used in layouts
     width: int
     height: int
-
-    def __hash__(self) -> int:
-        return hash(self.path)
 
     @property
     def aspect_ratio(self) -> float:
@@ -123,24 +120,39 @@ class Photo(BaseModel):
             if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
                 width, height = height, width
         return cls(
-            path=normalize_name(path.name),
+            name=normalize_name(path.name),
             width=width,
             height=height,
         )
 
 
-class Video(Photo):
-    src: str  # MediaName (just the filename, .mp4)
+class Video(BaseModel):
+    name: str  # .mp4 filename used in layouts (so frontend detects video)
+    poster: str  # .jpg poster frame filename
+    width: int
+    height: int
+
+    @property
+    def aspect_ratio(self) -> float:
+        return self.width / self.height
+
+    @property
+    def is_portrait(self) -> bool:
+        return self.aspect_ratio <= 4 / 5
+
+    @property
+    def orientation(self) -> str:
+        return "p" if self.is_portrait else "l"
 
     @classmethod
     async def probe(cls, path: Path) -> Self:
         """Get video dimensions via ffprobe — no frame extraction."""
         w, h = await _video_dimensions(path)
         return cls(
-            path=normalize_name(path.with_suffix(".jpg").name),
+            name=normalize_name(path.name),
+            poster=normalize_name(path.with_suffix(".jpg").name),
             width=w,
             height=h,
-            src=normalize_name(path.name),
         )
 
 

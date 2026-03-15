@@ -1,9 +1,18 @@
+from enum import StrEnum
+
 from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON
+from app.models.ids import AlbumId, UserId
 from app.models.polarsteps import Point
-from app.models.types import AlbumId, SegmentKind, UserId
+
+
+class SegmentKind(StrEnum):
+    flight = "flight"
+    hike = "hike"
+    walking = "walking"
+    driving = "driving"
 
 
 class SegmentBase(SQLModel):

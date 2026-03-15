@@ -36,13 +36,13 @@ backend/
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
         assets.py           GET /{aid}/media/{name} (thumbnails + originals), PATCH (video frame re-extract)
     models/
-      types.py              Generic IDs (UserId, AlbumId, StepIdx) + SegmentKind enum
+      ids.py                Generic IDs (UserId, AlbumId, StepIdx)
       geo.py                Lat, Lon, HasLatLon protocol, CountryCode, HexColor
       weather.py            Weather, WeatherData (stored in step.weather JSON column)
       user.py               User table (SQLModel) + UserUpdate
       album.py              Album table + AlbumUpdate + AlbumData response model
       step.py               Step table + StepUpdate (layout fields: cover, pages, unused)
-      segment.py            Segment table (points as PydanticJSON)
+      segment.py            SegmentKind enum + Segment table (points as PydanticJSON)
       polarsteps.py         Pydantic models for Polarsteps ZIP data (PSTrip, PSStep, PSLocations, Point, Location)
       __init__.py            Imports all tables so Alembic sees them
     logic/
@@ -55,14 +55,11 @@ backend/
         builder.py           Photo layout algorithm (portrait/landscape packing into pages)
         media.py             Photo/Video models, ffprobe, ffmpeg frame extraction, thumbnail generation
       spatial/
-        types.py             Lat, Lon type aliases, HasLatLon protocol
         segments.py          GPS segmentation pipeline (ingest → label → absorb → validate → emit)
         simplify.py          Ramer-Douglas-Peucker line simplification
         peaks.py             OSM Overpass peak correction for DEM elevations
-        types.py             Re-exports Lat, Lon, HasLatLon from models/types
     services/
       open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
-                              (Weather/WeatherData types live in models/types.py)
     alembic/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Single initial migration (user, album, step, segment tables)
@@ -238,6 +235,7 @@ segment
 | Type | Location | Purpose |
 |------|----------|---------|
 | `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) — step photo layout |
+| `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
 | `SegmentBase` | `models/segment.py` | Pipeline output (kind + points), also base for Segment table |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
 | `Point` | `models/polarsteps.py` | GPS point (lat, lon, time) — used in segments and locations |

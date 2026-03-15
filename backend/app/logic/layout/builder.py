@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Iterable, Sequence
     from pathlib import Path
 
+    from app.models.ids import AlbumId
     from app.models.polarsteps import PSStep
-    from app.models.types import AlbumId
     from app.models.user import User
 
 
@@ -145,26 +145,22 @@ async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | 
 
     media: list[Media] = [m async for m in _step_media(step_dir)]
 
-    def media_name(m: Media) -> str:
-        """Use the .mp4 source for videos so the frontend can detect them."""
-        return m.src if isinstance(m, Video) else m.path
-
     # Split and sort portraits (closest to 4/5 first)
     portraits = [
-        media_name(p)
+        p.name
         for p in sorted(
             (p for p in media if p.is_portrait),
             key=lambda p: p.aspect_ratio,
             reverse=True,
         )
     ]
-    landscapes = [media_name(p) for p in media if not p.is_portrait]
+    landscapes = [m.name for m in media if not m.is_portrait]
 
     if not portraits and not landscapes:
         logger.debug("Step '%s' has no media files, skipping layout", step.name)
         return None
 
-    orientations: dict[str, str] = {media_name(m): m.orientation for m in media}
+    orientations: dict[str, str] = {m.name: m.orientation for m in media}
     cover = portraits[0] if portraits else landscapes[0]
 
     # If it appears on the step page, remove it from the photo pages
