@@ -18,15 +18,13 @@ const visible = ref(printMode || props.eager);
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (printMode || !el.value) return;
+  if (printMode || props.eager || !el.value) return;
   observer = new IntersectionObserver(
     ([entry]) => {
-      if (entry?.isIntersecting) {
-        visible.value = true;
-        observer?.disconnect();
-      }
+      if (entry) visible.value = entry.isIntersecting;
     },
-    // Start mounting content 2 viewport-heights before it scrolls into view.
+    // Mount 2 viewport-heights before visible, unmount when scrolled beyond.
+    // Prevents WebGL context exhaustion from too many simultaneous maps.
     { rootMargin: "200% 0px" },
   );
   observer.observe(el.value);

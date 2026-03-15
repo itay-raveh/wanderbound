@@ -30,7 +30,11 @@ function addLine(
 ) {
   m.addSource(id, {
     type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } },
+    data: {
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: coords },
+    },
   });
   m.addLayer({
     id,
@@ -49,7 +53,11 @@ function addCircle(
 ) {
   m.addSource(id, {
     type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coord } },
+    data: {
+      type: "Feature",
+      properties: {},
+      geometry: { type: "Point", coordinates: coord },
+    },
   });
   m.addLayer({ id, type: "circle", source: id, paint });
 }
@@ -104,7 +112,9 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
     const midCoord = arcCoords[midIdx]!;
     const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)]!;
     const angle =
-      (Math.atan2(nextCoord[1] - midCoord[1], nextCoord[0] - midCoord[0]) * 180) / Math.PI;
+      (Math.atan2(nextCoord[1] - midCoord[1], nextCoord[0] - midCoord[0]) *
+        180) /
+      Math.PI;
 
     const el = document.createElement("div");
     el.className = FLIGHT_ICON_CLASS;
@@ -162,7 +172,9 @@ function drawDrivingOrWalking(
 ) {
   const isDriving = kind === "driving";
   addLine(m, id, coords, {
-    "line-color": isDriving ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.7)",
+    "line-color": isDriving
+      ? "rgba(255, 255, 255, 0.9)"
+      : "rgba(255, 255, 255, 0.7)",
     "line-width": faint ? 1 : isDriving ? 2.5 : 1.5,
     "line-dasharray": isDriving ? [1, 0] : [1, 3],
     "line-opacity": faint ? 0.3 : isDriving ? 0.8 : 0.6,
@@ -173,7 +185,9 @@ function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
   // Many steps → zoomed out overview → raw GPS is fine
   if (steps.length > 8) return false;
   // No driving/walking to match
-  const matchable = segments.filter((s) => s.kind === "driving" || s.kind === "walking");
+  const matchable = segments.filter(
+    (s) => s.kind === "driving" || s.kind === "walking",
+  );
   if (matchable.length === 0) return false;
   // Too many matchable segments → too many API calls
   if (matchable.length > 6) return false;
@@ -192,19 +206,16 @@ interface DrawOptions {
 }
 
 /** Draw segments and step markers. Returns all coords for fitBounds. */
-export async function drawSegmentsAndMarkers(
+export function drawSegmentsAndMarkers(
   m: mapboxgl.Map,
   options: DrawOptions,
-): Promise<[number, number][]> {
+): [number, number][] {
   if (!options.skipCleanup) cleanup(m);
 
   const { segments, steps, albumId, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
   const useMatching = shouldMapMatch(steps, segments);
-
-  // Collect map-matching promises to run in parallel
-  const matchingTasks: Promise<void>[] = [];
 
   const stylePrefix = faint ? "f-" : "";
   for (const [i, seg] of segments.entries()) {
@@ -222,23 +233,29 @@ export async function drawSegmentsAndMarkers(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        if (useMatching) {
-          matchingTasks.push(
-            matchRoute(coords, kind).then((matched) => {
-              drawDrivingOrWalking(m, id, matched ?? coords, kind, faint);
-            }),
-          );
-        } else {
-          drawDrivingOrWalking(m, id, coords, kind, faint);
-        }
+        // Draw raw GPS immediately; replace with matched geometry when ready
+        drawDrivingOrWalking(m, id, coords, kind, faint);
         allCoords.push(...coords);
+
+        if (useMatching) {
+          void matchRoute(coords, kind).then((matched) => {
+            if (!matched) return;
+            try {
+              const source = m.getSource(id);
+              source?.setData({
+                type: "Feature",
+                properties: {},
+                geometry: { type: "LineString", coordinates: matched },
+              });
+            } catch {
+              // Map was destroyed before matching resolved
+            }
+          });
+        }
         break;
       }
     }
   }
-
-  // Run all map-matching calls in parallel
-  await Promise.all(matchingTasks);
 
   for (const step of steps) {
     const lngLat: [number, number] = [step.location.lon, step.location.lat];

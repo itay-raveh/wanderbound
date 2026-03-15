@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -11,8 +12,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_pdf_semaphore = asyncio.Semaphore(1)
+
 
 async def render_album_pdf(
+    browser: Browser, user: User, aid: AlbumId, *, dark: bool = True
+) -> bytes:
+    async with _pdf_semaphore:
+        return await _render_album_pdf(browser, user, aid, dark=dark)
+
+
+async def _render_album_pdf(
     browser: Browser, user: User, aid: AlbumId, *, dark: bool = True
 ) -> bytes:
     context = await browser.new_context(

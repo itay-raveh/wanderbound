@@ -144,40 +144,38 @@ const { fitBounds } = useMapbox({
     const hikeIdx = props.segments.indexOf(props.hikeSegment);
     const otherSegments = props.segments.filter((_, i) => i !== hikeIdx);
 
-    void (async () => {
-      try {
-        // Faint background segments (may include driving/walking → map matched)
-        await drawSegmentsAndMarkers(m, {
-          segments: otherSegments,
-          steps: [],
-          albumId: albumId.value,
-          style: "faint",
-        });
+    try {
+      // Faint background segments (may include driving/walking → map matched)
+      drawSegmentsAndMarkers(m, {
+        segments: otherSegments,
+        steps: [],
+        albumId: albumId.value,
+        style: "faint",
+      });
 
-        // Prominent hike + step markers (skip cleanup to keep faint layers)
-        const coords = await drawSegmentsAndMarkers(m, {
-          segments: [props.hikeSegment],
-          steps: props.steps,
-          albumId: albumId.value,
-          skipCleanup: true,
-          hikeColor: countryColor.value,
-        });
+      // Prominent hike + step markers (skip cleanup to keep faint layers)
+      const coords = drawSegmentsAndMarkers(m, {
+        segments: [props.hikeSegment],
+        steps: props.steps,
+        albumId: albumId.value,
+        skipCleanup: true,
+        hikeColor: countryColor.value,
+      });
 
-        // Pad bottom so the path stays above the elevation overlay
-        fitBounds(coords, { top: 80, right: 80, bottom: 220, left: 80 });
+      // Pad bottom so the path stays above the elevation overlay
+      fitBounds(coords, { top: 80, right: 80, bottom: 220, left: 80 });
 
-        // Query elevations once terrain tiles are loaded
-        m.once("idle", () => {
-          try {
-            queryElevations(m);
-          } catch (e) {
-            console.warn("[hike-map] elevation query failed:", e);
-          }
-        });
-      } catch (e) {
-        console.warn("[hike-map] segment drawing failed:", e);
-      }
-    })();
+      // Query elevations once terrain tiles are loaded
+      m.once("idle", () => {
+        try {
+          queryElevations(m);
+        } catch (e) {
+          console.warn("[hike-map] elevation query failed:", e);
+        }
+      });
+    } catch (e) {
+      console.warn("[hike-map] segment drawing failed:", e);
+    }
   },
 });
 </script>

@@ -19,16 +19,18 @@ const { fitBounds } = useMapbox({
   locale,
   onReady: (m) => {
     m.resize();
-    void drawSegmentsAndMarkers(m, {
+    drawSegmentsAndMarkers(m, {
       segments: props.segments,
       steps: props.steps,
       albumId: albumId.value,
-    }).then(() => {
-      // Fit bounds to step locations, not segment paths — a driving segment
-      // spanning days could pull the viewport far beyond the relevant area.
-      const coords: [number, number][] = props.steps.map((s) => [s.location.lon, s.location.lat]);
-      fitBounds(coords, 60);
     });
+    // Fit bounds to step locations, not segment paths — a driving segment
+    // spanning days could pull the viewport far beyond the relevant area.
+    const coords: [number, number][] = props.steps.map((s) => [
+      s.location.lon,
+      s.location.lat,
+    ]);
+    fitBounds(coords, 60);
   },
 });
 </script>

@@ -14,7 +14,7 @@
 
 ## 2025-03-15 — Add PDF render concurrency cap
 
-**Status:** `PENDING`
+**Status:** `DONE`
 
 **Problem:** `render_album_pdf` in `backend/app/logic/pdf.py` creates a new Chromium browser context per request with no concurrency limit. Two simultaneous PDF exports both load all album images, Mapbox tiles, and fonts into separate Chromium processes. This can easily exhaust memory on the server (each context uses 200-500MB).
 
@@ -26,7 +26,7 @@
 
 ## 2025-03-15 — Bidirectional lazy loading for map sections (WebGL context leak)
 
-**Status:** `PENDING`
+**Status:** `DONE`
 
 **Problem:** `LazySection.vue` uses IntersectionObserver to mount sections when they scroll into view, but once mounted, sections are never unmounted — the observer disconnects on first reveal. Each `MapPage` and `HikeMapPage` creates a Mapbox GL context with a WebGL canvas. For a long album with 20+ map sections, all WebGL contexts remain alive simultaneously. Browsers cap WebGL contexts at ~16; beyond that, earlier maps go blank or the browser drops contexts silently.
 
@@ -38,7 +38,7 @@
 
 ## 2025-03-15 — Strip unused `time` field from segment points in API response
 
-**Status:** `PENDING`
+**Status:** `REJECTED` — Not worth the extra model; payload difference is negligible.
 
 **Problem:** Every `Segment` in the `AlbumData` response includes `points: list[Point]` where each `Point` has `{lat, lon, time}`. The frontend (`mapSegments.ts`) only reads `p.lon` and `p.lat` — `time` is never used. For a hike segment with 2,000 points, the `time` field adds ~20KB of unused JSON. Across 50 segments this is 200KB+ of wasted bandwidth on every album load.
 
@@ -50,7 +50,7 @@
 
 ## 2025-03-15 — Progressive map matching (render GPS first, then matched geometry)
 
-**Status:** `PENDING`
+**Status:** `DONE`
 
 **Problem:** In `mapSegments.ts`, `drawSegmentsAndMarkers` awaits `Promise.all(matchingTasks)` before the function returns and `fitBounds` is called. For segments requiring 5+ map-matching API chunks (p99 latency 1-2s each), the map hangs with no content for several seconds after tiles load.
 
@@ -74,7 +74,7 @@
 
 ## 2025-03-15 — Reduce Uvicorn workers to 1 (eliminate redundant Chromium browsers)
 
-**Status:** `PENDING`
+**Status:** `DONE`
 
 **Problem:** The production `CMD` in `backend/Dockerfile` runs Uvicorn with `--workers 3`. Each worker is a separate process that runs the FastAPI lifespan, which launches a Chromium browser instance via Playwright (`main.py:32`). This means 3 Chromium browsers are running simultaneously, consuming ~600MB–1.5GB of RAM collectively — for a feature (PDF export) used once per album editing session. Since all endpoints are `async def` and blocking work is offloaded to `asyncio.to_thread()`, a single worker handles concurrent I/O efficiently without multiple processes.
 
