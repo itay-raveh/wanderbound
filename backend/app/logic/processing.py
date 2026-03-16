@@ -149,13 +149,16 @@ def _build_trip_objects(  # noqa: PLR0913
         if layout:
             merged_orientations.update(layout.orientations)
 
+    first_date = trip.all_steps[0].datetime.date()
+    last_date = trip.all_steps[-1].datetime.date()
     album = Album(
         uid=user.id,
         id=aid,
         colors=build_country_colors(
             {s.location.country_code for s in trip.all_steps},
         ),
-        steps_ranges=f"0-{len(trip.all_steps) - 1}",
+        steps_ranges=[(first_date, last_date)],
+        maps_ranges=[(first_date, last_date)],
         title=trip.title,
         subtitle=trip.subtitle,
         front_cover_photo=cover_name,

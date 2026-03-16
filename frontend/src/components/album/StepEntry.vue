@@ -103,10 +103,6 @@ function onUnusedUpdate(unused: string[]) {
   }
 }
 
-function addPage() {
-  saveLayout({ pages: [...props.step.pages, []] });
-}
-
 if (!printMode) {
   useDraggable(dropZoneRef, dropZoneList, {
     group: "photos",
@@ -161,11 +157,10 @@ if (!printMode) {
     />
 
     <!-- Add page drop zone (editor only) -->
-    <div v-if="!printMode" class="add-zone" @click="addPage">
+    <div v-if="!printMode" class="add-zone">
       <div class="add-zone-content">
         <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
-        <span class="add-label">Add Photo Page</span>
-        <span class="add-hint">or drop a photo here</span>
+        <span class="add-label">Drop photo to add page</span>
       </div>
       <div ref="dropZoneRef" class="drop-overlay" />
     </div>
@@ -260,7 +255,6 @@ if (!printMode) {
   color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 500;
-  cursor: pointer;
   transition:
     border-color 0.15s,
     color 0.15s,
@@ -277,16 +271,6 @@ if (!printMode) {
   border-color: var(--q-primary);
   background: color-mix(in srgb, var(--q-primary) 8%, transparent);
   color: var(--q-primary);
-}
-
-.add-label {
-  font-size: 0.9rem;
-}
-
-.add-hint {
-  font-size: 0.7rem;
-  font-weight: 400;
-  opacity: 0.6;
 }
 
 @media print {

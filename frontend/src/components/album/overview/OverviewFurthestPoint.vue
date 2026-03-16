@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
 import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
+import { parseLocalDate } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
@@ -33,7 +34,7 @@ const furthest = computed(() => {
     }
   }
 
-  const dateStr = formatDate(new Date(bestStep.datetime), {
+  const dateStr = formatDate(parseLocalDate(bestStep.datetime), {
     month: "short",
     day: "numeric",
   });

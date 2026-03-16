@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { weatherIconUrl } from "@/utils/weather";
@@ -64,7 +65,7 @@ const records = computed<ExtremeRecord[]>(() => {
   }
 
   const meta = (step: Step) => {
-    const dateStr = formatDate(new Date(step.datetime), {
+    const dateStr = formatDate(parseLocalDate(step.datetime), {
       month: "short",
       day: "numeric",
     });

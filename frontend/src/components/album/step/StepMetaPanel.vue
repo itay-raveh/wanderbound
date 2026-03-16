@@ -3,6 +3,7 @@ import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
+import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
 import { MS_PER_DAY } from "@/utils/units";
@@ -60,10 +61,8 @@ const coords = computed(() => ({
 }));
 
 const dayNumber = computed(() => {
-  const start = new Date(tripStart.value);
-  const current = new Date(props.step.datetime);
-  start.setHours(0, 0, 0, 0);
-  current.setHours(0, 0, 0, 0);
+  const start = parseLocalDate(tripStart.value);
+  const current = parseLocalDate(props.step.datetime);
   return Math.floor((current.getTime() - start.getTime()) / MS_PER_DAY) + 1;
 });
 
@@ -72,7 +71,7 @@ const progressPercent = computed(() =>
 );
 
 const dateStr = computed(() => {
-  const d = new Date(props.step.datetime);
+  const d = parseLocalDate(props.step.datetime);
   return {
     day: formatDate(d, { day: "numeric" }),
     month: formatDate(d, { month: "long" }),

@@ -1,19 +1,29 @@
+from datetime import date
+
 from pydantic import BaseModel
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
-from app.core.db import all_optional
+from app.core.db import PydanticJSON, all_optional
 from app.models.geo import CountryCode, HexColor
 
 from .ids import AlbumId, UserId
 from .segment import Segment
 from .step import Step
 
+type DateRange = tuple[date, date]
+
 
 class AlbumBase(SQLModel):
     title: str = Field(max_length=255)
     subtitle: str = Field(max_length=255)
-    steps_ranges: str = Field(max_length=255)
-    maps_ranges: str | None = Field(default=None, max_length=255)
+    steps_ranges: list[DateRange] = Field(
+        sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),
+        default_factory=list,
+    )
+    maps_ranges: list[DateRange] = Field(
+        sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),
+        default_factory=list,
+    )
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
 

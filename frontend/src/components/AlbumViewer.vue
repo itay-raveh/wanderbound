@@ -1,15 +1,21 @@
 <script lang="ts" setup>
-import type { Album, AlbumData, Segment, Step } from "@/client";
+import type { Album, AlbumData, DateRange, Segment, Step } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { filterCoverFromPages, measureDescription } from "@/composables/useTextMeasure";
+import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
-import { toRangeList } from "@/utils/ranges";
+import { inDateRange, isoDate, parseLocalDate, parseYMD, qDateNavBounds, toQDate, ymdToIso } from "@/utils/date";
 import { MS_PER_DAY } from "@/utils/units";
-import { computed, defineAsyncComponent, defineComponent, h } from "vue";
+import {
+  symOutlinedCalendarMonth,
+  symOutlinedClose,
+  symOutlinedMap,
+} from "@quasar/extras/material-symbols-outlined";
+import { computed, defineAsyncComponent, defineComponent, h, nextTick } from "vue";
 
 const editorZoom = `${EDITOR_ZOOM}`;
 
@@ -39,8 +45,8 @@ const OverviewPage = defineAsyncComponent({
 function sectionKey(section: Section): string {
   switch (section.type) {
     case "step": return `step-${section.step.idx}`;
-    case "map": return `map-${section.steps[0]?.idx}-${section.steps[section.steps.length - 1]?.idx}`;
-    case "hike": return `hike-${section.hikeSegment.start_time}`;
+    case "map": return `map-${section.dateRange[0]}-${section.dateRange[1]}`;
+    case "hike": return `hike-${section.dateRange[0]}-${section.dateRange[1]}`;
   }
 }
 
@@ -68,20 +74,17 @@ const props = defineProps<{
 const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
 const albumOrientations = computed(() => (props.album.orientations ?? {}) as Record<string, string>);
+const albumMutation = useAlbumMutation(() => props.album.id);
 
-// Filter steps/segments by the album's steps_ranges setting.
-const stepsIndexes = computed(() => {
-  const ranges = toRangeList(props.album.steps_ranges);
-  const set = new Set<number>();
-  for (const r of ranges) {
-    for (let i = r.start; i <= r.end; i++) set.add(i);
-  }
-  return set;
+// Filter steps by the album's date ranges.
+const steps = computed(() => {
+  const ranges = props.album.steps_ranges;
+  if (!ranges?.length) return props.data.steps;
+  return props.data.steps.filter((s) => {
+    const d = isoDate(s.datetime);
+    return ranges.some((r) => inDateRange(d, r));
+  });
 });
-
-const steps = computed(() =>
-  props.data.steps.filter((s) => stepsIndexes.value.has(s.idx)),
-);
 
 const segments = computed(() => {
   const s = steps.value;
@@ -93,48 +96,37 @@ const tripStart = computed(() => steps.value[0]?.datetime ?? "");
 const totalDays = computed(() => {
   const s = steps.value;
   if (s.length < 2) return 1;
-  const first = new Date(s[0]!.datetime);
-  const last = new Date(s[s.length - 1]!.datetime);
-  first.setHours(0, 0, 0, 0);
-  last.setHours(0, 0, 0, 0);
+  const first = parseLocalDate(s[0]!.datetime);
+  const last = parseLocalDate(s[s.length - 1]!.datetime);
   return Math.max(1, Math.floor((last.getTime() - first.getTime()) / MS_PER_DAY) + 1);
 });
 provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
 
 type Section =
-  | { type: "map"; steps: Step[]; segments: Segment[] }
-  | { type: "hike"; steps: Step[]; segments: Segment[]; hikeSegment: Segment }
+  | { type: "map"; steps: Step[]; segments: Segment[]; rangeIdx: number; dateRange: DateRange }
+  | { type: "hike"; steps: Step[]; segments: Segment[]; hikeSegment: Segment; rangeIdx: number; dateRange: DateRange }
   | { type: "step"; step: Step };
 
 const sections = computed<Section[]>(() => {
   const allSteps = steps.value;
   const allSegments = segments.value;
-
-  const mapsRangeStr = props.album.maps_ranges;
-  const mapRanges = mapsRangeStr ? toRangeList(mapsRangeStr) : [];
+  const mapRanges = props.album.maps_ranges ?? [];
 
   type MapEntry = {
-    start: number;
-    end: number;
+    rangeIdx: number;
+    dateRange: DateRange;
     steps: Step[];
     segments: Segment[];
   };
-  const mapEntries: MapEntry[] = mapRanges.map((r) => {
-    const rangeSteps = allSteps.filter(
-      (s) => s.idx >= r.start && s.idx <= r.end,
-    );
+  const mapEntries: MapEntry[] = mapRanges.map((dr, i) => {
+    const rangeSteps = allSteps.filter((s) => inDateRange(isoDate(s.datetime), dr));
     const rangeStart = rangeSteps[0]?.timestamp;
     const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
     const rangeSegments =
       rangeStart == null || rangeEnd == null
         ? []
         : segmentsOverlapping(allSegments, rangeStart, rangeEnd);
-    return {
-      start: r.start,
-      end: r.end,
-      steps: rangeSteps,
-      segments: rangeSegments,
-    };
+    return { rangeIdx: i, dateRange: dr, steps: rangeSteps, segments: rangeSegments };
   });
 
   const result: Section[] = [];
@@ -153,23 +145,28 @@ const sections = computed<Section[]>(() => {
     if (maps) {
       for (const m of maps) {
         const hikeSegment = m.segments.find((s) => s.kind === "hike");
-        if (hikeSegment) {
+        const hasTransport = m.segments.some((s) => s.kind === "driving" || s.kind === "flight");
+        if (hikeSegment && !hasTransport) {
           result.push({
             type: "hike",
             steps: m.steps,
             segments: m.segments,
             hikeSegment,
+            rangeIdx: m.rangeIdx,
+            dateRange: m.dateRange,
           });
         } else {
-          result.push({ type: "map", steps: m.steps, segments: m.segments });
+          result.push({
+            type: "map",
+            steps: m.steps,
+            segments: m.segments,
+            rangeIdx: m.rangeIdx,
+            dateRange: m.dateRange,
+          });
         }
       }
     }
     result.push({ type: "step", step });
-  }
-
-  if (mapRanges.length === 0 && allSegments.length > 0) {
-    result.unshift({ type: "map", steps: allSteps, segments: allSegments });
   }
 
   return result;
@@ -181,6 +178,63 @@ const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 const expectedPageCount = computed(() =>
   3 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
+
+// --- Map range editing ---
+
+/** QDate-format dates of visible steps — for date picker `options` prop. */
+const visibleStepQDates = computed(() => {
+  const set = new Set<string>();
+  for (const s of steps.value) set.add(toQDate(isoDate(s.datetime)));
+  return set;
+});
+
+const nav = computed(() => qDateNavBounds(steps.value));
+
+/** Options function for map end-date picker: step dates within steps_ranges and >= start. */
+function mapEndDateOptions(mapStart: string) {
+  const qStart = toQDate(mapStart);
+  return (qdate: string) => qdate >= qStart && visibleStepQDates.value.has(qdate);
+}
+
+function addMapBefore(step: Step) {
+  const sd = isoDate(step.datetime);
+  const ranges: DateRange[] = [...(props.album.maps_ranges ?? []), [sd, sd]];
+  ranges.sort(([a], [b]) => a.localeCompare(b));
+  albumMutation.mutate({ maps_ranges: ranges });
+}
+
+function deleteMap(rangeIdx: number) {
+  const ranges = [...(props.album.maps_ranges ?? [])];
+  ranges.splice(rangeIdx, 1);
+  albumMutation.mutate({ maps_ranges: ranges });
+}
+
+// --- Range date picker with pre-selected start ---
+
+type YMD = ReturnType<typeof parseYMD>;
+
+const mapDateRefs: Record<number, { setEditingRange: (r: YMD) => void }> = {};
+const mapPopupRefs: Record<number, { hide: () => void }> = {};
+
+async function onMapPopupShow(rangeIdx: number, startDate: string) {
+  await nextTick();
+  const dateComp = mapDateRefs[rangeIdx];
+  if (!dateComp) return;
+  dateComp.setEditingRange(parseYMD(startDate));
+}
+
+function onMapRangeEnd(
+  rangeIdx: number,
+  startDate: string,
+  range: { from: YMD; to: YMD },
+) {
+  const ranges = [...(props.album.maps_ranges ?? [])] as DateRange[];
+  if (ranges[rangeIdx]) {
+    ranges[rangeIdx] = [startDate, ymdToIso(range.to)];
+    albumMutation.mutate({ maps_ranges: ranges });
+  }
+  mapPopupRefs[rangeIdx]?.hide();
+}
 
 // In print mode, provide a flag so child components can set loading="eager".
 if (props.printMode) {
@@ -198,32 +252,66 @@ if (props.printMode) {
     <CoverPage :album="album" :steps="steps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
-    <LazySection
-      v-for="(section, i) in sections"
-      :key="sectionKey(section)"
-      :page-count="sectionPageCounts[i]"
-      :has-chrome="section.type === 'step'"
-      :eager="section.type === 'map' || section.type === 'hike'"
-    >
-      <!-- Map pages wrapped so transform: scale doesn't misalign -->
-      <div v-if="section.type === 'map'" class="map-wrapper">
-        <MapPage
-          :segments="section.segments"
-          :steps="section.steps"
-        />
+    <template v-for="(section, i) in sections" :key="sectionKey(section)">
+      <!-- "Add map" button before step sections without a preceding map (editor only) -->
+      <div
+        v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
+        class="add-map-zone"
+        @click="addMapBefore(section.step)"
+      >
+        <q-icon :name="symOutlinedMap" size="1.5rem" />
+        <span>Add Map Page</span>
       </div>
-      <div v-else-if="section.type === 'hike'" class="map-wrapper">
-        <HikeMapPage
-          :segments="section.segments"
-          :steps="section.steps"
-          :hike-segment="section.hikeSegment"
-        />
-      </div>
-      <StepEntry
-        v-else-if="section.type === 'step'"
-        :step="section.step"
-      />
-    </LazySection>
+
+      <LazySection
+        :page-count="sectionPageCounts[i]"
+        :has-chrome="section.type === 'step'"
+        :eager="section.type === 'map' || section.type === 'hike'"
+      >
+        <!-- Map / Hike section with shared controls -->
+        <div v-if="section.type === 'map' || section.type === 'hike'" class="map-wrapper">
+          <div v-if="!printMode" class="map-controls">
+            <q-icon
+              :name="symOutlinedClose"
+              size="1.125rem"
+              class="map-control-btn"
+              @click="deleteMap(section.rangeIdx)"
+            >
+              <q-tooltip>Remove map</q-tooltip>
+            </q-icon>
+            <q-icon :name="symOutlinedCalendarMonth" size="1.125rem" class="map-control-btn">
+              <q-tooltip>Change date range</q-tooltip>
+              <q-popup-proxy
+                :ref="(el: any) => el ? (mapPopupRefs[section.rangeIdx] = el) : delete mapPopupRefs[section.rangeIdx]"
+                transition-show="scale"
+                transition-hide="scale"
+                @before-show="onMapPopupShow(section.rangeIdx, section.dateRange[0])"
+              >
+                <q-date
+                  :ref="(el: any) => el ? (mapDateRefs[section.rangeIdx] = el) : delete mapDateRefs[section.rangeIdx]"
+                  :model-value="{ from: toQDate(section.dateRange[0]), to: toQDate(section.dateRange[1]) }"
+                  range
+                  minimal
+                  :options="mapEndDateOptions(section.dateRange[0])"
+                  :navigation-min-year-month="nav.min"
+                  :navigation-max-year-month="nav.max"
+                  @range-end="onMapRangeEnd(section.rangeIdx, section.dateRange[0], $event)"
+                />
+              </q-popup-proxy>
+            </q-icon>
+          </div>
+          <MapPage v-if="section.type === 'map'" :segments="section.segments" :steps="section.steps" />
+          <HikeMapPage
+            v-else
+            :segments="section.segments"
+            :steps="section.steps"
+            :hike-segment="section.hikeSegment"
+          />
+        </div>
+
+        <StepEntry v-else :step="section.step" />
+      </LazySection>
+    </template>
   </div>
   <div v-else class="fit relative-position">
     <q-inner-loading
@@ -262,6 +350,7 @@ if (props.printMode) {
 
   // Map wrapper: fixed layout size matching zoomed page dimensions
   .map-wrapper {
+    position: relative;
     width: calc(var(--page-width) * var(--editor-zoom));
     height: calc(var(--page-height) * var(--editor-zoom));
     margin: 0 auto 0.75rem;
@@ -277,6 +366,62 @@ if (props.printMode) {
       transform-origin: top left;
       content-visibility: visible;
     }
+  }
+}
+
+// Map controls — floating toolbar over map sections (editor only)
+.map-controls {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter: blur(8px);
+  border-radius: 0.375rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.map-control-btn {
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+  }
+}
+
+// "Add map" button between sections (editor only)
+.add-map-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: calc(var(--page-width) * var(--editor-zoom));
+  min-height: 3.5rem;
+  margin: 0.5rem auto;
+  padding: 1rem;
+  border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+
+  &:hover {
+    border-color: var(--q-primary);
+    color: var(--q-primary);
   }
 }
 
@@ -323,6 +468,11 @@ if (props.printMode) {
     :deep(.page-container) {
       transform: none !important;
     }
+  }
+
+  .map-controls,
+  .add-map-zone {
+    display: none !important;
   }
 }
 </style>

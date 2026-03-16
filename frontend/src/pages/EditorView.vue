@@ -43,6 +43,7 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
           v-model:album-id="selectedAlbumId"
           :album="album ?? undefined"
           :album-ids="albumIds"
+          :all-steps="albumData?.steps"
         />
       </div>
 

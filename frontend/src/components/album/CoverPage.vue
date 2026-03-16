@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { chooseTextDir } from "@/utils/text";
+import { parseLocalDate } from "@/utils/date";
 import { EDITOR_ZOOM, isVideo } from "@/utils/media";
 import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -26,8 +27,8 @@ const coverMedia = computed(() =>
 );
 
 const dates = computed(() => {
-  const start = new Date(props.steps[0]!.datetime);
-  const end = new Date(props.steps[props.steps.length - 1]!.datetime);
+  const start = parseLocalDate(props.steps[0]!.datetime);
+  const end = parseLocalDate(props.steps[props.steps.length - 1]!.datetime);
   return formatDateRange(start, end, { month: "long", day: "numeric", year: "numeric" });
 });
 

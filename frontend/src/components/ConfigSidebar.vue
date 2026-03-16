@@ -1,14 +1,19 @@
 <script lang="ts" setup>
-import type { Album, AlbumUpdate } from "@/client";
-import { toRangeList } from "@/utils/ranges";
+import type { Album, AlbumUpdate, Step } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import { symOutlinedFlightTakeoff, symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
+import { formatShortDate, isoDate, qDateNavBounds, toIso, toQDate } from "@/utils/date";
+import {
+  symOutlinedCalendarMonth,
+  symOutlinedFlightTakeoff,
+  symOutlinedPictureAsPdf,
+} from "@quasar/extras/material-symbols-outlined";
 import { computed } from "vue";
 
 const props = defineProps<{
   albumIds: string[];
   album?: Album;
+  allSteps?: Step[];
 }>();
 
 const albumId = defineModel<string | null>("albumId");
@@ -22,22 +27,9 @@ function save(patch: AlbumUpdate) {
   albumMutation.mutate(patch);
 }
 
-const onTripSelected = (aid: string) => {
-  albumId.value = aid;
-};
-
-const ruleRequired = (val: string): true | string => {
-  if (!val || !val.trim()) return "Step ranges are required";
-  return true;
-};
-const ruleRangesFormat = (val: string): true | string => {
-  try {
-    toRangeList(val);
-  } catch {
-    return "Use format: 0-20 or 0-5, 10-15";
-  }
-  return true;
-};
+const albumOptions = computed(() =>
+  props.albumIds.map((value) => ({ label: toTitleCase(value), value })),
+);
 
 const toTitleCase = (str: string) =>
   str
@@ -52,6 +44,55 @@ function onExportPdf() {
   if (!props.album) return;
   pdf.start();
 }
+
+// --- Step date picker (multiple date ranges) ---
+
+type QDateRange = { from: string; to: string };
+
+/** Set of QDate-format dates that have steps — for the `options` prop. */
+const stepDates = computed(() => {
+  const set = new Set<string>();
+  for (const step of props.allSteps ?? []) {
+    set.add(toQDate(isoDate(step.datetime)));
+  }
+  return set;
+});
+
+function isStepDate(date: string): boolean {
+  return stepDates.value.has(date);
+}
+
+const nav = computed(() => qDateNavBounds(props.allSteps ?? []));
+
+/** Album date ranges → QDate model. */
+const dateRangeModel = computed(() => {
+  const ranges = props.album?.steps_ranges;
+  if (!ranges?.length) return undefined;
+  return ranges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
+});
+
+const rangeDisplay = computed(() => {
+  const ranges = props.album?.steps_ranges;
+  if (!ranges?.length) return "";
+  return ranges
+    .map(([from, to]) => `${formatShortDate(from)} → ${formatShortDate(to)}`)
+    .join(", ");
+});
+
+function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) {
+  if (!val) {
+    save({ steps_ranges: [] });
+    return;
+  }
+  const entries = Array.isArray(val) ? val : [val];
+  const ranges: [string, string][] = entries.map((e) => {
+    if (typeof e === "string") return [toIso(e), toIso(e)];
+    const a = toIso(e.from), b = toIso(e.to);
+    return a <= b ? [a, b] : [b, a];
+  });
+  save({ steps_ranges: ranges.sort(([a], [b]) => a.localeCompare(b)) });
+}
+
 </script>
 
 <template>
@@ -61,15 +102,14 @@ function onExportPdf() {
       <div class="section">
         <div class="section-label">Trip</div>
         <q-select
-          :model-value="albumId"
-          :options="albumIds.map((value) => ({ label: toTitleCase(value), value }))"
+          v-model="albumId"
+          :options="albumOptions"
           class="sidebar-field"
           dense
           outlined
           options-dense
           emit-value
           map-options
-          @update:model-value="onTripSelected"
         >
           <template #prepend>
             <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" class="field-icon" />
@@ -80,36 +120,37 @@ function onExportPdf() {
       <div class="divider" />
 
       <template v-if="album">
-        <!-- Ranges -->
-        <div class="section">
-          <div class="section-label">Ranges</div>
+        <!-- Step range picker -->
+        <div v-if="allSteps?.length" class="section">
+          <div class="section-label">Steps</div>
           <q-input
-            :model-value="album.steps_ranges"
-            :rules="[ruleRequired, ruleRangesFormat]"
+            :model-value="rangeDisplay"
             class="sidebar-field"
-            debounce="500"
             dense
             outlined
-            lazy-rules
-            label="Steps"
+            readonly
+            label="Date range"
             stack-label
-            placeholder="e.g. 0-20, 30"
-            @update:model-value="save({ steps_ranges: String($event) })"
-          />
-          <q-input
-            :model-value="album.maps_ranges"
-            :rules="[ruleRangesFormat]"
-            class="sidebar-field"
-            debounce="500"
-            dense
-            outlined
-            lazy-rules
-            label="Maps"
-            stack-label
-            placeholder="e.g. 0-20, 30"
-            @update:model-value="save({ maps_ranges: String($event) })"
-          />
+          >
+            <template #append>
+              <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer field-icon">
+                <q-popup-proxy transition-show="scale" transition-hide="scale">
+                  <q-date
+                    :model-value="dateRangeModel"
+                    range
+                    multiple
+                    minimal
+                    :options="isStepDate"
+                    :navigation-min-year-month="nav.min"
+                    :navigation-max-year-month="nav.max"
+                    @update:model-value="onRangePick"
+                  />
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
         </div>
+
       </template>
     </div>
 
