@@ -53,7 +53,7 @@ function onDone() {
 </script>
 
 <template>
-  <div class="register-page flex flex-center">
+  <div class="register-page flex flex-center no-wrap">
     <div class="register-content">
       <RegisterHero />
 

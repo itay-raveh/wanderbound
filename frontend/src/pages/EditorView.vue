@@ -37,7 +37,7 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
     <EditorHeader class="print-hide" />
 
     <div class="editor-content row no-wrap">
-      <div class="sidebar-col scroll print-hide">
+      <div class="sidebar-col print-hide">
         <ConfigSidebar
           v-if="albumIds"
           v-model:album-id="selectedAlbumId"

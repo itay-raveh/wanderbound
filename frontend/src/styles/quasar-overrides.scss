@@ -59,9 +59,6 @@
   box-shadow: none;
 }
 
-// QSeparator — use theme border color instead of SASS-compiled defaults
-.q-separator { border-color: var(--border-color); }
-
 // QMenu dark-mode aware styling
 .q-menu {
   background: var(--bg-secondary);

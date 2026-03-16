@@ -68,7 +68,7 @@ function ensureContainers() {
       "width:var(--page-width)",
       "height:calc(var(--page-height) - 11rem)",
       "padding:2.5rem 3rem",
-      "font-size:0.9rem",
+      "font-size:0.875rem",
       "line-height:1.65",
       "column-count:2",
       "column-gap:2.5rem",
@@ -80,7 +80,7 @@ function ensureContainers() {
     [
       "width:var(--page-width)",
       "height:calc(var(--page-height) - 4rem)",
-      "padding:0 4rem 3rem",
+      "padding:0 4rem 2.5rem",
       "font-size:1rem",
       "line-height:1.6",
       "column-width:30rem",
