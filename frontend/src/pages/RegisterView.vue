@@ -98,7 +98,7 @@ function onDone() {
 
 .steps-card {
   padding: 1.75rem 2rem;
-  animation-delay: var(--duration-fast);
+  animation-delay: 0.15s;
 }
 
 </style>

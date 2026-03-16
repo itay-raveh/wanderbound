@@ -144,7 +144,7 @@ function saveCover(name: string) {
   font-size: var(--display-1);
   font-weight: 800;
   line-height: 1.05;
-  letter-spacing: var(--tracking-tight);
+  letter-spacing: -0.03em;
   color: white;
   text-align: center;
   max-width: 85%;
