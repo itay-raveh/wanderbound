@@ -91,7 +91,7 @@ const overallPercent = computed(() => {
           <q-icon
             v-if="tripStatuses[i] === 'done'"
             :name="matCheck"
-            size="var(--text-sm)"
+            size="0.75rem"
           />
           <div
             v-else-if="tripStatuses[i] === 'active'"
@@ -120,7 +120,7 @@ const overallPercent = computed(() => {
           >
             <q-icon
               :name="PHASE_ICONS[p]"
-              size="var(--text-sm)"
+              size="0.75rem"
               class="phase-icon"
             />
             <span class="phase-label">{{ PHASE_LABELS[p] }}</span>
@@ -128,7 +128,7 @@ const overallPercent = computed(() => {
             <q-icon
               v-if="phaseStatuses[p] === 'done'"
               :name="matCheckCircle"
-              size="var(--text-sm)"
+              size="0.75rem"
               class="phase-check"
             />
             <span v-else-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-count text-overline">

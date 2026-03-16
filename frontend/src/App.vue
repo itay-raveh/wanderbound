@@ -20,16 +20,6 @@ html, body, #app {
   /* A4 landscape page dimensions (single source of truth for album pages). */
   --page-width: 297mm;
   --page-height: 210mm;
-
-  /* Type scale — derived from Quasar SASS overrides in quasar-variables.sass. */
-  --text-sm: #{$caption-font-size};
-  --text-base: #{$body2-font-size};
-  --text-md: #{$subtitle2-font-size};
-
-  /* Border radius */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 1rem;
 }
 
 /* Theme colors */

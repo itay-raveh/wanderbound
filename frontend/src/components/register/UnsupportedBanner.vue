@@ -24,7 +24,7 @@ defineProps<{
 <style scoped>
 .banner {
   padding: 1rem 1.25rem;
-  border-radius: var(--radius-md);
+  border-radius: 0.625rem;
   border: 1px solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }

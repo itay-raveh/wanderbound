@@ -2,7 +2,7 @@
 import type { Segment, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
-import { drawSegmentsAndMarkers } from "@/utils/mapSegments";
+import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useTemplateRef } from "vue";
 

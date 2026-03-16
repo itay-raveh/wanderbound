@@ -62,7 +62,7 @@ backend/
       open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
     alembic/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
-      versions/              Single initial migration (user, album, step, segment tables)
+      versions/              Migrations: initial tables, steps_ranges/maps_ranges string→JSON, index→date
   data/users/                User upload data (ZIPs extracted here, one folder per user ID)
   tests/                     pytest (289 tests), conftest with async helpers
   pyproject.toml             Python 3.14, deps: FastAPI, SQLModel, Polars, Playwright, Pillow, httpx
@@ -89,7 +89,6 @@ frontend/
       useAlbumMutation.ts    Optimistic album PATCH
       useStepMutation.ts     Optimistic step layout PATCH
       useUserMutation.ts     Optimistic user preferences PATCH
-      useExportPdfMutation.ts  PDF export trigger
       useVideoFrameMutation.ts  Video poster re-extraction
     composables/
       useAlbum.ts            provide/inject for AlbumContext (albumId, colors, orientations, tripStart, totalDays)
@@ -100,12 +99,14 @@ frontend/
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
       useScrollContainer.ts  provide/inject for scroll container ref (IntersectionObserver root)
       usePrintReady.ts       provide/inject for print mode boolean
+      usePdfExportStream.ts  SSE consumer for PDF export progress (loading/rendering/merging, download token)
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/
       AlbumViewer.vue        Master album renderer: computes sections from ranges, renders cover/overview/maps/steps
-      ConfigSidebar.vue      Album settings panel: trip select, title, covers, ranges, PDF export
+      ConfigSidebar.vue      Album settings panel: trip select, step date ranges, PDF export
       CoverPhotoPicker.vue   Dropdown grid for selecting cover photos
       LazySection.vue        IntersectionObserver wrapper for lazy-loading album sections
+      MapSectionControls.vue Delete + date range picker controls for map sections
       album/
         CoverPage.vue        Full-bleed cover with date/title overlay (front) or plain image (back)
         MediaItem.vue         Photo (srcset + lazy) / Video (poster + controls + frame scrubber)
@@ -114,6 +115,9 @@ frontend/
         MapPage.vue           Overview map with segments + step markers
         HikeMapPage.vue       Hike-focused map with terrain DEM, stats overlay, elevation profile
         ElevationProfile.vue  SVG elevation chart (dist vs elev, gradient fill, axis labels)
+        mapSegments.ts        Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
+        mapMatching.ts        Mapbox Map Matching API (chunked, with Douglas-Peucker fallback)
+        map-segments.css      Marker + flight icon styles for Mapbox GL overlays
       album/overview/
         OverviewPage.vue      Trip summary: stats (days/distance/photos/steps), country strip, extremes, furthest point
         OverviewExtremes.vue  Coldest / hottest / highest step cards
@@ -143,13 +147,10 @@ frontend/
       units.ts               KM_TO_MI, M_TO_FT conversion constants
       text.ts                chooseTextDir (RTL detection for Hebrew/Arabic)
       weather.ts             weatherIconUrl (basmilius CDN)
-      ranges.ts              toRangeList parser ("0-5, 10-15" → [{start, end}])
-      mapMatching.ts         Mapbox Map Matching API (chunked, with Douglas-Peucker fallback)
-      mapSegments.ts         Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
+      date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, inDateRange, toQDate/toIso, ymdToIso
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes
-      map-segments.css       Marker + flight icon styles for Mapbox GL overlays
     countries/
       bounds.json            Country bounding boxes for SVG viewports
   openapi-ts.config.ts       Points to live backend for client generation
@@ -211,8 +212,9 @@ user
 
 album
   (uid, id) PK         uid FK → user.id
-  title, subtitle, steps_ranges, maps_ranges
-  front_cover_photo, back_cover_photo
+  title, subtitle, front_cover_photo, back_cover_photo
+  steps_ranges         JSON (list[DateRange] — date-based step filtering)
+  maps_ranges          JSON (list[DateRange] — map section date ranges)
   colors               JSON (country_code → hex color)
   orientations         JSON (media_name → "p"/"l")
 
@@ -237,6 +239,7 @@ segment
 
 | Type | Location | Purpose |
 |------|----------|---------|
+| `DateRange` | `models/album.py` | `tuple[date, date]` type alias — used for steps_ranges and maps_ranges |
 | `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) — step photo layout |
 | `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
 | `SegmentData` | `models/segment.py` | NamedTuple(kind, points) — GPS segmentation pipeline output |

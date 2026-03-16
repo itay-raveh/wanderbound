@@ -47,7 +47,7 @@ function onFailed() {
 <style scoped>
 .uploader {
   width: 100%;
-  border-radius: var(--radius-md);
+  border-radius: 0.625rem;
   background: color-mix(in srgb, var(--surface) 50%, transparent);
   transition:
     border-color 0.2s ease,
@@ -75,7 +75,7 @@ function onFailed() {
 }
 
 .uploader :deep(.q-uploader__title) {
-  font-size: var(--text-base);
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 </style>

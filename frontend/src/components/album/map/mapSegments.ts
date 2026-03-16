@@ -1,8 +1,8 @@
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
-import { matchRoute } from "@/utils/mapMatching";
-import "@/styles/map-segments.css";
+import { matchRoute } from "./mapMatching";
+import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 
 const LAYER_PREFIX = "seg-";

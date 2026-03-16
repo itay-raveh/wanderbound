@@ -102,7 +102,7 @@ function onDone() {
 .steps-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: 1rem;
   padding: 1.75rem 2rem;
   animation: fadeUp 0.5s ease both;
   animation-delay: 0.15s;

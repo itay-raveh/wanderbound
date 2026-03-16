@@ -3,19 +3,16 @@ import type { Album, AlbumData, DateRange, Segment, Step } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
+import MapSectionControls from "./MapSectionControls.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { filterCoverFromPages, measureDescription } from "@/composables/useTextMeasure";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
-import { inDateRange, isoDate, parseLocalDate, parseYMD, qDateNavBounds, toQDate, ymdToIso } from "@/utils/date";
+import { inDateRange, isoDate, parseLocalDate } from "@/utils/date";
 import { MS_PER_DAY } from "@/utils/units";
-import {
-  symOutlinedCalendarMonth,
-  symOutlinedClose,
-  symOutlinedMap,
-} from "@quasar/extras/material-symbols-outlined";
-import { computed, defineAsyncComponent, defineComponent, h, nextTick } from "vue";
+import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
+import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 
 const editorZoom = `${EDITOR_ZOOM}`;
 
@@ -181,59 +178,11 @@ const expectedPageCount = computed(() =>
 
 // --- Map range editing ---
 
-/** QDate-format dates of visible steps — for date picker `options` prop. */
-const visibleStepQDates = computed(() => {
-  const set = new Set<string>();
-  for (const s of steps.value) set.add(toQDate(isoDate(s.datetime)));
-  return set;
-});
-
-const nav = computed(() => qDateNavBounds(steps.value));
-
-/** Options function for map end-date picker: step dates within steps_ranges and >= start. */
-function mapEndDateOptions(mapStart: string) {
-  const qStart = toQDate(mapStart);
-  return (qdate: string) => qdate >= qStart && visibleStepQDates.value.has(qdate);
-}
-
 function addMapBefore(step: Step) {
   const sd = isoDate(step.datetime);
   const ranges: DateRange[] = [...(props.album.maps_ranges ?? []), [sd, sd]];
   ranges.sort(([a], [b]) => a.localeCompare(b));
   albumMutation.mutate({ maps_ranges: ranges });
-}
-
-function deleteMap(rangeIdx: number) {
-  const ranges = [...(props.album.maps_ranges ?? [])];
-  ranges.splice(rangeIdx, 1);
-  albumMutation.mutate({ maps_ranges: ranges });
-}
-
-// --- Range date picker with pre-selected start ---
-
-type YMD = ReturnType<typeof parseYMD>;
-
-const mapDateRefs: Record<number, { setEditingRange: (r: YMD) => void }> = {};
-const mapPopupRefs: Record<number, { hide: () => void }> = {};
-
-async function onMapPopupShow(rangeIdx: number, startDate: string) {
-  await nextTick();
-  const dateComp = mapDateRefs[rangeIdx];
-  if (!dateComp) return;
-  dateComp.setEditingRange(parseYMD(startDate));
-}
-
-function onMapRangeEnd(
-  rangeIdx: number,
-  startDate: string,
-  range: { from: YMD; to: YMD },
-) {
-  const ranges = [...(props.album.maps_ranges ?? [])] as DateRange[];
-  if (ranges[rangeIdx]) {
-    ranges[rangeIdx] = [startDate, ymdToIso(range.to)];
-    albumMutation.mutate({ maps_ranges: ranges });
-  }
-  mapPopupRefs[rangeIdx]?.hide();
 }
 
 // In print mode, provide a flag so child components can set loading="eager".
@@ -270,36 +219,14 @@ if (props.printMode) {
       >
         <!-- Map / Hike section with shared controls -->
         <div v-if="section.type === 'map' || section.type === 'hike'" class="map-wrapper">
-          <div v-if="!printMode" class="map-controls">
-            <q-icon
-              :name="symOutlinedClose"
-              size="1.125rem"
-              class="map-control-btn"
-              @click="deleteMap(section.rangeIdx)"
-            >
-              <q-tooltip>Remove map</q-tooltip>
-            </q-icon>
-            <q-icon :name="symOutlinedCalendarMonth" size="1.125rem" class="map-control-btn">
-              <q-tooltip>Change date range</q-tooltip>
-              <q-popup-proxy
-                :ref="(el: any) => el ? (mapPopupRefs[section.rangeIdx] = el) : delete mapPopupRefs[section.rangeIdx]"
-                transition-show="scale"
-                transition-hide="scale"
-                @before-show="onMapPopupShow(section.rangeIdx, section.dateRange[0])"
-              >
-                <q-date
-                  :ref="(el: any) => el ? (mapDateRefs[section.rangeIdx] = el) : delete mapDateRefs[section.rangeIdx]"
-                  :model-value="{ from: toQDate(section.dateRange[0]), to: toQDate(section.dateRange[1]) }"
-                  range
-                  minimal
-                  :options="mapEndDateOptions(section.dateRange[0])"
-                  :navigation-min-year-month="nav.min"
-                  :navigation-max-year-month="nav.max"
-                  @range-end="onMapRangeEnd(section.rangeIdx, section.dateRange[0], $event)"
-                />
-              </q-popup-proxy>
-            </q-icon>
-          </div>
+          <MapSectionControls
+            v-if="!printMode"
+            :album-id="album.id"
+            :maps-ranges="album.maps_ranges ?? []"
+            :range-idx="section.rangeIdx"
+            :date-range="section.dateRange"
+            :steps="steps"
+          />
           <MapPage v-if="section.type === 'map'" :segments="section.segments" :steps="section.steps" />
           <HikeMapPage
             v-else
@@ -366,35 +293,6 @@ if (props.printMode) {
       transform-origin: top left;
       content-visibility: visible;
     }
-  }
-}
-
-// Map controls — floating toolbar over map sections (editor only)
-.map-controls {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  backdrop-filter: blur(8px);
-  border-radius: 0.375rem;
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-}
-
-.map-control-btn {
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 0.25rem;
-  transition: color 0.15s, background 0.15s;
-
-  &:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--text) 8%, transparent);
   }
 }
 
@@ -470,7 +368,6 @@ if (props.printMode) {
     }
   }
 
-  .map-controls,
   .add-map-zone {
     display: none !important;
   }

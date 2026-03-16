@@ -47,17 +47,17 @@ const totalCountries = computed(() => {
 
       <div class="stats">
         <span class="stat text-overline">
-          <q-icon :name="symOutlinedLuggage" size="var(--text-md)" />
+          <q-icon :name="symOutlinedLuggage" size="0.875rem" />
           {{ trips.length }} trip{{ trips.length !== 1 ? "s" : "" }}
         </span>
         <span class="stat-dot" />
         <span class="stat text-overline">
-          <q-icon :name="symOutlinedPinDrop" size="var(--text-md)" />
+          <q-icon :name="symOutlinedPinDrop" size="0.875rem" />
           {{ totalSteps }} steps
         </span>
         <span class="stat-dot" />
         <span class="stat text-overline">
-          <q-icon :name="symOutlinedPublic" size="var(--text-md)" />
+          <q-icon :name="symOutlinedPublic" size="0.875rem" />
           {{ totalCountries }} countr{{ totalCountries !== 1 ? "ies" : "y" }}
         </span>
       </div>
@@ -81,7 +81,7 @@ const totalCountries = computed(() => {
         <div class="error-body">
           <span class="text-body2 error-msg">{{ errorDetail }}</span>
           <button class="retry-btn text-body2" @click="$emit('retry')">
-            <q-icon :name="matRefresh" size="var(--text-md)" />
+            <q-icon :name="matRefresh" size="0.875rem" />
             Try again
           </button>
         </div>
@@ -103,7 +103,7 @@ const totalCountries = computed(() => {
 .processing-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: 1rem;
   padding: 1.75rem 2rem;
   animation: fadeUp 0.5s ease both;
 }
@@ -168,7 +168,7 @@ const totalCountries = computed(() => {
   display: flex;
   gap: 0.625rem;
   padding: 1rem;
-  border-radius: var(--radius-md);
+  border-radius: 0.625rem;
   border: 1px solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }
@@ -195,7 +195,7 @@ const totalCountries = computed(() => {
   align-items: center;
   gap: 0.375rem;
   padding: 0.375rem 0.75rem;
-  border-radius: var(--radius-sm);
+  border-radius: 0.375rem;
   border: 1px solid var(--border-color);
   background: var(--surface);
   color: var(--text);
@@ -219,7 +219,7 @@ const totalCountries = computed(() => {
   gap: 0.5rem;
   width: 100%;
   padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  border-radius: 0.625rem;
   border: none;
   background: var(--q-primary);
   color: #fff;
