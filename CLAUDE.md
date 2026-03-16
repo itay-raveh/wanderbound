@@ -27,7 +27,11 @@ Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
 - Use parameterized queries always — never f-strings or string concatenation for SQL
 - Prefer database-level constraints (unique, check, not-null) over application-level validation
 
-**Vue:** See `frontend/CLAUDE.md` for frontend conventions and architecture.
+**Vue:** See `frontend/CLAUDE.md` for frontend conventions, architecture, and the design system.
+- Quasar is the component/utility framework — use its SASS variables (`quasar-variables.sass`) and utility classes before writing custom CSS
+- Two styling contexts: **editor chrome** (Quasar utility classes) and **album pages** (CSS custom properties from `App.vue`)
+- Quasar's `.row`/`.column`/`.flex` classes add `flex-wrap: wrap` — always pair with `.no-wrap` unless wrapping is intended
+- `all: unset` in scoped CSS overrides Quasar global classes — don't mix them on the same element
 
 **Docker / Nginx:**
 - Keep Dockerfiles minimal — multi-stage builds, small base images

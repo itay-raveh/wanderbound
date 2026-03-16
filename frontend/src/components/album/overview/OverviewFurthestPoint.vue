@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
-import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
+import { STAT_COLORS } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
@@ -16,6 +16,8 @@ const props = defineProps<{
 }>();
 
 const { formatDistance, distanceUnit, formatDate } = useUserQuery();
+
+const accentColor = STAT_COLORS.distance;
 
 const furthest = computed(() => {
   let maxDist = -1;
@@ -57,8 +59,8 @@ const furthest = computed(() => {
     <div class="fp-body">
       <!-- Home -->
       <div class="fp-info">
-        <div class="fp-name">{{ home.name }}</div>
-        <div class="fp-sub">
+        <div class="fp-name text-bright">{{ home.name }}</div>
+        <div class="fp-sub text-muted">
           <img
             :src="flagUrl(home.country_code)"
             class="fp-flag"
@@ -75,8 +77,8 @@ const furthest = computed(() => {
         <div class="column">
           <span class="fp-tag">Furthest from home</span>
           <div class="fp-badge">
-            <span class="fp-dist">{{ furthest.dist }}</span>
-            <span class="fp-unit">{{ distanceUnit() }}</span>
+            <span class="fp-dist text-bright">{{ furthest.dist }}</span>
+            <span class="fp-unit text-muted">{{ distanceUnit() }}</span>
           </div>
         </div>
         <div class="fp-line" />
@@ -84,8 +86,8 @@ const furthest = computed(() => {
 
       <!-- Furthest -->
       <div class="fp-info right">
-        <div class="fp-name">{{ furthest.location.name }}</div>
-        <div class="fp-sub">
+        <div class="fp-name text-bright">{{ furthest.location.name }}</div>
+        <div class="fp-sub text-muted">
           <span :dir="furthest.dateDir">{{ furthest.date }}</span>
           <span class="fp-sep">·</span>
           <span>{{ furthest.location.detail }}</span>
@@ -102,7 +104,8 @@ const furthest = computed(() => {
 
 <style lang="scss" scoped>
 .furthest {
-  margin: 0 3rem;
+  --fp-accent: v-bind(accentColor);
+  margin: 0 var(--page-inset-x);
   padding: 0.625rem 0.75rem;
   border-left: 3px solid var(--fp-accent);
   background: color-mix(
@@ -110,8 +113,7 @@ const furthest = computed(() => {
     var(--fp-accent) 6%,
     var(--page-bg, var(--bg))
   );
-  border-radius: 0.375rem;
-  --fp-accent: v-bind(OVERVIEW_DISTANCE_COLOR);
+  border-radius: var(--radius-sm);
   z-index: 1;
 }
 
@@ -122,10 +124,10 @@ const furthest = computed(() => {
 }
 
 .fp-tag {
-  font-size: 0.5625rem;
+  font-size: var(--type-3xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-wide);
   color: var(--fp-accent);
 }
 
@@ -138,14 +140,14 @@ const furthest = computed(() => {
 .fp-body {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  gap: var(--gap-md);
+  margin-top: var(--gap-sm);
 }
 
 .fp-info {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--gap-xs);
 }
 
 .fp-info.right {
@@ -154,24 +156,22 @@ const furthest = computed(() => {
 }
 
 .fp-name {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   font-weight: 700;
-  color: var(--text-bright);
   line-height: 1.2;
 }
 
 .fp-sub {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.5625rem;
-  color: var(--text-muted);
+  gap: var(--gap-sm);
+  font-size: var(--type-3xs);
 }
 
 .fp-flag {
   width: 0.875rem;
   height: 0.625rem;
-  border-radius: 1px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -202,19 +202,17 @@ const furthest = computed(() => {
     var(--page-bg, var(--bg))
   );
   padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-xs);
 }
 
 .fp-dist {
-  font-size: 1.25rem;
+  font-size: var(--type-lg);
   font-weight: 800;
-  color: var(--text-bright);
 }
 
 .fp-unit {
-  font-size: 0.5rem;
+  font-size: var(--type-3xs);
   font-weight: 600;
-  color: var(--text-muted);
   text-transform: uppercase;
 }
 </style>

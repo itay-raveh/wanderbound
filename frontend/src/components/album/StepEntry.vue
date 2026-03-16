@@ -130,8 +130,8 @@ if (!printMode) {
 </script>
 
 <template>
-  <div class="step-entry">
-    <div class="cover-drop-wrapper">
+  <div class="step-entry column no-wrap items-center">
+    <div class="cover-drop-wrapper relative-position">
       <StepMainPage
         :step="step"
         :description-type="desc.type"
@@ -157,12 +157,12 @@ if (!printMode) {
     />
 
     <!-- Add page drop zone (editor only) -->
-    <div v-if="!printMode" class="add-zone">
-      <div class="add-zone-content">
+    <div v-if="!printMode" class="add-zone relative-position">
+      <div class="add-zone-content column items-center justify-center text-weight-medium text-muted">
         <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
-        <span class="add-label">Drop photo to add page</span>
+        <span>Drop photo to add page</span>
       </div>
-      <div ref="dropZoneRef" class="drop-overlay" />
+      <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
     </div>
 
     <!-- Unused photos tray (editor only) -->
@@ -178,13 +178,6 @@ if (!printMode) {
 <style lang="scss" scoped>
 .step-entry {
   --meta-width: 42%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.cover-drop-wrapper {
-  position: relative;
 }
 
 .cover-drop-overlay {
@@ -222,17 +215,13 @@ if (!printMode) {
 }
 
 .add-zone {
-  position: relative;
   width: calc(var(--page-width) * var(--editor-zoom));
   margin: 0.5rem auto;
   min-height: 3.5rem;
 }
 
 .drop-overlay {
-  position: absolute;
-  inset: 0;
   z-index: 1;
-  overflow: hidden;
 
   // Hide dropped items — they get processed immediately
   :deep(*) {
@@ -243,22 +232,16 @@ if (!printMode) {
 }
 
 .add-zone-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
+  gap: var(--gap-sm);
   width: 100%;
   padding: 1rem;
   border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
-  border-radius: 0.75rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  font-weight: 500;
+  border-radius: var(--radius-lg);
+  font-size: var(--type-sm);
   transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    background var(--duration-fast);
 
   &:hover {
     border-color: var(--q-primary);

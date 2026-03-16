@@ -33,6 +33,58 @@
 - Stores: camelCase with `Store` suffix in Pinia (`useUserStore`)
 - Views: PascalCase matching route name (`Dashboard.vue`)
 
+## Design System
+
+The app has two styling contexts: **editor chrome** (sidebar, header, menus, registration) and **album pages** (A4 print-ready pages rendered in the viewer). They share a token system but follow different rules.
+
+### Layers
+
+| Layer | File | Resolves at | What it controls |
+|-------|------|-------------|-----------------|
+| Quasar SASS variables | `src/quasar-variables.sass` | Build time | Typography maps (`$h5`, `$body2`, etc.), `$text-weights`, `$generic-border-radius`, component defaults |
+| CSS custom properties | `App.vue` global `<style>` | Runtime | Dark/light colors, radius scale, page typography, spacing, transitions |
+| Global Quasar overrides | `src/styles/quasar-overrides.scss` | Runtime | Form field theming, QMenu styling (needs CSS vars, can't be SASS) |
+
+### Editor chrome — use Quasar utility classes
+
+For layout, typography, and spacing in editor chrome components, prefer Quasar classes over custom CSS:
+
+- **Flex layout:** `.row`, `.column`, `.flex` + alignment (`.items-center`, `.justify-between`, etc.)
+- **Typography:** `.text-body2`, `.text-caption`, `.text-overline`, `.text-h5`, `.text-h6`, `.text-subtitle1`, `.text-subtitle2`
+- **Weights:** `.text-weight-bold`, `.text-weight-semibold`, `.text-weight-medium` (extended via `$text-weights` in SASS)
+- **Text:** `.text-uppercase`, `.text-italic`, `.text-center`, `.text-justify`
+- **Spacing:** `.q-pa-sm`, `.q-ml-auto`, `.q-gutter-x-sm`, `.q-gutter-y-sm`, etc.
+- **Positioning:** `.relative-position`, `.absolute-full`, `.overflow-hidden`, `.fit`
+- **Interaction:** `.cursor-pointer`, `.non-selectable`, `.no-pointer-events`
+- **Color:** `.text-primary`, `.text-negative`, `.bg-primary` (Quasar built-in) + `.text-bright`, `.text-muted`, `.text-faint`, `.text-danger`, `.bg-danger` (custom palette in `App.vue`, follows [Quasar convention](https://quasar.dev/style/color-palette#adding-your-own-colors) with `!important`)
+- **Shadow:** `.shadow-1` through `.shadow-5` (auto-switch in dark mode)
+
+**Critical gotchas:**
+- `.row`, `.column`, `.flex` ALL set `flex-wrap: wrap`. Always add `.no-wrap` unless wrapping is explicitly desired.
+- `all: unset` in scoped CSS has higher specificity than Quasar global classes (due to Vue's `[data-v-xxx]`). On elements with `all: unset`, do NOT use Quasar flex classes — write `display: flex; align-items: center;` in CSS instead.
+
+### Album pages — use CSS custom properties
+
+Album pages have specific typographic design for A4 print. Use the token scale from `App.vue`:
+
+- **Font sizes:** `--display-1` (3.75rem), `--display-2` (3rem), `--type-xl` through `--type-3xs`
+- **Radius:** `--radius-xs` (2px) through `--radius-full` (999px)
+- **Tracking:** `--tracking-tight` (-0.02em), `--tracking-wide` (0.06em), `--tracking-wider` (0.2em)
+- **Page spacing:** `--page-inset-x` (3rem), `--page-inset-y` (2.5rem), `--gap-lg` through `--gap-xs`
+- **Photo grids:** `--photo-gap-lg` (5mm) through `--photo-gap-xs` (2mm)
+- **Map pages:** `--page-dark-surface`, `--page-dark-overlay`
+- **Timing:** `--duration-fast` (0.15s), `--duration-normal` (0.3s), `--duration-slow` (0.5s)
+
+Font weights in album pages stay as literal values (`font-weight: 600`) — no token needed since they don't vary by theme.
+
+### Theme colors
+
+Dark/light mode colors are CSS custom properties on `.body--dark` / `.body--light` in `App.vue`: `--bg`, `--bg-secondary`, `--bg-deep`, `--text`, `--text-bright`, `--text-muted`, `--text-faint`, `--surface`, `--border-color`, `--danger`. Quasar brand color `--q-primary` is set in `main.ts`.
+
+### Stat colors
+
+Centralized in `src/utils/colors.ts` as `STAT_COLORS` — used by overview page components. Add new stat colors there, not as inline hex values.
+
 ## Anti-Patterns
 - God components (150+ lines mixing layout, logic, fetching, and state)
 - Prop drilling through 3+ levels — use Pinia or provide/inject

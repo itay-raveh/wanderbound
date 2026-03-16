@@ -41,7 +41,7 @@ function onPaste(e: ClipboardEvent) {
 </script>
 
 <template>
-  <div class="editable-text">
+  <div class="editable-text relative-position">
     <div
       ref="el"
       class="editable-text__input"
@@ -52,7 +52,7 @@ function onPaste(e: ClipboardEvent) {
       @keydown="onKeydown"
       @paste="onPaste"
     ><slot /></div>
-    <span class="editable-text__badge" @mousedown.prevent>
+    <span class="editable-text__badge flex flex-center no-pointer-events" @mousedown.prevent>
       <q-icon :name="symOutlinedEdit" size="0.55rem" />
     </span>
   </div>
@@ -60,7 +60,6 @@ function onPaste(e: ClipboardEvent) {
 
 <style lang="scss" scoped>
 .editable-text {
-  position: relative;
   display: inline-block;
 }
 
@@ -68,10 +67,10 @@ function onPaste(e: ClipboardEvent) {
   cursor: text;
   outline: 3px dashed rgba(255, 255, 255, 0.35);
   outline-offset: 0.3rem;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-xs);
   transition:
-    outline-color 0.2s ease,
-    background-color 0.2s ease;
+    outline-color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease;
 
   &:hover:not(:focus) {
     outline-color: rgba(255, 255, 255, 0.55);
@@ -88,15 +87,11 @@ function onPaste(e: ClipboardEvent) {
   position: absolute;
   top: -0.75rem;
   right: -0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 1.125rem;
   height: 1.125rem;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
   color: rgba(0, 0, 0, 0.65);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
 }
 </style>

@@ -79,7 +79,7 @@ function saveCover(name: string) {
 
     <!-- ═══ FRONT COVER ═══ -->
     <template v-if="!isBack">
-      <div class="front-text">
+      <div class="front-text absolute-full">
         <div :dir="chooseTextDir(dates)" class="front-date">{{ dates }}</div>
         <div class="cover-rule" />
 
@@ -119,21 +119,19 @@ function saveCover(name: string) {
 }
 
 .front-text {
-  position: absolute;
-  inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem 4rem;
-  gap: 0.625rem;
+  padding: var(--page-inset-y) 4rem;
+  gap: var(--gap-md);
 }
 
 .front-date {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   font-weight: 600;
-  letter-spacing: 0.2em;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.8);
   text-shadow:
@@ -143,10 +141,10 @@ function saveCover(name: string) {
 }
 
 .front-title {
-  font-size: 3.75rem;
+  font-size: var(--display-1);
   font-weight: 800;
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-tight);
   color: white;
   text-align: center;
   max-width: 85%;
@@ -157,9 +155,9 @@ function saveCover(name: string) {
 }
 
 .front-subtitle {
-  font-size: 1.1rem;
+  font-size: var(--type-subtitle);
   font-weight: 300;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-wide);
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
   max-width: 70%;

@@ -98,11 +98,11 @@ onMounted(waitForPrintReady);
 
 <template>
   <div class="print-view">
-    <div v-if="error" class="status-message error">
+    <div v-if="error" class="status-message flex flex-center text-negative">
       Failed to load album: {{ error.message }}
     </div>
     <AlbumViewer v-else-if="album && albumData" :album="album" :data="albumData" print-mode />
-    <div v-else class="status-message">Loading album...</div>
+    <div v-else class="status-message flex flex-center text-muted">Loading album...</div>
   </div>
 </template>
 
@@ -123,22 +123,10 @@ body,
   -webkit-print-color-adjust: exact !important;
 }
 
-.print-view {
-  margin: 0;
-  padding: 0;
-}
 
 .status-message {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100vh;
   font-size: 1.5rem;
-  color: var(--text-muted);
-
-  &.error {
-    color: var(--q-negative);
-  }
 }
 
 @page {

@@ -31,7 +31,7 @@ function onFailed() {
     <q-uploader
       accept=".zip"
       auto-upload
-      class="uploader"
+      class="uploader full-width"
       label="Drop .zip file here or click to browse"
       :url="uploadUrl"
       field-name="file"
@@ -46,36 +46,15 @@ function onFailed() {
 
 <style scoped>
 .uploader {
-  width: 100%;
-  border-radius: 0.625rem;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface) 50%, transparent);
   transition:
-    border-color 0.2s ease,
-    background 0.2s ease;
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
 }
 
 .uploader:hover {
   border-color: color-mix(in srgb, var(--q-primary) 50%, transparent);
   background: color-mix(in srgb, var(--q-primary) 5%, transparent);
-}
-
-.uploader :deep(.q-uploader__header) {
-  background: transparent;
-  color: var(--text-faint);
-  border-bottom: none;
-  padding: 0.75rem 1rem;
-}
-
-.uploader :deep(.q-uploader__list) {
-  padding: 0.5rem 1rem;
-}
-
-.uploader :deep(.q-uploader__subtitle) {
-  color: var(--text-faint);
-}
-
-.uploader :deep(.q-uploader__title) {
-  font-size: 0.8125rem;
-  font-weight: 500;
 }
 </style>

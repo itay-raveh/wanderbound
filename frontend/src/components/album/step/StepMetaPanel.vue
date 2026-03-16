@@ -91,7 +91,7 @@ const dateStr = computed(() => {
           :color="countryColor"
         />
       </div>
-      <div class="coords" dir="ltr">
+      <div class="coords text-muted" dir="ltr">
         <span>{{ coords.lat }}</span>
         <span>{{ coords.lon }}</span>
       </div>
@@ -99,11 +99,11 @@ const dateStr = computed(() => {
 
     <!-- Country + Step name -->
     <div class="name-block">
-      <div class="country-row">
+      <div class="country-row text-muted">
         <img :src="flagUrl(step.location.country_code)" class="flag" alt="" />
         <span>{{ step.location.detail }}</span>
       </div>
-      <h2 class="step-name">{{ step.name }}</h2>
+      <h2 class="step-name text-bright">{{ step.name }}</h2>
     </div>
 
     <!-- Short description (normal layout only) -->
@@ -120,8 +120,8 @@ const dateStr = computed(() => {
       <div class="stats-bar">
         <!-- Date -->
         <div class="stat-col">
-          <span class="stat-label">{{ dateStr.month }}</span>
-          <span class="stat-value">{{ dateStr.day }}</span>
+          <span class="stat-label text-muted">{{ dateStr.month }}</span>
+          <span class="stat-value text-bright">{{ dateStr.day }}</span>
         </div>
 
         <!-- Weather -->
@@ -132,7 +132,7 @@ const dateStr = computed(() => {
               class="weather-icon-sm"
               alt=""
             />
-            <span class="stat-label">{{
+            <span class="stat-label text-muted">{{
               formatTemp(step.weather.night.temp)
             }}</span>
           </div>
@@ -142,7 +142,7 @@ const dateStr = computed(() => {
               class="weather-icon-lg"
               alt=""
             />
-            <span class="stat-value">{{
+            <span class="stat-value text-bright">{{
               formatTemp(step.weather.day.temp)
             }}</span>
           </div>
@@ -150,8 +150,8 @@ const dateStr = computed(() => {
 
         <!-- Elevation -->
         <div class="stat-col">
-          <span class="stat-label">{{ isKm ? "M.A.S.L" : "FT A.S.L" }}</span>
-          <span class="stat-value">{{
+          <span class="stat-label text-muted">{{ isKm ? "M.A.S.L" : "FT A.S.L" }}</span>
+          <span class="stat-value text-bright">{{
             formatElevationValue(step.elevation)
           }}</span>
         </div>
@@ -159,7 +159,7 @@ const dateStr = computed(() => {
 
       <!-- Progress bar with day badge -->
       <div
-        class="progress-section"
+        class="progress-section relative-position"
         dir="ltr"
         :style="{ '--progress': `${progressPercent}%` }"
       >
@@ -171,7 +171,7 @@ const dateStr = computed(() => {
         </div>
         <div class="badge-rail">
           <div class="badge-arrow" />
-          <div class="step-badge">DAY {{ dayNumber }}</div>
+          <div class="step-badge text-bright">DAY {{ dayNumber }}</div>
         </div>
       </div>
     </div>
@@ -182,14 +182,14 @@ const dateStr = computed(() => {
 .meta-panel {
   display: flex;
   flex-direction: column;
-  padding: 2.5rem 2.5rem 0 3rem;
+  padding: var(--page-inset-y) var(--page-inset-y) 0 var(--page-inset-x);
 }
 
 .silhouette-row {
   display: flex;
-  gap: 1rem;
+  gap: var(--gap-lg);
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: var(--gap-lg);
 }
 
 .silhouette-box {
@@ -206,11 +206,10 @@ const dateStr = computed(() => {
   font-family:
     "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", ui-monospace,
     monospace;
-  font-size: 0.65rem;
+  font-size: var(--type-2xs);
   font-weight: 500;
-  color: var(--text-muted);
   letter-spacing: 0.02em;
-  padding-top: 0.25rem;
+  padding-top: var(--gap-sm);
   white-space: pre;
 }
 
@@ -218,54 +217,52 @@ const dateStr = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--gap-lg);
 }
 
 .country-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
+  gap: var(--gap-md);
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  letter-spacing: var(--tracking-wide);
 }
 
 .flag {
   width: 1.15rem;
   height: 0.8rem;
   flex-shrink: 0;
-  border-radius: 1px;
+  border-radius: var(--radius-xs);
 }
 
 .step-name {
-  font-size: 1.35rem;
+  font-size: var(--type-xl);
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
   line-height: 1.15;
   margin: 0;
-  color: var(--text-bright);
 }
 
 .description {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   line-height: 1.65;
   color: var(--text);
   white-space: pre-wrap;
   text-align: justify;
   overflow: hidden;
   flex: 1;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--gap-lg);
 }
 
 .bottom-section {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding-bottom: 2.5rem;
+  gap: var(--gap-md);
+  padding-bottom: var(--page-inset-y);
 }
 
 .stats-bar {
@@ -288,19 +285,17 @@ const dateStr = computed(() => {
 }
 
 .stat-label {
-  font-size: 0.6rem;
+  font-size: var(--type-2xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  letter-spacing: var(--tracking-wide);
 }
 
 .stat-value {
-  font-size: 1.3rem;
+  font-size: var(--type-xl);
   font-weight: 800;
   line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--text-bright);
+  letter-spacing: var(--tracking-tight);
 }
 
 .weather-col {
@@ -310,7 +305,7 @@ const dateStr = computed(() => {
 .weather-row {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--gap-sm);
 }
 
 .weather-night {
@@ -329,21 +324,17 @@ const dateStr = computed(() => {
   flex-shrink: 0;
 }
 
-.progress-section {
-  position: relative;
-}
-
 .progress-track {
   width: 100%;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--text) 10%, transparent);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: v-bind(countryColor);
 }
 
@@ -352,7 +343,7 @@ const dateStr = computed(() => {
   width: 100%;
   // Reserve space: arrow (5px) + badge (~1rem)
   height: calc(5px + 1.1rem);
-  margin-top: 0.25rem;
+  margin-top: var(--gap-sm);
 }
 
 // Arrow + badge both clamped so the arrow never escapes the badge box.
@@ -379,13 +370,12 @@ const dateStr = computed(() => {
     calc(var(--progress) - var(--half-w)),
     calc(100% - 2 * var(--half-w))
   );
-  font-size: 0.55rem;
+  font-size: var(--type-3xs);
   font-weight: 700;
-  color: var(--text-bright);
   padding: 0.15rem 0.5rem;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   white-space: nowrap;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-wide);
   background: v-bind(countryColor);
 }
 
@@ -397,11 +387,11 @@ const dateStr = computed(() => {
     "sil   stats"
     "name  stats";
   column-gap: 1.5rem;
-  padding: 2rem 3rem 1.25rem;
+  padding: 2rem var(--page-inset-x) 1.25rem;
 
   .silhouette-row {
     grid-area: sil;
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--gap-md);
   }
 
   .silhouette-box {
@@ -416,7 +406,7 @@ const dateStr = computed(() => {
   }
 
   .step-name {
-    font-size: 1.25rem;
+    font-size: var(--type-lg);
   }
 
   .description {

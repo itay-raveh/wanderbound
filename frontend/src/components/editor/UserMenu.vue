@@ -59,17 +59,16 @@ async function handleDelete() {
       <q-avatar v-if="user.profile_image_path" size="2rem" class="trigger-avatar">
         <img :src="user.profile_image_path" :alt="user.first_name" />
       </q-avatar>
-      <div v-else class="trigger-avatar-fallback">
+      <div v-else class="trigger-avatar-fallback flex flex-center">
         <q-icon :name="matPerson" size="1.125rem" />
       </div>
-      <span class="trigger-name">{{ user.first_name }}</span>
+      <span class="trigger-name text-weight-semibold text-body2">{{ user.first_name }}</span>
 
       <div class="trigger-divider" />
       <q-icon :name="matSettings" size="1.125rem" class="trigger-gear" />
 
       <q-menu
         v-model="menuOpen"
-        class="settings-popover"
         anchor="bottom right"
         self="top right"
         :offset="[0, 8]"
@@ -77,7 +76,7 @@ async function handleDelete() {
         <div class="settings-card">
           <!-- Appearance -->
           <section class="card-section">
-            <h4 class="section-title">Appearance</h4>
+            <h4 class="section-title text-overline text-faint">Appearance</h4>
             <div class="seg-track">
               <button
                 :class="{ active: !$q.dark.isActive }"
@@ -100,9 +99,9 @@ async function handleDelete() {
 
           <!-- Units -->
           <section class="card-section">
-            <h4 class="section-title">Units</h4>
-            <div class="unit-row">
-              <span class="unit-label">Distance</span>
+            <h4 class="section-title text-overline text-faint">Units</h4>
+            <div class="unit-row row no-wrap items-center justify-between">
+              <span class="unit-label text-body2">Distance</span>
               <div class="seg-track compact">
                 <button
                   :class="{ active: isKm }"
@@ -116,8 +115,8 @@ async function handleDelete() {
                 >mi</button>
               </div>
             </div>
-            <div class="unit-row">
-              <span class="unit-label">Temperature</span>
+            <div class="unit-row row no-wrap items-center justify-between">
+              <span class="unit-label text-body2">Temperature</span>
               <div class="seg-track compact">
                 <button
                   :class="{ active: isCelsius }"
@@ -135,9 +134,10 @@ async function handleDelete() {
 
           <!-- Language -->
           <section class="card-section">
-            <h4 class="section-title">Language</h4>
+            <h4 class="section-title text-overline text-faint">Language</h4>
             <div class="locale-wrapper">
               <q-select
+                class="compact-field"
                 :model-value="user.locale"
                 :options="LOCALE_OPTIONS"
                 dense
@@ -152,7 +152,7 @@ async function handleDelete() {
             </div>
           </section>
 
-          <div class="card-divider" />
+          <q-separator class="q-my-sm" />
 
           <button class="danger-btn" @click="showDeleteConfirm = true">
             <q-icon :name="matDeleteOutline" size="1rem" />
@@ -171,13 +171,13 @@ async function handleDelete() {
   all: unset;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gap-md);
   padding: 0.35rem 0.6rem 0.35rem 0.35rem;
-  border-radius: 2rem;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border-color);
   background: var(--surface);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
   color: var(--text-muted);
 
   &:hover,
@@ -197,15 +197,10 @@ async function handleDelete() {
   border-radius: 50%;
   background: color-mix(in srgb, var(--q-primary) 15%, var(--surface));
   color: var(--q-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
 .trigger-name {
-  font-size: 0.8125rem;
-  font-weight: 600;
   color: var(--text);
 }
 
@@ -218,7 +213,7 @@ async function handleDelete() {
 
 .trigger-gear {
   color: var(--text-faint);
-  transition: color 0.25s ease, transform 0.25s ease;
+  transition: color var(--duration-normal) ease, transform var(--duration-normal) ease;
 
   .settings-trigger:hover &,
   .settings-trigger.open & {
@@ -240,12 +235,7 @@ async function handleDelete() {
 }
 
 .section-title {
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  margin: 0 0 0.4rem;
+  margin: 0 0 var(--gap-md);
   padding: 0 0.125rem;
 }
 
@@ -253,7 +243,7 @@ async function handleDelete() {
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, black 10%, var(--bg-secondary));
 }
 
@@ -266,11 +256,11 @@ async function handleDelete() {
   justify-content: center;
   gap: 0.3rem;
   padding: 0.375rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-muted);
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 
   &:hover:not(.active) {
     color: var(--text);
@@ -296,39 +286,19 @@ async function handleDelete() {
 }
 
 .unit-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
   &:not(:last-child) {
     margin-bottom: 0.375rem;
   }
 }
 
 .unit-label {
-  font-size: 0.8125rem;
   color: var(--text);
 }
 
 .locale-wrapper {
   background: color-mix(in srgb, black 10%, var(--bg-secondary));
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   padding: 0 0.5rem;
-
-  :deep(.q-field__native > span) {
-    font-size: 0.8125rem;
-    color: var(--text);
-  }
-
-  :deep(.q-field__append) {
-    color: var(--text-faint);
-  }
-}
-
-.card-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 0.75rem 0;
 }
 
 .danger-btn {
@@ -336,30 +306,18 @@ async function handleDelete() {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gap-md);
   width: 100%;
   padding: 0.375rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--danger);
   box-sizing: border-box;
-  transition: background 0.15s ease;
+  transition: background var(--duration-fast) ease;
 
   &:hover {
     background: color-mix(in srgb, var(--danger) 12%, transparent);
   }
-}
-</style>
-
-<style lang="scss">
-/* QMenu creates its own wrapper element outside our template — must be unscoped */
-.settings-popover {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem !important;
-  box-shadow:
-    0 8px 30px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06);
 }
 </style>

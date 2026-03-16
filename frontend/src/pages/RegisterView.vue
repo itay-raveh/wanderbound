@@ -53,17 +53,17 @@ function onDone() {
 </script>
 
 <template>
-  <div class="register-page">
+  <div class="register-page flex flex-center">
     <div class="register-content">
       <RegisterHero />
 
       <!-- Upload view -->
-      <div v-if="!uploadResult" class="steps-card">
+      <q-card v-if="!uploadResult" class="steps-card fade-up">
         <DataInstructions />
-        <div class="steps-divider" />
+        <q-separator class="q-my-md" />
         <ZipUploader v-if="mapboxSupported" @uploaded="onUploaded" />
         <UnsupportedBanner v-else :reason="mapboxReason" />
-      </div>
+      </q-card>
 
       <!-- Processing view -->
       <ProcessingProgress
@@ -89,9 +89,6 @@ function onDone() {
     color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),
     var(--bg)
   );
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .register-content {
@@ -100,17 +97,8 @@ function onDone() {
 }
 
 .steps-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 1rem;
   padding: 1.75rem 2rem;
-  animation: fadeUp 0.5s ease both;
-  animation-delay: 0.15s;
+  animation-delay: var(--duration-fast);
 }
 
-.steps-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 1.5rem 0;
-}
 </style>

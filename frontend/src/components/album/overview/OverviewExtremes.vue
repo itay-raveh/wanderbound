@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { STAT_COLORS } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
 import { chooseTextDir } from "@/utils/text";
@@ -88,7 +89,7 @@ const records = computed<ExtremeRecord[]>(() => {
       label: "Coldest",
       value: formatTemp(coldFeels),
       ...meta(coldStep),
-      color: "#42a5f5",
+      color: STAT_COLORS.cold,
       icon: weatherIconUrl(coldIcon),
       qIcon: false,
     },
@@ -97,7 +98,7 @@ const records = computed<ExtremeRecord[]>(() => {
       label: "Hottest",
       value: formatTemp(hotFeels),
       ...meta(hotStep),
-      color: "#ef6c00",
+      color: STAT_COLORS.hot,
       icon: weatherIconUrl(hotStep.weather.day.icon),
       qIcon: false,
     },
@@ -106,7 +107,7 @@ const records = computed<ExtremeRecord[]>(() => {
       label: "Highest",
       value: formatElevation(highestStep.elevation),
       ...meta(highestStep),
-      color: "#8d6e63",
+      color: STAT_COLORS.elevation,
       icon: matLandscape,
       qIcon: true,
     },
@@ -128,8 +129,8 @@ const records = computed<ExtremeRecord[]>(() => {
         <q-icon v-else :name="r.icon" size="1.375rem" class="record-q-icon" />
       </div>
       <div class="record-value">{{ r.value }}</div>
-      <div class="record-place">{{ r.place }}</div>
-      <div class="record-meta">
+      <div class="record-place text-bright">{{ r.place }}</div>
+      <div class="record-meta text-muted">
         <img
           :src="flagUrl(r.countryCode)"
           class="record-flag"
@@ -147,8 +148,8 @@ const records = computed<ExtremeRecord[]>(() => {
 <style lang="scss" scoped>
 .extremes {
   display: flex;
-  gap: 0.75rem;
-  padding: 1.25rem 3rem;
+  gap: var(--gap-lg);
+  padding: 1.25rem var(--page-inset-x);
   flex-shrink: 0;
 }
 
@@ -156,11 +157,11 @@ const records = computed<ExtremeRecord[]>(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--gap-xs);
   padding: 0.625rem 0.75rem;
   border-left: 3px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   min-width: 0;
 }
 
@@ -171,10 +172,10 @@ const records = computed<ExtremeRecord[]>(() => {
 }
 
 .record-tag {
-  font-size: 0.5625rem;
+  font-size: var(--type-3xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-wide);
   color: var(--accent);
 }
 
@@ -192,34 +193,32 @@ const records = computed<ExtremeRecord[]>(() => {
 }
 
 .record-value {
-  font-size: 1.375rem;
+  font-size: var(--type-xl);
   font-weight: 800;
   color: var(--accent);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
   line-height: 1.15;
 }
 
 .record-place {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   font-weight: 600;
-  color: var(--text-bright);
   line-height: 1.3;
-  margin-top: 0.125rem;
+  margin-top: var(--gap-xs);
 }
 
 .record-meta {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.5625rem;
-  color: var(--text-muted);
+  gap: var(--gap-sm);
+  font-size: var(--type-3xs);
   margin-top: 0.0625rem;
 }
 
 .record-flag {
   width: 0.875rem;
   height: 0.625rem;
-  border-radius: 1px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 

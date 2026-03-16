@@ -33,11 +33,11 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
 </script>
 
 <template>
-  <div class="editor-page">
+  <div class="editor-page column no-wrap overflow-hidden">
     <EditorHeader class="print-hide" />
 
-    <div class="editor-content">
-      <div class="sidebar-col print-hide">
+    <div class="editor-content row no-wrap">
+      <div class="sidebar-col scroll print-hide">
         <ConfigSidebar
           v-if="albumIds"
           v-model:album-id="selectedAlbumId"
@@ -47,7 +47,7 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
         />
       </div>
 
-      <div ref="viewerCol" class="viewer-col">
+      <div ref="viewerCol" class="viewer-col scroll">
         <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
       </div>
     </div>
@@ -56,15 +56,11 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
 
 <style lang="scss" scoped>
 .editor-page {
-  display: flex;
-  flex-direction: column;
   height: 100vh;
-  overflow: hidden;
   background: var(--bg);
 }
 
 .editor-content {
-  display: flex;
   flex: 1;
   gap: 0.75rem;
   padding: 0.75rem;
@@ -76,16 +72,14 @@ provide(SCROLL_CONTAINER_KEY, viewerCol);
   min-width: 18rem;
   max-width: 30rem;
   background: var(--bg-secondary);
-  border-radius: 0.75rem;
-  overflow-y: auto;
+  border-radius: var(--radius-lg);
 }
 
 .viewer-col {
   flex: 2;
   min-width: 0;
   background: var(--bg-secondary);
-  border-radius: 0.75rem;
-  overflow-y: auto;
+  border-radius: var(--radius-lg);
   will-change: scroll-position;
 }
 

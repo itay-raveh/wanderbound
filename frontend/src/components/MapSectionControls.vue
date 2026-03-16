@@ -61,16 +61,16 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
 </script>
 
 <template>
-  <div class="map-controls">
+  <div class="map-controls row no-wrap items-center text-muted">
     <q-icon
       :name="symOutlinedClose"
       size="1.125rem"
-      class="map-control-btn"
+      class="map-control-btn cursor-pointer"
       @click="deleteMap"
     >
       <q-tooltip>Remove map</q-tooltip>
     </q-icon>
-    <q-icon :name="symOutlinedCalendarMonth" size="1.125rem" class="map-control-btn">
+    <q-icon :name="symOutlinedCalendarMonth" size="1.125rem" class="map-control-btn cursor-pointer">
       <q-tooltip>Change date range</q-tooltip>
       <q-popup-proxy
         ref="popupRef"
@@ -99,22 +99,18 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+  gap: var(--gap-sm);
   padding: 0.25rem;
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   backdrop-filter: blur(8px);
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
-  color: var(--text-muted);
 }
 
 .map-control-btn {
-  cursor: pointer;
   padding: 0.25rem;
-  border-radius: 0.25rem;
-  transition: color 0.15s, background 0.15s;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast), background var(--duration-fast);
 
   &:hover {
     color: var(--text);

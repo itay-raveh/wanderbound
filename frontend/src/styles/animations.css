@@ -9,6 +9,10 @@
   }
 }
 
+.fade-up {
+  animation: fadeUp var(--duration-slow) ease both;
+}
+
 @keyframes pulse {
   0%,
   100% {

@@ -31,39 +31,39 @@ const totalCountries = computed(() => {
 </script>
 
 <template>
-  <div class="processing-card">
+  <q-card class="processing-card fade-up">
     <!-- Header -->
-    <div class="header">
-      <div class="greeting">
-        <span class="text-h6 greeting-hey">Hey {{ user.first_name }},</span>
-        <span v-if="state === 'done'" class="text-subtitle2 greeting-sub done-sub">
+    <div class="column no-wrap q-gutter-y-sm">
+      <div class="greeting column no-wrap">
+        <span class="text-h6 text-bright">Hey {{ user.first_name }},</span>
+        <span v-if="state === 'done'" class="text-subtitle2 text-positive">
           your album is ready
         </span>
-        <span v-else-if="state === 'error'" class="text-subtitle2 greeting-sub error-sub">
+        <span v-else-if="state === 'error'" class="text-subtitle2 text-danger">
           something went wrong
         </span>
-        <span v-else class="text-subtitle2 greeting-sub"> building your album </span>
+        <span v-else class="text-subtitle2 text-muted"> building your album </span>
       </div>
 
-      <div class="stats">
-        <span class="stat text-overline">
+      <div class="stats row items-center wrap q-gutter-sm">
+        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedLuggage" size="0.875rem" />
           {{ trips.length }} trip{{ trips.length !== 1 ? "s" : "" }}
         </span>
         <span class="stat-dot" />
-        <span class="stat text-overline">
+        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedPinDrop" size="0.875rem" />
           {{ totalSteps }} steps
         </span>
         <span class="stat-dot" />
-        <span class="stat text-overline">
+        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedPublic" size="0.875rem" />
           {{ totalCountries }} countr{{ totalCountries !== 1 ? "ies" : "y" }}
         </span>
       </div>
     </div>
 
-    <div class="divider" />
+    <q-separator class="q-my-md" />
 
     <!-- Trip timeline -->
     <TripTimeline
@@ -75,79 +75,40 @@ const totalCountries = computed(() => {
 
     <!-- Error state -->
     <template v-if="state === 'error'">
-      <div class="divider" />
-      <div class="error-banner">
-        <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon" />
-        <div class="error-body">
-          <span class="text-body2 error-msg">{{ errorDetail }}</span>
-          <button class="retry-btn text-body2" @click="$emit('retry')">
-            <q-icon :name="matRefresh" size="0.875rem" />
-            Try again
-          </button>
+      <q-separator class="q-my-md" />
+      <div class="error-banner row no-wrap q-gutter-x-sm">
+        <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon text-danger" />
+        <div class="error-body column no-wrap q-gutter-y-sm">
+          <span class="text-body2 error-msg text-muted">{{ errorDetail }}</span>
+          <q-btn outline no-caps dense :icon="matRefresh" label="Try again" class="retry-btn bg-surface" @click="$emit('retry')" />
         </div>
       </div>
     </template>
 
     <!-- Done state -->
     <template v-if="state === 'done'">
-      <div class="divider" />
-      <button class="done-btn text-subtitle1" @click="$emit('done')">
+      <q-separator class="q-my-md" />
+      <q-btn
+        color="primary"
+        unelevated
+        no-caps
+        class="fade-up full-width text-subtitle1"
+        @click="$emit('done')"
+      >
         Open your album
         <q-icon :name="matArrowForward" size="1rem" />
-      </button>
+      </q-btn>
     </template>
-  </div>
+  </q-card>
 </template>
 
 <style scoped>
 .processing-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 1rem;
   padding: 1.75rem 2rem;
-  animation: fadeUp 0.5s ease both;
-}
-
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
 }
 
 .greeting {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.greeting-hey {
-  color: var(--text-bright);
-}
-
-.greeting-sub {
-  color: var(--text-muted);
-}
-
-.done-sub {
-  color: var(--q-positive);
-}
-
-.error-sub {
-  color: var(--danger);
-}
-
-.stats {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--text-faint);
+  gap: var(--gap-xs);
 }
 
 .stat-dot {
@@ -158,83 +119,25 @@ const totalCountries = computed(() => {
   flex-shrink: 0;
 }
 
-.divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 1.25rem 0;
-}
-
 .error-banner {
-  display: flex;
-  gap: 0.625rem;
   padding: 1rem;
-  border-radius: 0.625rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }
 
 .error-icon {
-  color: var(--danger);
   flex-shrink: 0;
   margin-top: 0.0625rem;
 }
 
-.error-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
 .error-msg {
-  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .retry-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.375rem;
-  border: 1px solid var(--border-color);
-  background: var(--surface);
+  border-color: var(--border-color);
   color: var(--text);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease;
-  width: fit-content;
 }
 
-.retry-btn:hover {
-  border-color: var(--text-faint);
-  background: var(--bg-secondary);
-}
-
-.done-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border-radius: 0.625rem;
-  border: none;
-  background: var(--q-primary);
-  color: #fff;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    transform 0.1s ease;
-  animation: fadeUp 0.5s ease both;
-}
-
-.done-btn:hover {
-  background: color-mix(in srgb, var(--q-primary) 85%, #000);
-}
-
-.done-btn:active {
-  transform: scale(0.98);
-}
 </style>

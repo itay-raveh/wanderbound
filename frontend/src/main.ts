@@ -13,6 +13,7 @@ import "@/styles/fonts.css";
 import "@quasar/extras/material-icons/material-icons.css";
 
 import "quasar/src/css/index.sass";
+import "@/styles/quasar-overrides.scss";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@/styles/animations.css";
 

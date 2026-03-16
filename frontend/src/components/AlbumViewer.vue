@@ -205,7 +205,7 @@ if (props.printMode) {
       <!-- "Add map" button before step sections without a preceding map (editor only) -->
       <div
         v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
-        class="add-map-zone"
+        class="add-map-zone column items-center justify-center cursor-pointer text-body1 text-weight-medium text-muted"
         @click="addMapBefore(section.step)"
       >
         <q-icon :name="symOutlinedMap" size="1.5rem" />
@@ -298,24 +298,16 @@ if (props.printMode) {
 
 // "Add map" button between sections (editor only)
 .add-map-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
+  gap: var(--gap-sm);
   width: calc(var(--page-width) * var(--editor-zoom));
   min-height: 3.5rem;
   margin: 0.5rem auto;
   padding: 1rem;
   border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
-  border-radius: 0.75rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
+  border-radius: var(--radius-lg);
   transition:
-    border-color 0.15s,
-    color 0.15s;
+    border-color var(--duration-fast),
+    color var(--duration-fast);
 
   &:hover {
     border-color: var(--q-primary);

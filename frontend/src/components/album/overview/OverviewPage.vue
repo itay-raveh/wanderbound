@@ -5,7 +5,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
 import { lineString } from "@turf/helpers";
 import length from "@turf/length";
-import { OVERVIEW_DISTANCE_COLOR } from "@/utils/colors";
+import { STAT_COLORS } from "@/utils/colors";
 import { flagUrl } from "@/utils/media";
 import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
 import OverviewExtremes from "./OverviewExtremes.vue";
@@ -60,44 +60,44 @@ const stats = computed(() => [
     value: daysCount.value,
     label: "Days",
     icon: symOutlinedCalendarMonth,
-    color: "#3f51b5",
+    color: STAT_COLORS.days,
   },
   {
     value: totalDistance.value,
     label: isKm.value ? "Km" : "Mi",
     icon: symOutlinedExplore,
-    color: OVERVIEW_DISTANCE_COLOR,
+    color: STAT_COLORS.distance,
   },
   {
     value: photosCount.value,
     label: "Photos",
     icon: symOutlinedPhotoCamera,
-    color: "#e65100",
+    color: STAT_COLORS.photos,
   },
   {
     value: stepsCount.value,
     label: "Steps",
     icon: symOutlinedTimeline,
-    color: "#8e24aa",
+    color: STAT_COLORS.steps,
   },
 ]);
 </script>
 
 <template>
-  <div class="page-container overview">
+  <div class="page-container overview relative-position">
     <!-- Content (centered vertically) -->
-    <div class="overview-content">
+    <div class="overview-content relative-position">
       <!-- Stats -->
       <div class="stats-row">
         <div
           v-for="(stat, i) in stats"
           :key="i"
-          class="stat"
+          class="stat relative-position overflow-hidden"
           :style="{ '--sc': stat.color }"
         >
-          <q-icon :name="stat.icon" size="2.5rem" class="stat-watermark" />
+          <q-icon :name="stat.icon" size="2.5rem" class="stat-watermark no-pointer-events" />
           <span class="stat-number">{{ stat.value }}</span>
-          <span class="stat-label">{{ stat.label }}</span>
+          <span class="stat-label text-muted">{{ stat.label }}</span>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ const stats = computed(() => [
             class="country-flag"
             loading="eager"
           >
-          <span class="country-name">{{ name }}</span>
+          <span class="country-name text-bright">{{ name }}</span>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ const stats = computed(() => [
     </div>
 
     <!-- Cloud silhouettes (top) -->
-    <svg class="clouds" viewBox="0 0 1200 400" preserveAspectRatio="none">
+    <svg class="clouds no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none">
       <path
         d="M0 200 C150 170, 300 120, 500 150 C700 180, 850 100, 1200 140 L1200 0 L0 0Z"
         fill="var(--text)"
@@ -151,7 +151,7 @@ const stats = computed(() => [
     </svg>
 
     <!-- Rolling hills (bottom) -->
-    <svg class="hills" viewBox="0 0 1200 400" preserveAspectRatio="none">
+    <svg class="hills no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none">
       <path
         d="M0 280 C200 230, 350 260, 550 220 C750 180, 950 240, 1200 200 L1200 400 L0 400Z"
         fill="var(--text)"
@@ -180,17 +180,15 @@ const stats = computed(() => [
 .overview {
   display: flex;
   flex-direction: column;
-  position: relative;
 }
 
 .overview-content {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1rem;
+  gap: var(--gap-lg);
   flex: 1;
   z-index: 1;
-  position: relative;
 }
 
 .clouds {
@@ -200,7 +198,6 @@ const stats = computed(() => [
   right: 0;
   width: 100%;
   height: 40%;
-  pointer-events: none;
 }
 
 .hills {
@@ -210,23 +207,20 @@ const stats = computed(() => [
   right: 0;
   width: 100%;
   height: 40%;
-  pointer-events: none;
 }
 
 .stats-row {
   display: flex;
   justify-content: space-evenly;
-  padding: 0 3rem;
+  padding: 0 var(--page-inset-x);
 }
 
 .stat {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.125rem;
+  gap: var(--gap-xs);
   padding: 0.5rem 1.5rem;
-  overflow: hidden;
 }
 
 .stat-watermark {
@@ -235,31 +229,29 @@ const stats = computed(() => [
   right: 0;
   color: var(--sc);
   opacity: 0.1;
-  pointer-events: none;
 }
 
 .stat-number {
-  font-size: 3rem;
+  font-size: var(--display-2);
   font-weight: 800;
   color: var(--sc);
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-tight);
   line-height: 1;
 }
 
 .stat-label {
-  font-size: 0.6875rem;
+  font-size: var(--type-2xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  letter-spacing: var(--tracking-wide);
 }
 
 .countries-strip {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem 1.25rem;
-  padding: 0.875rem 3rem;
+  gap: var(--gap-md) 1.25rem;
+  padding: 0.875rem var(--page-inset-x);
   border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
   border-bottom: 1px solid
     color-mix(in srgb, var(--border-color) 40%, transparent);
@@ -268,30 +260,29 @@ const stats = computed(() => [
 .country-chip {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gap-md);
   padding: 0.375rem 0;
 }
 
 .country-accent {
   width: 3px;
   height: 1.375rem;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
 .country-flag {
   width: 1.625rem;
   height: 1.125rem;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   object-fit: cover;
 }
 
 .country-name {
-  font-size: 1rem;
+  font-size: var(--type-md);
   font-weight: 700;
-  color: var(--text-bright);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
   white-space: nowrap;
 }
 </style>

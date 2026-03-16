@@ -22,13 +22,13 @@ function emitUnused() {
 
 <template>
   <div class="unused-tray">
-    <div class="tray-header">
+    <div class="tray-header row no-wrap items-center text-overline text-weight-semibold text-muted">
       <q-icon :name="matPhotoLibrary" size="1rem" />
       <span>{{ localUnused.length }} unused photo{{ localUnused.length !== 1 ? 's' : '' }}</span>
     </div>
     <VueDraggable
       v-model="localUnused"
-      class="tray-track"
+      class="tray-track row no-wrap"
       group="photos"
       :animation="200"
       @update="emitUnused"
@@ -53,27 +53,19 @@ function emitUnused() {
   max-width: calc(var(--page-width) * var(--editor-zoom));
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.75rem;
   margin: 1rem 0 1.5rem;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .tray-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.4rem;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-md);
 }
 
 .tray-track {
-  display: flex;
-  gap: 0.5rem;
+  gap: var(--gap-md);
   overflow-x: auto;
   padding: 0.25rem 0;
   min-height: 4.5rem;
@@ -84,7 +76,7 @@ function emitUnused() {
 
   &::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: var(--radius-xs);
   }
 
   // Hide video play overlay — videos are just static thumbnails in the tray.
@@ -98,7 +90,7 @@ function emitUnused() {
     width: 6rem;
     height: 4.5rem;
     flex-shrink: 0;
-    border-radius: 0.25rem;
+    border-radius: var(--radius-xs);
     overflow: hidden;
     cursor: grab;
 

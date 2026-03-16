@@ -3,10 +3,10 @@ import UserMenu from "./UserMenu.vue";
 </script>
 
 <template>
-  <header class="editor-header">
-    <div class="header-brand">
+  <header class="editor-header row no-wrap items-center justify-between">
+    <div class="header-brand row no-wrap items-center q-gutter-x-sm">
       <img src="/logo.svg" alt="Logo" class="header-logo" />
-      <span class="header-title">Polarsteps Album Generator</span>
+      <span class="header-title text-body1 text-weight-semibold text-bright">Polarsteps Album Generator</span>
     </div>
 
     <UserMenu />
@@ -15,19 +15,10 @@ import UserMenu from "./UserMenu.vue";
 
 <style lang="scss" scoped>
 .editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding: 0.5rem 0.75rem 0.5rem 1.25rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-}
-
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
 }
 
 .header-logo {
@@ -36,9 +27,6 @@ import UserMenu from "./UserMenu.vue";
 }
 
 .header-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-bright);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
 }
 </style>

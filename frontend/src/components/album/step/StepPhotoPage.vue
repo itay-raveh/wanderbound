@@ -64,7 +64,7 @@ const layoutClass = computed(() => {
   width: 100%;
   height: 100%;
   display: grid;
-  gap: 5mm;
+  gap: var(--photo-gap-lg);
   align-items: stretch;
   justify-items: stretch;
 }
@@ -82,7 +82,7 @@ const layoutClass = computed(() => {
 .container.three-portraits {
   grid-template-columns: 1fr 1fr 1fr !important;
   grid-template-rows: 1fr !important;
-  column-gap: 5mm;
+  column-gap: var(--photo-gap-lg);
   row-gap: 0 !important;
 }
 
@@ -117,8 +117,8 @@ const layoutClass = computed(() => {
   ) {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  column-gap: 5mm;
-  row-gap: 2mm;
+  column-gap: var(--photo-gap-lg);
+  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(3):last-child):not(
@@ -132,14 +132,14 @@ const layoutClass = computed(() => {
 .container:has(.item:nth-child(4):last-child) {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 3mm;
+  gap: var(--photo-gap-sm);
 }
 
 .container:has(.item:nth-child(5):last-child) {
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  column-gap: 5mm;
-  row-gap: 2mm;
+  column-gap: var(--photo-gap-lg);
+  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(5):last-child) .item:first-child {
@@ -149,8 +149,8 @@ const layoutClass = computed(() => {
 .container:has(.item:nth-child(6):last-child) {
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
-  column-gap: 4mm;
-  row-gap: 2mm;
+  column-gap: var(--photo-gap-md);
+  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(6):last-child) .item:first-child {
@@ -164,8 +164,4 @@ const layoutClass = computed(() => {
   overflow: hidden;
 }
 
-.image {
-  max-width: 100%;
-  max-height: 100%;
-}
 </style>

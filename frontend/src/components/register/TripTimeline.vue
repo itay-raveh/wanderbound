@@ -78,16 +78,16 @@ const overallPercent = computed(() => {
 </script>
 
 <template>
-  <div class="trips">
+  <div class="trips column no-wrap">
     <div
       v-for="(trip, i) in trips"
       :key="trip.id"
-      class="trip"
+      class="trip row no-wrap"
       :class="tripStatuses[i]"
     >
       <!-- Timeline connector -->
-      <div class="trip-rail">
-        <div class="trip-dot">
+      <div class="trip-rail column no-wrap items-center">
+        <div class="trip-dot relative-position flex flex-center">
           <q-icon
             v-if="tripStatuses[i] === 'done'"
             :name="matCheck"
@@ -103,19 +103,19 @@ const overallPercent = computed(() => {
 
       <!-- Trip content -->
       <div class="trip-content">
-        <div class="trip-header">
-          <span class="trip-title text-subtitle1">{{ trip.title }}</span>
-          <span class="trip-meta text-overline">
+        <div class="row no-wrap items-baseline justify-between q-gutter-x-sm">
+          <span class="trip-title text-subtitle1 ellipsis text-bright">{{ trip.title }}</span>
+          <span class="trip-meta text-overline text-faint">
             {{ trip.step_count }} step{{ trip.step_count !== 1 ? "s" : "" }}
           </span>
         </div>
 
         <!-- Phase progress (only for active trip) -->
-        <div v-if="tripStatuses[i] === 'active' && anyPhaseStarted" class="phases">
+        <div v-if="tripStatuses[i] === 'active' && anyPhaseStarted" class="column no-wrap q-mt-sm q-gutter-y-xs">
           <div
             v-for="p in PHASE_ORDER"
             :key="p"
-            class="phase text-caption"
+            class="phase row no-wrap items-center text-caption"
             :class="phaseStatuses[p]"
           >
             <q-icon
@@ -123,20 +123,20 @@ const overallPercent = computed(() => {
               size="0.75rem"
               class="phase-icon"
             />
-            <span class="phase-label">{{ PHASE_LABELS[p] }}</span>
+            <span class="phase-label text-no-wrap">{{ PHASE_LABELS[p] }}</span>
 
             <q-icon
               v-if="phaseStatuses[p] === 'done'"
               :name="matCheckCircle"
               size="0.75rem"
-              class="phase-check"
+              class="phase-check text-primary"
             />
-            <span v-else-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-count text-overline">
+            <span v-else-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-count text-overline text-faint">
               {{ phaseDone[p].done }}/{{ phaseDone[p].total }}
             </span>
 
             <!-- Per-phase mini progress bar (only for multi-item phases) -->
-            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track">
+            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track overflow-hidden">
               <div
                 class="phase-fill"
                 :style="{ width: `${phasePercent(p)}%` }"
@@ -145,9 +145,9 @@ const overallPercent = computed(() => {
           </div>
 
           <!-- Overall progress bar -->
-          <div class="progress-track">
+          <div class="progress-track overflow-hidden">
             <div
-              class="progress-fill"
+              class="progress-fill relative-position"
               :style="{ width: `${overallPercent}%` }"
             />
           </div>
@@ -158,15 +158,9 @@ const overallPercent = computed(() => {
 </template>
 
 <style scoped>
-.trips {
-  display: flex;
-  flex-direction: column;
-}
-
 .trip {
-  display: flex;
   gap: 0.75rem;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--duration-fast) ease;
 }
 
 .trip.pending {
@@ -179,9 +173,6 @@ const overallPercent = computed(() => {
 }
 
 .trip-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   padding-top: 0.125rem;
   width: 1.25rem;
   flex-shrink: 0;
@@ -192,15 +183,11 @@ const overallPercent = computed(() => {
   height: 1.25rem;
   border-radius: 50%;
   border: 2px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
   background: var(--bg-secondary);
   transition:
-    border-color 0.3s ease,
-    background 0.3s ease;
-  position: relative;
+    border-color var(--duration-normal) ease,
+    background var(--duration-normal) ease;
   z-index: 1;
 }
 
@@ -227,7 +214,7 @@ const overallPercent = computed(() => {
   flex: 1;
   min-height: 1rem;
   background: var(--border-color);
-  transition: background 0.3s ease;
+  transition: background var(--duration-normal) ease;
 }
 
 .trip.done .trip-line {
@@ -244,41 +231,17 @@ const overallPercent = computed(() => {
   padding-bottom: 0;
 }
 
-.trip-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.trip-title {
-  color: var(--text-bright);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .trip-meta {
-  color: var(--text-faint);
   text-transform: none;
   flex-shrink: 0;
 }
 
-.phases {
-  margin-top: 0.625rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .phase {
-  display: flex;
-  align-items: center;
   gap: 0.375rem;
   color: var(--text-faint);
   transition:
-    color 0.3s ease,
-    opacity 0.3s ease;
+    color var(--duration-normal) ease,
+    opacity var(--duration-normal) ease;
   opacity: 0.5;
   height: 1.375rem;
 }
@@ -302,53 +265,43 @@ const overallPercent = computed(() => {
   animation: pulse 1.8s ease-in-out infinite;
 }
 
-.phase-label {
-  white-space: nowrap;
-}
 
 .phase-count {
-  color: var(--text-faint);
-  text-transform: none;
-  font-weight: 400;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
 .phase-check {
-  color: var(--q-primary);
   opacity: 0.6;
 }
 
 .phase-track {
   flex: 1;
   height: 0.1875rem;
-  border-radius: 0.09375rem;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-  overflow: hidden;
   min-width: 2rem;
 }
 
 .phase-fill {
   height: 100%;
-  border-radius: 0.09375rem;
+  border-radius: var(--radius-xs);
   background: var(--q-primary);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .progress-track {
   height: 0.25rem;
-  border-radius: 0.125rem;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-  margin-top: 0.5rem;
-  overflow: hidden;
+  margin-top: var(--gap-md);
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 0.125rem;
+  border-radius: var(--radius-xs);
   background: var(--q-primary);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
+  transition: width var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .progress-fill::after {

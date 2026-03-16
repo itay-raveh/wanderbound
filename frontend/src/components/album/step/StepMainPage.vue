@@ -45,7 +45,7 @@ const isLongDesc = computed(
           cover
           class="cover-media"
         />
-        <div v-else class="cover-placeholder">
+        <div v-else class="cover-placeholder fit flex flex-center text-faint">
           <span>Drop Step Cover</span>
         </div>
       </template>
@@ -80,25 +80,18 @@ const isLongDesc = computed(
 }
 
 .cover-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: var(--bg-secondary);
-  color: var(--text-faint);
-  font-size: 0.85rem;
+  font-size: var(--type-sm);
 }
 
 .description-full {
-  padding: 2.5rem 3rem;
-  font-size: 0.9rem;
+  padding: var(--page-inset-y) var(--page-inset-x);
+  font-size: var(--type-sm);
   line-height: 1.65;
-  color: var(--text);
   white-space: pre-wrap;
   text-align: justify;
   column-count: 2;
-  column-gap: 2.5rem;
+  column-gap: var(--page-inset-y);
   overflow: hidden;
   width: 100%;
   box-sizing: border-box;

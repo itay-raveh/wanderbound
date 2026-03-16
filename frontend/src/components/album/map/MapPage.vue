@@ -36,12 +36,5 @@ const { fitBounds } = useMapbox({
 </script>
 
 <template>
-  <div ref="map" class="page-container map-page" />
+  <div ref="map" class="page-container map-page relative-position overflow-hidden" />
 </template>
-
-<style lang="scss" scoped>
-.map-page {
-  position: relative;
-  overflow: hidden;
-}
-</style>

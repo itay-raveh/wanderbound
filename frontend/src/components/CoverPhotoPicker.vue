@@ -23,7 +23,7 @@ function select(name: string) {
 </script>
 
 <template>
-  <div class="picker">
+  <div class="picker relative-position">
     <button class="picker-pill" @click="open = !open">
       <span>{{ label }}</span>
       <q-icon
@@ -34,8 +34,8 @@ function select(name: string) {
       />
     </button>
 
-    <div v-show="open" class="picker-panel">
-      <div v-if="photos.length === 0" class="picker-empty">
+    <div v-show="open" class="picker-panel overflow-hidden">
+      <div v-if="photos.length === 0" class="picker-empty text-center">
         No landscape photos available
       </div>
       <div v-else class="picker-grid">
@@ -60,7 +60,6 @@ function select(name: string) {
 
 <style lang="scss" scoped>
 .picker {
-  position: relative;
   width: max-content;
 }
 
@@ -70,18 +69,18 @@ function select(name: string) {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--gap-sm);
   padding: 0.3rem 0.625rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: rgba(0, 0, 0, 0.55);
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.875rem;
+  font-size: var(--type-sm);
   font-weight: 600;
   white-space: nowrap;
   backdrop-filter: blur(8px);
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
 
   &:hover {
     background: rgba(0, 0, 0, 0.7);
@@ -90,7 +89,7 @@ function select(name: string) {
 }
 
 .pill-chevron {
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-fast) ease;
 
   &.rotated {
     transform: rotate(180deg);
@@ -103,18 +102,16 @@ function select(name: string) {
   left: 0;
   margin-top: 0.25rem;
   width: 24rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);
-  overflow: hidden;
   z-index: 10;
 }
 
 .picker-empty {
   padding: 0.75rem 1rem;
-  font-size: 0.6875rem;
+  font-size: var(--type-2xs);
   color: rgba(255, 255, 255, 0.5);
-  text-align: center;
 }
 
 .picker-grid {
@@ -130,11 +127,11 @@ function select(name: string) {
   all: unset;
   cursor: pointer;
   aspect-ratio: 297 / 210;
-  border-radius: 0.1875rem;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   outline: 2px solid transparent;
   outline-offset: -2px;
-  transition: outline-color 0.15s ease;
+  transition: outline-color var(--duration-fast) ease;
 
   &.selected {
     outline-color: var(--q-primary);

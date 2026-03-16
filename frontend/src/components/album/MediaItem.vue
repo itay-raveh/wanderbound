@@ -83,14 +83,14 @@ function onVideoKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="media-item" data-media>
+  <div class="media-item relative-position overflow-hidden non-selectable" data-media>
     <template v-if="isVideo && !printMode">
       <img
         v-show="!playing"
         :src="posterSrc"
         :srcset="imgSrcset"
         :sizes="imgSizes"
-        :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
+        :class="['fit', cover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
         decoding="async"
       >
@@ -98,26 +98,26 @@ function onVideoKey(e: KeyboardEvent) {
         v-show="playing"
         ref="videoRef"
         :src="src"
-        class="fill video-playing"
+        class="fit video-playing"
         controls
         preload="none"
         @ended="playing = false"
         @keydown="onVideoKey"
       />
-      <div v-if="!playing" class="play-overlay" @click="togglePlay">
-        <div class="play-icon">
+      <div v-if="!playing" class="play-overlay absolute-full cursor-pointer flex flex-center" @click="togglePlay">
+        <div class="play-icon flex flex-center">
           <q-icon :name="matPlayArrow" />
         </div>
       </div>
-      <div v-if="playing" class="frame-bar">
-        <button class="frame-step-btn" title="Previous frame (,)" @click="scrub(-FRAME_STEP)">
+      <div v-if="playing" class="frame-bar row no-wrap items-center">
+        <button class="frame-step-btn flex flex-center" title="Previous frame (,)" @click="scrub(-FRAME_STEP)">
           <q-icon :name="matChevronLeft" />
         </button>
-        <button class="set-frame-btn" @click="setFrame">
+        <button class="set-frame-btn row no-wrap items-center" @click="setFrame">
           <q-icon :name="matCheck" size="1.1rem" />
           <span>Use as poster</span>
         </button>
-        <button class="frame-step-btn" title="Next frame (.)" @click="scrub(FRAME_STEP)">
+        <button class="frame-step-btn flex flex-center" title="Next frame (.)" @click="scrub(FRAME_STEP)">
           <q-icon :name="matChevronRight" />
         </button>
       </div>
@@ -128,7 +128,7 @@ function onVideoKey(e: KeyboardEvent) {
         :srcset="imgSrcset"
         :sizes="imgSizes"
         :loading="imgLoading"
-        :class="['fill', cover ? 'fit-cover' : 'fit-contain']"
+        :class="['fit', cover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
       >
     </template>
@@ -138,9 +138,6 @@ function onVideoKey(e: KeyboardEvent) {
 <style lang="scss" scoped>
 .media-item {
   container-type: size;
-  position: relative;
-  overflow: hidden;
-  user-select: none;
   cursor: grab;
   background: transparent;
   width: 100%;
@@ -149,11 +146,6 @@ function onVideoKey(e: KeyboardEvent) {
   &:active {
     cursor: grabbing;
   }
-}
-
-.fill {
-  width: 100%;
-  height: 100%;
 }
 
 .fit-cover {
@@ -171,26 +163,15 @@ function onVideoKey(e: KeyboardEvent) {
 
 // Play button — scales with container so it looks right in both
 // full-size page cells and the small unused-photos tray.
-.play-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
 
 .play-icon {
   // Scale with the smaller container dimension, capped at 3.5rem
   --size: min(3.5rem, 40cqmin);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: var(--size);
   height: var(--size);
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.5);
-  transition: background 0.2s;
+  transition: background var(--duration-fast);
 
   :deep(.q-icon) {
     font-size: calc(var(--size) * 0.55);
@@ -208,19 +189,14 @@ function onVideoKey(e: KeyboardEvent) {
   bottom: 3.5rem; // clear native controls
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
   gap: 0.2rem;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
-  border-radius: 2rem;
+  border-radius: var(--radius-full);
   padding: 0.2rem;
 }
 
 .frame-step-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 2rem;
   height: 2rem;
   border: none;
@@ -228,10 +204,10 @@ function onVideoKey(e: KeyboardEvent) {
   background: transparent;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-fast);
 
   :deep(.q-icon) {
-    font-size: 1.25rem;
+    font-size: var(--type-lg);
   }
 
   &:hover {
@@ -240,19 +216,17 @@ function onVideoKey(e: KeyboardEvent) {
 }
 
 .set-frame-btn {
-  display: flex;
-  align-items: center;
   gap: 0.35rem;
   border: none;
-  border-radius: 1.5rem;
+  border-radius: var(--radius-full);
   background: white;
   color: #111;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   padding: 0.35rem 0.9rem 0.35rem 0.6rem;
   cursor: pointer;
   transition:
-    background 0.15s,
+    background var(--duration-fast),
     transform 0.1s;
 
   &:hover {

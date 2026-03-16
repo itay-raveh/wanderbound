@@ -181,8 +181,8 @@ const { fitBounds } = useMapbox({
 </script>
 
 <template>
-  <div class="page-container hike-page">
-    <div ref="hike-map" class="hike-map" />
+  <div class="page-container relative-position overflow-hidden">
+    <div ref="hike-map" class="absolute-full" />
 
     <div class="hike-overlay">
       <div class="stat">
@@ -198,35 +198,26 @@ const { fitBounds } = useMapbox({
       </div>
     </div>
 
-    <div class="elevation-overlay">
+    <div class="elevation-overlay no-pointer-events">
       <ElevationProfile
         :points="elevationSamples"
         :accent="countryColor"
         :total-dist-km="totalDistKm"
         :is-km="isKm"
-        bg-color="rgb(24, 24, 28)"
+        bg-color="var(--page-dark-surface)"
       />
     </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.hike-page {
-  position: relative;
-  overflow: hidden;
-}
-
-.hike-map {
-  position: absolute;
-  inset: 0;
-}
 
 .hike-overlay {
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: rgb(30, 30, 34);
-  border-radius: 8px;
+  background: var(--page-dark-overlay);
+  border-radius: var(--radius-md);
   padding: 0.6rem 1rem;
   display: flex;
   gap: 1.2rem;
@@ -241,12 +232,12 @@ const { fitBounds } = useMapbox({
 }
 
 .stat-value {
-  font-size: 1.4rem;
+  font-size: var(--type-xl);
   font-weight: 700;
 }
 
 .stat-unit {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   opacity: 0.7;
 }
 
@@ -257,6 +248,5 @@ const { fitBounds } = useMapbox({
   left: 0;
   right: 0;
   z-index: 1;
-  pointer-events: none;
 }
 </style>
