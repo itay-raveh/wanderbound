@@ -205,7 +205,7 @@ if (props.printMode) {
       <!-- "Add map" button before step sections without a preceding map (editor only) -->
       <div
         v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
-        class="add-map-zone column items-center justify-center cursor-pointer text-body1 text-weight-medium text-muted"
+        class="add-map-zone column no-wrap items-center justify-center cursor-pointer text-body1 text-weight-medium text-muted"
         @click="addMapBefore(section.step)"
       >
         <q-icon :name="symOutlinedMap" size="1.5rem" />

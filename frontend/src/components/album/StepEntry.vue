@@ -158,7 +158,7 @@ if (!printMode) {
 
     <!-- Add page drop zone (editor only) -->
     <div v-if="!printMode" class="add-zone relative-position">
-      <div class="add-zone-content column items-center justify-center text-weight-medium text-muted">
+      <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
         <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
         <span>Drop photo to add page</span>
       </div>
