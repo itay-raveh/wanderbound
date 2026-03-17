@@ -177,7 +177,7 @@ if (!printMode) {
 
 <style lang="scss" scoped>
 .step-entry {
-  --meta-width: 42%;
+  --meta-width: calc(var(--meta-ratio) * 100%);
 }
 
 .cover-drop-overlay {

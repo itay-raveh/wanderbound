@@ -4,7 +4,6 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { STAT_COLORS } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
-import { chooseTextDir } from "@/utils/text";
 import { weatherIconUrl } from "@/utils/weather";
 import { computed } from "vue";
 import { matLandscape } from "@quasar/extras/material-icons";
@@ -23,7 +22,6 @@ interface ExtremeRecord {
   country: string;
   countryCode: string;
   date: string;
-  dateDir: "rtl" | "ltr";
   color: string;
   icon: string;
   qIcon: boolean;
@@ -75,7 +73,6 @@ const records = computed<ExtremeRecord[]>(() => {
       country: step.location.detail,
       countryCode: step.location.country_code,
       date: dateStr,
-      dateDir: chooseTextDir(dateStr),
     };
   };
 
@@ -139,7 +136,7 @@ const records = computed<ExtremeRecord[]>(() => {
         >
         <span>{{ r.country }}</span>
         <span class="record-sep">·</span>
-        <span :dir="r.dateDir">{{ r.date }}</span>
+        <span dir="auto">{{ r.date }}</span>
       </div>
     </div>
   </div>

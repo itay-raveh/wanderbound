@@ -21,6 +21,9 @@ html, body, #app {
   --page-width: 297mm;
   --page-height: 210mm;
 
+  /* Step page layout: meta-panel occupies this fraction of the page width. */
+  --meta-ratio: 0.42;
+
   /* Border radius scale */
   --radius-xs: 2px;
   --radius-sm: 0.375rem;
@@ -81,7 +84,6 @@ html, body, #app {
   --text-bright: #F0F0F5;
   --text-muted: #9CA3AF;
   --text-faint: #6B7280;
-  --accent-light: #60A5FA;
   --danger: #EF4444;
   --surface: #2A2A3E;
   --border-color: #3A3A50;
@@ -105,7 +107,6 @@ html, body, #app {
   --text-bright: #111827;
   --text-muted: #6B7280;
   --text-faint: #9CA3AF;
-  --accent-light: #2563EB;
   --danger: #DC2626;
   --surface: #F3F4F6;
   --border-color: #D1D5DB;

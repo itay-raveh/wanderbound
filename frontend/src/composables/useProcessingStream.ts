@@ -1,5 +1,11 @@
 import { ref, type Ref } from "vue";
-import { processUser, type ProcessingPhase } from "@/client";
+import {
+  processUser,
+  type ErrorData,
+  type PhaseUpdate,
+  type ProcessingPhase,
+  type TripStart,
+} from "@/client";
 
 export type { ProcessingPhase };
 
@@ -29,7 +35,11 @@ export interface UseProcessingStream {
   errorDetail: Ref<string | null>;
 }
 
-type RawSseEvent = { type: string } & Record<string, unknown>;
+/** hey-api types SSE stream items as Array<union>, but yields individual events. */
+type ProcessingEvent =
+  | ({ type: "trip_start" } & TripStart)
+  | ({ type: "phase" } & PhaseUpdate)
+  | ({ type: "error" } & ErrorData);
 
 function freshPhaseDone(): PhaseDone {
   return Object.fromEntries(
@@ -59,21 +69,21 @@ export function useProcessingStream(): UseProcessingStream {
       });
 
       for await (const raw of stream) {
-        const event = raw as unknown as RawSseEvent;
+        const event = raw as unknown as ProcessingEvent;
         switch (event.type) {
           case "trip_start":
-            tripIndex.value = event.trip_index as number;
+            tripIndex.value = event.trip_index;
             phaseDone.value = freshPhaseDone();
             break;
           case "phase":
-            phaseDone.value[event.phase as ProcessingPhase] = {
-              done: event.done as number,
-              total: event.total as number,
+            phaseDone.value[event.phase] = {
+              done: event.done,
+              total: event.total,
             };
             break;
           case "error":
             state.value = "error";
-            errorDetail.value = (event.detail as string) ?? "Processing failed";
+            errorDetail.value = event.detail ?? "Processing failed";
             return;
         }
       }

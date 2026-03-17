@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
-import { chooseTextDir } from "@/utils/text";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
@@ -32,7 +31,7 @@ const isLongDesc = computed(
     <div class="content-panel">
       <div
         v-if="isLongDesc && mainPageText"
-        :dir="chooseTextDir(mainPageText)"
+        dir="auto"
         class="description-full"
       >
         {{ mainPageText }}

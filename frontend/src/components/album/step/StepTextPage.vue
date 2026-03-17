@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { chooseTextDir } from "@/utils/text";
-
 defineProps<{
   text: string;
   stepName: string;
@@ -15,7 +13,7 @@ defineProps<{
       <span>{{ locationName }}</span>
       <span class="q-ml-auto text-italic">continued...</span>
     </div>
-    <div :dir="chooseTextDir(text)" class="text-page-body">
+    <div dir="auto" class="text-page-body">
       {{ text }}
     </div>
   </div>

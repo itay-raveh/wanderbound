@@ -19,7 +19,7 @@ import RegisterStep from "./RegisterStep.vue";
 
 <style scoped>
 .step-text a {
-  color: var(--accent-light);
+  color: var(--q-primary);
   text-decoration: none;
   font-weight: 500;
 }

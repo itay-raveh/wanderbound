@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import type { Album, AlbumUpdate, Step } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import { formatShortDate, isoDate, qDateNavBounds, toIso, toQDate } from "@/utils/date";
+import { isoDate, parseLocalDate, qDateNavBounds, toIso, toQDate } from "@/utils/date";
 import {
   symOutlinedCalendarMonth,
   symOutlinedFlightTakeoff,
@@ -19,6 +20,7 @@ const props = defineProps<{
 const albumId = defineModel<string | null>("albumId");
 
 const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
+const { formatDateRange } = useUserQuery();
 const pdf = usePdfExportStream(() => props.album?.id ?? "");
 const pdfBusy = computed(() => pdf.state.value !== "idle" && pdf.state.value !== "error");
 
@@ -75,7 +77,9 @@ const rangeDisplay = computed(() => {
   const ranges = props.album?.steps_ranges;
   if (!ranges?.length) return "";
   return ranges
-    .map(([from, to]) => `${formatShortDate(from)} → ${formatShortDate(to)}`)
+    .map(([from, to]) =>
+      formatDateRange(parseLocalDate(from), parseLocalDate(to), { day: "numeric", month: "short" }),
+    )
     .join(", ");
 });
 
@@ -125,6 +129,7 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
           <div class="section-label text-overline text-weight-semibold text-faint">Steps</div>
           <q-input
             :model-value="rangeDisplay"
+            dir="auto"
             class="compact-field"
             dense
             outlined

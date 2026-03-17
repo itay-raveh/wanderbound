@@ -22,10 +22,6 @@ export function parseLocalDate(iso: string): Date {
 /** Whether an ISO date falls within a [from, to] range (inclusive, string comparison). */
 export const inDateRange = (d: string, [from, to]: [string, string]) => d >= from && d <= to;
 
-export function formatShortDate(iso: string): string {
-  return parseLocalDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
 /** ISO "YYYY-MM-DD" → QDate "YYYY/MM/DD" */
 export const toQDate = (iso: string) => iso.replace(/-/g, "/");
 /** QDate "YYYY/MM/DD" → ISO "YYYY-MM-DD" */

@@ -1,11 +1,23 @@
 import { ref, computed, type Ref, type ComputedRef } from "vue";
 import { Dark, Notify } from "quasar";
-import { generatePdf, downloadPdf } from "@/client";
+import {
+  generatePdf,
+  downloadPdf,
+  type PdfDone,
+  type PdfError,
+  type PdfProgress,
+  type PdfQueued,
+} from "@/client";
 
 export type PdfStreamState = "idle" | "queued" | "running" | "done" | "error";
 type Phase = "loading" | "rendering" | "merging";
 
-type RawSseEvent = { type: string } & Record<string, unknown>;
+/** hey-api types SSE stream items as Array<union>, but yields individual events. */
+type PdfEvent =
+  | ({ type: "queued" } & PdfQueued)
+  | ({ type: "progress" } & PdfProgress)
+  | ({ type: "done" } & PdfDone)
+  | ({ type: "error" } & PdfError);
 
 const PHASE_LABELS: Record<Phase, string> = {
   loading: "Loading album…",
@@ -65,23 +77,23 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
       let downloadToken: string | null = null;
 
       for await (const raw of stream) {
-        const event = raw as unknown as RawSseEvent;
+        const event = raw as unknown as PdfEvent;
         switch (event.type) {
           case "queued":
             state.value = "queued";
             break;
           case "progress":
             state.value = "running";
-            phase.value = event.phase as Phase;
-            done.value = event.done as number;
-            total.value = event.total as number;
+            phase.value = event.phase;
+            done.value = event.done;
+            total.value = event.total;
             break;
           case "done":
-            downloadToken = event.token as string;
+            downloadToken = event.token;
             break;
           case "error":
             state.value = "error";
-            Notify.create({ type: "negative", message: (event.detail as string) ?? "PDF export failed" });
+            Notify.create({ type: "negative", message: event.detail ?? "PDF export failed" });
             return;
         }
       }

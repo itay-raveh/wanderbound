@@ -5,7 +5,6 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
-import { chooseTextDir } from "@/utils/text";
 import { MS_PER_DAY } from "@/utils/units";
 import { weatherIconUrl } from "@/utils/weather";
 import { colors as qColors, Dark } from "quasar";
@@ -109,7 +108,7 @@ const dateStr = computed(() => {
     <!-- Short description (normal layout only) -->
     <div
       v-if="!compact && mainPageText"
-      :dir="chooseTextDir(mainPageText)"
+      dir="auto"
       class="description"
     >
       {{ mainPageText }}

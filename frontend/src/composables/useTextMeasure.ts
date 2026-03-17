@@ -52,40 +52,43 @@ function createContainer(extraStyle: string): HTMLDivElement {
 function ensureContainers() {
   if (metaMeasure) return;
 
-  // Matches StepMetaPanel .description — flex:1 area in the 42%-wide sidebar
+  // Matches StepMetaPanel .description — flex:1 area in the meta-ratio-wide sidebar.
+  // Empirical height (21rem) accounts for silhouette, name-block, stats, and progress.
   metaMeasure = createContainer(
     [
-      "width:calc(var(--page-width) * 0.42 - 5.5rem)",
+      "width:calc(var(--page-width) * var(--meta-ratio) - var(--page-inset-x) - var(--page-inset-y))",
       "height:calc(var(--page-height) - 21rem)",
-      "font-size:0.75rem",
+      "font-size:var(--type-xs)",
       "line-height:1.65",
     ].join(";"),
   );
 
-  // Matches StepMainPage .description-full — full-width 2-column layout below compact meta
+  // Matches StepMainPage .description-full — full-width 2-column layout below compact meta.
+  // Empirical height (11rem) accounts for the compact meta header grid.
   fullMeasure = createContainer(
     [
       "width:var(--page-width)",
       "height:calc(var(--page-height) - 11rem)",
-      "padding:2.5rem 3rem",
-      "font-size:0.875rem",
+      "padding:var(--page-inset-y) var(--page-inset-x)",
+      "font-size:var(--type-sm)",
       "line-height:1.65",
       "column-count:2",
-      "column-gap:2.5rem",
+      "column-gap:var(--page-inset-y)",
     ].join(";"),
   );
 
-  // Matches StepTextPage .text-page-body — continuation text pages
+  // Matches StepTextPage .text-page-body — continuation text pages.
+  // Empirical height (4rem) accounts for the text-page-header.
   contMeasure = createContainer(
     [
       "width:var(--page-width)",
       "height:calc(var(--page-height) - 4rem)",
-      "padding:0 4rem 2.5rem",
-      "font-size:1rem",
+      "padding:0 4rem var(--page-inset-y)",
+      "font-size:var(--type-md)",
       "line-height:1.6",
       "column-width:30rem",
       "column-fill:auto",
-      "column-gap:3rem",
+      "column-gap:var(--page-inset-x)",
     ].join(";"),
   );
 }

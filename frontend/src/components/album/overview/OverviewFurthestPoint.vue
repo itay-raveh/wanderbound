@@ -4,7 +4,6 @@ import { STAT_COLORS } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
-import { chooseTextDir } from "@/utils/text";
 import distance from "@turf/distance";
 import { point } from "@turf/helpers";
 import { computed } from "vue";
@@ -44,7 +43,6 @@ const furthest = computed(() => {
     location: bestStep.location,
     dist: formatDistance(maxDist),
     date: dateStr,
-    dateDir: chooseTextDir(dateStr),
   };
 });
 </script>
@@ -88,7 +86,7 @@ const furthest = computed(() => {
       <div class="fp-info right">
         <div class="fp-name text-bright">{{ furthest.location.name }}</div>
         <div class="fp-sub text-muted">
-          <span :dir="furthest.dateDir">{{ furthest.date }}</span>
+          <span dir="auto">{{ furthest.date }}</span>
           <span class="fp-sep">·</span>
           <span>{{ furthest.location.detail }}</span>
           <img

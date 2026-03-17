@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { chooseTextDir } from "@/utils/text";
 import { parseLocalDate } from "@/utils/date";
 import { EDITOR_ZOOM, isVideo } from "@/utils/media";
 import type { Album, Step } from "@/client";
@@ -80,28 +79,28 @@ function saveCover(name: string) {
     <!-- ═══ FRONT COVER ═══ -->
     <template v-if="!isBack">
       <div class="front-text absolute-full">
-        <div :dir="chooseTextDir(dates)" class="front-date">{{ dates }}</div>
+        <div dir="auto" class="front-date">{{ dates }}</div>
         <div class="cover-rule" />
 
         <EditableText
           v-if="editable"
           :model-value="album.title"
-          :dir="chooseTextDir(album.title)"
+          dir="auto"
           class="front-title"
           @update:model-value="saveText('title', $event)"
         >{{ album.title }}</EditableText>
-        <div v-else :dir="chooseTextDir(album.title)" class="front-title">
+        <div v-else dir="auto" class="front-title">
           {{ album.title }}
         </div>
 
         <EditableText
           v-if="editable"
           :model-value="album.subtitle"
-          :dir="chooseTextDir(album.subtitle)"
+          dir="auto"
           class="front-subtitle"
           @update:model-value="saveText('subtitle', $event)"
         >{{ album.subtitle }}</EditableText>
-        <div v-else :dir="chooseTextDir(album.subtitle)" class="front-subtitle">
+        <div v-else dir="auto" class="front-subtitle">
           {{ album.subtitle }}
         </div>
       </div>
