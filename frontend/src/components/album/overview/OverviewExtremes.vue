@@ -14,7 +14,6 @@ const props = defineProps<{
 const { formatTemp, formatElevation, formatDate } = useUserQuery();
 
 interface ExtremeRecord {
-  type: "temp" | "elev";
   label: string;
   value: string;
   place: string;
@@ -22,91 +21,48 @@ interface ExtremeRecord {
   countryCode: string;
   date: string;
   color: string;
-  icon: string;
-  qIcon: boolean;
+  /** Weather icon URL (temperature records) or Material icon name (elevation). */
+  iconUrl?: string;
+  iconName?: string;
 }
 
 const records = computed<ExtremeRecord[]>(() => {
   const steps = props.steps;
   if (steps.length === 0) return [];
 
-  // Use feels_like for temperature; check night for coldest
-  let coldStep = steps[0]!;
-  let coldFeels = coldStep.weather.day.feels_like;
-  let coldIsNight = false;
-
-  let hotStep = steps[0]!;
-  let hotFeels = hotStep.weather.day.feels_like;
+  // Single pass: find coldest (day + night), hottest (day), and highest elevation.
+  let cold = { step: steps[0]!, feels: steps[0]!.weather.day.feels_like, isNight: false };
+  let hot = { step: steps[0]!, feels: steps[0]!.weather.day.feels_like };
+  let highest = steps[0]!;
 
   for (const step of steps) {
-    if (step.weather.day.feels_like < coldFeels) {
-      coldFeels = step.weather.day.feels_like;
-      coldStep = step;
-      coldIsNight = false;
+    const dayFeels = step.weather.day.feels_like;
+    if (dayFeels < cold.feels) cold = { step, feels: dayFeels, isNight: false };
+    if (dayFeels > hot.feels) hot = { step, feels: dayFeels };
+    if (step.weather.night && step.weather.night.feels_like < cold.feels) {
+      cold = { step, feels: step.weather.night.feels_like, isNight: true };
     }
-    if (step.weather.day.feels_like > hotFeels) {
-      hotFeels = step.weather.day.feels_like;
-      hotStep = step;
-    }
-    if (step.weather.night && step.weather.night.feels_like < coldFeels) {
-      coldFeels = step.weather.night.feels_like;
-      coldStep = step;
-      coldIsNight = true;
-    }
+    if (step.elevation > highest.elevation) highest = step;
   }
 
-  // Highest only — lowest is often 0m / uninteresting
-  let highestStep = steps[0]!;
+  const fmtDate = (s: Step) =>
+    formatDate(parseLocalDate(s.datetime), { month: "short", day: "numeric" });
 
-  for (const step of steps) {
-    if (step.elevation > highestStep.elevation) highestStep = step;
-  }
+  const meta = (step: Step) => ({
+    place: step.name,
+    country: step.location.detail,
+    countryCode: step.location.country_code,
+    date: fmtDate(step),
+  });
 
-  const meta = (step: Step) => {
-    const dateStr = formatDate(parseLocalDate(step.datetime), {
-      month: "short",
-      day: "numeric",
-    });
-    return {
-      place: step.name,
-      country: step.location.detail,
-      countryCode: step.location.country_code,
-      date: dateStr,
-    };
-  };
-
-  const coldIcon = coldIsNight
-    ? (coldStep.weather.night?.icon ?? coldStep.weather.day.icon)
-    : coldStep.weather.day.icon;
+  const coldIcon = cold.isNight
+    ? (cold.step.weather.night?.icon ?? cold.step.weather.day.icon)
+    : cold.step.weather.day.icon;
 
   return [
-    {
-      type: "temp",
-      label: "Coldest",
-      value: formatTemp(coldFeels),
-      ...meta(coldStep),
-      color: STAT_COLORS.cold,
-      icon: weatherIconUrl(coldIcon),
-      qIcon: false,
-    },
-    {
-      type: "temp",
-      label: "Hottest",
-      value: formatTemp(hotFeels),
-      ...meta(hotStep),
-      color: STAT_COLORS.hot,
-      icon: weatherIconUrl(hotStep.weather.day.icon),
-      qIcon: false,
-    },
-    {
-      type: "elev",
-      label: "Highest",
-      value: formatElevation(highestStep.elevation),
-      ...meta(highestStep),
-      color: STAT_COLORS.elevation,
-      icon: matLandscape,
-      qIcon: true,
-    },
+    { label: "Coldest", value: formatTemp(cold.feels), ...meta(cold.step), color: STAT_COLORS.cold, iconUrl: weatherIconUrl(coldIcon) },
+    { label: "Hottest", value: formatTemp(hot.feels), ...meta(hot.step), color: STAT_COLORS.hot, iconUrl: weatherIconUrl(hot.step.weather.day.icon) },
+    { label: "Highest", value: formatElevation(highest.elevation), ...meta(highest), color: STAT_COLORS.elevation, iconName: matLandscape },
   ];
 });
 </script>
@@ -121,8 +77,8 @@ const records = computed<ExtremeRecord[]>(() => {
     >
       <div class="record-top">
         <span class="accent-card-tag">{{ r.label }}</span>
-        <img v-if="!r.qIcon" :src="r.icon" class="record-wx" alt="" />
-        <q-icon v-else :name="r.icon" size="1.375rem" class="record-q-icon" />
+        <img v-if="r.iconUrl" :src="r.iconUrl" class="record-wx" alt="" />
+        <q-icon v-else-if="r.iconName" :name="r.iconName" size="1.375rem" class="record-q-icon" />
       </div>
       <div class="record-value">{{ r.value }}</div>
       <div class="record-place text-bright">{{ r.place }}</div>
