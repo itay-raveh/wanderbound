@@ -254,21 +254,3 @@ export function measureDescription(text: string): TextLayout {
 export function useTextMeasure(description: Ref<string>): ComputedRef<TextLayout> {
   return computed(() => measureDescription(description.value));
 }
-
-export interface IndexedPage {
-  originalIdx: number;
-  page: string[];
-}
-
-export function filterCoverFromPages(
-  pages: string[][],
-  cover: string | null | undefined,
-  isShort: boolean,
-): IndexedPage[] {
-  if (!isShort || !cover) {
-    return pages.map((page, i) => ({ originalIdx: i, page }));
-  }
-  return pages
-    .map((page, i) => ({ originalIdx: i, page: page.filter((p) => p !== cover) }))
-    .filter(({ page }) => page.length > 0);
-}

@@ -143,6 +143,7 @@ frontend/
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       units.ts               KM_TO_MI, M_TO_FT metric↔imperial conversion constants
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
+      stepPages.ts           IndexedPage type + filterCoverFromPages (cover-aware photo page filtering)
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes

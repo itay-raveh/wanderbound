@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { client } from "@/client/client.gen";
-import type { UserCreated } from "@/client/types.gen";
+import type { UserCreated } from "@/client";
 import { useQuasar } from "quasar";
 import RegisterStep from "./RegisterStep.vue";
 

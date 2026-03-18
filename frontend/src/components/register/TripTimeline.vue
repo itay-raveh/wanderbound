@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { ProcessingPhase, TripMeta } from "@/client/types.gen";
+import type { ProcessingPhase, TripMeta } from "@/client";
 import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary, matVideocam, matImage } from "@quasar/extras/material-icons";

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { TripMeta, User } from "@/client/types.gen";
+import type { TripMeta, User } from "@/client";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import TripTimeline from "./TripTimeline.vue";
 import { symOutlinedLuggage, symOutlinedPinDrop, symOutlinedPublic } from "@quasar/extras/material-symbols-outlined";

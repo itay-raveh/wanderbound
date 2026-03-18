@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
-import type { UserCreated } from "@/client/types.gen";
+import type { UserCreated } from "@/client";
 import { useProcessingStream } from "@/composables/useProcessingStream";
 
 import RegisterHero from "@/components/register/RegisterHero.vue";
