@@ -219,12 +219,12 @@ const stats = computed(() => [
   flex-direction: column;
   align-items: center;
   gap: var(--gap-xs);
-  padding: 0.5rem 1.5rem;
+  padding: var(--gap-md) 1.5rem;
 }
 
 .stat-watermark {
   position: absolute;
-  top: 0.125rem;
+  top: var(--gap-xs);
   right: 0;
   color: var(--sc);
   opacity: 0.1;

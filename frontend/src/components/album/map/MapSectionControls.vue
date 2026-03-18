@@ -96,8 +96,8 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
 <style lang="scss" scoped>
 .map-controls {
   position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
+  top: var(--gap-md);
+  left: var(--gap-md);
   z-index: 2;
   gap: var(--gap-sm);
   padding: var(--gap-sm);

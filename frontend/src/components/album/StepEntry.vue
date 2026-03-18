@@ -128,7 +128,7 @@ const photoPages = computed(() =>
 
 .add-zone {
   width: calc(var(--page-width) * var(--editor-zoom));
-  margin: 0.5rem auto 3rem;
+  margin: var(--gap-md) auto 3rem;
   min-height: 3.5rem;
 }
 

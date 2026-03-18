@@ -109,7 +109,7 @@ function saveDialog() {
   border-radius: var(--radius-xs);
   box-decoration-break: clone;
   outline: 2px dashed color-mix(in srgb, currentColor 35%, transparent);
-  outline-offset: 0.25rem;
+  outline-offset: var(--gap-sm);
   transition:
     outline-color var(--duration-fast) ease,
     background-color var(--duration-fast) ease;

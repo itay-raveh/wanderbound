@@ -166,8 +166,8 @@ function saveCover(name: string) {
 
 .cover-picker-anchor {
   position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
+  top: var(--gap-md);
+  left: var(--gap-md);
   z-index: 3;
   zoom: calc(1 / var(--editor-zoom, 1));
 }

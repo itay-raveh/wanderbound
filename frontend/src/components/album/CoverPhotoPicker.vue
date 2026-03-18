@@ -100,7 +100,7 @@ function select(name: string) {
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 0.25rem;
+  margin-top: var(--gap-sm);
   width: 24rem;
   border-radius: var(--radius-md);
   background: rgba(0, 0, 0, 0.7);

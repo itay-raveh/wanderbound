@@ -213,8 +213,8 @@ const { fitBounds } = useMapbox({
 
 .hike-overlay {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: var(--gap-lg);
+  right: var(--gap-lg);
   background: var(--page-dark-overlay);
   border-radius: var(--radius-md);
   padding: var(--gap-md) var(--gap-lg);
