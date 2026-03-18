@@ -1,16 +1,15 @@
 <script lang="ts" setup>
-import type { Album, AlbumData, DateRange, Segment, Step } from "@/client";
+import type { Album, AlbumData, DateRange, Step } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
 import MapSectionControls from "./MapSectionControls.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { measureDescription } from "@/composables/useTextMeasure";
-import { filterCoverFromPages } from "@/utils/stepPages";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
-import { daysBetween, inDateRange, isoDate, parseLocalDate } from "@/utils/date";
+import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
+import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "@/utils/albumSections";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 
@@ -38,29 +37,6 @@ const OverviewPage = defineAsyncComponent({
   errorComponent: EmptyPage,
   timeout: 10_000,
 });
-
-function sectionKey(section: Section): string {
-  switch (section.type) {
-    case "step": return `step-${section.step.idx}`;
-    case "map": return `map-${section.dateRange[0]}-${section.dateRange[1]}`;
-    case "hike": return `hike-${section.dateRange[0]}-${section.dateRange[1]}`;
-  }
-}
-
-/** Number of album pages a section will render (for lazy placeholder sizing). */
-function sectionPageCount(section: Section): number {
-  if (section.type === "map" || section.type === "hike") return 1;
-  const step = section.step;
-  const layout = measureDescription(step.description || "");
-  const pages = filterCoverFromPages(step.pages, step.cover, layout.type === "short");
-  return 1 + pages.length + layout.continuationTexts.length;
-}
-
-
-function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
-  return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
-}
-
 
 const props = defineProps<{
   album: Album;
@@ -99,75 +75,9 @@ const totalDays = computed(() => {
 });
 provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
 
-type Section =
-  | { type: "map"; steps: Step[]; segments: Segment[]; rangeIdx: number; dateRange: DateRange }
-  | { type: "hike"; steps: Step[]; segments: Segment[]; hikeSegment: Segment; rangeIdx: number; dateRange: DateRange }
-  | { type: "step"; step: Step };
-
-const sections = computed<Section[]>(() => {
-  const allSteps = steps.value;
-  const allSegments = segments.value;
-  const mapRanges = props.album.maps_ranges ?? [];
-
-  type MapEntry = {
-    rangeIdx: number;
-    dateRange: DateRange;
-    steps: Step[];
-    segments: Segment[];
-  };
-  const mapEntries: MapEntry[] = mapRanges.map((dr, i) => {
-    const rangeSteps = allSteps.filter((s) => inDateRange(isoDate(s.datetime), dr));
-    const rangeStart = rangeSteps[0]?.timestamp;
-    const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
-    const rangeSegments =
-      rangeStart == null || rangeEnd == null
-        ? []
-        : segmentsOverlapping(allSegments, rangeStart, rangeEnd);
-    return { rangeIdx: i, dateRange: dr, steps: rangeSteps, segments: rangeSegments };
-  });
-
-  const result: Section[] = [];
-  const mapInsertionPoints = new Map<number, MapEntry[]>();
-  for (const entry of mapEntries) {
-    if (entry.steps.length === 0) continue;
-    const firstIdx = entry.steps[0]!.idx;
-    if (!mapInsertionPoints.has(firstIdx)) {
-      mapInsertionPoints.set(firstIdx, []);
-    }
-    mapInsertionPoints.get(firstIdx)!.push(entry);
-  }
-
-  for (const step of allSteps) {
-    const maps = mapInsertionPoints.get(step.idx);
-    if (maps) {
-      for (const m of maps) {
-        const hikeSegment = m.segments.find((s) => s.kind === "hike");
-        const hasTransport = m.segments.some((s) => s.kind === "driving" || s.kind === "flight");
-        if (hikeSegment && !hasTransport) {
-          result.push({
-            type: "hike",
-            steps: m.steps,
-            segments: m.segments,
-            hikeSegment,
-            rangeIdx: m.rangeIdx,
-            dateRange: m.dateRange,
-          });
-        } else {
-          result.push({
-            type: "map",
-            steps: m.steps,
-            segments: m.segments,
-            rangeIdx: m.rangeIdx,
-            dateRange: m.dateRange,
-          });
-        }
-      }
-    }
-    result.push({ type: "step", step });
-  }
-
-  return result;
-});
+const sections = computed(() =>
+  buildSections(steps.value, segments.value, props.album.maps_ranges ?? []),
+);
 
 const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 
