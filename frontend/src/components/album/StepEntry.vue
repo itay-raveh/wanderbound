@@ -1,137 +1,30 @@
 <script lang="ts" setup>
-import type { Step, StepUpdate } from "@/client";
+import type { Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
-import { useDragState } from "@/composables/useDragState";
+import { useStepLayout } from "@/composables/useStepLayout";
 import { useTextMeasure } from "@/composables/useTextMeasure";
 import { filterCoverFromPages } from "@/utils/stepPages";
-import { usePrintMode } from "@/composables/usePrintReady";
-import { useStepMutation } from "@/queries/useStepMutation";
-import { computed, ref } from "vue";
-import { useDraggable } from "vue-draggable-plus";
+import { computed, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   step: Step;
 }>();
 
-const printMode = usePrintMode();
-const isDragging = useDragState();
+const dropZoneRef = ref<HTMLElement | null>(null);
+const coverDropRef = ref<HTMLElement | null>(null);
+
+const { printMode, isDragging, saveField, onPageUpdate, onUnusedUpdate } =
+  useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
 
 const desc = useTextMeasure(computed(() => props.step.description ?? ""));
 
 const photoPages = computed(() =>
   filterCoverFromPages(props.step.pages, props.step.cover, desc.value.type === "short"),
 );
-
-const stepMutation = useStepMutation();
-
-// Drop zones — useDraggable attaches SortableJS directly to the DOM element,
-// avoiding the v-model sync issues that VueDraggable has with static children.
-const dropZoneRef = ref<HTMLElement | null>(null);
-const dropZoneList = ref<string[]>([]);
-const coverDropRef = ref<HTMLElement | null>(null);
-const coverDropList = ref<string[]>([]);
-
-function saveField(patch: Partial<StepUpdate>) {
-  stepMutation.mutate({ sid: props.step.idx, update: patch });
-}
-
-function saveLayout(patch: Partial<StepUpdate>) {
-  const update: StepUpdate = {
-    cover: props.step.cover,
-    pages: props.step.pages,
-    unused: props.step.unused,
-    ...patch,
-  };
-  stepMutation.mutate({ sid: props.step.idx, update });
-}
-
-function onCoverUpdate(cover: string) {
-  const oldCover = props.step.cover;
-  const { pages, unused } = withoutPhotos(new Set([cover]));
-  saveLayout({
-    cover,
-    pages,
-    unused: oldCover ? [...unused, oldCover] : unused,
-  });
-}
-
-/** Remove a set of photos from all pages and unused list atomically. */
-function withoutPhotos(photoSet: Set<string>) {
-  return {
-    pages: props.step.pages
-      .map((page) => page.filter((p) => !photoSet.has(p)))
-      .filter((page) => page.length > 0),
-    unused: props.step.unused.filter((p) => !photoSet.has(p)),
-  };
-}
-
-function onPageUpdate(idx: number, page: string[]) {
-  // Find photos that are new to this page (dragged in from elsewhere)
-  const existing = new Set(props.step.pages[idx]);
-  const added = page.filter((p) => !existing.has(p));
-
-  if (added.length > 0) {
-    // Cross-list move: replace target page in-place, strip dragged photos
-    // from all other pages atomically (can't use withoutPhotos + splice
-    // because filtering empty pages shifts indices).
-    const addedSet = new Set(added);
-    const pages = props.step.pages
-      .map((p, i) =>
-        i === idx ? page : p.filter((photo) => !addedSet.has(photo)),
-      )
-      .filter((p) => p.length > 0);
-    const unused = props.step.unused.filter((p) => !addedSet.has(p));
-    saveLayout({ pages, unused });
-  } else {
-    // Same-list reorder
-    const pages = [...props.step.pages];
-    pages[idx] = page;
-    saveLayout({ pages });
-  }
-}
-
-function onUnusedUpdate(unused: string[]) {
-  // Find photos that are new to the unused list (dragged in from a page)
-  const existing = new Set(props.step.unused);
-  const added = unused.filter((p) => !existing.has(p));
-
-  if (added.length > 0) {
-    // Cross-list move: atomically remove from source pages
-    const cleaned = withoutPhotos(new Set(added));
-    saveLayout({ ...cleaned, unused });
-  } else {
-    saveLayout({ unused });
-  }
-}
-
-if (!printMode) {
-  useDraggable(dropZoneRef, dropZoneList, {
-    group: "photos",
-    animation: 200,
-    onAdd: () => {
-      if (dropZoneList.value.length === 0) return;
-      const photos = [...dropZoneList.value];
-      dropZoneList.value = [];
-      const cleaned = withoutPhotos(new Set(photos));
-      saveLayout({ ...cleaned, pages: [...cleaned.pages, photos] });
-    },
-  });
-
-  useDraggable(coverDropRef, coverDropList, {
-    group: "photos",
-    animation: 200,
-    onAdd: () => {
-      if (coverDropList.value.length === 0) return;
-      const photo = coverDropList.value[0]!;
-      coverDropList.value = [];
-      onCoverUpdate(photo);
-    },
-  });
-}
 </script>
 
 <template>
