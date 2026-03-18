@@ -142,9 +142,9 @@ frontend/
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
       colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
-      media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS
+      media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       units.ts               KM_TO_MI, M_TO_FT metric↔imperial conversion constants
-      date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso
+      date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes
@@ -172,7 +172,7 @@ GET /users/process (SSE) → ProcessingSession (background task, reconnectable)
        → flatten media to trip root dir
        → download cover photo from Polarsteps CDN
     4. frames      — ffmpeg extract poster from each .mp4 (semaphore-limited)
-    5. thumbs      — Pillow generate WebP thumbnails at 400px + 1200px
+    5. thumbs      — Pillow generate WebP thumbnails at 200px + 800px
   → build_segments (Polars pipeline: GPS → typed segments)
   → bulk insert Album + Steps + Segments to DB
 ```
