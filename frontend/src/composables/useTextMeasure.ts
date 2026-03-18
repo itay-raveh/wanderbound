@@ -30,21 +30,20 @@ let metaMeasure: HTMLDivElement | null = null;
 let fullMeasure: HTMLDivElement | null = null;
 let contMeasure: HTMLDivElement | null = null;
 
-const COMMON_STYLE = [
+// Positioning for all hidden measurement containers — text formatting
+// comes from the .text-body-columns CSS class (App.vue) or inline styles.
+const MEASURE_STYLE = [
   "position:fixed",
   "visibility:hidden",
   "pointer-events:none",
   "z-index:-1",
-  "white-space:pre-wrap",
-  "text-align:justify",
   "font-family:Inter,sans-serif",
-  "box-sizing:border-box",
-  "overflow:hidden",
 ].join(";");
 
-function createContainer(extraStyle: string): HTMLDivElement {
+function createContainer(extraStyle: string, className?: string): HTMLDivElement {
   const el = document.createElement("div");
-  el.style.cssText = COMMON_STYLE + ";" + extraStyle;
+  el.style.cssText = MEASURE_STYLE + ";" + extraStyle;
+  if (className) el.className = className;
   document.body.appendChild(el);
   return el;
 }
@@ -56,6 +55,10 @@ function ensureContainers() {
   // Empirical height (21rem) accounts for silhouette, name-block, stats, and progress.
   metaMeasure = createContainer(
     [
+      "white-space:pre-wrap",
+      "text-align:justify",
+      "overflow:hidden",
+      "box-sizing:border-box",
       "width:calc(var(--page-width) * var(--meta-ratio) - var(--page-inset-x) - var(--page-inset-y))",
       "height:calc(var(--page-height) - 21rem)",
       "font-size:var(--type-xs)",
@@ -65,29 +68,23 @@ function ensureContainers() {
 
   // Matches StepMainPage .description-full — full-width 2-column layout below compact meta.
   // Empirical height (11rem) accounts for the compact meta header grid.
+  // Text formatting from .text-body-columns class (App.vue) — single source of truth.
   fullMeasure = createContainer(
     [
       "width:var(--page-width)",
       "height:calc(var(--page-height) - 11rem)",
-      "padding:var(--page-inset-y) var(--page-inset-x)",
-      "font-size:var(--type-sm)",
-      "line-height:1.65",
-      "column-count:2",
-      "column-gap:var(--page-inset-y)",
     ].join(";"),
+    "text-body-columns",
   );
 
   // Matches StepTextPage .text-page-body — continuation text pages (same 2-column layout).
+  // Text formatting from .text-body-columns class (App.vue) — single source of truth.
   contMeasure = createContainer(
     [
       "width:var(--page-width)",
       "height:var(--page-height)",
-      "padding:var(--page-inset-y) var(--page-inset-x)",
-      "font-size:var(--type-sm)",
-      "line-height:1.65",
-      "column-count:2",
-      "column-gap:var(--page-inset-y)",
     ].join(";"),
+    "text-body-columns",
   );
 }
 

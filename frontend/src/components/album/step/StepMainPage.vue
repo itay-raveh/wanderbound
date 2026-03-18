@@ -38,7 +38,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
         :model-value="step.description ?? ''"
         multiline
         dir="auto"
-        class="description-full"
+        class="text-body-columns description-full"
         :display-value="mainPageText"
         @update:model-value="emit('update:description', $event)"
       />
@@ -90,16 +90,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
 }
 
 .description-full {
-  padding: var(--page-inset-y) var(--page-inset-x);
-  font-size: var(--type-sm);
-  line-height: 1.65;
-  white-space: pre-wrap;
-  text-align: justify;
-  column-count: 2;
-  column-gap: var(--page-inset-y);
-  overflow: hidden;
   width: 100%;
-  box-sizing: border-box;
 }
 
 .step-main.long-desc {

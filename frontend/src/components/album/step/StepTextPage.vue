@@ -17,7 +17,7 @@ const emit = defineEmits<{
       :model-value="description"
       multiline
       dir="auto"
-      class="text-page-body"
+      class="text-body-columns text-page-body"
       :display-value="text"
       @update:model-value="emit('update:description', $event)"
     />
@@ -33,14 +33,5 @@ const emit = defineEmits<{
 .text-page-body {
   width: 100%;
   height: 100%;
-  padding: var(--page-inset-y) var(--page-inset-x);
-  font-size: var(--type-sm);
-  line-height: 1.65;
-  white-space: pre-wrap;
-  text-align: justify;
-  column-count: 2;
-  column-gap: var(--page-inset-y);
-  overflow: hidden;
-  box-sizing: border-box;
 }
 </style>

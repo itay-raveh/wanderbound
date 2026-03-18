@@ -71,6 +71,22 @@ html, body, #app {
   --duration-slow: 0.5s;
 }
 
+/* Two-column text body — single source of truth for step descriptions and
+   text continuation pages.  useTextMeasure.ts measurement containers also
+   reference this class so changing a value here automatically keeps layout
+   measurement in sync with rendering. */
+.text-body-columns {
+  padding: var(--page-inset-y) var(--page-inset-x);
+  font-size: var(--type-sm);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  text-align: justify;
+  column-count: 2;
+  column-gap: var(--page-inset-y);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 /* Theme colors */
 
 .body--dark {
