@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
+import { usePrintMode } from "@/composables/usePrintReady";
+import EditableText from "@/components/EditableText.vue";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
@@ -10,6 +12,13 @@ const props = defineProps<{
   descriptionType: DescriptionType;
   mainPageText: string;
 }>();
+
+const emit = defineEmits<{
+  "update:name": [name: string];
+  "update:description": [description: string];
+}>();
+
+const printMode = usePrintMode();
 
 const isLongDesc = computed(
   () =>
@@ -26,11 +35,22 @@ const isLongDesc = computed(
       :main-page-text="mainPageText"
       :compact="isLongDesc"
       class="meta-side"
+      @update:name="emit('update:name', $event)"
+      @update:description="emit('update:description', $event)"
     />
 
     <div class="content-panel">
+      <EditableText
+        v-if="!printMode && isLongDesc && mainPageText"
+        :model-value="step.description ?? ''"
+        multiline
+        dir="auto"
+        class="description-full"
+        :display-value="mainPageText"
+        @update:model-value="emit('update:description', $event)"
+      />
       <div
-        v-if="isLongDesc && mainPageText"
+        v-else-if="isLongDesc && mainPageText"
         dir="auto"
         class="description-full"
       >

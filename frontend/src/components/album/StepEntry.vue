@@ -34,14 +34,18 @@ const dropZoneList = ref<string[]>([]);
 const coverDropRef = ref<HTMLElement | null>(null);
 const coverDropList = ref<string[]>([]);
 
+function saveField(patch: Partial<StepUpdate>) {
+  stepMutation.mutate({ sid: props.step.idx, update: patch });
+}
+
 function saveLayout(patch: Partial<StepUpdate>) {
-  const layout: StepUpdate = {
+  const update: StepUpdate = {
     cover: props.step.cover,
     pages: props.step.pages,
     unused: props.step.unused,
     ...patch,
   };
-  stepMutation.mutate({ sid: props.step.idx, layout });
+  stepMutation.mutate({ sid: props.step.idx, update });
 }
 
 function onCoverUpdate(cover: string) {
@@ -137,6 +141,8 @@ if (!printMode) {
           :step="step"
           :description-type="desc.type"
           :main-page-text="desc.mainPageText"
+          @update:name="saveField({ name: $event })"
+          @update:description="saveField({ description: $event })"
         />
         <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
       </div>
@@ -145,8 +151,8 @@ if (!printMode) {
         v-for="(text, i) in desc.continuationTexts"
         :key="`text-${i}`"
         :text="text"
-        :step-name="step.name"
-        :location-name="step.location.name"
+        :description="step.description ?? ''"
+        @update:description="saveField({ description: $event })"
       />
 
       <StepPhotoPage
@@ -175,6 +181,7 @@ if (!printMode) {
         @update:unused-photos="onUnusedUpdate"
       />
     </div>
+
   </div>
 </template>
 

@@ -10,10 +10,10 @@ export function useStepMutation() {
   const { albumId } = useAlbum();
 
   return useMutation({
-    mutation: async (payload: { sid: number; layout: StepUpdate }) => {
+    mutation: async (payload: { sid: number; update: StepUpdate }) => {
       const { data } = await updateStep({
         path: { aid: albumId.value, sid: payload.sid },
-        body: payload.layout,
+        body: payload.update,
       });
       return data;
     },
@@ -25,7 +25,7 @@ export function useStepMutation() {
         cache.setQueryData(key, {
           ...prev,
           steps: prev.steps.map((s) =>
-            s.idx === payload.sid ? { ...s, ...payload.layout } : s,
+            s.idx === payload.sid ? { ...s, ...payload.update } : s,
           ),
         });
       }
@@ -35,7 +35,7 @@ export function useStepMutation() {
       if (ctx?.prev) {
         cache.setQueryData(queryKeys.albumData(ctx.aid), ctx.prev);
       }
-      Notify.create({ type: "negative", message: "Failed to save step layout" });
+      Notify.create({ type: "negative", message: "Failed to save step" });
     },
   });
 }

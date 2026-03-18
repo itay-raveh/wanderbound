@@ -2,6 +2,8 @@
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { usePrintMode } from "@/composables/usePrintReady";
+import EditableText from "@/components/EditableText.vue";
 import { getCountryColor } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
@@ -19,6 +21,12 @@ const props = defineProps<{
   compact?: boolean;
 }>();
 
+const emit = defineEmits<{
+  "update:name": [name: string];
+  "update:description": [description: string];
+}>();
+
+const printMode = usePrintMode();
 const { colors, tripStart, totalDays } = useAlbum();
 
 const { formatTemp, formatElevationValue, formatDate, isKm, locale } =
@@ -102,12 +110,29 @@ const dateStr = computed(() => {
         <img :src="flagUrl(step.location.country_code)" class="flag" alt="" />
         <span>{{ step.location.detail }}</span>
       </div>
-      <h2 class="step-name text-bright">{{ step.name }}</h2>
+      <EditableText
+        v-if="!printMode"
+        :model-value="step.name"
+        placeholder="Step name"
+        class="step-name text-bright"
+        @update:model-value="emit('update:name', $event)"
+      />
+      <h2 v-else class="step-name text-bright">{{ step.name }}</h2>
     </div>
 
     <!-- Short description (normal layout only) -->
+    <EditableText
+      v-if="!printMode && !compact"
+      :model-value="step.description ?? ''"
+      multiline
+      placeholder="Add a description..."
+      dir="auto"
+      class="description"
+      :display-value="mainPageText"
+      @update:model-value="emit('update:description', $event)"
+    />
     <div
-      v-if="!compact && mainPageText"
+      v-else-if="!compact && mainPageText"
       dir="auto"
       class="description"
     >

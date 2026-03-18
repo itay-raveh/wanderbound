@@ -1,21 +1,27 @@
 <script lang="ts" setup>
-import { symOutlinedEdit } from "@quasar/extras/material-symbols-outlined";
 import { ref } from "vue";
 
-const props = defineProps<{
-  modelValue: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    displayValue?: string;
+    multiline?: boolean;
+    placeholder?: string;
+  }>(),
+  { multiline: false, placeholder: "" },
+);
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
 }>();
 
+// --- Inline mode (single-line contenteditable) ---
 const el = ref<HTMLElement | null>(null);
 const editing = ref(false);
 
 function commit() {
   editing.value = false;
-  const text = el.value?.textContent?.trim() ?? "";
+  const text = (el.value?.innerText ?? "").trim();
   if (el.value) el.value.textContent = text;
   if (text !== props.modelValue) {
     emit("update:modelValue", text);
@@ -23,75 +29,110 @@ function commit() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    (e.target as HTMLElement).blur();
-  } else if (e.key === "Escape") {
+  if (e.key === "Escape") {
     if (el.value) el.value.textContent = props.modelValue;
     editing.value = false;
+    (e.target as HTMLElement).blur();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
     (e.target as HTMLElement).blur();
   }
 }
 
-function onPaste(e: ClipboardEvent) {
-  e.preventDefault();
-  const text = e.clipboardData?.getData("text/plain") ?? "";
-  document.execCommand("insertText", false, text);
+// --- Modal mode (multiline dialog) ---
+const dialogOpen = ref(false);
+const draft = ref("");
+
+function saveDialog() {
+  const text = draft.value.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
+  if (text !== props.modelValue) {
+    emit("update:modelValue", text);
+  }
+  dialogOpen.value = false;
 }
 </script>
 
 <template>
-  <div class="editable-text relative-position">
-    <div
-      ref="el"
-      class="editable-text__input"
-      contenteditable="true"
-      :spellcheck="editing"
-      @focus="editing = true"
-      @blur="commit"
-      @keydown="onKeydown"
-      @paste="onPaste"
-    ><slot /></div>
-    <span class="editable-text__badge flex flex-center no-pointer-events" @mousedown.prevent>
-      <q-icon :name="symOutlinedEdit" size="0.55rem" />
-    </span>
+  <!-- Multiline: styled div that opens a modal -->
+  <div
+    v-if="multiline"
+    class="editable-text"
+    :data-placeholder="placeholder"
+    @click="dialogOpen = true"
+  >
+    {{ displayValue ?? modelValue }}
+
+    <q-dialog v-model="dialogOpen" @before-show="draft = modelValue">
+      <q-card class="desc-dialog column no-wrap">
+        <q-card-section class="text-h6">Edit description</q-card-section>
+        <q-card-section class="col scroll">
+          <q-input
+            v-model="draft"
+            type="textarea"
+            outlined
+            dir="auto"
+            class="fit"
+            input-class="desc-textarea"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" @click="dialogOpen = false" />
+          <q-btn flat label="Save" color="primary" @click="saveDialog" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
+
+  <!-- Single-line: inline contenteditable -->
+  <div
+    v-else
+    ref="el"
+    class="editable-text"
+    contenteditable="plaintext-only"
+    :data-placeholder="placeholder"
+    :spellcheck="editing"
+    @focus="editing = true"
+    @blur="commit"
+    @keydown="onKeydown"
+  >{{ modelValue }}</div>
 </template>
 
 <style lang="scss" scoped>
 .editable-text {
-  display: inline-block;
-}
-
-.editable-text__input {
   cursor: text;
-  outline: 3px dashed rgba(255, 255, 255, 0.35);
-  outline-offset: 0.3rem;
   border-radius: var(--radius-xs);
+  box-decoration-break: clone;
+  outline: 2px dashed color-mix(in srgb, currentColor 35%, transparent);
+  outline-offset: 0.25rem;
   transition:
     outline-color var(--duration-fast) ease,
     background-color var(--duration-fast) ease;
 
-  &:hover:not(:focus) {
-    outline-color: rgba(255, 255, 255, 0.55);
+  &:hover {
+    outline-color: color-mix(in srgb, currentColor 55%, transparent);
   }
 
-  &:focus {
-    outline-color: rgba(255, 255, 255, 0.7);
-    outline-style: solid;
-    background: rgba(255, 255, 255, 0.08);
+  &:empty::before {
+    content: attr(data-placeholder);
+    opacity: 0.35;
+    font-style: italic;
   }
 }
 
-.editable-text__badge {
-  position: absolute;
-  top: -0.75rem;
-  right: -0.75rem;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  color: rgba(0, 0, 0, 0.65);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+.desc-dialog {
+  width: 40rem;
+  max-width: 90vw;
+  height: 70vh;
+  max-height: 70vh;
+}
+
+:deep(.desc-textarea) {
+  height: 100% !important;
+  resize: none;
+}
+
+:deep(.q-field__inner),
+:deep(.q-field__control) {
+  height: 100%;
 }
 </style>

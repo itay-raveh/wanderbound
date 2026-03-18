@@ -77,18 +77,16 @@ function ensureContainers() {
     ].join(";"),
   );
 
-  // Matches StepTextPage .text-page-body — continuation text pages.
-  // Empirical height (4rem) accounts for the text-page-header.
+  // Matches StepTextPage .text-page-body — continuation text pages (same 2-column layout).
   contMeasure = createContainer(
     [
       "width:var(--page-width)",
-      "height:calc(var(--page-height) - 4rem)",
-      "padding:0 4rem var(--page-inset-y)",
-      "font-size:var(--type-md)",
-      "line-height:1.6",
-      "column-width:30rem",
-      "column-fill:auto",
-      "column-gap:var(--page-inset-x)",
+      "height:var(--page-height)",
+      "padding:var(--page-inset-y) var(--page-inset-x)",
+      "font-size:var(--type-sm)",
+      "line-height:1.65",
+      "column-count:2",
+      "column-gap:var(--page-inset-y)",
     ].join(";"),
   );
 }
@@ -138,12 +136,58 @@ function estimateLayout(text: string): TextLayout {
 }
 
 // --- DOM measurement helpers ---
-function fits(container: HTMLDivElement, text: string): boolean {
-  container.textContent = text;
-  return container.scrollHeight <= container.clientHeight;
+
+/** Check if content overflows the container (vertical or horizontal for multi-column). */
+function overflows(container: HTMLDivElement): boolean {
+  return (
+    container.scrollHeight > container.clientHeight ||
+    container.scrollWidth > container.clientWidth
+  );
 }
 
-function splitByParagraphs(
+function fits(container: HTMLDivElement, text: string): boolean {
+  container.textContent = text;
+  return !overflows(container);
+}
+
+/** Binary-search split within a single paragraph by word boundaries. */
+function splitByWords(
+  container: HTMLDivElement,
+  paragraph: string,
+): [string, string] {
+  const words = paragraph.split(/(?<=\s)/);
+  if (words.length <= 1) return [paragraph, ""];
+
+  // Pre-build joined prefixes so each binary search probe is O(1) lookup
+  const prefixes: string[] = new Array(words.length);
+  prefixes[0] = words[0]!;
+  for (let i = 1; i < words.length; i++) {
+    prefixes[i] = prefixes[i - 1]! + words[i]!;
+  }
+
+  let lo = 0;
+  let hi = words.length - 1;
+  let splitAt = 1; // take at least one word
+
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    container.textContent = prefixes[mid]!;
+    if (!overflows(container)) {
+      splitAt = mid + 1;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  if (splitAt >= words.length) return [paragraph, ""];
+  return [
+    prefixes[splitAt - 1]!.trimEnd(),
+    words.slice(splitAt).join(""),
+  ];
+}
+
+function splitToFit(
   container: HTMLDivElement,
   text: string,
 ): [string, string] {
@@ -162,7 +206,7 @@ function splitByParagraphs(
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     container.textContent = prefixes[mid]!;
-    if (container.scrollHeight <= container.clientHeight) {
+    if (!overflows(container)) {
       mainEnd = mid + 1;
       lo = mid + 1;
     } else {
@@ -170,7 +214,13 @@ function splitByParagraphs(
     }
   }
 
-  if (mainEnd === 0 && paras.length > 0) mainEnd = 1;
+  // If even the first paragraph overflows, split it by words
+  if (mainEnd === 0 && paras.length > 0) {
+    const [head, tail] = splitByWords(container, paras[0]!);
+    const rest = paras.slice(1).join("\n");
+    return [head, tail + (rest ? "\n" + rest : "")];
+  }
+
   if (mainEnd >= paras.length) return [text, ""];
   return [prefixes[mainEnd - 1]!, paras.slice(mainEnd).join("\n")];
 }
@@ -191,12 +241,12 @@ export function measureDescription(text: string): TextLayout {
   if (fits(fullMeasure!, text))
     return cached(text, { type: "long", mainPageText: text, continuationTexts: [] });
 
-  const [mainPageText, remainder] = splitByParagraphs(fullMeasure!, text);
+  const [mainPageText, remainder] = splitToFit(fullMeasure!, text);
   const continuationTexts: string[] = [];
   let remaining = remainder;
 
   while (remaining.trim()) {
-    const [chunk, rest] = splitByParagraphs(contMeasure!, remaining);
+    const [chunk, rest] = splitToFit(contMeasure!, remaining);
     continuationTexts.push(chunk);
     remaining = rest;
   }

@@ -11,18 +11,20 @@ from app.models.polarsteps import Location
 from app.models.weather import Weather
 
 
-class StepLayout(SQLModel):
+class StepBase(SQLModel):
+    name: str = Field(max_length=255)
+    description: str
     cover: str | None = None
     pages: list[list[str]] = Field(sa_column=Column(JSON, nullable=False))
     unused: list[str] = Field(sa_column=Column(JSON, nullable=False))
 
 
 @all_optional
-class StepUpdate(StepLayout):
+class StepUpdate(StepBase):
     pass
 
 
-class Step(StepLayout, table=True):
+class Step(StepBase, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
@@ -33,8 +35,6 @@ class Step(StepLayout, table=True):
     aid: AlbumId = Field(primary_key=True)
     idx: StepIdx = Field(primary_key=True)
 
-    name: str = Field(max_length=255)
-    description: str
     timestamp: float
     timezone_id: str = Field(max_length=255)
     location: Location = Field(sa_column=Column(PydanticJSON(Location), nullable=False))
