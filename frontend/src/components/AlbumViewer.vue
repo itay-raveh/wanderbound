@@ -224,7 +224,7 @@ if (props.printMode) {
 .needle-head {
   flex-shrink: 0;
   gap: var(--gap-sm);
-  padding: 0.25rem 0.625rem;
+  padding: var(--gap-sm) 0.625rem;
   border-radius: var(--radius-full);
   border: 1px solid currentColor;
   white-space: nowrap;
