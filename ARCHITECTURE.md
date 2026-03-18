@@ -93,7 +93,6 @@ frontend/
     composables/
       useAlbum.ts            provide/inject for AlbumContext (albumId, colors, orientations, tripStart, totalDays)
       useMapbox.ts           Mapbox GL map lifecycle (init, destroy, fitBounds, resize observer, locale)
-      useDarkMode.ts         Quasar Dark mode with localStorage persistence
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers

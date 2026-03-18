@@ -1,7 +1,7 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
-import { Loading, LoadingBar, Notify, Quasar } from "quasar";
-import { createApp } from "vue";
+import { Dark, Loading, LoadingBar, Notify, Quasar } from "quasar";
+import { createApp, watch } from "vue";
 
 
 // Self-hosted Inter + Heebo (Hebrew) with font-display: block.
@@ -21,8 +21,6 @@ import App from "./App.vue";
 import router from "./router";
 
 import { client } from "@/client/client.gen";
-
-import { initDarkMode } from "@/composables/useDarkMode";
 
 client.setConfig({
   baseUrl: import.meta.env.VITE_BACKEND_URL,
@@ -55,5 +53,12 @@ app.use(Quasar, {
   plugins: { Notify, LoadingBar, Loading },
 });
 
-initDarkMode();
+// Dark mode: restore preference from localStorage, persist changes.
+const DARK_MODE_KEY = "album-dark-mode";
+const stored = localStorage.getItem(DARK_MODE_KEY);
+Dark.set(stored === null || stored === "auto" ? "auto" : stored === "true");
+watch(() => Dark.mode, (mode) => {
+  localStorage.setItem(DARK_MODE_KEY, String(mode));
+});
+
 app.mount("#app");
