@@ -5,8 +5,8 @@ import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { usePrintMode } from "@/composables/usePrintReady";
-import EditableText from "@/components/EditableText.vue";
-import CoverPhotoPicker from "@/components/CoverPhotoPicker.vue";
+import EditableText from "./EditableText.vue";
+import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
 

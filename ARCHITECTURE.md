@@ -81,7 +81,7 @@ frontend/
       PrintView.vue          Headless render target for PDF: loads album, waits for fonts/images, signals __PRINT_READY__
     queries/
       keys.ts               Query key factory (albums, albumData, user)
-      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale) + KM_TO_MI, M_TO_FT constants
+      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale)
       useAlbumQuery.ts       Single album fetch
       useAlbumDataQuery.ts   Album steps + segments fetch
       useAlbumMutation.ts    Optimistic album PATCH
@@ -100,11 +100,10 @@ frontend/
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/
       AlbumViewer.vue        Master album renderer: computes sections from ranges, renders cover/overview/maps/steps
-      EditableText.vue       Inline text editing (single-line contenteditable / multiline dialog), auto print-mode
-      CoverPhotoPicker.vue   Dropdown grid for selecting cover photos
       LazySection.vue        IntersectionObserver wrapper for lazy-loading album sections
-      MapSectionControls.vue Delete + date range picker controls for map sections
       album/
+        EditableText.vue     Inline text editing (single-line contenteditable / multiline dialog), auto print-mode
+        CoverPhotoPicker.vue Dropdown grid for selecting cover photos
         CoverPage.vue        Full-bleed cover with date/title overlay (front) or plain image (back)
         MediaItem.vue         Photo (srcset + lazy) / Video (poster + controls + frame scrubber)
         StepEntry.vue         Step container: main page + text pages + photo pages + unused tray, all with drag-and-drop
@@ -112,6 +111,7 @@ frontend/
         MapPage.vue           Overview map with segments + step markers
         HikeMapPage.vue       Hike-focused map with terrain DEM, stats overlay, elevation profile
         ElevationProfile.vue  SVG elevation chart (dist vs elev, gradient fill, axis labels)
+        MapSectionControls.vue Delete + date range picker controls for map sections
         mapSegments.ts        Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
         mapMatching.ts        Mapbox Map Matching API (chunked, with Douglas-Peucker fallback)
         map-segments.css      Marker + flight icon styles for Mapbox GL overlays
@@ -140,6 +140,7 @@ frontend/
         ProcessingProgress.vue Live processing status with TripTimeline
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
+      units.ts               KM_TO_MI, M_TO_FT conversion constants
       colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds

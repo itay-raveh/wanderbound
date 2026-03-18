@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
+import { KM_TO_MI, M_TO_FT } from "@/utils/units";
 import { computed } from "vue";
 
 interface ElevationPoint {

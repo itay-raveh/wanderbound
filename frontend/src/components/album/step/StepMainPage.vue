@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
-import EditableText from "@/components/EditableText.vue";
+import EditableText from "../EditableText.vue";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import EditableText from "@/components/EditableText.vue";
+import EditableText from "../EditableText.vue";
 
 defineProps<{
   text: string;

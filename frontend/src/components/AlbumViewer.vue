@@ -3,7 +3,7 @@ import type { Album, AlbumData, DateRange, Step } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
-import MapSectionControls from "./MapSectionControls.vue";
+import MapSectionControls from "./album/map/MapSectionControls.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";

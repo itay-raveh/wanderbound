@@ -2,7 +2,7 @@
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
-import EditableText from "@/components/EditableText.vue";
+import EditableText from "../EditableText.vue";
 import { getCountryColor } from "@/utils/colors";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
