@@ -41,7 +41,7 @@ backend/
       weather.py            Weather, WeatherData (stored in step.weather JSON column)
       user.py               User table (SQLModel) + UserUpdate
       album.py              Album table + AlbumUpdate + AlbumData response model
-      step.py               Step table + StepUpdate (layout fields: cover, pages, unused)
+      step.py               Step table + StepBase + StepUpdate (name, description, cover, pages, unused)
       segment.py            SegmentKind enum + Segment table (points as PydanticJSON)
       polarsteps.py         Pydantic models for Polarsteps ZIP data (PSTrip, PSStep, PSLocations, Point, Location)
       __init__.py            Imports all tables so Alembic sees them
@@ -78,7 +78,7 @@ frontend/
       sdk.gen.ts             Typed HTTP functions (createUser, readAlbum, exportPdf, etc.)
       types.gen.ts           TypeScript interfaces matching backend Pydantic models
     pages/
-      EditorView.vue         Main editor: header + sidebar + album viewer, album selection in localStorage
+      EditorView.vue         Main editor: header toolbar + album viewer, album selection in localStorage
       RegisterView.vue       Onboarding: ZIP upload → SSE processing progress → redirect to editor
       PrintView.vue          Headless render target for PDF: loads album, waits for fonts/images, signals __PRINT_READY__
     queries/
@@ -87,7 +87,7 @@ frontend/
       useAlbumQuery.ts       Single album fetch
       useAlbumDataQuery.ts   Album steps + segments fetch
       useAlbumMutation.ts    Optimistic album PATCH
-      useStepMutation.ts     Optimistic step layout PATCH
+      useStepMutation.ts     Optimistic step PATCH (layout + name/description)
       useUserMutation.ts     Optimistic user preferences PATCH
       useVideoFrameMutation.ts  Video poster re-extraction
     composables/
@@ -97,13 +97,12 @@ frontend/
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
-      useScrollContainer.ts  provide/inject for scroll container ref (IntersectionObserver root)
       usePrintReady.ts       provide/inject for print mode boolean
       usePdfExportStream.ts  SSE consumer for PDF export progress (loading/rendering/merging, download token)
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/
       AlbumViewer.vue        Master album renderer: computes sections from ranges, renders cover/overview/maps/steps
-      ConfigSidebar.vue      Album settings panel: trip select, step date ranges, PDF export
+      EditableText.vue       Inline text editing (single-line contenteditable / multiline dialog), auto print-mode
       CoverPhotoPicker.vue   Dropdown grid for selecting cover photos
       LazySection.vue        IntersectionObserver wrapper for lazy-loading album sections
       MapSectionControls.vue Delete + date range picker controls for map sections
@@ -124,13 +123,14 @@ frontend/
         OverviewFurthestPoint.vue  Distance-from-home widget (Turf.js)
       album/step/
         StepMainPage.vue      Left meta panel + right cover photo or full description
-        StepMetaPanel.vue     Country silhouette, location, weather, elevation, progress bar
+        StepMetaPanel.vue     Country silhouette, location, editable name/description, weather, elevation, progress bar
         StepPhotoPage.vue     Smart photo grid (1-6 photos with orientation-aware layouts)
         StepTextPage.vue      Overflow text continuation page (multi-column)
         CountrySilhouette.vue SVG country outline with location pin
         UnusedSidebar.vue     Draggable unused photos tray
       editor/
-        EditorHeader.vue      Top bar with logo + UserMenu
+        EditorHeader.vue      Top bar with logo + UserMenu, wraps AlbumToolbar via slot
+        AlbumToolbar.vue      Trip select, step date ranges, PDF export
         UserMenu.vue          Settings: dark mode, units, locale, delete data
         DeleteDialog.vue      Confirmation modal for data deletion
       register/
@@ -142,10 +142,9 @@ frontend/
         ProcessingProgress.vue Live processing status with TripTimeline
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
-      colors.ts              DEFAULT_COUNTRY_COLOR, getCountryColor helper
+      colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, THUMB_WIDTHS
-      units.ts               KM_TO_MI, M_TO_FT conversion constants
-      text.ts                chooseTextDir (RTL detection for Hebrew/Arabic)
+      units.ts               KM_TO_MI, M_TO_FT, MS_PER_DAY conversion constants
       weather.ts             weatherIconUrl (basmilius CDN)
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, inDateRange, toQDate/toIso, ymdToIso
     styles/
@@ -194,8 +193,9 @@ POST /albums/{aid}/pdf
 
 ```
 EditorView → useAlbumQuery + useAlbumDataQuery → AlbumViewer
-  → ConfigSidebar: PATCH /albums/{aid} (title, subtitle, covers, ranges)
-  → StepEntry: drag-and-drop photos between pages/unused → PATCH /albums/{aid}/steps/{sid}
+  → AlbumToolbar: PATCH /albums/{aid} (title, subtitle, covers, ranges)
+  → StepEntry: drag-and-drop photos, inline name/description editing → PATCH /albums/{aid}/steps/{sid}
+  → CoverPage: inline title/subtitle editing → PATCH /albums/{aid}
   → All mutations use optimistic updates (Pinia Colada cache)
 ```
 
