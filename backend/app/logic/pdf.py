@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
 import secrets
 import tempfile
 from collections.abc import AsyncIterator
@@ -202,7 +203,9 @@ async def render_album_pdf_stream(
             if pdf_bytes is None:
                 yield PdfError(detail="PDF generation produced no output.")
                 return
-            tmp_path = Path(tempfile.mkstemp(suffix=".pdf", prefix="album_")[1])
+            fd, name = tempfile.mkstemp(suffix=".pdf", prefix="album_")
+            os.close(fd)
+            tmp_path = Path(name)
             await asyncio.to_thread(tmp_path.write_bytes, pdf_bytes)
             token = store_pdf_token(tmp_path)
             yield PdfDone(token=token)
