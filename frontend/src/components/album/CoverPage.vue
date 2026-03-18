@@ -31,7 +31,6 @@ const dates = computed(() => {
   return formatDateRange(start, end, { month: "long", day: "numeric", year: "numeric" });
 });
 
-const editable = computed(() => !printMode);
 const counterZoom = `${1 / EDITOR_ZOOM}`;
 
 const coverField = computed(() =>
@@ -66,7 +65,7 @@ function saveCover(name: string) {
     />
 
     <!-- Cover photo picker (editor only) -->
-    <div v-if="editable" class="cover-picker-anchor">
+    <div v-if="!printMode" class="cover-picker-anchor">
       <CoverPhotoPicker
         :model-value="coverMedia"
         :album-id="album.id"
@@ -83,26 +82,18 @@ function saveCover(name: string) {
         <div class="cover-rule" />
 
         <EditableText
-          v-if="editable"
           :model-value="album.title"
           dir="auto"
           class="front-title"
           @update:model-value="saveText('title', $event)"
-        >{{ album.title }}</EditableText>
-        <div v-else dir="auto" class="front-title">
-          {{ album.title }}
-        </div>
+        />
 
         <EditableText
-          v-if="editable"
           :model-value="album.subtitle"
           dir="auto"
           class="front-subtitle"
           @update:model-value="saveText('subtitle', $event)"
-        >{{ album.subtitle }}</EditableText>
-        <div v-else dir="auto" class="front-subtitle">
-          {{ album.subtitle }}
-        </div>
+        />
       </div>
     </template>
 

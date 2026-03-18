@@ -2,7 +2,6 @@
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { usePrintMode } from "@/composables/usePrintReady";
 import EditableText from "@/components/EditableText.vue";
 import { getCountryColor } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
@@ -26,7 +25,6 @@ const emit = defineEmits<{
   "update:description": [description: string];
 }>();
 
-const printMode = usePrintMode();
 const { colors, tripStart, totalDays } = useAlbum();
 
 const { formatTemp, formatElevationValue, formatDate, isKm, locale } =
@@ -111,18 +109,16 @@ const dateStr = computed(() => {
         <span>{{ step.location.detail }}</span>
       </div>
       <EditableText
-        v-if="!printMode"
         :model-value="step.name"
         placeholder="Step name"
         class="step-name text-bright"
         @update:model-value="emit('update:name', $event)"
       />
-      <h2 v-else class="step-name text-bright">{{ step.name }}</h2>
     </div>
 
     <!-- Short description (normal layout only) -->
     <EditableText
-      v-if="!printMode && !compact"
+      v-if="!compact"
       :model-value="step.description ?? ''"
       multiline
       placeholder="Add a description..."
@@ -131,13 +127,6 @@ const dateStr = computed(() => {
       :display-value="mainPageText"
       @update:model-value="emit('update:description', $event)"
     />
-    <div
-      v-else-if="!compact && mainPageText"
-      dir="auto"
-      class="description"
-    >
-      {{ mainPageText }}
-    </div>
 
     <!-- Bottom section: stats + progress -->
     <div class="bottom-section" :dir="dir">

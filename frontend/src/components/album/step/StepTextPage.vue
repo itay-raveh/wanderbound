@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { usePrintMode } from "@/composables/usePrintReady";
 import EditableText from "@/components/EditableText.vue";
 
 defineProps<{
@@ -10,14 +9,11 @@ defineProps<{
 const emit = defineEmits<{
   "update:description": [description: string];
 }>();
-
-const printMode = usePrintMode();
 </script>
 
 <template>
   <div class="page-container text-page">
     <EditableText
-      v-if="!printMode"
       :model-value="description"
       multiline
       dir="auto"
@@ -25,9 +21,6 @@ const printMode = usePrintMode();
       :display-value="text"
       @update:model-value="emit('update:description', $event)"
     />
-    <div v-else dir="auto" class="text-page-body">
-      {{ text }}
-    </div>
   </div>
 </template>
 

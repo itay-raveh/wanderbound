@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
-import { usePrintMode } from "@/composables/usePrintReady";
 import EditableText from "@/components/EditableText.vue";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
@@ -17,8 +16,6 @@ const emit = defineEmits<{
   "update:name": [name: string];
   "update:description": [description: string];
 }>();
-
-const printMode = usePrintMode();
 
 const isLongDesc = computed(
   () =>
@@ -41,7 +38,7 @@ const isLongDesc = computed(
 
     <div class="content-panel">
       <EditableText
-        v-if="!printMode && isLongDesc && mainPageText"
+        v-if="isLongDesc && mainPageText"
         :model-value="step.description ?? ''"
         multiline
         dir="auto"
@@ -49,13 +46,6 @@ const isLongDesc = computed(
         :display-value="mainPageText"
         @update:model-value="emit('update:description', $event)"
       />
-      <div
-        v-else-if="isLongDesc && mainPageText"
-        dir="auto"
-        class="description-full"
-      >
-        {{ mainPageText }}
-      </div>
       <template v-else>
         <MediaItem
           v-if="step.cover"

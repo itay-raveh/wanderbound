@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { usePrintMode } from "@/composables/usePrintReady";
 import { ref } from "vue";
 
 const props = withDefaults(
@@ -14,6 +15,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   "update:modelValue": [value: string];
 }>();
+
+const printMode = usePrintMode();
 
 // --- Inline mode (single-line contenteditable) ---
 const el = ref<HTMLElement | null>(null);
@@ -53,9 +56,12 @@ function saveDialog() {
 </script>
 
 <template>
+  <!-- Print mode: plain text, no editing affordances -->
+  <div v-if="printMode">{{ displayValue ?? modelValue }}</div>
+
   <!-- Multiline: styled div that opens a modal -->
   <div
-    v-if="multiline"
+    v-else-if="multiline"
     class="editable-text"
     :data-placeholder="placeholder"
     @click="dialogOpen = true"
