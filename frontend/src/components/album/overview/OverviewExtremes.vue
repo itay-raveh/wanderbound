@@ -116,11 +116,11 @@ const records = computed<ExtremeRecord[]>(() => {
     <div
       v-for="r in records"
       :key="r.label"
-      class="record"
+      class="record accent-card"
       :style="{ '--accent': r.color }"
     >
       <div class="record-top">
-        <span class="record-tag">{{ r.label }}</span>
+        <span class="accent-card-tag">{{ r.label }}</span>
         <img v-if="!r.qIcon" :src="r.icon" class="record-wx" alt="" />
         <q-icon v-else :name="r.icon" size="1.375rem" class="record-q-icon" />
       </div>
@@ -154,10 +154,6 @@ const records = computed<ExtremeRecord[]>(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  padding: 0.625rem 0.75rem;
-  border-left: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
-  border-radius: var(--radius-sm);
   min-width: 0;
 }
 
@@ -165,14 +161,6 @@ const records = computed<ExtremeRecord[]>(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.record-tag {
-  font-size: var(--type-3xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  color: var(--accent);
 }
 
 .record-wx {

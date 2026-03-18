@@ -71,6 +71,23 @@ html, body, #app {
   --duration-slow: 0.5s;
 }
 
+/* Accent card — overview record/furthest panels.
+   Set --accent on the element to control the accent color. */
+.accent-card {
+  padding: 0.625rem 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
+  border-radius: var(--radius-sm);
+}
+
+.accent-card-tag {
+  font-size: var(--type-3xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--accent);
+}
+
 /* Two-column text body — single source of truth for step descriptions and
    text continuation pages.  useTextMeasure.ts measurement containers also
    reference this class so changing a value here automatically keeps layout

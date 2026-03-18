@@ -48,7 +48,7 @@ const furthest = computed(() => {
 </script>
 
 <template>
-  <div class="furthest">
+  <div class="furthest accent-card">
     <div class="fp-top">
       <q-icon :name="matHome" size="1.375rem" class="fp-top-icon" />
       <q-icon :name="matPlace" size="1.375rem" class="fp-top-icon" />
@@ -73,7 +73,7 @@ const furthest = computed(() => {
       <div class="fp-trail">
         <div class="fp-line" />
         <div class="column">
-          <span class="fp-tag">Furthest from home</span>
+          <span class="accent-card-tag">Furthest from home</span>
           <div class="fp-badge">
             <span class="fp-dist text-bright">{{ furthest.dist }}</span>
             <span class="fp-unit text-muted">{{ distanceUnit() }}</span>
@@ -102,16 +102,8 @@ const furthest = computed(() => {
 
 <style lang="scss" scoped>
 .furthest {
-  --fp-accent: v-bind(accentColor);
+  --accent: v-bind(accentColor);
   margin: 0 var(--page-inset-x);
-  padding: 0.625rem 0.75rem;
-  border-left: 3px solid var(--fp-accent);
-  background: color-mix(
-    in srgb,
-    var(--fp-accent) 6%,
-    var(--page-bg, var(--bg))
-  );
-  border-radius: var(--radius-sm);
   z-index: 1;
 }
 
@@ -121,16 +113,8 @@ const furthest = computed(() => {
   justify-content: space-between;
 }
 
-.fp-tag {
-  font-size: var(--type-3xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  color: var(--fp-accent);
-}
-
 .fp-top-icon {
-  color: var(--fp-accent);
+  color: var(--accent);
   opacity: 0.6;
   font-variation-settings: "FILL" 0;
 }
@@ -187,7 +171,7 @@ const furthest = computed(() => {
 
 .fp-line {
   flex: 1;
-  border-top: 1.5px dashed color-mix(in srgb, var(--fp-accent) 40%, transparent);
+  border-top: 1.5px dashed color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .fp-badge {
@@ -196,7 +180,7 @@ const furthest = computed(() => {
   gap: 0.2rem;
   background: color-mix(
     in srgb,
-    var(--fp-accent) 12%,
+    var(--accent) 12%,
     var(--page-bg, var(--bg))
   );
   padding: 0.25rem 0.5rem;
