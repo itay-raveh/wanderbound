@@ -45,7 +45,7 @@ const layoutClass = computed(() => {
         v-for="photo in localPage"
         :key="photo"
         :media="photo"
-        :stepId="stepId"
+        :step-id="stepId"
         :cols="localPage.length === 1 ? 1 : 2"
         class="item"
       />

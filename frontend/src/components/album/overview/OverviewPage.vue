@@ -35,16 +35,15 @@ const photosCount = computed(() => {
   return n.toLocaleString(locale.value);
 });
 
-const countries = computed(() =>
-  Object.entries(
-    Object.fromEntries(
-      props.steps.map(({ location }) => [
-        location.country_code,
-        location.detail,
-      ]),
-    ),
-  ).filter(([code]) => code !== "00"),
-);
+const countries = computed(() => {
+  const seen = new Map<string, string>();
+  for (const { location } of props.steps) {
+    if (location.country_code !== "00") {
+      seen.set(location.country_code, location.detail);
+    }
+  }
+  return [...seen];
+});
 
 const totalDistance = computed(() => {
   const km = props.segments.reduce((acc, seg) => {
