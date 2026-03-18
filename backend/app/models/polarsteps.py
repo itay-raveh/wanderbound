@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Protocol, Self
 from zoneinfo import ZoneInfo
 
 from pydantic import (
@@ -9,16 +9,23 @@ from pydantic import (
     BeforeValidator,
     Field,
     HttpUrl,
+    StringConstraints,
 )
-
-from app.models.geo import CountryCode, Lat, Lon
 
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]
 
+CountryCode = Annotated[str, StringConstraints(to_lower=True, pattern="[a-zA-Z]{2}|00")]
+HexColor = Annotated[str, StringConstraints(to_lower=True, pattern="#[0-9a-fA-F]{6}")]
+
+
+class HasLatLon(Protocol):
+    lat: float
+    lon: float
+
 
 class Point(BaseModel):
-    lat: Lat
-    lon: Lon
+    lat: float
+    lon: float
     time: float
 
     def __lt__(self, other: Point) -> bool:
@@ -39,8 +46,8 @@ class Location(BaseModel):
     name: NullableStr
     detail: NullableStr
     country_code: CountryCode
-    lat: Lat
-    lon: Lon
+    lat: float
+    lon: float
 
 
 class PSStep(BaseModel):

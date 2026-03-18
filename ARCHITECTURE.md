@@ -36,14 +36,12 @@ backend/
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
         assets.py           GET /{aid}/media/{name} (thumbnails + originals), PATCH (video frame re-extract)
     models/
-      ids.py                Generic IDs (UserId, AlbumId, StepIdx)
-      geo.py                Lat, Lon, HasLatLon protocol, CountryCode, HexColor
       weather.py            Weather, WeatherData (stored in step.weather JSON column)
       user.py               User table (SQLModel) + UserUpdate
       album.py              Album table + AlbumUpdate + AlbumData response model
       step.py               Step table + StepBase + StepUpdate (name, description, cover, pages, unused)
       segment.py            SegmentKind enum + Segment table (points as PydanticJSON)
-      polarsteps.py         Pydantic models for Polarsteps ZIP data (PSTrip, PSStep, PSLocations, Point, Location)
+      polarsteps.py         Pydantic models for Polarsteps ZIP data + shared types (CountryCode, HexColor, HasLatLon)
       __init__.py            Imports all tables so Alembic sees them
     logic/
       pdf.py                Playwright PDF renderer (browser context, cookies, print emulation)
@@ -206,7 +204,7 @@ user
   id (PK)              int (Polarsteps user ID)
   first_name, last_name, profile_image_path, locale, unit_is_km, temperature_is_celsius
   living_location      JSON (Location: name, detail, country_code, lat, lon)
-  album_ids            JSON (list of AlbumId strings)
+  album_ids            JSON (list of album ID strings)
 
 album
   (uid, id) PK         uid FK → user.id
@@ -241,8 +239,10 @@ segment
 | `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) — step photo layout |
 | `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
 | `SegmentData` | `models/segment.py` | NamedTuple(kind, points) — GPS segmentation pipeline output |
+| `CountryCode`, `HexColor` | `models/polarsteps.py` | Annotated string types with validation constraints |
+| `HasLatLon` | `models/polarsteps.py` | Structural protocol for objects with lat/lon attributes |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
-| `Point` | `models/polarsteps.py` | GPS point (lat, lon, time) — used in segments and locations |
+| `Point`, `Location` | `models/polarsteps.py` | GPS point (lat, lon, time) and named location with country code |
 | `Weather`, `WeatherData` | `models/weather.py` | Day/night weather with WMO icon names |
 | `ProcessingEvent` | `logic/processing.py` | Discriminated union: TripStart | PhaseUpdate | ErrorData |
 | `MediaName` | `logic/layout/media.py` | Annotated str with UUID_UUID.(jpg|mp4) pattern |

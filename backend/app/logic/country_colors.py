@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from coloraide import Color
 from pydantic import BaseModel, TypeAdapter
 
-from app.models.geo import CountryCode, HexColor
+from app.models.polarsteps import CountryCode, HexColor
 
 if TYPE_CHECKING:
     from collections.abc import Container, Iterable

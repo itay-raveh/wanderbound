@@ -12,7 +12,6 @@ from app.logic.layout.media import (
     generate_thumbnails,
     is_video,
 )
-from app.models.ids import AlbumId
 from app.models.user import User
 
 from ..deps import UserDep
@@ -28,7 +27,7 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 _CACHE_REVALIDATE = "public, no-cache"
 
 
-def _album_dir(user: User, aid: AlbumId) -> Path:
+def _album_dir(user: User, aid: str) -> Path:
     """Resolve the album directory, rejecting path traversal in ``aid``."""
     resolved = (user.trips_folder / aid).resolve()
     if not resolved.is_relative_to(user.trips_folder):
@@ -36,7 +35,7 @@ def _album_dir(user: User, aid: AlbumId) -> Path:
     return resolved
 
 
-def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
+def _resolve_media(user: User, aid: str, name: str) -> Path:
     album = _album_dir(user, aid)
     resolved = (album / name).resolve()
     if not resolved.is_relative_to(album) or not resolved.is_file():
@@ -46,7 +45,7 @@ def _resolve_media(user: User, aid: AlbumId, name: str) -> Path:
 
 @router.get("/{aid}/media/{name}")
 async def get_media(
-    aid: AlbumId,
+    aid: str,
     name: MediaName,
     user: UserDep,
     w: int | None = None,
@@ -74,7 +73,7 @@ async def get_media(
 
 @router.patch("/{aid}/media/{name}")
 async def update_video_frame(
-    aid: AlbumId,
+    aid: str,
     name: MediaName,
     user: UserDep,
     timestamp: Annotated[float, Query()],

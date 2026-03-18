@@ -15,14 +15,13 @@ from fastapi.sse import EventSourceResponse
 
 from app.logic.pdf import PdfEvent, pop_pdf_path, render_album_pdf_stream
 from app.models.album import Album, AlbumData, AlbumUpdate
-from app.models.ids import AlbumId, StepIdx
 from app.models.step import Step, StepUpdate
 
 from ..deps import BrowserDep, SessionDep, UserDep
 
 
 async def _get_album(
-    aid: Annotated[AlbumId, Path()], user: UserDep, session: SessionDep
+    aid: Annotated[str, Path()], user: UserDep, session: SessionDep
 ) -> Album:
     return await session.get_one(Album, (user.id, aid))
 
@@ -33,21 +32,19 @@ router = APIRouter(prefix="/albums", tags=["albums"])
 
 
 @router.get("/{aid}")
-async def read_album(aid: AlbumId, album: AlbumDep) -> Album:
+async def read_album(aid: str, album: AlbumDep) -> Album:
     return album
 
 
 @router.get("/{aid}/data")
-async def read_album_data(
-    aid: AlbumId, album: AlbumDep, session: SessionDep
-) -> AlbumData:
+async def read_album_data(aid: str, album: AlbumDep, session: SessionDep) -> AlbumData:
     await session.refresh(album, attribute_names=["steps", "segments"])
     return AlbumData(steps=album.steps, segments=album.segments)
 
 
 @router.patch("/{aid}")
 async def update_album(
-    aid: AlbumId,
+    aid: str,
     update: AlbumUpdate,
     album: AlbumDep,
     session: SessionDep,
@@ -61,8 +58,8 @@ async def update_album(
 
 @router.patch("/{aid}/steps/{sid}")
 async def update_step(
-    aid: AlbumId,
-    sid: StepIdx,
+    aid: str,
+    sid: int,
     update: StepUpdate,
     user: UserDep,
     session: SessionDep,
@@ -81,7 +78,7 @@ async def update_step(
     responses={200: {"model": list[PdfEvent]}},
 )
 async def generate_pdf(
-    aid: AlbumId,
+    aid: str,
     user: UserDep,
     browser: BrowserDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
@@ -92,7 +89,7 @@ async def generate_pdf(
 
 @router.get("/{aid}/pdf/download/{token}")
 async def download_pdf(
-    aid: AlbumId,
+    aid: str,
     token: str,
     background_tasks: BackgroundTasks,
 ) -> FileResponse:

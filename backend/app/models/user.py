@@ -6,7 +6,6 @@ from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import settings
 from app.core.db import PydanticJSON, all_optional
-from app.models.ids import AlbumId, UserId
 from app.models.polarsteps import Location
 
 Locale = Annotated[
@@ -32,8 +31,8 @@ class UserUpdate(UserBase):
 
 
 class User(UserBase, table=True):
-    id: UserId = Field(primary_key=True)
-    album_ids: list[AlbumId] = Field(
+    id: int = Field(primary_key=True)
+    album_ids: list[str] = Field(
         default_factory=list, sa_column=Column(JSON, nullable=False)
     )
 

@@ -11,8 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
-from app.models.geo import CountryCode
-from app.models.polarsteps import PSTrip
+from app.models.polarsteps import CountryCode, PSTrip
 from app.models.user import User
 
 logger = logging.getLogger(__name__)

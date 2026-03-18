@@ -6,7 +6,7 @@ import httpx
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
 from app.core.http import cached_client
-from app.models.geo import HasLatLon
+from app.models.polarsteps import HasLatLon
 
 _client = cached_client(use_body_key=True)
 

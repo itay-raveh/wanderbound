@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Iterable, Sequence
     from pathlib import Path
 
-    from app.models.ids import AlbumId
     from app.models.polarsteps import PSStep
     from app.models.user import User
 
@@ -118,7 +117,7 @@ async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
             yield await coro
 
 
-async def build_step_layout(user: User, aid: AlbumId, step: PSStep) -> Layout | None:
+async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None:
     step_dir = user.trips_folder / aid / step.folder_name
 
     media: list[Media] = [m async for m in _step_media(step_dir)]

@@ -4,9 +4,8 @@ from pydantic import BaseModel
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.models.geo import CountryCode, HexColor
+from app.models.polarsteps import CountryCode, HexColor
 
-from .ids import AlbumId, UserId
 from .segment import Segment
 from .step import Step
 
@@ -34,8 +33,8 @@ class AlbumUpdate(AlbumBase):
 
 
 class Album(AlbumBase, table=True):
-    uid: UserId = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
-    id: AlbumId = Field(primary_key=True)
+    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    id: str = Field(primary_key=True)
 
     steps: list[Step] = Relationship(
         cascade_delete=True,

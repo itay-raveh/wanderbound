@@ -5,7 +5,6 @@ from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON
-from app.models.ids import AlbumId, UserId
 from app.models.polarsteps import Point
 
 
@@ -30,8 +29,8 @@ class Segment(SQLModel, table=True):
         ),
     )
 
-    uid: UserId = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
-    aid: AlbumId = Field(primary_key=True)
+    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    aid: str = Field(primary_key=True)
     start_time: float = Field(primary_key=True)
     end_time: float = Field(primary_key=True)
     kind: SegmentKind

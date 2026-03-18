@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from playwright._impl._api_structures import PdfMargins
     from playwright.async_api import Browser, Page
 
-    from app.models.ids import AlbumId
     from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -99,7 +98,7 @@ async def _page_pdf(page: Page, *, page_ranges: str | None = None) -> bytes:
 
 
 async def _generate_pdf_stream(
-    page: Page, aid: AlbumId
+    page: Page, aid: str
 ) -> AsyncIterator[PdfProgress | bytes]:
     """Generate PDF in chunks, yielding progress events and final bytes."""
     total_pages = await page.evaluate(
@@ -146,7 +145,7 @@ async def _generate_pdf_stream(
 
 
 async def render_album_pdf_stream(
-    browser: Browser, user: User, aid: AlbumId, *, dark: bool = True
+    browser: Browser, user: User, aid: str, *, dark: bool = True
 ) -> AsyncIterator[PdfEvent]:
     """Top-level SSE generator: queued → loading → rendering → merging → done/error."""
     # Yield queued event while waiting for the semaphore

@@ -6,7 +6,6 @@ from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.models.ids import AlbumId, StepIdx, UserId
 from app.models.polarsteps import Location
 from app.models.weather import Weather
 
@@ -31,9 +30,9 @@ class Step(StepBase, table=True):
         ),
     )
 
-    uid: UserId = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
-    aid: AlbumId = Field(primary_key=True)
-    idx: StepIdx = Field(primary_key=True)
+    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    aid: str = Field(primary_key=True)
+    idx: int = Field(primary_key=True)
 
     timestamp: float
     timezone_id: str = Field(max_length=255)

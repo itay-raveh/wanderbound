@@ -21,8 +21,7 @@ from app.models.weather import Weather, WeatherData
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from app.models.geo import HasLatLon
-    from app.models.polarsteps import PSStep
+    from app.models.polarsteps import HasLatLon, PSStep
 
 
 class _RateLimitedTransport(AsyncBaseTransport):
