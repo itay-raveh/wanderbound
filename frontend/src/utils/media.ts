@@ -33,3 +33,8 @@ export function mediaSrcset(name: string, albumId: string): string {
 export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 }
+
+/** Build Basmilius weather icon URL for a WMO icon name. */
+export function weatherIconUrl(iconName: string): string {
+  return `https://basmilius.github.io/weather-icons/production/fill/all/${iconName}.svg`;
+}

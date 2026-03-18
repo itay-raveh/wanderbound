@@ -19,6 +19,11 @@ export function parseLocalDate(iso: string): Date {
   return new Date(year, month - 1, day);
 }
 
+/** Whole days between two Dates (truncated, not rounded). */
+export function daysBetween(a: Date, b: Date): number {
+  return Math.floor((b.getTime() - a.getTime()) / 86_400_000);
+}
+
 /** Whether an ISO date falls within a [from, to] range (inclusive, string comparison). */
 export const inDateRange = (d: string, [from, to]: [string, string]) => d >= from && d <= to;
 

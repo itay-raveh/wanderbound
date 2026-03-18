@@ -4,10 +4,8 @@ import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "@/components/EditableText.vue";
 import { getCountryColor } from "@/utils/colors";
-import { parseLocalDate } from "@/utils/date";
-import { flagUrl } from "@/utils/media";
-import { MS_PER_DAY } from "@/utils/units";
-import { weatherIconUrl } from "@/utils/weather";
+import { daysBetween, parseLocalDate } from "@/utils/date";
+import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "./CountrySilhouette.vue";
@@ -68,7 +66,7 @@ const coords = computed(() => ({
 const dayNumber = computed(() => {
   const start = parseLocalDate(tripStart.value);
   const current = parseLocalDate(props.step.datetime);
-  return Math.floor((current.getTime() - start.getTime()) / MS_PER_DAY) + 1;
+  return daysBetween(start, current) + 1;
 });
 
 const progressPercent = computed(() =>

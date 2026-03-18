@@ -9,8 +9,7 @@ import { providePrintMode } from "@/composables/usePrintReady";
 import { filterCoverFromPages, measureDescription } from "@/composables/useTextMeasure";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
-import { inDateRange, isoDate, parseLocalDate } from "@/utils/date";
-import { MS_PER_DAY } from "@/utils/units";
+import { daysBetween, inDateRange, isoDate, parseLocalDate } from "@/utils/date";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 
@@ -95,7 +94,7 @@ const totalDays = computed(() => {
   if (s.length < 2) return 1;
   const first = parseLocalDate(s[0]!.datetime);
   const last = parseLocalDate(s[s.length - 1]!.datetime);
-  return Math.max(1, Math.floor((last.getTime() - first.getTime()) / MS_PER_DAY) + 1);
+  return Math.max(1, daysBetween(first, last) + 1);
 });
 provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
 

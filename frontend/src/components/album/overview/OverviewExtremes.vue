@@ -3,8 +3,7 @@ import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { STAT_COLORS } from "@/utils/colors";
 import { parseLocalDate } from "@/utils/date";
-import { flagUrl } from "@/utils/media";
-import { weatherIconUrl } from "@/utils/weather";
+import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { computed } from "vue";
 import { matLandscape } from "@quasar/extras/material-icons";
 

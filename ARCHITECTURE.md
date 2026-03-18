@@ -143,10 +143,9 @@ frontend/
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
       colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
-      media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, THUMB_WIDTHS
-      units.ts               KM_TO_MI, M_TO_FT, MS_PER_DAY conversion constants
-      weather.ts             weatherIconUrl (basmilius CDN)
-      date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, inDateRange, toQDate/toIso, ymdToIso
+      media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS
+      units.ts               KM_TO_MI, M_TO_FT metric↔imperial conversion constants
+      date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes
