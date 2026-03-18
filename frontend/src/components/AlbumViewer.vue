@@ -202,14 +202,18 @@ if (props.printMode) {
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
     <template v-for="(section, i) in sections" :key="sectionKey(section)">
-      <!-- "Add map" button before step sections without a preceding map (editor only) -->
+      <!-- "Add map" needle before step sections without a preceding map (editor only) -->
       <div
         v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
-        class="add-map-zone column no-wrap items-center justify-center cursor-pointer text-body1 text-weight-medium text-muted"
+        class="map-needle row no-wrap items-center cursor-pointer"
         @click="addMapBefore(section.step)"
       >
-        <q-icon :name="symOutlinedMap" size="1.5rem" />
-        <span>Add Map Page</span>
+        <div class="needle-line" />
+        <div class="needle-head row no-wrap items-center text-weight-medium">
+          <q-icon :name="symOutlinedMap" size="1rem" />
+          <span>Add Map</span>
+        </div>
+        <div class="needle-line" />
       </div>
 
       <LazySection
@@ -265,7 +269,7 @@ if (props.printMode) {
 
   :deep(.page-container) {
     zoom: var(--editor-zoom);
-    border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);
+    border: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
     margin: 0 auto 0.75rem;
     content-visibility: auto;
     contain-intrinsic-height: auto var(--page-height);
@@ -282,12 +286,10 @@ if (props.printMode) {
     height: calc(var(--page-height) * var(--editor-zoom));
     margin: 0 auto 0.75rem;
     overflow: hidden;
-    border: 2px dashed color-mix(in srgb, var(--text) 25%, transparent);
 
     // Inner page-container: full A4, scaled to fit wrapper
     :deep(.page-container) {
       zoom: 1;
-      border: none;
       margin: 0;
       transform: scale(var(--editor-zoom));
       transform-origin: top left;
@@ -296,23 +298,33 @@ if (props.printMode) {
   }
 }
 
-// "Add map" button between sections (editor only)
-.add-map-zone {
-  gap: var(--gap-sm);
+// "Add map" needle between sections (editor only)
+.map-needle {
   width: calc(var(--page-width) * var(--editor-zoom));
-  min-height: 3.5rem;
-  margin: 0.5rem auto;
-  padding: 1rem;
-  border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
-  border-radius: var(--radius-lg);
-  transition:
-    border-color var(--duration-fast),
-    color var(--duration-fast);
+  margin: 2rem auto 0.75rem;
+  color: var(--text-faint);
+  overflow: visible;
+  transition: color var(--duration-fast);
 
   &:hover {
-    border-color: var(--q-primary);
     color: var(--q-primary);
   }
+}
+
+.needle-head {
+  flex-shrink: 0;
+  gap: var(--gap-sm);
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full);
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  font-size: var(--type-xs);
+}
+
+.needle-line {
+  flex: 1;
+  height: 1px;
+  background: currentColor;
 }
 
 // Print mode: override contain:strict from base rule — size containment
@@ -360,7 +372,7 @@ if (props.printMode) {
     }
   }
 
-  .add-map-zone {
+  .map-needle {
     display: none !important;
   }
 }

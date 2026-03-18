@@ -7,11 +7,9 @@ import { RouterView } from "vue-router";
 </template>
 
 <style lang="scss">
-/* Prevent page-level scroll — each view manages its own scroll container. */
 html, body, #app {
   height: 100%;
   margin: 0;
-  overflow: hidden;
 }
 
 /* Design tokens (theme-independent) */

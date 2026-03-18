@@ -128,6 +128,7 @@ const { fitBounds } = useMapbox({
   container,
   locale,
   onReady: (m) => {
+    m.resize();
     try {
       // Enable Mapbox terrain DEM for elevation queries
       m.addSource("mapbox-dem", {
@@ -181,9 +182,7 @@ const { fitBounds } = useMapbox({
 </script>
 
 <template>
-  <div class="page-container relative-position overflow-hidden">
-    <div ref="hike-map" class="absolute-full" />
-
+  <div ref="hike-map" class="page-container relative-position overflow-hidden">
     <div class="hike-overlay">
       <div class="stat">
         <span class="stat-value">{{ stats.distance }}</span>

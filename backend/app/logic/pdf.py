@@ -107,24 +107,23 @@ async def _generate_pdf_stream(
     logger.info("Album %s has %d print pages", aid, total_pages)
 
     if total_pages <= _CHUNK_SIZE:
-        yield PdfProgress(phase="rendering", done=0, total=1)
+        yield PdfProgress(phase="rendering", done=0, total=total_pages)
         pdf_bytes = await _page_pdf(page)
-        yield PdfProgress(phase="rendering", done=1, total=1)
+        yield PdfProgress(phase="rendering", done=total_pages, total=total_pages)
         logger.info("PDF generated for album %s: %d bytes", aid, len(pdf_bytes))
         yield pdf_bytes
         return
 
-    total_chunks = (total_pages + _CHUNK_SIZE - 1) // _CHUNK_SIZE
     chunks: list[bytes] = []
 
-    for chunk_idx, start in enumerate(range(1, total_pages + 1, _CHUNK_SIZE)):
+    for start in range(1, total_pages + 1, _CHUNK_SIZE):
         end = min(start + _CHUNK_SIZE - 1, total_pages)
-        yield PdfProgress(phase="rendering", done=chunk_idx, total=total_chunks)
+        yield PdfProgress(phase="rendering", done=start - 1, total=total_pages)
         chunk = await _page_pdf(page, page_ranges=f"{start}-{end}")
         chunks.append(chunk)
         logger.info("PDF chunk pages %d-%d: %d bytes", start, end, len(chunk))
 
-    yield PdfProgress(phase="rendering", done=total_chunks, total=total_chunks)
+    yield PdfProgress(phase="rendering", done=total_pages, total=total_pages)
 
     # Merge chunks
     yield PdfProgress(phase="merging", done=0, total=1)
@@ -140,7 +139,7 @@ async def _generate_pdf_stream(
         "PDF generated for album %s: %d bytes (%d chunks)",
         aid,
         len(pdf_bytes),
-        total_chunks,
+        len(chunks),
     )
     yield pdf_bytes
 

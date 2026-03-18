@@ -96,122 +96,74 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
   });
   save({ steps_ranges: ranges.sort(([a], [b]) => a.localeCompare(b)) });
 }
-
 </script>
 
 <template>
-  <div class="sidebar column no-wrap overflow-hidden">
-    <div class="sidebar-scroll scroll q-py-xs">
-      <!-- Trip selector -->
-      <div class="section column no-wrap q-gutter-y-sm">
-        <div class="section-label text-overline text-weight-semibold text-faint">Trip</div>
-        <q-select
-          v-model="albumId"
-          :options="albumOptions"
-          class="compact-field"
-          dense
-          outlined
-          options-dense
-          emit-value
-          map-options
-        >
-          <template #prepend>
-            <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" />
-          </template>
-        </q-select>
-      </div>
-
-      <q-separator class="q-mx-md" />
-
-      <template v-if="album">
-        <!-- Step range picker -->
-        <div v-if="allSteps?.length" class="section column no-wrap q-gutter-y-sm">
-          <div class="section-label text-overline text-weight-semibold text-faint">Steps</div>
-          <q-input
-            :model-value="rangeDisplay"
-            dir="auto"
-            class="compact-field"
-            dense
-            outlined
-            readonly
-            label="Date range"
-            stack-label
-          >
-            <template #append>
-              <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer">
-                <q-popup-proxy transition-show="scale" transition-hide="scale">
-                  <q-date
-                    :model-value="dateRangeModel"
-                    range
-                    multiple
-                    minimal
-                    :options="isStepDate"
-                    :navigation-min-year-month="nav.min"
-                    :navigation-max-year-month="nav.max"
-                    @update:model-value="onRangePick"
-                  />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
-        </div>
-
+  <div class="album-toolbar row no-wrap items-center q-gutter-x-sm">
+    <!-- Trip selector -->
+    <q-select
+      v-model="albumId"
+      :options="albumOptions"
+      class="compact-field toolbar-field"
+      dense
+      outlined
+      options-dense
+      emit-value
+      map-options
+    >
+      <template #prepend>
+        <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" />
       </template>
-    </div>
+    </q-select>
 
-    <!-- Sticky export footer -->
-    <div v-if="album" class="sidebar-footer">
-      <q-btn
-        color="primary"
-        unelevated
-        no-caps
-        :loading="pdfBusy"
-        class="full-width"
-        @click="onExportPdf"
-      >
-        <q-icon :name="symOutlinedPictureAsPdf" size="1.25rem" />
-        {{ pdf.buttonLabel.value }}
-        <template #loading>
-          <q-spinner-dots color="white" size="1.25rem" />
-          {{ pdf.buttonLabel.value }}
-        </template>
-      </q-btn>
-      <div v-if="pdfBusy" class="pdf-progress overflow-hidden">
-        <div class="pdf-progress-bar" :style="{ width: `${pdf.progress.value * 100}%` }" />
-      </div>
-    </div>
+    <!-- Date range picker -->
+    <q-input
+      v-if="album && allSteps?.length"
+      :model-value="rangeDisplay"
+      dir="auto"
+      class="compact-field toolbar-field"
+      dense
+      outlined
+      readonly
+    >
+      <template #prepend>
+        <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer">
+          <q-popup-proxy transition-show="scale" transition-hide="scale">
+            <q-date
+              :model-value="dateRangeModel"
+              range
+              multiple
+              minimal
+              :options="isStepDate"
+              :navigation-min-year-month="nav.min"
+              :navigation-max-year-month="nav.max"
+              @update:model-value="onRangePick"
+            />
+          </q-popup-proxy>
+        </q-icon>
+      </template>
+    </q-input>
+
+    <!-- PDF export -->
+    <q-btn
+      v-if="album"
+      class="toolbar-field"
+      color="primary"
+      unelevated
+      no-caps
+      dense
+      :disable="pdfBusy"
+      @click="onExportPdf"
+    >
+      <q-icon :name="symOutlinedPictureAsPdf" size="1.25rem" class="q-mr-xs" />
+      Export PDF
+    </q-btn>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.sidebar {
-  height: 100%;
+.toolbar-field {
+  width: 18rem;
 }
 
-.sidebar-scroll {
-  flex: 1;
-}
-
-.section {
-  padding: 0.75rem 1rem;
-}
-
-.sidebar-footer {
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.pdf-progress {
-  height: 3px;
-  margin-top: 0.375rem;
-  border-radius: var(--radius-xs);
-  background: var(--border-color);
-}
-
-.pdf-progress-bar {
-  height: 100%;
-  background: var(--q-primary);
-  border-radius: var(--radius-xs);
-  transition: width var(--duration-normal) ease;
-}
 </style>

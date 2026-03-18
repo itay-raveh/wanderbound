@@ -130,54 +130,65 @@ if (!printMode) {
 </script>
 
 <template>
-  <div class="step-entry column no-wrap items-center">
-    <div class="cover-drop-wrapper relative-position">
-      <StepMainPage
-        :step="step"
-        :description-type="desc.type"
-        :main-page-text="desc.mainPageText"
-      />
-      <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
-    </div>
-
-    <StepTextPage
-      v-for="(text, i) in desc.continuationTexts"
-      :key="`text-${i}`"
-      :text="text"
-      :step-name="step.name"
-      :location-name="step.location.name"
-    />
-
-    <StepPhotoPage
-      v-for="{ originalIdx, page } in photoPages"
-      :key="`page-${originalIdx}`"
-      :page="page"
-      :step-id="step.idx"
-      @update:page="onPageUpdate(originalIdx, $event)"
-    />
-
-    <!-- Add page drop zone (editor only) -->
-    <div v-if="!printMode" class="add-zone relative-position">
-      <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
-        <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
-        <span>Drop photo to add page</span>
+  <div class="step-entry">
+    <div class="step-pages column no-wrap items-center">
+      <div class="cover-drop-wrapper relative-position">
+        <StepMainPage
+          :step="step"
+          :description-type="desc.type"
+          :main-page-text="desc.mainPageText"
+        />
+        <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
       </div>
-      <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
+
+      <StepTextPage
+        v-for="(text, i) in desc.continuationTexts"
+        :key="`text-${i}`"
+        :text="text"
+        :step-name="step.name"
+        :location-name="step.location.name"
+      />
+
+      <StepPhotoPage
+        v-for="{ originalIdx, page } in photoPages"
+        :key="`page-${originalIdx}`"
+        :page="page"
+        :step-id="step.idx"
+        @update:page="onPageUpdate(originalIdx, $event)"
+      />
+
+      <!-- Add page drop zone (editor only) -->
+      <div v-if="!printMode" class="add-zone relative-position">
+        <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
+          <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
+          <span>Drop photo to add page</span>
+        </div>
+        <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
+      </div>
     </div>
 
-    <!-- Unused photos tray (editor only) -->
-    <UnusedSidebar
-      v-if="!printMode"
-      :assets="step.unused"
-      :step-id="step.idx"
-      @update:unused-photos="onUnusedUpdate"
-    />
+    <!-- Unused photos sidebar (editor only) -->
+    <div v-if="!printMode" class="sidebar-anchor">
+      <UnusedSidebar
+        :assets="step.unused"
+        :step-id="step.idx"
+        @update:unused-photos="onUnusedUpdate"
+      />
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .step-entry {
   --meta-width: calc(var(--meta-ratio) * 100%);
+  position: relative;
+}
+
+.sidebar-anchor {
+  position: absolute;
+  right: 0.75rem;
+  top: 0;
+  bottom: 0;
 }
 
 .cover-drop-overlay {
@@ -216,7 +227,7 @@ if (!printMode) {
 
 .add-zone {
   width: calc(var(--page-width) * var(--editor-zoom));
-  margin: 0.5rem auto;
+  margin: 0.5rem auto 3rem;
   min-height: 3.5rem;
 }
 

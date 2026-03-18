@@ -1,5 +1,5 @@
-import { ref, computed, type Ref, type ComputedRef } from "vue";
-import { Dark, Notify } from "quasar";
+import { ref, type Ref } from "vue";
+import { Dark, Loading, Notify } from "quasar";
 import {
   generatePdf,
   downloadPdf,
@@ -19,52 +19,38 @@ type PdfEvent =
   | ({ type: "done" } & PdfDone)
   | ({ type: "error" } & PdfError);
 
-const PHASE_LABELS: Record<Phase, string> = {
-  loading: "Loading album…",
-  rendering: "Rendering",
-  merging: "Merging…",
-};
-
 export interface UsePdfExportStream {
   start(): void;
   abort(): void;
   state: Ref<PdfStreamState>;
-  buttonLabel: ComputedRef<string>;
-  progress: ComputedRef<number>;
+}
+
+function loadingMessage(phase: Phase, done: number, total: number): string {
+  switch (phase) {
+    case "loading":
+      return "Loading album\u2026";
+    case "rendering":
+      return total > 1 ? `Rendering page ${done} / ${total}\u2026` : "Rendering\u2026";
+    case "merging":
+      return "Merging pages\u2026";
+  }
 }
 
 export function usePdfExportStream(aid: () => string): UsePdfExportStream {
   const state = ref<PdfStreamState>("idle");
-  const phase = ref<Phase>("loading");
-  const done = ref(0);
-  const total = ref(0);
   let controller: AbortController | null = null;
+  let lastMsg = "";
 
-  const buttonLabel = computed(() => {
-    switch (state.value) {
-      case "queued":
-        return "Queued…";
-      case "running":
-        if (phase.value === "rendering" && total.value > 1) {
-          return `${PHASE_LABELS[phase.value]} ${done.value}/${total.value}…`;
-        }
-        return PHASE_LABELS[phase.value];
-      default:
-        return "Export PDF";
-    }
-  });
-
-  const progress = computed(() => {
-    if (state.value !== "running" || total.value === 0) return 0;
-    return done.value / total.value;
-  });
+  function showLoading(message: string) {
+    if (message === lastMsg) return;
+    lastMsg = message;
+    Loading.show({ message, spinnerColor: "primary", customClass: "pdf-loading-overlay" });
+  }
 
   async function start() {
     controller = new AbortController();
     state.value = "queued";
-    phase.value = "loading";
-    done.value = 0;
-    total.value = 0;
+    showLoading("Queued\u2026");
 
     try {
       const { stream } = await generatePdf({
@@ -81,12 +67,11 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
         switch (event.type) {
           case "queued":
             state.value = "queued";
+            showLoading("Queued\u2026");
             break;
           case "progress":
             state.value = "running";
-            phase.value = event.phase;
-            done.value = event.done;
-            total.value = event.total;
+            showLoading(loadingMessage(event.phase, event.done, event.total));
             break;
           case "done":
             downloadToken = event.token;
@@ -99,6 +84,7 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
       }
 
       if (downloadToken && !controller.signal.aborted) {
+        showLoading("Downloading\u2026");
         const { data } = await downloadPdf({
           path: { aid: aid(), token: downloadToken },
           parseAs: "blob",
@@ -117,6 +103,8 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
       state.value = "error";
       Notify.create({ type: "negative", message: "PDF export failed" });
     } finally {
+      Loading.hide();
+      lastMsg = "";
       if (state.value === "done") {
         setTimeout(() => {
           state.value = "idle";
@@ -128,13 +116,13 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
   function abort() {
     controller?.abort();
     state.value = "idle";
+    Loading.hide();
+    lastMsg = "";
   }
 
   return {
     start: () => void start(),
     abort,
     state,
-    buttonLabel,
-    progress,
   };
 }

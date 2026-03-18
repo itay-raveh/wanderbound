@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { usePrintMode } from "@/composables/usePrintReady";
-import { SCROLL_CONTAINER_KEY } from "@/composables/useScrollContainer";
-import { inject, onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps<{
   /** Number of album pages in this section (drives placeholder height). */
@@ -13,7 +12,6 @@ const props = defineProps<{
 }>();
 
 const printMode = usePrintMode();
-const scrollContainer = inject(SCROLL_CONTAINER_KEY, ref(undefined));
 const el = ref<HTMLElement>();
 const mounted = ref(printMode || props.eager);
 
@@ -34,7 +32,7 @@ onMounted(() => {
       if (entry) mounted.value = entry.isIntersecting;
     },
     {
-      root: scrollContainer.value ?? null,
+      root: null,
       rootMargin: "300% 0px",
     },
   );

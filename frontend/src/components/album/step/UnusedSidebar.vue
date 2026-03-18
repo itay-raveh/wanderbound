@@ -21,14 +21,14 @@ function emitUnused() {
 </script>
 
 <template>
-  <div class="unused-tray">
-    <div class="tray-header row no-wrap items-center text-overline text-weight-semibold text-muted">
+  <div class="unused-sidebar">
+    <div class="sidebar-header row no-wrap items-center text-overline text-weight-semibold text-muted">
       <q-icon :name="matPhotoLibrary" size="1rem" />
-      <span>{{ localUnused.length }} unused photo{{ localUnused.length !== 1 ? 's' : '' }}</span>
+      <span>Unused</span>
     </div>
     <VueDraggable
       v-model="localUnused"
-      class="tray-track row no-wrap"
+      class="sidebar-track column no-wrap"
       group="photos"
       :animation="200"
       @update="emitUnused"
@@ -41,37 +41,40 @@ function emitUnused() {
         :step-id="stepId"
       />
     </VueDraggable>
+    <div v-if="localUnused.length === 0" class="sidebar-empty text-caption text-faint text-center">
+      Drop photos here
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.unused-tray {
+.unused-sidebar {
   position: sticky;
-  bottom: 0;
-  z-index: 10;
-  width: 100%;
-  max-width: calc(var(--page-width) * var(--editor-zoom));
+  top: 4.5rem;
+  width: 10rem;
+  min-height: 6rem;
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: var(--radius-md);
-  padding: 0.5rem 0.75rem;
-  margin: 1rem 0 1.5rem;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
 }
 
-.tray-header {
-  gap: var(--gap-md);
+.sidebar-header {
+  gap: var(--gap-sm);
   margin-bottom: var(--gap-md);
 }
 
-.tray-track {
+.sidebar-empty {
+  padding: 0.5rem 0;
+}
+
+.sidebar-track {
   gap: var(--gap-md);
-  overflow-x: auto;
-  padding: 0.25rem 0;
-  min-height: 4.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
 
   &::-webkit-scrollbar {
-    height: 4px;
+    width: 4px;
   }
 
   &::-webkit-scrollbar-thumb {
@@ -87,8 +90,8 @@ function emitUnused() {
   // Constrain ALL children — including SortableJS ghost clones dragged
   // in from photo pages, which would otherwise retain their large page size.
   > :deep(*) {
-    width: 6rem;
-    height: 4.5rem;
+    width: 100%;
+    aspect-ratio: 4 / 3;
     flex-shrink: 0;
     border-radius: var(--radius-xs);
     overflow: hidden;
@@ -101,7 +104,7 @@ function emitUnused() {
 }
 
 @media print {
-  .unused-tray {
+  .unused-sidebar {
     display: none !important;
   }
 }
