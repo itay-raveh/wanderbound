@@ -24,7 +24,7 @@
 
 **Status:** `DONE` — Resolved via mount-once + `content-visibility: auto` instead of bidirectional unmounting. The bidirectional approach (mount/unmount on scroll) caused severe jank from destroying and recreating entire component trees. Now sections mount once and stay in the DOM; the browser natively skips rendering off-screen sections via `content-visibility: auto` with `contain-intrinsic-height` for stable scroll positioning. IntersectionObserver uses the actual scroll container (`.viewer-col`) as root for reliable pre-loading. Maps use `eager: true` so they mount immediately. WebGL context count is bounded by the number of map sections per album (typically <16).
 
-**Files changed:** `LazySection.vue`, `EditorView.vue`, `useScrollContainer.ts` (new), `App.vue`.
+**Files changed:** `LazySection.vue`, `EditorView.vue`, `App.vue`.
 
 ---
 
