@@ -73,10 +73,6 @@ class PSTrip(BaseModel):
     step_count: int
     all_steps: list[PSStep]
 
-    @property
-    def name(self) -> str:
-        return f"{self.slug}_{self.id}"
-
     @classmethod
     def from_trip_dir(cls, trip_dir: Path) -> Self:
         obj = cls.model_validate_json((trip_dir / "trip.json").read_bytes())

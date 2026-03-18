@@ -17,11 +17,7 @@ const emit = defineEmits<{
   "update:description": [description: string];
 }>();
 
-const isLongDesc = computed(
-  () =>
-    props.descriptionType === "long" ||
-    props.descriptionType === "extra-long",
-);
+const isLongDesc = computed(() => props.descriptionType !== "short");
 </script>
 
 <template>
