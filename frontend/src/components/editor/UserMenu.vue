@@ -241,7 +241,7 @@ async function handleDelete() {
 
 .seg-track {
   display: flex;
-  gap: 2px;
+  gap: var(--gap-xs);
   padding: 3px;
   border-radius: var(--radius-md);
   background: color-mix(in srgb, black 10%, var(--bg-secondary));
@@ -257,7 +257,7 @@ async function handleDelete() {
   gap: 0.3rem;
   padding: 0.375rem 0.75rem;
   border-radius: var(--radius-sm);
-  font-size: 0.8125rem;
+  font-size: var(--type-sm);
   font-weight: 500;
   color: var(--text-muted);
   transition: background var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
@@ -280,7 +280,7 @@ async function handleDelete() {
   flex-shrink: 0;
 
   .seg-btn {
-    padding: 0.25rem 0.5rem;
+    padding: var(--gap-sm) var(--gap-md);
     font-weight: 600;
   }
 }
@@ -298,7 +298,7 @@ async function handleDelete() {
 .locale-wrapper {
   background: color-mix(in srgb, black 10%, var(--bg-secondary));
   border-radius: var(--radius-md);
-  padding: 0 0.5rem;
+  padding: 0 var(--gap-md);
 }
 
 .danger-btn {
@@ -310,7 +310,7 @@ async function handleDelete() {
   width: 100%;
   padding: 0.375rem 0.5rem;
   border-radius: var(--radius-sm);
-  font-size: 0.8125rem;
+  font-size: var(--type-sm);
   font-weight: 500;
   color: var(--danger);
   box-sizing: border-box;

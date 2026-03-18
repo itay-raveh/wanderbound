@@ -100,7 +100,7 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
   left: 0.5rem;
   z-index: 2;
   gap: var(--gap-sm);
-  padding: 0.25rem;
+  padding: var(--gap-sm);
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   backdrop-filter: blur(8px);
   border-radius: var(--radius-sm);
@@ -108,7 +108,7 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
 }
 
 .map-control-btn {
-  padding: 0.25rem;
+  padding: var(--gap-sm);
   border-radius: var(--radius-xs);
   transition: color var(--duration-fast), background var(--duration-fast);
 

@@ -183,7 +183,7 @@ const furthest = computed(() => {
     var(--accent) 12%,
     var(--page-bg, var(--bg))
   );
-  padding: 0.25rem 0.5rem;
+  padding: var(--gap-sm) var(--gap-md);
   border-radius: var(--radius-xs);
 }
 

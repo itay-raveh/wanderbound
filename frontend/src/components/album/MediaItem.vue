@@ -221,7 +221,7 @@ function onVideoKey(e: KeyboardEvent) {
   border-radius: var(--radius-full);
   background: white;
   color: #111;
-  font-size: 0.8125rem;
+  font-size: var(--type-sm);
   font-weight: 600;
   padding: 0.35rem 0.9rem 0.35rem 0.6rem;
   cursor: pointer;

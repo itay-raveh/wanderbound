@@ -146,7 +146,7 @@ const photoPages = computed(() =>
 .add-zone-content {
   gap: var(--gap-sm);
   width: 100%;
-  padding: 1rem;
+  padding: var(--gap-lg);
   border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
   border-radius: var(--radius-lg);
   font-size: var(--type-sm);

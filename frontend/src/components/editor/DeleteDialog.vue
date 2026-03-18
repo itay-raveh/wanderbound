@@ -50,12 +50,12 @@ defineEmits<{
   height: 2.75rem;
   border-radius: 50%;
   background: color-mix(in srgb, var(--danger) 15%, var(--surface));
-  margin: 0 auto 1rem;
+  margin: 0 auto var(--gap-lg);
 }
 
 .confirm-title {
   font-size: var(--type-subtitle);
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--gap-md);
 }
 
 .confirm-text {

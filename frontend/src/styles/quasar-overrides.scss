@@ -25,7 +25,7 @@
 
   .q-field__native,
   .q-field__input {
-    font-size: 0.8125rem;
+    font-size: var(--type-sm);
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
@@ -42,7 +42,7 @@
   }
 
   .q-field__native > span {
-    font-size: 0.8125rem;
+    font-size: var(--type-sm);
     font-weight: 500;
     color: var(--text-bright);
     overflow: hidden;
@@ -76,5 +76,5 @@
 // QUploader
 .q-uploader__header { background: transparent; color: var(--text-faint); border-bottom: none; padding: 0.75rem 1rem; }
 .q-uploader__subtitle { color: var(--text-faint); }
-.q-uploader__title { font-size: 0.8125rem; font-weight: 500; }
+.q-uploader__title { font-size: var(--type-sm); font-weight: 500; }
 .q-uploader__list { padding: 0.5rem 1rem; }

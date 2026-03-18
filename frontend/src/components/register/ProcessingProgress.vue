@@ -120,7 +120,7 @@ const totalCountries = computed(() => {
 }
 
 .error-banner {
-  padding: 1rem;
+  padding: var(--gap-lg);
   border-radius: var(--radius-md);
   border: 1px solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));

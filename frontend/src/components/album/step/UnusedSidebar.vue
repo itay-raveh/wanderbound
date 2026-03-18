@@ -56,7 +56,7 @@ function emitUnused() {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: var(--radius-md);
-  padding: 0.5rem;
+  padding: var(--gap-md);
 }
 
 .sidebar-header {
@@ -65,7 +65,7 @@ function emitUnused() {
 }
 
 .sidebar-empty {
-  padding: 0.5rem 0;
+  padding: var(--gap-md) 0;
 }
 
 .sidebar-track {
