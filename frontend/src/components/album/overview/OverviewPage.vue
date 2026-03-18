@@ -250,7 +250,7 @@ const stats = computed(() => [
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--gap-md) 1.25rem;
-  padding: 0.875rem var(--page-inset-x);
+  padding: var(--gap-lg) var(--page-inset-x);
   border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
   border-bottom: 1px solid
     color-mix(in srgb, var(--border-color) 40%, transparent);

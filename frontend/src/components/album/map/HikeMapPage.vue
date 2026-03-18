@@ -217,16 +217,16 @@ const { fitBounds } = useMapbox({
   right: 1rem;
   background: var(--page-dark-overlay);
   border-radius: var(--radius-md);
-  padding: 0.6rem 1rem;
+  padding: var(--gap-md) var(--gap-lg);
   display: flex;
-  gap: 1.2rem;
+  gap: var(--gap-lg);
   z-index: 1;
 }
 
 .stat {
   display: flex;
   align-items: baseline;
-  gap: 0.2rem;
+  gap: var(--gap-sm);
   color: white;
 }
 

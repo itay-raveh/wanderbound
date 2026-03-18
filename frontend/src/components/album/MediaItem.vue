@@ -189,11 +189,11 @@ function onVideoKey(e: KeyboardEvent) {
   bottom: 3.5rem; // clear native controls
   left: 50%;
   transform: translateX(-50%);
-  gap: 0.2rem;
+  gap: var(--gap-sm);
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   border-radius: var(--radius-full);
-  padding: 0.2rem;
+  padding: var(--gap-sm);
 }
 
 .frame-step-btn {

@@ -213,7 +213,7 @@ const dateStr = computed(() => {
 .coords {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--gap-xs);
   font-family:
     "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", ui-monospace,
     monospace;
@@ -227,7 +227,7 @@ const dateStr = computed(() => {
 .name-block {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--gap-xs);
   margin-bottom: var(--gap-lg);
 }
 
@@ -383,7 +383,7 @@ const dateStr = computed(() => {
   );
   font-size: var(--type-3xs);
   font-weight: 700;
-  padding: 0.15rem 0.5rem;
+  padding: var(--gap-xs) var(--gap-md);
   border-radius: var(--radius-xs);
   white-space: nowrap;
   letter-spacing: var(--tracking-wide);
@@ -429,7 +429,7 @@ const dateStr = computed(() => {
     align-self: center;
     margin-top: 0;
     padding-bottom: 0;
-    gap: 0.4rem;
+    gap: var(--gap-md);
   }
 }
 </style>

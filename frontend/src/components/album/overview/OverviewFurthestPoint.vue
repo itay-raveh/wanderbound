@@ -177,7 +177,7 @@ const furthest = computed(() => {
 .fp-badge {
   display: flex;
   justify-content: center;
-  gap: 0.2rem;
+  gap: var(--gap-sm);
   background: color-mix(
     in srgb,
     var(--accent) 12%,
