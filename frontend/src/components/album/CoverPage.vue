@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { parseLocalDate } from "@/utils/date";
-import { EDITOR_ZOOM, isVideo } from "@/utils/media";
+import { isVideo } from "@/utils/media";
 import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
@@ -30,8 +30,6 @@ const dates = computed(() => {
   const end = parseLocalDate(props.steps[props.steps.length - 1]!.datetime);
   return formatDateRange(start, end, { month: "long", day: "numeric", year: "numeric" });
 });
-
-const counterZoom = `${1 / EDITOR_ZOOM}`;
 
 const coverField = computed(() =>
   props.isBack ? "back_cover_photo" : "front_cover_photo",
@@ -171,6 +169,6 @@ function saveCover(name: string) {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 3;
-  zoom: v-bind(counterZoom);
+  zoom: calc(1 / var(--editor-zoom, 1));
 }
 </style>
