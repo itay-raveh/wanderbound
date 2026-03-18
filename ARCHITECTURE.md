@@ -81,7 +81,7 @@ frontend/
       PrintView.vue          Headless render target for PDF: loads album, waits for fonts/images, signals __PRINT_READY__
     queries/
       keys.ts               Query key factory (albums, albumData, user)
-      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale)
+      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale) + KM_TO_MI, M_TO_FT constants
       useAlbumQuery.ts       Single album fetch
       useAlbumDataQuery.ts   Album steps + segments fetch
       useAlbumMutation.ts    Optimistic album PATCH
@@ -91,6 +91,7 @@ frontend/
     composables/
       useAlbum.ts            provide/inject for AlbumContext (albumId, colors, orientations, tripStart, totalDays)
       useMapbox.ts           Mapbox GL map lifecycle (init, destroy, fitBounds, resize observer, locale)
+      useStepLayout.ts       Drag-and-drop wiring for step photo pages, cover, and unused tray
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
@@ -141,10 +142,8 @@ frontend/
     utils/
       colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
-      units.ts               KM_TO_MI, M_TO_FT metric↔imperial conversion constants
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
-      albumSections.ts       Section type + buildSections (section ordering algorithm for album viewer)
-      stepPages.ts           IndexedPage type + filterCoverFromPages (cover-aware photo page filtering)
+      albumSections.ts       Section type + buildSections (section ordering), IndexedPage + filterCoverFromPages
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes
