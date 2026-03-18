@@ -1,5 +1,6 @@
 """Tests for Open-Meteo weather fetching and WMO code mapping."""
 
+import datetime as _dt_mod
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -35,11 +36,11 @@ class _Step:
     timezone_id: str = "UTC"
 
     @property
-    def datetime(self) -> datetime:
+    def datetime(self) -> _dt_mod.datetime:
         return datetime.fromtimestamp(self.timestamp, UTC)
 
 
-def _make_step(lat: float, lon: float, ts: float, **kw: object) -> _Step:
+def _make_step(lat: float, lon: float, ts: float, **kw: Any) -> _Step:
     return _Step(location=_Loc(lat, lon), timestamp=ts, **kw)
 
 

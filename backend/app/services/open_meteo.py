@@ -7,8 +7,9 @@ sits between the cache and network layers so cache hits bypass it.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from itertools import batched
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import httpx
 from aiolimiter import AsyncLimiter
@@ -21,7 +22,22 @@ from app.models.weather import Weather, WeatherData
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from app.models.polarsteps import HasLatLon, PSStep
+    from app.models.polarsteps import HasLatLon
+
+
+class _HasLocationDetail(Protocol):
+    lat: float
+    lon: float
+    detail: str
+
+
+class _StepLike(Protocol):
+    """Structural interface for step objects used by the weather API."""
+
+    @property
+    def location(self) -> _HasLocationDetail: ...
+    @property
+    def datetime(self) -> datetime: ...
 
 
 class _RateLimitedTransport(AsyncBaseTransport):
@@ -134,7 +150,7 @@ class _LocationResult(BaseModel):
     daily: _DailyData
 
 
-def _weather_from_result(step: PSStep, loc: _LocationResult) -> Weather | None:
+def _weather_from_result(step: _StepLike, loc: _LocationResult) -> Weather | None:
     """Extract weather for a specific step's date from a location result."""
     date_str = str(step.datetime.date())
     try:
@@ -156,7 +172,7 @@ def _weather_from_result(step: PSStep, loc: _LocationResult) -> Weather | None:
     )
 
 
-async def _fetch_one(step: PSStep) -> Weather:
+async def _fetch_one(step: _StepLike) -> Weather:
     """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     try:
@@ -186,11 +202,11 @@ async def _fetch_one(step: PSStep) -> Weather:
 
 
 async def build_weathers(
-    steps: Sequence[PSStep],
+    steps: Sequence[_StepLike],
 ) -> AsyncIterator[tuple[int, Weather]]:
     """Yield (index, weather) as each completes (concurrent, unordered)."""
 
-    async def _one(idx: int, step: PSStep) -> tuple[int, Weather]:
+    async def _one(idx: int, step: _StepLike) -> tuple[int, Weather]:
         return idx, await _fetch_one(step)
 
     for coro in asyncio.as_completed([_one(i, s) for i, s in enumerate(steps)]):

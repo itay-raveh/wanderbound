@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from app.logic.layout.builder import (
@@ -15,9 +13,9 @@ from app.logic.layout.builder import (
 # Helpers
 
 
-def _paths(prefix: str, n: int) -> list[Path]:
-    """Generate n dummy paths with a prefix."""
-    return [Path(f"{prefix}{i}") for i in range(n)]
+def _names(prefix: str, n: int) -> list[str]:
+    """Generate n dummy media names with a prefix."""
+    return [f"{prefix}{i}" for i in range(n)]
 
 
 VALID_PORTRAIT_SIZES = {1, 2, 3}
@@ -146,13 +144,13 @@ class TestOptimalMixedCount:
 
 class TestPagesOf:
     def test_exact_multiple(self) -> None:
-        items = _paths("l", 6)
+        items = _names("l", 6)
         pages = list(_pages_of(items, 3))
         assert len(pages) == 2
         assert all(len(p) == 3 for p in pages)
 
     def test_remainder(self) -> None:
-        items = _paths("l", 7)
+        items = _names("l", 7)
         pages = list(_pages_of(items, 3))
         assert len(pages) == 3
         assert [len(p) for p in pages] == [3, 3, 1]
@@ -161,7 +159,7 @@ class TestPagesOf:
         assert list(_pages_of([], 4)) == []
 
     def test_all_items_present(self) -> None:
-        items = _paths("x", 10)
+        items = _names("x", 10)
         pages = list(_pages_of(items, 4))
         assert sorted(p for page in pages for p in page) == sorted(items)
 
@@ -174,12 +172,12 @@ class TestLandscapePages:
         assert list(_landscape_pages([])) == []
 
     def test_singles(self) -> None:
-        items = _paths("l", 2)
+        items = _names("l", 2)
         pages = list(_landscape_pages(items))
         assert pages == [[items[0]], [items[1]]]
 
     def test_n5_edge_case(self) -> None:
-        items = _paths("l", 5)
+        items = _names("l", 5)
         pages = list(_landscape_pages(items))
         assert len(pages) == 2
         assert len(pages[0]) == 4
@@ -187,7 +185,7 @@ class TestLandscapePages:
 
     @pytest.mark.parametrize("n", [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 20])
     def test_valid_page_sizes(self, n: int) -> None:
-        items = _paths("l", n)
+        items = _names("l", n)
         pages = list(_landscape_pages(items))
         for page in pages:
             assert len(page) in VALID_LANDSCAPE_SIZES, (
@@ -196,13 +194,13 @@ class TestLandscapePages:
 
     @pytest.mark.parametrize("n", [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 20])
     def test_optimal_page_count(self, n: int) -> None:
-        items = _paths("l", n)
+        items = _names("l", n)
         pages = list(_landscape_pages(items))
         assert len(pages) == _landscape_page_count(n)
 
     @pytest.mark.parametrize("n", range(21))
     def test_all_items_consumed(self, n: int) -> None:
-        items = _paths("l", n)
+        items = _names("l", n)
         pages = list(_landscape_pages(items))
         flat = [p for page in pages for p in page]
         assert sorted(flat) == sorted(items)
@@ -216,29 +214,29 @@ class TestBuildPages:
         assert list(_build_pages([], [])) == []
 
     def test_only_portraits(self) -> None:
-        portraits = _paths("p", 5)
+        portraits = _names("p", 5)
         pages = list(_build_pages(portraits, []))
         assert len(pages) == 2  # ceil(5/3)
         flat = [p for page in pages for p in page]
         assert sorted(flat) == sorted(portraits)
 
     def test_only_landscapes(self) -> None:
-        landscapes = _paths("l", 7)
+        landscapes = _names("l", 7)
         pages = list(_build_pages([], landscapes))
         flat = [p for page in pages for p in page]
         assert sorted(flat) == sorted(landscapes)
 
     def test_1p_2l_mixed(self) -> None:
-        portraits = _paths("p", 1)
-        landscapes = _paths("l", 2)
+        portraits = _names("p", 1)
+        landscapes = _names("l", 2)
         pages = list(_build_pages(portraits, landscapes))
         assert len(pages) == 1
         assert len(pages[0]) == 3
 
     def test_1p_4l_no_mix(self) -> None:
         """Should NOT mix — 1P + 4L = 2 pages is better than 1P2L + 1L + 1L = 3."""
-        portraits = _paths("p", 1)
-        landscapes = _paths("l", 4)
+        portraits = _names("p", 1)
+        landscapes = _names("l", 4)
         pages = list(_build_pages(portraits, landscapes))
         assert len(pages) == 2
 
@@ -258,8 +256,8 @@ class TestBuildPages:
         ],
     )
     def test_all_items_consumed(self, p: int, l: int) -> None:
-        portraits = _paths("p", p)
-        landscapes = _paths("l", l)
+        portraits = _names("p", p)
+        landscapes = _names("l", l)
         pages = list(_build_pages(portraits, landscapes))
         flat = [item for page in pages for item in page]
         assert sorted(flat) == sorted(portraits + landscapes)
@@ -281,8 +279,8 @@ class TestBuildPages:
     )
     def test_page_count_is_optimal(self, p: int, l: int) -> None:
         """Total pages should equal what _optimal_mixed_count + formulas predict."""
-        portraits = _paths("p", p)
-        landscapes = _paths("l", l)
+        portraits = _names("p", p)
+        landscapes = _names("l", l)
         pages = list(_build_pages(portraits, landscapes))
 
         mixed = _optimal_mixed_count(p, l)
@@ -299,8 +297,8 @@ class TestBuildPages:
     )
     def test_no_single_photo_pages_when_avoidable(self, p: int, l: int) -> None:
         """With enough photos, every page should have at least 2 items."""
-        portraits = _paths("p", p)
-        landscapes = _paths("l", l)
+        portraits = _names("p", p)
+        landscapes = _names("l", l)
         pages = list(_build_pages(portraits, landscapes))
 
         # Only allow singles if total count makes them unavoidable

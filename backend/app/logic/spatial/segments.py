@@ -26,19 +26,27 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING, cast
+from datetime import datetime
+from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 import polars as pl
 from simplification.cutil import simplify_coords_idx  # ty: ignore[unresolved-import]
 
-from app.models.polarsteps import Point
+from app.models.polarsteps import HasLatLon, Point
 from app.models.segment import SegmentData, SegmentKind
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    from app.models.step import Step
+
+class _StepLike(Protocol):
+    """Structural interface for step objects used by the segmentation pipeline."""
+
+    @property
+    def location(self) -> HasLatLon: ...
+    @property
+    def datetime(self) -> datetime: ...
 
 
 logger = logging.getLogger(__name__)
@@ -263,7 +271,7 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _ingest(steps: Sequence[Step], locations: Iterable[Point]) -> pl.DataFrame:
+def _ingest(steps: Sequence[_StepLike], locations: Iterable[Point]) -> pl.DataFrame:
     """Merge steps + GPS into a clean, densified DataFrame with edge metrics."""
     step_pts = sorted(
         Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp())
@@ -494,7 +502,10 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
     return SegmentKind.driving if avg > HIKE_MAX_SPEED_KMH else SegmentKind.walking
 
 
-def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentData]:
+def _emit_segments(
+    df: pl.DataFrame,
+    steps: Sequence[_StepLike],
+) -> Iterable[SegmentData]:
     first_step_ts = steps[0].datetime.timestamp()
     prev_last_pt: Point | None = None
 
@@ -520,7 +531,7 @@ def _emit_segments(df: pl.DataFrame, steps: Sequence[Step]) -> Iterable[SegmentD
 
 
 def build_segments(
-    steps: Sequence[Step], locations: Iterable[Point]
+    steps: Sequence[_StepLike], locations: Iterable[Point]
 ) -> Iterable[SegmentData]:
     if not steps:
         return iter([])
