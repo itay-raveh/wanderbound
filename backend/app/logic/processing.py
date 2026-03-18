@@ -1,9 +1,9 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy.exc import SQLAlchemyError
@@ -133,18 +133,28 @@ def _flatten_media(album_dir: Path) -> None:
             d.rmdir()
 
 
-def _build_trip_objects(  # noqa: PLR0913
+class _TripResults(NamedTuple):
+    elevations: list[float]
+    weather_by_idx: dict[int, Weather]
+    layout_by_idx: dict[int, Layout | None]
+    cover_name: str
+    cover_orientation: str
+
+
+def _build_trip_objects(
     user: User,
     aid: str,
     trip: PSTrip,
     locations: list[Point],
-    elevs: Sequence[float],
-    weathers: Sequence[Weather],
-    layouts: Sequence[Layout | None],
-    cover_name: str,
-    cover_orientation: str,
+    results: _TripResults,
 ) -> list[DbRow]:
-    merged_orientations: dict[str, str] = {cover_name: cover_orientation}
+    n = len(trip.all_steps)
+    weathers = [results.weather_by_idx[i] for i in range(n)]
+    layouts = [results.layout_by_idx[i] for i in range(n)]
+
+    merged_orientations: dict[str, str] = {
+        results.cover_name: results.cover_orientation,
+    }
     for layout in layouts:
         if layout:
             merged_orientations.update(layout.orientations)
@@ -161,8 +171,8 @@ def _build_trip_objects(  # noqa: PLR0913
         maps_ranges=[(first_date, last_date)],
         title=trip.title,
         subtitle=trip.subtitle,
-        front_cover_photo=cover_name,
-        back_cover_photo=cover_name,
+        front_cover_photo=results.cover_name,
+        back_cover_photo=results.cover_name,
         orientations=merged_orientations,
     )
     steps = [
@@ -182,7 +192,7 @@ def _build_trip_objects(  # noqa: PLR0913
             unused=[],
         )
         for idx, (ps, elev, wthr, layout) in enumerate(
-            zip(trip.all_steps, elevs, weathers, layouts, strict=True)
+            zip(trip.all_steps, results.elevations, weathers, layouts, strict=True)
         )
     ]
     segments = [
@@ -277,11 +287,6 @@ async def _media_pipeline(
     return layout_by_idx, cover_orientation
 
 
-type _TripResults = tuple[
-    list[float], dict[int, Weather], tuple[dict[int, Layout | None], str]
-]
-
-
 async def _process_trip(
     user: User,
     trip_dir: Path,
@@ -307,7 +312,14 @@ async def _process_trip(
                 )
         finally:
             await queue.put(None)
-        return elev_task.result(), weather_task.result(), media_task.result()
+        layout_by_idx, cover_orientation = media_task.result()
+        return _TripResults(
+            elevations=elev_task.result(),
+            weather_by_idx=weather_task.result(),
+            layout_by_idx=layout_by_idx,
+            cover_name=cover_name,
+            cover_orientation=cover_orientation,
+        )
 
     runner = asyncio.create_task(_phases())
 
@@ -325,24 +337,8 @@ async def _process_trip(
 
     # Re-raise phase errors (only reached on normal sentinel break,
     # not on generator close where the finally terminates the generator).
-    elevs, weather_by_idx, (layout_by_idx, cover_orientation) = await runner
-
-    weathers = [weather_by_idx[i] for i in range(n)]
-    layouts = [layout_by_idx[i] for i in range(n)]
-
-    db_out.extend(
-        _build_trip_objects(
-            user,
-            aid,
-            trip,
-            locations,
-            elevs,
-            weathers,
-            layouts,
-            cover_name,
-            cover_orientation,
-        ),
-    )
+    results = await runner
+    db_out.extend(_build_trip_objects(user, aid, trip, locations, results))
 
 
 async def _run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
