@@ -23,7 +23,7 @@ from app.logic.layout.media import (
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
 from app.models.album import Album
-from app.models.polarsteps import Point, PSLocations, PSStep, PSTrip
+from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
@@ -199,7 +199,90 @@ def _build_trip_objects(  # noqa: PLR0913
     return [album, *steps, *segments]
 
 
-async def _process_trip(  # noqa: C901, PLR0915
+async def _extract_one(p: Path) -> None:
+    async with _media_sem:
+        await extract_frame(p)
+
+
+async def _thumb_one(p: Path) -> None:
+    async with _media_sem:
+        await generate_thumbnails(p)
+
+
+async def _run_elevations(
+    locs: list[Location],
+    n_steps: int,
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> list[float]:
+    raw = await _track_iter("elevations", n_steps, elevations(locs), queue)
+    return list(await correct_peaks(locs, raw))
+
+
+async def _run_weather(
+    steps: list[PSStep],
+    n_steps: int,
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> dict[int, Weather]:
+    return dict(await _track_iter("weather", n_steps, build_weathers(steps), queue))
+
+
+async def _media_pipeline(
+    user: User,
+    trip: PSTrip,
+    trip_dir: Path,
+    cover_name: str,
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> tuple[dict[int, Layout | None], str]:
+    """Layouts → flatten → cover → frames → thumbs (sequential pipeline).
+
+    Runs as one TaskGroup member so frame extraction starts as soon as
+    layouts finish, without waiting for the API calls to complete.
+    Returns (layout_by_idx, cover_orientation).
+    """
+    aid = trip_dir.name
+    n_steps = len(trip.all_steps)
+    layout_by_idx = dict(
+        await _track_iter(
+            "layouts", n_steps, _fetch_layouts(user, aid, trip.all_steps), queue
+        )
+    )
+
+    await asyncio.to_thread(_flatten_media, trip_dir)
+
+    cover_dest = trip_dir / cover_name
+    if not cover_dest.exists():
+        await _download_cover(trip.cover_photo_path, cover_dest)
+
+    try:
+        cover_photo = await asyncio.to_thread(Media.load, cover_dest)
+        cover_orientation = cover_photo.orientation
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Could not determine cover orientation for %s, defaulting to 'l'",
+            cover_name,
+        )
+        cover_orientation = "l"
+
+    all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
+    video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
+    existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
+
+    await _run_phase("frames", video_paths, _extract_one, queue)
+
+    poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
+    jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
+
+    await _run_phase("thumbs", jpg_files, _thumb_one, queue)
+
+    return layout_by_idx, cover_orientation
+
+
+type _TripResults = tuple[
+    list[float], dict[int, Weather], tuple[dict[int, Layout | None], str]
+]
+
+
+async def _process_trip(
     user: User,
     trip_dir: Path,
     db_out: list[DbRow],
@@ -211,87 +294,22 @@ async def _process_trip(  # noqa: C901, PLR0915
     locs = [s.location for s in trip.all_steps]
 
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
+    cover_name = normalize_name(Path(trip.cover_photo_path.path or "").name)
+    n = len(trip.all_steps)
 
-    # Extract cover filename from the URL path (already {uuid}_{uuid}.jpg).
-    cover_url_path = trip.cover_photo_path.path or ""
-    cover_name = normalize_name(Path(cover_url_path).name)
-
-    n_steps = len(trip.all_steps)
-
-    async def _run_elevations() -> list[float]:
-        raw = await _track_iter("elevations", n_steps, elevations(locs), queue)
-        return list(await correct_peaks(locs, raw))
-
-    async def _run_weather() -> dict[int, Weather]:
-        return dict(
-            await _track_iter("weather", n_steps, build_weathers(trip.all_steps), queue)
-        )
-
-    async def _run_media_pipeline() -> tuple[dict[int, Layout | None], str]:
-        """Layouts → flatten → cover → frames → thumbs (sequential pipeline).
-
-        Runs as one TaskGroup member so frame extraction starts as soon as
-        layouts finish, without waiting for the API calls to complete.
-        Returns (layout_by_idx, cover_orientation).
-        """
-        layout_by_idx = dict(
-            await _track_iter(
-                "layouts", n_steps, _fetch_layouts(user, aid, trip.all_steps), queue
-            )
-        )
-
-        await asyncio.to_thread(_flatten_media, trip_dir)
-
-        cover_dest = trip_dir / cover_name
-        if not cover_dest.exists():
-            await _download_cover(trip.cover_photo_path, cover_dest)
-
-        try:
-            cover_photo = await asyncio.to_thread(Media.load, cover_dest)
-            cover_orientation = cover_photo.orientation
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "Could not determine cover orientation for %s, defaulting to 'l'",
-                cover_name,
-            )
-            cover_orientation = "l"
-
-        all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
-        video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
-        existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
-
-        async def _extract_one(p: Path) -> None:
-            async with _media_sem:
-                await extract_frame(p)
-
-        await _run_phase("frames", video_paths, _extract_one, queue)
-
-        poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
-        jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
-
-        async def _thumb_one(p: Path) -> None:
-            async with _media_sem:
-                await generate_thumbnails(p)
-
-        await _run_phase("thumbs", jpg_files, _thumb_one, queue)
-
-        return layout_by_idx, cover_orientation
-
-    type _TripResults = tuple[
-        list[float], dict[int, Weather], tuple[dict[int, Layout | None], str]
-    ]
-
-    async def _run_all() -> _TripResults:
+    async def _phases() -> _TripResults:
         try:
             async with asyncio.TaskGroup() as tg:
-                elev_task = tg.create_task(_run_elevations())
-                weather_task = tg.create_task(_run_weather())
-                media_task = tg.create_task(_run_media_pipeline())
+                elev_task = tg.create_task(_run_elevations(locs, n, queue))
+                weather_task = tg.create_task(_run_weather(trip.all_steps, n, queue))
+                media_task = tg.create_task(
+                    _media_pipeline(user, trip, trip_dir, cover_name, queue)
+                )
         finally:
             await queue.put(None)
         return elev_task.result(), weather_task.result(), media_task.result()
 
-    runner = asyncio.create_task(_run_all())
+    runner = asyncio.create_task(_phases())
 
     try:
         while True:
@@ -307,10 +325,10 @@ async def _process_trip(  # noqa: C901, PLR0915
 
     # Re-raise phase errors (only reached on normal sentinel break,
     # not on generator close where the finally terminates the generator).
-    elevs_corrected, weather_by_idx, (layout_by_idx, cover_orientation) = await runner
+    elevs, weather_by_idx, (layout_by_idx, cover_orientation) = await runner
 
-    weathers = [weather_by_idx[i] for i in range(len(trip.all_steps))]
-    layouts = [layout_by_idx[i] for i in range(len(trip.all_steps))]
+    weathers = [weather_by_idx[i] for i in range(n)]
+    layouts = [layout_by_idx[i] for i in range(n)]
 
     db_out.extend(
         _build_trip_objects(
@@ -318,7 +336,7 @@ async def _process_trip(  # noqa: C901, PLR0915
             aid,
             trip,
             locations,
-            elevs_corrected,
+            elevs,
             weathers,
             layouts,
             cover_name,
