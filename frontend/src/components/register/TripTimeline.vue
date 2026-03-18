@@ -173,7 +173,7 @@ const overallPercent = computed(() => {
 }
 
 .trip-rail {
-  padding-top: 0.125rem;
+  padding-top: var(--gap-xs);
   width: 1.25rem;
   flex-shrink: 0;
 }
