@@ -5,7 +5,7 @@ import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
-import { KM_TO_MI, M_TO_FT } from "@/utils/units";
+import { KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";

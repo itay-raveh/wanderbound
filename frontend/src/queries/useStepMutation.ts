@@ -37,5 +37,10 @@ export function useStepMutation() {
       }
       Notify.create({ type: "negative", message: "Failed to save step" });
     },
+    onSettled: (_data, _error, _vars, ctx) => {
+      if (ctx?.aid) {
+        void cache.invalidateQueries({ key: queryKeys.albumData(ctx.aid), exact: true });
+      }
+    },
   });
 }

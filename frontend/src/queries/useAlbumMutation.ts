@@ -29,5 +29,8 @@ export function useAlbumMutation(aid: () => string) {
       }
       Notify.create({ type: "negative", message: "Failed to save album settings" });
     },
+    onSettled: () => {
+      void cache.invalidateQueries({ key: queryKeys.album(aid()), exact: true });
+    },
   });
 }
