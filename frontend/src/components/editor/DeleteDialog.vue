@@ -39,7 +39,7 @@ defineEmits<{
   </q-dialog>
 </template>
 
-<style lang="scss">
+<style lang="scss" scoped>
 .confirm-dialog {
   padding: 1.75rem;
   max-width: 22rem;

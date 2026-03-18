@@ -100,17 +100,6 @@ const layoutClass = computed(() => {
   grid-row: 1 / 3;
 }
 
-.container.one-portrait-two-landscapes :deep(.image) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.container.one-portrait-two-landscapes :deep(.video-wrapper) {
-  width: 100% !important;
-  height: 100% !important;
-}
-
 .container:has(.item:nth-child(3):last-child):not(
     .three-portraits,
     .one-portrait-two-landscapes
