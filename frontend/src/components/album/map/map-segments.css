@@ -1,3 +1,15 @@
+/* Mapbox GL markers/canvas rely on `left: 0` for absolute positioning.
+   postcss-rtlcss generates `[dir="rtl"] .mapboxgl-marker { right: 0 }`
+   which repositions everything to the right edge. Override with matching
+   specificity via [dir] and reset `right` so it can't win in RTL. */
+/* rtl:begin:ignore */
+[dir] .mapboxgl-marker,
+[dir] .mapboxgl-canvas {
+  left: 0;
+  right: auto;
+}
+/* rtl:end:ignore */
+
 .map-step-marker {
   width: 36px;
   height: 36px;

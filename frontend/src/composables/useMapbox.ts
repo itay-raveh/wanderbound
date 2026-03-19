@@ -49,6 +49,8 @@ export function useMapbox(options: UseMapboxOptions) {
         language: lang,
       });
 
+      map.value = m;
+
       m.on("load", () => {
         options.onReady?.(m);
       });
@@ -57,8 +59,6 @@ export function useMapbox(options: UseMapboxOptions) {
       m.once("idle", () => {
         el.dataset.mapReady = "";
       });
-
-      map.value = m;
     } catch (e) {
       console.warn("[mapbox] failed to initialise map:", e);
       // Mark ready on error so PrintView doesn't wait forever.

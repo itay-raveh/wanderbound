@@ -131,7 +131,6 @@ if (props.printMode) {
       <LazySection
         :page-count="sectionPageCounts[i]"
         :has-chrome="section.type === 'step'"
-        :eager="section.type === 'map' || section.type === 'hike'"
       >
         <!-- Map / Hike section with shared controls -->
         <div v-if="section.type === 'map' || section.type === 'hike'" class="map-wrapper">
@@ -199,13 +198,20 @@ if (props.printMode) {
     margin: 0 auto var(--gap-md-lg);
     overflow: hidden;
 
-    // Inner page-container: full A4, scaled to fit wrapper
+    // Inner page-container: full A4, scaled to fit wrapper.
+    // Absolute positioning + rtl:ignore pins it to top-left regardless
+    // of document direction (RTL block flow would anchor it to the right).
     :deep(.page-container) {
       zoom: 1;
       margin: 0;
       transform: scale(var(--editor-zoom));
-      transform-origin: top left;
       content-visibility: visible;
+      /* rtl:begin:ignore */
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: top left;
+      /* rtl:end:ignore */
     }
   }
 }

@@ -2,38 +2,29 @@
 import { usePrintMode } from "@/composables/usePrintReady";
 import { onMounted, onUnmounted, ref } from "vue";
 
-const props = defineProps<{
+defineProps<{
   /** Number of album pages in this section (drives placeholder height). */
   pageCount?: number;
   /** Whether this section includes editor-only chrome (add-zone, unused tray). */
   hasChrome?: boolean;
-  /** Skip lazy loading — mount content immediately and never unmount. */
-  eager?: boolean;
 }>();
 
 const printMode = usePrintMode();
 const el = ref<HTMLElement>();
-const mounted = ref(printMode || props.eager);
+const mounted = ref(printMode);
 
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
   if (printMode || !el.value) return;
 
-  // Eager sections mount immediately and never unmount.
-  if (props.eager) return;
-
-  // Single observer with a large margin. Sections mount when within ~3
-  // viewports and unmount when beyond that. The large margin ensures
-  // mount/unmount transitions happen far off-screen — the user never
-  // sees placeholders flash during normal scrolling.
   observer = new IntersectionObserver(
     ([entry]) => {
       if (entry) mounted.value = entry.isIntersecting;
     },
     {
       root: null,
-      rootMargin: "300% 0px",
+      rootMargin: "150% 0px",
     },
   );
   observer.observe(el.value);
