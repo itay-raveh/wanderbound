@@ -1,5 +1,5 @@
 import type { Segment, Step } from "@/client";
-import { DEFAULT_COUNTRY_COLOR } from "@/utils/colors";
+import { DEFAULT_COUNTRY_COLOR } from "../colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
 import { matchRoute } from "./mapMatching";
 import "./map-segments.css";

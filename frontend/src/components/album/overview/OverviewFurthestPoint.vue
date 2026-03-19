@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
-import { STAT_COLORS } from "@/utils/colors";
+import { STAT_COLORS } from "../colors";
 import { parseLocalDate } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";

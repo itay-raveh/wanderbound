@@ -5,7 +5,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { computed } from "vue";
 import { lineString } from "@turf/helpers";
 import length from "@turf/length";
-import { STAT_COLORS } from "@/utils/colors";
+import { STAT_COLORS } from "../colors";
 import { flagUrl } from "@/utils/media";
 import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
 import OverviewExtremes from "./OverviewExtremes.vue";

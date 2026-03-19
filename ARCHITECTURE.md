@@ -103,6 +103,7 @@ frontend/
       LazySection.vue        IntersectionObserver wrapper for lazy-loading album sections
       album/
         albumSections.ts     Section type + buildSections (section ordering), IndexedPage + filterCoverFromPages
+        colors.ts            DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
         EditableText.vue     Inline text editing (single-line contenteditable / multiline dialog), auto print-mode
         CoverPhotoPicker.vue Dropdown grid for selecting cover photos
         CoverPage.vue        Full-bleed cover with date/title overlay (front) or plain image (back)
@@ -141,7 +142,6 @@ frontend/
         ProcessingProgress.vue Live processing status with TripTimeline
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
-      colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
     styles/

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { STAT_COLORS } from "@/utils/colors";
+import { STAT_COLORS } from "../colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { computed } from "vue";

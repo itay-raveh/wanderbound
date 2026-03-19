@@ -73,3 +73,46 @@
 **Proposed fix:** Remove `--workers 3` from the Dockerfile CMD (Uvicorn defaults to 1 worker). This cuts Chromium memory usage by ~66%. Combined with the PDF semaphore suggestion, a single worker with serialized PDF rendering handles all traffic without risk of OOM. If CPU-bound throughput becomes an issue later (e.g., image processing), the solution is to move that work to a task queue rather than adding Uvicorn workers.
 
 **Files affected:** 1 — `backend/Dockerfile`
+
+---
+
+## 2025-03-19 — Reorganize backend from type-based to domain-based packages
+
+**Status:** `PENDING`
+
+**Problem:** The backend is organized by object type (`models/`, `api/v1/routes/`, `logic/`, `services/`) rather than by domain. Related code is scattered: to understand "albums," you must look at `models/album.py` + `models/step.py` + `models/segment.py` + `routes/albums.py` + `routes/assets.py` + `logic/processing.py` + `logic/layout/` + `logic/spatial/` + `logic/pdf.py` + `logic/country_colors.py`. This is explicitly called out as an anti-pattern in `CLAUDE.md` ("Backend organized by type instead of domain — reorganize by domain").
+
+**Proposed fix:** Reorganize into domain packages, each containing its own models, routes, and logic:
+
+```
+app/
+  core/             (unchanged — config, db, http, logging)
+  users/
+    models.py       User, UserUpdate, Locale
+    routes.py       create, read, patch, delete, process SSE
+    upload.py       ZIP extraction → User creation
+    processing.py   ProcessingSession, pipeline orchestration
+  albums/
+    models.py       Album, AlbumBase, AlbumUpdate, AlbumData, DateRange
+    routes.py       CRUD, PDF generate/download
+    step.py         Step, StepBase, StepUpdate
+    segment.py      Segment, SegmentKind, SegmentData
+    pdf.py          Playwright PDF renderer
+    layout/         (builder, media — unchanged internally)
+    spatial/        (segments, peaks — unchanged internally)
+    country_colors.py
+  assets/
+    routes.py       media serving, video frame re-extraction
+  shared/
+    polarsteps.py   Pydantic models for ZIP data (Point, Location, PSTrip, PSStep)
+    weather.py      Weather, WeatherData
+  services/
+    open_meteo.py   (unchanged)
+  main.py           (unchanged)
+```
+
+**Why:** Colocating related code reduces cognitive overhead when working on a feature. All album-related models, routes, and logic live together instead of being spread across 6+ directories. This is the standard FastAPI pattern for apps with >2 domains (see [FastAPI project structure docs](https://fastapi.tiangolo.com/tutorial/bigger-applications/)).
+
+**Caveat:** With only 3 small domains and ~20 backend files total, the benefit is marginal at current scale. This becomes more valuable as the project grows. The migration is mechanical (file moves + import path updates) but touches nearly every backend file.
+
+**Files affected:** ~20 — nearly all backend Python files (import paths change)
