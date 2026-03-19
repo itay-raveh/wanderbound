@@ -1,6 +1,6 @@
 import type { DateRange, Segment, Step } from "@/client";
 import { measureDescription } from "@/composables/useTextMeasure";
-import { inDateRange, isoDate } from "./date";
+import { inDateRange, isoDate } from "@/utils/date";
 
 export interface IndexedPage {
   originalIdx: number;

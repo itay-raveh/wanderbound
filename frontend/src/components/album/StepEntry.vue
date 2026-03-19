@@ -6,7 +6,7 @@ import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { useTextMeasure } from "@/composables/useTextMeasure";
-import { filterCoverFromPages } from "@/utils/albumSections";
+import { filterCoverFromPages } from "./albumSections";
 import { computed, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 

@@ -9,7 +9,7 @@ import { providePrintMode } from "@/composables/usePrintReady";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
-import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "@/utils/albumSections";
+import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 

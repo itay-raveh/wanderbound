@@ -2,7 +2,9 @@ import { useQuery } from "@pinia/colada";
 import { readUser } from "@/client";
 import { computed } from "vue";
 import { queryKeys } from "./keys";
-import { KM_TO_MI, M_TO_FT } from "@/utils/units";
+
+export const KM_TO_MI = 0.621371;
+export const M_TO_FT = 3.28084;
 
 export function useUserQuery() {
   const query = useQuery({

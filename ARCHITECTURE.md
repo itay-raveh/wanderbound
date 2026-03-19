@@ -81,7 +81,7 @@ frontend/
       PrintView.vue          Headless render target for PDF: loads album, waits for fonts/images, signals __PRINT_READY__
     queries/
       keys.ts               Query key factory (albums, albumData, user)
-      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale)
+      useUserQuery.ts        User data + formatting helpers (distance, temp, elevation, date, locale) + KM_TO_MI, M_TO_FT constants
       useAlbumQuery.ts       Single album fetch
       useAlbumDataQuery.ts   Album steps + segments fetch
       useAlbumMutation.ts    Optimistic album PATCH
@@ -102,6 +102,7 @@ frontend/
       AlbumViewer.vue        Master album renderer: computes sections from ranges, renders cover/overview/maps/steps
       LazySection.vue        IntersectionObserver wrapper for lazy-loading album sections
       album/
+        albumSections.ts     Section type + buildSections (section ordering), IndexedPage + filterCoverFromPages
         EditableText.vue     Inline text editing (single-line contenteditable / multiline dialog), auto print-mode
         CoverPhotoPicker.vue Dropdown grid for selecting cover photos
         CoverPage.vue        Full-bleed cover with date/title overlay (front) or plain image (back)
@@ -140,11 +141,9 @@ frontend/
         ProcessingProgress.vue Live processing status with TripTimeline
         TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
     utils/
-      units.ts               KM_TO_MI, M_TO_FT conversion constants
       colors.ts              DEFAULT_COUNTRY_COLOR, STAT_COLORS, getCountryColor helper
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
-      albumSections.ts       Section type + buildSections (section ordering), IndexedPage + filterCoverFromPages
     styles/
       fonts.css              Self-hosted Inter + Heebo (Hebrew), font-display: block for PDF
       animations.css         fadeUp, pulse, shimmer keyframes

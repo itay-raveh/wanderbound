@@ -3,7 +3,7 @@ import type { Segment, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
-import { KM_TO_MI, M_TO_FT } from "@/utils/units";
+import { KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getCountryColor } from "@/utils/colors";
 import along from "@turf/along";
