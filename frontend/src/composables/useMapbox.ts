@@ -32,10 +32,14 @@ export function useMapbox(options: UseMapboxOptions) {
     if (!options.container.value || map.value) return;
 
     const lang = langFromLocale(toValue(options.locale));
+    const el = options.container.value;
+
+    // Mark container as a map page so PrintView can wait for readiness.
+    el.dataset.map = "";
 
     try {
       const m = new mapboxgl.Map({
-        container: options.container.value,
+        container: el,
         style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
         projection: "mercator",
         interactive: options.interactive ?? false,
@@ -49,9 +53,16 @@ export function useMapbox(options: UseMapboxOptions) {
         options.onReady?.(m);
       });
 
+      // Signal readiness after all tiles from the initial render are loaded.
+      m.once("idle", () => {
+        el.dataset.mapReady = "";
+      });
+
       map.value = m;
     } catch (e) {
       console.warn("[mapbox] failed to initialise map:", e);
+      // Mark ready on error so PrintView doesn't wait forever.
+      el.dataset.mapReady = "";
     }
   }
 

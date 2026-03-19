@@ -28,15 +28,16 @@ useLocale(locale);
  * before we signal readiness to Playwright.
  */
 async function loadFonts(): Promise<void> {
+  const families = new Set(["Inter", "JetBrains Mono"]);
   const faces: Promise<FontFace>[] = [];
   for (const face of document.fonts) {
-    if (face.family === "Inter") faces.push(face.load());
+    if (families.has(face.family)) faces.push(face.load());
   }
   if (faces.length) {
     await Promise.all(faces);
-    console.log("[print] loaded", faces.length, "Inter font faces");
+    console.log("[print] loaded", faces.length, "font faces");
   } else {
-    console.warn("[print] no Inter font faces found — falling back to document.fonts.ready");
+    console.warn("[print] no self-hosted font faces found — falling back to document.fonts.ready");
     await document.fonts.ready;
   }
 }
@@ -84,11 +85,19 @@ function waitForPrintReady() {
       return;
     }
 
-    // All DOM content ready — wait for fonts, then a short grace for map tiles
+    // Wait for all Mapbox maps to finish rendering tiles.
+    const unreadyMaps = document.querySelectorAll("[data-map]:not([data-map-ready])");
+    if (unreadyMaps.length > 0) {
+      console.log("[print]", unreadyMaps.length, "maps still rendering");
+      setTimeout(poll, 300);
+      return;
+    }
+
+    // All DOM content + maps ready — wait for fonts before signaling
     waiting = true;
     console.log("[print] content ready,", actual, "pages — waiting for fonts");
     fontsReady
-      .then(() => { console.log("[print] fonts confirmed"); setTimeout(setReady, 500); })
+      .then(() => { console.log("[print] fonts confirmed"); setReady(); })
       .catch(() => { console.warn("[print] font load failed, proceeding"); setReady(); });
   }
 
