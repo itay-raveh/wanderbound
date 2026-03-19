@@ -1,7 +1,7 @@
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "../colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
-import { matchRoute } from "./mapMatching";
+import { routeSegment } from "./mapRouting";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 
@@ -25,17 +25,10 @@ function cleanup(m: mapboxgl.Map) {
 function addLine(
   m: mapboxgl.Map,
   id: string,
-  coords: [number, number][],
+  data: GeoJSON.GeoJSON,
   paint: mapboxgl.LinePaint,
 ) {
-  m.addSource(id, {
-    type: "geojson",
-    data: {
-      type: "Feature",
-      properties: {},
-      geometry: { type: "LineString", coordinates: coords },
-    },
-  });
+  m.addSource(id, { type: "geojson", data });
   m.addLayer({
     id,
     type: "line",
@@ -43,6 +36,10 @@ function addLine(
     layout: { "line-cap": "round", "line-join": "round" },
     paint,
   });
+}
+
+function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
+  return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
 }
 
 function addCircle(
@@ -99,7 +96,7 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   const end = seg.points[seg.points.length - 1]!;
   const arcCoords = buildFlightArc(start.lon, start.lat, end.lon, end.lat);
 
-  addLine(m, id, arcCoords, {
+  addLine(m, id, lineFeature(arcCoords), {
     "line-color": "rgba(255, 255, 255, 0.85)",
     "line-width": faint ? 0.8 : 1.2,
     "line-dasharray": [2, 3],
@@ -138,14 +135,14 @@ function drawHike(
 
   if (!faint) {
     // Dark stroke behind the colored line for contrast on satellite imagery
-    addLine(m, `${id}-stroke`, coords, {
+    addLine(m, `${id}-stroke`, lineFeature(coords), {
       "line-color": "rgba(0, 0, 0, 0.5)",
       "line-width": 7,
       "line-opacity": 1,
     });
   }
 
-  addLine(m, id, coords, {
+  addLine(m, id, lineFeature(coords), {
     "line-color": faint ? "rgba(255,255,255,0.3)" : hikeColor,
     "line-width": faint ? 1.5 : 4,
     "line-opacity": faint ? 0.3 : 1,
@@ -163,35 +160,64 @@ function drawHike(
   }
 }
 
-function drawDrivingOrWalking(
-  m: mapboxgl.Map,
-  id: string,
-  coords: [number, number][],
-  kind: "driving" | "walking",
-  faint: boolean,
-) {
-  const isDriving = kind === "driving";
-  addLine(m, id, coords, {
-    "line-color": isDriving
-      ? "rgba(255, 255, 255, 0.9)"
-      : "rgba(255, 255, 255, 0.7)",
-    "line-width": faint ? 1 : isDriving ? 2.5 : 1.5,
-    "line-dasharray": isDriving ? [1, 0] : [1, 3],
-    "line-opacity": faint ? 0.3 : isDriving ? 0.8 : 0.6,
-  });
+/** Helpers for batched driving/walking rendering (avoids overlap stacking). */
+const ROUTE_SOURCE = {
+  drivingShadow: `${LAYER_PREFIX}drive-shadow`,
+  driving: `${LAYER_PREFIX}drive`,
+  walkingShadow: `${LAYER_PREFIX}walk-shadow`,
+  walking: `${LAYER_PREFIX}walk`,
+} as const;
+
+function multiLine(
+  lines: [number, number][][],
+): GeoJSON.Feature<GeoJSON.MultiLineString> {
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "MultiLineString", coordinates: lines },
+  };
 }
 
-function shouldMapMatch(steps: Step[], segments: Segment[]): boolean {
-  // Many steps → zoomed out overview → raw GPS is fine
-  if (steps.length > 8) return false;
-  // No driving/walking to match
-  const matchable = segments.filter(
-    (s) => s.kind === "driving" || s.kind === "walking",
-  );
-  if (matchable.length === 0) return false;
-  // Too many matchable segments → too many API calls
-  if (matchable.length > 6) return false;
-  return true;
+function drawRouteLayers(
+  m: mapboxgl.Map,
+  drivingCoords: [number, number][][],
+  walkingCoords: [number, number][][],
+  faint: boolean,
+) {
+  if (!faint) {
+    if (drivingCoords.length) {
+      addLine(m,ROUTE_SOURCE.drivingShadow, multiLine(drivingCoords), {
+        "line-color": "#000000",
+        "line-width": 12,
+        "line-blur": 8,
+        "line-opacity": 0.7,
+      });
+    }
+    if (walkingCoords.length) {
+      addLine(m,ROUTE_SOURCE.walkingShadow, multiLine(walkingCoords), {
+        "line-color": "#000000",
+        "line-width": 10,
+        "line-blur": 8,
+        "line-opacity": 0.6,
+      });
+    }
+  }
+
+  if (drivingCoords.length) {
+    addLine(m,ROUTE_SOURCE.driving, multiLine(drivingCoords), {
+      "line-color": "#ffffff",
+      "line-width": faint ? 1.5 : 4,
+      "line-opacity": faint ? 0.3 : 1,
+    });
+  }
+  if (walkingCoords.length) {
+    addLine(m,ROUTE_SOURCE.walking, multiLine(walkingCoords), {
+      "line-color": "#ffffff",
+      "line-width": faint ? 1.5 : 3,
+      "line-dasharray": [2, 3],
+      "line-opacity": faint ? 0.3 : 1,
+    });
+  }
 }
 
 interface DrawOptions {
@@ -205,17 +231,25 @@ interface DrawOptions {
   hikeColor?: string;
 }
 
+/** Generation counter — routing callbacks from stale draws are discarded. */
+let drawGeneration = 0;
+
 /** Draw segments and step markers. Returns all coords for fitBounds. */
 export function drawSegmentsAndMarkers(
   m: mapboxgl.Map,
   options: DrawOptions,
 ): [number, number][] {
   if (!options.skipCleanup) cleanup(m);
+  const gen = ++drawGeneration;
 
   const { segments, steps, albumId, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
-  const useMatching = shouldMapMatch(steps, segments);
+  const useRouting = !faint && steps.length < 30;
+
+  // Collect driving/walking coords for batched rendering (avoids overlap stacking).
+  const drivingCoords: [number, number][][] = [];
+  const walkingCoords: [number, number][][] = [];
 
   const stylePrefix = faint ? "f-" : "";
   for (const [i, seg] of segments.entries()) {
@@ -233,31 +267,34 @@ export function drawSegmentsAndMarkers(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        // Draw raw GPS immediately; replace with matched geometry when ready
-        drawDrivingOrWalking(m, id, coords, kind, faint);
+        const bucket = kind === "driving" ? drivingCoords : walkingCoords;
+        const idx = bucket.length;
+        bucket.push(coords);
         allCoords.push(...coords);
 
-        if (useMatching) {
-          void matchRoute(coords, kind).then((matched) => {
-            if (!matched) return;
-            try {
-              const source = m.getSource(id);
-              if (source && "setData" in source) {
-                source.setData({
-                  type: "Feature",
-                  properties: {},
-                  geometry: { type: "LineString", coordinates: matched },
-                });
-              }
-            } catch {
-              // Map was destroyed before matching resolved
+        if (!useRouting) break;
+        void routeSegment(seg, coords, kind).then((routed) => {
+          if (!routed || gen !== drawGeneration) return;
+          bucket[idx] = routed;
+          try {
+            const sourceId = kind === "driving" ? ROUTE_SOURCE.driving : ROUTE_SOURCE.walking;
+            const shadowId = kind === "driving" ? ROUTE_SOURCE.drivingShadow : ROUTE_SOURCE.walkingShadow;
+            const fc = multiLine(bucket);
+            for (const srcId of [shadowId, sourceId]) {
+              const source = m.getSource(srcId);
+              if (source && "setData" in source) source.setData(fc);
             }
-          });
-        }
+          } catch {
+            // Source removed before routing completed (e.g. navigated away)
+          }
+        });
         break;
       }
     }
   }
+
+  // Draw all driving/walking as batched layers (single source per kind).
+  drawRouteLayers(m, drivingCoords, walkingCoords, faint);
 
   for (const step of steps) {
     const lngLat: [number, number] = [step.location.lon, step.location.lat];

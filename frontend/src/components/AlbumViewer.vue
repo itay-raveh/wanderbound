@@ -83,9 +83,9 @@ const sections = computed(() =>
 
 const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 
-/** Total page-container count: covers (2) + overview (1) + sections. */
+/** Total page-container count: covers (2) + overview (1) + full-trip map (1) + sections. */
 const expectedPageCount = computed(() =>
-  3 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
+  4 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 
 // --- Map range editing ---
@@ -112,6 +112,11 @@ if (props.printMode) {
     <CoverPage :album="album" :steps="steps" />
     <CoverPage :album="album" :steps="steps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
+
+    <!-- Fixed full-trip map: covers the entire album date range, not user-editable -->
+    <div class="map-wrapper">
+      <MapPage :segments="segments" :steps="steps" />
+    </div>
 
     <template v-for="(section, i) in sections" :key="sectionKey(section)">
       <!-- "Add map" needle before step sections without a preceding map (editor only) -->
@@ -253,6 +258,10 @@ if (props.printMode) {
   break-after: page;
   break-inside: avoid;
   box-sizing: border-box;
+}
+
+.album-container.print-mode :deep(.mapboxgl-ctrl-logo) {
+  display: none;
 }
 
 .album-container.print-mode .map-wrapper {

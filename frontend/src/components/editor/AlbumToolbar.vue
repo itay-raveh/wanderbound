@@ -10,7 +10,7 @@ import {
   symOutlinedPictureAsPdf,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -76,17 +76,20 @@ const dateRangeModel = computed(() => {
   return ranges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
 });
 
-const rangeDisplay = computed(() => {
-  const ranges = props.album?.steps_ranges;
-  if (!ranges?.length) return "";
-  return ranges
-    .map(([from, to]) =>
-      formatDateRange(parseLocalDate(from), parseLocalDate(to), { day: "numeric", month: "short" }),
-    )
-    .join(", ");
-});
+/** Local draft while the picker is open — only persisted on popup close. */
+const draft = ref<(QDateRange | string)[] | QDateRange | string | null>(null);
+const pickerOpen = ref(false);
 
-function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) {
+watch(dateRangeModel, (v) => { if (!pickerOpen.value) draft.value = v ?? null; });
+
+function onPickerOpen() {
+  draft.value = dateRangeModel.value ?? null;
+  pickerOpen.value = true;
+}
+
+function onPickerClose() {
+  pickerOpen.value = false;
+  const val = draft.value;
   if (!val) {
     save({ steps_ranges: [] });
     return;
@@ -99,6 +102,16 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
   });
   save({ steps_ranges: ranges.sort(([a], [b]) => a.localeCompare(b)) });
 }
+
+const rangeDisplay = computed(() => {
+  const ranges = props.album?.steps_ranges;
+  if (!ranges?.length) return "";
+  return ranges
+    .map(([from, to]) =>
+      formatDateRange(parseLocalDate(from), parseLocalDate(to), { day: "numeric", month: "short" }),
+    )
+    .join(", ");
+});
 </script>
 
 <template>
@@ -131,16 +144,15 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
     >
       <template #prepend>
         <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer">
-          <q-popup-proxy transition-show="scale" transition-hide="scale">
+          <q-popup-proxy transition-show="scale" transition-hide="scale" @before-show="onPickerOpen" @before-hide="onPickerClose">
             <q-date
-              :model-value="dateRangeModel"
+              v-model="draft"
               range
               multiple
               minimal
               :options="isStepDate"
               :navigation-min-year-month="nav.min"
               :navigation-max-year-month="nav.max"
-              @update:model-value="onRangePick"
             />
           </q-popup-proxy>
         </q-icon>

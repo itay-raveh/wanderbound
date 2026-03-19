@@ -4,7 +4,8 @@ import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { useTemplateRef } from "vue";
+import type { Map } from "mapbox-gl";
+import { useTemplateRef, watch } from "vue";
 
 const props = defineProps<{
   steps: Step[];
@@ -14,25 +15,26 @@ const props = defineProps<{
 const { albumId } = useAlbum();
 const { locale } = useUserQuery();
 const container = useTemplateRef("map");
-const { fitBounds } = useMapbox({
-  container,
-  locale,
-  onReady: (m) => {
-    m.resize();
-    drawSegmentsAndMarkers(m, {
-      segments: props.segments,
-      steps: props.steps,
-      albumId: albumId.value,
-    });
-    // Fit bounds to step locations, not segment paths — a driving segment
-    // spanning days could pull the viewport far beyond the relevant area.
-    const coords: [number, number][] = props.steps.map((s) => [
-      s.location.lon,
-      s.location.lat,
-    ]);
-    fitBounds(coords, 60);
-  },
-});
+const { map, fitBounds } = useMapbox({ container, locale, onReady: draw });
+
+function draw(m: Map) {
+  m.resize();
+  drawSegmentsAndMarkers(m, {
+    segments: props.segments,
+    steps: props.steps,
+    albumId: albumId.value,
+  });
+  const coords: [number, number][] = props.steps.map((s) => [
+    s.location.lon,
+    s.location.lat,
+  ]);
+  fitBounds(coords, 60);
+}
+
+watch(
+  [() => props.segments, () => props.steps],
+  () => { if (map.value) draw(map.value); },
+);
 </script>
 
 <template>

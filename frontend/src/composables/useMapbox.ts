@@ -45,6 +45,7 @@ export function useMapbox(options: UseMapboxOptions) {
         interactive: options.interactive ?? false,
         attributionControl: false,
         preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
+        performanceMetricsCollection: false,
         fadeDuration: 0,
         language: lang,
       });
