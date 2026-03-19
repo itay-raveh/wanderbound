@@ -17,7 +17,6 @@ class AlbumBase(SQLModel):
     subtitle: str = Field(max_length=255)
     steps_ranges: list[DateRange] = Field(
         sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),
-        default_factory=list,
     )
     maps_ranges: list[DateRange] = Field(
         sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),

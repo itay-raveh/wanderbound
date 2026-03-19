@@ -20,7 +20,7 @@
       "handlers": ["rich"]
     },
     "app": {
-      "level": "DEBUG",
+      "level": "INFO",
       "handlers": ["rich"],
       "propagate": false
     },

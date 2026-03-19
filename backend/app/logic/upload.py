@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.db import engine
 from app.models.polarsteps import CountryCode, PSTrip
-from app.models.user import User
+from app.models.user import User, UserCreate
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,10 @@ class UserCreated(BaseModel):
     trips: list[TripMeta]
 
 
-def _extract_user(file: BinaryIO) -> User:
+def _extract_user(file: BinaryIO) -> UserCreate:
     folder = Path(tempfile.mkdtemp(dir=settings.USERS_FOLDER))
     safe_extract(file, folder)
-    user = User.model_validate_json((folder / "user" / "user.json").read_bytes())
+    user = UserCreate.model_validate_json((folder / "user" / "user.json").read_bytes())
     if user.folder.exists():
         shutil.rmtree(user.folder)
     folder.rename(user.folder)
@@ -54,7 +54,7 @@ async def user_from_zip(file: BinaryIO) -> UserCreated:
             )
         )
 
-    user.album_ids = [t.id for t in trips]
+    user = User.model_validate(user, update={"album_ids": [t.id for t in trips]})
 
     async with AsyncSession(engine) as session:
         existing = await session.get(User, user.id)

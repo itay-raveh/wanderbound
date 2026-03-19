@@ -22,26 +22,18 @@ Locale = Annotated[
 
 
 class UserBase(SQLModel):
-    first_name: str = Field(max_length=255)
-    last_name: str = Field(max_length=255)
-    profile_image_path: str | None = Field(default=None, max_length=500)
-    living_location: Location = Field(
-        sa_column=Column(PydanticJSON(Location), nullable=False)
-    )
     locale: Locale
     unit_is_km: bool
     temperature_is_celsius: bool
 
 
-@all_optional
-class UserUpdate(UserBase):
-    pass
-
-
-class User(UserBase, table=True):
+class UserCreate(UserBase):
     id: int = Field(primary_key=True)
-    album_ids: list[str] = Field(
-        default_factory=list, sa_column=Column(JSON, nullable=False)
+    first_name: str = Field(max_length=255)
+    last_name: str = Field(max_length=255)
+    profile_image_path: str | None = Field(default=None, max_length=500)
+    living_location: Location = Field(
+        sa_column=Column(PydanticJSON(Location), nullable=False)
     )
 
     @property
@@ -51,3 +43,12 @@ class User(UserBase, table=True):
     @property
     def trips_folder(self) -> Path:
         return self.folder / "trip"
+
+
+@all_optional
+class UserUpdate(UserBase):
+    pass
+
+
+class User(UserCreate, table=True):
+    album_ids: list[str] = Field(sa_column=Column(JSON, nullable=False))

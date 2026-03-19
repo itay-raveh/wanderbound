@@ -5,8 +5,9 @@ Pipeline: ingest → label → absorb → validate → emit.
   1. Ingest    Merge steps + GPS, remove teleports/spikes, densify slow edges.
   2. Label     Classify edges as hike / flight / other by speed + gap.
   3. Absorb    Fold GPS noise, overnight camps, and blackouts back into hikes.
-  4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement)
-               and short flights (< 100 km).  Rejects become "other".
+  4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
+               short flights (< 100 km), and stepless hikes.
+               Rejects become "other".
   5. Emit      RDP-simplify, resolve "other" → walking/driving, stitch gaps.
 
 DataFrame columns through the pipeline::
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -438,7 +440,7 @@ def _absorb(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
-    """Downgrade undersized hikes and short flights to "other"."""
+    """Downgrade undersized hikes, short flights, and stepless hikes to "other"."""
     stats = df.group_by("segment_id").agg(
         pl.col("mode").first().alias("seg_mode"),
         pl.col("gap_h").sum().alias("tot_h"),
@@ -475,7 +477,30 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
     )
 
     df = df.join(stats.select("segment_id", "final_mode"), on="segment_id")
-    return df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
+    df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
+
+    # Final pass: adjacent hikes that survived size checks are now merged into
+    # one output_id.  Check has_step on these merged groups — a hike group
+    # with no step anywhere in it becomes "other" (resolves to walking).
+    step_check = df.group_by("output_id").agg(
+        pl.col("final_mode").first().alias("out_mode"),
+        pl.col("is_step").any().alias("has_step"),
+    )
+    stepless = step_check.filter(
+        (pl.col("out_mode") == "hike") & ~pl.col("has_step")
+    ).select("output_id")
+
+    if stepless.height > 0:
+        stepless_ids = stepless["output_id"].to_list()
+        df = df.with_columns(
+            pl.when(pl.col("output_id").is_in(stepless_ids))
+            .then(pl.lit("other"))
+            .otherwise(pl.col("final_mode"))
+            .alias("final_mode"),
+        )
+        df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
+
+    return df
 
 
 def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
@@ -552,4 +577,11 @@ def build_segments(
     df = _label_edges(df)
     df = _absorb(df)
     df = _validate_segments(df)
-    return _emit_segments(df, steps)
+    segments = list(_emit_segments(df, steps))
+
+    counts = Counter(seg.kind for seg in segments)
+    logger.info(
+        "Segments: %s", ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
+    )
+
+    return segments

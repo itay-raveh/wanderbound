@@ -168,7 +168,6 @@ def _build_trip_objects(
             {s.location.country_code for s in trip.all_steps},
         ),
         steps_ranges=[(first_date, last_date)],
-        maps_ranges=[(first_date, last_date)],
         title=trip.title,
         subtitle=trip.subtitle,
         front_cover_photo=results.cover_name,

@@ -2,7 +2,7 @@
 import { deleteUser } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
-import { getLocaleOptions } from "@/composables/useLocale";
+import { getLocaleOptions, resolveLocale } from "@/composables/useLocale";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -140,7 +140,7 @@ async function handleDelete() {
             <div class="locale-wrapper">
               <q-select
                 class="compact-field"
-                :model-value="user.locale"
+                :model-value="resolveLocale(user.locale)"
                 :options="filteredLocaleOptions"
                 dense
                 borderless

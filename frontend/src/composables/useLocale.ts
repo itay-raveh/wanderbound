@@ -11,12 +11,28 @@ const quasarLangs = import.meta.glob<{ default: QuasarLanguage }>(
 
 const packPath = (name: string) => `../../node_modules/quasar/lang/${name}.js`;
 
+/** Available Quasar lang pack codes, extracted from import.meta.glob keys. */
+const availableCodes: string[] = Object.keys(quasarLangs)
+  .map((p) => p.match(/\/([^/]+)\.js$/)?.[1] ?? "")
+  .filter(Boolean)
+  .sort();
+
+const availableSet = new Set(availableCodes);
+
+/**
+ * Resolve a BCP 47 locale to the closest available Quasar lang pack code.
+ * "he-IL" → "he" (exact match on base language), "pt-BR" → "pt-BR" (exact).
+ */
+export function resolveLocale(bcp47: string): string {
+  if (availableSet.has(bcp47)) return bcp47;
+  const base = bcp47.split("-")[0]!;
+  if (availableSet.has(base)) return base;
+  return bcp47;
+}
+
 async function loadQuasarLang(bcp47: string): Promise<QuasarLanguage> {
-  const lang = bcp47.split("-")[0]!;
-  const loader =
-    quasarLangs[packPath(bcp47)] ??
-    quasarLangs[packPath(lang)] ??
-    quasarLangs[packPath("en-US")]!;
+  const resolved = resolveLocale(bcp47);
+  const loader = quasarLangs[packPath(resolved)] ?? quasarLangs[packPath("en-US")]!;
   return (await loader()).default;
 }
 
@@ -24,11 +40,7 @@ async function loadQuasarLang(bcp47: string): Promise<QuasarLanguage> {
 let _localeOptions: { label: string; value: string }[] | null = null;
 export function getLocaleOptions(): { label: string; value: string }[] {
   if (!_localeOptions) {
-    const availableLocales = Object.keys(quasarLangs)
-      .map((p) => p.match(/\/([^/]+)\.js$/)?.[1] ?? "")
-      .filter(Boolean)
-      .sort();
-    _localeOptions = availableLocales.map((code) => {
+    _localeOptions = availableCodes.map((code) => {
       try {
         const selfLang = code.split("-")[0]!;
         const dn = new Intl.DisplayNames([selfLang], { type: "language" });
