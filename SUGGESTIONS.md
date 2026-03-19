@@ -78,7 +78,7 @@
 
 ## 2025-03-19 — Reorganize backend from type-based to domain-based packages
 
-**Status:** `PENDING`
+**Status:** `REJECTED`
 
 **Problem:** The backend is organized by object type (`models/`, `api/v1/routes/`, `logic/`, `services/`) rather than by domain. Related code is scattered: to understand "albums," you must look at `models/album.py` + `models/step.py` + `models/segment.py` + `routes/albums.py` + `routes/assets.py` + `logic/processing.py` + `logic/layout/` + `logic/spatial/` + `logic/pdf.py` + `logic/country_colors.py`. This is explicitly called out as an anti-pattern in `CLAUDE.md` ("Backend organized by type instead of domain — reorganize by domain").
 
