@@ -248,7 +248,7 @@ const chart = computed(() => {
 .axis-label {
   font-size: 5.5px;
   fill: rgba(255, 255, 255, 0.75);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-body);
   font-weight: 500;
 }
 

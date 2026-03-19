@@ -15,6 +15,11 @@ html, body, #app {
 /* Design tokens (theme-independent) */
 
 :root {
+  /* Font stacks — self-hosted in fonts.css. Quasar's $typography-font-family
+     (quasar-variables.sass) mirrors --font-body at build time; keep them in sync. */
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
   /* A4 landscape page dimensions (single source of truth for album pages). */
   --page-width: 297mm;
   --page-height: 210mm;

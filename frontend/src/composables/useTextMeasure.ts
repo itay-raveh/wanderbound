@@ -49,7 +49,7 @@ const MEASURE_STYLE = [
   "visibility:hidden",
   "pointer-events:none",
   "z-index:-1",
-  "font-family:Inter,sans-serif",
+  "font-family:var(--font-body)",
 ].join(";");
 
 function createContainer(extraStyle: string, className?: string): HTMLDivElement {

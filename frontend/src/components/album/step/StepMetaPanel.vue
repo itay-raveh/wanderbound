@@ -209,9 +209,7 @@ const dateStr = computed(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  font-family:
-    "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", ui-monospace,
-    monospace;
+  font-family: var(--font-mono);
   font-size: var(--type-2xs);
   font-weight: 500;
   letter-spacing: 0.02em;
