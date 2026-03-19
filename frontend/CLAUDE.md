@@ -70,7 +70,7 @@ Album pages have specific typographic design for A4 print. Use the token scale f
 - **Font sizes:** `--display-1` (3.75rem), `--display-2` (3rem), `--type-xl` through `--type-3xs`
 - **Radius:** `--radius-xs` (2px) through `--radius-full` (999px)
 - **Tracking:** `--tracking-tight` (-0.02em), `--tracking-wide` (0.06em), `--tracking-wider` (0.2em)
-- **Page spacing:** `--page-inset-x` (3rem), `--page-inset-y` (2.5rem), `--gap-lg` through `--gap-xs`
+- **Page spacing:** `--page-inset-x` (3rem), `--page-inset-y` (2.5rem), `--gap-lg` (1rem), `--gap-md-lg` (0.75rem), `--gap-md` (0.5rem), `--gap-sm-md` (0.375rem), `--gap-sm` (0.25rem), `--gap-xs` (0.125rem)
 - **Step layout:** `--meta-ratio` (0.42) — meta panel fraction of page width, used in step components and `useTextMeasure.ts`
 - **Photo grids:** `--photo-gap-lg` (5mm) through `--photo-gap-xs` (2mm)
 - **Map pages:** `--page-dark-surface`, `--page-dark-overlay`

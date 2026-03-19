@@ -165,7 +165,7 @@ const furthest = computed(() => {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--gap-sm-md);
   min-width: 0;
 }
 

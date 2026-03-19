@@ -109,7 +109,7 @@ function select(name: string) {
 }
 
 .picker-empty {
-  padding: 0.75rem 1rem;
+  padding: var(--gap-md-lg) var(--gap-lg);
   font-size: var(--type-2xs);
   color: rgba(255, 255, 255, 0.5);
 }

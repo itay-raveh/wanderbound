@@ -68,7 +68,7 @@ onUnmounted(() => observer?.disconnect());
 /* Unmounted: fixed-height placeholder so scroll position is stable. */
 .lazy-placeholder {
   min-height: calc(
-    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
+    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + var(--gap-md-lg))
     + var(--section-chrome, 0rem)
   );
 }
@@ -78,7 +78,7 @@ onUnmounted(() => observer?.disconnect());
 .lazy-section {
   content-visibility: auto;
   contain-intrinsic-height: auto calc(
-    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + 0.75rem)
+    var(--section-pages, 1) * (var(--page-height) * var(--editor-zoom, 1) + var(--gap-md-lg))
   );
 }
 </style>

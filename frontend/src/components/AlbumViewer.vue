@@ -175,12 +175,12 @@ if (props.printMode) {
 // Map pages use a wrapper + transform: scale (zoom breaks Mapbox canvas sizing).
 .album-container:not(.print-mode) {
   --editor-zoom: v-bind(editorZoom);
-  padding: 0.75rem;
+  padding: var(--gap-md-lg);
 
   :deep(.page-container) {
     zoom: var(--editor-zoom);
     border: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
-    margin: 0 auto 0.75rem;
+    margin: 0 auto var(--gap-md-lg);
     content-visibility: auto;
     contain-intrinsic-height: auto var(--page-height);
 
@@ -194,7 +194,7 @@ if (props.printMode) {
     position: relative;
     width: calc(var(--page-width) * var(--editor-zoom));
     height: calc(var(--page-height) * var(--editor-zoom));
-    margin: 0 auto 0.75rem;
+    margin: 0 auto var(--gap-md-lg);
     overflow: hidden;
 
     // Inner page-container: full A4, scaled to fit wrapper
@@ -211,7 +211,7 @@ if (props.printMode) {
 // "Add map" needle between sections (editor only)
 .map-needle {
   width: calc(var(--page-width) * var(--editor-zoom));
-  margin: 2rem auto 0.75rem;
+  margin: 2rem auto var(--gap-md-lg);
   color: var(--text-faint);
   overflow: visible;
   transition: color var(--duration-fast);

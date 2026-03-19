@@ -30,7 +30,7 @@ defineProps<{
 }
 
 .banner-header {
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--gap-sm-md);
 }
 
 .banner strong {

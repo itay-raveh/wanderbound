@@ -19,7 +19,7 @@ import UserMenu from "./UserMenu.vue";
 
 <style lang="scss" scoped>
 .editor-header {
-  padding: 0.5rem 0.75rem 0.5rem 1.25rem;
+  padding: var(--gap-md) var(--gap-md-lg) var(--gap-md) 1.25rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }

@@ -87,7 +87,7 @@ const photoPages = computed(() =>
 
 .sidebar-anchor {
   position: absolute;
-  right: 0.75rem;
+  right: var(--gap-md-lg);
   top: 0;
   bottom: 0;
 }

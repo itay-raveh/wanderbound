@@ -260,7 +260,7 @@ const stats = computed(() => [
   display: flex;
   align-items: center;
   gap: var(--gap-md);
-  padding: 0.375rem 0;
+  padding: var(--gap-sm-md) 0;
 }
 
 .country-accent {

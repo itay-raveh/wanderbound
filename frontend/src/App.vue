@@ -51,7 +51,9 @@ html, body, #app {
   --page-inset-x: 3rem;
   --page-inset-y: 2.5rem;
   --gap-lg: 1rem;
+  --gap-md-lg: 0.75rem;
   --gap-md: 0.5rem;
+  --gap-sm-md: 0.375rem;
   --gap-sm: 0.25rem;
   --gap-xs: 0.125rem;
 
@@ -74,7 +76,7 @@ html, body, #app {
 /* Accent card — overview record/furthest panels.
    Set --accent on the element to control the accent color. */
 .accent-card {
-  padding: 0.625rem 0.75rem;
+  padding: 0.625rem var(--gap-md-lg);
   border-left: 3px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
   border-radius: var(--radius-sm);

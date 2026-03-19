@@ -159,7 +159,7 @@ const overallPercent = computed(() => {
 
 <style scoped>
 .trip {
-  gap: 0.75rem;
+  gap: var(--gap-md-lg);
   transition: opacity var(--duration-fast) ease;
 }
 
@@ -237,7 +237,7 @@ const overallPercent = computed(() => {
 }
 
 .phase {
-  gap: 0.375rem;
+  gap: var(--gap-sm-md);
   color: var(--text-faint);
   transition:
     color var(--duration-normal) ease,

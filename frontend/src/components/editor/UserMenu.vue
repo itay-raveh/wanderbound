@@ -224,13 +224,13 @@ async function handleDelete() {
 
 // Rendered inside teleported QMenu, but scoped attrs are preserved
 .settings-card {
-  padding: 0.75rem;
+  padding: var(--gap-md-lg);
   min-width: 15rem;
 }
 
 .card-section {
   &:not(:first-child) {
-    margin-top: 0.75rem;
+    margin-top: var(--gap-md-lg);
   }
 }
 
@@ -255,7 +255,7 @@ async function handleDelete() {
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  padding: 0.375rem 0.75rem;
+  padding: var(--gap-sm-md) var(--gap-md-lg);
   border-radius: var(--radius-sm);
   font-size: var(--type-sm);
   font-weight: 500;
@@ -287,7 +287,7 @@ async function handleDelete() {
 
 .unit-row {
   &:not(:last-child) {
-    margin-bottom: 0.375rem;
+    margin-bottom: var(--gap-sm-md);
   }
 }
 
@@ -308,7 +308,7 @@ async function handleDelete() {
   align-items: center;
   gap: var(--gap-md);
   width: 100%;
-  padding: 0.375rem 0.5rem;
+  padding: var(--gap-sm-md) var(--gap-md);
   border-radius: var(--radius-sm);
   font-size: var(--type-sm);
   font-weight: 500;
