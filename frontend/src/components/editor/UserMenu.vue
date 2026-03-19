@@ -172,7 +172,7 @@ async function handleDelete() {
   display: flex;
   align-items: center;
   gap: var(--gap-md);
-  padding: 0.35rem 0.6rem 0.35rem 0.35rem;
+  padding: var(--gap-sm-md) 0.6rem var(--gap-sm-md) var(--gap-sm-md);
   border-radius: var(--radius-full);
   border: 1px solid var(--border-color);
   background: var(--surface);
@@ -236,7 +236,7 @@ async function handleDelete() {
 
 .section-title {
   margin: 0 0 var(--gap-md);
-  padding: 0 0.125rem;
+  padding: 0 var(--gap-xs);
 }
 
 .seg-track {

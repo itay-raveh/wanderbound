@@ -216,14 +216,14 @@ function onVideoKey(e: KeyboardEvent) {
 }
 
 .set-frame-btn {
-  gap: 0.35rem;
+  gap: var(--gap-sm-md);
   border: none;
   border-radius: var(--radius-full);
   background: white;
   color: #111;
   font-size: var(--type-sm);
   font-weight: 600;
-  padding: 0.35rem 0.9rem 0.35rem 0.6rem;
+  padding: var(--gap-sm-md) 0.9rem var(--gap-sm-md) 0.6rem;
   cursor: pointer;
   transition:
     background var(--duration-fast),
