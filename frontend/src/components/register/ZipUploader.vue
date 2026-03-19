@@ -2,6 +2,7 @@
 import { client } from "@/client/client.gen";
 import type { UserCreated } from "@/client";
 import { useQuasar } from "quasar";
+import { useI18n } from "vue-i18n";
 import RegisterStep from "./RegisterStep.vue";
 
 const emit = defineEmits<{
@@ -11,6 +12,7 @@ const emit = defineEmits<{
 const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users`;
 
 const $q = useQuasar();
+const { t } = useI18n();
 
 function onUploaded(info: { xhr: XMLHttpRequest }) {
   const data = JSON.parse(info.xhr.responseText) as UserCreated;
@@ -20,19 +22,22 @@ function onUploaded(info: { xhr: XMLHttpRequest }) {
 function onFailed() {
   $q.notify({
     type: "negative",
-    message: "Upload failed. Please try again.",
+    message: t("register.uploadFailed"),
   });
 }
 </script>
 
 <template>
   <RegisterStep :number="2">
-    <template #title>Upload your <code>user_data.zip</code></template>
+    <template #title>
+      <i18n-t keypath="register.uploadTitle">
+        <template #file><code>user_data.zip</code></template>
+      </i18n-t>
+    </template>
     <q-uploader
       accept=".zip"
       auto-upload
       class="uploader full-width"
-      label="Drop .zip file here or click to browse"
       :url="uploadUrl"
       field-name="file"
       with-credentials

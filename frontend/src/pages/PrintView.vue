@@ -2,6 +2,9 @@
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
+import { useUserQuery } from "@/queries/useUserQuery";
+import { useLocale } from "@/composables/useLocale";
+import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
 import { computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
@@ -14,6 +17,9 @@ onMounted(() => Dark.set(darkMode.value));
 
 const { data: album, error } = useAlbumQuery(aid);
 const { data: albumData } = useAlbumDataQuery(aid);
+const { locale } = useUserQuery();
+const { t } = useI18n();
+useLocale(locale);
 
 /**
  * Force-load every registered Inter font face.
@@ -99,10 +105,10 @@ onMounted(waitForPrintReady);
 <template>
   <div class="print-view">
     <div v-if="error" class="status-message flex flex-center text-negative">
-      Failed to load album: {{ error.message }}
+      {{ t("print.loadFailed") }} {{ error.message }}
     </div>
     <AlbumViewer v-else-if="album && albumData" :album="album" :data="albumData" print-mode />
-    <div v-else class="status-message flex flex-center text-muted">Loading album...</div>
+    <div v-else class="status-message flex flex-center text-muted">{{ t("print.loading") }}</div>
   </div>
 </template>
 

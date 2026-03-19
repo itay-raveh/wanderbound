@@ -1,8 +1,10 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
-import { Dark, Loading, LoadingBar, Notify, Quasar } from "quasar";
+import { Dark, Lang, Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp, watch } from "vue";
 
+import i18n from "@/i18n";
+import { applyLocale } from "@/composables/useLocale";
 
 // Self-hosted Inter + Heebo (Hebrew) with font-display: block.
 // Guarantees fonts are loaded before rendering (critical for PDF generation).
@@ -32,6 +34,7 @@ const app = createApp(App);
 app.use(createPinia());
 app.use(PiniaColada);
 app.use(router);
+app.use(i18n);
 app.use(Quasar, {
   config: {
     loading: {},
@@ -60,5 +63,9 @@ Dark.set(stored === null || stored === "auto" ? "auto" : stored === "true");
 watch(() => Dark.mode, (mode) => {
   localStorage.setItem(DARK_MODE_KEY, String(mode));
 });
+
+// Browser locale detection (covers register page before user exists).
+// Awaited so the correct lang pack (incl. RTL direction) is active on first paint.
+try { await applyLocale(Lang.getLocale() ?? "en-US"); } catch { /* falls back to en */ }
 
 app.mount("#app");

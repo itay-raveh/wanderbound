@@ -1,15 +1,23 @@
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import StringConstraints
+from pydantic import BeforeValidator, StringConstraints
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import settings
 from app.core.db import PydanticJSON, all_optional
 from app.models.polarsteps import Location
 
+
+def _normalize_locale(v: object) -> object:
+    """Accept both xx_XX and xx-XX, normalize to BCP 47 (xx-XX)."""
+    return v.replace("_", "-") if isinstance(v, str) else v
+
+
 Locale = Annotated[
-    str, StringConstraints(pattern=r"^[a-z]{2}_[A-Z]{2}$", min_length=5, max_length=5)
+    str,
+    BeforeValidator(_normalize_locale),
+    StringConstraints(pattern=r"^[a-z]{2}(-[A-Z]{2})?$", min_length=2, max_length=5),
 ]
 
 

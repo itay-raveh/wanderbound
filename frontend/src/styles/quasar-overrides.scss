@@ -73,6 +73,9 @@
   background: rgba(0, 0, 0, 0.4) !important;
 }
 
+// Directional icons that should mirror in RTL (arrows, planes, etc.)
+[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+
 // QUploader
 .q-uploader__header { background: transparent; color: var(--text-faint); border-bottom: none; padding: var(--gap-md-lg) var(--gap-lg); }
 .q-uploader__subtitle { color: var(--text-faint); }

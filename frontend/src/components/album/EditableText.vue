@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import { usePrintMode } from "@/composables/usePrintReady";
+import { useI18n } from "vue-i18n";
 import { ref } from "vue";
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -70,7 +73,7 @@ function saveDialog() {
 
     <q-dialog v-model="dialogOpen" @before-show="draft = modelValue">
       <q-card class="desc-dialog column no-wrap">
-        <q-card-section class="text-h6">Edit description</q-card-section>
+        <q-card-section class="text-h6">{{ t("album.editDescription") }}</q-card-section>
         <q-card-section class="col scroll">
           <q-input
             v-model="draft"
@@ -82,8 +85,8 @@ function saveDialog() {
           />
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" @click="dialogOpen = false" />
-          <q-btn flat label="Save" color="primary" @click="saveDialog" />
+          <q-btn flat :label="t('album.cancel')" @click="dialogOpen = false" />
+          <q-btn flat :label="t('album.save')" color="primary" @click="saveDialog" />
         </q-card-actions>
       </q-card>
     </q-dialog>

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { ProcessingPhase, TripMeta } from "@/client";
 import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { useI18n } from "vue-i18n";
 import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary, matVideocam, matImage } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
@@ -12,13 +13,7 @@ const props = defineProps<{
   phaseDone: PhaseDone;
 }>();
 
-const PHASE_LABELS: Record<ProcessingPhase, string> = {
-  elevations: "Mapping terrain",
-  weather: "Checking weather",
-  layouts: "Arranging photos",
-  frames: "Extracting video frames",
-  thumbs: "Generating thumbnails",
-};
+const { t } = useI18n();
 
 const PHASE_ICONS: Record<ProcessingPhase, string> = {
   elevations: matTerrain,
@@ -106,7 +101,7 @@ const overallPercent = computed(() => {
         <div class="row no-wrap items-baseline justify-between q-gutter-x-sm">
           <span class="trip-title text-subtitle1 ellipsis text-bright">{{ trip.title }}</span>
           <span class="trip-meta text-overline text-faint">
-            {{ trip.step_count }} step{{ trip.step_count !== 1 ? "s" : "" }}
+            {{ t("register.steps", trip.step_count) }}
           </span>
         </div>
 
@@ -123,7 +118,7 @@ const overallPercent = computed(() => {
               size="0.75rem"
               class="phase-icon"
             />
-            <span class="phase-label text-no-wrap">{{ PHASE_LABELS[p] }}</span>
+            <span class="phase-label text-no-wrap">{{ t(`phase.${p}`) }}</span>
 
             <q-icon
               v-if="phaseStatuses[p] === 'done'"

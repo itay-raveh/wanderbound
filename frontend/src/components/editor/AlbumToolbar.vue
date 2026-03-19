@@ -9,7 +9,10 @@ import {
   symOutlinedFlightTakeoff,
   symOutlinedPictureAsPdf,
 } from "@quasar/extras/material-symbols-outlined";
+import { useI18n } from "vue-i18n";
 import { computed } from "vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   albumIds: string[];
@@ -112,7 +115,7 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
       map-options
     >
       <template #prepend>
-        <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" />
+        <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" class="rtl-flip" />
       </template>
     </q-select>
 
@@ -156,7 +159,7 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
       @click="onExportPdf"
     >
       <q-icon :name="symOutlinedPictureAsPdf" size="1.25rem" class="q-mr-xs" />
-      Export PDF
+      {{ t("editor.exportPdf") }}
     </q-btn>
   </div>
 </template>
@@ -165,5 +168,4 @@ function onRangePick(val: (QDateRange | string)[] | QDateRange | string | null) 
 .toolbar-field {
   width: 18rem;
 }
-
 </style>

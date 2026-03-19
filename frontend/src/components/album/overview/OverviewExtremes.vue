@@ -4,6 +4,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { STAT_COLORS } from "../colors";
 import { parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
+import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 import { matLandscape } from "@quasar/extras/material-icons";
 
@@ -11,7 +12,8 @@ const props = defineProps<{
   steps: Step[];
 }>();
 
-const { formatTemp, formatElevation, formatDate } = useUserQuery();
+const { formatTemp, formatElevation, formatDate, countryName } = useUserQuery();
+const { t } = useI18n();
 
 interface ExtremeRecord {
   label: string;
@@ -50,7 +52,7 @@ const records = computed<ExtremeRecord[]>(() => {
 
   const meta = (step: Step) => ({
     place: step.name,
-    country: step.location.detail,
+    country: countryName(step.location.country_code, step.location.detail),
     countryCode: step.location.country_code,
     date: fmtDate(step),
   });
@@ -60,9 +62,9 @@ const records = computed<ExtremeRecord[]>(() => {
     : cold.step.weather.day.icon;
 
   return [
-    { label: "Coldest", value: formatTemp(cold.feels), ...meta(cold.step), color: STAT_COLORS.cold, iconUrl: weatherIconUrl(coldIcon) },
-    { label: "Hottest", value: formatTemp(hot.feels), ...meta(hot.step), color: STAT_COLORS.hot, iconUrl: weatherIconUrl(hot.step.weather.day.icon) },
-    { label: "Highest", value: formatElevation(highest.elevation), ...meta(highest), color: STAT_COLORS.elevation, iconName: matLandscape },
+    { label: t("overview.coldest"), value: formatTemp(cold.feels), ...meta(cold.step), color: STAT_COLORS.cold, iconUrl: weatherIconUrl(coldIcon) },
+    { label: t("overview.hottest"), value: formatTemp(hot.feels), ...meta(hot.step), color: STAT_COLORS.hot, iconUrl: weatherIconUrl(hot.step.weather.day.icon) },
+    { label: t("overview.highest"), value: formatElevation(highest.elevation), ...meta(highest), color: STAT_COLORS.elevation, iconName: matLandscape },
   ];
 });
 </script>

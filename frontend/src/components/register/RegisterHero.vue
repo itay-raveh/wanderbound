@@ -1,10 +1,16 @@
+<script lang="ts" setup>
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+</script>
+
 <template>
   <header class="hero fade-up row no-wrap items-center justify-center q-gutter-x-md">
     <q-img src="/logo.svg" class="hero-logo" />
     <div class="hero-text column no-wrap justify-center">
-      <span class="text-h5 text-bright">Polarsteps Album Generator</span>
+      <span class="text-h5 text-bright">{{ t("brand") }}</span>
       <span class="text-subtitle2 text-faint">
-        Turn your trips into beautiful photo albums
+        {{ t("register.tagline") }}
       </span>
     </div>
   </header>

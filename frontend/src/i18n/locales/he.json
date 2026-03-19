@@ -1,0 +1,122 @@
+{
+  "brand": "יוצר האלבומים של Polarsteps",
+
+  "register": {
+    "tagline": "הפכו את הטיולים שלכם לאלבומי תמונות מרהיבים",
+    "getDataTitle": "הורידו את המידע מ-Polarsteps",
+    "getDataBody": "כנסו ל-{link}. עברו ל-{settings}, גללו ל-{download}, ולחצו על {startArchive}. תקבלו מייל עם קישור להורדה.",
+    "uploadTitle": "העלו את קובץ ה-{file}",
+    "uploadFailed": "ההעלאה נכשלה. נסו שוב.",
+    "greeting": "היי {name},",
+    "statusReady": "האלבום שלך מוכן",
+    "statusError": "משהו השתבש",
+    "statusBuilding": "בונה את האלבום שלך",
+    "trips": "אין טיולים | טיול אחד | {n} טיולים",
+    "steps": "אין צעדים | צעד אחד | {n} צעדים",
+    "countries": "אין מדינות | מדינה אחת | {n} מדינות",
+    "tryAgain": "נסו שוב",
+    "openAlbum": "פתחו את האלבום",
+    "unsupportedTitle": "הדפדפן לא נתמך",
+    "unsupportedBody": "עברו לדפדפן עדכני: {chrome}, {firefox}, {safari}, או {edge}."
+  },
+
+  "phase": {
+    "elevations": "ממפה שטח",
+    "weather": "בודק מזג אוויר",
+    "layouts": "מסדר תמונות",
+    "frames": "מחלץ פריימים מווידאו",
+    "thumbs": "יוצר תמונות ממוזערות"
+  },
+
+  "editor": {
+    "exportPdf": "ייצוא PDF"
+  },
+
+  "settings": {
+    "appearance": "מראה",
+    "light": "בהיר",
+    "dark": "כהה",
+    "units": "יחידות",
+    "distance": "מרחק",
+    "temperature": "טמפרטורה",
+    "language": "שפה",
+    "deleteAll": "מחיקת כל הנתונים",
+    "deleteFailed": "מחיקת המשתמש נכשלה."
+  },
+
+  "delete": {
+    "title": "למחוק את כל הנתונים?",
+    "body": "פעולה זו תמחק לצמיתות את הנתונים ואת כל האלבומים. תצטרכו להעלות מחדש כדי להמשיך.",
+    "cancel": "ביטול",
+    "confirm": "מחיקה",
+    "deleting": "מוחק..."
+  },
+
+  "album": {
+    "day": "יום {n}",
+    "masl": "מ׳ מעל פני הים",
+    "ftAsl": "רגל מעל פני הים",
+    "stepNamePlaceholder": "שם צעד",
+    "descriptionPlaceholder": "הוסיפו תיאור...",
+    "dropStepCover": "גררו תמונת שער",
+    "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
+    "frontCover": "שער קדמי",
+    "backCover": "שער אחורי",
+    "noLandscapePhotos": "אין תמונות לרוחב",
+    "unused": "לא בשימוש",
+    "dropPhotosHere": "גררו תמונות לכאן",
+    "addMap": "הוסף מפה",
+    "removeMap": "הסר מפה",
+    "changeDateRange": "שנה טווח תאריכים",
+    "editDescription": "עריכת תיאור",
+    "cancel": "ביטול",
+    "save": "שמירה",
+    "loading": "טוען '{name}'...",
+    "useAsPoster": "השתמש כפוסטר",
+    "prevFrame": "פריים קודם (,)",
+    "nextFrame": "פריים הבא (.)"
+  },
+
+  "hike": {
+    "hours": "{n} שע׳",
+    "days": "{n} ימים"
+  },
+
+  "overview": {
+    "days": "ימים",
+    "km": "ק״מ",
+    "mi": "מייל",
+    "m": "מ׳",
+    "ft": "רגל",
+    "photos": "תמונות",
+    "steps": "צעדים",
+    "coldest": "הכי קר",
+    "hottest": "הכי חם",
+    "highest": "הכי גבוה",
+    "furthestFromHome": "הכי רחוק מהבית"
+  },
+
+  "print": {
+    "loadFailed": "טעינת האלבום נכשלה:",
+    "loading": "טוען אלבום..."
+  },
+
+  "error": {
+    "updatePreference": "עדכון ההעדפה נכשל",
+    "saveAlbum": "שמירת הגדרות האלבום נכשלה",
+    "saveStep": "שמירת הצעד נכשלה",
+    "videoFrame": "עדכון פריים הווידאו נכשל",
+    "pdfExport": "ייצוא PDF נכשל",
+    "processingFailed": "העיבוד נכשל",
+    "connectionFailed": "החיבור נכשל. נסו שוב."
+  },
+
+  "pdf": {
+    "queued": "בתור...",
+    "loading": "טוען אלבום...",
+    "rendering": "מרנדר עמוד {done} / {total}...",
+    "renderingSingle": "מרנדר...",
+    "merging": "ממזג עמודים...",
+    "downloading": "מוריד..."
+  }
+}

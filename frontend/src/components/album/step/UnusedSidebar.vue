@@ -3,6 +3,9 @@ import { VueDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
 import { useLocalCopy } from "@/composables/useLocalCopy";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   assets: Array<string>;
@@ -24,7 +27,7 @@ function emitUnused() {
   <div class="unused-sidebar">
     <div class="sidebar-header row no-wrap items-center text-overline text-weight-semibold text-muted">
       <q-icon :name="matPhotoLibrary" size="1rem" />
-      <span>Unused</span>
+      <span>{{ t("album.unused") }}</span>
     </div>
     <VueDraggable
       v-model="localUnused"
@@ -42,7 +45,7 @@ function emitUnused() {
       />
     </VueDraggable>
     <div v-if="localUnused.length === 0" class="sidebar-empty text-caption text-faint text-center">
-      Drop photos here
+      {{ t("album.dropPhotosHere") }}
     </div>
   </div>
 </template>

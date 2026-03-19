@@ -1,19 +1,31 @@
 <script lang="ts" setup>
+import { useI18n } from "vue-i18n";
 import RegisterStep from "./RegisterStep.vue";
+
+const { t } = useI18n();
 </script>
 
 <template>
   <RegisterStep :number="1">
-    <template #title>Get your data from Polarsteps</template>
-    <p class="step-text text-body2 text-muted no-margin">
-      Log in at
-      <a href="https://www.polarsteps.com" target="_blank">polarsteps.com</a>
-      on a desktop computer. Go to
-      <strong>Account&nbsp;Settings</strong>, scroll to
-      <strong>Download&nbsp;my&nbsp;data</strong> in the privacy section, and
-      click <strong>Start My Archive</strong>. You'll receive an email with a
-      download link.
-    </p>
+    <template #title>{{ t("register.getDataTitle") }}</template>
+    <i18n-t
+      keypath="register.getDataBody"
+      tag="p"
+      class="step-text text-body2 text-muted no-margin"
+    >
+      <template #link>
+        <a href="https://www.polarsteps.com" target="_blank">polarsteps.com</a>
+      </template>
+      <template #settings>
+        <strong>Account Settings</strong>
+      </template>
+      <template #download>
+        <strong>Download my data</strong>
+      </template>
+      <template #startArchive>
+        <strong>Start My Archive</strong>
+      </template>
+    </i18n-t>
   </RegisterStep>
 </template>
 

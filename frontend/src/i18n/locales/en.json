@@ -1,0 +1,122 @@
+{
+  "brand": "Polarsteps Album Generator",
+
+  "register": {
+    "tagline": "Turn your trips into beautiful photo albums",
+    "getDataTitle": "Get your data from Polarsteps",
+    "getDataBody": "Log in at {link} on a desktop computer. Go to {settings}, scroll to {download} in the privacy section, and click {startArchive}. You'll receive an email with a download link.",
+    "uploadTitle": "Upload your {file}",
+    "uploadFailed": "Upload failed. Please try again.",
+    "greeting": "Hey {name},",
+    "statusReady": "your album is ready",
+    "statusError": "something went wrong",
+    "statusBuilding": "building your album",
+    "trips": "no trips | {n} trip | {n} trips",
+    "steps": "no steps | {n} step | {n} steps",
+    "countries": "no countries | {n} country | {n} countries",
+    "tryAgain": "Try again",
+    "openAlbum": "Open your album",
+    "unsupportedTitle": "Browser not supported",
+    "unsupportedBody": "Switch to a recent browser: {chrome}, {firefox}, {safari}, or {edge}."
+  },
+
+  "phase": {
+    "elevations": "Mapping terrain",
+    "weather": "Checking weather",
+    "layouts": "Arranging photos",
+    "frames": "Extracting video frames",
+    "thumbs": "Generating thumbnails"
+  },
+
+  "editor": {
+    "exportPdf": "Export PDF"
+  },
+
+  "settings": {
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "units": "Units",
+    "distance": "Distance",
+    "temperature": "Temperature",
+    "language": "Language",
+    "deleteAll": "Delete all data",
+    "deleteFailed": "Failed to delete user."
+  },
+
+  "delete": {
+    "title": "Delete all data?",
+    "body": "This will permanently remove your uploaded data and all albums. You'll need to upload again to continue.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "deleting": "Deleting..."
+  },
+
+  "album": {
+    "day": "DAY {n}",
+    "masl": "M.A.S.L",
+    "ftAsl": "FT A.S.L",
+    "stepNamePlaceholder": "Step name",
+    "descriptionPlaceholder": "Add a description...",
+    "dropStepCover": "Drop Step Cover",
+    "dropPhotoToAdd": "Drop photo to add page",
+    "frontCover": "Front Cover",
+    "backCover": "Back Cover",
+    "noLandscapePhotos": "No landscape photos available",
+    "unused": "Unused",
+    "dropPhotosHere": "Drop photos here",
+    "addMap": "Add Map",
+    "removeMap": "Remove map",
+    "changeDateRange": "Change date range",
+    "editDescription": "Edit description",
+    "cancel": "Cancel",
+    "save": "Save",
+    "loading": "Loading '{name}'...",
+    "useAsPoster": "Use as poster",
+    "prevFrame": "Previous frame (,)",
+    "nextFrame": "Next frame (.)"
+  },
+
+  "hike": {
+    "hours": "{n}h",
+    "days": "{n}d"
+  },
+
+  "overview": {
+    "days": "Days",
+    "km": "Km",
+    "mi": "Mi",
+    "m": "m",
+    "ft": "ft",
+    "photos": "Photos",
+    "steps": "Steps",
+    "coldest": "Coldest",
+    "hottest": "Hottest",
+    "highest": "Highest",
+    "furthestFromHome": "Furthest from home"
+  },
+
+  "print": {
+    "loadFailed": "Failed to load album:",
+    "loading": "Loading album..."
+  },
+
+  "error": {
+    "updatePreference": "Failed to update preference",
+    "saveAlbum": "Failed to save album settings",
+    "saveStep": "Failed to save step",
+    "videoFrame": "Failed to update video frame",
+    "pdfExport": "PDF export failed",
+    "processingFailed": "Processing failed",
+    "connectionFailed": "Connection failed. Please try again."
+  },
+
+  "pdf": {
+    "queued": "Queued...",
+    "loading": "Loading album...",
+    "rendering": "Rendering page {done} / {total}...",
+    "renderingSingle": "Rendering...",
+    "merging": "Merging pages...",
+    "downloading": "Downloading..."
+  }
+}

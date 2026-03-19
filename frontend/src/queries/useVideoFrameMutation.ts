@@ -2,6 +2,7 @@ import { useMutation } from "@pinia/colada";
 import { updateVideoFrame } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { Notify } from "quasar";
+import { t } from "@/i18n";
 
 export function useVideoFrameMutation() {
   const { albumId } = useAlbum();
@@ -15,7 +16,7 @@ export function useVideoFrameMutation() {
       return data;
     },
     onError: () => {
-      Notify.create({ type: "negative", message: "Failed to update video frame" });
+      Notify.create({ type: "negative", message: t("error.videoFrame") });
     },
   });
 }

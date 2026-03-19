@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { TripMeta, User } from "@/client";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { useI18n } from "vue-i18n";
 import TripTimeline from "./TripTimeline.vue";
 import { symOutlinedLuggage, symOutlinedPinDrop, symOutlinedPublic } from "@quasar/extras/material-symbols-outlined";
 import { matErrorOutline, matRefresh, matArrowForward } from "@quasar/extras/material-icons";
@@ -20,12 +21,14 @@ defineEmits<{
   done: [];
 }>();
 
+const { t } = useI18n();
+
 const totalSteps = computed(() =>
-  props.trips.reduce((sum, t) => sum + t.step_count, 0),
+  props.trips.reduce((sum, trip) => sum + trip.step_count, 0),
 );
 
 const totalCountries = computed(() => {
-  const codes = new Set(props.trips.flatMap((t) => t.country_codes));
+  const codes = new Set(props.trips.flatMap((trip) => trip.country_codes));
   return codes.size;
 });
 </script>
@@ -35,30 +38,30 @@ const totalCountries = computed(() => {
     <!-- Header -->
     <div class="column no-wrap q-gutter-y-sm">
       <div class="greeting column no-wrap">
-        <span class="text-h6 text-bright">Hey {{ user.first_name }},</span>
+        <span class="text-h6 text-bright">{{ t("register.greeting", { name: user.first_name }) }}</span>
         <span v-if="state === 'done'" class="text-subtitle2 text-positive">
-          your album is ready
+          {{ t("register.statusReady") }}
         </span>
         <span v-else-if="state === 'error'" class="text-subtitle2 text-danger">
-          something went wrong
+          {{ t("register.statusError") }}
         </span>
-        <span v-else class="text-subtitle2 text-muted"> building your album </span>
+        <span v-else class="text-subtitle2 text-muted">{{ t("register.statusBuilding") }}</span>
       </div>
 
       <div class="stats row items-center wrap q-gutter-sm">
         <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedLuggage" size="0.875rem" />
-          {{ trips.length }} trip{{ trips.length !== 1 ? "s" : "" }}
+          {{ t("register.trips", trips.length) }}
         </span>
         <span class="stat-dot" />
         <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedPinDrop" size="0.875rem" />
-          {{ totalSteps }} steps
+          {{ t("register.steps", totalSteps) }}
         </span>
         <span class="stat-dot" />
         <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
           <q-icon :name="symOutlinedPublic" size="0.875rem" />
-          {{ totalCountries }} countr{{ totalCountries !== 1 ? "ies" : "y" }}
+          {{ t("register.countries", totalCountries) }}
         </span>
       </div>
     </div>
@@ -80,7 +83,7 @@ const totalCountries = computed(() => {
         <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon text-danger" />
         <div class="error-body column no-wrap q-gutter-y-sm">
           <span class="text-body2 error-msg text-muted">{{ errorDetail }}</span>
-          <q-btn outline no-caps dense :icon="matRefresh" label="Try again" class="retry-btn bg-surface" @click="$emit('retry')" />
+          <q-btn outline no-caps dense :icon="matRefresh" :label="t('register.tryAgain')" class="retry-btn bg-surface" @click="$emit('retry')" />
         </div>
       </div>
     </template>
@@ -95,8 +98,8 @@ const totalCountries = computed(() => {
         class="fade-up full-width text-subtitle1"
         @click="$emit('done')"
       >
-        Open your album
-        <q-icon :name="matArrowForward" size="1rem" />
+        {{ t("register.openAlbum") }}
+        <q-icon :name="matArrowForward" size="1rem" class="rtl-flip" />
       </q-btn>
     </template>
   </q-card>

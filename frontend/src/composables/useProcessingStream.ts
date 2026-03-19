@@ -6,6 +6,7 @@ import {
   type ProcessingPhase,
   type TripStart,
 } from "@/client";
+import { t } from "@/i18n";
 
 export type { ProcessingPhase };
 
@@ -83,7 +84,7 @@ export function useProcessingStream(): UseProcessingStream {
             break;
           case "error":
             state.value = "error";
-            errorDetail.value = event.detail ?? "Processing failed";
+            errorDetail.value = event.detail ?? t("error.processingFailed");
             return;
         }
       }
@@ -92,7 +93,7 @@ export function useProcessingStream(): UseProcessingStream {
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
-      errorDetail.value = "Connection failed. Please try again.";
+      errorDetail.value = t("error.connectionFailed");
     }
   }
 

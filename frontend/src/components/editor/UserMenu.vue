@@ -2,8 +2,10 @@
 import { deleteUser } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
+import { getLocaleOptions } from "@/composables/useLocale";
 import { useQuasar } from "quasar";
-import { ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import DeleteDialog from "./DeleteDialog.vue";
 import {
@@ -14,31 +16,31 @@ import {
   matSettings,
 } from "@quasar/extras/material-icons";
 
-const LOCALE_OPTIONS = [
-  { label: "English (US)", value: "en_US" },
-  { label: "English (UK)", value: "en_GB" },
-  { label: "עברית", value: "he_IL" },
-  { label: "العربية", value: "ar_SA" },
-  { label: "Español", value: "es_ES" },
-  { label: "Français", value: "fr_FR" },
-  { label: "Deutsch", value: "de_DE" },
-  { label: "Português", value: "pt_BR" },
-  { label: "Italiano", value: "it_IT" },
-  { label: "Nederlands", value: "nl_NL" },
-  { label: "日本語", value: "ja_JP" },
-  { label: "한국어", value: "ko_KR" },
-  { label: "中文", value: "zh_CN" },
-  { label: "Русский", value: "ru_RU" },
-];
-
 const router = useRouter();
 const { user, isKm, isCelsius } = useUserQuery();
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
+const { t } = useI18n();
 
 const menuOpen = ref(false);
 const showDeleteConfirm = ref(false);
 const deleting = ref(false);
+const localeFilter = ref("");
+
+const filteredLocaleOptions = computed(() => {
+  const options = getLocaleOptions();
+  const q = localeFilter.value.toLowerCase();
+  if (!q) return options;
+  return options.filter(
+    (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+  );
+});
+
+function onLocaleFilter(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    localeFilter.value = val;
+  });
+}
 
 async function handleDelete() {
   deleting.value = true;
@@ -46,7 +48,7 @@ async function handleDelete() {
     await deleteUser();
     await router.push("/register");
   } catch {
-    $q.notify({ type: "negative", message: "Failed to delete user." });
+    $q.notify({ type: "negative", message: t("settings.deleteFailed") });
   } finally {
     deleting.value = false;
   }
@@ -76,7 +78,7 @@ async function handleDelete() {
         <div class="settings-card">
           <!-- Appearance -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">Appearance</h4>
+            <h4 class="section-title text-overline text-faint">{{ t("settings.appearance") }}</h4>
             <div class="seg-track">
               <button
                 :class="{ active: !$q.dark.isActive }"
@@ -84,7 +86,7 @@ async function handleDelete() {
                 @click="$q.dark.isActive && $q.dark.set(false)"
               >
                 <q-icon :name="matLightMode" size="0.875rem" />
-                Light
+                {{ t("settings.light") }}
               </button>
               <button
                 :class="{ active: $q.dark.isActive }"
@@ -92,31 +94,31 @@ async function handleDelete() {
                 @click="$q.dark.isActive || $q.dark.set(true)"
               >
                 <q-icon :name="matDarkMode" size="0.875rem" />
-                Dark
+                {{ t("settings.dark") }}
               </button>
             </div>
           </section>
 
           <!-- Units -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">Units</h4>
+            <h4 class="section-title text-overline text-faint">{{ t("settings.units") }}</h4>
             <div class="unit-row row no-wrap items-center justify-between">
-              <span class="unit-label text-body2">Distance</span>
+              <span class="unit-label text-body2">{{ t("settings.distance") }}</span>
               <div class="seg-track compact">
                 <button
                   :class="{ active: isKm }"
                   class="seg-btn"
                   @click="isKm || patch({ unit_is_km: true })"
-                >km</button>
+                >{{ t("overview.km") }}</button>
                 <button
                   :class="{ active: !isKm }"
                   class="seg-btn"
                   @click="isKm && patch({ unit_is_km: false })"
-                >mi</button>
+                >{{ t("overview.mi") }}</button>
               </div>
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
-              <span class="unit-label text-body2">Temperature</span>
+              <span class="unit-label text-body2">{{ t("settings.temperature") }}</span>
               <div class="seg-track compact">
                 <button
                   :class="{ active: isCelsius }"
@@ -134,19 +136,22 @@ async function handleDelete() {
 
           <!-- Language -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">Language</h4>
+            <h4 class="section-title text-overline text-faint">{{ t("settings.language") }}</h4>
             <div class="locale-wrapper">
               <q-select
                 class="compact-field"
                 :model-value="user.locale"
-                :options="LOCALE_OPTIONS"
+                :options="filteredLocaleOptions"
                 dense
                 borderless
                 emit-value
                 map-options
                 options-dense
+                use-input
+                input-debounce="0"
                 menu-anchor="bottom start"
                 menu-self="top start"
+                @filter="onLocaleFilter"
                 @update:model-value="$event !== user.locale && patch({ locale: $event })"
               />
             </div>
@@ -156,7 +161,7 @@ async function handleDelete() {
 
           <button class="danger-btn" @click="showDeleteConfirm = true">
             <q-icon :name="matDeleteOutline" size="1rem" />
-            Delete all data
+            {{ t("settings.deleteAll") }}
           </button>
         </div>
       </q-menu>

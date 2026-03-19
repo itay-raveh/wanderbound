@@ -8,6 +8,7 @@ import {
   type PdfProgress,
   type PdfQueued,
 } from "@/client";
+import { t } from "@/i18n";
 
 export type PdfStreamState = "idle" | "queued" | "running" | "done" | "error";
 type Phase = "loading" | "rendering" | "merging";
@@ -25,14 +26,17 @@ export interface UsePdfExportStream {
   state: Ref<PdfStreamState>;
 }
 
+
 function loadingMessage(phase: Phase, done: number, total: number): string {
   switch (phase) {
     case "loading":
-      return "Loading album\u2026";
+      return t("pdf.loading");
     case "rendering":
-      return total > 1 ? `Rendering page ${done} / ${total}\u2026` : "Rendering\u2026";
+      return total > 1
+        ? t("pdf.rendering", { done, total })
+        : t("pdf.renderingSingle");
     case "merging":
-      return "Merging pages\u2026";
+      return t("pdf.merging");
   }
 }
 
@@ -50,7 +54,7 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
   async function start() {
     controller = new AbortController();
     state.value = "queued";
-    showLoading("Queued\u2026");
+    showLoading(t("pdf.queued"));
 
     try {
       const { stream } = await generatePdf({
@@ -67,7 +71,7 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
         switch (event.type) {
           case "queued":
             state.value = "queued";
-            showLoading("Queued\u2026");
+            showLoading(t("pdf.queued"));
             break;
           case "progress":
             state.value = "running";
@@ -78,13 +82,13 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
             break;
           case "error":
             state.value = "error";
-            Notify.create({ type: "negative", message: event.detail ?? "PDF export failed" });
+            Notify.create({ type: "negative", message: event.detail ?? t("error.pdfExport") });
             return;
         }
       }
 
       if (downloadToken && !controller.signal.aborted) {
-        showLoading("Downloading\u2026");
+        showLoading(t("pdf.downloading"));
         const { data } = await downloadPdf({
           path: { aid: aid(), token: downloadToken },
           parseAs: "blob",
@@ -101,7 +105,7 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
-      Notify.create({ type: "negative", message: "PDF export failed" });
+      Notify.create({ type: "negative", message: t("error.pdfExport") });
     } finally {
       Loading.hide();
       lastMsg = "";

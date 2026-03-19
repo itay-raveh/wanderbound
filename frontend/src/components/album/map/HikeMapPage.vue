@@ -10,8 +10,11 @@ import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
 import { useTemplateRef, computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   steps: Step[];
@@ -21,7 +24,7 @@ const props = defineProps<{
 
 const { albumId, colors } = useAlbum();
 const container = useTemplateRef("hike-map");
-const { distanceUnit, isKm, locale } = useUserQuery();
+const { isKm, locale, distanceUnit, elevationUnit } = useUserQuery();
 
 const countryColor = computed(() => {
   if (!props.steps.length) return getCountryColor({}, "");
@@ -35,7 +38,7 @@ const elevationSamples = ref<
 
 const stats = computed(() => {
   const pts = props.hikeSegment.points;
-  if (pts.length < 2) return { distance: "0", duration: "0h", elevGain: 0 };
+  if (pts.length < 2) return { distance: "0", duration: t("hike.hours", { n: 0 }), elevGain: 0 };
 
   const startTime = pts[0]!.time;
   const endTime = pts[pts.length - 1]!.time;
@@ -69,10 +72,14 @@ const stats = computed(() => {
   const dist = isKm.value ? totalKm : totalKm * KM_TO_MI;
   const elev = isKm.value ? elevGain : elevGain * M_TO_FT;
 
+  const duration =
+    hours >= 24
+      ? t("hike.days", { n: Math.ceil(hours / 24) })
+      : t("hike.hours", { n: Math.round(hours) });
+
   return {
     distance: dist.toFixed(1),
-    duration:
-      hours >= 24 ? `${Math.ceil(hours / 24)}d` : `${Math.round(hours)}h`,
+    duration,
     elevGain: Math.round(elev),
   };
 });
@@ -186,14 +193,14 @@ const { fitBounds } = useMapbox({
     <div class="hike-overlay">
       <div class="stat">
         <span class="stat-value">{{ stats.distance }}</span>
-        <span class="stat-unit">{{ distanceUnit() }}</span>
+        <span class="stat-unit">{{ distanceUnit }}</span>
       </div>
       <div class="stat">
         <span class="stat-value">{{ stats.duration }}</span>
       </div>
       <div v-if="stats.elevGain > 0" class="stat">
         <span class="stat-value">{{ stats.elevGain }}</span>
-        <span class="stat-unit">{{ isKm ? "m+" : "ft+" }}</span>
+        <span class="stat-unit">{{ elevationUnit }}+</span>
       </div>
     </div>
 
@@ -214,6 +221,7 @@ const { fitBounds } = useMapbox({
 .hike-overlay {
   position: absolute;
   top: var(--gap-lg);
+  /* rtl:ignore */
   right: var(--gap-lg);
   background: var(--page-dark-overlay);
   border-radius: var(--radius-md);

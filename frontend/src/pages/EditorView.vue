@@ -5,6 +5,7 @@ import EditorHeader from "@/components/editor/EditorHeader.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
+import { useLocale } from "@/composables/useLocale";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 
@@ -18,10 +19,12 @@ watch(selectedAlbumId, (id) => {
   else localStorage.removeItem(LAST_ALBUM_KEY);
 });
 
-const { data: userData, error: userError } = useUserQuery();
+const { data: userData, error: userError, locale } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
+
+useLocale(locale);
 
 watch(userError, (err) => {
   if (err) void router.push("/register");

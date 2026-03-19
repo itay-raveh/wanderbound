@@ -7,6 +7,7 @@ import { getCountryColor } from "../colors";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { colors as qColors, Dark } from "quasar";
+import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 import CountrySilhouette from "./CountrySilhouette.vue";
 import { useAlbum } from "@/composables/useAlbum";
@@ -25,14 +26,9 @@ const emit = defineEmits<{
 
 const { colors, tripStart, totalDays } = useAlbum();
 
-const { formatTemp, formatElevationValue, formatDate, isKm, locale } =
+const { formatTemp, formatElevationValue, formatDate, isKm, countryName } =
   useUserQuery();
-
-// RTL direction based on locale (Hebrew, Arabic)
-const dir = computed(() => {
-  const lang = locale.value.split("-")[0];
-  return lang === "he" || lang === "ar" ? "rtl" : "ltr";
-});
+const { t } = useI18n();
 
 const countryColor = computed(() => {
   const hex = getCountryColor(colors.value, props.step.location.country_code);
@@ -104,11 +100,11 @@ const dateStr = computed(() => {
     <div class="name-block">
       <div class="country-row text-muted">
         <img :src="flagUrl(step.location.country_code)" class="flag" alt="" />
-        <span>{{ step.location.detail }}</span>
+        <span>{{ countryName(step.location.country_code, step.location.detail) }}</span>
       </div>
       <EditableText
         :model-value="step.name"
-        placeholder="Step name"
+        :placeholder="t('album.stepNamePlaceholder')"
         class="step-name text-bright"
         @update:model-value="emit('update:name', $event)"
       />
@@ -119,7 +115,7 @@ const dateStr = computed(() => {
       v-if="!compact"
       :model-value="step.description ?? ''"
       multiline
-      placeholder="Add a description..."
+      :placeholder="t('album.descriptionPlaceholder')"
       dir="auto"
       class="description"
       :display-value="mainPageText"
@@ -127,7 +123,7 @@ const dateStr = computed(() => {
     />
 
     <!-- Bottom section: stats + progress -->
-    <div class="bottom-section" :dir="dir">
+    <div class="bottom-section">
       <div class="stats-bar">
         <!-- Date -->
         <div class="stat-col">
@@ -161,7 +157,7 @@ const dateStr = computed(() => {
 
         <!-- Elevation -->
         <div class="stat-col">
-          <span class="stat-label text-muted">{{ isKm ? "M.A.S.L" : "FT A.S.L" }}</span>
+          <span class="stat-label text-muted">{{ isKm ? t("album.masl") : t("album.ftAsl") }}</span>
           <span class="stat-value text-bright">{{
             formatElevationValue(step.elevation)
           }}</span>
@@ -171,7 +167,6 @@ const dateStr = computed(() => {
       <!-- Progress bar with day badge -->
       <div
         class="progress-section relative-position"
-        dir="ltr"
         :style="{ '--progress': `${progressPercent}%` }"
       >
         <div class="progress-track">
@@ -182,7 +177,7 @@ const dateStr = computed(() => {
         </div>
         <div class="badge-rail">
           <div class="badge-arrow" />
-          <div class="step-badge text-bright">DAY {{ dayNumber }}</div>
+          <div class="step-badge text-bright">{{ t("album.day", { n: dayNumber }) }}</div>
         </div>
       </div>
     </div>
@@ -335,7 +330,9 @@ const dateStr = computed(() => {
   flex-shrink: 0;
 }
 
+// Progress bar is direction-independent — do not add rtl:ignore or direction overrides.
 .progress-track {
+  display: flex;
   width: 100%;
   height: 4px;
   border-radius: var(--radius-xs);

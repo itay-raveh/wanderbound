@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 import { mediaThumbUrl } from "@/utils/media";
+import { useI18n } from "vue-i18n";
 import { ref } from "vue";
 import { matExpandMore } from "@quasar/extras/material-icons";
+
+const { t } = useI18n();
 
 defineProps<{
   modelValue: string;
@@ -36,7 +39,7 @@ function select(name: string) {
 
     <div v-show="open" class="picker-panel overflow-hidden">
       <div v-if="photos.length === 0" class="picker-empty text-center">
-        No landscape photos available
+        {{ t("album.noLandscapePhotos") }}
       </div>
       <div v-else class="picker-grid">
         <button

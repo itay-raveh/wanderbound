@@ -7,8 +7,11 @@ import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { useTextMeasure } from "@/composables/useTextMeasure";
 import { filterCoverFromPages } from "./albumSections";
+import { useI18n } from "vue-i18n";
 import { computed, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   step: Step;
@@ -61,7 +64,7 @@ const photoPages = computed(() =>
       <div v-if="!printMode" class="add-zone relative-position">
         <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
           <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
-          <span>Drop photo to add page</span>
+          <span>{{ t("album.dropPhotoToAdd") }}</span>
         </div>
         <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
       </div>

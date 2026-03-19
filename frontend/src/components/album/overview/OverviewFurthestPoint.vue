@@ -4,6 +4,7 @@ import { STAT_COLORS } from "../colors";
 import { parseLocalDate } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
+import { useI18n } from "vue-i18n";
 import distance from "@turf/distance";
 import { point } from "@turf/helpers";
 import { computed } from "vue";
@@ -14,7 +15,8 @@ const props = defineProps<{
   steps: Step[];
 }>();
 
-const { formatDistance, distanceUnit, formatDate } = useUserQuery();
+const { formatDistance, distanceUnit, formatDate, countryName } = useUserQuery();
+const { t } = useI18n();
 
 const accentColor = STAT_COLORS.distance;
 
@@ -65,18 +67,18 @@ const furthest = computed(() => {
             loading="eager"
             alt=""
           >
-          <span>{{ home.detail }}</span>
+          <span>{{ countryName(home.country_code, home.detail) }}</span>
         </div>
       </div>
 
       <!-- Trail with distance badge -->
       <div class="fp-trail">
         <div class="fp-line" />
-        <div class="column">
-          <span class="accent-card-tag">Furthest from home</span>
+        <div class="column items-center">
+          <span class="accent-card-tag">{{ t("overview.furthestFromHome") }}</span>
           <div class="fp-badge">
             <span class="fp-dist text-bright">{{ furthest.dist }}</span>
-            <span class="fp-unit text-muted">{{ distanceUnit() }}</span>
+            <span class="fp-unit text-muted">{{ distanceUnit }}</span>
           </div>
         </div>
         <div class="fp-line" />
@@ -88,7 +90,7 @@ const furthest = computed(() => {
         <div class="fp-sub text-muted">
           <span dir="auto">{{ furthest.date }}</span>
           <span class="fp-sep">·</span>
-          <span>{{ furthest.location.detail }}</span>
+          <span>{{ countryName(furthest.location.country_code, furthest.location.detail) }}</span>
           <img
             :src="flagUrl(furthest.location.country_code)"
             class="fp-flag"
@@ -133,7 +135,9 @@ const furthest = computed(() => {
 }
 
 .fp-info.right {
+  /* rtl:ignore */
   text-align: right;
+  /* rtl:ignore */
   align-items: flex-end;
 }
 

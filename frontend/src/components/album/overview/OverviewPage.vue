@@ -2,6 +2,7 @@
 import type { Album, Segment, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 import { lineString } from "@turf/helpers";
 import length from "@turf/length";
@@ -18,7 +19,8 @@ const props = defineProps<{
 }>();
 
 const { totalDays } = useAlbum();
-const { user, formatDistance, isKm, locale } = useUserQuery();
+const { user, formatDistance, distanceUnit, locale, countryName } = useUserQuery();
+const { t } = useI18n();
 
 const stepsCount = computed(() =>
   props.steps.length.toLocaleString(locale.value),
@@ -57,25 +59,25 @@ const totalDistance = computed(() => {
 const stats = computed(() => [
   {
     value: daysCount.value,
-    label: "Days",
+    label: t("overview.days"),
     icon: symOutlinedCalendarMonth,
     color: STAT_COLORS.days,
   },
   {
     value: totalDistance.value,
-    label: isKm.value ? "Km" : "Mi",
+    label: distanceUnit.value,
     icon: symOutlinedExplore,
     color: STAT_COLORS.distance,
   },
   {
     value: photosCount.value,
-    label: "Photos",
+    label: t("overview.photos"),
     icon: symOutlinedPhotoCamera,
     color: STAT_COLORS.photos,
   },
   {
     value: stepsCount.value,
-    label: "Steps",
+    label: t("overview.steps"),
     icon: symOutlinedTimeline,
     color: STAT_COLORS.steps,
   },
@@ -115,7 +117,7 @@ const stats = computed(() => [
             class="country-flag"
             loading="eager"
           >
-          <span class="country-name text-bright">{{ name }}</span>
+          <span class="country-name text-bright">{{ countryName(code, name) }}</span>
         </div>
       </div>
 

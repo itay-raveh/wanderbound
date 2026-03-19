@@ -17,12 +17,24 @@ function cached(text: string, layout: TextLayout): TextLayout {
 }
 
 // --- Font readiness tracking (reactive — triggers recomputation in computed contexts) ---
-const fontsLoaded = ref(false);
+// Revision counter bumped when fonts finish loading. The loadingdone listener handles
+// unicode-range fonts (e.g. Heebo for Hebrew) that load on demand after initial ready.
+// Debounced so rapid successive loads (multiple unicode-range slices) collapse into one
+// cache invalidation instead of causing repeated layout thrashing.
+const fontsRevision = ref(0);
 if (typeof document !== "undefined") {
-  void document.fonts.ready.then(() => {
-    fontsLoaded.value = true;
-    cache.clear();
-  });
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  const bumpRevision = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      fontsRevision.value++;
+      cache.clear();
+    }, 100);
+  };
+  void document.fonts.ready.then(bumpRevision);
+  document.fonts.addEventListener("loadingdone", ((e: FontFaceSetLoadEvent) => {
+    if (e.fontfaces.some((f) => f.family === "Inter")) bumpRevision();
+  }) as EventListener);
 }
 
 // --- Hidden DOM containers (created once on first use) ---
@@ -134,17 +146,25 @@ function estimateLayout(text: string): TextLayout {
 
 // --- DOM measurement helpers ---
 
-/** Check if content overflows the container (vertical or horizontal for multi-column). */
-function overflows(container: HTMLDivElement): boolean {
+/** Vertical overflow only — for single-column containers. */
+function overflowsV(container: HTMLDivElement): boolean {
+  return container.scrollHeight > container.clientHeight;
+}
+
+/** Vertical or horizontal overflow — for multi-column containers where
+ *  excess content spills into columns beyond the container width.
+ *  (scrollWidth check is unreliable for single-column RTL; browsers
+ *  report a few extra pixels due to the RTL scroll origin.) */
+function overflowsMultiCol(container: HTMLDivElement): boolean {
   return (
     container.scrollHeight > container.clientHeight ||
     container.scrollWidth > container.clientWidth
   );
 }
 
-function fits(container: HTMLDivElement, text: string): boolean {
+function fits(container: HTMLDivElement, text: string, multiCol = false): boolean {
   container.textContent = text;
-  return !overflows(container);
+  return multiCol ? !overflowsMultiCol(container) : !overflowsV(container);
 }
 
 /** Binary-search split within a single paragraph by word boundaries. */
@@ -169,7 +189,7 @@ function splitByWords(
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     container.textContent = prefixes[mid]!;
-    if (!overflows(container)) {
+    if (!overflowsMultiCol(container)) {
       splitAt = mid + 1;
       lo = mid + 1;
     } else {
@@ -203,7 +223,7 @@ function splitToFit(
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     container.textContent = prefixes[mid]!;
-    if (!overflows(container)) {
+    if (!overflowsMultiCol(container)) {
       mainEnd = mid + 1;
       lo = mid + 1;
     } else {
@@ -225,7 +245,7 @@ function splitToFit(
 // --- Public API ---
 
 export function measureDescription(text: string): TextLayout {
-  if (!fontsLoaded.value) return estimateLayout(text);
+  if (fontsRevision.value === 0) return estimateLayout(text);
 
   const hit = cache.get(text);
   if (hit) return hit;
@@ -235,7 +255,7 @@ export function measureDescription(text: string): TextLayout {
   if (fits(metaMeasure!, text))
     return cached(text, { type: "short", mainPageText: text, continuationTexts: [] });
 
-  if (fits(fullMeasure!, text))
+  if (fits(fullMeasure!, text, true))
     return cached(text, { type: "long", mainPageText: text, continuationTexts: [] });
 
   const [mainPageText, remainder] = splitToFit(fullMeasure!, text);

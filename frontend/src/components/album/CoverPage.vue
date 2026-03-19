@@ -5,12 +5,14 @@ import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { usePrintMode } from "@/composables/usePrintReady";
+import { useI18n } from "vue-i18n";
 import EditableText from "./EditableText.vue";
 import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
 
 const { formatDateRange } = useUserQuery();
+const { t } = useI18n();
 const printMode = usePrintMode();
 
 const props = defineProps<{
@@ -68,7 +70,7 @@ function saveCover(name: string) {
         :model-value="coverMedia"
         :album-id="album.id"
         :photos="landscapePhotos"
-        :label="isBack ? 'Back Cover' : 'Front Cover'"
+        :label="isBack ? t('album.backCover') : t('album.frontCover')"
         @update:model-value="saveCover"
       />
     </div>

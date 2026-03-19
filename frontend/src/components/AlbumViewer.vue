@@ -12,7 +12,9 @@ import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date"
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const editorZoom = `${EDITOR_ZOOM}`;
 
 // Fallback for async components that fail to load (e.g. mapbox-gl in headless Chromium).
@@ -121,7 +123,7 @@ if (props.printMode) {
         <div class="needle-line" />
         <div class="needle-head row no-wrap items-center text-weight-medium">
           <q-icon :name="symOutlinedMap" size="1rem" />
-          <span>Add Map</span>
+          <span>{{ t("album.addMap") }}</span>
         </div>
         <div class="needle-line" />
       </div>
@@ -156,7 +158,7 @@ if (props.printMode) {
   </div>
   <div v-else class="fit relative-position">
     <q-inner-loading
-      :label="`Loading '${album.title || album.id}'...`"
+      :label="t('album.loading', { name: album.title || album.id })"
       showing
     />
   </div>

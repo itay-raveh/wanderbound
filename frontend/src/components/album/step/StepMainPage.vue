@@ -1,10 +1,13 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
+import { useI18n } from "vue-i18n";
 import EditableText from "../EditableText.vue";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   step: Step;
@@ -51,7 +54,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
           class="cover-media"
         />
         <div v-else class="cover-placeholder fit flex flex-center text-faint">
-          <span>Drop Step Cover</span>
+          <span>{{ t("album.dropStepCover") }}</span>
         </div>
       </template>
     </div>

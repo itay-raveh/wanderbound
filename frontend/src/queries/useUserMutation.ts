@@ -2,6 +2,7 @@ import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateUser } from "@/client";
 import type { User, UserUpdate } from "@/client";
 import { Notify } from "quasar";
+import { t } from "@/i18n";
 import { queryKeys } from "./keys";
 
 export function useUserMutation() {
@@ -24,7 +25,7 @@ export function useUserMutation() {
       if (prev) {
         cache.setQueryData(queryKeys.user(), prev);
       }
-      Notify.create({ type: "negative", message: "Failed to update preference" });
+      Notify.create({ type: "negative", message: t("error.updatePreference") });
     },
     onSettled: () => {
       void cache.invalidateQueries({ key: queryKeys.user(), exact: true });

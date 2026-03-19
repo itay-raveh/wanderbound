@@ -4,7 +4,10 @@ import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
 import { computed, nextTick, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   media: string;
@@ -110,14 +113,14 @@ function onVideoKey(e: KeyboardEvent) {
         </div>
       </div>
       <div v-if="playing" class="frame-bar row no-wrap items-center">
-        <button class="frame-step-btn flex flex-center" title="Previous frame (,)" @click="scrub(-FRAME_STEP)">
+        <button class="frame-step-btn rtl-flip flex flex-center" :title="t('album.prevFrame')" @click="scrub(-FRAME_STEP)">
           <q-icon :name="matChevronLeft" />
         </button>
         <button class="set-frame-btn row no-wrap items-center" @click="setFrame">
+          <span>{{ t("album.useAsPoster") }}</span>
           <q-icon :name="matCheck" size="1.1rem" />
-          <span>Use as poster</span>
         </button>
-        <button class="frame-step-btn flex flex-center" title="Next frame (.)" @click="scrub(FRAME_STEP)">
+        <button class="frame-step-btn rtl-flip flex flex-center" :title="t('album.nextFrame')" @click="scrub(FRAME_STEP)">
           <q-icon :name="matChevronRight" />
         </button>
       </div>
@@ -187,8 +190,10 @@ function onVideoKey(e: KeyboardEvent) {
 .frame-bar {
   position: absolute;
   bottom: 3.5rem; // clear native controls
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin: 0 auto;
   gap: var(--gap-sm);
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);

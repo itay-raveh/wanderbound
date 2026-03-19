@@ -7,6 +7,9 @@ import {
   symOutlinedClose,
 } from "@quasar/extras/material-symbols-outlined";
 import { computed, nextTick, useTemplateRef } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 type YMD = ReturnType<typeof parseYMD>;
 
@@ -68,10 +71,10 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
       class="map-control-btn cursor-pointer"
       @click="deleteMap"
     >
-      <q-tooltip>Remove map</q-tooltip>
+      <q-tooltip>{{ t("album.removeMap") }}</q-tooltip>
     </q-icon>
     <q-icon :name="symOutlinedCalendarMonth" size="1.125rem" class="map-control-btn cursor-pointer">
-      <q-tooltip>Change date range</q-tooltip>
+      <q-tooltip>{{ t("album.changeDateRange") }}</q-tooltip>
       <q-popup-proxy
         ref="popupRef"
         transition-show="scale"
@@ -97,6 +100,7 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
 .map-controls {
   position: absolute;
   top: var(--gap-md);
+  /* rtl:ignore */
   left: var(--gap-md);
   z-index: 2;
   gap: var(--gap-sm);

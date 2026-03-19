@@ -3,6 +3,7 @@ import { updateStep } from "@/client";
 import type { AlbumData, StepUpdate } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { Notify } from "quasar";
+import { t } from "@/i18n";
 import { queryKeys } from "./keys";
 
 export function useStepMutation() {
@@ -35,7 +36,7 @@ export function useStepMutation() {
       if (ctx?.prev) {
         cache.setQueryData(queryKeys.albumData(ctx.aid), ctx.prev);
       }
-      Notify.create({ type: "negative", message: "Failed to save step" });
+      Notify.create({ type: "negative", message: t("error.saveStep") });
     },
     onSettled: (_data, _error, _vars, ctx) => {
       if (ctx?.aid) {

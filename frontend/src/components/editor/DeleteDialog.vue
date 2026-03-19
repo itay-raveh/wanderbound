@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { matDeleteOutline } from "@quasar/extras/material-icons";
+import { useI18n } from "vue-i18n";
 
 const show = defineModel<boolean>({ required: true });
 
@@ -10,6 +11,8 @@ defineProps<{
 defineEmits<{
   confirm: [];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -18,13 +21,10 @@ defineEmits<{
       <div class="confirm-icon flex flex-center text-danger">
         <q-icon :name="matDeleteOutline" size="1.5rem" />
       </div>
-      <h3 class="confirm-title text-weight-semibold text-bright">Delete all data?</h3>
-      <p class="confirm-text text-body2 text-muted">
-        This will permanently remove your uploaded data and all albums.
-        You'll need to upload again to continue.
-      </p>
+      <h3 class="confirm-title text-weight-semibold text-bright">{{ t("delete.title") }}</h3>
+      <p class="confirm-text text-body2 text-muted">{{ t("delete.body") }}</p>
       <div class="confirm-actions row no-wrap q-gutter-x-sm">
-        <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">Cancel</q-btn>
+        <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{ t("delete.cancel") }}</q-btn>
         <q-btn
           flat
           no-caps
@@ -32,7 +32,7 @@ defineEmits<{
           class="col text-body2 bg-danger text-white"
           @click="$emit('confirm')"
         >
-          {{ deleting ? "Deleting..." : "Delete" }}
+          {{ deleting ? t("delete.deleting") : t("delete.confirm") }}
         </q-btn>
       </div>
     </q-card>
