@@ -1,12 +1,14 @@
 <script lang="ts" setup>
-import type { DateRange } from "@/client";
+import type { DateRange, Step } from "@/client";
+import { useAlbum } from "@/composables/useAlbum";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { isoDate, parseYMD, qDateNavBounds, toQDate, ymdToIso } from "@/utils/date";
+import { parseYMD, toQDate, ymdToIso } from "@/utils/date";
+import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import {
   symOutlinedCalendarMonth,
   symOutlinedClose,
 } from "@quasar/extras/material-symbols-outlined";
-import { computed, nextTick, useTemplateRef } from "vue";
+import { nextTick, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -18,23 +20,14 @@ const props = defineProps<{
   mapsRanges: DateRange[];
   rangeIdx: number;
   dateRange: DateRange;
-  steps: { datetime: string }[];
+  steps: Step[];
 }>();
 
+const { colors } = useAlbum();
 const albumMutation = useAlbumMutation(() => props.albumId);
 
-/** QDate-format dates of visible steps — for date picker `options` prop. */
-const stepQDates = computed(() => {
-  const set = new Set<string>();
-  for (const s of props.steps) set.add(toQDate(isoDate(s.datetime)));
-  return set;
-});
-
-const nav = computed(() => qDateNavBounds(props.steps));
-
 function endDateOptions(qdate: string) {
-  const qStart = toQDate(props.dateRange[0]);
-  return qdate >= qStart && stepQDates.value.has(qdate);
+  return qdate >= toQDate(props.dateRange[0]);
 }
 
 function deleteMap() {
@@ -81,14 +74,13 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
         transition-hide="scale"
         @before-show="onPopupShow"
       >
-        <q-date
+        <StepDatePicker
           ref="dateRef"
           :model-value="{ from: toQDate(dateRange[0]), to: toQDate(dateRange[1]) }"
+          :steps="steps"
+          :colors="colors"
           range
-          minimal
           :options="endDateOptions"
-          :navigation-min-year-month="nav.min"
-          :navigation-max-year-month="nav.max"
           @range-end="onRangeEnd"
         />
       </q-popup-proxy>

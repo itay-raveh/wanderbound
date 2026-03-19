@@ -3,7 +3,8 @@ import type { Album, AlbumUpdate, Step } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import { isoDate, parseLocalDate, qDateNavBounds, toIso, toQDate } from "@/utils/date";
+import { parseLocalDate, toIso, toQDate } from "@/utils/date";
+import StepDatePicker from "./StepDatePicker.vue";
 import {
   symOutlinedCalendarMonth,
   symOutlinedFlightTakeoff,
@@ -54,20 +55,7 @@ function onExportPdf() {
 
 type QDateRange = { from: string; to: string };
 
-/** Set of QDate-format dates that have steps — for the `options` prop. */
-const stepDates = computed(() => {
-  const set = new Set<string>();
-  for (const step of props.allSteps ?? []) {
-    set.add(toQDate(isoDate(step.datetime)));
-  }
-  return set;
-});
-
-function isStepDate(date: string): boolean {
-  return stepDates.value.has(date);
-}
-
-const nav = computed(() => qDateNavBounds(props.allSteps ?? []));
+const albumColors = computed(() => (props.album?.colors ?? {}) as Record<string, string>);
 
 /** Album date ranges → QDate model. */
 const dateRangeModel = computed(() => {
@@ -145,14 +133,12 @@ const rangeDisplay = computed(() => {
       <template #prepend>
         <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer">
           <q-popup-proxy transition-show="scale" transition-hide="scale" @before-show="onPickerOpen" @before-hide="onPickerClose">
-            <q-date
+            <StepDatePicker
               v-model="draft"
+              :steps="allSteps!"
+              :colors="albumColors"
               range
               multiple
-              minimal
-              :options="isStepDate"
-              :navigation-min-year-month="nav.min"
-              :navigation-max-year-month="nav.max"
             />
           </q-popup-proxy>
         </q-icon>
