@@ -33,27 +33,23 @@ watch(userError, (err) => {
 </script>
 
 <template>
-  <q-layout view="hHh lpr lff" class="editor-layout">
-    <EditorHeader class="print-hide">
-      <AlbumToolbar
-        v-if="albumIds"
-        v-model:album-id="selectedAlbumId"
-        :album="album ?? undefined"
-        :album-ids="albumIds"
-        :all-steps="albumData?.steps"
-      />
-    </EditorHeader>
+  <EditorHeader class="print-hide">
+    <AlbumToolbar
+      v-if="albumIds"
+      v-model:album-id="selectedAlbumId"
+      :album="album ?? undefined"
+      :album-ids="albumIds"
+      :all-steps="albumData?.steps"
+    />
+  </EditorHeader>
 
-    <q-page-container>
-      <q-page>
-        <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
-      </q-page>
-    </q-page-container>
-  </q-layout>
+  <q-page class="editor-page">
+    <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
+  </q-page>
 </template>
 
 <style lang="scss" scoped>
-.editor-layout {
+.editor-page {
   background: var(--bg);
 }
 
@@ -69,8 +65,5 @@ watch(userError, (err) => {
     -webkit-print-color-adjust: exact;
   }
 
-  .print-hide {
-    display: none !important;
-  }
 }
 </style>

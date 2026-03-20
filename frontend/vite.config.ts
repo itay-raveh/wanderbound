@@ -3,8 +3,12 @@ import vue from "@vitejs/plugin-vue";
 import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import path from "path";
 import { defineConfig } from "vite";
+import { version } from "./package.json";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   envDir: path.resolve(__dirname, ".."),
   plugins: [
     vue({

@@ -121,6 +121,11 @@
     "downloading": "Downloading..."
   },
 
+  "footer": {
+    "contact": "Questions?",
+    "issues": "Report an issue"
+  },
+
   "screen": {
     "title": "Larger screen required",
     "body": "This app is designed for desktops and landscape tablets. Use a laptop or desktop computer, or rotate your tablet to landscape."
