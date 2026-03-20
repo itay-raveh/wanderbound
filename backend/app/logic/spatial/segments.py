@@ -492,7 +492,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
 
     if stepless.height > 0:
         df = df.with_columns(
-            pl.when(pl.col("output_id").is_in(stepless["output_id"]))
+            pl.when(pl.col("output_id").is_in(stepless["output_id"].to_list()))
             .then(pl.lit("other"))
             .otherwise(pl.col("final_mode"))
             .alias("final_mode"),
