@@ -55,11 +55,12 @@ def build_country_colors(
         # later ones. This means the primary wins unless a later
         # candidate is substantially farther from collisions.
         n = len(country.colors)
+        idx = {c: i for i, c in enumerate(country.colors)}
         best = max(
             country.colors,
             key=lambda c: (
                 _min_distance(c, assigned_colors)
-                + _PRIMARY_BONUS * (n - 1 - country.colors.index(c)) / max(n - 1, 1)
+                + _PRIMARY_BONUS * (n - 1 - idx[c]) / max(n - 1, 1)
             ),
         )
         assigned[country.code] = best

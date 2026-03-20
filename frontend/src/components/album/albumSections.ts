@@ -90,25 +90,13 @@ export function buildSections(
     const maps = mapInsertionPoints.get(step.idx);
     if (maps) {
       for (const m of maps) {
+        const base = { steps: m.steps, segments: m.segments, rangeIdx: m.rangeIdx, dateRange: m.dateRange };
         const hikeSegment = m.segments.find((s) => s.kind === "hike");
         const hasTransport = m.segments.some((s) => s.kind === "driving" || s.kind === "flight");
         if (hikeSegment && !hasTransport) {
-          result.push({
-            type: "hike",
-            steps: m.steps,
-            segments: m.segments,
-            hikeSegment,
-            rangeIdx: m.rangeIdx,
-            dateRange: m.dateRange,
-          });
+          result.push({ type: "hike" as const, ...base, hikeSegment });
         } else {
-          result.push({
-            type: "map",
-            steps: m.steps,
-            segments: m.segments,
-            rangeIdx: m.rangeIdx,
-            dateRange: m.dateRange,
-          });
+          result.push({ type: "map" as const, ...base });
         }
       }
     }
