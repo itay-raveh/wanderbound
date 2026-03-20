@@ -84,7 +84,7 @@ Dark/light mode colors are CSS custom properties on `.body--dark` / `.body--ligh
 
 ### Stat colors
 
-Centralized in `src/utils/colors.ts` as `STAT_COLORS` — used by overview page components. Add new stat colors there, not as inline hex values.
+Centralized in `src/components/album/colors.ts` as `STAT_COLORS` — used by overview page components. Add new stat colors there, not as inline hex values.
 
 ## Anti-Patterns
 - God components (150+ lines mixing layout, logic, fetching, and state)
