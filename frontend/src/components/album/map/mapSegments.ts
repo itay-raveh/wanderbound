@@ -40,7 +40,7 @@ export function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON
 }
 
 export function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJSON) {
-  (map.getSource(id))?.setData(data);
+  map.getSource<mapboxgl.GeoJSONSource>(id)?.setData(data);
 }
 
 export function removeMapLayer(map: mapboxgl.Map, id: string) {
