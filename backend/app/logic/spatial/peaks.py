@@ -73,13 +73,7 @@ async def correct_peaks(
         response = await _client.post(
             "https://overpass-api.de/api/interpreter", data={"data": query}
         )
-        if response.status_code != 200:
-            logger.warning(
-                "Overpass returned %d: %s",
-                response.status_code,
-                response.text[:200],
-            )
-            return elevs
+        response.raise_for_status()
         osm = OverpassResponse.model_validate_json(response.content)
     except (httpx.HTTPError, ValidationError) as exc:
         logger.warning("Overpass peak query failed: %s", exc)

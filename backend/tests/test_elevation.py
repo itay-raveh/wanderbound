@@ -183,8 +183,7 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(-16.19, -68.26), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json([(5327, "Pico Austria")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
@@ -201,8 +200,7 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5400.0, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json([(5327, "Pico Austria")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
@@ -219,8 +217,7 @@ class TestCorrectPeaks:
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION + 0.01)  # just over 10%
         elevs = [500.0, dem_val, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json([(osm_val, "Far Peak")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
@@ -237,8 +234,7 @@ class TestCorrectPeaks:
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION)  # exactly 10%
         elevs = [500.0, dem_val, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json([(osm_val, "Boundary Peak")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
@@ -253,8 +249,7 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json(
             [
                 (6088, "Huayna Potosi"),  # far in elevation
@@ -282,13 +277,29 @@ class TestCorrectPeaks:
         assert list(result) == elevs
 
     @pytest.mark.anyio
+    async def test_overpass_non_200_returns_original(self) -> None:
+        """Overpass HTTP status error → graceful fallback to DEM values."""
+        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
+        elevs = [500.0, 5236.0, 500.0]
+
+        mock_response = MagicMock(status_code=429)
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "429", request=MagicMock(), response=mock_response
+        )
+
+        with patch("app.logic.spatial.peaks._client") as mock_client:
+            mock_client.post = AsyncMock(return_value=mock_response)
+            result = await correct_peaks(locs, elevs)
+
+        assert list(result) == elevs
+
+    @pytest.mark.anyio
     async def test_empty_overpass_response(self) -> None:
         """Overpass returns no peaks → original elevations."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json([])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
@@ -303,8 +314,7 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 4500.0, 1000.0, 5000.0, 500.0]
 
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+        mock_response = MagicMock(status_code=200)
         mock_response.content = _overpass_json(
             [
                 (4600, "Peak A"),
