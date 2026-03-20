@@ -4,16 +4,15 @@ from collections.abc import AsyncIterable, Iterable, Sequence
 from itertools import batched
 from math import ceil
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple
+
+from app.models.polarsteps import PSStep
+from app.models.user import User
 
 from .media import Media, MediaName
 
 # Global limit on concurrent ffprobe processes across all users.
 _ffprobe_sem = asyncio.Semaphore(8)
-
-if TYPE_CHECKING:
-    from app.models.polarsteps import PSStep
-    from app.models.user import User
 
 
 class Layout(NamedTuple):

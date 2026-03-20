@@ -8,7 +8,7 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
 from itertools import batched
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 import httpx
 from aiolimiter import AsyncLimiter
@@ -16,10 +16,8 @@ from httpx import AsyncBaseTransport, AsyncHTTPTransport, Request, Response
 from pydantic import BaseModel
 
 from app.core.http import cached_client
+from app.models.polarsteps import HasLatLon
 from app.models.weather import Weather, WeatherData
-
-if TYPE_CHECKING:
-    from app.models.polarsteps import HasLatLon
 
 
 class _HasLocationDetail(Protocol):

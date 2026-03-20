@@ -8,17 +8,13 @@ matching how segments are pre-computed at user creation time.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.logic.spatial.segments import build_segments
-from app.models.segment import SegmentKind
-
-if TYPE_CHECKING:
-    from app.models.polarsteps import PSLocations, PSTrip
-    from app.models.segment import SegmentData
+from app.models.polarsteps import PSLocations, PSTrip
+from app.models.segment import SegmentData, SegmentKind
 
 # Tolerance for hike start/end times: GPS can be sparse so allow ±30 min.
 _TOL_S = 30 * 60
