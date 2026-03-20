@@ -1,5 +1,7 @@
 <script lang="ts" setup>
-import { deleteUser } from "@/client";
+import { deleteUser, logout } from "@/client";
+import { googleLogout } from "vue3-google-login";
+import { useQueryCache } from "@pinia/colada";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
 import { getLocaleOptions, resolveLocale } from "@/composables/useLocale";
@@ -14,9 +16,11 @@ import {
   matDarkMode,
   matDeleteOutline,
   matSettings,
+  matLogout,
 } from "@quasar/extras/material-icons";
 
 const router = useRouter();
+const cache = useQueryCache();
 const { user, isKm, isCelsius } = useUserQuery();
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
@@ -42,11 +46,23 @@ function onLocaleFilter(val: string, update: (fn: () => void) => void) {
   });
 }
 
+async function handleSignOut() {
+  try {
+    await logout();
+  } catch {
+    /* server down — cookie will expire naturally */
+  }
+  googleLogout();
+  void cache.invalidateQueries();
+  await router.push({ name: "login" });
+}
+
 async function handleDelete() {
   deleting.value = true;
   try {
     await deleteUser();
-    await router.push("/register");
+    void cache.invalidateQueries();
+    await router.push({ name: "login" });
   } catch {
     $q.notify({ type: "negative", message: t("settings.deleteFailed") });
   } finally {
@@ -58,8 +74,8 @@ async function handleDelete() {
 <template>
   <template v-if="user">
     <button class="settings-trigger" :class="{ open: menuOpen }">
-      <q-avatar v-if="user.profile_image_path" size="2rem" class="trigger-avatar">
-        <img :src="user.profile_image_path" :alt="user.first_name" />
+      <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
+        <img :src="user.profile_image_url" :alt="user.first_name" />
       </q-avatar>
       <div v-else class="trigger-avatar-fallback flex flex-center">
         <q-icon :name="matPerson" size="1.125rem" />
@@ -158,6 +174,11 @@ async function handleDelete() {
           </section>
 
           <q-separator class="q-my-sm" />
+
+          <button class="action-btn" @click="handleSignOut">
+            <q-icon :name="matLogout" size="1rem" />
+            {{ t("settings.signOut") }}
+          </button>
 
           <button class="danger-btn" @click="showDeleteConfirm = true">
             <q-icon :name="matDeleteOutline" size="1rem" />
@@ -306,6 +327,7 @@ async function handleDelete() {
   padding: 0 var(--gap-md);
 }
 
+.action-btn,
 .danger-btn {
   all: unset;
   cursor: pointer;
@@ -317,9 +339,21 @@ async function handleDelete() {
   border-radius: var(--radius-sm);
   font-size: var(--type-sm);
   font-weight: 500;
-  color: var(--danger);
   box-sizing: border-box;
   transition: background var(--duration-fast) ease;
+}
+
+.action-btn {
+  color: var(--text-muted);
+
+  &:hover {
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text);
+  }
+}
+
+.danger-btn {
+  color: var(--danger);
 
   &:hover {
     background: color-mix(in srgb, var(--danger) 12%, transparent);

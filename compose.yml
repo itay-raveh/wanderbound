@@ -69,6 +69,7 @@ services:
       args:
         - VITE_BACKEND_URL=https://api.${DOMAIN?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
+        - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
 
 volumes:
   db-data:

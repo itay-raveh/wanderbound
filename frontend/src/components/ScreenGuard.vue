@@ -28,11 +28,7 @@ const screenTooSmall = computed(
 .gate {
   min-height: 100vh;
   padding: 2rem;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),
-    var(--bg)
-  );
+  background: var(--page-gradient);
 }
 
 .gate-logo {

@@ -143,6 +143,12 @@ html, body, #app {
   --border-color: #3A3A50;
 }
 
+/* Derived tokens — reference theme vars, resolved lazily at use site */
+.body--dark,
+.body--light {
+  --page-gradient: linear-gradient(to bottom, color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)), var(--bg));
+}
+
 /* Custom color palette — follows Quasar convention (see quasar.dev/style/color-palette#adding-your-own-colors).
    !important matches Quasar's own color classes; `color="danger"` works on QBtn/QIcon/etc. */
 .text-bright { color: var(--text-bright) !important; }

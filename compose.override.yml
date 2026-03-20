@@ -19,6 +19,7 @@ services:
       - --reload
       - --host
       - "0.0.0.0"
+      - --proxy-headers
       - --log-config
       - logging.json
     develop:

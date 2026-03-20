@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.exc import NoResultFound
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
@@ -53,6 +54,15 @@ if settings.all_cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+app.add_middleware(
+    SessionMiddleware,  # ty: ignore[invalid-argument-type]
+    secret_key=settings.SECRET_KEY,
+    session_cookie="session",
+    max_age=30 * 86400,  # 30 days
+    same_site="lax",
+    https_only=settings.ENVIRONMENT != "local",
+)
 
 # GZip responses >= 500 bytes (added after CORS so it wraps the response last).
 app.add_middleware(GZipMiddleware, minimum_size=500)  # type: ignore[arg-type]

@@ -6,6 +6,7 @@
 !backend/scripts/
 !backend/pyproject.toml
 !backend/alembic.ini
+!backend/logging.json
 
 # Frontend
 !frontend/src/

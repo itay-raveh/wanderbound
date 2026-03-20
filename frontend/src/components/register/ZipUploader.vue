@@ -1,21 +1,30 @@
 <script lang="ts" setup>
 import { client } from "@/client/client.gen";
-import type { UserCreated } from "@/client";
+import type { UploadResult } from "@/client";
 import { useQuasar } from "quasar";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import RegisterStep from "./RegisterStep.vue";
 
-const emit = defineEmits<{
-  uploaded: [data: UserCreated];
+const props = defineProps<{
+  credential?: string;
 }>();
 
-const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users`;
+const emit = defineEmits<{
+  uploaded: [data: UploadResult];
+}>();
+
+const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users/upload`;
+
+const formFields = computed(() =>
+  props.credential ? [{ name: "credential", value: props.credential }] : [],
+);
 
 const $q = useQuasar();
 const { t } = useI18n();
 
 function onUploaded(info: { xhr: XMLHttpRequest }) {
-  const data = JSON.parse(info.xhr.responseText) as UserCreated;
+  const data = JSON.parse(info.xhr.responseText) as UploadResult;
   emit("uploaded", data);
 }
 
@@ -39,6 +48,7 @@ function onFailed() {
       auto-upload
       class="uploader full-width"
       :url="uploadUrl"
+      :form-fields="formFields"
       field-name="file"
       with-credentials
       bordered

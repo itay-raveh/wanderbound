@@ -9,6 +9,7 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
+    Request,
     status,
 )
 from fastapi.responses import FileResponse
@@ -161,9 +162,13 @@ async def generate_pdf(
     aid: str,
     user: UserDep,
     browser: BrowserDep,
+    request: Request,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> AsyncIterable[PdfEvent]:
-    async for event in render_album_pdf_stream(browser, user, aid, dark=dark):
+    session_cookie = request.cookies.get("session", "")
+    async for event in render_album_pdf_stream(
+        browser, aid, session_cookie=session_cookie, dark=dark
+    ):
         yield event
 
 

@@ -28,8 +28,11 @@ class Settings(BaseSettings):
     )
 
     API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str
     FRONTEND_URL: str
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+
+    VITE_GOOGLE_CLIENT_ID: str
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -70,5 +73,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
-
-USER_COOKIE = "uid"

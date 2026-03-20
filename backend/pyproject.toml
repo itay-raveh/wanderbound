@@ -13,7 +13,6 @@ dependencies = [
     "uvicorn<1",
     "sqlalchemy~=2.0",
     "sqlmodel<1",
-    "safezip<1",
     "psycopg[binary]~=3.1",
     "alembic~=1.12",
     "numpy~=2.0",
@@ -23,13 +22,21 @@ dependencies = [
     "polars~=1.38",
     "playwright~=1.52",
     "coloraide~=8.7",
-    "aiolimiter>=1.2.1",
+    "aiolimiter~=1.2",
     "simplification~=0.7",
-    "pypdf>=6.8.0",
+    "pypdf~=6.8",
+    "itsdangerous~=2.2",
+    "pyjwt[crypto]~=2.0",
 ]
 
 [dependency-groups]
-dev = ["ruff<1", "ty<1", "deptry<1", "pytest~=9.0"]
+dev = [
+    "ruff<1",
+    "ty<1",
+    "deptry<1",
+    "pytest~=9.0",
+    "aiosqlite>=0.22.1",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -91,9 +98,10 @@ DEP002 = [
     "uvicorn",
     "python-multipart",
     "psycopg",  # SQLAlchemy driver loaded via postgresql+psycopg:// URI
+    "itsdangerous",  # Required by Starlette SessionMiddleware at runtime
 ]
 # DEP003 = "Transitive dependency"
-DEP003 = ["app"]
+DEP003 = ["app", "starlette"]  # starlette bundled with FastAPI (SessionMiddleware)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

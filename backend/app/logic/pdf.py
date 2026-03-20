@@ -11,13 +11,11 @@ from typing import TYPE_CHECKING, Annotated, Literal
 from pydantic import BaseModel, Field
 from pypdf import PdfWriter
 
-from app.core.config import USER_COOKIE, settings
+from app.core.config import settings
 
 if TYPE_CHECKING:
     from playwright._impl._api_structures import PdfMargins
     from playwright.async_api import Browser, Page
-
-    from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +141,11 @@ async def _generate_pdf_stream(
 
 
 async def render_album_pdf_stream(
-    browser: Browser, user: User, aid: str, *, dark: bool = True
+    browser: Browser,
+    aid: str,
+    *,
+    session_cookie: str,
+    dark: bool = True,
 ) -> AsyncIterator[PdfEvent]:
     """Top-level SSE generator: queued → loading → rendering → merging → done/error."""
     # Yield queued event while waiting for the semaphore
@@ -161,8 +163,8 @@ async def render_album_pdf_stream(
                 await context.add_cookies(
                     [
                         {
-                            "name": USER_COOKIE,
-                            "value": str(user.id),
+                            "name": "session",
+                            "value": session_cookie,
                             "url": settings.FRONTEND_URL,
                         },
                     ]

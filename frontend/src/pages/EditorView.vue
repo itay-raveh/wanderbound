@@ -7,9 +7,6 @@ import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
 import { useLocale } from "@/composables/useLocale";
 import { ref, computed, watch } from "vue";
-import { useRouter } from "vue-router";
-
-const router = useRouter();
 
 const LAST_ALBUM_KEY = "last-album-id";
 const selectedAlbumId = ref<string | null>(localStorage.getItem(LAST_ALBUM_KEY));
@@ -19,16 +16,12 @@ watch(selectedAlbumId, (id) => {
   else localStorage.removeItem(LAST_ALBUM_KEY);
 });
 
-const { data: userData, error: userError, locale } = useUserQuery();
+const { data: userData, locale } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
 
 useLocale(locale);
-
-watch(userError, (err) => {
-  if (err) void router.push("/register");
-});
 
 </script>
 

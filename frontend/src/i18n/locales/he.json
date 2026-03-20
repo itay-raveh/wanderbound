@@ -1,6 +1,11 @@
 {
   "brand": "יוצר האלבומים של Polarsteps",
 
+  "login": {
+    "signIn": "התחברו עם Google",
+    "signInFailed": "ההתחברות נכשלה. נסו שוב."
+  },
+
   "register": {
     "tagline": "הפכו את הטיולים שלכם לאלבומי תמונות מרהיבים",
     "getDataTitle": "הורידו את המידע מ-Polarsteps",
@@ -40,6 +45,7 @@
     "distance": "מרחק",
     "temperature": "טמפרטורה",
     "language": "שפה",
+    "signOut": "התנתקו",
     "deleteAll": "מחיקת כל הנתונים",
     "deleteFailed": "מחיקת המשתמש נכשלה."
   },

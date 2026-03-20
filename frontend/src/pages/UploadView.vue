@@ -2,8 +2,9 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
-import type { UserCreated } from "@/client";
+import type { UploadResult } from "@/client";
 import { useProcessingStream } from "@/composables/useProcessingStream";
+import { CREDENTIAL_KEY } from "@/router";
 
 import RegisterHero from "@/components/register/RegisterHero.vue";
 import DataInstructions from "@/components/register/DataInstructions.vue";
@@ -18,7 +19,8 @@ const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
 const router = useRouter();
 
-const uploadResult = ref<UserCreated | null>(null);
+const credential = sessionStorage.getItem(CREDENTIAL_KEY) ?? undefined;
+const uploadResult = ref<UploadResult | null>(null);
 
 const stream = useProcessingStream();
 
@@ -26,7 +28,7 @@ onMounted(() => {
   try {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
-      uploadResult.value = JSON.parse(stored) as UserCreated;
+      uploadResult.value = JSON.parse(stored) as UploadResult;
       stream.start();
     }
   } catch {
@@ -34,9 +36,10 @@ onMounted(() => {
   }
 });
 
-function onUploaded(data: UserCreated) {
+function onUploaded(data: UploadResult) {
   uploadResult.value = data;
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  sessionStorage.removeItem(CREDENTIAL_KEY);
   stream.start();
 }
 
@@ -48,20 +51,20 @@ function onRetry() {
 
 function onDone() {
   sessionStorage.removeItem(STORAGE_KEY);
-  void router.push("/");
+  void router.push({ name: "editor" });
 }
 </script>
 
 <template>
-  <q-page class="register-page flex flex-center no-wrap">
-    <div class="register-content">
+  <q-page class="upload-page flex flex-center no-wrap">
+    <div class="upload-content">
       <RegisterHero />
 
       <!-- Upload view -->
       <q-card v-if="!uploadResult" class="steps-card fade-up">
         <DataInstructions />
         <q-separator class="q-my-md" />
-        <ZipUploader v-if="mapboxSupported" @uploaded="onUploaded" />
+        <ZipUploader v-if="mapboxSupported" :credential="credential" @uploaded="onUploaded" />
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
 
@@ -82,16 +85,12 @@ function onDone() {
 </template>
 
 <style scoped>
-.register-page {
+.upload-page {
   min-height: 100%;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),
-    var(--bg)
-  );
+  background: var(--page-gradient);
 }
 
-.register-content {
+.upload-content {
   width: 100%;
   max-width: 32rem;
 }
@@ -100,5 +99,4 @@ function onDone() {
   padding: 1.75rem 2rem;
   animation-delay: 0.15s;
 }
-
 </style>

@@ -2,48 +2,112 @@ import asyncio
 import logging
 import shutil
 from collections.abc import AsyncIterable
+from typing import Annotated, cast
 from zipfile import BadZipFile
 
 from fastapi import (
     APIRouter,
+    Form,
     HTTPException,
-    Response,
+    Request,
     UploadFile,
     status,
 )
 from fastapi.sse import EventSourceResponse
-from safezip import SafezipError
 
-from app.core.config import USER_COOKIE
 from app.logic.processing import ProcessingEvent
 from app.logic.session import process_stream
-from app.logic.upload import UserCreated, user_from_zip
-from app.models.user import User, UserUpdate
+from app.logic.upload import UploadResult, extract_and_scan
+from app.models.user import GoogleIdentity, User, UserUpdate
 
 from ..deps import SessionDep, UserDep
+from .auth import verify_google_credential
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("")
-async def create_user(file: UploadFile, response: Response) -> UserCreated:
+@router.post("/upload")
+async def upload_data(
+    file: UploadFile,
+    request: Request,
+    session: SessionDep,
+    credential: Annotated[str | None, Form()] = None,
+) -> UploadResult:
+    uid: int | None = request.session.get("uid")
+    google: GoogleIdentity | None = None
+    if not uid:
+        if not credential:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        google = await verify_google_credential(credential)
+
     logger.info(
         "Extracting '%s' (%d MB)",
         file.filename,
         (file.size or 0) // 1_048_576,
     )
     try:
-        result = await user_from_zip(file.file)
-    except (BadZipFile, SafezipError, OSError) as e:
+        temp_folder, ps_user, trips = await asyncio.to_thread(
+            extract_and_scan, file.file
+        )
+    except (BadZipFile, OSError) as e:
         logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
         raise HTTPException(
             status.HTTP_406_NOT_ACCEPTABLE,
             detail="Bad ZIP",
         ) from e
-    response.set_cookie(USER_COOKIE, str(result.user.id), httponly=True, samesite="lax")
-    return result
+
+    album_ids = [t.id for t in trips]
+
+    # Validate re-upload user (deferred to avoid holding DB during extraction)
+    existing = await session.get(User, uid) if uid else None
+    if uid and not existing:
+        await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        if existing is not None:
+            # Re-upload: update existing user with new ZIP data
+            existing.album_ids = album_ids
+            existing.living_location = ps_user.living_location
+            existing.first_name = existing.first_name or ps_user.first_name
+            existing.last_name = existing.last_name or ps_user.last_name
+            session.add(existing)
+            await session.commit()
+            user = existing
+            logger.info("User %d re-uploaded ZIP", user.id)
+        else:
+            # New user: google is guaranteed set (uid was absent → credential verified)
+            g = cast("GoogleIdentity", google)
+            user = User(
+                id=ps_user.id,
+                first_name=g.first_name or ps_user.first_name,
+                last_name=g.last_name or ps_user.last_name,
+                locale=ps_user.locale,
+                unit_is_km=ps_user.unit_is_km,
+                temperature_is_celsius=ps_user.temperature_is_celsius,
+                google_sub=g.sub,
+                profile_image_url=(str(g.picture) if g.picture else None),
+                living_location=ps_user.living_location,
+                album_ids=album_ids,
+            )
+            session.add(user)
+            await session.commit()
+            request.session.clear()
+            request.session["uid"] = user.id
+            logger.info("New user %d created via upload", user.id)
+
+        # Move extracted data to user's permanent folder
+        target = user.folder
+        if target.exists():
+            await asyncio.to_thread(shutil.rmtree, target)
+        await asyncio.to_thread(temp_folder.rename, target)
+    except Exception:
+        await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
+        raise
+
+    return UploadResult(user=user, trips=trips)
 
 
 @router.get(
@@ -66,15 +130,14 @@ async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) ->
     user.sqlmodel_update(update.model_dump(exclude_unset=True))
     session.add(user)
     await session.commit()
-    await session.refresh(user)
     return user
 
 
 @router.delete("")
-async def delete_user(user: UserDep, session: SessionDep, response: Response) -> None:
+async def delete_user(user: UserDep, session: SessionDep, request: Request) -> None:
     folder = user.folder
     await session.delete(user)
     await session.commit()
     await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
-    response.delete_cookie(USER_COOKIE)
+    request.session.clear()
     logger.info("User %d deleted", user.id)

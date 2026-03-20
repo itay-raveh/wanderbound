@@ -1,6 +1,11 @@
 {
   "brand": "Polarsteps Album Generator",
 
+  "login": {
+    "signIn": "Sign in with Google",
+    "signInFailed": "Sign-in failed. Please try again."
+  },
+
   "register": {
     "tagline": "Turn your trips into beautiful photo albums",
     "getDataTitle": "Get your data from Polarsteps",
@@ -40,6 +45,7 @@
     "distance": "Distance",
     "temperature": "Temperature",
     "language": "Language",
+    "signOut": "Sign out",
     "deleteAll": "Delete all data",
     "deleteFailed": "Failed to delete user."
   },
