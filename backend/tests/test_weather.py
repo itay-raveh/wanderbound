@@ -238,10 +238,13 @@ class TestBuildWeathers:
     async def test_429_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
         mock_response = MagicMock(status_code=429)
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "429", request=MagicMock(), response=mock_response
+        )
 
         with patch("app.services.open_meteo._client") as mock_client:
             mock_client.get = AsyncMock(return_value=mock_response)
-            with pytest.raises(RuntimeError, match="Weather API returned 429"):
+            with pytest.raises(RuntimeError, match="Weather API error"):
                 async for _ in build_weathers([step]):
                     pass
 

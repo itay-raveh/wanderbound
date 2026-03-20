@@ -187,12 +187,10 @@ async def _fetch_one(step: _StepLike) -> Weather:
                 "timezone": "auto",
             },
         )
+        response.raise_for_status()
     except httpx.HTTPError as e:
-        msg = f"Weather API unavailable for {step.location.detail}"
+        msg = f"Weather API error for {step.location.detail}"
         raise RuntimeError(msg) from e
-    if response.status_code != 200:
-        msg = f"Weather API returned {response.status_code} for {step.location.detail}"
-        raise RuntimeError(msg)
     result = _LocationResult.model_validate_json(response.content)
     weather = _weather_from_result(step, result)
     if weather is None:
