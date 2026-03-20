@@ -29,18 +29,14 @@ class UserCreated(BaseModel):
     trips: list[TripMeta]
 
 
-def _extract_user(file: BinaryIO) -> UserCreate:
+def _extract_and_scan(file: BinaryIO) -> tuple[UserCreate, list[TripMeta]]:
+    """Extract ZIP and scan trips (all blocking I/O, run in a thread)."""
     folder = Path(tempfile.mkdtemp(dir=settings.USERS_FOLDER))
     safe_extract(file, folder)
     user = UserCreate.model_validate_json((folder / "user" / "user.json").read_bytes())
     if user.folder.exists():
         shutil.rmtree(user.folder)
     folder.rename(user.folder)
-    return user
-
-
-async def user_from_zip(file: BinaryIO) -> UserCreated:
-    user = await asyncio.to_thread(_extract_user, file)
 
     trips: list[TripMeta] = []
     for trip_dir in sorted(user.trips_folder.iterdir()):
@@ -53,8 +49,12 @@ async def user_from_zip(file: BinaryIO) -> UserCreated:
                 country_codes=list({s.location.country_code for s in trip.all_steps}),
             )
         )
+    return user, trips
 
-    user = User.model_validate(user, update={"album_ids": [t.id for t in trips]})
+
+async def user_from_zip(file: BinaryIO) -> UserCreated:
+    user_create, trips = await asyncio.to_thread(_extract_and_scan, file)
+    user = User.model_validate(user_create, update={"album_ids": [t.id for t in trips]})
 
     async with AsyncSession(engine) as session:
         existing = await session.get(User, user.id)
