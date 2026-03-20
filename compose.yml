@@ -3,6 +3,21 @@ services:
   db:
     image: postgres:18
     restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, SETGID, SETUID]
+    read_only: true
+    shm_size: 128m
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+          pids: 256
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
@@ -24,6 +39,18 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+          pids: 64
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +66,20 @@ services:
   backend:
     image: 'backend:${TAG:-latest}'
     restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    init: true
+    shm_size: 256m
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+          pids: 512
     depends_on:
       db:
         condition: service_healthy
@@ -63,6 +104,20 @@ services:
   frontend:
     image: 'frontend:${TAG:-latest}'
     restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:uid=101,gid=101
+      - /var/run:uid=101,gid=101
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+          pids: 128
     build:
       context: .
       dockerfile: frontend/Dockerfile

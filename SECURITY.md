@@ -152,54 +152,29 @@ Used `puremagic` instead of `python-magic` — zero system dependencies (no
 
 ---
 
-### 7. Docker Compose: security_opt, cap_drop, resource limits
+### 7. ~~Docker Compose: security_opt, cap_drop, resource limits~~ DONE
 
-**Current state:** `compose.yml` has no `security_opt`, `cap_drop`, or resource
-limits on any service. Containers have all default Linux capabilities.
+**Implemented:** All four services hardened in `compose.yml`:
 
-**Problem:**
-- No `no-new-privileges` → a setuid binary inside the container can escalate to
-  root.
-- No `cap_drop` → containers have capabilities like `NET_RAW`, `SYS_CHROOT`,
-  `CHOWN`, `SETUID`, etc., far more than a web app needs.
-- No resource limits → a single container can consume all host memory/CPU (DoS).
+- **`no-new-privileges:true`** on all services — blocks setuid-based privilege
+  escalation.
+- **`cap_drop: [ALL]`** on all services — zero default Linux capabilities.
+  Only `db` gets `cap_add: [CHOWN, FOWNER, SETGID, SETUID]` (needed by
+  postgres entrypoint for `chown`/`gosu`). Backend, frontend, and prestart
+  need zero capabilities.
+- **`read_only: true`** on all services — immutable root filesystem. Writable
+  paths via `tmpfs` (`/tmp`, `/var/run/postgresql`, `/var/cache/nginx`) and
+  existing named volumes (`app-data`, `db-data`).
+- **Resource limits** — memory and CPU per service via `deploy.resources.limits`.
+- **`pids_limit`** — fork bomb protection per service.
+- **`shm_size: 256m`** on backend — Chromium needs shared memory for rendering
+  (Docker default 64MB is too small).
+- **`init: true`** on backend — proper zombie process reaping for ffmpeg and
+  Chromium subprocesses.
+- **nginx tmpfs** uses `uid=101,gid=101` so the non-root `nginx` user can write
+  to cache/run directories.
 
-**Fix — add to each service in `compose.yml`:**
-
-```yaml
-services:
-  backend:
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
-    deploy:
-      resources:
-        limits:
-          memory: 4G     # Playwright + ffmpeg can be hungry
-          cpus: "2.0"
-
-  frontend:
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
-    cap_add: ["NET_BIND_SERVICE"]   # port 80
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-
-  db:
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "1.0"
-
-  prestart:
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
-```
+**File:** `compose.yml`
 
 ---
 
@@ -810,7 +785,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 5. ~~**#4** Security headers~~ — DONE (CSP, X-Frame-Options, MIME sniff, referrer, permissions; shared snippet)
 6. ~~**#8** Proxy headers~~ — DONE (uvicorn `--proxy-headers` + nginx `X-Forwarded-For`/`X-Forwarded-Proto`)
 7. ~~**#5** Non-root containers~~ — DONE (backend: `appuser`, frontend: `nginx` on port 8080)
-8. **#7** Docker security_opt + cap_drop + resource limits
+8. ~~**#7** Docker security_opt + cap_drop + resource limits~~ — DONE (no-new-privileges, cap_drop ALL, read_only, resource limits, pids_limit, shm_size, init)
 9. ~~**#6** MIME validation~~ — DONE (puremagic: ZIP magic bytes pre-extraction + inner file type check post-extraction)
 10. **#10** Network segmentation
 11. **#11** Localhost-bind dev ports
