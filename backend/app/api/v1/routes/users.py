@@ -32,7 +32,7 @@ async def create_user(file: UploadFile, response: Response) -> UserCreated:
     logger.info(
         "Extracting '%s' (%d MB)",
         file.filename,
-        (file.size or 0) / 1024 // 1024,
+        (file.size or 0) // 1_048_576,
     )
     try:
         result = await user_from_zip(file.file)

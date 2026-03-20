@@ -17,6 +17,14 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 type Coords = [number, number][];
 type Profile = "driving" | "walking";
 
+// Mapbox API response shapes (only the fields we use)
+interface MatchingResponse {
+  matchings?: { geometry?: { type: string; coordinates: Coords } }[];
+}
+interface DirectionsResponse {
+  routes?: { geometry?: { coordinates: Coords } }[];
+}
+
 // ── Density classification ───────────────────────────────────────────
 
 /** Average spacing above this threshold triggers Directions API instead of Map Matching. */
@@ -65,8 +73,7 @@ async function chunkedRoute(
 
 // ── Shared fetch ────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchMapboxJson(url: string, label: string): Promise<any> {
+async function fetchMapboxJson<T>(url: string, label: string): Promise<T | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -106,14 +113,13 @@ async function matchChunk(
 ): Promise<Coords | null> {
   const reduced = reduceCoords(coords, MATCH_MAX_COORDS);
   const url = `https://api.mapbox.com/matching/v5/mapbox/${profile}/${encodeCoords(reduced)}?geometries=geojson&overview=full&tidy=true&access_token=${MAPBOX_TOKEN}`;
-  const data = await fetchMapboxJson(url, "matching");
+  const data = await fetchMapboxJson<MatchingResponse>(url, "matching");
   if (!data?.matchings?.length) return null;
 
   const allCoords: Coords = [];
   for (const matching of data.matchings) {
     if (matching.geometry?.type === "LineString") {
-      const mc = matching.geometry.coordinates as Coords;
-      allCoords.push(...(allCoords.length > 0 ? mc.slice(1) : mc));
+      allCoords.push(...(allCoords.length > 0 ? matching.geometry.coordinates.slice(1) : matching.geometry.coordinates));
     }
   }
   return allCoords.length >= 2 ? allCoords : null;
@@ -131,10 +137,10 @@ async function directionsChunk(
   profile: Profile,
 ): Promise<Coords | null> {
   const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${encodeCoords(coords)}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
-  const data = await fetchMapboxJson(url, "directions");
+  const data = await fetchMapboxJson<DirectionsResponse>(url, "directions");
   const route = data?.routes?.[0];
   if (!route?.geometry?.coordinates?.length) return null;
-  return route.geometry.coordinates as Coords;
+  return route.geometry.coordinates;
 }
 
 async function directionsRoute(coords: Coords, profile: Profile): Promise<Coords | null> {
