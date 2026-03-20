@@ -172,13 +172,29 @@ function drawHike(
   }
 }
 
-/** Helpers for batched driving/walking rendering (avoids overlap stacking). */
-const ROUTE_SOURCE = {
-  drivingShadow: `${LAYER_PREFIX}drive-shadow`,
-  driving: `${LAYER_PREFIX}drive`,
-  walkingShadow: `${LAYER_PREFIX}walk-shadow`,
-  walking: `${LAYER_PREFIX}walk`,
-} as const;
+/** Per-kind rendering config for driving/walking route layers. */
+interface RouteStyle {
+  sourceId: string;
+  shadowId: string;
+  width: number;
+  shadowWidth: number;
+  shadowOpacity: number;
+  dasharray?: number[];
+}
+
+const ROUTE_STYLES: Record<"driving" | "walking", RouteStyle> = {
+  driving: {
+    sourceId: `${LAYER_PREFIX}drive`,
+    shadowId: `${LAYER_PREFIX}drive-shadow`,
+    width: 4, shadowWidth: 12, shadowOpacity: 0.7,
+  },
+  walking: {
+    sourceId: `${LAYER_PREFIX}walk`,
+    shadowId: `${LAYER_PREFIX}walk-shadow`,
+    width: 3, shadowWidth: 10, shadowOpacity: 0.6,
+    dasharray: [2, 3],
+  },
+};
 
 function multiLine(
   lines: [number, number][][],
@@ -192,42 +208,26 @@ function multiLine(
 
 function drawRouteLayers(
   m: mapboxgl.Map,
-  drivingCoords: [number, number][][],
-  walkingCoords: [number, number][][],
+  coordsByKind: Record<"driving" | "walking", [number, number][][]>,
   faint: boolean,
 ) {
-  if (!faint) {
-    if (drivingCoords.length) {
-      addLine(m,ROUTE_SOURCE.drivingShadow, multiLine(drivingCoords), {
+  for (const [kind, style] of Object.entries(ROUTE_STYLES) as [keyof typeof ROUTE_STYLES, RouteStyle][]) {
+    const coords = coordsByKind[kind];
+    if (!coords.length) continue;
+    const data = multiLine(coords);
+    if (!faint) {
+      addLine(m, style.shadowId, data, {
         "line-color": "#000000",
-        "line-width": 12,
+        "line-width": style.shadowWidth,
         "line-blur": 8,
-        "line-opacity": 0.7,
+        "line-opacity": style.shadowOpacity,
       });
     }
-    if (walkingCoords.length) {
-      addLine(m,ROUTE_SOURCE.walkingShadow, multiLine(walkingCoords), {
-        "line-color": "#000000",
-        "line-width": 10,
-        "line-blur": 8,
-        "line-opacity": 0.6,
-      });
-    }
-  }
-
-  if (drivingCoords.length) {
-    addLine(m,ROUTE_SOURCE.driving, multiLine(drivingCoords), {
+    addLine(m, style.sourceId, data, {
       "line-color": "#ffffff",
-      "line-width": faint ? 1.5 : 4,
+      "line-width": faint ? 1.5 : style.width,
       "line-opacity": faint ? 0.3 : 1,
-    });
-  }
-  if (walkingCoords.length) {
-    addLine(m,ROUTE_SOURCE.walking, multiLine(walkingCoords), {
-      "line-color": "#ffffff",
-      "line-width": faint ? 1.5 : 3,
-      "line-dasharray": [2, 3],
-      "line-opacity": faint ? 0.3 : 1,
+      ...(style.dasharray ? { "line-dasharray": style.dasharray } : {}),
     });
   }
 }
@@ -276,8 +276,10 @@ export function drawSegmentsAndMarkers(
   const useRouting = !faint && steps.length < 30;
 
   // Collect driving/walking coords for batched rendering (avoids overlap stacking).
-  const drivingCoords: [number, number][][] = [];
-  const walkingCoords: [number, number][][] = [];
+  const routeBuckets: Record<"driving" | "walking", [number, number][][]> = {
+    driving: [],
+    walking: [],
+  };
 
   const stylePrefix = faint ? "f-" : "";
   for (const [i, seg] of segments.entries()) {
@@ -308,7 +310,8 @@ export function drawSegmentsAndMarkers(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        const bucket = kind === "driving" ? drivingCoords : walkingCoords;
+        const style = ROUTE_STYLES[kind];
+        const bucket = routeBuckets[kind];
         const idx = bucket.length;
         bucket.push(coords);
         allCoords.push(...coords);
@@ -318,12 +321,9 @@ export function drawSegmentsAndMarkers(
           if (!routed || gen !== drawGenerations.get(m)) return;
           bucket[idx] = routed;
           try {
-            const sourceId = kind === "driving" ? ROUTE_SOURCE.driving : ROUTE_SOURCE.walking;
-            const shadowId = kind === "driving" ? ROUTE_SOURCE.drivingShadow : ROUTE_SOURCE.walkingShadow;
             const fc = multiLine(bucket);
-            for (const srcId of [shadowId, sourceId]) {
-              setSourceData(m, srcId, fc);
-            }
+            setSourceData(m, style.shadowId, fc);
+            setSourceData(m, style.sourceId, fc);
           } catch {
             // Source removed before routing completed (e.g. navigated away)
           }
@@ -334,7 +334,7 @@ export function drawSegmentsAndMarkers(
   }
 
   // Draw all driving/walking as batched layers (single source per kind).
-  drawRouteLayers(m, drivingCoords, walkingCoords, faint);
+  drawRouteLayers(m, routeBuckets, faint);
 
   for (const step of steps) {
     const lngLat: [number, number] = [step.location.lon, step.location.lat];
