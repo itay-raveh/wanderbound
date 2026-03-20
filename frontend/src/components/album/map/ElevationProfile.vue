@@ -63,11 +63,14 @@ const chart = computed(() => {
   // Map distance fraction [0,1] to x pixel coordinate
   const toX = (frac: number) =>
     leftPad + (rtl ? 1 - frac : frac) * plotW;
+  // Map elevation to y pixel coordinate
+  const toY = (elev: number) =>
+    yOff + topPad + (1 - (elev - yMin) / yRange) * plotH;
 
-  // Map data to pixel coords (yOff shifts everything down when fade area is present)
+  // Map data to pixel coords
   const dataPoints = props.points.map((p) => ({
     x: toX(p.dist / totalDist),
-    y: yOff + topPad + (1 - (p.elevation - yMin) / yRange) * plotH,
+    y: toY(p.elevation),
   }));
 
   const linePath = dataPoints
@@ -76,7 +79,8 @@ const chart = computed(() => {
 
   const last = dataPoints[dataPoints.length - 1]!;
   const first = dataPoints[0]!;
-  const areaPath = `${linePath} L${last.x.toFixed(1)},${yOff + topPad + plotH} L${first.x.toFixed(1)},${yOff + topPad + plotH} Z`;
+  const bottomY = yOff + topPad + plotH;
+  const areaPath = `${linePath} L${last.x.toFixed(1)},${bottomY} L${first.x.toFixed(1)},${bottomY} Z`;
 
   // Unit conversion for displayed values
   const elevFactor = props.isKm ? 1 : M_TO_FT;
@@ -86,20 +90,10 @@ const chart = computed(() => {
   // Y-axis sits on the reading-start side of the chart
   const yLabelX = rtl ? leftPad + plotW + 10 : leftPad - 4;
   const yAnchor = rtl ? "start" : "end";
-  const yLabels = [
-    {
-      value: Math.round(maxElev * elevFactor),
-      y: yOff + topPad + (1 - (maxElev - yMin) / yRange) * plotH,
-    },
-    {
-      value: Math.round(midElev * elevFactor),
-      y: yOff + topPad + (1 - (midElev - yMin) / yRange) * plotH,
-    },
-    {
-      value: Math.round(minElev * elevFactor),
-      y: yOff + topPad + (1 - (minElev - yMin) / yRange) * plotH,
-    },
-  ];
+  const yLabels = [maxElev, midElev, minElev].map((elev) => ({
+    value: Math.round(elev * elevFactor),
+    y: toY(elev),
+  }));
   const elevUnit = t(props.isKm ? "overview.m" : "overview.ft");
 
   // X-axis labels: 0, ~1/3, ~2/3, end
