@@ -19,6 +19,10 @@ const router = createRouter({
       name: "print",
       component: () => import("@/pages/PrintView.vue"),
     },
+    {
+      path: "/:pathMatch(.*)*",
+      redirect: "/",
+    },
   ],
 });
 
