@@ -21,8 +21,7 @@ export function useSegmentBoundaryMutation() {
     onSuccess: (data) => {
       cache.setQueryData(queryKeys.albumData(albumId.value), data);
     },
-    onError: (error) => {
-      console.error("Boundary adjustment failed:", error);
+    onError: () => {
       Notify.create({ type: "negative", message: t("error.adjustBoundary") });
     },
   });
