@@ -160,12 +160,12 @@ export async function routeSegment(
   const key = `${segment.start_time}:${segment.end_time}`;
   const inflight = routeCache.get(key);
   if (inflight) {
-    console.info(`[routing] cache hit: ${key}`);
+    console.debug(`[routing] cache hit: ${key}`);
     return inflight;
   }
 
   const sparse = isSparse(coords);
-  console.info(
+  console.debug(
     `[routing] ${key}: ${coords.length} pts, ${sparse ? "sparse → directions" : "dense → matching"}, profile=${profile}`,
   );
 
@@ -177,7 +177,7 @@ export async function routeSegment(
 
   const result = await promise;
   if (result) {
-    console.info(`[routing] ${key}: ${coords.length} → ${result.length} pts`);
+    console.debug(`[routing] ${key}: ${coords.length} → ${result.length} pts`);
   } else {
     routeCache.delete(key);
     console.warn(`[routing] no result for ${key}`);

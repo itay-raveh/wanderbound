@@ -4,6 +4,13 @@ import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type MaybeRefOr
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
+// Disable telemetry to avoid CORS errors from events.mapbox.com
+Object.defineProperty(
+  (mapboxgl as unknown as { config: object }).config,
+  "EVENTS_URL",
+  { value: null },
+);
+
 // Register RTL text plugin once (needed for Hebrew/Arabic label rendering)
 mapboxgl.setRTLTextPlugin(
   "https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js",
