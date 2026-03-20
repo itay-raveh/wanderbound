@@ -64,11 +64,15 @@ async def _run_phase(
         return
     total = len(files)
     await queue.put(PhaseUpdate(phase=phase, done=0, total=total))
-    for done, coro in enumerate(asyncio.as_completed([worker(p) for p in files]), 1):
+
+    async def _safe(p: Path) -> None:
         try:
-            await coro
+            await worker(p)
         except (RuntimeError, OSError) as exc:
-            logger.warning("%s failed: %s", phase, exc)
+            logger.warning("%s failed for %s: %s", phase, p.name, exc)
+
+    for done, coro in enumerate(asyncio.as_completed([_safe(p) for p in files]), 1):
+        await coro
         await queue.put(PhaseUpdate(phase=phase, done=done, total=total))
 
 
@@ -265,7 +269,7 @@ async def _media_pipeline(
     try:
         cover_photo = await asyncio.to_thread(Media.load, cover_dest)
         cover_orientation = cover_photo.orientation
-    except Exception:  # noqa: BLE001
+    except OSError, ValueError:
         logger.warning(
             "Could not determine cover orientation for %s, defaulting to 'l'",
             cover_name,

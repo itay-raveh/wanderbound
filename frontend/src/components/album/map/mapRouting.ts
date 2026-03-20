@@ -63,6 +63,23 @@ async function chunkedRoute(
   return allCoords.length >= 2 ? allCoords : null;
 }
 
+// ── Shared fetch ────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchMapboxJson(url: string, label: string): Promise<any> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[routing] ${label} API error: ${res.status}`);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.warn(`[routing] ${label} fetch error:`, e);
+    return null;
+  }
+}
+
 // ── Map Matching API (dense traces) ─────────────────────────────────
 
 const MATCH_MAX_COORDS = 100;
@@ -89,29 +106,17 @@ async function matchChunk(
 ): Promise<Coords | null> {
   const reduced = reduceCoords(coords, MATCH_MAX_COORDS);
   const url = `https://api.mapbox.com/matching/v5/mapbox/${profile}/${encodeCoords(reduced)}?geometries=geojson&overview=full&tidy=true&access_token=${MAPBOX_TOKEN}`;
+  const data = await fetchMapboxJson(url, "matching");
+  if (!data?.matchings?.length) return null;
 
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.warn(`[routing] matching API error: ${res.status}`);
-      return null;
+  const allCoords: Coords = [];
+  for (const matching of data.matchings) {
+    if (matching.geometry?.type === "LineString") {
+      const mc = matching.geometry.coordinates as Coords;
+      allCoords.push(...(allCoords.length > 0 ? mc.slice(1) : mc));
     }
-    const data = await res.json();
-    const matchings = data.matchings;
-    if (!matchings?.length) return null;
-
-    const allCoords: Coords = [];
-    for (const matching of matchings) {
-      if (matching.geometry?.type === "LineString") {
-        const mc = matching.geometry.coordinates as Coords;
-        allCoords.push(...(allCoords.length > 0 ? mc.slice(1) : mc));
-      }
-    }
-    return allCoords.length >= 2 ? allCoords : null;
-  } catch (e) {
-    console.warn(`[routing] matching fetch error:`, e);
-    return null;
   }
+  return allCoords.length >= 2 ? allCoords : null;
 }
 
 async function matchRoute(coords: Coords, profile: Profile): Promise<Coords | null> {
@@ -126,21 +131,10 @@ async function directionsChunk(
   profile: Profile,
 ): Promise<Coords | null> {
   const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${encodeCoords(coords)}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.warn(`[routing] directions API error: ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    const route = data.routes?.[0];
-    if (!route?.geometry?.coordinates?.length) return null;
-    return route.geometry.coordinates as Coords;
-  } catch (e) {
-    console.warn(`[routing] directions fetch error:`, e);
-    return null;
-  }
+  const data = await fetchMapboxJson(url, "directions");
+  const route = data?.routes?.[0];
+  if (!route?.geometry?.coordinates?.length) return null;
+  return route.geometry.coordinates as Coords;
 }
 
 async function directionsRoute(coords: Coords, profile: Profile): Promise<Coords | null> {
