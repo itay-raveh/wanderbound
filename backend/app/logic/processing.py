@@ -36,7 +36,7 @@ type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames", "th
 type DbRow = Album | Step | Segment
 
 # Limit concurrent heavy media work (ffmpeg frame extraction, Pillow thumbnails).
-# Budget: ~1600 MB total / ~80 MB per ffmpeg process = 20 slots.
+# Container limit is 2 GB; ~400 MB for Python/Chromium leaves ~1600 MB for media.
 _media_sem = asyncio.Semaphore(20)
 
 
