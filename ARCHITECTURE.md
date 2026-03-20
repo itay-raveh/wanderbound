@@ -88,9 +88,12 @@ frontend/
       useStepMutation.ts     Optimistic step PATCH (layout + name/description)
       useUserMutation.ts     Optimistic user preferences PATCH
       useVideoFrameMutation.ts  Video poster re-extraction
+      useSegmentBoundaryMutation.ts  Hike boundary adjust mutation
     composables/
       useAlbum.ts            provide/inject for AlbumContext (albumId, colors, orientations, tripStart, totalDays)
       useMapbox.ts           Mapbox GL map lifecycle (init, destroy, fitBounds, resize observer, locale)
+      useHikeBoundaryDrag.ts Draggable hike segment boundary handles (snap to line, time interpolation)
+      useLocale.ts           Locale resolution, vue-i18n setup, locale options list
       useStepLayout.ts       Drag-and-drop wiring for step photo pages, cover, and unused tray
       useDragState.ts        Global drag-in-progress boolean (document-level events)
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
@@ -115,7 +118,7 @@ frontend/
         ElevationProfile.vue  SVG elevation chart (dist vs elev, gradient fill, axis labels)
         MapSectionControls.vue Delete + date range picker controls for map sections
         mapSegments.ts        Draw GPS segments + step markers on map (flight arcs, hike trails, driving/walking lines)
-        mapMatching.ts        Mapbox Map Matching API (chunked, with Douglas-Peucker fallback)
+        mapRouting.ts         GPS trace routing: Map Matching (dense) + Directions (sparse), chunked, cached
         map-segments.css      Marker + flight icon styles for Mapbox GL overlays
       album/overview/
         OverviewPage.vue      Trip summary: stats (days/distance/photos/steps), country strip, extremes, furthest point
@@ -131,6 +134,7 @@ frontend/
       editor/
         EditorHeader.vue      Top bar with logo + UserMenu, wraps AlbumToolbar via slot
         AlbumToolbar.vue      Trip select, step date ranges, PDF export
+        StepDatePicker.vue    Date range picker with country-colored event dots
         UserMenu.vue          Settings: dark mode, units, locale, delete data
         DeleteDialog.vue      Confirmation modal for data deletion
       register/
@@ -269,7 +273,7 @@ Cookie-based, no encryption. The `uid` cookie holds the Polarsteps user ID (inte
 | Open-Meteo Elevation | `services/open_meteo.py` | SQLite, 30 days | 480/min (weighted by batch size) |
 | Open-Meteo Archive Weather | same client | same | same limiter |
 | Overpass (OSM peaks) | `logic/spatial/peaks.py` | SQLite, 30 days (POST body key) | None (low volume) |
-| Mapbox Map Matching | `utils/mapMatching.ts` (frontend) | None | Per-token limit |
+| Mapbox Map Matching + Directions | `components/album/map/mapRouting.ts` (frontend) | In-memory by segment identity | Per-token limit |
 | Mapbox GL tiles | `composables/useMapbox.ts` | Browser cache | Per-token limit |
 
 ## GPS Segmentation Pipeline (`segments.py`)
