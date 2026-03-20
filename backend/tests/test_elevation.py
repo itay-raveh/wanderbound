@@ -335,10 +335,8 @@ class TestCorrectPeaks:
 # elevations (Open-Meteo DEM)
 
 
-def _elev_response(values: list[float]) -> AsyncMock:
-    resp = AsyncMock()
-    resp.status_code = 200
-    resp.raise_for_status = lambda: None
+def _elev_response(values: list[float]) -> MagicMock:
+    resp = MagicMock(status_code=200)
     resp.content = json.dumps({"elevation": values}).encode()
     return resp
 
