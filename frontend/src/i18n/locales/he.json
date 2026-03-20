@@ -108,7 +108,8 @@
     "videoFrame": "עדכון פריים הווידאו נכשל",
     "pdfExport": "ייצוא PDF נכשל",
     "processingFailed": "העיבוד נכשל",
-    "connectionFailed": "החיבור נכשל. נסו שוב."
+    "connectionFailed": "החיבור נכשל. נסו שוב.",
+    "adjustBoundary": "שינוי גבול הקטע נכשל"
   },
 
   "pdf": {

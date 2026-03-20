@@ -241,6 +241,7 @@ const chart = computed(() => {
 
 <style lang="scss" scoped>
 .elevation-chart {
+  display: block;
   width: 100%;
   overflow: visible;
 }

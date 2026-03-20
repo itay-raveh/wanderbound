@@ -153,6 +153,7 @@ if (props.printMode) {
             :segments="section.segments"
             :steps="section.steps"
             :hike-segment="section.hikeSegment"
+            :all-segments="data.segments"
           />
         </div>
 

@@ -108,7 +108,8 @@
     "videoFrame": "Failed to update video frame",
     "pdfExport": "PDF export failed",
     "processingFailed": "Processing failed",
-    "connectionFailed": "Connection failed. Please try again."
+    "connectionFailed": "Connection failed. Please try again.",
+    "adjustBoundary": "Failed to adjust segment boundary"
   },
 
   "pdf": {

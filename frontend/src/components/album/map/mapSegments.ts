@@ -11,10 +11,7 @@ const FLIGHT_ICON_CLASS = "map-flight-icon";
 
 function cleanup(m: mapboxgl.Map) {
   for (const layer of m.getStyle()?.layers ?? []) {
-    if (layer.id.startsWith(LAYER_PREFIX)) m.removeLayer(layer.id);
-  }
-  for (const id of Object.keys(m.getStyle()?.sources ?? {})) {
-    if (id.startsWith(LAYER_PREFIX)) m.removeSource(id);
+    if (layer.id.startsWith(LAYER_PREFIX)) removeMapLayer(m, layer.id);
   }
   // Scope marker removal to this map's container (not the entire document)
   m.getContainer()
@@ -22,7 +19,7 @@ function cleanup(m: mapboxgl.Map) {
     .forEach((el) => el.remove());
 }
 
-function addLine(
+export function addLine(
   m: mapboxgl.Map,
   id: string,
   data: GeoJSON.GeoJSON,
@@ -38,8 +35,17 @@ function addLine(
   });
 }
 
-function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
+export function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
   return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
+}
+
+export function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJSON) {
+  (map.getSource(id))?.setData(data);
+}
+
+export function removeMapLayer(map: mapboxgl.Map, id: string) {
+  try { map.removeLayer(id); } catch { /* layer missing or style destroyed */ }
+  try { map.removeSource(id); } catch { /* source missing or style destroyed */ }
 }
 
 function addCircle(
@@ -124,16 +130,21 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   }
 }
 
+interface HikeDrawOptions {
+  faint: boolean;
+  color?: string;
+  draggableEndpoints?: boolean;
+}
+
 function drawHike(
   m: mapboxgl.Map,
   id: string,
   coords: [number, number][],
-  faint: boolean,
-  color?: string,
+  opts: HikeDrawOptions,
 ) {
-  const hikeColor = color ?? DEFAULT_COUNTRY_COLOR;
+  const hikeColor = opts.color ?? DEFAULT_COUNTRY_COLOR;
 
-  if (!faint) {
+  if (!opts.faint) {
     // Dark stroke behind the colored line for contrast on satellite imagery
     addLine(m, `${id}-stroke`, lineFeature(coords), {
       "line-color": "rgba(0, 0, 0, 0.5)",
@@ -143,12 +154,12 @@ function drawHike(
   }
 
   addLine(m, id, lineFeature(coords), {
-    "line-color": faint ? "rgba(255,255,255,0.3)" : hikeColor,
-    "line-width": faint ? 1.5 : 4,
-    "line-opacity": faint ? 0.3 : 1,
+    "line-color": opts.faint ? "rgba(255,255,255,0.3)" : hikeColor,
+    "line-width": opts.faint ? 1.5 : 4,
+    "line-opacity": opts.faint ? 0.3 : 1,
   });
 
-  if (!faint && coords.length >= 2) {
+  if (!opts.faint && coords.length >= 2 && !opts.draggableEndpoints) {
     const endpointPaint: mapboxgl.CirclePaint = {
       "circle-radius": 6,
       "circle-color": hikeColor,
@@ -220,6 +231,13 @@ function drawRouteLayers(
   }
 }
 
+export interface HikeEndpoint {
+  coord: [number, number];
+  handle: "start" | "end";
+  /** Update the rendered hike line to the given coordinate sequence. */
+  updateLine: (coords: [number, number][]) => void;
+}
+
 interface DrawOptions {
   segments: Segment[];
   steps: Step[];
@@ -229,22 +247,31 @@ interface DrawOptions {
   skipCleanup?: boolean;
   /** Color for hike trail lines. */
   hikeColor?: string;
+  /** Return endpoint coords for drag handles instead of drawing circle layers. */
+  draggableEndpoints?: boolean;
 }
 
-/** Generation counter — routing callbacks from stale draws are discarded. */
-let drawGeneration = 0;
+export interface DrawResult {
+  allCoords: [number, number][];
+  hikeEndpoints: HikeEndpoint[];
+}
 
-/** Draw segments and step markers. Returns all coords for fitBounds. */
+/** Per-map generation counter — routing callbacks from stale draws are discarded. */
+const drawGenerations = new WeakMap<mapboxgl.Map, number>();
+
+/** Draw segments and step markers. Returns all coords for fitBounds + hike endpoint info. */
 export function drawSegmentsAndMarkers(
   m: mapboxgl.Map,
   options: DrawOptions,
-): [number, number][] {
+): DrawResult {
   if (!options.skipCleanup) cleanup(m);
-  const gen = ++drawGeneration;
+  const gen = (drawGenerations.get(m) ?? 0) + 1;
+  drawGenerations.set(m, gen);
 
   const { segments, steps, albumId, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
+  const hikeEndpoints: HikeEndpoint[] = [];
   const useRouting = !faint && steps.length < 30;
 
   // Collect driving/walking coords for batched rendering (avoids overlap stacking).
@@ -261,8 +288,21 @@ export function drawSegmentsAndMarkers(
         drawFlight(m, id, seg, faint);
         break;
       case "hike":
-        drawHike(m, id, coords, faint, options.hikeColor);
+        drawHike(m, id, coords, { faint, color: options.hikeColor, draggableEndpoints: options.draggableEndpoints });
         allCoords.push(...coords);
+        if (!faint && coords.length >= 2 && options.draggableEndpoints) {
+          const feature = lineFeature(coords);
+          const updateLine = (c: [number, number][]) => {
+            if (c.length < 2) return;
+            feature.geometry.coordinates = c;
+            setSourceData(m, id, feature);
+            setSourceData(m, `${id}-stroke`, feature);
+          };
+          hikeEndpoints.push(
+            { coord: coords[0]!, handle: "start", updateLine },
+            { coord: coords[coords.length - 1]!, handle: "end", updateLine },
+          );
+        }
         break;
       case "walking":
       case "driving": {
@@ -274,15 +314,14 @@ export function drawSegmentsAndMarkers(
 
         if (!useRouting) break;
         void routeSegment(seg, coords, kind).then((routed) => {
-          if (!routed || gen !== drawGeneration) return;
+          if (!routed || gen !== drawGenerations.get(m)) return;
           bucket[idx] = routed;
           try {
             const sourceId = kind === "driving" ? ROUTE_SOURCE.driving : ROUTE_SOURCE.walking;
             const shadowId = kind === "driving" ? ROUTE_SOURCE.drivingShadow : ROUTE_SOURCE.walkingShadow;
             const fc = multiLine(bucket);
             for (const srcId of [shadowId, sourceId]) {
-              const source = m.getSource(srcId);
-              if (source && "setData" in source) source.setData(fc);
+              setSourceData(m, srcId, fc);
             }
           } catch {
             // Source removed before routing completed (e.g. navigated away)
@@ -309,5 +348,5 @@ export function drawSegmentsAndMarkers(
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
 
-  return allCoords;
+  return { allCoords, hikeEndpoints };
 }

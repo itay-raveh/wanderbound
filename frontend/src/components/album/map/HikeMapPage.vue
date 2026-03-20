@@ -3,13 +3,15 @@ import type { Segment, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
-import { KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
-import { useUserQuery } from "@/queries/useUserQuery";
+import { usePrintMode } from "@/composables/usePrintReady";
+import { setupBoundaryHandles } from "@/composables/useHikeBoundaryDrag";
+import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
+import { useUserQuery, KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import { getCountryColor } from "../colors";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
-import { useTemplateRef, computed, ref } from "vue";
+import { useTemplateRef, computed, ref, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
@@ -20,11 +22,25 @@ const props = defineProps<{
   steps: Step[];
   segments: Segment[];
   hikeSegment: Segment;
+  /** All album segments (unfiltered) — needed to find adjacent segments for boundary drag. */
+  allSegments: Segment[];
 }>();
 
 const { albumId, colors } = useAlbum();
 const container = useTemplateRef("hike-map");
 const { isKm, locale, distanceUnit, elevationUnit } = useUserQuery();
+const printMode = usePrintMode();
+const boundaryMutation = useSegmentBoundaryMutation();
+
+let cleanupHandles: (() => void) | null = null;
+let pendingIdleHandler: (() => void) | null = null;
+onUnmounted(() => {
+  cleanupHandles?.();
+  if (pendingIdleHandler && map.value) {
+    map.value.off("idle", pendingIdleHandler);
+    pendingIdleHandler = null;
+  }
+});
 
 const countryColor = computed(() => {
   if (!props.steps.length) return getCountryColor({}, "");
@@ -131,13 +147,60 @@ function queryElevations(m: mapboxgl.Map) {
   elevationSamples.value = samples;
 }
 
-const { fitBounds } = useMapbox({
+function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
+  cleanupHandles?.();
+  cleanupHandles = null;
+
+  const h = props.hikeSegment;
+  const otherSegments = props.segments.filter(
+    (s) => s.start_time !== h.start_time || s.end_time !== h.end_time,
+  );
+
+  try {
+    // Faint background segments (may include driving/walking → map matched)
+    drawSegmentsAndMarkers(m, {
+      segments: otherSegments,
+      steps: [],
+      albumId: albumId.value,
+      style: "faint",
+    });
+
+    // Prominent hike + step markers (skip cleanup to keep faint layers)
+    const { allCoords, hikeEndpoints } = drawSegmentsAndMarkers(m, {
+      segments: [props.hikeSegment],
+      steps: props.steps,
+      albumId: albumId.value,
+      skipCleanup: true,
+      hikeColor: countryColor.value,
+      draggableEndpoints: !printMode,
+    });
+
+    // Set up draggable boundary handles in editor mode
+    if (!printMode && hikeEndpoints.length > 0) {
+      cleanupHandles = setupBoundaryHandles(hikeEndpoints, {
+        map: m,
+        hikeSegment: props.hikeSegment,
+        allSegments: props.allSegments,
+        hikeColor: countryColor.value,
+        onCommit: (adjust) => boundaryMutation.mutate(adjust),
+      });
+    }
+
+    if (shouldFit) {
+      // Pad bottom so the path stays above the elevation overlay
+      fitBounds(allCoords, { top: 80, right: 80, bottom: 220, left: 80 });
+    }
+  } catch (e) {
+    console.warn("[hike-map] segment drawing failed:", e);
+  }
+}
+
+const { map, fitBounds } = useMapbox({
   container,
   locale,
   onReady: (m) => {
     m.resize();
     try {
-      // Enable Mapbox terrain DEM for elevation queries
       m.addSource("mapbox-dem", {
         type: "raster-dem",
         url: "mapbox://mapbox.mapbox-terrain-dem-v1",
@@ -149,43 +212,34 @@ const { fitBounds } = useMapbox({
       console.warn("[hike-map] terrain setup failed:", e);
     }
 
-    const hikeIdx = props.segments.indexOf(props.hikeSegment);
-    const otherSegments = props.segments.filter((_, i) => i !== hikeIdx);
+    drawMap(m);
 
-    try {
-      // Faint background segments (may include driving/walking → map matched)
-      drawSegmentsAndMarkers(m, {
-        segments: otherSegments,
-        steps: [],
-        albumId: albumId.value,
-        style: "faint",
-      });
-
-      // Prominent hike + step markers (skip cleanup to keep faint layers)
-      const coords = drawSegmentsAndMarkers(m, {
-        segments: [props.hikeSegment],
-        steps: props.steps,
-        albumId: albumId.value,
-        skipCleanup: true,
-        hikeColor: countryColor.value,
-      });
-
-      // Pad bottom so the path stays above the elevation overlay
-      fitBounds(coords, { top: 80, right: 80, bottom: 220, left: 80 });
-
-      // Query elevations once terrain tiles are loaded
-      m.once("idle", () => {
-        try {
-          queryElevations(m);
-        } catch (e) {
-          console.warn("[hike-map] elevation query failed:", e);
-        }
-      });
-    } catch (e) {
-      console.warn("[hike-map] segment drawing failed:", e);
-    }
+    scheduleElevationQuery(m);
   },
 });
+
+function scheduleElevationQuery(m: mapboxgl.Map) {
+  if (pendingIdleHandler) m.off("idle", pendingIdleHandler);
+  const handler = () => {
+    m.off("idle", handler);
+    pendingIdleHandler = null;
+    try { queryElevations(m); }
+    catch (e) { console.warn("[hike-map] elevation query failed:", e); }
+  };
+  pendingIdleHandler = handler;
+  m.on("idle", handler);
+}
+
+// Re-draw when segment data actually changes (e.g. after boundary mutation).
+watch(
+  () => [props.hikeSegment.start_time, props.hikeSegment.end_time] as const,
+  () => {
+    if (!map.value) return;
+    elevationSamples.value = [];
+    drawMap(map.value, { fitBounds: false });
+    scheduleElevationQuery(map.value);
+  },
+);
 </script>
 
 <template>

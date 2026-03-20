@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterable
 from typing import Annotated
 
@@ -12,12 +13,16 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
+from sqlmodel import select
 
 from app.logic.pdf import PdfEvent, pop_pdf_path, render_album_pdf_stream
 from app.models.album import Album, AlbumData, AlbumUpdate
+from app.models.segment import BoundaryAdjust, Segment, SegmentKind, split_segments
 from app.models.step import Step, StepUpdate
 
 from ..deps import BrowserDep, SessionDep, UserDep
+
+logger = logging.getLogger(__name__)
 
 
 async def _get_album(
@@ -36,10 +41,14 @@ async def read_album(aid: str, album: AlbumDep) -> Album:
     return album
 
 
-@router.get("/{aid}/data")
-async def read_album_data(aid: str, album: AlbumDep, session: SessionDep) -> AlbumData:
+async def _album_data(album: Album, session: SessionDep) -> AlbumData:
     await session.refresh(album, attribute_names=["steps", "segments"])
     return AlbumData(steps=album.steps, segments=album.segments)
+
+
+@router.get("/{aid}/data")
+async def read_album_data(aid: str, album: AlbumDep, session: SessionDep) -> AlbumData:
+    return await _album_data(album, session)
 
 
 @router.patch("/{aid}")
@@ -70,6 +79,74 @@ async def update_step(
     await session.commit()
     await session.refresh(step)
     return step
+
+
+@router.patch("/{aid}/segments/adjust-boundary")
+async def adjust_segment_boundary(
+    aid: str,
+    body: BoundaryAdjust,
+    user: UserDep,
+    album: AlbumDep,
+    session: SessionDep,
+) -> AlbumData:
+    uid = user.id
+
+    # Load the target hike segment
+    target = await session.get(Segment, (uid, aid, body.start_time, body.end_time))
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Segment not found")
+
+    if target.kind == SegmentKind.flight:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Cannot adjust boundary of a flight segment",
+        )
+
+    # Find the adjacent segment (nearest non-overlapping on the relevant side)
+    if body.handle == "start":
+        time_filter = Segment.end_time <= target.start_time
+        ordering = Segment.end_time.desc()  # type: ignore[union-attr]
+    else:
+        time_filter = Segment.start_time >= target.end_time
+        ordering = Segment.start_time.asc()  # type: ignore[union-attr]
+    result = await session.exec(
+        select(Segment)
+        .where(
+            Segment.uid == uid,
+            Segment.aid == aid,
+            Segment.kind != SegmentKind.flight,
+            time_filter,
+        )
+        .order_by(ordering)
+        .limit(1)
+    )
+    adjacent = result.first()
+    if adjacent is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No adjacent segment")
+
+    try:
+        new_earlier, new_later = split_segments(
+            target,
+            adjacent,
+            body.new_boundary_time,
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    await session.delete(target)
+    await session.delete(adjacent)
+    # Flush deletes first to avoid composite PK collision with new segments
+    await session.flush()
+    session.add(new_earlier)
+    session.add(new_later)
+    await session.commit()
+
+    logger.info(
+        "Adjusted segment boundary",
+        extra={"uid": uid, "aid": aid, "handle": body.handle},
+    )
+
+    return await _album_data(album, session)
 
 
 @router.post(
