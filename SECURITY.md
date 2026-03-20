@@ -64,72 +64,23 @@ and item #3 (rate limiting) — not by the upload size limit.
 
 ---
 
-### 3. Rate limiting: nginx + application-level
+### 3. ~~Rate limiting: nginx~~ DONE
 
-**Current state:** No rate limiting of any kind exists. Every endpoint is
-unlimited. The upload endpoint (which triggers ZIP extraction, filesystem writes,
-ffprobe/ffmpeg/Pillow processing, and DB operations) has no throttle.
+**Implemented:** Nginx rate limiting with two per-IP zones:
 
-**Problem:** An attacker can script thousands of concurrent requests to exhaust
-CPU, memory, disk, or DB connections. Even legitimate multi-tab use could
-overwhelm the single-instance backend.
+- **`uploads` zone** (1 req/min, burst 2) — applied to
+  `location = /api/v1/users/upload`. Prevents upload abuse (ZIP extraction,
+  disk writes, ffprobe/ffmpeg/Pillow processing are expensive).
+- **`general` zone** (10 req/s, burst 30) — applied to `location /api/`.
+  Blocks automated floods before they reach Python.
 
-**Fix (two layers, defense in depth):**
+Both zones return **429** when the limit is exceeded. Static assets
+(`/assets/`, `/`) have no rate limit.
 
-**Layer 1 — Nginx rate limiting (blocks floods before they hit Python):**
+Also added `X-Forwarded-For` and `X-Forwarded-Proto` proxy headers
+(completes the nginx side of item #8).
 
-Add to the `http` block (or top of the server config file):
-
-```nginx
-# Per-IP rate zones
-limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=uploads:10m rate=1r/m;
-
-server {
-    # Upload endpoint — strictest limit
-    location = /api/v1/users/upload {
-        limit_req zone=uploads burst=2 nodelay;
-        limit_req_status 429;
-        client_max_body_size 4g;
-        proxy_pass http://backend:8000;
-        # ... existing proxy headers ...
-    }
-
-    # General API
-    location /api/ {
-        limit_req zone=general burst=30 nodelay;
-        limit_req_status 429;
-        proxy_pass http://backend:8000;
-        # ... existing proxy headers ...
-    }
-
-    # Static assets — no limit needed
-    location /assets/ { ... }
-    location / { ... }
-}
-```
-
-**Layer 2 — Application rate limiting with `slowapi`:**
-
-```python
-# main.py
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-```
-
-Per-endpoint decorators:
-- Upload: `@limiter.limit("3/hour")` — nobody needs to upload more than 3 ZIPs/hour
-- PDF generation: `@limiter.limit("5/hour")` — expensive Playwright operation
-- SSE streams: `@limiter.limit("10/minute")`
-- General read endpoints: `@limiter.limit("60/minute")`
-- Health check: `@limiter.exempt`
-
-**Dependencies:** `pip install slowapi`
+**Files:** `frontend/nginx.conf`
 
 ---
 
@@ -336,23 +287,18 @@ services:
 
 ---
 
-### 8. ~~Proxy headers for real client IP~~ PARTIALLY DONE
+### 8. ~~Proxy headers for real client IP~~ DONE
 
-**Done:** Added `--proxy-headers` to the uvicorn command in both `Dockerfile`
-and `compose.override.yml`. Uvicorn now reads `X-Forwarded-For` and
-`X-Forwarded-Proto` from upstream proxies.
+**Implemented:**
 
-**Remaining:**
+- Uvicorn: `--proxy-headers` flag in both `Dockerfile` and `compose.override.yml`.
+- Nginx: `X-Forwarded-For` (`$proxy_add_x_forwarded_for`) and `X-Forwarded-Proto`
+  (`$scheme`) headers in both API location blocks (added as part of item #3).
 
-1. Add to the nginx `location /api/` block:
-   ```nginx
-   proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-   proxy_set_header X-Forwarded-Proto $scheme;
-   ```
-
-2. Consider adding `--forwarded-allow-ips='*'` (or the specific proxy IP) to
-   trust the forwarded headers. Within Docker Compose, the nginx container's IP
-   is dynamic, so `'*'` is acceptable since nginx is the only upstream.
+**Remaining consideration:** `--forwarded-allow-ips='*'` on uvicorn (or the
+specific proxy IP) to trust the forwarded headers. Within Docker Compose, the
+nginx container's IP is dynamic, so `'*'` is acceptable since nginx is the
+only upstream. Without this, uvicorn ignores the forwarded headers.
 
 ---
 
@@ -959,9 +905,9 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 1. ~~**#9** SECRET_KEY setting (dependency for #1)~~ — DONE (field added, no production validator yet)
 2. ~~**#1** Signed cookie (depends on #9)~~ — DONE (Google OAuth2 + SessionMiddleware)
 3. ~~**#2** Upload size limit~~ — DONE (3-layer: frontend `max-file-size`, nginx `client_max_body_size`, backend seek check; `VITE_MAX_UPLOAD_GB` env var)
-4. **#3** Rate limiting (nginx + slowapi)
+4. ~~**#3** Rate limiting (nginx)~~ — DONE (two per-IP zones: `uploads` 1r/m, `general` 10r/s; 429 on excess)
 5. **#4** Security headers
-6. ~~**#8** Proxy headers~~ — PARTIALLY DONE (uvicorn flag added, nginx headers remaining)
+6. ~~**#8** Proxy headers~~ — DONE (uvicorn `--proxy-headers` + nginx `X-Forwarded-For`/`X-Forwarded-Proto`)
 7. **#5** Non-root containers
 8. **#7** Docker security_opt + cap_drop + resource limits
 9. **#6** MIME validation
