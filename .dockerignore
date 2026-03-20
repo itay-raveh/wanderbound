@@ -17,7 +17,7 @@
 !frontend/vite.config.ts
 !frontend/openapi-ts.config.ts
 !frontend/openapi.json
-!frontend/nginx.conf
+!frontend/nginx/
 !frontend/env.d.ts
 
 # Root config used by both

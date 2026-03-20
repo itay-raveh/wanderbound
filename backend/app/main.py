@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
@@ -63,9 +62,6 @@ app.add_middleware(
     same_site="lax",
     https_only=settings.ENVIRONMENT != "local",
 )
-
-# GZip responses >= 500 bytes (added after CORS so it wraps the response last).
-app.add_middleware(GZipMiddleware, minimum_size=500)  # type: ignore[arg-type]
 
 app.include_router(v1_router, prefix=settings.API_V1_STR)
 

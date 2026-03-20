@@ -80,62 +80,31 @@ Both zones return **429** when the limit is exceeded. Static assets
 Also added `X-Forwarded-For` and `X-Forwarded-Proto` proxy headers
 (completes the nginx side of item #8).
 
-**Files:** `frontend/nginx.conf`
+**Files:** `frontend/nginx/nginx.conf`
 
 ---
 
 ## HIGH
 
-### 4. Nginx security headers
+### 4. ~~Nginx security headers~~ DONE
 
-**Current state:** `nginx.conf` has zero security response headers. No CSP, no
-frame protection, no MIME sniffing protection, no referrer policy. Nginx version
-is exposed via default `server_tokens`.
+**Implemented:** All security headers in a shared `security-headers.conf`
+snippet, included at server level (inherited by API locations) and explicitly
+in `/assets/` and `/` locations (which have their own `add_header`, overriding
+nginx's inheritance).
 
-**Problem:** Browsers have no instructions to mitigate XSS, clickjacking, MIME
-confusion, or information leakage. Automated scanners flag this immediately.
+Headers:
+- `server_tokens off` — hides nginx version
+- `X-Content-Type-Options: nosniff` — prevents MIME sniffing
+- `X-Frame-Options: DENY` — prevents clickjacking
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` — disables camera, microphone, geolocation
+- `Content-Security-Policy` — whitelists only required external resources:
+  Google Sign-In (script, frame, connect, img), Mapbox (tiles, API, workers,
+  RTL text plugin), flagcdn (country flag images)
 
-**Fix:** Add to the `server` block:
-
-```nginx
-server_tokens off;
-
-# Security headers — in the server block so they apply to all locations.
-# Note: add_header in a location block overrides the server block, so every
-# location that already uses add_header must repeat these.
-add_header X-Content-Type-Options  "nosniff"                             always;
-add_header X-Frame-Options         "DENY"                                always;
-add_header Referrer-Policy         "strict-origin-when-cross-origin"     always;
-add_header Permissions-Policy      "camera=(), microphone=(), geolocation=()" always;
-add_header Content-Security-Policy
-    "default-src 'self'; "
-    "script-src 'self' https://accounts.google.com/gsi/client; "
-    "style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: blob: https://api.mapbox.com https://*.tiles.mapbox.com https://lh3.googleusercontent.com; "
-    "font-src 'self'; "
-    "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://accounts.google.com/gsi/; "
-    "frame-src https://accounts.google.com/gsi/; "
-    "worker-src 'self' blob:; "
-    "frame-ancestors 'none'; "
-    "base-uri 'self'; "
-    "form-action 'self';"
-    always;
-```
-
-Note: Google Sign-In (`vue3-google-login`) requires:
-- `script-src` — loads `https://accounts.google.com/gsi/client`
-- `frame-src` — Google One Tap renders in an iframe from `accounts.google.com/gsi/`
-- `connect-src` — token verification callbacks to `accounts.google.com/gsi/`
-- `img-src` — profile avatars served from `lh3.googleusercontent.com`
-
-Because the existing `location /assets/` and `location /` blocks already use
-`add_header Cache-Control`, they override the server-level headers. Either:
-- Move security headers into a shared snippet and `include` it in every location, or
-- Use the `headers-more-nginx-module` (`more_set_headers`), which doesn't suffer
-  from this inheritance behavior, or
-- Repeat the security `add_header` directives in each location block.
-
-The cleanest approach is an `include` snippet.
+**Files:** `frontend/nginx/security-headers.conf`, `frontend/nginx/nginx.conf`,
+`frontend/Dockerfile`
 
 ---
 
@@ -906,7 +875,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 2. ~~**#1** Signed cookie (depends on #9)~~ — DONE (Google OAuth2 + SessionMiddleware)
 3. ~~**#2** Upload size limit~~ — DONE (3-layer: frontend `max-file-size`, nginx `client_max_body_size`, backend seek check; `VITE_MAX_UPLOAD_GB` env var)
 4. ~~**#3** Rate limiting (nginx)~~ — DONE (two per-IP zones: `uploads` 1r/m, `general` 10r/s; 429 on excess)
-5. **#4** Security headers
+5. ~~**#4** Security headers~~ — DONE (CSP, X-Frame-Options, MIME sniff, referrer, permissions; shared snippet)
 6. ~~**#8** Proxy headers~~ — DONE (uvicorn `--proxy-headers` + nginx `X-Forwarded-For`/`X-Forwarded-Proto`)
 7. **#5** Non-root containers
 8. **#7** Docker security_opt + cap_drop + resource limits

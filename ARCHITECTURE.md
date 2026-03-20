@@ -157,7 +157,10 @@ frontend/
       bounds.json            Country bounding boxes for SVG viewports
   openapi-ts.config.ts       Points to live backend for client generation
   vite.config.ts             Env from parent dir, Quasar plugin, mapbox-gl manual chunk
-  nginx.conf                 Prod: /api/ → backend:8000, / → static files
+  nginx/
+    nginx.conf               Prod server: rate limiting, gzip, security headers
+    proxy-params.conf        Shared reverse-proxy directives (upstream keepalive)
+    security-headers.conf    CSP, X-Frame-Options, MIME sniff, referrer, permissions
 ```
 
 ## Data Flow
