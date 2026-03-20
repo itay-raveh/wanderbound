@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 from typing import BinaryIO
 
+import puremagic
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -19,9 +20,33 @@ MAX_UPLOAD_BYTES = settings.VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
 _MAX_FILES = 50_000
 _MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
 
+_ZIP_MIMES = {"application/zip", "application/x-zip-compressed"}
+_INNER_MIMES = {"image/jpeg", "video/mp4", "application/json", "text/plain"}
+_HEADER_BYTES = 2048
+
+
+def _detect_mime(data: bytes) -> str | None:
+    """Return MIME type from magic bytes, or None if unrecognizable."""
+    try:
+        return puremagic.from_string(data, mime=True)
+    except puremagic.PureError:
+        return None
+
+
+def _check_zip_mime(file: BinaryIO) -> None:
+    """Validate magic bytes identify the file as a ZIP archive."""
+    header = file.read(_HEADER_BYTES)
+    file.seek(0)
+    mime = _detect_mime(header)
+    if mime is None:
+        raise zipfile.BadZipFile("Could not determine file type")
+    if mime not in _ZIP_MIMES:
+        raise zipfile.BadZipFile(f"Expected ZIP, got {mime}")
+
 
 def _safe_extract(file: BinaryIO, dest: Path) -> None:
-    """Extract ZIP with path-traversal, symlink, size, and file-count checks."""
+    """Extract ZIP with MIME, path-traversal, symlink, size, and file-count checks."""
+    _check_zip_mime(file)
     with zipfile.ZipFile(file) as zf:
         entries = zf.infolist()
         if len(entries) > _MAX_FILES:
@@ -37,8 +62,9 @@ def _safe_extract(file: BinaryIO, dest: Path) -> None:
                 raise zipfile.BadZipFile(msg)
 
             # Path traversal check
+            target = (dest / info.filename).resolve()
             try:
-                (dest / info.filename).resolve().relative_to(resolved_dest)
+                target.relative_to(resolved_dest)
             except ValueError:
                 msg = f"Path traversal detected: {info.filename}"
                 raise zipfile.BadZipFile(msg) from None
@@ -48,7 +74,21 @@ def _safe_extract(file: BinaryIO, dest: Path) -> None:
                 msg = "ZIP uncompressed size exceeds limit"
                 raise zipfile.BadZipFile(msg)
 
-        zf.extractall(dest)
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                # MIME check + extract in one pass (single decompression)
+                with zf.open(info) as src:
+                    header = src.read(_HEADER_BYTES)
+                    mime = _detect_mime(header)
+                    if mime not in _INNER_MIMES:
+                        raise zipfile.BadZipFile(
+                            f"Disallowed file type: {info.filename} ({mime})"
+                        )
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with target.open("wb") as out:
+                        out.write(header)
+                        shutil.copyfileobj(src, out)
 
 
 class TripMeta(BaseModel):

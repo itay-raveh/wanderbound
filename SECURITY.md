@@ -133,49 +133,22 @@ may still be owned by root. Fix with:
 
 ---
 
-### 6. MIME type validation on upload
+### 6. ~~MIME type validation on upload~~ DONE
 
-**Current state:** The upload endpoint (`users.py:upload_data`) passes the
-uploaded file to `extract_and_scan()` which calls `_safe_extract()` (a custom
-ZIP extractor in `upload.py` that replaced the `safezip` dependency). If the
-file is not a valid ZIP, `BadZipFile` is raised. `_safe_extract` already checks
-for path traversal, symlinks, decompression bomb size, and file count — but
-these checks only run after `zipfile.ZipFile` successfully opens the file.
+**Implemented:** Two-layer magic byte validation using `puremagic` (pure Python,
+no system dependencies):
 
-**Problem:** An attacker can upload any file type (executables, scripts, HTML with
-embedded JS, polyglot files). The lack of early MIME validation means the full
-payload reaches disk before rejection, and there's no defense against a valid
-ZIP containing unexpected file types.
+1. **Before extraction** — first 2048 bytes checked against
+   `{"application/zip", "application/x-zip-compressed"}`. Rejects non-ZIP
+   uploads before any disk I/O.
+2. **After extraction** — every extracted file checked against
+   `{"image/jpeg", "video/mp4", "application/json", "text/plain"}`. Rejects
+   ZIPs containing executables, scripts, HTML, or other unexpected types.
 
-**Fix:**
+Used `puremagic` instead of `python-magic` — zero system dependencies (no
+`libmagic1` needed), pure Python, actively maintained.
 
-1. **Validate magic bytes before extraction** using `python-magic`:
-   ```python
-   import magic
-
-   ALLOWED_ZIP_MIMES = {"application/zip", "application/x-zip-compressed"}
-
-   async def upload_data(file: UploadFile, ...):
-       header = await file.read(2048)
-       await file.seek(0)
-       mime = magic.from_buffer(header, mime=True)
-       if mime not in ALLOWED_ZIP_MIMES:
-           raise HTTPException(415, "File must be a ZIP archive")
-       ...
-   ```
-
-2. **Validate extracted media files** — after extraction, before processing,
-   check that every file in the extracted directory is an expected type:
-   ```python
-   ALLOWED_CONTENT_MIMES = {
-       "image/jpeg", "video/mp4", "application/json", "text/plain",
-   }
-   ```
-   Reject or skip files that don't match.
-
-3. Add `libmagic1` to the backend Dockerfile's `apt-get install` line.
-
-**Dependencies:** `pip install python-magic`, system package `libmagic1`.
+**File:** `backend/app/logic/upload.py`
 
 ---
 
@@ -838,7 +811,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 6. ~~**#8** Proxy headers~~ — DONE (uvicorn `--proxy-headers` + nginx `X-Forwarded-For`/`X-Forwarded-Proto`)
 7. ~~**#5** Non-root containers~~ — DONE (backend: `appuser`, frontend: `nginx` on port 8080)
 8. **#7** Docker security_opt + cap_drop + resource limits
-9. **#6** MIME validation
+9. ~~**#6** MIME validation~~ — DONE (puremagic: ZIP magic bytes pre-extraction + inner file type check post-extraction)
 10. **#10** Network segmentation
 11. **#11** Localhost-bind dev ports
 12. **#12** Read-only filesystems
