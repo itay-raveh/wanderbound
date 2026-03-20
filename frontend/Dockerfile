@@ -26,3 +26,9 @@ COPY --from=build-stage /app/frontend/dist/ /usr/share/nginx/html
 COPY ./frontend/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY ./frontend/nginx/proxy-params.conf /etc/nginx/proxy-params.conf
 COPY ./frontend/nginx/security-headers.conf /etc/nginx/security-headers.conf
+
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run
+
+USER nginx
+
+EXPOSE 8080

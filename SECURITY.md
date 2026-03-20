@@ -108,54 +108,28 @@ Headers:
 
 ---
 
-### 5. Containers run as root
+### 5. ~~Containers run as root~~ DONE
 
-**Current state:** Neither `backend/Dockerfile` nor `frontend/Dockerfile`
-contains a `USER` directive. All processes run as root inside the container.
+**Implemented:**
 
-**Problem:** If an attacker achieves code execution inside the container (e.g.,
-via a crafted media file exploiting ffmpeg/Pillow), they are root. Combined with
-default Docker capabilities, this significantly increases the blast radius of
-any exploit.
+**Backend** — `appuser` (non-root) created after Playwright install (which
+needs root for system packages). `PLAYWRIGHT_BROWSERS_PATH=/app/browsers`
+ensures the browser binary is accessible to the non-root user. Data directory
+(`/app/backend/data`) owned by `appuser`. Chromium launched with `--no-sandbox`
+since the container itself is the sandbox (item #28).
 
-**Fix:**
+**Frontend** — Entire nginx process runs as the `nginx` user (non-root).
+Switched from port 80 to 8080 (non-root can't bind privileged ports).
+Writable directories (`/var/cache/nginx`, `/var/log/nginx`, `/run`) owned
+by `nginx`.
 
-**Backend Dockerfile** — add after the final `COPY`:
-```dockerfile
-RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
-    && mkdir -p /app/backend/data && chown -R appuser:appuser /app/backend/data
-USER appuser
-```
+Note: If upgrading from a previous deployment, the `app-data` Docker volume
+may still be owned by root. Fix with:
+`docker compose exec backend chown -R appuser:appuser /app/backend/data`
 
-Note: `playwright install chromium --with-deps` must run as root (it installs
-system packages). So the `RUN playwright install` line stays before the `USER`
-switch. The Chromium binary itself runs fine as non-root.
-
-Reorder the Dockerfile:
-```dockerfile
-# ... (existing apt-get, uv sync, COPY steps) ...
-RUN playwright install chromium --with-deps
-RUN groupadd -r appuser && useradd -r -g appuser appuser \
-    && chown -R appuser:appuser /app/backend/data
-USER appuser
-EXPOSE 8000
-CMD [...]
-```
-
-**Frontend Dockerfile** — nginx:1 runs master as root (needed for port 80) but
-workers should run as the `nginx` user (default in the `nginx` image). Add:
-```dockerfile
-RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run
-# nginx master still runs as root for port 80; workers run as nginx user.
-# This is the default nginx.conf behavior — just ensure writable dirs.
-```
-
-If we want the entire process non-root, switch to port 8080 and add `USER nginx`:
-```dockerfile
-USER nginx
-EXPOSE 8080
-```
-...and update compose to map `80:8080`.
+**Files:** `backend/Dockerfile`, `frontend/Dockerfile`,
+`frontend/nginx/nginx.conf` (port 8080), `compose.override.yml` (dev port),
+`backend/app/main.py` (`--no-sandbox`)
 
 ---
 
@@ -795,29 +769,14 @@ cookie payload (`{"uid": N}`) is harmless since the uid resolves to nothing.
 
 ---
 
-### 28. Playwright Chromium sandboxing
+### 28. ~~Playwright Chromium sandboxing~~ DONE
 
-**Current state:** `main.py:33` launches Chromium with `args=["--use-gl=angle"]`.
-No explicit sandbox flags. Playwright's default behavior in a Docker container
-depends on the kernel capabilities available.
+**Implemented:** Added `--no-sandbox` to Chromium launch args as part of
+item #5 (non-root containers). The container itself is the sandbox — Chromium's
+internal sandbox is redundant when the process is already non-root and
+capability-restricted.
 
-**Problem:** If the container runs as non-root (item #5) and has `cap_drop: ALL`
-(item #7), Chromium's sandbox may fail to initialize because it needs `clone()`
-with `CLONE_NEWUSER`. This would cause PDF generation to fail.
-
-**Fix:**
-
-After implementing items #5 and #7, test PDF generation. If Chromium's sandbox
-fails, add `--no-sandbox` to the launch args:
-
-```python
-browser = await pw.chromium.launch(args=["--use-gl=angle", "--no-sandbox"])
-```
-
-This is safe because the container itself IS the sandbox (non-root, capability-
-dropped, read-only filesystem, resource-limited). The Chromium sandbox is
-defense-in-depth within the container, but the container-level isolation is the
-primary boundary.
+**File:** `backend/app/main.py`
 
 ---
 
@@ -877,7 +836,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 4. ~~**#3** Rate limiting (nginx)~~ — DONE (two per-IP zones: `uploads` 1r/m, `general` 10r/s; 429 on excess)
 5. ~~**#4** Security headers~~ — DONE (CSP, X-Frame-Options, MIME sniff, referrer, permissions; shared snippet)
 6. ~~**#8** Proxy headers~~ — DONE (uvicorn `--proxy-headers` + nginx `X-Forwarded-For`/`X-Forwarded-Proto`)
-7. **#5** Non-root containers
+7. ~~**#5** Non-root containers~~ — DONE (backend: `appuser`, frontend: `nginx` on port 8080)
 8. **#7** Docker security_opt + cap_drop + resource limits
 9. **#6** MIME validation
 10. **#10** Network segmentation
@@ -898,6 +857,6 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 25. **#23** Trivy
 26. **#26** Mapbox token scoping
 27. ~~**#27** Session invalidation on user deletion~~ — DONE
-28. **#28** Test Playwright sandboxing
+28. ~~**#28** Playwright sandboxing~~ — DONE (`--no-sandbox`, handled with item #5)
 29. **#29** Processing concurrency limit
 30. **#30** v-html audit

@@ -22,6 +22,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-workspace --package app
 
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
+RUN playwright install chromium --with-deps
+
 COPY ./backend/scripts /app/backend/scripts
 
 COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/logging.json /app/backend/
@@ -35,7 +38,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-RUN playwright install chromium --with-deps
+RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser \
+    && mkdir -p /app/backend/data \
+    && chown -R appuser:appuser /app/backend/data
+
+USER appuser
 
 EXPOSE 8000
 
