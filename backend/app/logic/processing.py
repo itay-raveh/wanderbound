@@ -290,14 +290,20 @@ async def _media_pipeline(
     return layout_by_idx, cover_orientation
 
 
+def _load_trip_data(trip_dir: Path) -> tuple[PSTrip, list[Point]]:
+    """Read trip metadata and GPS locations (blocking I/O, run in thread)."""
+    trip = PSTrip.from_trip_dir(trip_dir)
+    locations = PSLocations.from_trip_dir(trip_dir).locations
+    return trip, locations
+
+
 async def _process_trip(
     user: User,
     trip_dir: Path,
     db_out: list[DbRow],
 ) -> AsyncIterator[PhaseUpdate]:
     aid = trip_dir.name
-    trip = PSTrip.from_trip_dir(trip_dir)
-    locations = PSLocations.from_trip_dir(trip_dir).locations
+    trip, locations = await asyncio.to_thread(_load_trip_data, trip_dir)
     logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
     locs = [s.location for s in trip.all_steps]
 
@@ -341,7 +347,10 @@ async def _process_trip(
     # Re-raise phase errors (only reached on normal sentinel break,
     # not on generator close where the finally terminates the generator).
     results = await runner
-    db_out.extend(_build_trip_objects(user, aid, trip, locations, results))
+    objects = await asyncio.to_thread(
+        _build_trip_objects, user, aid, trip, locations, results
+    )
+    db_out.extend(objects)
 
 
 async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
