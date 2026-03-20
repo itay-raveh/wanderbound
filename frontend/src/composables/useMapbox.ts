@@ -104,17 +104,13 @@ export function useMapbox(options: UseMapboxOptions) {
 
   // Auto-resize map when container dimensions change (CSS zoom settling, etc.)
   let resizeObserver: ResizeObserver | null = null;
-  let resizeRaf = 0;
 
   onMounted(() => {
     init();
 
     const el = options.container.value;
     if (el) {
-      resizeObserver = new ResizeObserver(() => {
-        cancelAnimationFrame(resizeRaf);
-        resizeRaf = requestAnimationFrame(() => map.value?.resize());
-      });
+      resizeObserver = new ResizeObserver(() => map.value?.resize());
       resizeObserver.observe(el);
     }
   });
