@@ -30,9 +30,7 @@ def _color_dist(hex1: HexColor, hex2: HexColor) -> float:
 
 
 def _min_distance(color: HexColor, assigned: Iterable[HexColor]) -> float:
-    if not assigned:
-        return float("inf")
-    return min(_color_dist(color, a) for a in assigned)
+    return min((_color_dist(color, a) for a in assigned), default=float("inf"))
 
 
 def build_country_colors(

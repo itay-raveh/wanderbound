@@ -97,9 +97,8 @@ const chart = computed(() => {
   const elevUnit = t(props.isKm ? "overview.m" : "overview.ft");
 
   // X-axis labels: 0, ~1/3, ~2/3, end
-  const distKm = totalDist;
   const unit = t(props.isKm ? "overview.km" : "overview.mi");
-  const distVal = props.isKm ? distKm : distKm * KM_TO_MI;
+  const distVal = props.isKm ? totalDist : totalDist * KM_TO_MI;
   const fracs = [0, 0.33, 0.67, 1];
   const lastIdx = fracs.length - 1;
   const xLabels = fracs.map((f, i) => {
