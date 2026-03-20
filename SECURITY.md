@@ -40,50 +40,27 @@ session creation for new users).
 
 ---
 
-### 2. Upload size limit
+### 2. ~~Upload size limit~~ DONE
 
-**Current state:** `nginx.conf:3` sets `client_max_body_size 2G`. There is no
-application-level size limit. FastAPI's `UploadFile` reads the entire file into
-a `SpooledTemporaryFile` before handing it to the endpoint.
+**Implemented:** Upload size limit enforced at three layers, configurable via
+`VITE_MAX_UPLOAD_GB` env var (default: 4). Single source of truth in `.env`.
 
-**Problem:** A single request can push up to 2 GB to the server, consuming disk
-and memory. An attacker can open multiple connections and exhaust both in
-minutes. Now that uploads require Google authentication (#1), the attack surface
-is smaller — but authenticated users can still abuse storage.
+1. **Frontend** — Quasar `q-uploader` rejects files exceeding the limit before
+   upload starts (`max-file-size` prop). User sees a localized "file too large"
+   toast with the configured limit.
+2. **Nginx** — `client_max_body_size 4g` rejects oversized requests with 413
+   before any bytes reach the backend. `client_body_timeout 300s` kills
+   slow-upload (Slowloris-style) connections.
+3. **Backend** — `_check_upload_size()` in `users.py` verifies actual file
+   size via seek before extraction begins (defense-in-depth).
 
-**Context:** Polarsteps exports can legitimately reach 3+ GB for users with
-hundreds of photos and videos across many trips. The upload size limit must
-accommodate real exports, not just typical ones.
+**Files:** `.env` (`VITE_MAX_UPLOAD_GB`), `config.py` (Settings field),
+`upload.py` (`MAX_UPLOAD_BYTES` derived from settings), `users.py` (size check),
+`ZipUploader.vue` (frontend limit), `nginx.conf` (network limit),
+`Dockerfile` + `compose.yml` (build arg passthrough).
 
-**Fix:**
-
-1. **Nginx layer** — set `client_max_body_size` to `4g` in `nginx.conf`.
-   This accommodates the largest real Polarsteps exports while still capping
-   runaway uploads. Nginx rejects the request immediately with 413 before any
-   bytes reach the backend.
-2. **Application layer** — add a streaming size check in the upload endpoint.
-   Read the file in chunks and abort if total exceeds the limit, so we never hold
-   the entire body in memory:
-   ```python
-   MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024  # 4 GB
-
-   @router.post("/upload")
-   async def upload_data(file: UploadFile, ...):
-       total = 0
-       buffer = io.BytesIO()
-       while chunk := await file.read(65536):
-           total += len(chunk)
-           if total > MAX_UPLOAD_BYTES:
-               raise HTTPException(413, "Upload too large")
-           buffer.write(chunk)
-       buffer.seek(0)
-       ...
-   ```
-3. Add `client_body_timeout 300s` in nginx to kill slow-upload (Slowloris-style)
-   connections. (300s instead of 120s to accommodate large legitimate uploads on
-   slower connections.)
-4. **Storage protection** is handled separately by item #13 (per-user storage
-   quota) and item #3 (rate limiting) — not by the upload size limit.
+Storage protection is handled separately by item #13 (per-user storage quota)
+and item #3 (rate limiting) — not by the upload size limit.
 
 ---
 
@@ -981,7 +958,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 
 1. ~~**#9** SECRET_KEY setting (dependency for #1)~~ — DONE (field added, no production validator yet)
 2. ~~**#1** Signed cookie (depends on #9)~~ — DONE (Google OAuth2 + SessionMiddleware)
-3. **#2** Upload size limit (nginx + application)
+3. ~~**#2** Upload size limit~~ — DONE (3-layer: frontend `max-file-size`, nginx `client_max_body_size`, backend seek check; `VITE_MAX_UPLOAD_GB` env var)
 4. **#3** Rate limiting (nginx + slowapi)
 5. **#4** Security headers
 6. ~~**#8** Proxy headers~~ — PARTIALLY DONE (uvicorn flag added, nginx headers remaining)

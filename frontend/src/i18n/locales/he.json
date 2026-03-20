@@ -12,6 +12,7 @@
     "getDataBody": "כנסו ל-{link}. עברו ל-{settings}, גללו ל-{download}, ולחצו על {startArchive}. תקבלו מייל עם קישור להורדה.",
     "uploadTitle": "העלו את קובץ ה-{file}",
     "uploadFailed": "ההעלאה נכשלה. נסו שוב.",
+    "fileTooLarge": "הקובץ גדול מדי. הגודל המרבי הוא {max} GB.",
     "greeting": "היי {name},",
     "statusReady": "האלבום שלך מוכן",
     "statusError": "משהו השתבש",

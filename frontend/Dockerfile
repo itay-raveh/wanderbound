@@ -11,6 +11,7 @@ WORKDIR /app/frontend
 RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
+ARG VITE_MAX_UPLOAD_GB
 ARG VITE_BACKEND_URL
 ARG VITE_MAPBOX_TOKEN
 ARG VITE_GOOGLE_CLIENT_ID

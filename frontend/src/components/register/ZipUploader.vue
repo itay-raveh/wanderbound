@@ -20,12 +20,22 @@ const formFields = computed(() =>
   props.credential ? [{ name: "credential", value: props.credential }] : [],
 );
 
+const maxUploadGb = Number(import.meta.env.VITE_MAX_UPLOAD_GB) || 4;
+const maxFileSize = maxUploadGb * 1024 * 1024 * 1024;
+
 const $q = useQuasar();
 const { t } = useI18n();
 
 function onUploaded(info: { xhr: XMLHttpRequest }) {
   const data = JSON.parse(info.xhr.responseText) as UploadResult;
   emit("uploaded", data);
+}
+
+function onRejected() {
+  $q.notify({
+    type: "negative",
+    message: t("register.fileTooLarge", { max: maxUploadGb }),
+  });
 }
 
 function onFailed() {
@@ -46,6 +56,7 @@ function onFailed() {
     <q-uploader
       accept=".zip"
       auto-upload
+      :max-file-size="maxFileSize"
       class="uploader full-width"
       :url="uploadUrl"
       :form-fields="formFields"
@@ -53,6 +64,7 @@ function onFailed() {
       with-credentials
       bordered
       flat
+      @rejected="onRejected"
       @failed="onFailed"
       @uploaded="onUploaded"
     />

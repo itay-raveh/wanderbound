@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import shutil
 from collections.abc import AsyncIterable
 from typing import Annotated, cast
@@ -17,7 +18,7 @@ from fastapi.sse import EventSourceResponse
 
 from app.logic.processing import ProcessingEvent
 from app.logic.session import process_stream
-from app.logic.upload import UploadResult, extract_and_scan
+from app.logic.upload import MAX_UPLOAD_BYTES, UploadResult, extract_and_scan
 from app.models.user import GoogleIdentity, User, UserUpdate
 
 from ..deps import SessionDep, UserDep
@@ -26,6 +27,20 @@ from .auth import verify_google_credential
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _check_upload_size(file: UploadFile) -> int:
+    """Defense-in-depth size check (nginx is the primary limit)."""
+    # Measure actual bytes on disk, not the Content-Length header (spoofable).
+    # Seek to end, read cursor position, then reset.
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
+        )
+    return size
 
 
 @router.post("/upload")
@@ -42,11 +57,8 @@ async def upload_data(
             raise HTTPException(status.HTTP_401_UNAUTHORIZED)
         google = await verify_google_credential(credential)
 
-    logger.info(
-        "Extracting '%s' (%d MB)",
-        file.filename,
-        (file.size or 0) // 1_048_576,
-    )
+    size = _check_upload_size(file)
+    logger.info("Extracting '%s' (%d MB)", file.filename, size // 1_048_576)
     try:
         temp_folder, ps_user, trips = await asyncio.to_thread(
             extract_and_scan, file.file

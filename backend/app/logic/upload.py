@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.
+MAX_UPLOAD_BYTES = settings.VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
 _MAX_FILES = 50_000
 _MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
 

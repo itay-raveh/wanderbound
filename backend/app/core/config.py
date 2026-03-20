@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
     VITE_GOOGLE_CLIENT_ID: str
+    VITE_MAX_UPLOAD_GB: int = 4
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
