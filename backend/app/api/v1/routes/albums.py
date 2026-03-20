@@ -91,8 +91,10 @@ async def adjust_segment_boundary(
 ) -> AlbumData:
     uid = user.id
 
-    # Load the target hike segment
-    target = await session.get(Segment, (uid, aid, body.start_time, body.end_time))
+    # Lock the target segment for the duration of this transaction
+    target = await session.get(
+        Segment, (uid, aid, body.start_time, body.end_time), with_for_update=True
+    )
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Segment not found")
 
@@ -119,6 +121,7 @@ async def adjust_segment_boundary(
         )
         .order_by(ordering)
         .limit(1)
+        .with_for_update()
     )
     adjacent = result.first()
     if adjacent is None:
