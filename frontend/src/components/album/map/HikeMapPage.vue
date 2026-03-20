@@ -236,7 +236,7 @@ watch(
   () => {
     if (!map.value) return;
     elevationSamples.value = [];
-    drawMap(map.value, { fitBounds: false });
+    drawMap(map.value);
     scheduleElevationQuery(map.value);
   },
 );

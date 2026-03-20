@@ -44,8 +44,9 @@ export function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJS
 }
 
 export function removeMapLayer(map: mapboxgl.Map, id: string) {
-  try { map.removeLayer(id); } catch { /* layer missing or style destroyed */ }
-  try { map.removeSource(id); } catch { /* source missing or style destroyed */ }
+  if (!map.getStyle()) return;
+  if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(id)) map.removeSource(id);
 }
 
 function addCircle(
