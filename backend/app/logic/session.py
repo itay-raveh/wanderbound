@@ -17,12 +17,6 @@ logger = logging.getLogger(__name__)
 _SESSION_TTL = 300  # seconds before a completed session is evicted
 
 
-def _evict_session(uid: int, session: ProcessingSession) -> None:
-    """Remove a completed session if it hasn't been replaced."""
-    if _sessions.get(uid) is session:
-        del _sessions[uid]
-
-
 class ProcessingSession:
     """Runs processing in a background task; clients subscribe to events."""
 
@@ -71,6 +65,12 @@ class ProcessingSession:
 
 
 _sessions: dict[int, ProcessingSession] = {}
+
+
+def _evict_session(uid: int, session: ProcessingSession) -> None:
+    """Remove a completed session if it hasn't been replaced."""
+    if _sessions.get(uid) is session:
+        del _sessions[uid]
 
 
 async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:

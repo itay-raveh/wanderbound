@@ -25,6 +25,23 @@ class SegmentData(NamedTuple):
     points: list[Point]
 
 
+class Segment(SQLModel, table=True):
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
+        ),
+    )
+
+    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
+    aid: str = Field(primary_key=True)
+    start_time: float = Field(primary_key=True)
+    end_time: float = Field(primary_key=True)
+    kind: SegmentKind
+    points: list[Point] = Field(
+        sa_column=Column(PydanticJSON(list[Point]), nullable=False)
+    )
+
+
 class BoundaryAdjust(BaseModel):
     start_time: float
     end_time: float
@@ -110,20 +127,3 @@ def split_segments(
         points=late_points,
     )
     return new_earlier, new_later
-
-
-class Segment(SQLModel, table=True):
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
-        ),
-    )
-
-    uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
-    aid: str = Field(primary_key=True)
-    start_time: float = Field(primary_key=True)
-    end_time: float = Field(primary_key=True)
-    kind: SegmentKind
-    points: list[Point] = Field(
-        sa_column=Column(PydanticJSON(list[Point]), nullable=False)
-    )
