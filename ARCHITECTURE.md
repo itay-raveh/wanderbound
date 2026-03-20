@@ -64,7 +64,7 @@ backend/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Migrations: initial tables, steps_ranges/maps_ranges string→JSON, index→date
   data/users/                User upload data (ZIPs extracted here, one folder per user ID)
-  tests/                     pytest (289 tests), conftest with async helpers
+  tests/                     pytest (295 tests), conftest with async helpers
   pyproject.toml             Python 3.14, deps: FastAPI, SQLModel, Polars, Playwright, Pillow, httpx
   logging.json               Uvicorn log config (Rich handlers)
 
@@ -302,7 +302,7 @@ Packs step photos into album pages:
 
 ```bash
 # Backend
-cd backend && uv run pytest                  # 289 tests
+cd backend && uv run pytest                  # 295 tests
 cd backend && uv run alembic upgrade head     # run migrations
 
 # Frontend

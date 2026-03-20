@@ -7,8 +7,6 @@ All tests build segments from the full trip (all steps + all GPS points),
 matching how segments are pre-computed at user creation time.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo

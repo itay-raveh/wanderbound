@@ -4,9 +4,8 @@ Both endpoints share an IP-based rate limit (480/min). Rate limiting
 sits between the cache and network layers so cache hits bypass it.
 """
 
-from __future__ import annotations
-
 import asyncio
+from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
 from itertools import batched
 from typing import TYPE_CHECKING, Protocol
@@ -20,8 +19,6 @@ from app.core.http import cached_client
 from app.models.weather import Weather, WeatherData
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
-
     from app.models.polarsteps import HasLatLon
 
 

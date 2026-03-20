@@ -23,13 +23,12 @@ DataFrame columns through the pipeline::
     output_id        RLE group ID on final_mode
 """
 
-from __future__ import annotations
-
 import logging
 import math
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import Protocol, cast
 
 import numpy as np
 import polars as pl
@@ -37,9 +36,6 @@ from simplification.cutil import simplify_coords_idx  # ty: ignore[unresolved-im
 
 from app.models.polarsteps import HasLatLon, Point
 from app.models.segment import SegmentData, SegmentKind
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
 
 
 class _StepLike(Protocol):

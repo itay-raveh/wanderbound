@@ -1,13 +1,10 @@
+from collections.abc import Container, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from coloraide import Color
 from pydantic import BaseModel, TypeAdapter
 
 from app.models.polarsteps import CountryCode, HexColor
-
-if TYPE_CHECKING:
-    from collections.abc import Container, Iterable
 
 
 class CountryColors(BaseModel):

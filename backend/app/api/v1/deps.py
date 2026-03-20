@@ -1,5 +1,6 @@
 import logging
-from typing import TYPE_CHECKING, Annotated
+from collections.abc import AsyncGenerator
+from typing import Annotated
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
@@ -7,9 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.models.user import User
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 

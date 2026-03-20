@@ -1,7 +1,9 @@
 import asyncio
 import logging
+from collections.abc import AsyncIterable, Iterable, Sequence
 from itertools import batched
 from math import ceil
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from .media import Media, MediaName
@@ -10,9 +12,6 @@ from .media import Media, MediaName
 _ffprobe_sem = asyncio.Semaphore(8)
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterable, Iterable, Sequence
-    from pathlib import Path
-
     from app.models.polarsteps import PSStep
     from app.models.user import User
 
