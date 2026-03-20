@@ -129,7 +129,7 @@ function select(name: string) {
 .grid-cell {
   all: unset;
   cursor: pointer;
-  aspect-ratio: 297 / 210;
+  aspect-ratio: var(--page-aspect);
   border-radius: var(--radius-xs);
   overflow: hidden;
   outline: 2px solid transparent;

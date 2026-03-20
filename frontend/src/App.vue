@@ -23,6 +23,7 @@ html, body, #app {
   /* A4 landscape page dimensions (single source of truth for album pages). */
   --page-width: 297mm;
   --page-height: 210mm;
+  --page-aspect: 297 / 210;
 
   /* Step page layout: meta-panel occupies this fraction of the page width. */
   --meta-ratio: 0.42;
