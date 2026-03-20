@@ -10,8 +10,10 @@ from app.logic.processing import (
     ErrorData,
     PhaseUpdate,
     ProcessingEvent,
-    ProcessingSession,
     TripStart,
+)
+from app.logic.session import (
+    ProcessingSession,
     _sessions,
     process_stream,
 )
@@ -45,7 +47,7 @@ class TestProcessingSession:
             for e in events:
                 yield e
 
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             session = ProcessingSession(_mock_user())
             result = await collect_async(session.subscribe())
 
@@ -64,7 +66,7 @@ class TestProcessingSession:
             for e in events:
                 yield e
 
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             session = ProcessingSession(_mock_user())
             # Wait for processing to finish
             await session._task
@@ -82,7 +84,7 @@ class TestProcessingSession:
             yield TripStart(trip_index=0)
             yield ErrorData(detail="boom")
 
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             session = ProcessingSession(_mock_user())
             result = await collect_async(session.subscribe())
 
@@ -111,7 +113,7 @@ class TestProcessStream:
                 yield e
 
         user = _mock_user(uid=42)
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             result = await collect_async(process_stream(user))
 
         assert result == events
@@ -131,7 +133,7 @@ class TestProcessStream:
                 yield e
 
         user = _mock_user(uid=99)
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             # Start first subscriber — it will block at gate
             session = ProcessingSession(user)
             _sessions[user.id] = session
@@ -160,7 +162,7 @@ class TestProcessStream:
             yield TripStart(trip_index=0)
 
         user = _mock_user(uid=7)
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             first = await collect_async(process_stream(user))
             second = await collect_async(process_stream(user))
 
@@ -180,7 +182,7 @@ class TestProcessStream:
             await gate.wait()
 
         user = _mock_user(uid=5)
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             # Start first stream
             session = ProcessingSession(user)
             _sessions[user.id] = session
@@ -208,7 +210,7 @@ class TestProcessStream:
             yield TripStart(trip_index=0)
 
         user = _mock_user(uid=3)
-        with patch("app.logic.processing._run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", fake_processing):
             await collect_async(process_stream(user))
 
         # Session stays alive for reconnection (evicted by call_later)

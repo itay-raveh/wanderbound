@@ -15,7 +15,8 @@ from fastapi.sse import EventSourceResponse
 from safezip import SafezipError
 
 from app.core.config import USER_COOKIE
-from app.logic.processing import ProcessingEvent, process_stream
+from app.logic.processing import ProcessingEvent
+from app.logic.session import process_stream
 from app.logic.upload import UserCreated, user_from_zip
 from app.models.user import User, UserUpdate
 

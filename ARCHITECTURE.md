@@ -46,8 +46,10 @@ backend/
     logic/
       pdf.py                Playwright PDF renderer (browser context, cookies, print emulation)
       upload.py             Extract ZIP → create User + discover trips → save to DB
-      processing.py         ProcessingSession (background task with SSE reconnect), 5-phase pipeline:
+      processing.py         5-phase processing pipeline:
                               elevations → weather → layouts/flatten/frames/thumbs → DB commit
+      session.py            SSE session management: ProcessingSession (background task with
+                              event replay), process_stream (per-user session reuse/reconnect)
       country_colors.py     Assign distinct colors to countries (Delta-E color distance)
       layout/
         __init__.py          Exports Layout, build_step_layout
