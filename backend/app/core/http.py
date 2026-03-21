@@ -10,6 +10,8 @@ from hishel.httpx import AsyncCacheTransport
 from httpx import AsyncBaseTransport, AsyncClient
 from httpx_retries import Retry, RetryTransport
 
+from app.core.config import get_settings
+
 _CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 
 
@@ -44,7 +46,10 @@ def cached_client(
             RetryTransport(
                 transport=transport, retry=Retry(total=3, backoff_factor=0.5)
             ),
-            storage=AsyncSqliteStorage(default_ttl=_CACHE_TTL),  # type: ignore[arg-type]
+            storage=AsyncSqliteStorage(
+                default_ttl=_CACHE_TTL,
+                database_path=get_settings().DATA_FOLDER / "http_cache.sqlite",
+            ),  # type: ignore[arg-type]
             policy=policy,
         )
     )
