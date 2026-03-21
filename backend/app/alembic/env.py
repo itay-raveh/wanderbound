@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
-import app.models  # noqa: F401 — register all table models
+import app.models  # noqa: F401 - register all table models
 from app.core.config import settings
 from app.core.db import PydanticJSON
 
@@ -21,7 +21,7 @@ target_metadata = SQLModel.metadata
 def render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | Literal[False]:
     """Render PydanticJSON columns as plain sa.JSON() in migrations.
 
-    No need to add ``import sqlalchemy as sa`` — Alembic already emits it
+    No need to add ``import sqlalchemy as sa`` - Alembic already emits it
     for any migration that references ``sa.Column``.
     """
     if type_ == "type" and isinstance(obj, PydanticJSON):

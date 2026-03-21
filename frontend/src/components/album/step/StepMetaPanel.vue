@@ -328,7 +328,7 @@ const dateStr = computed(() => {
   flex-shrink: 0;
 }
 
-// Progress bar is direction-independent — do not add rtl:ignore or direction overrides.
+// Progress bar is direction-independent - do not add rtl:ignore or direction overrides.
 .progress-track {
   display: flex;
   width: 100%;

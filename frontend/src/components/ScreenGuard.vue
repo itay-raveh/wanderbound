@@ -9,7 +9,7 @@ const route = useRoute();
 const { t } = useI18n();
 
 const screenTooSmall = computed(
-  () => $q.screen.lt.md && route.name !== "print",
+  () => $q.screen.lt.md && route.name === "editor",
 );
 </script>
 

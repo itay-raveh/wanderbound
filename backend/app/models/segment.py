@@ -69,7 +69,7 @@ def split_segments(
     """Split two adjacent segments at a new boundary time.
 
     Each output segment inherits its kind from the input segment that
-    originally occupied that time region (earlier input → earlier output).
+    originally occupied that time region (earlier input -> earlier output).
 
     When the boundary falls between two GPS points, an interpolated point is
     created and added to both sides so each segment extends to the exact
@@ -80,7 +80,7 @@ def split_segments(
     earlier_seg, later_seg = sorted([seg_a, seg_b], key=lambda s: s.points[0].time)
 
     if earlier_seg.points[-1].time > later_seg.points[0].time:
-        raise ValueError("Segments overlap in time — cannot split overlapping segments")
+        raise ValueError("Segments overlap in time - cannot split overlapping segments")
 
     combined = [*earlier_seg.points, *later_seg.points]
 

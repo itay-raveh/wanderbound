@@ -4,7 +4,7 @@ import { watch, type Ref } from "vue";
 import i18n, { uiLang } from "@/i18n";
 
 // Discover all Quasar lang packs at build time (~81 locales).
-// Vite creates lazy chunks for each — only loaded when needed.
+// Vite creates lazy chunks for each - only loaded when needed.
 const quasarLangs = import.meta.glob<{ default: QuasarLanguage }>(
   "../../node_modules/quasar/lang/*.js",
 );
@@ -21,7 +21,7 @@ const availableSet = new Set(availableCodes);
 
 /**
  * Resolve a BCP 47 locale to the closest available Quasar lang pack code.
- * "he-IL" → "he" (exact match on base language), "pt-BR" → "pt-BR" (exact).
+ * "he-IL" -> "he" (exact match on base language), "pt-BR" -> "pt-BR" (exact).
  */
 export function resolveLocale(bcp47: string): string {
   if (availableSet.has(bcp47)) return bcp47;
@@ -36,7 +36,7 @@ async function loadQuasarLang(bcp47: string): Promise<QuasarLanguage> {
   return (await loader()).default;
 }
 
-/** Self-labeled locale options for the picker (lazy — built on first access). */
+/** Self-labeled locale options for the picker (lazy - built on first access). */
 let _localeOptions: { label: string; value: string }[] | null = null;
 export function getLocaleOptions(): { label: string; value: string }[] {
   if (!_localeOptions) {
@@ -53,7 +53,7 @@ export function getLocaleOptions(): { label: string; value: string }[] {
   return _localeOptions;
 }
 
-/** Tracks the last locale applied — prevents redundant `applyLocale` calls. */
+/** Tracks the last locale applied - prevents redundant `applyLocale` calls. */
 let currentLocale = "";
 
 /** Apply locale globally: vue-i18n messages, Quasar lang pack (+ RTL), HTML lang. */
@@ -67,7 +67,7 @@ export async function applyLocale(bcp47: string): Promise<void> {
 }
 
 /**
- * Reactive locale orchestration — calls `applyLocale` whenever the
+ * Reactive locale orchestration - calls `applyLocale` whenever the
  * user's BCP 47 locale ref changes.
  */
 export function useLocale(bcp47Locale: Ref<string>) {

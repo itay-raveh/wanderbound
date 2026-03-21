@@ -1,6 +1,6 @@
 # Architecture
 
-> **AI-facing document.** Keep this current after every structural change — new files, moved modules, changed data flows, added dependencies. This saves full-codebase exploration on every conversation.
+> **AI-facing document.** Keep this current after every structural change - new files, moved modules, changed data flows, added dependencies. This saves full-codebase exploration on every conversation.
 
 ## What This App Does
 
@@ -45,9 +45,9 @@ backend/
       __init__.py            Imports all tables so Alembic sees them
     logic/
       pdf.py                Playwright PDF renderer (browser context, cookies, print emulation)
-      upload.py             Extract ZIP → create User + discover trips → save to DB
+      upload.py             Extract ZIP -> create User + discover trips -> save to DB
       processing.py         5-phase processing pipeline:
-                              elevations → weather → layouts/flatten/frames/thumbs → DB commit
+                              elevations -> weather -> layouts/flatten/frames/thumbs -> DB commit
       session.py            SSE session management: ProcessingSession (background task with
                               event replay), process_stream (per-user session reuse/reconnect)
       country_colors.py     Assign distinct colors to countries (Delta-E color distance)
@@ -56,13 +56,13 @@ backend/
         builder.py           Photo layout algorithm (portrait/landscape packing into pages)
         media.py             Photo/Video models, ffprobe, ffmpeg frame extraction, thumbnail generation
       spatial/
-        segments.py          GPS segmentation pipeline (ingest → label → absorb → validate → emit)
+        segments.py          GPS segmentation pipeline (ingest -> label -> absorb -> validate -> emit)
         peaks.py             OSM Overpass peak correction for DEM elevations
     services/
       open_meteo.py          Rate-limited Open-Meteo client: DEM elevations + historical weather
     alembic/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
-      versions/              Migrations: initial tables, steps_ranges/maps_ranges string→JSON, index→date
+      versions/              Migrations: initial tables, steps_ranges/maps_ranges string->JSON, index->date
   data/users/                User upload data (ZIPs extracted here, one folder per user ID)
   tests/                     pytest (295 tests), conftest with async helpers
   pyproject.toml             Python 3.14, deps: FastAPI, SQLModel, Polars, Playwright, Pillow, httpx
@@ -79,7 +79,7 @@ frontend/
       types.gen.ts           TypeScript interfaces matching backend Pydantic models
     pages/
       EditorView.vue         Main editor: header toolbar + album viewer, album selection in localStorage
-      RegisterView.vue       Onboarding: ZIP upload → SSE processing progress → redirect to editor
+      RegisterView.vue       Onboarding: ZIP upload -> SSE processing progress -> redirect to editor
       PrintView.vue          Headless render target for PDF: loads album, waits for fonts/images, signals __PRINT_READY__
     queries/
       keys.ts               Query key factory (albums, albumData, user)
@@ -143,10 +143,10 @@ frontend/
         RegisterHero.vue      Splash header with logo
         RegisterStep.vue      Numbered step container
         DataInstructions.vue  Step 1: download instructions
-        ZipUploader.vue       Step 2: file upload (q-uploader → POST /users)
+        ZipUploader.vue       Step 2: file upload (q-uploader -> POST /users)
         UnsupportedBanner.vue Browser compatibility warning
         ProcessingProgress.vue Live processing status with TripTimeline
-        TripTimeline.vue      Phase progress visualization (elevations → weather → layouts → frames → thumbs)
+        TripTimeline.vue      Phase progress visualization (elevations -> weather -> layouts -> frames -> thumbs)
     utils/
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
@@ -168,41 +168,41 @@ frontend/
 ### Upload & Processing
 
 ```
-User uploads ZIP → POST /users → extract ZIP to data/users/{uid}/
-  → parse user.json → discover trip directories → save User to DB
-  → return UserCreated { user, trips[] }
+User uploads ZIP -> POST /users -> extract ZIP to data/users/{uid}/
+  -> parse user.json -> discover trip directories -> save User to DB
+  -> return UserCreated { user, trips[] }
 
-GET /users/process (SSE) → ProcessingSession (background task, reconnectable)
+GET /users/process (SSE) -> ProcessingSession (background task, reconnectable)
   Per trip:
-    1. elevations  — Open-Meteo DEM API (batched, 100/request)
-    2. weather     — Open-Meteo Archive API (1 call/step, concurrent)
-    3. layouts     — read photos/videos from step dirs, build page layouts
-       → flatten media to trip root dir
-       → download cover photo from Polarsteps CDN
-    4. frames      — ffmpeg extract poster from each .mp4 (semaphore-limited)
-    5. thumbs      — Pillow generate WebP thumbnails at 200px + 800px
-  → build_segments (Polars pipeline: GPS → typed segments)
-  → bulk insert Album + Steps + Segments to DB
+    1. elevations  - Open-Meteo DEM API (batched, 100/request)
+    2. weather     - Open-Meteo Archive API (1 call/step, concurrent)
+    3. layouts     - read photos/videos from step dirs, build page layouts
+       -> flatten media to trip root dir
+       -> download cover photo from Polarsteps CDN
+    4. frames      - ffmpeg extract poster from each .mp4 (semaphore-limited)
+    5. thumbs      - Pillow generate WebP thumbnails at 200px + 800px
+  -> build_segments (Polars pipeline: GPS -> typed segments)
+  -> bulk insert Album + Steps + Segments to DB
 ```
 
 ### PDF Export
 
 ```
 POST /albums/{aid}/pdf
-  → Playwright opens /print/{aid} on frontend
-  → PrintView loads album, waits for all images + fonts
-  → sets window.__PRINT_READY__ = true
-  → Playwright captures PDF (A4 landscape, CSS page size, print background)
+  -> Playwright opens /print/{aid} on frontend
+  -> PrintView loads album, waits for all images + fonts
+  -> sets window.__PRINT_READY__ = true
+  -> Playwright captures PDF (A4 landscape, CSS page size, print background)
 ```
 
 ### Album Editing
 
 ```
-EditorView → useAlbumQuery + useAlbumDataQuery → AlbumViewer
-  → AlbumToolbar: PATCH /albums/{aid} (title, subtitle, covers, ranges)
-  → StepEntry: drag-and-drop photos, inline name/description editing → PATCH /albums/{aid}/steps/{sid}
-  → CoverPage: inline title/subtitle editing → PATCH /albums/{aid}
-  → All mutations use optimistic updates (Pinia Colada cache)
+EditorView -> useAlbumQuery + useAlbumDataQuery -> AlbumViewer
+  -> AlbumToolbar: PATCH /albums/{aid} (title, subtitle, covers, ranges)
+  -> StepEntry: drag-and-drop photos, inline name/description editing -> PATCH /albums/{aid}/steps/{sid}
+  -> CoverPage: inline title/subtitle editing -> PATCH /albums/{aid}
+  -> All mutations use optimistic updates (Pinia Colada cache)
 ```
 
 ## Database Schema
@@ -217,15 +217,15 @@ user
   album_ids            JSON (list of album ID strings)
 
 album
-  (uid, id) PK         uid FK → user.id
+  (uid, id) PK         uid FK -> user.id
   title, subtitle, front_cover_photo, back_cover_photo
-  steps_ranges         JSON (list[DateRange] — date-based step filtering)
-  maps_ranges          JSON (list[DateRange] — map section date ranges)
-  colors               JSON (country_code → hex color)
-  orientations         JSON (media_name → "p"/"l")
+  steps_ranges         JSON (list[DateRange] - date-based step filtering)
+  maps_ranges          JSON (list[DateRange] - map section date ranges)
+  colors               JSON (country_code -> hex color)
+  orientations         JSON (media_name -> "p"/"l")
 
 step
-  (uid, aid, idx) PK   (uid,aid) FK → album, uid FK → user
+  (uid, aid, idx) PK   (uid,aid) FK -> album, uid FK -> user
   name, description, timestamp, timezone_id
   location             JSON (Location)
   elevation            int
@@ -234,7 +234,7 @@ step
   unused               JSON (unused filenames)
 
 segment
-  (uid, aid, start_time, end_time) PK   (uid,aid) FK → album
+  (uid, aid, start_time, end_time) PK   (uid,aid) FK -> album
   kind                 enum (flight, hike, walking, driving)
   points               JSON (Point[]: lat, lon, time)
 ```
@@ -245,10 +245,10 @@ segment
 
 | Type | Location | Purpose |
 |------|----------|---------|
-| `DateRange` | `models/album.py` | `tuple[date, date]` type alias — used for steps_ranges and maps_ranges |
-| `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) — step photo layout |
+| `DateRange` | `models/album.py` | `tuple[date, date]` type alias - used for steps_ranges and maps_ranges |
+| `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) - step photo layout |
 | `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
-| `SegmentData` | `models/segment.py` | NamedTuple(kind, points) — GPS segmentation pipeline output |
+| `SegmentData` | `models/segment.py` | NamedTuple(kind, points) - GPS segmentation pipeline output |
 | `CountryCode`, `HexColor` | `models/polarsteps.py` | Annotated string types with validation constraints |
 | `HasLatLon` | `models/polarsteps.py` | Structural protocol for objects with lat/lon attributes |
 | `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
@@ -285,11 +285,11 @@ Cookie-based, no encryption. The `uid` cookie holds the Polarsteps user ID (inte
 
 5-stage Polars pipeline, all vectorized:
 
-1. **Ingest** — merge step waypoints + GPS locations, dedup, remove teleports/spikes, densify slow edges to ~15m
-2. **Label** — classify edges: flight (>200 km/h), hike (<6.5 km/h within 4h gap), other
-3. **Absorb** — fold noise gaps (<3h, <4km), overnight camps (<1km, <20h), GPS blackouts back into hikes
-4. **Validate** — downgrade undersized hikes (<2h, <2km, <1km displacement) and short flights (<100km) to "other"
-5. **Emit** — RDP simplify, resolve "other" → walking/driving by avg speed, stitch consecutive segments
+1. **Ingest** - merge step waypoints + GPS locations, dedup, remove teleports/spikes, densify slow edges to ~15m
+2. **Label** - classify edges: flight (>200 km/h), hike (<6.5 km/h within 4h gap), other
+3. **Absorb** - fold noise gaps (<3h, <4km), overnight camps (<1km, <20h), GPS blackouts back into hikes
+4. **Validate** - downgrade undersized hikes (<2h, <2km, <1km displacement) and short flights (<100km) to "other"
+5. **Emit** - RDP simplify, resolve "other" -> walking/driving by avg speed, stitch consecutive segments
 
 ## Photo Layout Algorithm (`builder.py`)
 
@@ -319,6 +319,6 @@ docker compose -f compose.yml -f compose.override.yml up  # dev mode with hot re
 
 ## CI
 
-- **test-backend.yml** — start DB, run migrations, run pytest
-- **test-docker-compose.yml** — build all images, smoke-test health endpoints
-- **pre-commit.yml** — ruff check + format, ty check, eslint (also runs locally via .pre-commit-config.yaml)
+- **test-backend.yml** - start DB, run migrations, run pytest
+- **test-docker-compose.yml** - build all images, smoke-test health endpoints
+- **pre-commit.yml** - ruff check + format, ty check, eslint (also runs locally via .pre-commit-config.yaml)

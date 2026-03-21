@@ -111,7 +111,7 @@ class TestOverpassModels:
 
 class TestLocalPeaks:
     def test_summit_between_valleys(self) -> None:
-        # city → base → summit → city
+        # city -> base -> summit -> city
         elevs = [500, 4000, 5200, 500]
         assert list(_local_peaks(elevs)) == [2]
 
@@ -171,7 +171,7 @@ class TestLocalPeaks:
 class TestCorrectPeaks:
     @pytest.mark.anyio
     async def test_no_peaks_returns_original(self) -> None:
-        """Flat trip — no local peaks, no Overpass call."""
+        """Flat trip - no local peaks, no Overpass call."""
         locs = [_Loc(0, 0), _Loc(0, 1), _Loc(0, 2)]
         elevs = [100.0, 110.0, 105.0]
         result = await correct_peaks(locs, elevs)
@@ -179,7 +179,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_corrects_summit(self) -> None:
-        """OSM peak higher than DEM within deviation threshold → corrected."""
+        """OSM peak higher than DEM within deviation threshold -> corrected."""
         locs = [_Loc(0, 0), _Loc(-16.19, -68.26), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -196,7 +196,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_does_not_lower_elevation(self) -> None:
-        """OSM peak lower than DEM → keep DEM value."""
+        """OSM peak lower than DEM -> keep DEM value."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5400.0, 500.0]
 
@@ -207,11 +207,11 @@ class TestCorrectPeaks:
             mock_client.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
-        assert result[1] == 5400.0  # unchanged — OSM peak is lower
+        assert result[1] == 5400.0  # unchanged - OSM peak is lower
 
     @pytest.mark.anyio
     async def test_deviation_too_large(self) -> None:
-        """OSM peak far above DEM (>10%) → skip correction."""
+        """OSM peak far above DEM (>10%) -> skip correction."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         dem_val = 3000.0
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION + 0.01)  # just over 10%
@@ -228,7 +228,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_deviation_exactly_at_threshold(self) -> None:
-        """OSM peak exactly at 10% above DEM → corrected."""
+        """OSM peak exactly at 10% above DEM -> corrected."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         dem_val = 5000.0
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION)  # exactly 10%
@@ -245,7 +245,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_picks_closest_in_elevation(self) -> None:
-        """Multiple OSM peaks → picks the one closest to DEM value."""
+        """Multiple OSM peaks -> picks the one closest to DEM value."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -266,7 +266,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_overpass_failure_returns_original(self) -> None:
-        """Overpass HTTP error → graceful fallback to DEM values."""
+        """Overpass HTTP error -> graceful fallback to DEM values."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -278,7 +278,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_overpass_non_200_returns_original(self) -> None:
-        """Overpass HTTP status error → graceful fallback to DEM values."""
+        """Overpass HTTP status error -> graceful fallback to DEM values."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -295,7 +295,7 @@ class TestCorrectPeaks:
 
     @pytest.mark.anyio
     async def test_empty_overpass_response(self) -> None:
-        """Overpass returns no peaks → original elevations."""
+        """Overpass returns no peaks -> original elevations."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -344,7 +344,7 @@ def _elev_response(values: list[float]) -> MagicMock:
 class TestElevations:
     @pytest.mark.anyio
     async def test_single_batch(self) -> None:
-        """Fewer than 100 locations → single API call."""
+        """Fewer than 100 locations -> single API call."""
         locs = [_Loc(i, i) for i in range(5)]
         expected = [100.0, 200.0, 300.0, 400.0, 500.0]
 
@@ -357,7 +357,7 @@ class TestElevations:
 
     @pytest.mark.anyio
     async def test_multiple_batches(self) -> None:
-        """More than 100 locations → multiple API calls."""
+        """More than 100 locations -> multiple API calls."""
         n = OPEN_METEO_MAX_PER_REQUEST + 20  # 120
         locs = [_Loc(i, i) for i in range(n)]
         batch1 = list(range(OPEN_METEO_MAX_PER_REQUEST))

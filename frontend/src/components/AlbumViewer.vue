@@ -23,7 +23,7 @@ const EmptyPage = defineComponent({
   render: () => h("div", { class: "page-container" }),
 });
 
-// Async components — splits turf/mapbox-gl out of the main chunk.
+// Async components - splits turf/mapbox-gl out of the main chunk.
 const MapPage = defineAsyncComponent({
   loader: () => import("./album/map/MapPage.vue"),
   errorComponent: EmptyPage,
@@ -251,7 +251,7 @@ if (props.printMode) {
   background: currentColor;
 }
 
-// Print mode: override contain:strict from base rule — size containment
+// Print mode: override contain:strict from base rule - size containment
 // prevents intrinsic sizing that break-after/page relies on.
 .album-container.print-mode :deep(.page-container) {
   contain: none;

@@ -14,7 +14,7 @@ const props = defineProps<{
   options?: (date: string) => boolean;
 }>();
 
-/** Map QDate-format date → country color hex for steps on that date. */
+/** Map QDate-format date -> country color hex for steps on that date. */
 const dateColorMap = computed(() => {
   const map = new Map<string, string>();
   for (const step of props.steps) {

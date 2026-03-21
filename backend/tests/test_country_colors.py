@@ -151,7 +151,7 @@ class TestRealWorldScenarios:
         assert result["bo"] == "#ffff00"
 
     def test_diverse_countries_no_conflicts(self) -> None:
-        """NL (orange), IE (green), FR (blue) — no overlap."""
+        """NL (orange), IE (green), FR (blue) - no overlap."""
         result = build_country_colors({"nl", "ie", "fr"})
         assert result["nl"] == "#ff7f00"  # orange
         assert result["ie"] == "#008000"  # green
@@ -182,7 +182,7 @@ class TestWithMockedCountries:
         )
 
     def test_all_identical_candidates(self) -> None:
-        """Three countries with only red — all get red."""
+        """Three countries with only red - all get red."""
         countries = [
             CountryColors(code="aa", colors=["#ff0000"]),
             CountryColors(code="bb", colors=["#ff0000"]),

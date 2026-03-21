@@ -16,7 +16,7 @@ function cached(text: string, layout: TextLayout): TextLayout {
   return layout;
 }
 
-// --- Font readiness tracking (reactive — triggers recomputation in computed contexts) ---
+// --- Font readiness tracking (reactive - triggers recomputation in computed contexts) ---
 // Revision counter bumped when fonts finish loading. The loadingdone listener handles
 // unicode-range fonts (e.g. Heebo for Hebrew) that load on demand after initial ready.
 // Debounced so rapid successive loads (multiple unicode-range slices) collapse into one
@@ -42,7 +42,7 @@ let metaMeasure: HTMLDivElement | null = null;
 let fullMeasure: HTMLDivElement | null = null;
 let contMeasure: HTMLDivElement | null = null;
 
-// Positioning for all hidden measurement containers — text formatting
+// Positioning for all hidden measurement containers - text formatting
 // comes from the .text-body-columns CSS class (App.vue) or inline styles.
 const MEASURE_STYLE = [
   "position:fixed",
@@ -63,7 +63,7 @@ function createContainer(extraStyle: string, className?: string): HTMLDivElement
 function ensureContainers() {
   if (metaMeasure) return;
 
-  // Matches StepMetaPanel .description — flex:1 area in the meta-ratio-wide sidebar.
+  // Matches StepMetaPanel .description - flex:1 area in the meta-ratio-wide sidebar.
   // Empirical height (21rem) accounts for silhouette, name-block, stats, and progress.
   metaMeasure = createContainer(
     [
@@ -78,9 +78,9 @@ function ensureContainers() {
     ].join(";"),
   );
 
-  // Matches StepMainPage .description-full — full-width 2-column layout below compact meta.
+  // Matches StepMainPage .description-full - full-width 2-column layout below compact meta.
   // Empirical height (11rem) accounts for the compact meta header grid.
-  // Text formatting from .text-body-columns class (App.vue) — single source of truth.
+  // Text formatting from .text-body-columns class (App.vue) - single source of truth.
   fullMeasure = createContainer(
     [
       "width:var(--page-width)",
@@ -89,8 +89,8 @@ function ensureContainers() {
     "text-body-columns",
   );
 
-  // Matches StepTextPage .text-page-body — continuation text pages (same 2-column layout).
-  // Text formatting from .text-body-columns class (App.vue) — single source of truth.
+  // Matches StepTextPage .text-page-body - continuation text pages (same 2-column layout).
+  // Text formatting from .text-body-columns class (App.vue) - single source of truth.
   contMeasure = createContainer(
     [
       "width:var(--page-width)",
@@ -146,12 +146,12 @@ function estimateLayout(text: string): TextLayout {
 
 // --- DOM measurement helpers ---
 
-/** Vertical overflow only — for single-column containers. */
+/** Vertical overflow only - for single-column containers. */
 function overflowsV(container: HTMLDivElement): boolean {
   return container.scrollHeight > container.clientHeight;
 }
 
-/** Vertical or horizontal overflow — for multi-column containers where
+/** Vertical or horizontal overflow - for multi-column containers where
  *  excess content spills into columns beyond the container width.
  *  (scrollWidth check is unreliable for single-column RTL; browsers
  *  report a few extra pixels due to the RTL scroll origin.) */

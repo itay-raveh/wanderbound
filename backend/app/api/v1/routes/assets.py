@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/albums", tags=["assets"])
 
-# Photos and videos never change in-place → cache forever.
+# Photos and videos never change in-place -> cache forever.
 _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 # Video posters (.jpg with a sibling .mp4) can change when the user
 # picks a new frame, so the browser must revalidate on each load.

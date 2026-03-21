@@ -323,7 +323,7 @@ async def _media_pipeline(
     cover_name: str,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> tuple[dict[int, Layout | None], str]:
-    """Layouts → flatten → cover → frames → thumbs (sequential pipeline).
+    """Layouts -> flatten -> cover -> frames -> thumbs (sequential pipeline).
 
     Runs as one TaskGroup member so frame extraction starts as soon as
     layouts finish, without waiting for the API calls to complete.

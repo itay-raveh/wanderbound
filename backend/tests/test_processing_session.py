@@ -134,7 +134,7 @@ class TestProcessStream:
 
         user = _mock_user(uid=99)
         with patch("app.logic.session.run_processing", fake_processing):
-            # Start first subscriber — it will block at gate
+            # Start first subscriber - it will block at gate
             session = ProcessingSession(user)
             _sessions[user.id] = session
 

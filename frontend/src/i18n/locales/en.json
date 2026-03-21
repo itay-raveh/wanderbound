@@ -1,6 +1,21 @@
 {
   "brand": "Polarsteps Album Generator",
 
+  "landing": {
+    "tagline": "Turn your trips into beautiful photo albums",
+    "autoAlbumTitle": "Instant album from your data",
+    "autoAlbumBody": "Upload your Polarsteps export and get a complete photo album in seconds — cover page, trip stats, smart photo layouts, all ready to customize.",
+    "hikeMapTitle": "Automatic hike detection",
+    "hikeMapBody": "Hikes are detected from your GPS data automatically. Each gets a dedicated page with satellite map, elevation profile, and trail stats.",
+    "videoPosterTitle": "Video poster frames",
+    "videoPosterBody": "Pick the perfect frame from any video to use in your album. Scrub frame-by-frame and set a poster — no screenshots needed.",
+    "localizationTitle": "Localized & right-to-left",
+    "localizationBody": "Full Hebrew support with right-to-left layout. Dates, distances, and temperatures adapt to your locale and unit preferences.",
+    "openEditor": "Open editor",
+    "ctaTitle": "Ready to create your album?",
+    "ctaBody": "Sign in with Google and upload your Polarsteps data to get started."
+  },
+
   "login": {
     "signIn": "Sign in with Google",
     "signInFailed": "Sign-in failed. Please try again."

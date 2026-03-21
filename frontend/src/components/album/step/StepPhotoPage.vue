@@ -44,6 +44,7 @@ const layoutClass = computed(() => {
         v-for="photo in localPage"
         :key="photo"
         :media="photo"
+        :cover="localPage.length >= 3 && layoutClass !== 'three-portraits'"
         :cols="localPage.length === 1 ? 1 : 2"
         class="item"
       />
@@ -63,8 +64,10 @@ const layoutClass = computed(() => {
   height: 100%;
   display: grid;
   gap: var(--photo-gap-lg);
+  padding: var(--photo-gap-lg);
   align-items: stretch;
   justify-items: stretch;
+  box-sizing: border-box;
 }
 
 .container:has(.item:nth-child(1):last-child) {
@@ -104,8 +107,6 @@ const layoutClass = computed(() => {
   ) {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  column-gap: var(--photo-gap-lg);
-  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(3):last-child):not(
@@ -119,14 +120,11 @@ const layoutClass = computed(() => {
 .container:has(.item:nth-child(4):last-child) {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: var(--photo-gap-sm);
 }
 
 .container:has(.item:nth-child(5):last-child) {
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  column-gap: var(--photo-gap-lg);
-  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(5):last-child) .item:first-child {
@@ -136,8 +134,6 @@ const layoutClass = computed(() => {
 .container:has(.item:nth-child(6):last-child) {
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
-  column-gap: var(--photo-gap-md);
-  row-gap: var(--photo-gap-xs);
 }
 
 .container:has(.item:nth-child(6):last-child) .item:first-child {

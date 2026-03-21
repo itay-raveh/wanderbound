@@ -1,9 +1,9 @@
 /**
- * GPS trace routing — snaps segments to roads via Mapbox APIs.
+ * GPS trace routing - snaps segments to roads via Mapbox APIs.
  *
  * Automatically selects the right API based on GPS density:
- * - Dense traces (< 2km avg spacing) → Map Matching API (designed for 5s-interval GPS)
- * - Sparse traces (≥ 2km avg spacing) → Directions API (waypoint-to-waypoint routing)
+ * - Dense traces (< 2km avg spacing) -> Map Matching API (designed for 5s-interval GPS)
+ * - Sparse traces (≥ 2km avg spacing) -> Directions API (waypoint-to-waypoint routing)
  *
  * Results are cached in memory by segment identity (start_time:end_time)
  * since segments are immutable (pre-computed at user creation).
@@ -166,7 +166,7 @@ export async function routeSegment(
 
   const sparse = isSparse(coords);
   console.debug(
-    `[routing] ${key}: ${coords.length} pts, ${sparse ? "sparse → directions" : "dense → matching"}, profile=${profile}`,
+    `[routing] ${key}: ${coords.length} pts, ${sparse ? "sparse -> directions" : "dense -> matching"}, profile=${profile}`,
   );
 
   const promise = sparse
@@ -177,7 +177,7 @@ export async function routeSegment(
 
   const result = await promise;
   if (result) {
-    console.debug(`[routing] ${key}: ${coords.length} → ${result.length} pts`);
+    console.debug(`[routing] ${key}: ${coords.length} -> ${result.length} pts`);
   } else {
     routeCache.delete(key);
     console.warn(`[routing] no result for ${key}`);

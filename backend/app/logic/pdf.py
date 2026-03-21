@@ -143,7 +143,7 @@ async def render_album_pdf_stream(
     session_cookie: str,
     dark: bool = True,
 ) -> AsyncIterator[PdfEvent]:
-    """Top-level SSE generator: queued → loading → rendering → done/error."""
+    """Top-level SSE generator: queued -> loading -> rendering -> done/error."""
     yield PdfQueued()
 
     async with _pdf_semaphore:

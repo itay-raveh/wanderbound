@@ -29,7 +29,7 @@ def cached_client(
     """Build an httpx AsyncClient with SQLite caching, retries, and optional middleware.
 
     Only 2xx responses are cached. Cached entries live for 30 days.
-    Retries are always included. The chain is: Cache → Retry → transport → network.
+    Retries are always included. The chain is: Cache -> Retry -> transport -> network.
 
     Args:
         transport: Optional inner transport (e.g. rate-limiting layer).

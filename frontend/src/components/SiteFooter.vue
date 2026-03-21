@@ -69,10 +69,10 @@ const hasAny = hasLinks || hasMeta;
 <style scoped>
 .site-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--gap-md);
+  flex-direction: column;
+  gap: var(--gap-sm);
   padding: var(--gap-md-lg) var(--gap-lg);
   border-top: 1px solid var(--border-color);
   color: var(--text-faint);
@@ -82,6 +82,14 @@ const hasAny = hasLinks || hasMeta;
   display: flex;
   align-items: center;
   gap: var(--gap-md);
+}
+
+@media (min-width: 768px) {
+  .site-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: var(--gap-md);
+  }
 }
 
 .site-footer-link {

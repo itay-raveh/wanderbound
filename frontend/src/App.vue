@@ -30,7 +30,7 @@ html, body, #app {
 /* Design tokens (theme-independent) */
 
 :root {
-  /* Font stacks — self-hosted in fonts.css. Quasar's $typography-font-family
+  /* Font stacks - self-hosted in fonts.css. Quasar's $typography-font-family
      (quasar-variables.sass) mirrors --font-body at build time; keep them in sync. */
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -51,7 +51,7 @@ html, body, #app {
   --radius-xl: 1rem;
   --radius-full: 999px;
 
-  /* Page typography scale (album pages — beyond Quasar's 12 type levels) */
+  /* Page typography scale (album pages - beyond Quasar's 12 type levels) */
   --display-1: 3.75rem;
   --display-2: 3rem;
   --type-xl: 1.375rem;
@@ -94,7 +94,7 @@ html, body, #app {
   --duration-slow: 0.5s;
 }
 
-/* Accent card — overview record/furthest panels.
+/* Accent card - overview record/furthest panels.
    Set --accent on the element to control the accent color. */
 .accent-card {
   padding: 0.625rem var(--gap-md-lg);
@@ -111,7 +111,7 @@ html, body, #app {
   color: var(--accent);
 }
 
-/* Two-column text body — single source of truth for step descriptions and
+/* Two-column text body - single source of truth for step descriptions and
    text continuation pages.  useTextMeasure.ts measurement containers also
    reference this class so changing a value here automatically keeps layout
    measurement in sync with rendering. */
@@ -143,13 +143,13 @@ html, body, #app {
   --border-color: #3A3A50;
 }
 
-/* Derived tokens — reference theme vars, resolved lazily at use site */
+/* Derived tokens - reference theme vars, resolved lazily at use site */
 .body--dark,
 .body--light {
   --page-gradient: linear-gradient(to bottom, color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)), var(--bg));
 }
 
-/* Custom color palette — follows Quasar convention (see quasar.dev/style/color-palette#adding-your-own-colors).
+/* Custom color palette - follows Quasar convention (see quasar.dev/style/color-palette#adding-your-own-colors).
    !important matches Quasar's own color classes; `color="danger"` works on QBtn/QIcon/etc. */
 .text-bright { color: var(--text-bright) !important; }
 .text-muted { color: var(--text-muted) !important; }

@@ -1,7 +1,7 @@
 /*
  * Self-hosted Inter + Heebo (Hebrew supplement).
  *
- * font-display: block — the browser WAITS for the font to load before
+ * font-display: block - the browser WAITS for the font to load before
  * rendering text. This is critical for PDF generation: with "swap",
  * Playwright may capture the page before the font swap completes.
  *
@@ -106,7 +106,7 @@
     U+FB1D-FB4F;
 }
 
-/* JetBrains Mono (monospace — coordinates, technical display) */
+/* JetBrains Mono (monospace - coordinates, technical display) */
 
 /* latin */
 @font-face {

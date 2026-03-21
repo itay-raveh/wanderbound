@@ -51,11 +51,11 @@ async function handleSignOut() {
   try {
     await logout();
   } catch {
-    /* server down — cookie will expire naturally */
+    /* server down - cookie will expire naturally */
   }
   googleLogout();
   void cache.invalidateQueries();
-  await router.push({ name: "login" });
+  await router.push({ name: "landing" });
 }
 
 async function handleDelete() {
@@ -63,7 +63,7 @@ async function handleDelete() {
   try {
     await deleteUser();
     void cache.invalidateQueries();
-    await router.push({ name: "login" });
+    await router.push({ name: "landing" });
   } catch {
     $q.notify({ type: "negative", message: t("settings.deleteFailed") });
   } finally {

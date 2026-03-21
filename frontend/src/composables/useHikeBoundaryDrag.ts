@@ -15,7 +15,7 @@ interface DragContext {
   onCommit: (adjust: BoundaryAdjust) => void;
 }
 
-/** Mirror of the adjacency query in albums.py adjust_segment_boundary — keep in sync. */
+/** Mirror of the adjacency query in albums.py adjust_segment_boundary - keep in sync. */
 function findAdjacentSegment(
   segments: Segment[],
   hike: Segment,
@@ -63,7 +63,7 @@ export function setupBoundaryHandles(
     const isStart = ep.handle === "start";
     const ghostId = `boundary-ghost-${ep.handle}`;
 
-    // Adjacent segments are temporally non-overlapping — concat in time order
+    // Adjacent segments are temporally non-overlapping - concat in time order
     const combinedPoints = isStart
       ? [...adjacent.points, ...ctx.hikeSegment.points]
       : [...ctx.hikeSegment.points, ...adjacent.points];

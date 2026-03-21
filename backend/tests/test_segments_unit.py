@@ -47,7 +47,7 @@ class _Loc:
 
 @dataclass
 class _Step:
-    """Minimal StepLike for tests — mirrors the protocol in segments.py."""
+    """Minimal StepLike for tests - mirrors the protocol in segments.py."""
 
     location: _Loc
     _hours: float
@@ -180,21 +180,21 @@ class TestClassification:
         assert all(k.value != "other" for k in kinds)
 
     def test_slow_short_movement_is_walking(self) -> None:
-        """A short slow segment (below hike thresholds) → walking."""
+        """A short slow segment (below hike thresholds) -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.005, h0=9.0, h1=9.5, n=10)
         kinds = _segment_kinds([_step(0.0, 0.005, 9.5)], gps)
         assert SegmentKind.walking in kinds
         assert SegmentKind.hike not in kinds
 
     def test_fast_movement_is_driving(self) -> None:
-        """Movement well above hike speed → driving."""
+        """Movement well above hike speed -> driving."""
         gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=5)
         kinds = _segment_kinds([_step(0.0, 0.5, 9.5)], gps)
         assert SegmentKind.driving in kinds
         assert SegmentKind.hike not in kinds
 
     def test_flight_speed_is_flight(self) -> None:
-        """Movement above flight speed over flight distance → flight."""
+        """Movement above flight speed over flight distance -> flight."""
         gps = [
             _pt(0.0, 0.0, hours=10.0),
             _pt(0.0, 5.0, hours=12.0),  # ~278 km/h over ~555 km
@@ -214,7 +214,7 @@ class TestClassification:
         flight into one giant "walking" segment rendered as a thick
         dashed line across the ocean.
         """
-        # City A (h0) → fly → City B (h3-h8 walking) → fly → City C (h22+)
+        # City A (h0) -> fly -> City B (h3-h8 walking) -> fly -> City C (h22+)
         gps_a = [_pt(32.0, 35.0, hours=0.0)]
         gps_b = _track(25.0, 55.0, 25.01, 55.01, h0=3.5, h1=8.0, n=20)
         gps_c = _track(-34.6, -58.4, -34.61, -58.41, h0=22.0, h1=26.0, n=20)
@@ -225,21 +225,21 @@ class TestClassification:
         segments = list(build_segments(steps, gps_a + gps_b + gps_c))
         kinds = [s.kind for s in segments]
         assert kinds.count(SegmentKind.flight) >= 2, (
-            f"Expected ≥2 flights in {kinds} — pre-first-step flights were dropped"
+            f"Expected ≥2 flights in {kinds} - pre-first-step flights were dropped"
         )
         # No walking segment should span continents (> 5° lat/lon)
         for seg in segments:
             if seg.kind == SegmentKind.walking:
                 p0, p1 = seg.points[0], seg.points[-1]
                 msg = (
-                    f"Walking segment spans ({p0.lat:.1f},{p0.lon:.1f}) → "
-                    f"({p1.lat:.1f},{p1.lon:.1f}) — flight misclassified"
+                    f"Walking segment spans ({p0.lat:.1f},{p0.lon:.1f}) -> "
+                    f"({p1.lat:.1f},{p1.lon:.1f}) - flight misclassified"
                 )
                 assert abs(p0.lat - p1.lat) < 5, msg
                 assert abs(p0.lon - p1.lon) < 5, msg
 
     def test_valid_hike_detected(self) -> None:
-        """A clear multi-hour walk at hike speed → hike."""
+        """A clear multi-hour walk at hike speed -> hike."""
         gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
         assert _hikes([_step(0.0, 0.2, 14.0)], gps)
 
@@ -249,12 +249,12 @@ class TestClassification:
 
 class TestHikeValidation:
     def test_below_min_duration_is_not_hike(self) -> None:
-        """A hike-speed track shorter than MIN_HIKE_H → walking."""
+        """A hike-speed track shorter than MIN_HIKE_H -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.01, h0=9.0, h1=10.0, n=15)
         assert not _hikes([_step(0.0, 0.01, 10.0)], gps)
 
     def test_below_min_distance_is_not_hike(self) -> None:
-        """A hike-speed track shorter than MIN_HIKE_KM → walking."""
+        """A hike-speed track shorter than MIN_HIKE_KM -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.009, h0=9.0, h1=12.0, n=30)
         assert not _hikes([_step(0.0, 0.009, 12.0)], gps)
 
@@ -282,7 +282,7 @@ class TestStepPreservation:
         assert _point_near(hikes[0].points, 0.0, 0.15)
 
     def test_step_included_when_edge_speed_above_hike_max(self) -> None:
-        """Step is kept even when the GPS→step edge exceeds hike speed.
+        """Step is kept even when the GPS->step edge exceeds hike speed.
 
         Regression: step-adjacent edges only had gap tolerance, not speed exemption.
         """

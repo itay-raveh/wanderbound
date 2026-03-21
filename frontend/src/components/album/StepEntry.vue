@@ -136,7 +136,7 @@ const photoPages = computed(() =>
 .drop-overlay {
   z-index: 1;
 
-  // Hide dropped items — they get processed immediately
+  // Hide dropped items - they get processed immediately
   :deep(*) {
     opacity: 0;
     width: 0;

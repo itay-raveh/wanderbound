@@ -12,7 +12,7 @@ export function posterPath(path: string): string {
   return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
 }
 
-// Must match backend logic/layout/media.py THUMB_WIDTHS — backend generates thumbnails at these sizes.
+// Must match backend logic/layout/media.py THUMB_WIDTHS - backend generates thumbnails at these sizes.
 export const THUMB_WIDTHS = [200, 800] as const;
 export const EDITOR_ZOOM = 0.7;
 // Must match --page-width in App.vue. Can't use CSS vars in img `sizes` attribute.
@@ -29,7 +29,7 @@ export function mediaSrcset(name: string, albumId: string): string {
   return THUMB_WIDTHS.map((w) => `${base}?w=${w} ${w}w`).join(", ");
 }
 
-/** Build flagcdn URL for a country code (w160 PNG — crisp at small display sizes). */
+/** Build flagcdn URL for a country code (w160 PNG - crisp at small display sizes). */
 export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 }

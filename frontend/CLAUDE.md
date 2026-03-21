@@ -1,31 +1,31 @@
 # Frontend (Vue)
 
 ## Commands
-- `npm run dev` — start dev server
-- `npm run build` — production build
-- `npm run lint` — lint check
+- `npm run dev` - start dev server
+- `npm run build` - production build
+- `npm run lint` - lint check
 
 ## Architecture
 
-**Component design:** Each component should do one thing. If a component handles layout, data fetching, state management, and business logic, it's a god component — split it. Views (route-level components) orchestrate; child components render. Composables hold shared logic. Pinia stores hold shared state.
+**Component design:** Each component should do one thing. If a component handles layout, data fetching, state management, and business logic, it's a god component - split it. Views (route-level components) orchestrate; child components render. Composables hold shared logic. Pinia stores hold shared state.
 
 **State ownership:** State should live in exactly one place. Local `ref()` for component-only state. Pinia store for state shared across components or that persists across navigation. Derive everything else with `computed`. If you find yourself syncing state between two places, the state is in the wrong place.
 
-**API layer:** One thin API client — not a wrapper function per endpoint. Components never call `fetch` directly; they use composables that call the API client. The API client handles auth headers, base URL, and error handling in one place.
+**API layer:** One thin API client - not a wrapper function per endpoint. Components never call `fetch` directly; they use composables that call the API client. The API client handles auth headers, base URL, and error handling in one place.
 
 **Types:** TypeScript strict mode, no `any`. Backend response types should be defined once and used consistently. If the backend schema changes, the frontend types change in one place.
 
 ## Conventions
-- Composition API with `<script setup>` exclusively — never Options API
-- Pinia for shared state — one store per domain concept
+- Composition API with `<script setup>` exclusively - never Options API
+- Pinia for shared state - one store per domain concept
 - Composables (`src/composables/use*.ts`) for reusable logic
-- Vue Router for all navigation — no manual `window.location`
-- `computed` for derived state — never `watch` to sync one ref into another
-- Handle loading/error/empty states consistently — use a shared composable or pattern, not ad-hoc per component
-- Use `v-model` and built-in directives — don't reimplement two-way binding
+- Vue Router for all navigation - no manual `window.location`
+- `computed` for derived state - never `watch` to sync one ref into another
+- Handle loading/error/empty states consistently - use a shared composable or pattern, not ad-hoc per component
+- Use `v-model` and built-in directives - don't reimplement two-way binding
 - Colocate components with their route when possible
-- Derive frontend state from the backend wherever possible — don't maintain parallel data models that duplicate what the API already provides
-- Prefer native HTML elements and CSS over heavy component libraries — unless the project has already committed to one
+- Derive frontend state from the backend wherever possible - don't maintain parallel data models that duplicate what the API already provides
+- Prefer native HTML elements and CSS over heavy component libraries - unless the project has already committed to one
 
 ## File Naming
 - Components: PascalCase (`UserCard.vue`)
@@ -45,7 +45,7 @@ The app has two styling contexts: **editor chrome** (sidebar, header, menus, reg
 | CSS custom properties | `App.vue` global `<style>` | Runtime | Dark/light colors, radius scale, page typography, spacing, transitions |
 | Global Quasar overrides | `src/styles/quasar-overrides.scss` | Runtime | Form field theming, QMenu styling (needs CSS vars, can't be SASS) |
 
-### Editor chrome — use Quasar utility classes
+### Editor chrome - use Quasar utility classes
 
 For layout, typography, and spacing in editor chrome components, prefer Quasar classes over custom CSS:
 
@@ -61,9 +61,9 @@ For layout, typography, and spacing in editor chrome components, prefer Quasar c
 
 **Critical gotchas:**
 - `.row`, `.column`, `.flex` ALL set `flex-wrap: wrap`. Always add `.no-wrap` unless wrapping is explicitly desired.
-- `all: unset` in scoped CSS has higher specificity than Quasar global classes (due to Vue's `[data-v-xxx]`). On elements with `all: unset`, do NOT use Quasar flex classes — write `display: flex; align-items: center;` in CSS instead.
+- `all: unset` in scoped CSS has higher specificity than Quasar global classes (due to Vue's `[data-v-xxx]`). On elements with `all: unset`, do NOT use Quasar flex classes - write `display: flex; align-items: center;` in CSS instead.
 
-### Album pages — use CSS custom properties
+### Album pages - use CSS custom properties
 
 Album pages have specific typographic design for A4 print. Use the token scale from `App.vue`:
 
@@ -71,12 +71,12 @@ Album pages have specific typographic design for A4 print. Use the token scale f
 - **Radius:** `--radius-xs` (2px) through `--radius-full` (999px)
 - **Tracking:** `--tracking-tight` (-0.02em), `--tracking-wide` (0.06em), `--tracking-wider` (0.2em)
 - **Page spacing:** `--page-inset-x` (3rem), `--page-inset-y` (2.5rem), `--gap-lg` (1rem), `--gap-md-lg` (0.75rem), `--gap-md` (0.5rem), `--gap-sm-md` (0.375rem), `--gap-sm` (0.25rem), `--gap-xs` (0.125rem)
-- **Step layout:** `--meta-ratio` (0.42) — meta panel fraction of page width, used in step components and `useTextMeasure.ts`
+- **Step layout:** `--meta-ratio` (0.42) - meta panel fraction of page width, used in step components and `useTextMeasure.ts`
 - **Photo grids:** `--photo-gap-lg` (5mm) through `--photo-gap-xs` (2mm)
 - **Map pages:** `--page-dark-surface`, `--page-dark-overlay`
 - **Timing:** `--duration-fast` (0.15s), `--duration-normal` (0.3s), `--duration-slow` (0.5s)
 
-Font weights in album pages stay as literal values (`font-weight: 600`) — no token needed since they don't vary by theme.
+Font weights in album pages stay as literal values (`font-weight: 600`) - no token needed since they don't vary by theme.
 
 ### Theme colors
 
@@ -84,14 +84,14 @@ Dark/light mode colors are CSS custom properties on `.body--dark` / `.body--ligh
 
 ### Stat colors
 
-Centralized in `src/components/album/colors.ts` as `STAT_COLORS` — used by overview page components. Add new stat colors there, not as inline hex values.
+Centralized in `src/components/album/colors.ts` as `STAT_COLORS` - used by overview page components. Add new stat colors there, not as inline hex values.
 
 ## Anti-Patterns
 - God components (150+ lines mixing layout, logic, fetching, and state)
-- Prop drilling through 3+ levels — use Pinia or provide/inject
-- Manual DOM manipulation — use Vue refs and reactivity
-- Event buses or custom pub/sub — use Pinia stores
+- Prop drilling through 3+ levels - use Pinia or provide/inject
+- Manual DOM manipulation - use Vue refs and reactivity
+- Event buses or custom pub/sub - use Pinia stores
 - Duplicating validation or business logic that the backend already enforces
 - Per-component error handling that should be centralized
-- `watch` used to imperatively sync state — use `computed` instead
-- Fetching the same data in multiple components — lift to a shared store or composable
+- `watch` used to imperatively sync state - use `computed` instead
+- Fetching the same data in multiple components - lift to a shared store or composable

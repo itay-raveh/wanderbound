@@ -93,7 +93,7 @@ async def upload_data(
             user = existing
             logger.info("User %d re-uploaded ZIP", user.id)
         else:
-            # New user: google is guaranteed set (uid was absent → credential verified)
+            # New user: google is guaranteed set (uid was absent -> credential verified)
             g = cast("GoogleIdentity", google)
             user = User(
                 id=ps_user.id,

@@ -57,14 +57,14 @@ type QDateRange = { from: string; to: string };
 
 const albumColors = computed(() => (props.album?.colors ?? {}) as Record<string, string>);
 
-/** Album date ranges → QDate model. */
+/** Album date ranges -> QDate model. */
 const dateRangeModel = computed(() => {
   const ranges = props.album?.steps_ranges;
   if (!ranges?.length) return undefined;
   return ranges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
 });
 
-/** Local draft while the picker is open — only persisted on popup close. */
+/** Local draft while the picker is open - only persisted on popup close. */
 const draft = ref<(QDateRange | string)[] | QDateRange | string | null>(null);
 const pickerOpen = ref(false);
 

@@ -88,7 +88,7 @@ def _build_pages(
 
 
 def _load_photos(folder: Path) -> list[Media]:
-    """Load photo metadata from a folder (sync — runs in thread pool)."""
+    """Load photo metadata from a folder (sync - runs in thread pool)."""
     return [
         Media.load(p)
         for p in folder.iterdir()

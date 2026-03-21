@@ -152,7 +152,7 @@ class TestReconcileStepMedia:
 
     def test_empty_page_dropped(self) -> None:
         pages = [["a.jpg"], ["b.jpg"]]
-        on_disk = {"a.jpg"}  # b.jpg gone → second page empty
+        on_disk = {"a.jpg"}  # b.jpg gone -> second page empty
 
         new_pages, _, _ = self._reconcile_step(pages, [], None, on_disk, {"a.jpg"}, {})
         assert new_pages == [["a.jpg"]]

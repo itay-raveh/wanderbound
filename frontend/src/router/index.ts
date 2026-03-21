@@ -9,14 +9,14 @@ const router = createRouter({
   routes: [
     {
       path: "/",
-      name: "editor",
-      component: EditorView,
+      name: "landing",
+      component: () => import("@/pages/LandingView.vue"),
+      meta: { public: true },
     },
     {
-      path: "/login",
-      name: "login",
-      component: () => import("@/pages/LoginView.vue"),
-      meta: { public: true },
+      path: "/editor",
+      name: "editor",
+      component: EditorView,
     },
     {
       path: "/upload",
@@ -50,7 +50,14 @@ router.beforeEach(async (to, from) => {
   try {
     ({ data: user } = await readUser());
   } catch {
-    return { name: "login" };
+    return { name: "landing" };
+  }
+
+  // Authenticated user on landing -> redirect to editor
+  if (to.name === "landing") {
+    return user.album_ids?.length && user.has_data
+      ? { name: "editor" }
+      : { name: "upload" };
   }
 
   // Redirect to upload if user has no albums or was evicted (has albums but no data)

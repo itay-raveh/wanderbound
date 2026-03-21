@@ -1,6 +1,6 @@
 """Segment a Polarsteps GPS track into typed movement segments.
 
-Pipeline: ingest → label → absorb → validate → emit.
+Pipeline: ingest -> label -> absorb -> validate -> emit.
 
   1. Ingest    Merge steps + GPS, remove teleports/spikes, densify slow edges.
   2. Label     Classify edges as hike / flight / other by speed + gap.
@@ -8,7 +8,7 @@ Pipeline: ingest → label → absorb → validate → emit.
   4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
                short flights (< 100 km), and stepless hikes.
                Rejects become "other".
-  5. Emit      RDP-simplify, resolve "other" → walking/driving, stitch gaps.
+  5. Emit      RDP-simplify, resolve "other" -> walking/driving, stitch gaps.
 
 DataFrame columns through the pipeline::
 
@@ -19,7 +19,7 @@ DataFrame columns through the pipeline::
     is_step          True for step waypoints (immune to noise removal)
     mode             hike | flight | other (after label + absorb)
     segment_id       RLE group ID on mode
-    final_mode       after validation (undersized → other)
+    final_mode       after validation (undersized -> other)
     output_id        RLE group ID on final_mode
 """
 
@@ -78,14 +78,14 @@ DENSIFY_MAX_SPEED_KMH = 5.0
 DENSIFY_RESOLUTION_KM = 0.015
 
 # Absorption pass 1: noise gaps
-# Short "other" between two hikes at hike speed → fold back into hike.
+# Short "other" between two hikes at hike speed -> fold back into hike.
 # Requires a following hike anchor to avoid absorbing post-hike hotel drift.
 NOISE_GAP_MAX_DIST_KM = 4.0
 NOISE_GAP_MAX_H = 3.0
 
 # Absorption pass 2: camps + blackouts
 
-# Camp: GPS barely moved overnight.  No speed check — tight distance cap
+# Camp: GPS barely moved overnight.  No speed check - tight distance cap
 # prevents transport; a speed check would reject walks-to-trailhead.
 CAMP_GAP_MAX_DIST_KM = 1.0
 CAMP_GAP_MAX_H = 20.0
@@ -208,7 +208,7 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
     if df.height < 3:
         return df.select(keep_cols)
 
-    # Spikes: far from prev neighbor but prev→next is short (triangle inequality)
+    # Spikes: far from prev neighbor but prev->next is short (triangle inequality)
     dd = _deg_dist().fill_null(0.0)
     across = (
         (pl.col("lat").shift(1) - pl.col("lat").shift(-1)) ** 2
@@ -228,7 +228,7 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     Only densifies edges at hike speed, within gap limit, and sparser than
     the target resolution.  Vectorized via NumPy repeat/cumsum.
 
-    Outputs only lat/lon/time — caller must re-run _add_edge_metrics and
+    Outputs only lat/lon/time - caller must re-run _add_edge_metrics and
     re-mark step rows afterwards.
     """
     lats = df["lat"].to_numpy()
@@ -296,7 +296,7 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     """Classify each edge as flight / hike / other by speed and gap.
 
     Flight wins over hike (both takeoff + landing edges are marked).
-    Step-adjacent edges bypass the speed check — the step anchors the path
+    Step-adjacent edges bypass the speed check - the step anchors the path
     even when GPS was silent.
     """
     is_flight_edge = pl.col("speed_kmh") >= FLIGHT_MIN_SPEED_KMH
@@ -476,7 +476,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
     df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
 
     # Final pass: adjacent hikes that survived size checks are now merged into
-    # one output_id.  Check has_step on these merged groups — a hike group
+    # one output_id.  Check has_step on these merged groups - a hike group
     # with no step anywhere in it becomes "other" (resolves to walking).
     step_check = df.group_by("output_id").agg(
         pl.col("final_mode").first().alias("out_mode"),
@@ -513,7 +513,7 @@ def _simplify_points(gdf: pl.DataFrame) -> list[Point]:
 
 
 def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
-    """Resolve "other" → walking/driving by average speed."""
+    """Resolve "other" -> walking/driving by average speed."""
     if kind != "other":
         return SegmentKind(kind)
     total_h = float(gdf["gap_h"].sum())
@@ -554,7 +554,7 @@ def build_segments(
         return iter([])
 
     logger.info(
-        "build_segments: %d step(s), window %s → %s",
+        "build_segments: %d step(s), window %s -> %s",
         len(steps),
         steps[0].datetime.strftime("%Y-%m-%d"),
         steps[-1].datetime.strftime("%Y-%m-%d"),

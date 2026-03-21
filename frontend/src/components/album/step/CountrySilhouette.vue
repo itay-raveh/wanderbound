@@ -28,7 +28,7 @@ const rawViewBox = computed(() => {
   return b ? `${b[0]} ${b[1]} ${b[2]} ${b[3]}` : null;
 });
 
-// Convert lat/lon → Web Mercator (EPSG:3857), then flip Y (matching the SVG generation script)
+// Convert lat/lon -> Web Mercator (EPSG:3857), then flip Y (matching the SVG generation script)
 function toSvgCoords(lat: number, lon: number): [number, number] {
   const x = (lon * WEB_MERCATOR_EXTENT) / 180;
   const latRad = (lat * Math.PI) / 180;

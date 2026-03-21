@@ -143,11 +143,11 @@ class TestGenerateThumbnailsExif:
 
     @pytest.mark.anyio
     async def test_exif_rotated_image(self, tmp_path: Path) -> None:
-        # Stored as 3000x4000 with rotation 6 → display is 4000x3000
+        # Stored as 3000x4000 with rotation 6 -> display is 4000x3000
         src = _create_jpeg_with_exif_rotation(tmp_path / "rotated.jpg", 3000, 4000)
         await generate_thumbnails(src)
 
-        # After auto-rotation, logical width=4000 → all widths generated
+        # After auto-rotation, logical width=4000 -> all widths generated
         for w in THUMB_WIDTHS:
             thumb = tmp_path / ".thumbs" / str(w) / "rotated.webp"
             assert thumb.exists(), f"Missing rotated thumb at width {w}"

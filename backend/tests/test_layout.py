@@ -111,7 +111,7 @@ class TestOptimalMixedCount:
         assert _optimal_mixed_count(0, 8) == 0
 
     def test_1p_4l_no_mixing_is_better(self) -> None:
-        """1P+4L: mix → 1P2L+2 singles = 3pp, no mix → 1P+4L = 2pp."""
+        """1P+4L: mix -> 1P2L+2 singles = 3pp, no mix -> 1P+4L = 2pp."""
         assert _optimal_mixed_count(1, 4) == 0
 
     def test_1p_2l_mixing_is_better(self) -> None:
@@ -234,7 +234,7 @@ class TestBuildPages:
         assert len(pages[0]) == 3
 
     def test_1p_4l_no_mix(self) -> None:
-        """Should NOT mix — 1P + 4L = 2 pages is better than 1P2L + 1L + 1L = 3."""
+        """Should NOT mix - 1P + 4L = 2 pages is better than 1P2L + 1L + 1L = 3."""
         portraits = _names("p", 1)
         landscapes = _names("l", 4)
         pages = list(_build_pages(portraits, landscapes))

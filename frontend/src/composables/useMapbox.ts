@@ -47,7 +47,7 @@ export function useMapbox(options: UseMapboxOptions) {
     try {
       const m = new mapboxgl.Map({
         container: el,
-        style: options.style ?? "mapbox://styles/mapbox/satellite-streets-v12",
+        style: options.style ?? "mapbox://styles/mapbox/standard-satellite",
         projection: "mercator",
         interactive: options.interactive ?? false,
         attributionControl: false,
@@ -55,6 +55,11 @@ export function useMapbox(options: UseMapboxOptions) {
         performanceMetricsCollection: false,
         fadeDuration: 0,
         language: lang,
+        config: {
+          basemap: {
+            showPointOfInterestLabels: false,
+          },
+        },
       });
 
       map.value = m;

@@ -33,7 +33,7 @@ async def run_eviction(skip_uid: int) -> None:
     """Delete LRU user folders until total storage is under MAX_STORAGE_BYTES.
 
     Skips the user identified by skip_uid (the one who just uploaded).
-    Only deletes filesystem data — DB records are preserved.
+    Only deletes filesystem data - DB records are preserved.
     """
     users_folder = settings.USERS_FOLDER
     cap = settings.MAX_STORAGE_BYTES

@@ -1,4 +1,4 @@
-"""Processing session management — SSE delivery with reconnect/replay.
+"""Processing session management - SSE delivery with reconnect/replay.
 
 Wraps the processing pipeline with a background task that stores events.
 Clients subscribe to a session and receive all past + future events,

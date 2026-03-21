@@ -22,7 +22,7 @@ const props = defineProps<{
   steps: Step[];
   segments: Segment[];
   hikeSegment: Segment;
-  /** All album segments (unfiltered) — needed to find adjacent segments for boundary drag. */
+  /** All album segments (unfiltered) - needed to find adjacent segments for boundary drag. */
   allSegments: Segment[];
 }>();
 
@@ -54,7 +54,8 @@ const elevationSamples = ref<
 
 const stats = computed(() => {
   const pts = props.hikeSegment.points;
-  if (pts.length < 2) return { distance: "0", duration: t("hike.hours", { n: 0 }), elevGain: 0 };
+  if (pts.length < 2)
+    return { distance: "0", duration: t("hike.hours", { n: 0 }), elevGain: 0 };
 
   const startTime = pts[0]!.time;
   const endTime = pts[pts.length - 1]!.time;
@@ -74,7 +75,7 @@ const stats = computed(() => {
       const dh = (samples[i]!.dist - samples[i - 1]!.dist) * 1000; // chord (m)
       const de = samples[i]!.elevation - samples[i - 1]!.elevation;
       // Trail can't be shorter than the chord, and can't be steeper than
-      // MAX_TRAIL_GRADE — whichever constraint binds gives the longer estimate.
+      // MAX_TRAIL_GRADE - whichever constraint binds gives the longer estimate.
       const horizontalM = Math.max(dh, Math.abs(de) / MAX_TRAIL_GRADE);
       totalKm += Math.sqrt(horizontalM * horizontalM + de * de) / 1000;
 
@@ -157,7 +158,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
   );
 
   try {
-    // Faint background segments (may include driving/walking → map matched)
+    // Faint background segments (may include driving/walking -> map matched)
     drawSegmentsAndMarkers(m, {
       segments: otherSegments,
       steps: [],
@@ -188,7 +189,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
 
     if (shouldFit) {
       // Pad bottom so the path stays above the elevation overlay
-      fitBounds(allCoords, { top: 80, right: 80, bottom: 220, left: 80 });
+      fitBounds(allCoords, { top: 80, right: 80, bottom: 250, left: 80 });
     }
   } catch (e) {
     console.warn("[hike-map] segment drawing failed:", e);
@@ -223,8 +224,11 @@ function scheduleElevationQuery(m: mapboxgl.Map) {
   const handler = () => {
     m.off("idle", handler);
     pendingIdleHandler = null;
-    try { queryElevations(m); }
-    catch (e) { console.warn("[hike-map] elevation query failed:", e); }
+    try {
+      queryElevations(m);
+    } catch (e) {
+      console.warn("[hike-map] elevation query failed:", e);
+    }
   };
   pendingIdleHandler = handler;
   m.on("idle", handler);
@@ -271,7 +275,6 @@ watch(
 </template>
 
 <style lang="scss" scoped>
-
 .hike-overlay {
   position: absolute;
   top: var(--gap-lg);
@@ -302,7 +305,7 @@ watch(
   opacity: 0.7;
 }
 
-// Chart overlay pinned to bottom — the SVG includes its own gradient bg
+// Chart overlay pinned to bottom - the SVG includes its own gradient bg
 .elevation-overlay {
   position: absolute;
   bottom: 0;

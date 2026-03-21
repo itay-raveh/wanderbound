@@ -163,7 +163,7 @@ function onVideoKey(e: KeyboardEvent) {
   background: black;
 }
 
-// Play button — scales with container so it looks right in both
+// Play button - scales with container so it looks right in both
 // full-size page cells and the small unused-photos tray.
 
 .play-icon {
@@ -185,7 +185,7 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
-// Frame selection toolbar — appears above native video controls
+// Frame selection toolbar - appears above native video controls
 .frame-bar {
   position: absolute;
   bottom: 3.5rem; // clear native controls

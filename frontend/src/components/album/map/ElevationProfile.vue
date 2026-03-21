@@ -42,7 +42,7 @@ const chart = computed(() => {
   const yMax = maxElev + padded;
   const yRange = yMax - yMin;
 
-  // Layout constants — y-axis labels need more room than the opposite side
+  // Layout constants - y-axis labels need more room than the opposite side
   const rtl = $q.lang.rtl;
   const Y_AXIS_PAD = 56;
   const FAR_PAD = 38;
@@ -51,9 +51,9 @@ const chart = computed(() => {
   const topPad = 8;
   const bottomPad = 24; // space for X-axis labels
   const width = 500;
-  const chartH = 82;
+  const chartH = 80;
   // When bgColor is set, extend upward for the gradient fade area
-  const fadeH = props.bgColor ? 54 : 0;
+  const fadeH = props.bgColor ? 30 : 0;
   const height = chartH + fadeH;
   // Offset all Y coords by fadeH so chart content stays at the bottom
   const yOff = fadeH;
@@ -61,8 +61,7 @@ const chart = computed(() => {
   const plotH = chartH - topPad - bottomPad;
 
   // Map distance fraction [0,1] to x pixel coordinate
-  const toX = (frac: number) =>
-    leftPad + (rtl ? 1 - frac : frac) * plotW;
+  const toX = (frac: number) => leftPad + (rtl ? 1 - frac : frac) * plotW;
   // Map elevation to y pixel coordinate
   const toY = (elev: number) =>
     yOff + topPad + (1 - (elev - yMin) / yRange) * plotH;
@@ -85,7 +84,7 @@ const chart = computed(() => {
   // Unit conversion for displayed values
   const elevFactor = props.isKm ? 1 : M_TO_FT;
 
-  // Y-axis labels (min, mid, max) — converted to display units
+  // Y-axis labels (min, mid, max) - converted to display units
   const midElev = (minElev + maxElev) / 2;
   // Y-axis sits on the reading-start side of the chart
   const yLabelX = rtl ? leftPad + plotW + 10 : leftPad - 4;
@@ -108,9 +107,13 @@ const chart = computed(() => {
       x: toX(f),
       anchor:
         i === 0
-          ? (rtl ? "end" : "start")
+          ? rtl
+            ? "end"
+            : "start"
           : i === lastIdx
-            ? (rtl ? "start" : "end")
+            ? rtl
+              ? "start"
+              : "end"
             : "middle",
     };
   });
@@ -148,21 +151,14 @@ const chart = computed(() => {
         <stop offset="0%" :stop-color="`${accent}55`" />
         <stop offset="100%" :stop-color="`${accent}08`" />
       </linearGradient>
-      <linearGradient
-        v-if="bgColor"
-        :id="fadeId"
-        x1="0"
-        y1="0"
-        x2="0"
-        y2="1"
-      >
+      <linearGradient v-if="bgColor" :id="fadeId" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" :stop-color="bgColor" stop-opacity="0" />
         <stop offset="55%" :stop-color="bgColor" stop-opacity="1" />
         <stop offset="100%" :stop-color="bgColor" stop-opacity="1" />
       </linearGradient>
     </defs>
 
-    <!-- Background fade (transparent → solid) -->
+    <!-- Background fade (transparent -> solid) -->
     <rect
       v-if="bgColor"
       x="0"

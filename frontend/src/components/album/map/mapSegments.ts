@@ -257,7 +257,7 @@ export interface DrawResult {
   hikeEndpoints: HikeEndpoint[];
 }
 
-/** Per-map generation counter — routing callbacks from stale draws are discarded. */
+/** Per-map generation counter - routing callbacks from stale draws are discarded. */
 const drawGenerations = new WeakMap<mapboxgl.Map, number>();
 
 /** Draw segments and step markers. Returns all coords for fitBounds + hike endpoint info. */

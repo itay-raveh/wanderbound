@@ -37,7 +37,7 @@ async function loadFonts(): Promise<void> {
     await Promise.all(faces);
     console.log("[print] loaded", faces.length, "font faces");
   } else {
-    console.warn("[print] no self-hosted font faces found — falling back to document.fonts.ready");
+    console.warn("[print] no self-hosted font faces found - falling back to document.fonts.ready");
     await document.fonts.ready;
   }
 }
@@ -45,7 +45,7 @@ async function loadFonts(): Promise<void> {
 /**
  * Signal Playwright that the page is ready for PDF capture.
  *
- * Polls for: album container → expected page count → all images loaded,
+ * Polls for: album container -> expected page count -> all images loaded,
  * then waits for fonts and a short map-tile grace before setting
  * window.__PRINT_READY__.
  */
@@ -54,7 +54,7 @@ function waitForPrintReady() {
   const startTime = Date.now();
   let waiting = false;
 
-  // Kick off font loading immediately — don't wait for images
+  // Kick off font loading immediately - don't wait for images
   const fontsReady = loadFonts();
 
   function poll() {
@@ -93,9 +93,9 @@ function waitForPrintReady() {
       return;
     }
 
-    // All DOM content + maps ready — wait for fonts before signaling
+    // All DOM content + maps ready - wait for fonts before signaling
     waiting = true;
-    console.log("[print] content ready,", actual, "pages — waiting for fonts");
+    console.log("[print] content ready,", actual, "pages - waiting for fonts");
     fontsReady
       .then(() => { console.log("[print] fonts confirmed"); setReady(); })
       .catch(() => { console.warn("[print] font load failed, proceeding"); setReady(); });

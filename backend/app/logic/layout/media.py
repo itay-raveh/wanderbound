@@ -12,7 +12,7 @@ from pydantic import BaseModel, StringConstraints
 logger = logging.getLogger(__name__)
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
-# Must match frontend utils/media.ts THUMB_WIDTHS — frontend builds srcset from these.
+# Must match frontend utils/media.ts THUMB_WIDTHS - frontend builds srcset from these.
 THUMB_WIDTHS = (200, 800)
 THUMB_QUALITY = 80
 

@@ -216,7 +216,7 @@ async def reconcile_trip(
         len(existing_steps),
     )
 
-    # Phase 1: Build step→media map BEFORE flattening (concurrent scans)
+    # Phase 1: Build step->media map BEFORE flattening (concurrent scans)
     scan_results = await asyncio.gather(
         *[asyncio.to_thread(_scan_step_media, trip_dir, ps) for ps in trip.all_steps]
     )

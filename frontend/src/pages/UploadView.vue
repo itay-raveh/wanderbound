@@ -24,7 +24,7 @@ const router = useRouter();
 const credential = sessionStorage.getItem(CREDENTIAL_KEY) ?? undefined;
 
 // Derive upload page state from user query.
-// For new users (credential present), the query will 401 — user stays undefined.
+// For new users (credential present), the query will 401 - user stays undefined.
 const isNewUser = !!credential;
 const { user } = useUserQuery();
 
