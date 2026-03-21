@@ -1,8 +1,8 @@
 {
   "brand": "Wanderbound",
+  "tagline": "הפכו את הטיול Polarsteps שלכם לאלבום תמונות",
 
   "landing": {
-    "tagline": "הפכו את הטיול Polarsteps שלכם לאלבום תמונות",
     "autoAlbumTitle": "אלבום מוכן תוך דקות",
     "autoAlbumBody": "מעלים את הייצוא מ-Polarsteps ומקבלים אלבום מלא - שער, סטטיסטיקות, תמונות מסודרות, הכול מוכן לעריכה.",
     "hikeMapTitle": "מפות טרקים ומסלולי GPS",
@@ -22,7 +22,6 @@
   },
 
   "register": {
-    "tagline": "הפכו את הטיול לאלבום תמונות",
     "getDataTitle": "הורידו את המידע מ-Polarsteps",
     "getDataBody": "נכנסים ל-{link}. עוברים ל-{settings}, גוללים ל-{download}, ולוחצים על {startArchive}. תקבלו מייל עם קישור להורדה.",
     "uploadTitle": "העלו את ה-{file}",

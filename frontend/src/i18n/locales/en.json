@@ -1,8 +1,8 @@
 {
   "brand": "Wanderbound",
+  "tagline": "Turn your Polarsteps trips into photo albums",
 
   "landing": {
-    "tagline": "Turn your Polarsteps trips into photo albums",
     "autoAlbumTitle": "Instant album from your data",
     "autoAlbumBody": "Upload your Polarsteps export and get a full photo album in seconds - covers, stats, photo layouts, ready to customize.",
     "hikeMapTitle": "Hike maps & GPS tracks",
@@ -22,7 +22,6 @@
   },
 
   "register": {
-    "tagline": "Turn your trips into photo albums",
     "getDataTitle": "Get your data from Polarsteps",
     "getDataBody": "Log in at {link} on a desktop computer. Go to {settings}, scroll to {download} in the privacy section, and click {startArchive}. You'll get an email with a download link.",
     "uploadTitle": "Upload your {file}",

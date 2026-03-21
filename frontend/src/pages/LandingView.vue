@@ -31,7 +31,9 @@ const features = [
 
 async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
   try {
-    const { data: user } = await authGoogle({ body: { credential: response.credential } });
+    const { data: user } = await authGoogle({
+      body: { credential: response.credential },
+    });
     if (user) {
       await router.push({ name: "editor" });
     } else {
@@ -50,7 +52,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
     <div class="hero-content column no-wrap items-center">
       <q-img src="/logo.svg" class="hero-logo fade-up" />
       <h1 class="hero-title fade-up">{{ t("brand") }}</h1>
-      <p class="hero-tagline fade-up">{{ t("landing.tagline") }}</p>
+      <p class="hero-tagline fade-up">{{ t("tagline") }}</p>
       <div class="hero-cta fade-up">
         <q-btn
           v-if="authenticated"
@@ -144,7 +146,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
   margin: 0.5rem 0 0;
   font-size: var(--type-md);
   color: var(--text-muted);
-  max-width: 28rem;
+  max-width: 32rem;
 }
 
 .hero-cta {

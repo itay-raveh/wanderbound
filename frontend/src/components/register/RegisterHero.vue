@@ -10,7 +10,7 @@ const { t } = useI18n();
     <div class="hero-text column no-wrap justify-center">
       <span class="text-h5 text-bright">{{ t("brand") }}</span>
       <span class="text-subtitle2 text-faint">
-        {{ t("register.tagline") }}
+        {{ t("tagline") }}
       </span>
     </div>
   </header>
