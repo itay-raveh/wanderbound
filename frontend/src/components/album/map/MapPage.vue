@@ -33,7 +33,12 @@ function draw(m: Map) {
 
 watch(
   [() => props.segments, () => props.steps],
-  () => { if (map.value) draw(map.value); },
+  () => {
+    const m = map.value;
+    if (!m) return;
+    if (m.isStyleLoaded()) draw(m);
+    else m.once("load", () => draw(m));
+  },
 );
 </script>
 

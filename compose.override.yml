@@ -42,3 +42,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - VITE_BACKEND_URL=http://localhost:8000
+
+networks:
+  backend:
+    internal: false

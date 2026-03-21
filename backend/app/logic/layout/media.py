@@ -19,6 +19,9 @@ THUMB_QUALITY = 80
 
 def _generate_thumbnails_sync(path: Path) -> None:
     thumbs_base = path.parent / ".thumbs"
+    smallest = thumbs_base / str(THUMB_WIDTHS[0]) / f"{path.stem}.webp"
+    if smallest.exists():
+        return
     with Image.open(path) as raw:
         img = ImageOps.exif_transpose(raw) or raw
         orig_w, orig_h = img.size
@@ -131,6 +134,8 @@ class Media(BaseModel):
 
 async def extract_frame(video: Path, timestamp: float = 1) -> Path:
     frame_path = video.with_suffix(".jpg")
+    if frame_path.exists():
+        return frame_path
 
     command = [
         "ffmpeg",

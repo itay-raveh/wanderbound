@@ -3,13 +3,12 @@ import { authGoogle } from "@/client";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { GoogleLogin, type CallbackTypes } from "vue3-google-login";
+import { type CallbackTypes } from "vue3-google-login";
 import { CREDENTIAL_KEY } from "@/router";
 
 const { t } = useI18n();
 const router = useRouter();
 const $q = useQuasar();
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
   try {
@@ -36,7 +35,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
       {{ t("register.tagline") }}
     </p>
     <div class="login-button fade-up">
-      <GoogleLogin :client-id="clientId" :callback="onSuccess" prompt auto-login />
+      <GoogleLogin :callback="onSuccess" />
     </div>
   </q-page>
 </template>

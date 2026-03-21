@@ -20,7 +20,6 @@ MAX_UPLOAD_BYTES = settings.VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
 _MAX_FILES = 50_000
 _MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
 
-_ZIP_MIMES = {"application/zip", "application/x-zip-compressed"}
 _INNER_MIMES = {"image/jpeg", "video/mp4", "application/json", "text/plain"}
 _HEADER_BYTES = 2048
 
@@ -34,14 +33,10 @@ def _detect_mime(data: bytes) -> str | None:
 
 
 def _check_zip_mime(file: BinaryIO) -> None:
-    """Validate magic bytes identify the file as a ZIP archive."""
-    header = file.read(_HEADER_BYTES)
+    """Validate the file is a ZIP archive."""
+    if not zipfile.is_zipfile(file):
+        raise zipfile.BadZipFile("File is not a ZIP archive")
     file.seek(0)
-    mime = _detect_mime(header)
-    if mime is None:
-        raise zipfile.BadZipFile("Could not determine file type")
-    if mime not in _ZIP_MIMES:
-        raise zipfile.BadZipFile(f"Expected ZIP, got {mime}")
 
 
 def _safe_extract(file: BinaryIO, dest: Path) -> None:

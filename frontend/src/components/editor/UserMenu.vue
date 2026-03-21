@@ -76,7 +76,7 @@ async function handleDelete() {
   <template v-if="user">
     <button class="settings-trigger" :class="{ open: menuOpen }">
       <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
-        <img :src="user.profile_image_url" :alt="user.first_name" />
+        <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
       </q-avatar>
       <div v-else class="trigger-avatar-fallback flex flex-center">
         <q-icon :name="matPerson" size="1.125rem" />

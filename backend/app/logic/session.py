@@ -78,11 +78,8 @@ async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
     session = _sessions.get(user.id)
 
     if session is not None:
-        logger.info(
-            "User %d reconnecting to %s processing session",
-            user.id,
-            "completed" if session.is_done else "active",
-        )
+        if not session.is_done:
+            logger.info("User %d reconnecting to active processing session", user.id)
         async for event in session.subscribe():
             yield event
         return

@@ -3,6 +3,8 @@ import { PiniaColada } from "@pinia/colada";
 import { Dark, Lang, Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp, watch } from "vue";
 
+import vue3GoogleLogin from "vue3-google-login";
+
 import i18n from "@/i18n";
 import { applyLocale } from "@/composables/useLocale";
 
@@ -35,6 +37,9 @@ app.use(createPinia());
 app.use(PiniaColada);
 app.use(router);
 app.use(i18n);
+app.use(vue3GoogleLogin, {
+  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+});
 app.use(Quasar, {
   config: {
     loading: {},
