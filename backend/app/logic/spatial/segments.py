@@ -526,7 +526,6 @@ def _emit_segments(
     df: pl.DataFrame,
     steps: Sequence[_StepLike],
 ) -> Iterable[SegmentData]:
-    first_step_ts = steps[0].datetime.timestamp()
     prev_last_pt: Point | None = None
 
     for _, gdf in df.group_by("output_id", maintain_order=True):
@@ -534,8 +533,6 @@ def _emit_segments(
 
         if kind == "flight":
             pts = [_gdf_to_point(gdf, 0), _gdf_to_point(gdf, -1)]
-            if pts[0].time < first_step_ts:
-                continue
         else:
             pts = _simplify_points(gdf)
 

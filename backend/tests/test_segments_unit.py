@@ -202,6 +202,42 @@ class TestClassification:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 5.0, 12.0)]
         assert SegmentKind.flight in _segment_kinds(steps, gps)
 
+    def test_pre_first_step_flight_not_dropped(self) -> None:
+        """A flight before the first step must not be silently dropped.
+
+        Simulates: fly from city A to layover city B (no step there), walk
+        around B, fly to destination city C (first step).  Both flights
+        occur before the first step's timestamp.
+
+        Regression: _emit_segments skipped pre-first-step flights, which
+        caused the stitch logic to merge the layover walking + second
+        flight into one giant "walking" segment rendered as a thick
+        dashed line across the ocean.
+        """
+        # City A (h0) → fly → City B (h3-h8 walking) → fly → City C (h22+)
+        gps_a = [_pt(32.0, 35.0, hours=0.0)]
+        gps_b = _track(25.0, 55.0, 25.01, 55.01, h0=3.5, h1=8.0, n=20)
+        gps_c = _track(-34.6, -58.4, -34.61, -58.41, h0=22.0, h1=26.0, n=20)
+
+        # Only step is in city C (the destination)
+        steps = [_step(-34.6, -58.4, 22.0)]
+
+        segments = list(build_segments(steps, gps_a + gps_b + gps_c))
+        kinds = [s.kind for s in segments]
+        assert kinds.count(SegmentKind.flight) >= 2, (
+            f"Expected ≥2 flights in {kinds} — pre-first-step flights were dropped"
+        )
+        # No walking segment should span continents (> 5° lat/lon)
+        for seg in segments:
+            if seg.kind == SegmentKind.walking:
+                p0, p1 = seg.points[0], seg.points[-1]
+                msg = (
+                    f"Walking segment spans ({p0.lat:.1f},{p0.lon:.1f}) → "
+                    f"({p1.lat:.1f},{p1.lon:.1f}) — flight misclassified"
+                )
+                assert abs(p0.lat - p1.lat) < 5, msg
+                assert abs(p0.lon - p1.lon) < 5, msg
+
     def test_valid_hike_detected(self) -> None:
         """A clear multi-hour walk at hike speed → hike."""
         gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
