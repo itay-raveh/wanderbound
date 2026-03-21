@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import engine
+from app.core.db import get_engine
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -92,7 +92,6 @@ class PhaseUpdate(BaseModel):
 
 class ErrorData(BaseModel):
     type: Literal["error"] = "error"
-    detail: str
 
 
 ProcessingEvent = Annotated[
@@ -409,7 +408,7 @@ async def _load_existing(
     if not user.album_ids:
         return {}, {}
 
-    async with AsyncSession(engine, expire_on_commit=False) as session:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         albums = {
             a.id: a
             for a in (
@@ -428,7 +427,7 @@ async def _save_new(
     uid: int,
     objects: list[DbRow],
 ) -> None:
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(get_engine()) as session:
         session.add_all(objects)
         await session.commit()
     logger.info("Saved %d objects to database for user %d", len(objects), uid)
@@ -441,7 +440,7 @@ async def _save_reupload(
     existing_albums: dict[str, Album],
     trip_dirs: list[Path],
 ) -> None:
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(get_engine()) as session:
         if reconciled_aids:
             await session.exec(
                 delete(Step)
@@ -493,7 +492,7 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
                     yield event
     except Exception:
         logger.exception("Processing failed for user %d", user.id)
-        yield ErrorData(detail="Processing failed. Please try again later.")
+        yield ErrorData()
         return
 
     try:
@@ -505,4 +504,4 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
             await _save_new(user.id, all_objects)
     except SQLAlchemyError:
         logger.exception("DB save failed for user %d", user.id)
-        yield ErrorData(detail="Processing failed. Please try again later.")
+        yield ErrorData()

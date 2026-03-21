@@ -7,7 +7,7 @@ from jwt import PyJWKClient
 from pydantic import BaseModel
 from sqlmodel import select
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.models.user import GoogleIdentity, User
 
 from ..deps import SessionDep
@@ -37,7 +37,7 @@ async def verify_google_credential(credential: str) -> GoogleIdentity:
             credential,
             signing_key.key,
             algorithms=["RS256"],
-            audience=settings.VITE_GOOGLE_CLIENT_ID,
+            audience=get_settings().VITE_GOOGLE_CLIENT_ID,
             issuer=GOOGLE_ISSUERS,
         )
     except jwt.InvalidTokenError:

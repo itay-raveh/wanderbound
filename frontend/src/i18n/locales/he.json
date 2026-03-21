@@ -133,7 +133,7 @@
     "saveStep": "השמירה נכשלה",
     "videoFrame": "עדכון הפריים נכשל",
     "pdfExport": "ייצוא PDF נכשל",
-    "processingFailed": "העיבוד נכשל",
+    "processingFailed": "העיבוד נכשל. נסו שוב מאוחר יותר.",
     "connectionFailed": "החיבור נכשל. נסו שוב.",
     "adjustBoundary": "שינוי הגבול נכשל"
   },

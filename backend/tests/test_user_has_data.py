@@ -4,12 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from app.core.config import get_settings
 from app.models.user import User
 
 
 @pytest.fixture
 def user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> User:
-    monkeypatch.setattr("app.core.config.settings.DATA_FOLDER", tmp_path)
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
     return User(
         id=42,
         google_sub="g-42",

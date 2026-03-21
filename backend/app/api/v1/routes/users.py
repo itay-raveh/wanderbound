@@ -17,10 +17,11 @@ from fastapi import (
 )
 from fastapi.sse import EventSourceResponse
 
+from app.core.config import get_settings
 from app.logic.eviction import run_eviction
 from app.logic.processing import ProcessingEvent
 from app.logic.session import process_stream
-from app.logic.upload import MAX_UPLOAD_BYTES, UploadResult, extract_and_scan
+from app.logic.upload import UploadResult, extract_and_scan
 from app.models.user import GoogleIdentity, User, UserUpdate
 
 from ..deps import SessionDep, UserDep
@@ -38,7 +39,8 @@ def _check_upload_size(file: UploadFile) -> int:
     file.file.seek(0, os.SEEK_END)
     size = file.file.tell()
     file.file.seek(0)
-    if size > MAX_UPLOAD_BYTES:
+    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
+    if size > max_bytes:
         raise HTTPException(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
         )

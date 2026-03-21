@@ -131,11 +131,17 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      additional_contexts:
+        - openapi=service:backend
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
         - VITE_BACKEND_URL=https://api.${DOMAIN?Variable not set}
-        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
-        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN?Variable not set}
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID?Variable not set}
+        - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL}
+        - VITE_GITHUB_URL=${VITE_GITHUB_URL}
+        - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME}
+        - VITE_AUTHOR_URL=${VITE_AUTHOR_URL}
 
 networks:
   backend:

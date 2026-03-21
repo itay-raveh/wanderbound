@@ -82,7 +82,7 @@ class TestProcessingSession:
 
         async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
             yield TripStart(trip_index=0)
-            yield ErrorData(detail="boom")
+            yield ErrorData()
 
         with patch("app.logic.session.run_processing", fake_processing):
             session = ProcessingSession(_mock_user())
@@ -90,7 +90,6 @@ class TestProcessingSession:
 
         assert len(result) == 2
         assert isinstance(result[1], ErrorData)
-        assert result[1].detail == "boom"
 
 
 # process_stream (session management)

@@ -8,7 +8,7 @@ from typing import BinaryIO
 import puremagic
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.models.polarsteps import CountryCode, PSTrip
 from app.models.user import PSUser, User
 
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.
-MAX_UPLOAD_BYTES = settings.VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
 _MAX_FILES = 50_000
 _MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
 
@@ -100,7 +99,7 @@ class UploadResult(BaseModel):
 
 def extract_and_scan(file: BinaryIO) -> tuple[Path, PSUser, list[TripMeta]]:
     """Extract ZIP to temp folder, parse user and trips (blocking I/O)."""
-    folder = Path(tempfile.mkdtemp(dir=settings.USERS_FOLDER))
+    folder = Path(tempfile.mkdtemp(dir=get_settings().USERS_FOLDER))
     try:
         _safe_extract(file, folder)
         user_json = (folder / "user" / "user.json").read_bytes()

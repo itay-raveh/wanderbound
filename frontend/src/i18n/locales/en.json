@@ -133,7 +133,7 @@
     "saveStep": "Failed to save step",
     "videoFrame": "Failed to update video frame",
     "pdfExport": "PDF export failed",
-    "processingFailed": "Processing failed",
+    "processingFailed": "Processing failed. Please try again later.",
     "connectionFailed": "Connection failed. Please try again.",
     "adjustBoundary": "Failed to adjust segment boundary"
   },

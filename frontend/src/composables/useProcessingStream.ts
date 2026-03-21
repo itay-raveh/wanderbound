@@ -84,7 +84,7 @@ export function useProcessingStream(): UseProcessingStream {
             break;
           case "error":
             state.value = "error";
-            errorDetail.value = event.detail ?? t("error.processingFailed");
+            errorDetail.value = t("error.processingFailed");
             return;
         }
       }

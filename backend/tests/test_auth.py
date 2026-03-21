@@ -15,7 +15,7 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.deps import _get_session
-from app.core.config import settings
+from app.core.config import get_settings
 from app.logic.upload import TripMeta
 from app.main import app
 from app.models.user import PSUser
@@ -90,7 +90,7 @@ def mock_extract(users_dir: Path) -> patch:
 async def _setup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncGenerator[None]:
-    monkeypatch.setattr(settings, "DATA_FOLDER", tmp_path)
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
     (tmp_path / "users").mkdir()
     app.dependency_overrides[_get_session] = _test_session
     async with _engine.begin() as conn:

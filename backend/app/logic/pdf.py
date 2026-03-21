@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from app.core.config import settings
+from app.core.config import get_settings
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, Page
@@ -162,7 +162,7 @@ async def render_album_pdf_stream(
                         {
                             "name": "session",
                             "value": session_cookie,
-                            "url": settings.FRONTEND_URL,
+                            "url": get_settings().FRONTEND_URL,
                         },
                     ]
                 )
@@ -176,7 +176,7 @@ async def render_album_pdf_stream(
                 )
                 await page.emulate_media(media="print")
                 dark_param = "true" if dark else "false"
-                url = f"{settings.FRONTEND_URL}/print/{aid}?dark={dark_param}"
+                url = f"{get_settings().FRONTEND_URL}/print/{aid}?dark={dark_param}"
                 await page.goto(url, wait_until="domcontentloaded")
                 logger.info("DOM loaded for album %s", aid)
                 await page.wait_for_function(

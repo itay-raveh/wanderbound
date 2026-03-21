@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import get_settings
 from app.logic.eviction import _sizes_by_user, run_eviction
 from app.models.user import User
 
@@ -63,8 +64,8 @@ class TestRunEviction:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """No folders are deleted when total storage is under the cap."""
-        monkeypatch.setattr("app.logic.eviction.settings.DATA_FOLDER", tmp_path)
-        monkeypatch.setattr("app.logic.eviction.settings.MAX_STORAGE_BYTES", 1000)
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 1000)
 
         users_folder = tmp_path / "users"
         _make_file(users_folder / "1" / "data.bin", 100)
@@ -78,8 +79,8 @@ class TestRunEviction:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Oldest user's folder is deleted first."""
-        monkeypatch.setattr("app.logic.eviction.settings.DATA_FOLDER", tmp_path)
-        monkeypatch.setattr("app.logic.eviction.settings.MAX_STORAGE_BYTES", 100)
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 100)
 
         users_folder = tmp_path / "users"
         _make_file(users_folder / "1" / "data.bin", 80)
@@ -106,8 +107,8 @@ class TestRunEviction:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The skip_uid user is never evicted, even if they are the oldest."""
-        monkeypatch.setattr("app.logic.eviction.settings.DATA_FOLDER", tmp_path)
-        monkeypatch.setattr("app.logic.eviction.settings.MAX_STORAGE_BYTES", 50)
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
 
         users_folder = tmp_path / "users"
         _make_file(users_folder / "1" / "data.bin", 80)
@@ -134,8 +135,8 @@ class TestRunEviction:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Eviction stops as soon as total storage drops below the cap."""
-        monkeypatch.setattr("app.logic.eviction.settings.DATA_FOLDER", tmp_path)
-        monkeypatch.setattr("app.logic.eviction.settings.MAX_STORAGE_BYTES", 120)
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 120)
 
         users_folder = tmp_path / "users"
         _make_file(users_folder / "1" / "data.bin", 80)
@@ -167,8 +168,8 @@ class TestRunEviction:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Users whose folders don't exist are silently skipped."""
-        monkeypatch.setattr("app.logic.eviction.settings.DATA_FOLDER", tmp_path)
-        monkeypatch.setattr("app.logic.eviction.settings.MAX_STORAGE_BYTES", 50)
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
 
         users_folder = tmp_path / "users"
         # User 1 has no folder, user 2 has one

@@ -12,7 +12,7 @@ from pydantic import (
 )
 from sqlmodel import JSON, Column, Field, SQLModel
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.db import PydanticJSON, all_optional
 from app.models.polarsteps import Location
 
@@ -85,7 +85,7 @@ class User(UserBase, table=True):
 
     @property
     def folder(self) -> Path:
-        return settings.USERS_FOLDER / str(self.id)
+        return get_settings().USERS_FOLDER / str(self.id)
 
     @property
     def trips_folder(self) -> Path:

@@ -6,8 +6,8 @@ from pathlib import Path
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
-from app.core.db import engine
+from app.core.config import get_settings
+from app.core.db import get_engine
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,9 @@ async def run_eviction(skip_uid: int) -> None:
     Skips the user identified by skip_uid (the one who just uploaded).
     Only deletes filesystem data - DB records are preserved.
     """
-    users_folder = settings.USERS_FOLDER
-    cap = settings.MAX_STORAGE_BYTES
+    s = get_settings()
+    users_folder = s.USERS_FOLDER
+    cap = s.MAX_STORAGE_BYTES
 
     total, sizes = await asyncio.to_thread(_sizes_by_user, users_folder)
     if total <= cap:
@@ -48,7 +49,7 @@ async def run_eviction(skip_uid: int) -> None:
         cap // 1_048_576,
     )
 
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(get_engine()) as session:
         result = await session.exec(
             select(User).order_by(User.last_active_at.asc())  # type: ignore[union-attr]
         )

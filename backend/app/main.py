@@ -12,12 +12,13 @@ from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.logging import setup_logging
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
 
+settings = get_settings()
 setup_logging(environment=settings.ENVIRONMENT)
 
 if settings.SENTRY_DSN:

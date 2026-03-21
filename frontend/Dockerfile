@@ -11,6 +11,8 @@ WORKDIR /app/frontend
 RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
+COPY --from=openapi /app/backend/openapi.json ./openapi.json
+
 ARG VITE_MAX_UPLOAD_GB
 ARG VITE_BACKEND_URL
 ARG VITE_MAPBOX_TOKEN

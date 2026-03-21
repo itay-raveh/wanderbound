@@ -1,12 +1,13 @@
 import copy
+from functools import lru_cache
 from typing import Any
 
 from pydantic import TypeAdapter
 from sqlalchemy import TypeDecorator
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import JSON, SQLModel
 
-from app.core.config import settings
+from app.core.config import get_settings
 
 
 class PydanticJSON(TypeDecorator[Any]):
@@ -42,4 +43,6 @@ def all_optional[T: SQLModel](cls: type[T]) -> type[T]:
     return cls
 
 
-engine = create_async_engine(str(settings.SQLALCHEMY_DATABASE_URI))
+@lru_cache
+def get_engine() -> AsyncEngine:
+    return create_async_engine(str(get_settings().SQLALCHEMY_DATABASE_URI))

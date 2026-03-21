@@ -1,0 +1,26 @@
+import json
+import sys
+from typing import TYPE_CHECKING
+
+from fastapi import FastAPI
+
+from app.api.v1.router import router
+
+if TYPE_CHECKING:
+    from fastapi.routing import APIRoute
+
+API_V1_STR = "/api/v1"
+
+
+def _unique_id(route: APIRoute) -> str:
+    return route.name
+
+
+app = FastAPI(
+    title="Wanderbound",
+    openapi_url=f"{API_V1_STR}/openapi.json",
+    generate_unique_id_function=_unique_id,
+)
+app.include_router(router, prefix=API_V1_STR)
+
+json.dump(app.openapi(), sys.stdout, indent=2)

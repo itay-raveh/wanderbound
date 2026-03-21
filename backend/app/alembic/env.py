@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401 - register all table models
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.db import PydanticJSON
 
 config = context.config
@@ -30,7 +30,7 @@ def render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | 
 
 
 def get_url() -> str:
-    return str(settings.SQLALCHEMY_DATABASE_URI)
+    return str(get_settings().SQLALCHEMY_DATABASE_URI)
 
 
 def run_migrations_offline() -> None:

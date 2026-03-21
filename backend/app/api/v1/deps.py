@@ -11,7 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import engine
+from app.core.db import get_engine
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ _last_activity_write: OrderedDict[int, float] = OrderedDict()
 
 
 async def _get_session() -> AsyncGenerator[AsyncSession]:
-    async with AsyncSession(engine, expire_on_commit=False) as session:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         yield session
 
 
@@ -34,7 +34,7 @@ SessionDep = Annotated[AsyncSession, Depends(_get_session)]
 async def _touch_activity(uid: int) -> None:
     """Background update of last_active_at with its own session."""
     try:
-        async with AsyncSession(engine) as session:
+        async with AsyncSession(get_engine()) as session:
             await session.exec(
                 update(User)
                 .where(User.id == uid)  # type: ignore[arg-type]

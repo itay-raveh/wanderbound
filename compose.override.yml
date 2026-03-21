@@ -33,6 +33,10 @@ services:
 
   frontend:
     restart: "no"
+    networks: [backend, frontend]
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5173:8080"
     build:
@@ -44,3 +48,5 @@ services:
 networks:
   backend:
     internal: false
+  frontend:
+    external: false
