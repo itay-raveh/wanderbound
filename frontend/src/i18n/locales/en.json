@@ -2,7 +2,7 @@
   "brand": "Wanderbound",
 
   "landing": {
-    "tagline": "Turn your trips into photo albums",
+    "tagline": "Turn your Polarsteps trips into photo albums",
     "autoAlbumTitle": "Instant album from your data",
     "autoAlbumBody": "Upload your Polarsteps export and get a full photo album in seconds - covers, stats, photo layouts, ready to customize.",
     "hikeMapTitle": "Hike maps & GPS tracks",
@@ -10,7 +10,7 @@
     "videoPosterTitle": "Video poster frames",
     "videoPosterBody": "Pick the perfect frame from any video to use in your album. Scrub frame-by-frame and set a poster - no screenshots needed.",
     "localizationTitle": "Localized & right-to-left",
-    "localizationBody": "Full Hebrew support with right-to-left layout. Dates, distances, and temperatures adapt to your locale and units.",
+    "localizationBody": "Supports any language, including right-to-left layout. Dates, distances, and temperatures adapt to your locale and units.",
     "openEditor": "Open editor",
     "ctaTitle": "Ready to make your album?",
     "ctaBody": "Sign in with Google and upload your Polarsteps data to get started."
