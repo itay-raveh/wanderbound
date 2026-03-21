@@ -148,6 +148,19 @@
     "issues": "Report an issue"
   },
 
+  "onboarding": {
+    "editorTitle": "Your album is ready to customize",
+    "editText": "Click any text to edit",
+    "dragPhotos": "Drag photos to rearrange",
+    "settings": "Customize units & theme",
+    "exportPdf": "Export as PDF when done",
+    "mapTitle": "About your map",
+    "hikesDetected": "Hikes detected from GPS",
+    "dragHandles": "Drag handles to adjust boundaries",
+    "filterDates": "Filter dates with the calendar",
+    "gotIt": "Got it"
+  },
+
   "screen": {
     "title": "Larger screen required",
     "body": "This app is designed for desktops and landscape tablets. Use a laptop or desktop computer, or rotate your tablet to landscape."

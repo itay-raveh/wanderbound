@@ -10,6 +10,7 @@ import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
+import MapOnboardingBanner from "./editor/MapOnboardingBanner.vue";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 import { useI18n } from "vue-i18n";
@@ -138,7 +139,9 @@ if (props.printMode) {
         :has-chrome="section.type === 'step'"
       >
         <!-- Map / Hike section with shared controls -->
-        <div v-if="section.type === 'map' || section.type === 'hike'" class="map-wrapper">
+        <template v-if="section.type === 'map' || section.type === 'hike'">
+        <MapOnboardingBanner v-if="!printMode" />
+        <div class="map-wrapper">
           <MapSectionControls
             v-if="!printMode"
             :album-id="album.id"
@@ -156,6 +159,7 @@ if (props.printMode) {
             :all-segments="data.segments"
           />
         </div>
+        </template>
 
         <StepEntry v-else :step="section.step" />
       </LazySection>

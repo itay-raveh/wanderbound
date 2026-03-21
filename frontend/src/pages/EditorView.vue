@@ -2,6 +2,7 @@
 import AlbumToolbar from "@/components/editor/AlbumToolbar.vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import EditorHeader from "@/components/editor/EditorHeader.vue";
+import OnboardingBanner from "@/components/editor/OnboardingBanner.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
@@ -35,6 +36,8 @@ useLocale(locale);
       :all-steps="albumData?.steps"
     />
   </EditorHeader>
+
+  <OnboardingBanner />
 
   <q-page class="editor-page">
     <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
