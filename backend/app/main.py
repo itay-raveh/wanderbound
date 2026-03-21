@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -27,6 +28,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
 
     from playwright.async_api import async_playwright  # noqa: PLC0415
+
+    from app.logic.pdf import cleanup_pdf_tmp  # noqa: PLC0415
+
+    await asyncio.to_thread(cleanup_pdf_tmp)
 
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(

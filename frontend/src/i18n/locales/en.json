@@ -122,10 +122,8 @@
   "pdf": {
     "queued": "Queued...",
     "loading": "Loading album...",
-    "rendering": "Rendering page {done} / {total}...",
     "renderingSingle": "Rendering...",
-    "merging": "Merging pages...",
-    "downloading": "Downloading..."
+    "renderingBytes": "Rendering... {size}"
   },
 
   "footer": {

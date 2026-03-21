@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from sqlmodel import select
 
-from app.logic.pdf import PdfEvent, pop_pdf_path, render_album_pdf_stream
+from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.models.album import Album, AlbumData, AlbumUpdate
 from app.models.segment import BoundaryAdjust, Segment, SegmentKind, split_segments
 from app.models.step import Step, StepUpdate
@@ -35,6 +35,26 @@ async def _get_album(
 AlbumDep = Annotated[Album, Depends(_get_album)]
 
 router = APIRouter(prefix="/albums", tags=["albums"])
+
+
+# Static-prefix routes must be declared before /{aid} to avoid shadowing.
+@router.get("/pdf/download/{token}")
+async def download_pdf(
+    token: str,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    result = pop_pdf_token(token)
+    if result is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
+        )
+    path, aid = result
+    background_tasks.add_task(path.unlink, missing_ok=True)
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"{aid}.pdf",
+    )
 
 
 @router.get("/{aid}")
@@ -157,10 +177,10 @@ async def adjust_segment_boundary(
     "/{aid}/pdf/generate",
     response_class=EventSourceResponse,
     responses={200: {"model": list[PdfEvent]}},
+    dependencies=[Depends(_get_album)],
 )
 async def generate_pdf(
     aid: str,
-    user: UserDep,
     browser: BrowserDep,
     request: Request,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
@@ -170,22 +190,3 @@ async def generate_pdf(
         browser, aid, session_cookie=session_cookie, dark=dark
     ):
         yield event
-
-
-@router.get("/{aid}/pdf/download/{token}")
-async def download_pdf(
-    aid: str,
-    token: str,
-    background_tasks: BackgroundTasks,
-) -> FileResponse:
-    path = pop_pdf_path(token)
-    if path is None or not path.exists():
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
-        )
-    background_tasks.add_task(path.unlink, missing_ok=True)
-    return FileResponse(
-        path,
-        media_type="application/pdf",
-        filename=f"{aid}.pdf",
-    )

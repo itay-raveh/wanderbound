@@ -261,75 +261,24 @@ tmpfs mounts for writable paths (`/tmp`, `/var/run/postgresql`,
 
 ---
 
-### 13. Per-user storage quota
+### 13. ~~Per-user storage quota~~ NOT NEEDED
 
-**Current state:** Each upload extracts a full Polarsteps export to
-`data/users/<uid>/`. There is no tracking of disk usage per user and no limit
-on total storage consumed. Temp directory cleanup on extraction failure IS
-implemented (`extract_and_scan` wraps extraction in try/except with
-`shutil.rmtree`; `upload_data` also cleans up the temp folder if the DB
-commit or folder rename fails).
-
-**Problem:** A single user (or attacker) can upload repeatedly, each time
-consuming hundreds of MB.
-
-**Fix:**
-
-1. **Track user storage** — add a computed or cached field:
-   ```python
-   def disk_usage(self) -> int:
-       """Total bytes used by this user's data directory."""
-       return sum(f.stat().st_size for f in self.folder.rglob("*") if f.is_file())
-   ```
-
-2. **Enforce a quota** before accepting new uploads:
-   ```python
-   MAX_USER_STORAGE = 500 * 1024 * 1024  # 500 MB
-   ```
-
-3. ~~**Clean up temp directories**~~ — DONE. Both `extract_and_scan()` in
-   `upload.py` and `upload_data()` in `users.py` clean up temp directories
-   on failure.
-
-4. **Global storage limit** — check total disk usage of `USERS_FOLDER` and reject
-   uploads when the server is running low (e.g., < 1 GB free).
+**Analysis:** Each upload replaces the user's entire data folder
+(`shutil.rmtree` + `rename` in `upload_data`). Storage cannot accumulate
+per-user — a user's disk usage is bounded by a single Polarsteps export.
+Temp directories are cleaned up on failure. Per-user quotas add complexity
+with no security benefit given this design.
 
 ---
 
-### 14. Validate extracted file types after ZIP extraction
+### 14. ~~Validate extracted file types after ZIP extraction~~ DONE
 
-**Current state:** After `_safe_extract()` (in `upload.py`), the code reads
-`user.json` and iterates trip directories, trusting that the ZIP contains only
-expected file types (JSON, JPEG, MP4). `_safe_extract` already rejects symlinks
-during extraction (via `external_attr` check) and blocks path traversal, but
-does not validate individual file types.
+Implemented as part of item #6. `_safe_extract()` now checks MIME types of
+every file inside the ZIP against an allowlist (`image/jpeg`, `video/mp4`,
+`application/json`, `text/plain`) using `puremagic` magic bytes during a
+single-pass validate-and-extract. Symlinks are also rejected during extraction.
 
-**Problem:** A crafted ZIP could contain executable files, HTML files with
-embedded scripts, or other unexpected content. These files are then served by
-the `get_media` endpoint or processed by ffmpeg/Pillow.
-
-**Fix:**
-
-After extraction, walk the directory and:
-1. Verify every file is one of the expected types (`.json`, `.jpg`, `.mp4`)
-   using both extension AND magic bytes.
-2. Delete or reject any unexpected files.
-3. ~~Verify no symlinks exist in the extracted tree~~ — DONE. Symlinks are
-   rejected during extraction by `_safe_extract()` in `upload.py`.
-
-```python
-import magic
-
-ALLOWED_EXTENSIONS = {".json", ".jpg", ".jpeg", ".mp4"}
-
-def _validate_extracted_files(folder: Path) -> None:
-    for path in folder.rglob("*"):
-        if path.is_symlink():
-            raise ValueError(f"Symlink not allowed: {path.name}")
-        if path.is_file() and path.suffix.lower() not in ALLOWED_EXTENSIONS:
-            path.unlink()
-            logger.warning("Removed unexpected file: %s", path.name)
-```
+**File:** `backend/app/logic/upload.py`
 
 ---
 
@@ -398,36 +347,14 @@ Given the cookie contains no PII and is small, this is low priority.
 
 ---
 
-### 18. PDF temp files not cleaned up on server restart
+### 18. ~~PDF temp files not cleaned up on server restart~~ DONE
 
-**Current state:** `pdf.py:62` stores download tokens in an in-memory dict
-`_tokens`. Tokens have a 5-minute TTL via `call_later`. When the server
-restarts, all pending tokens are lost — but the temp files on disk remain
-forever.
-
-**Problem:** Over time, orphaned PDF temp files accumulate in `/tmp`, consuming
-disk.
-
-**Fix:**
-
-1. Write PDF temp files to a dedicated directory (e.g., `data/pdf-tmp/`) instead
-   of the system `/tmp`.
-2. On startup (in the `lifespan` function), delete all files in that directory
-   older than `_TOKEN_TTL` seconds.
-3. Add a periodic cleanup task (or just clean on every new PDF generation).
-
-```python
-PDF_TMP_DIR = settings.DATA_FOLDER / "pdf-tmp"
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    PDF_TMP_DIR.mkdir(exist_ok=True)
-    # Clean stale PDFs from previous runs
-    for f in PDF_TMP_DIR.iterdir():
-        if f.is_file():
-            f.unlink()
-    ...
-```
+PDF temp files are now written to a dedicated `/tmp/polarsteps-pdf/` directory,
+cleaned up on server startup via `cleanup_pdf_tmp()`. Individual files are
+deleted after download (via `BackgroundTasks`) or after 60s TTL expiry.
+The PDF pipeline never holds the full merged PDF in Python memory — chunks are
+rendered directly to disk by Playwright, then merged by `qpdf` (C++) on disk.
+`pypdf` dependency removed.
 
 ---
 
@@ -728,12 +655,12 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 10. ~~**#10** Network segmentation~~ — DONE (backend internal network isolates db; frontend network for nginx + backend outbound)
 11. ~~**#11** Localhost-bind dev ports~~ — DONE (all dev ports prefixed with `127.0.0.1:`)
 12. ~~**#12** Read-only filesystems~~ — DONE (implemented with item #7)
-13. **#13** Storage quotas
-14. **#14** Validate extracted files
+13. ~~**#13** Storage quotas~~ — NOT NEEDED (each upload replaces the previous; no accumulation)
+14. ~~**#14** Validate extracted files~~ — DONE (implemented with item #6)
 15. **#15** Strong DB password
 16. **#16** CORS lockdown
 17. **#17** Cookie path scope (low priority — cookie is small, no PII)
-18. **#18** PDF temp cleanup
+18. ~~**#18** PDF temp cleanup~~ DONE
 19. **#24** Timestamp validation
 20. **#25** Error response handler
 21. **#19** HTTPS termination

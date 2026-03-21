@@ -122,10 +122,8 @@
   "pdf": {
     "queued": "בתור...",
     "loading": "טוען אלבום...",
-    "rendering": "מרנדר עמוד {done} / {total}...",
     "renderingSingle": "מרנדר...",
-    "merging": "ממזג עמודים...",
-    "downloading": "מוריד..."
+    "renderingBytes": "מרנדר... {size}"
   },
 
   "footer": {

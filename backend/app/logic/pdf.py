@@ -1,30 +1,26 @@
 import asyncio
-import io
+import base64
 import logging
-import os
 import secrets
+import shutil
 import tempfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import aclosing, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import BaseModel, Field
-from pypdf import PdfWriter
 
 from app.core.config import settings
 
 if TYPE_CHECKING:
-    from playwright._impl._api_structures import PdfMargins
     from playwright.async_api import Browser, Page
 
 logger = logging.getLogger(__name__)
 
 _pdf_semaphore = asyncio.Semaphore(1)
 
-# Max pages per PDF chunk to stay under Chromium's V8 string size limit.
-_CHUNK_SIZE = 30
-
-_TOKEN_TTL = 300  # seconds before a download token expires
+_TOKEN_TTL = 60  # frontend downloads immediately after generation
 
 
 # ── SSE event models ──
@@ -36,9 +32,8 @@ class PdfQueued(BaseModel):
 
 class PdfProgress(BaseModel):
     type: Literal["progress"] = "progress"
-    phase: Literal["loading", "rendering", "merging"]
+    phase: Literal["loading", "rendering"]
     done: int
-    total: int
 
 
 class PdfDone(BaseModel):
@@ -57,87 +52,88 @@ PdfEvent = Annotated[
 ]
 
 
+# ── Temp directory ──
+
+_PDF_DIR = Path(tempfile.gettempdir()) / "polarsteps-pdf"
+
+
+def cleanup_pdf_tmp() -> None:
+    """Remove stale PDF files from previous server runs."""
+    if _PDF_DIR.exists():
+        shutil.rmtree(_PDF_DIR)
+    _PDF_DIR.mkdir(parents=True, exist_ok=True)
+
+
 # ── Download token store ──
 
-_tokens: dict[str, Path] = {}
+_tokens: dict[str, tuple[Path, str, asyncio.TimerHandle]] = {}
 
 
-def _evict_token(token: str, path: Path) -> None:
-    if _tokens.pop(token, None) is not None:
+def _evict_token(token: str) -> None:
+    entry = _tokens.pop(token, None)
+    if entry is not None:
+        path, _, _ = entry
         path.unlink(missing_ok=True)
         logger.debug("Expired PDF token %s", token[:8])
 
 
-def store_pdf_token(path: Path) -> str:
+def store_pdf_token(path: Path, aid: str) -> str:
     token = secrets.token_urlsafe()
-    _tokens[token] = path
-    asyncio.get_running_loop().call_later(_TOKEN_TTL, _evict_token, token, path)
+    handle = asyncio.get_running_loop().call_later(_TOKEN_TTL, _evict_token, token)
+    _tokens[token] = (path, aid, handle)
     return token
 
 
-def pop_pdf_path(token: str) -> Path | None:
-    return _tokens.pop(token, None)
+def pop_pdf_token(token: str) -> tuple[Path, str] | None:
+    entry = _tokens.pop(token, None)
+    if entry is None:
+        return None
+    path, aid, timer = entry
+    timer.cancel()
+    return path, aid
 
 
-# ── PDF rendering ──
-
-_NO_MARGIN: PdfMargins = {"top": "0", "right": "0", "bottom": "0", "left": "0"}
+# ── PDF rendering via CDP streaming ──
 
 
-async def _page_pdf(page: Page, *, page_ranges: str | None = None) -> bytes:
-    return await page.pdf(
-        prefer_css_page_size=True,
-        print_background=True,
-        margin=_NO_MARGIN,
-        page_ranges=page_ranges,
-    )
+async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
+    """Stream PDF to disk via CDP, yielding cumulative bytes written.
 
+    Bypasses Playwright's base64 serialization and V8 string size limit.
+    """
+    cdp = await page.context.new_cdp_session(page)
+    handle: str | None = None
+    try:
+        result = await cdp.send(
+            "Page.printToPDF",
+            {
+                "preferCSSPageSize": True,
+                "printBackground": True,
+                "marginTop": 0,
+                "marginRight": 0,
+                "marginBottom": 0,
+                "marginLeft": 0,
+                "transferMode": "ReturnAsStream",
+            },
+        )
+        handle = result["stream"]
 
-async def _generate_pdf_stream(
-    page: Page, aid: str
-) -> AsyncIterator[PdfProgress | bytes]:
-    """Generate PDF in chunks, yielding progress events and final bytes."""
-    total_pages = await page.evaluate(
-        "document.querySelectorAll('.page-container').length"
-    )
-    logger.info("Album %s has %d print pages", aid, total_pages)
-
-    if total_pages <= _CHUNK_SIZE:
-        yield PdfProgress(phase="rendering", done=0, total=total_pages)
-        pdf_bytes = await _page_pdf(page)
-        yield PdfProgress(phase="rendering", done=total_pages, total=total_pages)
-        logger.info("PDF generated for album %s: %d bytes", aid, len(pdf_bytes))
-        yield pdf_bytes
-        return
-
-    chunks: list[bytes] = []
-
-    for start in range(1, total_pages + 1, _CHUNK_SIZE):
-        end = min(start + _CHUNK_SIZE - 1, total_pages)
-        yield PdfProgress(phase="rendering", done=start - 1, total=total_pages)
-        chunk = await _page_pdf(page, page_ranges=f"{start}-{end}")
-        chunks.append(chunk)
-        logger.info("PDF chunk pages %d-%d: %d bytes", start, end, len(chunk))
-
-    yield PdfProgress(phase="rendering", done=total_pages, total=total_pages)
-
-    # Merge chunks
-    yield PdfProgress(phase="merging", done=0, total=1)
-    writer = PdfWriter()
-    for chunk in chunks:
-        writer.append(io.BytesIO(chunk))
-
-    buf = io.BytesIO()
-    writer.write(buf)
-    pdf_bytes = buf.getvalue()
-    yield PdfProgress(phase="merging", done=1, total=1)
-    logger.info(
-        "PDF generated for album %s: %d bytes (%d chunks)",
-        aid,
-        len(pdf_bytes),
-        len(chunks),
-    )
-    yield pdf_bytes
+        size = 0
+        with dest.open("wb") as f:
+            while True:
+                chunk = await cdp.send("IO.read", {"handle": handle, "size": 1_048_576})
+                raw = base64.b64decode(chunk["data"])
+                f.write(raw)
+                size += len(raw)
+                yield size
+                if chunk.get("eof", False):
+                    break
+    finally:
+        if handle is not None:
+            with suppress(Exception):
+                await cdp.send("IO.close", {"handle": handle})
+        with suppress(Exception):
+            await cdp.detach()
 
 
 async def render_album_pdf_stream(
@@ -147,13 +143,14 @@ async def render_album_pdf_stream(
     session_cookie: str,
     dark: bool = True,
 ) -> AsyncIterator[PdfEvent]:
-    """Top-level SSE generator: queued → loading → rendering → merging → done/error."""
-    # Yield queued event while waiting for the semaphore
+    """Top-level SSE generator: queued → loading → rendering → done/error."""
     yield PdfQueued()
 
     async with _pdf_semaphore:
+        dest = _PDF_DIR / f"{secrets.token_hex(16)}.pdf"
+        size = 0
         try:
-            yield PdfProgress(phase="loading", done=0, total=1)
+            yield PdfProgress(phase="loading", done=0)
 
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
@@ -185,30 +182,32 @@ async def render_album_pdf_stream(
                 await page.wait_for_function(
                     "window.__PRINT_READY__ === true", timeout=60_000
                 )
-                yield PdfProgress(phase="loading", done=1, total=1)
+                yield PdfProgress(phase="loading", done=1)
 
-                # Stream rendering progress
-                pdf_bytes: bytes | None = None
-                async for item in _generate_pdf_stream(page, aid):
-                    if isinstance(item, bytes):
-                        pdf_bytes = item
-                    else:
-                        yield item
+                yield PdfProgress(phase="rendering", done=0)
+                last_reported = 0
+                async with aclosing(_stream_pdf_to_file(page, dest)) as stream:
+                    async for size in stream:
+                        if size - last_reported >= 524_288:  # throttle: every 512 KB
+                            yield PdfProgress(phase="rendering", done=size)
+                            last_reported = size
+                yield PdfProgress(phase="rendering", done=size)
+                logger.info("PDF generated for album %s: %d bytes", aid, size)
 
             finally:
                 await context.close()
 
-            # Write to temp file and issue a download token
-            if pdf_bytes is None:
+            if size == 0:
+                dest.unlink(missing_ok=True)
                 yield PdfError(detail="PDF generation produced no output.")
                 return
-            fd, name = tempfile.mkstemp(suffix=".pdf", prefix="album_")
-            os.close(fd)
-            tmp_path = Path(name)
-            await asyncio.to_thread(tmp_path.write_bytes, pdf_bytes)
-            token = store_pdf_token(tmp_path)
+            token = store_pdf_token(dest, aid)
             yield PdfDone(token=token)
 
         except Exception:
+            dest.unlink(missing_ok=True)
             logger.exception("PDF generation failed for album %s", aid)
             yield PdfError(detail="PDF generation failed. Please try again.")
+        except BaseException:
+            dest.unlink(missing_ok=True)
+            raise

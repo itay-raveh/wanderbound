@@ -24,7 +24,6 @@ dependencies = [
     "coloraide~=8.7",
     "aiolimiter~=1.2",
     "simplification~=0.7",
-    "pypdf~=6.8",
     "itsdangerous~=2.2",
     "pyjwt[crypto]~=2.0",
     "puremagic>=2.1.0",

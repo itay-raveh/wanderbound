@@ -2,16 +2,16 @@ import { ref, type Ref } from "vue";
 import { Dark, Loading, Notify } from "quasar";
 import {
   generatePdf,
-  downloadPdf,
   type PdfDone,
   type PdfError,
   type PdfProgress,
   type PdfQueued,
 } from "@/client";
+import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
 
 export type PdfStreamState = "idle" | "queued" | "running" | "done" | "error";
-type Phase = "loading" | "rendering" | "merging";
+type Phase = "loading" | "rendering";
 
 /** hey-api types SSE stream items as Array<union>, but yields individual events. */
 type PdfEvent =
@@ -27,16 +27,19 @@ export interface UsePdfExportStream {
 }
 
 
-function loadingMessage(phase: Phase, done: number, total: number): string {
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function loadingMessage(phase: Phase, done: number): string {
   switch (phase) {
     case "loading":
       return t("pdf.loading");
     case "rendering":
-      return total > 1
-        ? t("pdf.rendering", { done, total })
+      return done > 0
+        ? t("pdf.renderingBytes", { size: formatBytes(done) })
         : t("pdf.renderingSingle");
-    case "merging":
-      return t("pdf.merging");
   }
 }
 
@@ -75,7 +78,7 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
             break;
           case "progress":
             state.value = "running";
-            showLoading(loadingMessage(event.phase, event.done, event.total));
+            showLoading(loadingMessage(event.phase, event.done));
             break;
           case "done":
             downloadToken = event.token;
@@ -88,18 +91,12 @@ export function usePdfExportStream(aid: () => string): UsePdfExportStream {
       }
 
       if (downloadToken && !controller.signal.aborted) {
-        showLoading(t("pdf.downloading"));
-        const { data } = await downloadPdf({
-          path: { aid: aid(), token: downloadToken },
-          parseAs: "blob",
-        });
-        const blob = data as Blob;
-        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
+        a.href = `${client.getConfig().baseUrl}/api/v1/albums/pdf/download/${encodeURIComponent(downloadToken)}`;
         a.download = `${aid()}.pdf`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
         state.value = "done";
       }
     } catch (err) {
