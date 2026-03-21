@@ -16,27 +16,36 @@ MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
 THUMB_WIDTHS = (200, 800)
 THUMB_QUALITY = 80
 
+# Limit concurrent heavy media work (ffmpeg frame extraction, Pillow thumbnails).
+# Container limit is 2 GB; ~400 MB for Python/Chromium leaves ~1600 MB for media.
+media_sem = asyncio.Semaphore(20)
 
-def _generate_thumbnails_sync(path: Path) -> None:
-    thumbs_base = path.parent / ".thumbs"
-    smallest = thumbs_base / str(THUMB_WIDTHS[0]) / f"{path.stem}.webp"
-    if smallest.exists():
-        return
-    with Image.open(path) as raw:
+
+def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
+    with Image.open(source) as raw:
         img = ImageOps.exif_transpose(raw) or raw
         orig_w, orig_h = img.size
-        for width in THUMB_WIDTHS:
-            if width >= orig_w:
-                continue
-            out_dir = thumbs_base / str(width)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            ratio = width / orig_w
-            thumb = img.resize((width, round(orig_h * ratio)), Resampling.LANCZOS)
-            thumb.save(out_dir / f"{path.stem}.webp", "WEBP", quality=THUMB_QUALITY)
+        if width >= orig_w:
+            return None
+        out_dir = source.parent / ".thumbs" / str(width)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ratio = width / orig_w
+        thumb = img.resize((width, round(orig_h * ratio)), Resampling.LANCZOS)
+        out = out_dir / f"{source.stem}.webp"
+        thumb.save(out, "WEBP", quality=THUMB_QUALITY)
+        return out
 
 
-async def generate_thumbnails(path: Path) -> None:
-    await asyncio.to_thread(_generate_thumbnails_sync, path)
+async def generate_thumbnail(source: Path, width: int) -> Path | None:
+    async with media_sem:
+        return await asyncio.to_thread(_generate_thumbnail_sync, source, width)
+
+
+def delete_thumbnails(path: Path) -> None:
+    thumbs_base = path.parent / ".thumbs"
+    for w in THUMB_WIDTHS:
+        thumb = thumbs_base / str(w) / f"{path.stem}.webp"
+        thumb.unlink(missing_ok=True)
 
 
 # {uuid4}_{uuid4}.(jpg|mp4)
@@ -134,9 +143,6 @@ class Media(BaseModel):
 
 async def extract_frame(video: Path, timestamp: float = 1) -> Path:
     frame_path = video.with_suffix(".jpg")
-    if frame_path.exists():
-        return frame_path
-
     command = [
         "ffmpeg",
         "-y",
@@ -155,13 +161,13 @@ async def extract_frame(video: Path, timestamp: float = 1) -> Path:
         str(frame_path),
     ]
 
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-
-    _, stderr = await process.communicate()
+    async with media_sem:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await process.communicate()
 
     if process.returncode != 0 or not frame_path.exists():
         raise RuntimeError(f"Failed to extract: {stderr.decode()}")

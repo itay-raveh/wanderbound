@@ -1,4 +1,7 @@
+import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -8,8 +11,9 @@ from fastapi.responses import FileResponse
 from app.logic.layout.media import (
     THUMB_WIDTHS,
     MediaName,
+    delete_thumbnails,
     extract_frame,
-    generate_thumbnails,
+    generate_thumbnail,
     is_video,
 )
 from app.models.user import User
@@ -26,19 +30,26 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 # picks a new frame, so the browser must revalidate on each load.
 _CACHE_REVALIDATE = "public, no-cache"
 
+# Deduplicates concurrent lazy generation of the same file (poster or thumbnail).
+_gen_locks: dict[Path, asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def _gen_lock(path: Path) -> AsyncIterator[None]:
+    if path not in _gen_locks:
+        _gen_locks[path] = asyncio.Lock()
+    lock = _gen_locks[path]
+    async with lock:
+        yield
+    # Clean up when no other coroutine is waiting on this lock.
+    if not lock.locked():
+        _gen_locks.pop(path, None)
+
 
 def _album_dir(user: User, aid: str) -> Path:
     """Resolve the album directory, rejecting path traversal in ``aid``."""
     resolved = (user.trips_folder / aid).resolve()
     if not resolved.is_relative_to(user.trips_folder):
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return resolved
-
-
-def _resolve_media(user: User, aid: str, name: str) -> Path:
-    album = _album_dir(user, aid)
-    resolved = (album / name).resolve()
-    if not resolved.is_relative_to(album) or not resolved.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     return resolved
 
@@ -51,22 +62,39 @@ async def get_media(
     w: int | None = None,
 ) -> FileResponse:
     album_dir = _album_dir(user, aid)
+    source = album_dir / name
+    video = album_dir / Path(name).with_suffix(".mp4")
+
     # Video posters (.jpg with a sibling .mp4) can be re-extracted by the user.
-    is_poster = (
-        name.endswith(".jpg") and (album_dir / Path(name).with_suffix(".mp4")).is_file()
-    )
+    is_poster = name.endswith(".jpg") and video.is_file()
     cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
 
+    # Lazy poster extraction: .jpg requested but only the .mp4 exists.
+    if not source.is_file() and is_poster:
+        async with _gen_lock(source):
+            if not source.is_file():
+                await extract_frame(video)
+                logger.info("Lazy-extracted poster for %s", name)
+
+    if not source.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    # Lazy thumbnail generation.
     if w is not None and w in THUMB_WIDTHS:
         thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
+        if not thumb.is_file():
+            async with _gen_lock(thumb):
+                if not thumb.is_file():
+                    await generate_thumbnail(source, w)
         if thumb.is_file():
             return FileResponse(
                 thumb,
                 media_type="image/webp",
                 headers={"Cache-Control": cache},
             )
+
     return FileResponse(
-        _resolve_media(user, aid, name),
+        source.resolve(),
         headers={"Cache-Control": cache},
     )
 
@@ -80,6 +108,13 @@ async def update_video_frame(
 ) -> None:
     if not is_video(name):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Not a video")
-    poster_path = await extract_frame(_resolve_media(user, aid, name), timestamp)
-    await generate_thumbnails(poster_path)
+    album_dir = _album_dir(user, aid)
+    video = album_dir / name
+    if not video.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    poster = video.with_suffix(".jpg")
+    # Delete stale poster and its thumbnails before re-extracting.
+    poster.unlink(missing_ok=True)
+    delete_thumbnails(poster)
+    await extract_frame(video, timestamp)
     logger.info("Re-extracted frame for %s at t=%.1fs", name, timestamp)

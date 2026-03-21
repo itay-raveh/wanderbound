@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import logging
 from collections import defaultdict
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
 
@@ -18,8 +18,6 @@ from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
     MEDIA_EXTENSIONS,
     Media,
-    extract_frame,
-    generate_thumbnails,
     normalize_name,
 )
 from app.logic.spatial.peaks import correct_peaks
@@ -34,12 +32,8 @@ from app.services.open_meteo import build_weathers, elevations
 
 logger = logging.getLogger(__name__)
 
-type ProcessingPhase = Literal["elevations", "weather", "layouts", "frames", "thumbs"]
+type ProcessingPhase = Literal["elevations", "weather", "layouts"]
 type DbRow = Album | Step | Segment
-
-# Limit concurrent heavy media work (ffmpeg frame extraction, Pillow thumbnails).
-# Container limit is 2 GB; ~400 MB for Python/Chromium leaves ~1600 MB for media.
-_media_sem = asyncio.Semaphore(20)
 
 
 async def track_iter[T](
@@ -54,28 +48,6 @@ async def track_iter[T](
         results.append(item)
         await queue.put(PhaseUpdate(phase=phase, done=len(results), total=total))
     return results
-
-
-async def run_phase(
-    phase: ProcessingPhase,
-    files: list[Path],
-    worker: Callable[[Path], Coroutine[Any, Any, None]],
-    queue: asyncio.Queue[PhaseUpdate | None],
-) -> None:
-    if not files:
-        return
-    total = len(files)
-    await queue.put(PhaseUpdate(phase=phase, done=0, total=total))
-
-    async def _safe(p: Path) -> None:
-        try:
-            await worker(p)
-        except (RuntimeError, OSError) as exc:
-            logger.warning("%s failed for %s: %s", phase, p.name, exc)
-
-    for done, coro in enumerate(asyncio.as_completed([_safe(p) for p in files]), 1):
-        await coro
-        await queue.put(PhaseUpdate(phase=phase, done=done, total=total))
 
 
 class TripStart(BaseModel):
@@ -190,16 +162,6 @@ def build_trip_objects(
     return [album, *steps, *segments]
 
 
-async def extract_one(p: Path) -> None:
-    async with _media_sem:
-        await extract_frame(p)
-
-
-async def thumb_one(p: Path) -> None:
-    async with _media_sem:
-        await generate_thumbnails(p)
-
-
 async def run_elevations(
     locs: list[Location],
     n_steps: int,
@@ -238,13 +200,13 @@ def _pick_landscape_cover(trip_dir: Path) -> tuple[str, str]:
 async def prepare_media(
     trip_dir: Path,
     cover_name: str,
-    queue: asyncio.Queue[PhaseUpdate | None],
 ) -> tuple[str, str]:
-    """Flatten media, extract frames, generate thumbnails.
+    """Flatten media and detect cover photo.
 
     Shared between full processing and reconciliation.
     Returns (cover_name, cover_orientation). If the cover file from the
     Polarsteps export isn't found locally, picks a landscape photo instead.
+    Video posters and thumbnails are generated lazily on first request.
     """
     await asyncio.to_thread(flatten_media, trip_dir)
 
@@ -259,17 +221,6 @@ async def prepare_media(
         cover_name, cover_orientation = await asyncio.to_thread(
             _pick_landscape_cover, trip_dir
         )
-
-    all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
-    video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
-    existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
-
-    await run_phase("frames", video_paths, extract_one, queue)
-
-    poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
-    jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
-
-    await run_phase("thumbs", jpg_files, thumb_one, queue)
 
     return cover_name, cover_orientation
 
@@ -328,10 +279,11 @@ async def _media_pipeline(
     cover_name: str,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> tuple[dict[int, Layout | None], str, str]:
-    """Layouts -> flatten -> frames -> thumbs (sequential pipeline).
+    """Layouts -> flatten (sequential pipeline).
 
-    Runs as one TaskGroup member so frame extraction starts as soon as
+    Runs as one TaskGroup member so flattening starts as soon as
     layouts finish, without waiting for the API calls to complete.
+    Video posters and thumbnails are generated lazily on first request.
     Returns (layout_by_idx, cover_name, cover_orientation).
     """
     aid = trip_dir.name
@@ -342,7 +294,7 @@ async def _media_pipeline(
         )
     )
 
-    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name, queue)
+    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name)
 
     return layout_by_idx, cover_name, cover_orientation
 

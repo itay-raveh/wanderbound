@@ -23,8 +23,6 @@ export const PHASE_ORDER: ProcessingPhase[] = [
   "elevations",
   "weather",
   "layouts",
-  "frames",
-  "thumbs",
 ];
 
 export interface UseProcessingStream {

@@ -1,4 +1,4 @@
-"""Tests for thumbnail serving via the ?w= query param on the media endpoint."""
+"""Tests for lazy thumbnail and poster generation via the media endpoint."""
 
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.api.v1.routes.assets import get_media, update_video_frame
-from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnails
+from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
 from tests.conftest import create_test_jpeg
 
 # Helpers
@@ -28,52 +28,80 @@ async def _setup_album_with_thumbs(trips_folder: Path) -> Path:
     """Create a JPEG in an album dir and generate its thumbnails."""
     album_dir = trips_folder / _AID
     src = create_test_jpeg(album_dir / _NAME, 4000, 3000)
-    await generate_thumbnails(src)
+    for w in THUMB_WIDTHS:
+        await generate_thumbnail(src, w)
     return album_dir
 
 
-# get_media with ?w=
+# Lazy thumbnail generation
 
 
-class TestGetMediaThumbnail:
+class TestLazyThumbnailGeneration:
     @pytest.mark.anyio
-    async def test_serves_thumbnail_when_w_specified(self, tmp_path: Path) -> None:
-        """?w=800 returns the WebP thumbnail."""
-        album_dir = await _setup_album_with_thumbs(tmp_path)
+    async def test_generates_thumbnail_on_first_request(self, tmp_path: Path) -> None:
+        """?w=800 lazily generates and returns the WebP thumbnail."""
+        album_dir = tmp_path / _AID
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
         response = await get_media(_AID, _NAME, user, w=800)
 
         stem = Path(_NAME).stem
         thumb_path = album_dir / ".thumbs" / "800" / f"{stem}.webp"
+        assert thumb_path.exists()
         assert Path(response.path) == thumb_path
+        assert response.media_type == "image/webp"
+
+    @pytest.mark.anyio
+    async def test_serves_existing_thumbnail(self, tmp_path: Path) -> None:
+        """Pre-existing thumbnails are served without regeneration."""
+        album_dir = await _setup_album_with_thumbs(tmp_path)
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user, w=800)
+
+        stem = Path(_NAME).stem
+        assert Path(response.path) == album_dir / ".thumbs" / "800" / f"{stem}.webp"
         assert response.media_type == "image/webp"
 
     @pytest.mark.anyio
     async def test_serves_original_when_no_w(self, tmp_path: Path) -> None:
         """No ?w= param returns the original JPEG."""
-        await _setup_album_with_thumbs(tmp_path)
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=None)
-
-        assert Path(response.path) == (tmp_path / _AID / _NAME).resolve()
-
-    @pytest.mark.anyio
-    async def test_falls_through_when_thumb_missing(self, tmp_path: Path) -> None:
-        """If the thumbnail doesn't exist, fall through to original."""
         album_dir = tmp_path / _AID
         create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=1200)
+        response = await get_media(_AID, _NAME, user, w=None)
+
+        assert Path(response.path) == (album_dir / _NAME).resolve()
+
+    @pytest.mark.anyio
+    async def test_falls_through_for_small_original(self, tmp_path: Path) -> None:
+        """If original is 600px, ?w=800 falls through (image too small)."""
+        album_dir = tmp_path / _AID
+        create_test_jpeg(album_dir / _NAME, 600, 400)
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user, w=800)
+
+        assert Path(response.path) == (album_dir / _NAME).resolve()
+
+    @pytest.mark.anyio
+    async def test_ignores_invalid_width(self, tmp_path: Path) -> None:
+        """?w= with a non-standard width serves the original."""
+        album_dir = tmp_path / _AID
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
+        user = _mock_user(tmp_path)
+
+        response = await get_media(_AID, _NAME, user, w=9999)
 
         assert Path(response.path) == (album_dir / _NAME).resolve()
 
     @pytest.mark.anyio
     async def test_all_thumb_widths_servable(self, tmp_path: Path) -> None:
-        """All thumbnail widths can be served."""
-        await _setup_album_with_thumbs(tmp_path)
+        """All thumbnail widths can be lazily generated and served."""
+        album_dir = tmp_path / _AID
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
         for w in THUMB_WIDTHS:
@@ -81,10 +109,63 @@ class TestGetMediaThumbnail:
             mt = response.media_type or ""
             assert "webp" in mt or str(response.path).endswith(".webp")
 
+
+# Lazy poster extraction
+
+
+class TestLazyPosterExtraction:
+    @pytest.mark.anyio
+    async def test_extracts_poster_on_first_request(self, tmp_path: Path) -> None:
+        """Requesting a .jpg when only .mp4 exists extracts the poster."""
+        album_dir = tmp_path / _AID
+        album_dir.mkdir(parents=True)
+        # Create a real mp4 is impractical; mock extract_frame
+        (album_dir / _NAME_MP4).touch()
+        poster_path = album_dir / _NAME
+        user = _mock_user(tmp_path)
+
+        async def _fake_extract(video: Path, timestamp: float = 1) -> Path:
+            create_test_jpeg(poster_path, 1920, 1080)
+            return poster_path
+
+        with patch("app.api.v1.routes.assets.extract_frame", side_effect=_fake_extract):
+            response = await get_media(_AID, _NAME, user)
+
+        assert poster_path.exists()
+        assert Path(response.path) == poster_path.resolve()
+
+    @pytest.mark.anyio
+    async def test_poster_thumbnail_triggers_both_extraction_and_thumb(
+        self, tmp_path: Path
+    ) -> None:
+        """?w=200 on a video poster extracts the poster then generates the thumbnail."""
+        album_dir = tmp_path / _AID
+        album_dir.mkdir(parents=True)
+        (album_dir / _NAME_MP4).touch()
+        poster_path = album_dir / _NAME
+        user = _mock_user(tmp_path)
+
+        async def _fake_extract(video: Path, timestamp: float = 1) -> Path:
+            create_test_jpeg(poster_path, 1920, 1080)
+            return poster_path
+
+        with patch("app.api.v1.routes.assets.extract_frame", side_effect=_fake_extract):
+            response = await get_media(_AID, _NAME, user, w=200)
+
+        stem = Path(_NAME).stem
+        thumb = album_dir / ".thumbs" / "200" / f"{stem}.webp"
+        assert thumb.exists()
+        assert response.media_type == "image/webp"
+
+
+# Cache headers
+
+
+class TestCacheHeaders:
     @pytest.mark.anyio
     async def test_cache_header_on_thumbnail(self, tmp_path: Path) -> None:
-        """Thumbnails get the same immutable cache header as originals."""
-        await _setup_album_with_thumbs(tmp_path)
+        album_dir = tmp_path / _AID
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
         response = await get_media(_AID, _NAME, user, w=800)
@@ -92,40 +173,11 @@ class TestGetMediaThumbnail:
         assert "immutable" in response.headers["cache-control"]
 
     @pytest.mark.anyio
-    async def test_ignores_invalid_width(self, tmp_path: Path) -> None:
-        """?w= with a non-standard width serves the original."""
-        await _setup_album_with_thumbs(tmp_path)
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=9999)
-
-        assert Path(response.path) == (tmp_path / _AID / _NAME).resolve()
-
-    @pytest.mark.anyio
-    async def test_falls_through_for_small_original(self, tmp_path: Path) -> None:
-        """If original is 600px, ?w=800 falls through (no thumb)."""
-        album_dir = tmp_path / _AID
-        src = create_test_jpeg(album_dir / _NAME, 600, 400)
-        await generate_thumbnails(src)  # only creates 200px thumb
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=800)
-
-        # Should fall through to original
-        assert Path(response.path) == (album_dir / _NAME).resolve()
-
-
-# Video poster cache headers
-
-
-class TestVideoPosterCaching:
-    @pytest.mark.anyio
     async def test_poster_uses_no_cache(self, tmp_path: Path) -> None:
         """Video posters (.jpg with sibling .mp4) use no-cache."""
         album_dir = tmp_path / _AID
         album_dir.mkdir(parents=True)
         create_test_jpeg(album_dir / _NAME, 4000, 3000)
-        # Create sibling .mp4 so the poster is detected
         (album_dir / Path(_NAME).with_suffix(".mp4")).touch()
         user = _mock_user(tmp_path)
 
@@ -138,8 +190,7 @@ class TestVideoPosterCaching:
         """Video poster thumbnails also use no-cache."""
         album_dir = tmp_path / _AID
         album_dir.mkdir(parents=True)
-        src = create_test_jpeg(album_dir / _NAME, 4000, 3000)
-        await generate_thumbnails(src)
+        create_test_jpeg(album_dir / _NAME, 4000, 3000)
         (album_dir / Path(_NAME).with_suffix(".mp4")).touch()
         user = _mock_user(tmp_path)
 
@@ -149,7 +200,6 @@ class TestVideoPosterCaching:
 
     @pytest.mark.anyio
     async def test_regular_photo_uses_immutable(self, tmp_path: Path) -> None:
-        """Regular photos (no sibling .mp4) use immutable cache."""
         album_dir = tmp_path / _AID
         album_dir.mkdir(parents=True)
         create_test_jpeg(album_dir / _NAME, 4000, 3000)
@@ -160,43 +210,37 @@ class TestVideoPosterCaching:
         assert "immutable" in response.headers["cache-control"]
 
 
-# update_video_frame regenerates thumbnails
+# update_video_frame
 
 
-class TestUpdateVideoFrameRegeneratesThumbnails:
+class TestUpdateVideoFrame:
     @pytest.mark.anyio
-    async def test_thumbnails_regenerated_after_frame_update(
+    async def test_deletes_poster_and_thumbnails_then_reextracts(
         self, tmp_path: Path
     ) -> None:
-        """PATCH to update video frame also regenerates poster thumbnails."""
         album_dir = tmp_path / _AID
-        # Create the .mp4 file (just needs to exist for _resolve_media)
+        album_dir.mkdir(parents=True)
         video_path = album_dir / _NAME_MP4
-        video_path.parent.mkdir(parents=True, exist_ok=True)
         video_path.touch()
 
-        # Create a poster jpg that extract_frame would produce
         poster_path = video_path.with_suffix(".jpg")
         create_test_jpeg(poster_path, 3000, 2000)
+        # Pre-generate thumbnails
+        for w in THUMB_WIDTHS:
+            await generate_thumbnail(poster_path, w)
 
         user = _mock_user(tmp_path)
 
-        with (
-            patch(
-                "app.api.v1.routes.assets.extract_frame",
-                AsyncMock(return_value=poster_path),
-            ),
-            patch(
-                "app.api.v1.routes.assets.generate_thumbnails",
-                wraps=generate_thumbnails,
-            ) as mock_gen,
-        ):
+        with patch(
+            "app.api.v1.routes.assets.extract_frame",
+            AsyncMock(return_value=poster_path),
+        ) as mock_extract:
             await update_video_frame(_AID, _NAME_MP4, user, timestamp=2.5)
 
-        mock_gen.assert_called_once_with(poster_path)
+        mock_extract.assert_called_once_with(video_path, 2.5)
 
-        # Verify thumbnails actually exist
+        # Old thumbnails should be deleted
         for w in THUMB_WIDTHS:
             stem = poster_path.stem
             thumb = album_dir / ".thumbs" / str(w) / f"{stem}.webp"
-            assert thumb.exists()
+            assert not thumb.exists()

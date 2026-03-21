@@ -47,9 +47,7 @@
   "phase": {
     "elevations": "Mapping terrain",
     "weather": "Checking weather",
-    "layouts": "Arranging photos",
-    "frames": "Extracting video frames",
-    "thumbs": "Generating thumbnails"
+    "layouts": "Arranging photos"
   },
 
   "editor": {

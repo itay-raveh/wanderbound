@@ -4,7 +4,7 @@ import type { ProcessingPhase, TripMeta } from "@/client";
 import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { useI18n } from "vue-i18n";
-import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary, matVideocam, matImage } from "@quasar/extras/material-icons";
+import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   trips: TripMeta[];
@@ -19,8 +19,6 @@ const PHASE_ICONS: Record<ProcessingPhase, string> = {
   elevations: matTerrain,
   weather: matThermostat,
   layouts: matPhotoLibrary,
-  frames: matVideocam,
-  thumbs: matImage,
 };
 
 type ItemStatus = "pending" | "active" | "done";

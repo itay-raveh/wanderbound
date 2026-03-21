@@ -187,7 +187,7 @@ class TestCorrectPeaks:
         mock_response.content = _overpass_json([(5327, "Pico Austria")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[0] == 500.0  # unchanged
@@ -204,7 +204,7 @@ class TestCorrectPeaks:
         mock_response.content = _overpass_json([(5327, "Pico Austria")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 5400.0  # unchanged - OSM peak is lower
@@ -221,7 +221,7 @@ class TestCorrectPeaks:
         mock_response.content = _overpass_json([(osm_val, "Far Peak")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == dem_val  # unchanged
@@ -238,7 +238,7 @@ class TestCorrectPeaks:
         mock_response.content = _overpass_json([(osm_val, "Boundary Peak")])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == osm_val  # corrected
@@ -259,7 +259,7 @@ class TestCorrectPeaks:
         )
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 5327.0  # closest to 5236
@@ -271,7 +271,9 @@ class TestCorrectPeaks:
         elevs = [500.0, 5236.0, 500.0]
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(side_effect=httpx.HTTPError("timeout"))
+            mock_client.return_value.post = AsyncMock(
+                side_effect=httpx.HTTPError("timeout")
+            )
             result = await correct_peaks(locs, elevs)
 
         assert list(result) == elevs
@@ -288,7 +290,7 @@ class TestCorrectPeaks:
         )
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert list(result) == elevs
@@ -303,7 +305,7 @@ class TestCorrectPeaks:
         mock_response.content = _overpass_json([])
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert list(result) == elevs
@@ -323,7 +325,7 @@ class TestCorrectPeaks:
         )
 
         with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.post = AsyncMock(return_value=mock_response)
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 4600.0  # closest to 4500
@@ -349,11 +351,13 @@ class TestElevations:
         expected = [100.0, 200.0, 300.0, 400.0, 500.0]
 
         with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.get = AsyncMock(return_value=_elev_response(expected))
+            mock_client.return_value.get = AsyncMock(
+                return_value=_elev_response(expected)
+            )
             result = [e async for e in elevations(locs)]
 
         assert result == expected
-        assert mock_client.get.call_count == 1
+        assert mock_client.return_value.get.call_count == 1
 
     @pytest.mark.anyio
     async def test_multiple_batches(self) -> None:
@@ -364,7 +368,7 @@ class TestElevations:
         batch2 = list(range(20))
 
         with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.get = AsyncMock(
+            mock_client.return_value.get = AsyncMock(
                 side_effect=[
                     _elev_response([float(x) for x in batch1]),
                     _elev_response([float(x) for x in batch2]),
@@ -373,7 +377,7 @@ class TestElevations:
             result = [e async for e in elevations(locs)]
 
         assert len(result) == n
-        assert mock_client.get.call_count == 2
+        assert mock_client.return_value.get.call_count == 2
 
     @pytest.mark.anyio
     async def test_http_error_propagates(self) -> None:
@@ -386,6 +390,6 @@ class TestElevations:
         )
 
         with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.get = AsyncMock(return_value=resp)
+            mock_client.return_value.get = AsyncMock(return_value=resp)
             with pytest.raises(httpx.HTTPStatusError):
                 await collect_async(elevations(locs))

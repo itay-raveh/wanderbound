@@ -10,12 +10,11 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from app.logic.layout import Layout
-from app.logic.layout.media import Media, normalize_name
+from app.logic.layout.media import Media, media_sem, normalize_name
 from app.logic.processing import (
     DbRow,
     PhaseUpdate,
     TripResults,
-    _media_sem,
     build_step,
     cover_name_from_trip,
     drain_queue,
@@ -109,7 +108,7 @@ async def _probe_orientations(
         to_probe.update(f for f in step_obj.unused if f not in known)
 
     async def _probe(name: str) -> tuple[str, str]:
-        async with _media_sem:
+        async with media_sem:
             try:
                 m = await asyncio.to_thread(Media.load, trip_dir / name)
             except OSError, ValueError:
@@ -224,20 +223,9 @@ async def reconcile_trip(
         ps.id: media for ps, media in zip(trip.all_steps, scan_results, strict=True)
     }
 
-    # Phase 2: Prepare media (flatten + frames + thumbs)
-    queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
+    # Phase 2: Flatten media and detect cover
     cover_name = cover_name_from_trip(trip)
-
-    async def _phases() -> tuple[str, str]:
-        try:
-            return await prepare_media(trip_dir, cover_name, queue)
-        finally:
-            await queue.put(None)
-
-    runner = asyncio.create_task(_phases())
-    async for event in drain_queue(runner, queue):
-        yield event
-    cover_name, cover_orientation = await runner
+    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name)
 
     # Phase 3: New steps get full processing
     db_by_step_id = {s.id: s for s in existing_steps}

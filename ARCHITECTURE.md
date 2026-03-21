@@ -34,7 +34,7 @@ backend/
       routes/
         users.py            POST (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
-        assets.py           GET /{aid}/media/{name} (thumbnails + originals), PATCH (video frame re-extract)
+        assets.py           GET /{aid}/media/{name} (lazy thumbnails + poster extraction), PATCH (video frame re-extract)
     models/
       weather.py            Weather, WeatherData (stored in step.weather JSON column)
       user.py               User table (SQLModel) + UserUpdate
@@ -46,15 +46,15 @@ backend/
     logic/
       pdf.py                Playwright PDF renderer (browser context, cookies, print emulation)
       upload.py             Extract ZIP -> create User + discover trips -> save to DB
-      processing.py         5-phase processing pipeline:
-                              elevations -> weather -> layouts/flatten/frames/thumbs -> DB commit
+      processing.py         3-phase processing pipeline:
+                              elevations -> weather -> layouts/flatten -> DB commit
       session.py            SSE session management: ProcessingSession (background task with
                               event replay), process_stream (per-user session reuse/reconnect)
       country_colors.py     Assign distinct colors to countries (Delta-E color distance)
       layout/
         __init__.py          Exports Layout, build_step_layout
         builder.py           Photo layout algorithm (portrait/landscape packing into pages)
-        media.py             Photo/Video models, ffprobe, ffmpeg frame extraction, thumbnail generation
+        media.py             Photo/Video models, ffprobe, ffmpeg frame extraction, on-demand thumbnail generation
       spatial/
         segments.py          GPS segmentation pipeline (ingest -> label -> absorb -> validate -> emit)
         peaks.py             OSM Overpass peak correction for DEM elevations
@@ -146,7 +146,7 @@ frontend/
         ZipUploader.vue       Step 2: file upload (q-uploader -> POST /users)
         UnsupportedBanner.vue Browser compatibility warning
         ProcessingProgress.vue Live processing status with TripTimeline
-        TripTimeline.vue      Phase progress visualization (elevations -> weather -> layouts -> frames -> thumbs)
+        TripTimeline.vue      Phase progress visualization (elevations -> weather -> layouts)
     utils/
       media.ts               mediaUrl, mediaSrcset, mediaThumbUrl, posterPath, isVideo, flagUrl, weatherIconUrl, THUMB_WIDTHS, EDITOR_ZOOM, SIZES_FULL, SIZES_HALF
       date.ts                Date utilities: isoDate, parseYMD, parseLocalDate, daysBetween, inDateRange, toQDate/toIso, ymdToIso, qDateNavBounds
@@ -179,8 +179,7 @@ GET /users/process (SSE) -> ProcessingSession (background task, reconnectable)
     3. layouts     - read photos/videos from step dirs, build page layouts
        -> flatten media to trip root dir
        -> pick cover photo from local media (landscape preferred)
-    4. frames      - ffmpeg extract poster from each .mp4 (semaphore-limited)
-    5. thumbs      - Pillow generate WebP thumbnails at 200px + 800px
+  Video posters and thumbnails are generated lazily on first request (assets.py).
   -> build_segments (Polars pipeline: GPS -> typed segments)
   -> bulk insert Album + Steps + Segments to DB
 ```
@@ -264,7 +263,7 @@ segment
 |------|----------|---------|
 | `AlbumContext` | `composables/useAlbum.ts` | Injected context: albumId, colors, orientations, tripStart, totalDays |
 | `DescriptionType` | `composables/useTextMeasure.ts` | "short" / "long" / "extra-long" text layout classification |
-| `ProcessingPhase` | Generated from backend | "elevations" / "weather" / "layouts" / "frames" / "thumbs" |
+| `ProcessingPhase` | Generated from backend | "elevations" / "weather" / "layouts" |
 | All API types | `client/types.gen.ts` | Auto-generated from backend OpenAPI schema |
 
 ## Auth Model

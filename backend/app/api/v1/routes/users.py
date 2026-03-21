@@ -47,7 +47,6 @@ def _check_upload_size(file: UploadFile) -> int:
     return size
 
 
-@router.post("/upload")
 async def _resolve_auth(
     uid: int | None,
     credential: str | None,
@@ -81,6 +80,9 @@ async def upload_data(
 ) -> UploadResult:
     uid: int | None = request.session.get("uid")
 
+    # Auth first — reject unauthorized users before processing the ZIP.
+    existing, google = await _resolve_auth(uid, credential, session, request)
+
     size = _check_upload_size(file)
     logger.info("Extracting '%s' (%d MB)", file.filename, size // 1_048_576)
     try:
@@ -95,12 +97,6 @@ async def upload_data(
         ) from e
 
     album_ids = [t.id for t in trips]
-
-    try:
-        existing, google = await _resolve_auth(uid, credential, session, request)
-    except HTTPException:
-        await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
-        raise
 
     cancel_session(ps_user.id)
 
