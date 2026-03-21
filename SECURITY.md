@@ -222,39 +222,20 @@ def _validate_secrets(self) -> Self:
 
 ## MEDIUM
 
-### 10. Network segmentation in Docker Compose
+### 10. ~~Network segmentation in Docker Compose~~ DONE
 
-**Current state:** All services share the default Docker Compose bridge network.
-The frontend (nginx) container can directly reach the PostgreSQL container.
+**Implemented:** Two custom networks replace the default shared bridge:
 
-**Problem:** If the nginx container is compromised (e.g., via a vulnerability in
-nginx itself), the attacker has direct network access to the database.
+- **`backend`** (`internal: true`) — db, prestart, backend. No outbound internet
+  access from this network. Isolates the database from the frontend.
+- **`frontend`** — backend, frontend. Provides outbound internet access (needed
+  by backend for Google JWKS, Open-Meteo API, cover photo downloads).
 
-**Fix:**
+The backend bridges both networks: it can reach the database on the `backend`
+network and serve requests from nginx on the `frontend` network. The frontend
+cannot reach the database directly.
 
-```yaml
-services:
-  db:
-    networks: [backend]
-
-  prestart:
-    networks: [backend]
-
-  backend:
-    networks: [backend, frontend]
-
-  frontend:
-    networks: [frontend]
-
-networks:
-  backend:
-    internal: true   # no external access at all
-  frontend:
-```
-
-The `internal: true` flag on the backend network means even if a container on
-that network is compromised, it cannot make outbound connections to the internet
-(except through the backend, which has access to both networks).
+**File:** `compose.yml`
 
 ---
 
@@ -787,7 +768,7 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 7. ~~**#5** Non-root containers~~ — DONE (backend: `appuser`, frontend: `nginx` on port 8080)
 8. ~~**#7** Docker security_opt + cap_drop + resource limits~~ — DONE (no-new-privileges, cap_drop ALL, read_only, resource limits, pids_limit, shm_size, init)
 9. ~~**#6** MIME validation~~ — DONE (puremagic: ZIP magic bytes pre-extraction + inner file type check post-extraction)
-10. **#10** Network segmentation
+10. ~~**#10** Network segmentation~~ — DONE (backend internal network isolates db; frontend network for nginx + backend outbound)
 11. **#11** Localhost-bind dev ports
 12. **#12** Read-only filesystems
 13. **#13** Storage quotas

@@ -21,6 +21,7 @@ services:
           memory: 512M
           cpus: "1.0"
           pids: 256
+    networks: [backend]
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
@@ -51,6 +52,7 @@ services:
           memory: 256M
           cpus: "0.5"
           pids: 128
+    networks: [backend]
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +79,7 @@ services:
           memory: 2G
           cpus: "2.0"
           pids: 512
+    networks: [backend, frontend]
     depends_on:
       db:
         condition: service_healthy
@@ -112,6 +115,7 @@ services:
           memory: 128M
           cpus: "0.5"
           pids: 128
+    networks: [frontend]
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -120,6 +124,11 @@ services:
         - VITE_BACKEND_URL=https://api.${DOMAIN?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
         - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+
+networks:
+  backend:
+    internal: true
+  frontend:
 
 volumes:
   db-data:
