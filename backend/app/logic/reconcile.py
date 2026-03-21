@@ -224,22 +224,20 @@ async def reconcile_trip(
         ps.id: media for ps, media in zip(trip.all_steps, scan_results, strict=True)
     }
 
-    # Phase 2: Prepare media (flatten + cover + frames + thumbs)
+    # Phase 2: Prepare media (flatten + frames + thumbs)
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
     cover_name = cover_name_from_trip(trip)
 
-    async def _phases() -> str:
+    async def _phases() -> tuple[str, str]:
         try:
-            return await prepare_media(
-                trip_dir, cover_name, trip.cover_photo_path, queue
-            )
+            return await prepare_media(trip_dir, cover_name, queue)
         finally:
             await queue.put(None)
 
     runner = asyncio.create_task(_phases())
     async for event in drain_queue(runner, queue):
         yield event
-    cover_orientation = await runner
+    cover_name, cover_orientation = await runner
 
     # Phase 3: New steps get full processing
     db_by_step_id = {s.id: s for s in existing_steps}

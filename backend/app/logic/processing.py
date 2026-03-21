@@ -6,14 +6,13 @@ from collections.abc import AsyncIterator, Callable, Coroutine
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
-from app.core.http import cached_client
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -77,15 +76,6 @@ async def run_phase(
     for done, coro in enumerate(asyncio.as_completed([_safe(p) for p in files]), 1):
         await coro
         await queue.put(PhaseUpdate(phase=phase, done=done, total=total))
-
-
-_cover_client = cached_client()
-
-
-async def _download_cover(url: HttpUrl, dest: Path) -> None:
-    resp = await _cover_client.get(str(url))
-    resp.raise_for_status()
-    await asyncio.to_thread(dest.write_bytes, resp.content)
 
 
 class TripStart(BaseModel):
@@ -228,32 +218,48 @@ async def run_weather(
     return dict(await track_iter("weather", n_steps, build_weathers(steps), queue))
 
 
+def _pick_landscape_cover(trip_dir: Path) -> tuple[str, str]:
+    """Pick a random landscape photo as cover fallback. Returns (name, orientation)."""
+    for path in trip_dir.iterdir():
+        if path.suffix.lower() != ".jpg":
+            continue
+        try:
+            m = Media.load(path)
+            if m.orientation == "l":
+                return m.name, "l"
+        except OSError, ValueError:
+            continue
+    # No landscape found - just use the first jpg
+    for path in trip_dir.iterdir():
+        if path.suffix.lower() == ".jpg":
+            return normalize_name(path.name), "l"
+    return "", "l"
+
+
 async def prepare_media(
     trip_dir: Path,
     cover_name: str,
-    cover_url: HttpUrl,
     queue: asyncio.Queue[PhaseUpdate | None],
-) -> str:
-    """Flatten media, download cover, extract frames, generate thumbnails.
+) -> tuple[str, str]:
+    """Flatten media, extract frames, generate thumbnails.
 
     Shared between full processing and reconciliation.
-    Returns cover_orientation.
+    Returns (cover_name, cover_orientation). If the cover file from the
+    Polarsteps export isn't found locally, picks a landscape photo instead.
     """
     await asyncio.to_thread(flatten_media, trip_dir)
 
     cover_dest = trip_dir / cover_name
-    if not cover_dest.exists():
-        await _download_cover(cover_url, cover_dest)
-
-    try:
-        cover_photo = await asyncio.to_thread(Media.load, cover_dest)
-        cover_orientation = cover_photo.orientation
-    except OSError, ValueError:
-        logger.warning(
-            "Could not determine cover orientation for %s, defaulting to 'l'",
-            cover_name,
+    if cover_dest.exists():
+        try:
+            cover_photo = await asyncio.to_thread(Media.load, cover_dest)
+            cover_orientation = cover_photo.orientation
+        except OSError, ValueError:
+            cover_orientation = "l"
+    else:
+        cover_name, cover_orientation = await asyncio.to_thread(
+            _pick_landscape_cover, trip_dir
         )
-        cover_orientation = "l"
 
     all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
     video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
@@ -266,7 +272,7 @@ async def prepare_media(
 
     await run_phase("thumbs", jpg_files, thumb_one, queue)
 
-    return cover_orientation
+    return cover_name, cover_orientation
 
 
 async def drain_queue(
@@ -322,12 +328,12 @@ async def _media_pipeline(
     trip_dir: Path,
     cover_name: str,
     queue: asyncio.Queue[PhaseUpdate | None],
-) -> tuple[dict[int, Layout | None], str]:
-    """Layouts -> flatten -> cover -> frames -> thumbs (sequential pipeline).
+) -> tuple[dict[int, Layout | None], str, str]:
+    """Layouts -> flatten -> frames -> thumbs (sequential pipeline).
 
     Runs as one TaskGroup member so frame extraction starts as soon as
     layouts finish, without waiting for the API calls to complete.
-    Returns (layout_by_idx, cover_orientation).
+    Returns (layout_by_idx, cover_name, cover_orientation).
     """
     aid = trip_dir.name
     n_steps = len(trip.all_steps)
@@ -337,11 +343,9 @@ async def _media_pipeline(
         )
     )
 
-    cover_orientation = await prepare_media(
-        trip_dir, cover_name, trip.cover_photo_path, queue
-    )
+    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name, queue)
 
-    return layout_by_idx, cover_orientation
+    return layout_by_idx, cover_name, cover_orientation
 
 
 def load_trip_data(trip_dir: Path) -> tuple[PSTrip, list[Point]]:
@@ -375,12 +379,12 @@ async def _process_trip(
                 )
         finally:
             await queue.put(None)
-        layout_by_idx, cover_orientation = media_task.result()
+        layout_by_idx, final_cover_name, cover_orientation = media_task.result()
         return TripResults(
             elevations=elev_task.result(),
             weather_by_idx=weather_task.result(),
             layout_by_idx=layout_by_idx,
-            cover_name=cover_name,
+            cover_name=final_cover_name,
             cover_orientation=cover_orientation,
         )
 

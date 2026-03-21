@@ -178,7 +178,7 @@ GET /users/process (SSE) -> ProcessingSession (background task, reconnectable)
     2. weather     - Open-Meteo Archive API (1 call/step, concurrent)
     3. layouts     - read photos/videos from step dirs, build page layouts
        -> flatten media to trip root dir
-       -> download cover photo from Polarsteps CDN
+       -> pick cover photo from local media (landscape preferred)
     4. frames      - ffmpeg extract poster from each .mp4 (semaphore-limited)
     5. thumbs      - Pillow generate WebP thumbnails at 200px + 800px
   -> build_segments (Polars pipeline: GPS -> typed segments)

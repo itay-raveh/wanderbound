@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" width="96" height="96" alt="Polarsteps Album Generator">
+  <img src="frontend/public/logo.svg" width="96" height="96" alt="Wanderbound">
 </p>
 
-<h1 align="center">Polarsteps Album Generator</h1>
+<h1 align="center">Wanderbound</h1>
 
 <p align="center">
   Converts a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into a print-ready photo album.
@@ -14,7 +14,7 @@
 
 Upload your Polarsteps ZIP and get a laid-out album - covers, overview page, maps, photo pages - that you can edit and export to PDF.
 
-- GPS tracks classified into flights, hikes, driving, walking. Hikes get a dedicated page with satellite map and elevation profile
+- GPS tracks classified into flights, hikes, driving, walking. Add map pages with satellite imagery and elevation profiles
 - Photo layout algorithm packs images into grids by orientation
 - Videos in albums - scrub frame-by-frame to pick a poster
 - Drag-and-drop editor with dark/light mode
