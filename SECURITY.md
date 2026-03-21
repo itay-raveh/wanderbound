@@ -239,68 +239,25 @@ cannot reach the database directly.
 
 ---
 
-### 11. Bind development ports to localhost
+### 11. ~~Bind development ports to localhost~~ DONE
 
-**Current state:** `compose.override.yml` exposes ports as `"5432:5432"`,
-`"8000:8000"`, `"5173:80"` — bound to `0.0.0.0` (all interfaces).
+**Implemented:** All dev ports in `compose.override.yml` prefixed with
+`127.0.0.1:` — `5432`, `8000`, `5173` are only accessible from localhost.
+Docker port mappings bypass host firewalls, so this prevents exposure on
+shared networks.
 
-**Problem:** On a machine connected to any network (coffee shop, hotel, shared
-WiFi), the database, backend, and frontend are accessible to anyone on the same
-network. Docker port mappings bypass host firewalls (UFW, iptables).
-
-**Fix:** Prefix all dev ports with `127.0.0.1:`:
-
-```yaml
-services:
-  db:
-    ports: ["127.0.0.1:5432:5432"]
-  backend:
-    ports: ["127.0.0.1:8000:8000"]
-  frontend:
-    ports: ["127.0.0.1:5173:80"]
-```
+**File:** `compose.override.yml`
 
 ---
 
-### 12. Read-only container filesystems
+### 12. ~~Read-only container filesystems~~ DONE
 
-**Current state:** All containers have read-write root filesystems.
+**Implemented** as part of item #7. All services have `read_only: true` with
+tmpfs mounts for writable paths (`/tmp`, `/var/run/postgresql`,
+`/var/cache/nginx`, `/var/run`) and named volumes for persistent data
+(`app-data`, `db-data`).
 
-**Problem:** If an attacker gains code execution inside a container, they can
-modify any file (binaries, configs, scripts). A read-only filesystem means
-malware or backdoors cannot be persisted inside the container.
-
-**Fix:**
-
-```yaml
-services:
-  backend:
-    read_only: true
-    tmpfs:
-      - /tmp:size=500M
-      - /run:size=10M
-    volumes:
-      - app-data:/app/backend/data   # already exists — the only writable path
-
-  frontend:
-    read_only: true
-    tmpfs:
-      - /tmp:size=50M
-      - /var/cache/nginx:size=200M
-      - /run:size=10M
-
-  db:
-    read_only: true
-    tmpfs:
-      - /tmp:size=100M
-      - /var/run/postgresql:size=10M
-    volumes:
-      - db-data:/var/lib/postgresql/data/pgdata   # already exists
-```
-
-Note: Playwright needs write access for its browser profile. The backend's
-`/tmp` tmpfs handles this since Playwright uses temp directories. Test
-thoroughly after enabling.
+**File:** `compose.yml`
 
 ---
 
@@ -769,8 +726,8 @@ accounts for dependencies between items. Items marked ~~struck~~ are done.
 8. ~~**#7** Docker security_opt + cap_drop + resource limits~~ — DONE (no-new-privileges, cap_drop ALL, read_only, resource limits, pids_limit, shm_size, init)
 9. ~~**#6** MIME validation~~ — DONE (puremagic: ZIP magic bytes pre-extraction + inner file type check post-extraction)
 10. ~~**#10** Network segmentation~~ — DONE (backend internal network isolates db; frontend network for nginx + backend outbound)
-11. **#11** Localhost-bind dev ports
-12. **#12** Read-only filesystems
+11. ~~**#11** Localhost-bind dev ports~~ — DONE (all dev ports prefixed with `127.0.0.1:`)
+12. ~~**#12** Read-only filesystems~~ — DONE (implemented with item #7)
 13. **#13** Storage quotas
 14. **#14** Validate extracted files
 15. **#15** Strong DB password

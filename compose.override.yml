@@ -3,7 +3,7 @@ services:
   db:
     restart: "no"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   prestart:
     volumes:
@@ -12,7 +12,7 @@ services:
   backend:
     restart: "no"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     command:
       - uvicorn
       - app.main:app
@@ -36,7 +36,7 @@ services:
   frontend:
     restart: "no"
     ports:
-      - "5173:8080"
+      - "127.0.0.1:5173:8080"
     build:
       context: .
       dockerfile: frontend/Dockerfile
