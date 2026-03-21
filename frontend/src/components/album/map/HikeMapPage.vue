@@ -249,26 +249,20 @@ watch(
 <template>
   <div ref="hike-map" class="page-container relative-position overflow-hidden">
     <div class="hike-overlay">
-      <div class="stat">
-        <span class="stat-value">{{ stats.distance }}</span>
-        <span class="stat-unit">{{ distanceUnit }}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value">{{ stats.duration }}</span>
-      </div>
-      <div v-if="stats.elevGain > 0" class="stat">
-        <span class="stat-value">{{ stats.elevGain }}</span>
-        <span class="stat-unit">{{ elevationUnit }}+</span>
-      </div>
+      <span class="text-h6">{{ stats.distance }} {{ distanceUnit }}</span>
+      <span class="text-h6">{{ stats.duration }}</span>
+      <span v-if="stats.elevGain" class="text-h6"
+        >{{ stats.elevGain }} {{ elevationUnit }}+</span
+      >
     </div>
 
-    <div class="elevation-overlay no-pointer-events">
+    <div class="elevation-overlay">
       <ElevationProfile
         :points="elevationSamples"
         :accent="countryColor"
         :total-dist-km="totalDistKm"
         :is-km="isKm"
-        bg-color="var(--page-dark-surface)"
+        bg-color=""
       />
     </div>
   </div>
@@ -286,23 +280,6 @@ watch(
   display: flex;
   gap: var(--gap-lg);
   z-index: 1;
-}
-
-.stat {
-  display: flex;
-  align-items: baseline;
-  gap: var(--gap-sm);
-  color: white;
-}
-
-.stat-value {
-  font-size: var(--type-xl);
-  font-weight: 700;
-}
-
-.stat-unit {
-  font-size: var(--type-xs);
-  opacity: 0.7;
 }
 
 // Chart overlay pinned to bottom - the SVG includes its own gradient bg

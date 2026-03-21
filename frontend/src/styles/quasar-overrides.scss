@@ -73,6 +73,9 @@
   background: rgba(0, 0, 0, 0.4) !important;
 }
 
+// Mapbox injects its own font stack on .mapboxgl-map — override to use ours
+.mapboxgl-map { font-family: var(--font-body); }
+
 // Directional icons that should mirror in RTL (arrows, planes, etc.)
 [dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 
