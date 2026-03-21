@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -75,6 +75,6 @@ class Settings(BaseSettings):
         return self.DATA_FOLDER / "users"
 
 
-@lru_cache
+@cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]

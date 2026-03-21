@@ -54,7 +54,8 @@ async def _get_user(
     if uid is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
     if (user := await session.get(User, uid)) is None:
-        logger.warning("Auth failed: unknown uid=%s", uid)
+        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
+        request.session.clear()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
 
     # Debounced activity tracking

@@ -7,6 +7,7 @@ sits between the cache and network layers so cache hits bypass it.
 import asyncio
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
+from functools import cache
 from itertools import batched
 from typing import Protocol
 
@@ -36,15 +37,16 @@ class _StepLike(Protocol):
 
 
 class _RateLimitedTransport(AsyncBaseTransport):
-    """Rate-limits on cache miss only.
+    """Rate-limits and caps concurrency on cache miss only.
 
     For the elevation API each coordinate in the batch counts as one call,
     so the weight is derived from the comma-separated ``latitude`` param.
     """
 
-    def __init__(self, limiter: AsyncLimiter) -> None:
+    def __init__(self, limiter: AsyncLimiter, max_concurrent: int = 20) -> None:
         self._transport = AsyncHTTPTransport()
         self._limiter = limiter
+        self._sem = asyncio.Semaphore(max_concurrent)
 
     async def handle_async_request(self, request: Request) -> Response:
         weight = 1
@@ -52,13 +54,17 @@ class _RateLimitedTransport(AsyncBaseTransport):
         if "," in lat:
             weight = lat.count(",") + 1
         await self._limiter.acquire(weight)
-        return await self._transport.handle_async_request(request)
+        async with self._sem:
+            return await self._transport.handle_async_request(request)
 
 
 # Free tier: 600 calls/min, 5 000/hr.  We stay under with 480/min.
 _limiter = AsyncLimiter(480, 60)
 
-_client = cached_client(transport=_RateLimitedTransport(limiter=_limiter))
+
+@cache
+def _client() -> httpx.AsyncClient:
+    return cached_client(transport=_RateLimitedTransport(limiter=_limiter))
 
 
 class _ElevationResult(BaseModel):
@@ -70,7 +76,7 @@ OPEN_METEO_MAX_PER_REQUEST = 100
 
 async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
     for batch in batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False):
-        response = await _client.get(
+        response = await _client().get(
             "https://api.open-meteo.com/v1/elevation",
             params={
                 "latitude": ",".join(str(loc.lat) for loc in batch),
@@ -171,7 +177,7 @@ async def _fetch_one(step: _StepLike) -> Weather:
     """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     try:
-        response = await _client.get(
+        response = await _client().get(
             "https://archive-api.open-meteo.com/v1/archive",
             params={
                 "latitude": round(step.location.lat, 2),

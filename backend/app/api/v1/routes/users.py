@@ -20,7 +20,7 @@ from fastapi.sse import EventSourceResponse
 from app.core.config import get_settings
 from app.logic.eviction import run_eviction
 from app.logic.processing import ProcessingEvent
-from app.logic.session import process_stream
+from app.logic.session import cancel_session, process_stream
 from app.logic.upload import UploadResult, extract_and_scan
 from app.models.user import GoogleIdentity, User, UserUpdate
 
@@ -48,6 +48,30 @@ def _check_upload_size(file: UploadFile) -> int:
 
 
 @router.post("/upload")
+async def _resolve_auth(
+    uid: int | None,
+    credential: str | None,
+    session: SessionDep,
+    request: Request,
+) -> tuple[User | None, GoogleIdentity | None]:
+    """Return (existing_user, google_identity) or raise 401."""
+    if not uid:
+        if not credential:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        return None, await verify_google_credential(credential)
+
+    existing = await session.get(User, uid)
+    if existing:
+        return existing, None
+
+    # Stale session pointing to non-existent user (e.g. fresh DB)
+    request.session.clear()
+    if not credential:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+    return None, await verify_google_credential(credential)
+
+
+@router.post("/upload")
 async def upload_data(
     file: UploadFile,
     request: Request,
@@ -56,11 +80,6 @@ async def upload_data(
     credential: Annotated[str | None, Form()] = None,
 ) -> UploadResult:
     uid: int | None = request.session.get("uid")
-    google: GoogleIdentity | None = None
-    if not uid:
-        if not credential:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-        google = await verify_google_credential(credential)
 
     size = _check_upload_size(file)
     logger.info("Extracting '%s' (%d MB)", file.filename, size // 1_048_576)
@@ -77,11 +96,13 @@ async def upload_data(
 
     album_ids = [t.id for t in trips]
 
-    # Validate re-upload user (deferred to avoid holding DB during extraction)
-    existing = await session.get(User, uid) if uid else None
-    if uid and not existing:
+    try:
+        existing, google = await _resolve_auth(uid, credential, session, request)
+    except HTTPException:
         await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        raise
+
+    cancel_session(ps_user.id)
 
     try:
         if existing is not None:
@@ -153,6 +174,7 @@ async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) ->
 
 @router.delete("")
 async def delete_user(user: UserDep, session: SessionDep, request: Request) -> None:
+    cancel_session(user.id)
     folder = user.folder
     await session.delete(user)
     await session.commit()

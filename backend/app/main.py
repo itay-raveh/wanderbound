@@ -86,7 +86,8 @@ app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 
 @app.exception_handler(NoResultFound)
-async def _not_found(_request: Request, _exc: NoResultFound) -> JSONResponse:
+async def _not_found(request: Request, _exc: NoResultFound) -> JSONResponse:
+    logger.warning("Not found: %s %s", request.method, request.url.path)
     return JSONResponse({"detail": "Not found"}, status_code=404)
 
 

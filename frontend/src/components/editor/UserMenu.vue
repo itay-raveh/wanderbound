@@ -54,7 +54,7 @@ async function handleSignOut() {
     /* server down - cookie will expire naturally */
   }
   googleLogout();
-  void cache.invalidateQueries();
+  void cache.invalidateQueries(undefined, false);
   await router.push({ name: "landing" });
 }
 
@@ -62,7 +62,7 @@ async function handleDelete() {
   deleting.value = true;
   try {
     await deleteUser();
-    void cache.invalidateQueries();
+    void cache.invalidateQueries(undefined, false);
     await router.push({ name: "landing" });
   } catch {
     $q.notify({ type: "negative", message: t("settings.deleteFailed") });

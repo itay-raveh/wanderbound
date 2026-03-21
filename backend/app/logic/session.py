@@ -32,6 +32,8 @@ class ProcessingSession:
             async for event in run_processing(user):
                 self._events.append(event)
                 self._notify.set()
+        except Exception:
+            logger.exception("Processing task crashed for user %d", self._uid)
         finally:
             self._done = True
             self._notify.set()
@@ -47,6 +49,9 @@ class ProcessingSession:
     @property
     def is_done(self) -> bool:
         return self._done
+
+    def cancel(self) -> None:
+        self._task.cancel()
 
     async def subscribe(self) -> AsyncIterator[ProcessingEvent]:
         """Yield all events (past and future) until processing completes."""
@@ -71,6 +76,14 @@ def _evict_session(uid: int, session: ProcessingSession) -> None:
     """Remove a completed session if it hasn't been replaced."""
     if _sessions.get(uid) is session:
         del _sessions[uid]
+
+
+def cancel_session(uid: int) -> None:
+    """Cancel and remove any active processing session for a user."""
+    session = _sessions.pop(uid, None)
+    if session is not None and not session.is_done:
+        session.cancel()
+        logger.info("Cancelled processing session for user %d", uid)
 
 
 async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:

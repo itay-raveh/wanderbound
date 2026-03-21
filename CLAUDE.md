@@ -6,7 +6,9 @@ See `ARCHITECTURE.md` for codebase orientation.
 
 ## Tech Stack
 
-Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend).
+Docker, PostgreSQL, Nginx, Vue (frontend), FastAPI (backend). Python 3.14.
+
+**Python 3.14 syntax:** `except ExceptionA, ExceptionB:` (no parentheses) is valid and preferred. Do not wrap multiple exception types in parentheses.
 
 ## Stack-Specific Guidance
 

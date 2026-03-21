@@ -140,6 +140,10 @@ async def extract_frame(video: Path, timestamp: float = 1) -> Path:
     command = [
         "ffmpeg",
         "-y",
+        "-threads",
+        "1",
+        "-loglevel",
+        "error",
         "-ss",
         str(timestamp),
         "-i",

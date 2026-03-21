@@ -1,5 +1,5 @@
 import copy
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
 from pydantic import TypeAdapter
@@ -43,6 +43,6 @@ def all_optional[T: SQLModel](cls: type[T]) -> type[T]:
     return cls
 
 
-@lru_cache
+@cache
 def get_engine() -> AsyncEngine:
     return create_async_engine(str(get_settings().SQLALCHEMY_DATABASE_URI))
