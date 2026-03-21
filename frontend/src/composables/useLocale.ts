@@ -56,12 +56,14 @@ export function getLocaleOptions(): { label: string; value: string }[] {
 /** Tracks the last locale applied - prevents redundant `applyLocale` calls. */
 let currentLocale = "";
 
-/** Apply locale globally: vue-i18n messages, Quasar lang pack (+ RTL), HTML lang. */
+/** Apply locale globally: vue-i18n messages, Quasar lang pack (+ RTL), HTML lang.
+ *  All side effects are deferred until the async pack load succeeds,
+ *  so a failed load never leaves the app in a half-applied state. */
 export async function applyLocale(bcp47: string): Promise<void> {
   if (bcp47 === currentLocale) return;
+  const pack = await loadQuasarLang(bcp47);
   currentLocale = bcp47;
   i18n.global.locale.value = uiLang(bcp47);
-  const pack = await loadQuasarLang(bcp47);
   Lang.set(pack);
   document.documentElement.lang = bcp47.split("-")[0]!;
 }

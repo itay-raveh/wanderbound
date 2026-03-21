@@ -6,7 +6,7 @@
 !backend/scripts/
 !backend/pyproject.toml
 !backend/alembic.ini
-!backend/logging.json
+!backend/openapi.json
 
 # Frontend
 !frontend/src/
@@ -15,6 +15,7 @@
 !frontend/package.json
 !frontend/tsconfig*.json
 !frontend/vite.config.ts
+!frontend/postcss.config.js
 !frontend/openapi-ts.config.ts
 !frontend/openapi.json
 !frontend/nginx/
