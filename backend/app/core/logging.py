@@ -1,24 +1,38 @@
-import http
+import json
 import logging
+import sys
+from datetime import UTC, datetime
 
-from rich.logging import RichHandler
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        ts = datetime.fromtimestamp(record.created, tz=UTC).isoformat()
+        entry = {
+            "timestamp": ts,
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0] is not None:
+            entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(entry)
 
 
-class AccessHandler(RichHandler):
-    """Format uvicorn access log records with colored status codes."""
+_NOISY = ("sqlalchemy.engine", "httpx", "httpcore", "hishel", "PIL", "playwright")
 
-    def emit(self, record: logging.LogRecord) -> None:
-        if isinstance(record.args, tuple) and len(record.args) == 5:
-            addr, method, path, _http_ver, status_code = record.args
-            code = int(status_code)  # type: ignore[arg-type]
-            color = "on red" if code >= 400 else "on green"
-            record.msg = "[%s] %-5s %s [%s] %s %s [/]"
-            record.args = (
-                addr,
-                method,
-                path,
-                color,
-                code,
-                http.HTTPStatus(code).phrase,
-            )
-        super().emit(record)
+
+def setup_logging(*, environment: str) -> None:
+    if environment == "local":
+        from rich.logging import RichHandler  # noqa: PLC0415
+
+        handler = RichHandler(rich_tracebacks=True, markup=True)
+    else:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(JSONFormatter())
+
+    logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
+    logging.getLogger("app").setLevel(logging.INFO)
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    for name in _NOISY:
+        logging.getLogger(name).setLevel(logging.WARNING)

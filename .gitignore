@@ -18,6 +18,7 @@ dist-ssr/
 /playwright/.cache/
 /playwright/.auth/
 .env
+.env.sentry-build-plugin
 
 # Generated
 frontend/src/client/
@@ -25,3 +26,4 @@ frontend/public/countries/
 
 # App data
 backend/data/
+backups/

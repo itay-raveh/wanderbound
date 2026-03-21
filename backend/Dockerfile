@@ -27,7 +27,7 @@ RUN playwright install chromium --with-deps
 
 COPY ./backend/scripts /app/backend/scripts
 
-COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/logging.json /app/backend/
+COPY ./backend/pyproject.toml ./backend/alembic.ini /app/backend/
 
 COPY ./backend/app /app/backend/app
 
@@ -46,4 +46,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--log-config", "logging.json"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

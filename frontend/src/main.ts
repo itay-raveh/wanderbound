@@ -1,5 +1,6 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
+import * as Sentry from "@sentry/vue";
 import { Dark, Lang, Loading, LoadingBar, Notify, Quasar } from "quasar";
 import { createApp, watch } from "vue";
 
@@ -33,6 +34,16 @@ client.setConfig({
 
 const app = createApp(App);
 
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    app,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    integrations: [Sentry.browserTracingIntegration({ router })],
+    tracesSampleRate: 1.0,
+  });
+}
+
 app.use(createPinia());
 app.use(PiniaColada);
 app.use(router);
@@ -65,12 +76,19 @@ app.use(Quasar, {
 const DARK_MODE_KEY = "album-dark-mode";
 const stored = localStorage.getItem(DARK_MODE_KEY);
 Dark.set(stored === null || stored === "auto" ? "auto" : stored === "true");
-watch(() => Dark.mode, (mode) => {
-  localStorage.setItem(DARK_MODE_KEY, String(mode));
-});
+watch(
+  () => Dark.mode,
+  (mode) => {
+    localStorage.setItem(DARK_MODE_KEY, String(mode));
+  },
+);
 
 // Browser locale detection (covers register page before user exists).
 // Awaited so the correct lang pack (incl. RTL direction) is active on first paint.
-try { await applyLocale(Lang.getLocale() ?? "en-US"); } catch { /* falls back to en */ }
+try {
+  await applyLocale(Lang.getLocale() ?? "en-US");
+} catch {
+  /* falls back to en */
+}
 
 app.mount("#app");

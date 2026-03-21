@@ -18,7 +18,9 @@ import SiteFooter from "@/components/SiteFooter.vue";
 </template>
 
 <style lang="scss">
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
   margin: 0;
 }
@@ -130,45 +132,61 @@ html, body, #app {
 /* Theme colors */
 
 .body--dark {
-  --page-bg: #1E1E2E;
-  --bg: #1E1E2E;
+  --page-bg: #1e1e2e;
+  --bg: #1e1e2e;
   --bg-secondary: #252540;
   --bg-deep: #0a0a12;
-  --text: #E5E7EB;
-  --text-bright: #F0F0F5;
-  --text-muted: #9CA3AF;
-  --text-faint: #6B7280;
-  --danger: #EF4444;
-  --surface: #2A2A3E;
-  --border-color: #3A3A50;
+  --text: #e5e7eb;
+  --text-bright: #f0f0f5;
+  --text-muted: #9ca3af;
+  --text-faint: #6b7280;
+  --danger: #ef4444;
+  --surface: #2a2a3e;
+  --border-color: #3a3a50;
 }
 
 /* Derived tokens - reference theme vars, resolved lazily at use site */
 .body--dark,
 .body--light {
-  --page-gradient: linear-gradient(to bottom, color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)), var(--bg));
+  --page-gradient: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),
+    var(--bg)
+  );
 }
 
 /* Custom color palette - follows Quasar convention (see quasar.dev/style/color-palette#adding-your-own-colors).
    !important matches Quasar's own color classes; `color="danger"` works on QBtn/QIcon/etc. */
-.text-bright { color: var(--text-bright) !important; }
-.text-muted { color: var(--text-muted) !important; }
-.text-faint { color: var(--text-faint) !important; }
-.text-danger { color: var(--danger) !important; }
-.bg-danger { background: var(--danger) !important; }
-.bg-surface { background: var(--surface) !important; }
+.text-bright {
+  color: var(--text-bright) !important;
+}
+.text-muted {
+  color: var(--text-muted) !important;
+}
+.text-faint {
+  color: var(--text-faint) !important;
+}
+.text-danger {
+  color: var(--danger) !important;
+}
+.bg-danger {
+  background: var(--danger) !important;
+}
+.bg-surface {
+  background: var(--surface) !important;
+}
 
 .body--light {
-  --page-bg: #FFFFFF;
-  --bg: #F3F4F6;
-  --bg-secondary: #FFFFFF;
-  --bg-deep: #E5E7EB;
-  --text: #1F2937;
+  --page-bg: #ffffff;
+  --bg: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-deep: #e5e7eb;
+  --text: #1f2937;
   --text-bright: #111827;
-  --text-muted: #6B7280;
-  --text-faint: #9CA3AF;
-  --danger: #DC2626;
-  --surface: #F3F4F6;
-  --border-color: #D1D5DB;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+  --danger: #dc2626;
+  --surface: #f3f4f6;
+  --border-color: #d1d5db;
 }
 </style>

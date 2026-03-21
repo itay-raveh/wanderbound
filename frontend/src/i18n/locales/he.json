@@ -37,7 +37,7 @@
     "statusError": "משהו השתבש",
     "statusBuilding": "בונה את האלבום",
     "trips": "אין טיולים | טיול אחד | {n} טיולים",
-    "steps": "אין עצירות | עצירה אחת | {n} עצירות",
+    "steps": "אין צעדים | צעד אחד | {n} צעדים",
     "countries": "אין מדינות | מדינה אחת | {n} מדינות",
     "tryAgain": "נסו שוב",
     "openAlbum": "לאלבום",
@@ -54,7 +54,7 @@
   },
 
   "editor": {
-    "exportPdf": "ייצוא PDF"
+    "exportPdf": "הורדת PDF"
   },
 
   "settings": {
@@ -83,7 +83,7 @@
     "day": "יום {n}",
     "masl": "מ׳ מעל פני הים",
     "ftAsl": "רגל מעל פני הים",
-    "stepNamePlaceholder": "שם עצירה",
+    "stepNamePlaceholder": "שם צעד",
     "descriptionPlaceholder": "הוסיפו תיאור...",
     "dropStepCover": "גררו תמונת שער",
     "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
@@ -113,10 +113,10 @@
     "days": "ימים",
     "km": "ק״מ",
     "mi": "מייל",
-    "m": "מ׳",
-    "ft": "רגל",
+    "m": "מ׳ ",
+    "ft": "רגל ",
     "photos": "תמונות",
-    "steps": "עצירות",
+    "steps": "צעדים",
     "coldest": "הכי קר",
     "hottest": "הכי חם",
     "highest": "הכי גבוה",

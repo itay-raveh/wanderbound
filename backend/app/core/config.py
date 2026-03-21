@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
+    SENTRY_DSN: str = ""
+
     VITE_GOOGLE_CLIENT_ID: str
     VITE_MAX_UPLOAD_GB: int = 4
 
@@ -45,8 +47,6 @@ class Settings(BaseSettings):
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
             self.FRONTEND_URL
         ]
-
-    PROJECT_NAME: str
 
     POSTGRES_SERVER: str
     POSTGRES_PORT: int = 5432

@@ -42,20 +42,13 @@ Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
 git clone https://github.com/itayraveh/polarsteps-album-generator.git
 cd polarsteps-album-generator
 cp .env.example .env
-# Fill in required variables (see below)
+# Fill in the required values — the file explains each variable
 docker compose up -d
 ```
 
 Open `http://localhost:5173`.
 
-| Variable | Required | Notes |
-|---|---|---|
-| `SECRET_KEY` | Yes | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `VITE_GOOGLE_CLIENT_ID` | Yes | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) -> OAuth 2.0 Client ID |
-| `VITE_MAPBOX_TOKEN` | Yes | Free tier at [mapbox.com](https://www.mapbox.com/) |
-| `POSTGRES_PASSWORD` | Yes | Any value |
-
-For production, set `DOMAIN` in `.env` and run `docker compose -f compose.yml up -d`.
+For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run `docker compose -f compose.yml up -d`. See `.env.example` for details.
 
 ## Development
 
@@ -66,7 +59,7 @@ cd backend && uv sync
 cd ../frontend && bun install
 docker compose up db -d
 cd ../backend && uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --log-config logging.json
+uv run uvicorn app.main:app --reload
 # Separate terminal:
 cd frontend && bun run dev
 ```

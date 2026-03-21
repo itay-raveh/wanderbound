@@ -95,6 +95,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wanderbound-api.rule=Host(`api.${DOMAIN}`)
+      - traefik.http.routers.wanderbound-api.entrypoints=websecure
+      - traefik.http.routers.wanderbound-api.tls.certresolver=letsencrypt
+      - traefik.http.services.wanderbound-api.loadbalancer.server.port=8000
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -116,6 +122,12 @@ services:
           cpus: "0.5"
           pids: 128
     networks: [frontend]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wanderbound.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.wanderbound.entrypoints=websecure
+      - traefik.http.routers.wanderbound.tls.certresolver=letsencrypt
+      - traefik.http.services.wanderbound.loadbalancer.server.port=8080
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -129,6 +141,8 @@ networks:
   backend:
     internal: true
   frontend:
+    name: traefik
+    external: true
 
 volumes:
   db-data:

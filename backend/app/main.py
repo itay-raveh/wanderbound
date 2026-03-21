@@ -4,17 +4,28 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request, status
+import sentry_sdk
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
+from app.core.logging import setup_logging
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
+
+setup_logging(environment=settings.ENVIRONMENT)
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=1.0,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title="Wanderbound",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
@@ -74,5 +85,11 @@ app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 
 @app.exception_handler(NoResultFound)
-async def _not_found(_request: Request, _exc: NoResultFound) -> PlainTextResponse:
-    return PlainTextResponse("Not Found", status.HTTP_404_NOT_FOUND)
+async def _not_found(_request: Request, _exc: NoResultFound) -> JSONResponse:
+    return JSONResponse({"detail": "Not found"}, status_code=404)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
