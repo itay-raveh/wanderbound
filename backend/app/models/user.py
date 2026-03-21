@@ -1,7 +1,15 @@
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, BeforeValidator, HttpUrl, StringConstraints
+import sqlalchemy as sa
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    HttpUrl,
+    StringConstraints,
+    computed_field,
+)
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import settings
@@ -60,6 +68,20 @@ class User(UserBase, table=True):
     album_ids: list[str] = Field(
         default_factory=list, sa_column=Column(JSON, nullable=False)
     )
+    last_active_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(
+            "last_active_at",
+            type_=sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+
+    @computed_field
+    @property
+    def has_data(self) -> bool:
+        return self.folder.exists()
 
     @property
     def folder(self) -> Path:

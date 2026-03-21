@@ -32,7 +32,7 @@ export function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: numbe
 
 export function sectionKey(section: Section): string {
   switch (section.type) {
-    case "step": return `step-${section.step.idx}`;
+    case "step": return `step-${section.step.id}`;
     case "map": return `map-${section.dateRange[0]}-${section.dateRange[1]}`;
     case "hike": return `hike-${section.dateRange[0]}-${section.dateRange[1]}`;
   }
@@ -79,15 +79,15 @@ export function buildSections(
   const mapInsertionPoints = new Map<number, MapEntry[]>();
   for (const entry of mapEntries) {
     if (entry.steps.length === 0) continue;
-    const firstIdx = entry.steps[0]!.idx;
-    if (!mapInsertionPoints.has(firstIdx)) {
-      mapInsertionPoints.set(firstIdx, []);
+    const firstId = entry.steps[0]!.id;
+    if (!mapInsertionPoints.has(firstId)) {
+      mapInsertionPoints.set(firstId, []);
     }
-    mapInsertionPoints.get(firstIdx)!.push(entry);
+    mapInsertionPoints.get(firstId)!.push(entry);
   }
 
   for (const step of allSteps) {
-    const maps = mapInsertionPoints.get(step.idx);
+    const maps = mapInsertionPoints.get(step.id);
     if (maps) {
       for (const m of maps) {
         const hikeSegment = m.segments.find((s) => s.kind === "hike");

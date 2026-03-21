@@ -32,7 +32,7 @@ class Step(StepBase, table=True):
 
     uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     aid: str = Field(primary_key=True)
-    idx: int = Field(primary_key=True)
+    id: int = Field(primary_key=True)
 
     timestamp: float
     timezone_id: str = Field(max_length=255)

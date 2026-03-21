@@ -11,7 +11,6 @@ const { t } = useI18n();
 
 const props = defineProps<{
   media: string;
-  stepId: number;
   cover?: boolean;
   cols?: 1 | 2;
 }>();

@@ -53,7 +53,8 @@ router.beforeEach(async (to, from) => {
     return { name: "login" };
   }
 
-  if (!user.album_ids?.length) {
+  // Redirect to upload if user has no albums or was evicted (has albums but no data)
+  if (!user.album_ids?.length || !user.has_data) {
     return { name: "upload" };
   }
 });

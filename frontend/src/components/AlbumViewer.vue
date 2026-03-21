@@ -48,7 +48,7 @@ const props = defineProps<{
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
-const albumOrientations = computed(() => (props.album.orientations ?? {}) as Record<string, string>);
+const albumMedia = computed(() => (props.album.media ?? {}) as Record<string, string>);
 const albumMutation = useAlbumMutation(() => props.album.id);
 
 // Filter steps by the album's date ranges.
@@ -75,7 +75,7 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1]!.datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-provideAlbum({ albumId, colors: albumColors, orientations: albumOrientations, tripStart, totalDays });
+provideAlbum({ albumId, colors: albumColors, media: albumMedia, tripStart, totalDays });
 
 const sections = computed(() =>
   buildSections(steps.value, segments.value, props.album.maps_ranges ?? []),

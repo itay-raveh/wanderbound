@@ -38,9 +38,9 @@ const coverField = computed(() =>
 );
 
 const landscapePhotos = computed(() => {
-  const orientations = (props.album.orientations ?? {}) as Record<string, string>;
-  return Object.keys(orientations).filter(
-    (name) => orientations[name] === "l" && !isVideo(name),
+  const mediaMap = (props.album.media ?? {}) as Record<string, string>;
+  return Object.keys(mediaMap).filter(
+    (name) => mediaMap[name] === "l" && !isVideo(name),
   );
 });
 
@@ -59,7 +59,6 @@ function saveCover(name: string) {
     <MediaItem
       v-if="coverMedia"
       :media="coverMedia"
-      :step-id="0"
       cover
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />

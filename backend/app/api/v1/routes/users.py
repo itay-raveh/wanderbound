@@ -8,6 +8,7 @@ from zipfile import BadZipFile
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Form,
     HTTPException,
     Request,
@@ -16,6 +17,7 @@ from fastapi import (
 )
 from fastapi.sse import EventSourceResponse
 
+from app.logic.eviction import run_eviction
 from app.logic.processing import ProcessingEvent
 from app.logic.session import process_stream
 from app.logic.upload import MAX_UPLOAD_BYTES, UploadResult, extract_and_scan
@@ -48,6 +50,7 @@ async def upload_data(
     file: UploadFile,
     request: Request,
     session: SessionDep,
+    background_tasks: BackgroundTasks,
     credential: Annotated[str | None, Form()] = None,
 ) -> UploadResult:
     uid: int | None = request.session.get("uid")
@@ -119,6 +122,7 @@ async def upload_data(
         await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
         raise
 
+    background_tasks.add_task(run_eviction, user.id)
     return UploadResult(user=user, trips=trips)
 
 

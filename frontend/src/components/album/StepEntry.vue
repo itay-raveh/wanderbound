@@ -56,7 +56,6 @@ const photoPages = computed(() =>
         v-for="{ originalIdx, page } in photoPages"
         :key="`page-${originalIdx}`"
         :page="page"
-        :step-id="step.idx"
         @update:page="onPageUpdate(originalIdx, $event)"
       />
 
@@ -74,7 +73,6 @@ const photoPages = computed(() =>
     <div v-if="!printMode" class="sidebar-anchor">
       <UnusedSidebar
         :assets="step.unused"
-        :step-id="step.idx"
         @update:unused-photos="onUnusedUpdate"
       />
     </div>

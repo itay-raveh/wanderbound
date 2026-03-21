@@ -23,13 +23,13 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
   const coverDropList = ref<string[]>([]);
 
   function saveField(patch: Partial<StepUpdate>) {
-    stepMutation.mutate({ sid: step.value.idx, update: patch });
+    stepMutation.mutate({ sid: step.value.id, update: patch });
   }
 
   function saveLayout(patch: Partial<StepUpdate>) {
     const s = step.value;
     stepMutation.mutate({
-      sid: s.idx,
+      sid: s.id,
       update: { cover: s.cover, pages: s.pages, unused: s.unused, ...patch },
     });
   }

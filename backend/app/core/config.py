@@ -67,6 +67,7 @@ class Settings(BaseSettings):
         )
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
+    MAX_STORAGE_BYTES: int = 50 * 1024 * 1024 * 1024  # 50 GB
 
     @property
     def USERS_FOLDER(self) -> Path:

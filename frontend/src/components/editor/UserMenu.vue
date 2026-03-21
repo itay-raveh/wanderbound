@@ -17,6 +17,7 @@ import {
   matDeleteOutline,
   matSettings,
   matLogout,
+  matUploadFile,
 } from "@quasar/extras/material-icons";
 
 const router = useRouter();
@@ -174,6 +175,11 @@ async function handleDelete() {
           </section>
 
           <q-separator class="q-my-sm" />
+
+          <button class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
+            <q-icon :name="matUploadFile" size="1rem" />
+            {{ t("settings.reuploadData") }}
+          </button>
 
           <button class="action-btn" @click="handleSignOut">
             <q-icon :name="matLogout" size="1rem" />

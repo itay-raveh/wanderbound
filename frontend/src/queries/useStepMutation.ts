@@ -26,7 +26,7 @@ export function useStepMutation() {
         cache.setQueryData(key, {
           ...prev,
           steps: prev.steps.map((s) =>
-            s.idx === payload.sid ? { ...s, ...payload.update } : s,
+            s.id === payload.sid ? { ...s, ...payload.update } : s,
           ),
         });
       }

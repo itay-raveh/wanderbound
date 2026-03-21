@@ -14,6 +14,10 @@
     "uploadFailed": "Upload failed. Please try again.",
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
     "greeting": "Hey {name},",
+    "evictedTitle": "Welcome back!",
+    "evictedBody": "Your files were cleaned up to save space, but all your edits are saved. Re-upload your data to continue where you left off.",
+    "reuploadTitle": "Update your data",
+    "reuploadBody": "Upload new data to update your albums with the latest photos and trips.",
     "statusReady": "your album is ready",
     "statusError": "something went wrong",
     "statusBuilding": "building your album",
@@ -47,6 +51,7 @@
     "temperature": "Temperature",
     "language": "Language",
     "signOut": "Sign out",
+    "reuploadData": "Re-upload data",
     "deleteAll": "Delete all data",
     "deleteFailed": "Failed to delete user."
   },

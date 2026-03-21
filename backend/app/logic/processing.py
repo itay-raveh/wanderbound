@@ -1,12 +1,15 @@
 import asyncio
 import contextlib
 import logging
+from collections import defaultdict
 from collections.abc import AsyncIterator, Callable, Coroutine
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field, HttpUrl
+from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
@@ -40,7 +43,7 @@ type DbRow = Album | Step | Segment
 _media_sem = asyncio.Semaphore(20)
 
 
-async def _track_iter[T](
+async def track_iter[T](
     phase: ProcessingPhase,
     total: int,
     source: AsyncIterator[T],
@@ -54,7 +57,7 @@ async def _track_iter[T](
     return results
 
 
-async def _run_phase(
+async def run_phase(
     phase: ProcessingPhase,
     files: list[Path],
     worker: Callable[[Path], Coroutine[Any, Any, None]],
@@ -108,7 +111,7 @@ ProcessingEvent = Annotated[
 ]
 
 
-async def _fetch_layouts(
+async def fetch_layouts(
     user: User,
     aid: str,
     steps: list[PSStep],
@@ -125,7 +128,7 @@ async def _fetch_layouts(
         yield await coro
 
 
-def _flatten_media(album_dir: Path) -> None:
+def flatten_media(album_dir: Path) -> None:
     dirs: list[Path] = []
     for entry in album_dir.rglob("*"):
         if entry.is_file() and entry.suffix.lower() in MEDIA_EXTENSIONS:
@@ -137,7 +140,7 @@ def _flatten_media(album_dir: Path) -> None:
             d.rmdir()
 
 
-class _TripResults(NamedTuple):
+class TripResults(NamedTuple):
     elevations: list[float]
     weather_by_idx: dict[int, Weather]
     layout_by_idx: dict[int, Layout | None]
@@ -145,23 +148,23 @@ class _TripResults(NamedTuple):
     cover_orientation: str
 
 
-def _build_trip_objects(
+def build_trip_objects(
     user: User,
     aid: str,
     trip: PSTrip,
     locations: list[Point],
-    results: _TripResults,
+    results: TripResults,
 ) -> list[DbRow]:
     n = len(trip.all_steps)
     weathers = [results.weather_by_idx[i] for i in range(n)]
     layouts = [results.layout_by_idx[i] for i in range(n)]
 
-    merged_orientations: dict[str, str] = {
+    merged_media: dict[str, str] = {
         results.cover_name: results.cover_orientation,
     }
     for layout in layouts:
         if layout:
-            merged_orientations.update(layout.orientations)
+            merged_media.update(layout.orientations)
 
     first_date = trip.all_steps[0].datetime.date()
     last_date = trip.all_steps[-1].datetime.date()
@@ -176,26 +179,12 @@ def _build_trip_objects(
         subtitle=trip.subtitle,
         front_cover_photo=results.cover_name,
         back_cover_photo=results.cover_name,
-        orientations=merged_orientations,
+        media=merged_media,
     )
     steps = [
-        Step(
-            uid=user.id,
-            aid=aid,
-            idx=idx,
-            name=ps.name,
-            description=ps.description,
-            timestamp=ps.timestamp,
-            timezone_id=ps.timezone_id,
-            location=ps.location,
-            elevation=elev,
-            weather=wthr,
-            cover=layout.cover if layout else None,
-            pages=layout.pages if layout else [],
-            unused=[],
-        )
-        for idx, (ps, elev, wthr, layout) in enumerate(
-            zip(trip.all_steps, results.elevations, weathers, layouts, strict=True)
+        build_step(user.id, aid, ps, elev, wthr, layout)
+        for ps, elev, wthr, layout in zip(
+            trip.all_steps, results.elevations, weathers, layouts, strict=True
         )
     ]
     segments = [
@@ -212,31 +201,119 @@ def _build_trip_objects(
     return [album, *steps, *segments]
 
 
-async def _extract_one(p: Path) -> None:
+async def extract_one(p: Path) -> None:
     async with _media_sem:
         await extract_frame(p)
 
 
-async def _thumb_one(p: Path) -> None:
+async def thumb_one(p: Path) -> None:
     async with _media_sem:
         await generate_thumbnails(p)
 
 
-async def _run_elevations(
+async def run_elevations(
     locs: list[Location],
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> list[float]:
-    raw = await _track_iter("elevations", n_steps, elevations(locs), queue)
+    raw = await track_iter("elevations", n_steps, elevations(locs), queue)
     return list(await correct_peaks(locs, raw))
 
 
-async def _run_weather(
+async def run_weather(
     steps: list[PSStep],
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> dict[int, Weather]:
-    return dict(await _track_iter("weather", n_steps, build_weathers(steps), queue))
+    return dict(await track_iter("weather", n_steps, build_weathers(steps), queue))
+
+
+async def prepare_media(
+    trip_dir: Path,
+    cover_name: str,
+    cover_url: HttpUrl,
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> str:
+    """Flatten media, download cover, extract frames, generate thumbnails.
+
+    Shared between full processing and reconciliation.
+    Returns cover_orientation.
+    """
+    await asyncio.to_thread(flatten_media, trip_dir)
+
+    cover_dest = trip_dir / cover_name
+    if not cover_dest.exists():
+        await _download_cover(cover_url, cover_dest)
+
+    try:
+        cover_photo = await asyncio.to_thread(Media.load, cover_dest)
+        cover_orientation = cover_photo.orientation
+    except OSError, ValueError:
+        logger.warning(
+            "Could not determine cover orientation for %s, defaulting to 'l'",
+            cover_name,
+        )
+        cover_orientation = "l"
+
+    all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
+    video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
+    existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
+
+    await run_phase("frames", video_paths, extract_one, queue)
+
+    poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
+    jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
+
+    await run_phase("thumbs", jpg_files, thumb_one, queue)
+
+    return cover_orientation
+
+
+async def drain_queue(
+    task: asyncio.Task[Any],
+    queue: asyncio.Queue[PhaseUpdate | None],
+) -> AsyncIterator[PhaseUpdate]:
+    """Yield phase updates from queue until sentinel, cancelling task on early close."""
+    try:
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield event
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+
+def build_step(  # noqa: PLR0913
+    uid: int,
+    aid: str,
+    ps: PSStep,
+    elev: float,
+    wthr: Weather,
+    layout: Layout | None,
+) -> Step:
+    return Step(
+        uid=uid,
+        aid=aid,
+        id=ps.id,
+        name=ps.name,
+        description=ps.description,
+        timestamp=ps.timestamp,
+        timezone_id=ps.timezone_id,
+        location=ps.location,
+        elevation=round(elev),
+        weather=wthr,
+        cover=layout.cover if layout else None,
+        pages=layout.pages if layout else [],
+        unused=[],
+    )
+
+
+def cover_name_from_trip(trip: PSTrip) -> str:
+    return normalize_name(Path(trip.cover_photo_path.path or "").name)
 
 
 async def _media_pipeline(
@@ -255,42 +332,19 @@ async def _media_pipeline(
     aid = trip_dir.name
     n_steps = len(trip.all_steps)
     layout_by_idx = dict(
-        await _track_iter(
-            "layouts", n_steps, _fetch_layouts(user, aid, trip.all_steps), queue
+        await track_iter(
+            "layouts", n_steps, fetch_layouts(user, aid, trip.all_steps), queue
         )
     )
 
-    await asyncio.to_thread(_flatten_media, trip_dir)
-
-    cover_dest = trip_dir / cover_name
-    if not cover_dest.exists():
-        await _download_cover(trip.cover_photo_path, cover_dest)
-
-    try:
-        cover_photo = await asyncio.to_thread(Media.load, cover_dest)
-        cover_orientation = cover_photo.orientation
-    except OSError, ValueError:
-        logger.warning(
-            "Could not determine cover orientation for %s, defaulting to 'l'",
-            cover_name,
-        )
-        cover_orientation = "l"
-
-    all_files = list(trip_dir.iterdir())  # noqa: ASYNC240
-    video_paths = [p for p in all_files if p.suffix.lower() == ".mp4"]
-    existing_jpgs = [p for p in all_files if p.suffix.lower() == ".jpg"]
-
-    await _run_phase("frames", video_paths, _extract_one, queue)
-
-    poster_jpgs = {p.with_suffix(".jpg") for p in video_paths}
-    jpg_files = list({*existing_jpgs, *(p for p in poster_jpgs if p.is_file())})
-
-    await _run_phase("thumbs", jpg_files, _thumb_one, queue)
+    cover_orientation = await prepare_media(
+        trip_dir, cover_name, trip.cover_photo_path, queue
+    )
 
     return layout_by_idx, cover_orientation
 
 
-def _load_trip_data(trip_dir: Path) -> tuple[PSTrip, list[Point]]:
+def load_trip_data(trip_dir: Path) -> tuple[PSTrip, list[Point]]:
     """Read trip metadata and GPS locations (blocking I/O, run in thread)."""
     trip = PSTrip.from_trip_dir(trip_dir)
     locations = PSLocations.from_trip_dir(trip_dir).locations
@@ -303,26 +357,26 @@ async def _process_trip(
     db_out: list[DbRow],
 ) -> AsyncIterator[PhaseUpdate]:
     aid = trip_dir.name
-    trip, locations = await asyncio.to_thread(_load_trip_data, trip_dir)
+    trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
     logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
     locs = [s.location for s in trip.all_steps]
 
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
-    cover_name = normalize_name(Path(trip.cover_photo_path.path or "").name)
+    cover_name = cover_name_from_trip(trip)
     n = len(trip.all_steps)
 
-    async def _phases() -> _TripResults:
+    async def _phases() -> TripResults:
         try:
             async with asyncio.TaskGroup() as tg:
-                elev_task = tg.create_task(_run_elevations(locs, n, queue))
-                weather_task = tg.create_task(_run_weather(trip.all_steps, n, queue))
+                elev_task = tg.create_task(run_elevations(locs, n, queue))
+                weather_task = tg.create_task(run_weather(trip.all_steps, n, queue))
                 media_task = tg.create_task(
                     _media_pipeline(user, trip, trip_dir, cover_name, queue)
                 )
         finally:
             await queue.put(None)
         layout_by_idx, cover_orientation = media_task.result()
-        return _TripResults(
+        return TripResults(
             elevations=elev_task.result(),
             weather_by_idx=weather_task.result(),
             layout_by_idx=layout_by_idx,
@@ -331,50 +385,120 @@ async def _process_trip(
         )
 
     runner = asyncio.create_task(_phases())
+    async for event in drain_queue(runner, queue):
+        yield event
 
-    try:
-        while True:
-            event = await queue.get()
-            if event is None:
-                break
-            yield event
-    finally:
-        if not runner.done():
-            runner.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await runner
-
-    # Re-raise phase errors (only reached on normal sentinel break,
-    # not on generator close where the finally terminates the generator).
     results = await runner
     objects = await asyncio.to_thread(
-        _build_trip_objects, user, aid, trip, locations, results
+        build_trip_objects, user, aid, trip, locations, results
     )
     db_out.extend(objects)
 
 
+async def _load_existing(
+    user: User,
+) -> tuple[dict[str, Album], dict[str, list[Step]]]:
+    """Load existing albums and steps for reconciliation.
+
+    Returns empty dicts for new users (no albums yet).
+    """
+    if not user.album_ids:
+        return {}, {}
+
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        albums = {
+            a.id: a
+            for a in (
+                await session.exec(select(Album).where(Album.uid == user.id))
+            ).all()
+        }
+
+        steps_by_aid: dict[str, list[Step]] = defaultdict(list)
+        for s in (await session.exec(select(Step).where(Step.uid == user.id))).all():
+            steps_by_aid[s.aid].append(s)
+
+    return albums, dict(steps_by_aid)
+
+
+async def _save_new(
+    uid: int,
+    objects: list[DbRow],
+) -> None:
+    async with AsyncSession(engine) as session:
+        session.add_all(objects)
+        await session.commit()
+    logger.info("Saved %d objects to database for user %d", len(objects), uid)
+
+
+async def _save_reupload(
+    uid: int,
+    objects: list[DbRow],
+    reconciled_aids: set[str],
+    existing_albums: dict[str, Album],
+    trip_dirs: list[Path],
+) -> None:
+    async with AsyncSession(engine) as session:
+        if reconciled_aids:
+            await session.exec(
+                delete(Step)
+                .where(Step.uid == uid)  # type: ignore[arg-type]
+                .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+            )
+
+        current_aids = {d.name for d in trip_dirs}
+        orphan_aids = set(existing_albums) - current_aids
+        if orphan_aids:
+            await session.exec(
+                delete(Album)
+                .where(Album.uid == uid)  # type: ignore[arg-type]
+                .where(Album.id.in_(orphan_aids))  # type: ignore[union-attr]
+            )
+        await session.flush()
+
+        for obj in objects:
+            await session.merge(obj)
+        await session.commit()
+    logger.info("Saved %d objects to database for user %d", len(objects), uid)
+
+
 async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
+    from app.logic.reconcile import reconcile_trip  # noqa: PLC0415
+
     trip_dirs = sorted(user.trips_folder.iterdir())
+    existing_albums, existing_steps = await _load_existing(user)
+
     all_objects: list[DbRow] = []
+    reconciled_aids: set[str] = set()
     try:
         for trip_idx, trip_dir in enumerate(trip_dirs):
+            aid = trip_dir.name
             yield TripStart(trip_index=trip_idx)
-            async for event in _process_trip(user, trip_dir, all_objects):
-                yield event
+
+            if aid in existing_albums:
+                async for event in reconcile_trip(
+                    user,
+                    trip_dir,
+                    existing_albums[aid],
+                    existing_steps.get(aid, []),
+                    all_objects,
+                ):
+                    yield event
+                reconciled_aids.add(aid)
+            else:
+                async for event in _process_trip(user, trip_dir, all_objects):
+                    yield event
     except Exception:
         logger.exception("Processing failed for user %d", user.id)
-        yield ErrorData(
-            detail="Processing failed. Please try again later.",
-        )
+        yield ErrorData(detail="Processing failed. Please try again later.")
         return
 
     try:
-        async with AsyncSession(engine) as session:
-            session.add_all(all_objects)
-            await session.commit()
-        logger.info(
-            "Saved %d objects to database for user %d", len(all_objects), user.id
-        )
+        if existing_albums:
+            await _save_reupload(
+                user.id, all_objects, reconciled_aids, existing_albums, trip_dirs
+            )
+        else:
+            await _save_new(user.id, all_objects)
     except SQLAlchemyError:
         logger.exception("DB save failed for user %d", user.id)
         yield ErrorData(detail="Processing failed. Please try again later.")

@@ -1,10 +1,12 @@
 <script lang="ts" setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
 import { useProcessingStream } from "@/composables/useProcessingStream";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { CREDENTIAL_KEY } from "@/router";
+import { useI18n } from "vue-i18n";
 
 import RegisterHero from "@/components/register/RegisterHero.vue";
 import DataInstructions from "@/components/register/DataInstructions.vue";
@@ -12,16 +14,29 @@ import ZipUploader from "@/components/register/ZipUploader.vue";
 import UnsupportedBanner from "@/components/register/UnsupportedBanner.vue";
 import ProcessingProgress from "@/components/register/ProcessingProgress.vue";
 
+const { t } = useI18n();
 const STORAGE_KEY = "processing_upload_result";
 
 const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
 const router = useRouter();
-
 const credential = sessionStorage.getItem(CREDENTIAL_KEY) ?? undefined;
-const uploadResult = ref<UploadResult | null>(null);
 
+// Derive upload page state from user query.
+// For new users (credential present), the query will 401 — user stays undefined.
+const isNewUser = !!credential;
+const { user } = useUserQuery();
+
+type UploadState = "new" | "evicted" | "reupload";
+const pageState = computed<UploadState>(() => {
+  if (isNewUser) return "new";
+  const u = user.value;
+  if (u?.album_ids?.length && !u.has_data) return "evicted";
+  return "reupload";
+});
+
+const uploadResult = ref<UploadResult | null>(null);
 const stream = useProcessingStream();
 
 onMounted(() => {
@@ -62,8 +77,26 @@ function onDone() {
 
       <!-- Upload view -->
       <q-card v-if="!uploadResult" class="steps-card fade-up">
-        <DataInstructions />
-        <q-separator class="q-my-md" />
+        <!-- Evicted user message -->
+        <template v-if="pageState === 'evicted'">
+          <h3 class="state-title text-h6 text-weight-bold">{{ t("register.evictedTitle") }}</h3>
+          <p class="state-body text-body2 text-muted">{{ t("register.evictedBody") }}</p>
+          <q-separator class="q-my-md" />
+        </template>
+
+        <!-- Manual re-upload message -->
+        <template v-else-if="pageState === 'reupload'">
+          <h3 class="state-title text-h6 text-weight-bold">{{ t("register.reuploadTitle") }}</h3>
+          <p class="state-body text-body2 text-muted">{{ t("register.reuploadBody") }}</p>
+          <q-separator class="q-my-md" />
+        </template>
+
+        <!-- New user: full instructions -->
+        <template v-else>
+          <DataInstructions />
+          <q-separator class="q-my-md" />
+        </template>
+
         <ZipUploader v-if="mapboxSupported" :credential="credential" @uploaded="onUploaded" />
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
@@ -98,5 +131,14 @@ function onDone() {
 .steps-card {
   padding: 1.75rem 2rem;
   animation-delay: 0.15s;
+}
+
+.state-title {
+  margin: 0 0 var(--gap-md);
+}
+
+.state-body {
+  margin: 0;
+  line-height: 1.5;
 }
 </style>

@@ -9,7 +9,7 @@ import {
 export interface AlbumContext {
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
-  orientations: ComputedRef<Record<string, string>>;
+  media: ComputedRef<Record<string, string>>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
 }

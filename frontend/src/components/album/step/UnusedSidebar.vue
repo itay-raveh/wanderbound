@@ -9,7 +9,6 @@ const { t } = useI18n();
 
 const props = defineProps<{
   assets: Array<string>;
-  stepId: number;
 }>();
 
 const emit = defineEmits<{
@@ -41,7 +40,6 @@ function emitUnused() {
         v-for="photo in localUnused"
         :key="photo"
         :media="photo"
-        :step-id="stepId"
       />
     </VueDraggable>
     <div v-if="localUnused.length === 0" class="sidebar-empty text-caption text-faint text-center">
