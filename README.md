@@ -12,14 +12,16 @@
   <img src="frontend/public/landing/editor.jpg" width="800" alt="Editor">
 </p>
 
-Upload your Polarsteps ZIP and get a laid-out album - covers, overview page, maps, photo pages - that you can edit and export to PDF.
+Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
+maps, photo pages - that you can edit and export to PDF.
 
-- GPS tracks classified into flights, hikes, driving, walking. Add map pages with satellite imagery and elevation profiles
-- Photo layout algorithm packs images into grids by orientation
+- Photo layout algorithm packs images into grids
 - Videos in albums - scrub frame-by-frame to pick a poster
-- Drag-and-drop editor with dark/light mode
-- English and Hebrew with RTL support
-- PDF export via headless Chromium
+- Drag-and-drop editor
+- GPS tracks classified into flights, hikes, driving, walking. Add map pages
+  with satellite imagery and elevation profiles
+- Album supports any locale (UI in English and Hebrew).
+- PDF export
 
 <p align="center">
   <img src="frontend/public/landing/hike-map.jpg" width="700" alt="Hike map page">
@@ -27,12 +29,12 @@ Upload your Polarsteps ZIP and get a laid-out album - covers, overview page, map
 
 ## Tech Stack
 
-| | |
-|---|---|
-| **Backend** | Python 3.14, FastAPI, SQLAlchemy 2, Polars, Playwright, Pillow, ffmpeg |
-| **Frontend** | Vue 3, TypeScript, Quasar, Mapbox GL JS |
-| **Database** | PostgreSQL 18 |
-| **External APIs** | Open-Meteo (elevations + weather), Mapbox (tiles + routing) |
+|                   |                                                                      |
+|-------------------|----------------------------------------------------------------------|
+| **Backend**       | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
+| **Frontend**      | Vue 3, TypeScript, Quasar, Mapbox GL JS                              |
+| **Database**      | PostgreSQL 18                                                        |
+| **External APIs** | Open-Meteo (elevations + weather), Mapbox (tiles + routing)          |
 
 ## Self-Hosting
 
@@ -41,32 +43,38 @@ Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
 ```bash
 git clone https://github.com/itayraveh/polarsteps-album-generator.git
 cd polarsteps-album-generator
+
 cp .env.example .env
-# Fill in the required values — the file explains each variable
+# Fill in the required values
+
 docker compose up -d
 ```
 
 Open `http://localhost:5173`.
 
-For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run `docker compose -f compose.yml up -d`. See `.env.example` for details.
+For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
+`docker compose -f compose.yml up -d`.
 
 ## Development
 
-Python 3.14+ with [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/), Docker (for Postgres).
+Python 3.14+ with [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/),
+Docker (for Postgres).
 
 ```bash
-cd backend && uv sync
-cd ../frontend && bun install
-docker compose up db -d
-cd ../backend && uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
-# Separate terminal:
-cd frontend && bun run dev
+docker compose up db prestart -d
 ```
 
 ```bash
+cd backend
+uv sync
 uv run pytest              # Backend tests
-bun run build              # Frontend type-check + build
+uv run uvicorn app.main:app --reload
+```
+
+```bash
+cd frontend
+bun install
+bun run dev
 ```
 
 ## License
