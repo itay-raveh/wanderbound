@@ -19,13 +19,15 @@ if TYPE_CHECKING:
     from fastapi.routing import APIRoute
 
 settings = get_settings()
-setup_logging(environment=settings.ENVIRONMENT)
+setup_logging(use_rich=settings.ENVIRONMENT == "local")
 
 if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
+        release=settings.SENTRY_RELEASE,
         traces_sample_rate=1.0,
+        enable_logs=True,
     )
 
 logger = logging.getLogger(__name__)

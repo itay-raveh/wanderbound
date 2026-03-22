@@ -1,4 +1,5 @@
 import { useQuery } from "@pinia/colada";
+import * as Sentry from "@sentry/vue";
 import { readUser } from "@/client";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -13,6 +14,7 @@ export function useUserQuery() {
     key: queryKeys.user(),
     query: async () => {
       const { data } = await readUser();
+      if (data) Sentry.setUser({ id: String(data.id) });
       return data;
     },
     staleTime: Infinity,

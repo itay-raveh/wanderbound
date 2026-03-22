@@ -33,18 +33,25 @@ client.setConfig({
 });
 
 const app = createApp(App);
+const pinia = createPinia();
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     app,
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    integrations: [Sentry.browserTracingIntegration({ router })],
+    release: __APP_VERSION__,
+    integrations: [
+      Sentry.browserTracingIntegration({ router }),
+      Sentry.replayIntegration(),
+    ],
     tracesSampleRate: 1.0,
+    replaysOnErrorSampleRate: 1.0,
   });
+  pinia.use(Sentry.createSentryPiniaPlugin());
 }
 
-app.use(createPinia());
+app.use(pinia);
 app.use(PiniaColada);
 app.use(router);
 app.use(i18n);

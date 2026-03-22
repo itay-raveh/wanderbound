@@ -23,7 +23,7 @@ export default defineConfig({
     }),
     sentryVitePlugin({
       org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
+      project: process.env.SENTRY_FRONTEND_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       telemetry: false,
       sourcemaps: {

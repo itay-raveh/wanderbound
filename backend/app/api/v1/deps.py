@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Annotated
 
+import sentry_sdk
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import update
@@ -57,6 +58,8 @@ async def _get_user(
         logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
         request.session.clear()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+
+    sentry_sdk.set_user({"id": str(uid)})
 
     # Debounced activity tracking
     now = time.monotonic()

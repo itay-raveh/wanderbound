@@ -1,34 +1,24 @@
-import json
 import logging
 import sys
-from datetime import UTC, datetime
-
-
-class JSONFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        ts = datetime.fromtimestamp(record.created, tz=UTC).isoformat()
-        entry = {
-            "timestamp": ts,
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
-        if record.exc_info and record.exc_info[0] is not None:
-            entry["exception"] = self.formatException(record.exc_info)
-        return json.dumps(entry)
-
 
 _NOISY = ("sqlalchemy.engine", "httpx", "httpcore", "hishel", "PIL", "playwright")
 
 
-def setup_logging(*, environment: str) -> None:
-    if environment == "local":
+def setup_logging(*, use_rich: bool) -> None:
+    if use_rich:
         from rich.logging import RichHandler  # noqa: PLC0415
 
-        handler = RichHandler(rich_tracebacks=True, markup=True)
+        handler = RichHandler(
+            rich_tracebacks=True,
+            tracebacks_show_locals=True,
+            markup=True,
+            show_path=True,
+        )
     else:
         handler = logging.StreamHandler(sys.stderr)
-        handler.setFormatter(JSONFormatter())
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+        )
 
     logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
     logging.getLogger("app").setLevel(logging.INFO)

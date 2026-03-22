@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { deleteUser, logout } from "@/client";
+import * as Sentry from "@sentry/vue";
 import { googleLogout } from "vue3-google-login";
 import { useQueryCache } from "@pinia/colada";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -53,6 +54,7 @@ async function handleSignOut() {
   } catch {
     /* server down - cookie will expire naturally */
   }
+  Sentry.setUser(null);
   googleLogout();
   void cache.invalidateQueries(undefined, false);
   await router.push({ name: "landing" });

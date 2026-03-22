@@ -31,9 +31,10 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     FRONTEND_URL: str
-    ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+    ENVIRONMENT: Literal["local", "production"] = "local"
 
-    SENTRY_DSN: str = ""
+    SENTRY_DSN: str | None = None
+    SENTRY_RELEASE: str | None = None
 
     VITE_GOOGLE_CLIENT_ID: str
     VITE_MAX_UPLOAD_GB: int = 4
