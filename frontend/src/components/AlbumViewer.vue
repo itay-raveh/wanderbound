@@ -153,7 +153,7 @@ if (props.printMode) {
       >
         <!-- Map / Hike section with shared controls -->
         <template v-if="section.type === 'map' || section.type === 'hike'">
-        <MapOnboardingBanner v-if="!printMode" />
+        <MapOnboardingBanner class="print-hide" />
         <div class="map-wrapper">
           <MapSectionControls
             v-if="!printMode"

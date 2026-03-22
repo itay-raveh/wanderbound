@@ -81,7 +81,7 @@ const photoPages = computed(() =>
       </div>
     </div>
 
-    <div v-if="!printMode" class="sidebar-anchor">
+    <div class="sidebar-anchor print-hide">
       <UnusedSidebar
         :assets="step.unused"
         @update:unused-photos="onUnusedUpdate"

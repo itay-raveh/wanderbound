@@ -4,7 +4,6 @@ import { isVideo } from "@/utils/media";
 import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { usePrintMode } from "@/composables/usePrintReady";
 import { useI18n } from "vue-i18n";
 import EditableText from "./EditableText.vue";
 import CoverPhotoPicker from "./CoverPhotoPicker.vue";
@@ -13,7 +12,6 @@ import { computed } from "vue";
 
 const { formatDateRange } = useUserQuery();
 const { t } = useI18n();
-const printMode = usePrintMode();
 
 const props = defineProps<{
   album: Album;
@@ -64,7 +62,7 @@ function saveCover(name: string) {
     />
 
     <!-- Cover photo picker (editor only) -->
-    <div v-if="!printMode" class="cover-picker-anchor">
+    <div class="cover-picker-anchor print-hide">
       <CoverPhotoPicker
         :model-value="coverMedia"
         :album-id="album.id"
