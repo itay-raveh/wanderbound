@@ -240,6 +240,33 @@ class TestBuildPages:
         pages = list(_build_pages(portraits, landscapes))
         assert len(pages) == 2
 
+    def test_4p_3l_prefers_mixed(self) -> None:
+        """4P+3L: mixed [P,L,L]+[P,P,P]+[L]=3pp beats [P,P]+[P,P]+[L,L,L]."""
+        portraits = _names("p", 4)
+        landscapes = _names("l", 3)
+        pages = list(_build_pages(portraits, landscapes))
+        assert len(pages) == 3
+        sizes = sorted(len(p) for p in pages)
+        assert sizes == [1, 3, 3]
+
+    def test_1p_6l_prefers_mixed(self) -> None:
+        """1P+6L: mixed [P,L,L]+[L,L,L,L]=2pp beats [P]+[L,L,L]+[L,L,L]."""
+        portraits = _names("p", 1)
+        landscapes = _names("l", 6)
+        pages = list(_build_pages(portraits, landscapes))
+        assert len(pages) == 2
+        sizes = sorted(len(p) for p in pages)
+        assert sizes == [3, 4]
+
+    def test_6p_5l_avoids_3l_page(self) -> None:
+        """6P+5L should NOT mix — [P,P,P]*2 + [L,L,L,L] + [L] avoids a 0p-3l page."""
+        portraits = _names("p", 6)
+        landscapes = _names("l", 5)
+        pages = list(_build_pages(portraits, landscapes))
+        assert len(pages) == 4
+        sizes = sorted(len(p) for p in pages)
+        assert sizes == [1, 3, 3, 4]
+
     @pytest.mark.parametrize(
         ("p", "l"),
         [

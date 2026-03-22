@@ -49,7 +49,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
         <MediaItem
           v-if="step.cover"
           :media="step.cover"
-          cover
+          fit-cover
           :focusable="false"
           class="cover-media"
         />

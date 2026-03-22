@@ -20,6 +20,7 @@ const localUnused = useLocalCopy(() => props.assets);
 function emitUnused() {
   emit("update:unused-photos", [...localUnused.value]);
 }
+
 </script>
 
 <template>

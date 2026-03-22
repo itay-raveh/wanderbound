@@ -15,18 +15,33 @@ const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
 
-const localPage = useLocalCopy(() => props.page);
+const isPortrait = (m: string) => media.value[m] === "p";
+
+/** In 1P+2L and 1P+3L layouts the portrait must be first (it spans all rows). */
+function enforcePortraitFirst(page: string[]): string[] {
+  if (page.length !== 3 && page.length !== 4) return page;
+  if (isPortrait(page[0]!)) return page;
+  const portrait = page.find(isPortrait);
+  if (!portrait) return page;
+  // Multiple portraits use a symmetric grid — reordering would be arbitrary
+  if (page.filter(isPortrait).length !== 1) return page;
+  return [portrait, ...page.filter((m) => m !== portrait)];
+}
+
+const localPage = useLocalCopy(() => enforcePortraitFirst(props.page));
 
 function emitPage() {
+  localPage.value = enforcePortraitFirst(localPage.value);
   emit("update:page", [...localPage.value]);
 }
 
 const layoutClass = computed(() => {
-  if (localPage.value.length !== 3) return "";
-  const o = localPage.value.map((m) => media.value[m]);
-  if (o.every((v) => v === "p")) return "three-portraits";
-  if (o[0] === "p" && o[1] === "l" && o[2] === "l") return "one-portrait-two-landscapes";
-  return "";
+  const page = localPage.value;
+  // 5+ photos use the same grid regardless of orientation mix
+  if (page.length >= 5) return `layout-${page.length}`;
+  const p = page.filter(isPortrait).length;
+  const l = page.length - p;
+  return `layout-${p}p-${l}l`;
 });
 </script>
 
@@ -44,8 +59,6 @@ const layoutClass = computed(() => {
         v-for="photo in localPage"
         :key="photo"
         :media="photo"
-        :cover="localPage.length >= 3 && layoutClass !== 'three-portraits'"
-        :cols="localPage.length === 1 ? 1 : 2"
         class="item"
       />
     </VueDraggable>
@@ -70,81 +83,143 @@ const layoutClass = computed(() => {
   box-sizing: border-box;
 }
 
-.container:has(.item:nth-child(1):last-child) {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-}
-
-.container:has(.item:nth-child(2):last-child) {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr;
-}
-
-.container.three-portraits {
-  grid-template-columns: 1fr 1fr 1fr !important;
-  grid-template-rows: 1fr !important;
-  column-gap: var(--photo-gap-lg);
-  row-gap: 0 !important;
-}
-
-.container.three-portraits .item:first-child {
-  grid-row: auto !important;
-  grid-column: auto !important;
-}
-
-.container.one-portrait-two-landscapes {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.container.one-portrait-two-landscapes .item:first-child {
-  grid-row: 1 / 3;
-}
-
-.container:has(.item:nth-child(3):last-child):not(
-    .three-portraits,
-    .one-portrait-two-landscapes
-  ) {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.container:has(.item:nth-child(3):last-child):not(
-    .three-portraits,
-    .one-portrait-two-landscapes
-  )
-  .item:first-child {
-  grid-row: 1 / 3;
-}
-
-.container:has(.item:nth-child(4):last-child) {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.container:has(.item:nth-child(5):last-child) {
-  grid-template-columns: 2fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.container:has(.item:nth-child(5):last-child) .item:first-child {
-  grid-row: 1 / 3;
-}
-
-.container:has(.item:nth-child(6):last-child) {
-  grid-template-columns: 2fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
-}
-
-.container:has(.item:nth-child(6):last-child) .item:first-child {
-  grid-row: 1 / 4;
-}
-
 .item {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
 
+// -- Default: cover. Layouts that need contain opt out. --
+
+.container :deep(img) {
+  object-fit: cover;
+}
+
+// -- 1 photo: contain (show full image) --
+
+.layout-1p-0l,
+.layout-0p-1l {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+
+  :deep(img) {
+    object-fit: contain;
+  }
+}
+
+// -- 2 photos --
+
+.layout-0p-2l,
+.layout-1p-1l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+
+  :deep(img) {
+    object-fit: contain;
+  }
+}
+
+.layout-2p-0l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+// -- 3 photos: all same orientation --
+
+.layout-3p-0l {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: min-content;
+  align-content: center;
+
+  .item {
+    aspect-ratio: 9 / 16;
+    overflow: hidden;
+  }
+}
+
+.layout-0p-3l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+
+  .item:first-child {
+    grid-row: 1 / 3;
+  }
+
+  :deep(img) {
+    object-fit: contain;
+  }
+}
+
+// -- 3 photos: mixed (portraits sorted first) --
+
+.layout-1p-2l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+
+  .item:first-child {
+    grid-row: 1 / 3;
+  }
+}
+
+.layout-2p-1l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+
+  .item:last-child {
+    grid-column: 1 / 3;
+  }
+}
+
+// -- 4 photos --
+
+.layout-0p-4l,
+.layout-2p-2l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.layout-1p-3l {
+  grid-template-columns: auto auto;
+  grid-template-rows: 1fr 1fr 1fr;
+  justify-content: center;
+
+  .item:first-child {
+    grid-row: 1 / 4;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+  }
+
+  .item:not(:first-child) {
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+  }
+}
+
+.layout-3p-1l,
+.layout-4p-0l {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+// -- 5 photos --
+
+.layout-5 {
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+
+  .item:first-child {
+    grid-row: 1 / 3;
+  }
+}
+
+// -- 6 photos --
+
+.layout-6 {
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+
+  .item:first-child {
+    grid-row: 1 / 4;
+  }
+}
 </style>

@@ -59,7 +59,7 @@ function saveCover(name: string) {
     <MediaItem
       v-if="coverMedia"
       :media="coverMedia"
-      cover
+      fit-cover
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />
 

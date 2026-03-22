@@ -14,8 +14,10 @@ const focusedPhotoId = ref<string | null>(null);
 const registry = new Map<number, StepFocusContext>();
 let getStepOrder: () => number[] = () => [];
 
+/** Cover is shown on StepMainPage (not focusable) — skip it in navigation. */
 function pagedPhotos(step: Step): string[] {
-  return step.pages.flat();
+  const all = step.pages.flat();
+  return step.cover ? all.filter((p) => p !== step.cover) : all;
 }
 
 function getContext() {

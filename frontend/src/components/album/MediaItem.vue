@@ -4,26 +4,32 @@ import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
-import { computed, inject, nextTick, ref } from "vue";
+import { computed, inject, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   media: string;
-  cover?: boolean;
+  fitCover?: boolean;
   cols?: 1 | 2;
   focusable?: boolean;
-}>();
+}>(), { focusable: true });
 
 const { albumId } = useAlbum();
 const printMode = usePrintMode();
 
 const stepId = inject(STEP_ID_KEY, null);
 const photoFocus = usePhotoFocus();
-const canFocus = computed(() => props.focusable !== false && !printMode && stepId != null);
+const canFocus = computed(() => props.focusable && !printMode && stepId != null);
 const isFocused = computed(() => canFocus.value && photoFocus.focusedPhotoId.value === props.media);
+
+const elRef = ref<HTMLElement | null>(null);
+
+watch(isFocused, (focused) => {
+  if (focused) elRef.value?.closest(".page-container")?.scrollIntoView({ block: "center" });
+});
 
 function handleClick() {
   if (canFocus.value) photoFocus.focus(stepId!, props.media);
@@ -96,14 +102,14 @@ function onVideoKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div :class="['media-item', { focused: isFocused }]" class="relative-position overflow-hidden non-selectable" data-media @mousedown="handleClick">
+  <div ref="elRef" :class="['media-item', { focused: isFocused }]" class="relative-position overflow-hidden non-selectable" data-media @click="handleClick">
     <template v-if="isVideo && !printMode">
       <img
         v-show="!playing"
         :src="posterSrc"
         :srcset="imgSrcset"
         :sizes="imgSizes"
-        :class="['fit', cover ? 'fit-cover' : 'fit-contain']"
+        :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
         decoding="async"
       >
@@ -141,7 +147,7 @@ function onVideoKey(e: KeyboardEvent) {
         :srcset="imgSrcset"
         :sizes="imgSizes"
         :loading="imgLoading"
-        :class="['fit', cover ? 'fit-cover' : 'fit-contain']"
+        :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
       >
     </template>

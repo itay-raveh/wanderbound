@@ -34,24 +34,44 @@ def _landscape_page_count(n: int) -> int:
     return 2 if n == 2 else ceil(n / 4)
 
 
+def _three_page_count(n: int) -> int:
+    """Remainder when packing n items into groups of 4, filled by groups of 3."""
+    return -n % 4
+
+
+def _bad_page_count(p: int, l: int) -> int:
+    """Count undesirable pages: lonely portraits (1p-0l) and 3-landscape pages (0p-3l).
+
+    Single landscapes (1l) aren't penalised — they're unavoidable edge cases
+    and look fine as full-width images, unlike lonely portraits or 3-landscape
+    grids which waste space or crop poorly.
+    """
+    lonely_p = 1 if p > 0 and p % 3 == 1 else 0
+    three_l = _three_page_count(l) if l >= 3 and l != 5 else 0
+    return lonely_p + three_l
+
+
 def _optimal_mixed_count(p: int, l: int) -> int:
-    """Find the number of 1P+2L pages that minimizes total page count."""
+    """Find the number of 1P+2L pages that minimizes total page count.
+
+    On ties, prefer fewer lonely-portrait and 3-landscape pages.
+    """
     best_total = p + l
+    best_bad = p + l
     best_b = 0
 
     for b in range(min(p, l // 2) + 1):
-        total = b + _portrait_page_count(p - b) + _landscape_page_count(l - 2 * b)
+        rp, rl = p - b, l - 2 * b
+        total = b + _portrait_page_count(rp) + _landscape_page_count(rl)
 
-        if total < best_total:
+        if total < best_total or (
+            total == best_total and _bad_page_count(rp, rl) < best_bad
+        ):
             best_total = total
+            best_bad = _bad_page_count(rp, rl)
             best_b = b
 
     return best_b
-
-
-def _three_page_count(n: int) -> int:
-    """Number of 3-pages to optimally decompose n landscapes into pages of 4 and 3."""
-    return -n % 4
 
 
 def _pages_of(items: Iterable[str], size: int) -> Iterable[list[str]]:
