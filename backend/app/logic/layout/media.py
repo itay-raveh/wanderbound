@@ -9,6 +9,8 @@ from PIL.ExifTags import Base as ExifBase
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
+from app.core.resources import detect_memory_mb
+
 logger = logging.getLogger(__name__)
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
@@ -17,8 +19,10 @@ THUMB_WIDTHS = (200, 800)
 THUMB_QUALITY = 80
 
 # Limit concurrent heavy media work (ffmpeg frame extraction, Pillow thumbnails).
-# Container limit is 2 GB; ~400 MB for Python/Chromium leaves ~1600 MB for media.
-media_sem = asyncio.Semaphore(20)
+_MEDIA_BASELINE_MB = 400  # Python process + other services sharing the container
+_PER_MEDIA_OP_MB = 80  # Pillow load + resize + save
+_media_budget = max(256, detect_memory_mb() - _MEDIA_BASELINE_MB)
+media_sem = asyncio.Semaphore(max(4, min(40, _media_budget // _PER_MEDIA_OP_MB)))
 
 
 def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:

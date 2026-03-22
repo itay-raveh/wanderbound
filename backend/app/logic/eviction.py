@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_engine
+from app.core.resources import MiB
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -45,8 +46,8 @@ async def run_eviction(skip_uid: int) -> None:
 
     logger.info(
         "Storage %d MB exceeds cap %d MB, starting eviction",
-        total // 1_048_576,
-        cap // 1_048_576,
+        total // MiB,
+        cap // MiB,
     )
 
     async with AsyncSession(get_engine()) as session:
@@ -66,6 +67,6 @@ async def run_eviction(skip_uid: int) -> None:
 
         await asyncio.to_thread(shutil.rmtree, user.folder, ignore_errors=True)
         total -= folder_size
-        logger.info("Evicted user %d folder (%d MB)", user.id, folder_size // 1_048_576)
+        logger.info("Evicted user %d folder (%d MB)", user.id, folder_size // MiB)
 
-    logger.info("Eviction complete, storage now %d MB", total // 1_048_576)
+    logger.info("Eviction complete, storage now %d MB", total // MiB)

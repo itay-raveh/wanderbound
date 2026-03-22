@@ -18,6 +18,7 @@ from fastapi import (
 from fastapi.sse import EventSourceResponse
 
 from app.core.config import get_settings
+from app.core.resources import MiB
 from app.logic.eviction import run_eviction
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
@@ -84,7 +85,7 @@ async def upload_data(
     existing, google = await _resolve_auth(uid, credential, session, request)
 
     size = _check_upload_size(file)
-    logger.info("Extracting '%s' (%d MB)", file.filename, size // 1_048_576)
+    logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
     try:
         temp_folder, ps_user, trips = await asyncio.to_thread(
             extract_and_scan, file.file
