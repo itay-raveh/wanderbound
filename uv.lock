@@ -151,7 +151,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "aiosqlite", specifier = "~=0.22" },
     { name = "deptry", specifier = "<1" },
     { name = "pytest", specifier = "~=9.0" },
     { name = "ruff", specifier = "<1" },

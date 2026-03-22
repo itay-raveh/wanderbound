@@ -36,7 +36,7 @@ dev = [
     "ty<1",
     "deptry<1",
     "pytest~=9.0",
-    "aiosqlite>=0.22.1",
+    "aiosqlite~=0.22",
 ]
 
 [build-system]
