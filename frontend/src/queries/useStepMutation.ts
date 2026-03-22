@@ -1,36 +1,47 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep } from "@/client";
 import type { AlbumData, StepUpdate } from "@/client";
-import { useAlbum } from "@/composables/useAlbum";
+import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
 import { queryKeys } from "./keys";
 
-export function useStepMutation() {
+export function useStepMutation(aid: () => string) {
   const cache = useQueryCache();
-  const { albumId } = useAlbum();
+  const undoStack = useUndoStack();
 
   return useMutation({
     mutation: async (payload: { sid: number; update: StepUpdate }) => {
       const { data } = await updateStep({
-        path: { aid: albumId.value, sid: payload.sid },
+        path: { aid: aid(), sid: payload.sid },
         body: payload.update,
       });
       return data;
     },
     onMutate: (payload) => {
-      const aid = albumId.value;
-      const key = queryKeys.albumData(aid);
+      const albumId = aid();
+      const key = queryKeys.albumData(albumId);
       const prev = cache.getQueryData<AlbumData>(key);
       if (prev) {
+        let oldStep: (typeof prev.steps)[number] | undefined;
         cache.setQueryData(key, {
           ...prev,
-          steps: prev.steps.map((s) =>
-            s.id === payload.sid ? { ...s, ...payload.update } : s,
-          ),
+          steps: prev.steps.map((s) => {
+            if (s.id !== payload.sid) return s;
+            oldStep = s;
+            return { ...s, ...payload.update };
+          }),
         });
+        if (oldStep) {
+          undoStack.push({
+            type: "step",
+            sid: payload.sid,
+            before: pickSnapshot(oldStep, Object.keys(payload.update) as (keyof StepUpdate)[]),
+            after: { ...payload.update },
+          });
+        }
       }
-      return { prev, aid };
+      return { prev, aid: albumId };
     },
     onError: (_error, _vars, ctx) => {
       if (ctx?.prev) {

@@ -148,6 +148,16 @@
     "issues": "דיווח על בעיה"
   },
 
+  "shortcuts": {
+    "title": "קיצורי מקלדת",
+    "navigatePhotos": "ניווט בין תמונות",
+    "sendToUnused": "שליחה ללא בשימוש",
+    "setAsCover": "הגדרה כשער",
+    "clearSelection": "ביטול בחירה",
+    "undo": "ביטול",
+    "redo": "חזרה"
+  },
+
   "onboarding": {
     "editorTitle": "האלבום מוכן להתאמה אישית",
     "editText": "לחצו על טקסט כדי לערוך",

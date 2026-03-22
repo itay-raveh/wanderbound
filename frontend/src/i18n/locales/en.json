@@ -148,6 +148,16 @@
     "issues": "Report an issue"
   },
 
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "navigatePhotos": "Navigate photos",
+    "sendToUnused": "Send to unused",
+    "setAsCover": "Set as cover",
+    "clearSelection": "Clear selection",
+    "undo": "Undo",
+    "redo": "Redo"
+  },
+
   "onboarding": {
     "editorTitle": "Your album is ready to customize",
     "editText": "Click any text to edit",

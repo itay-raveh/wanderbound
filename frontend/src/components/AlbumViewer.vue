@@ -6,7 +6,11 @@ import LazySection from "./LazySection.vue";
 import MapSectionControls from "./album/map/MapSectionControls.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
+import { provideStepMutate } from "@/composables/useStepLayout";
+import { usePhotoFocus } from "@/composables/usePhotoFocus";
+import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
@@ -52,7 +56,6 @@ const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, 
 const albumMedia = computed(() => (props.album.media ?? {}) as Record<string, string>);
 const albumMutation = useAlbumMutation(() => props.album.id);
 
-// Filter steps by the album's date ranges.
 const steps = computed(() => {
   const ranges = props.album.steps_ranges;
   if (!ranges?.length) return props.data.steps;
@@ -89,8 +92,6 @@ const expectedPageCount = computed(() =>
   4 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 
-// --- Map range editing ---
-
 function addMapBefore(step: Step) {
   const sd = isoDate(step.datetime);
   const ranges: DateRange[] = [...(props.album.maps_ranges ?? []), [sd, sd]];
@@ -101,6 +102,18 @@ function addMapBefore(step: Step) {
 // In print mode, provide a flag so child components can set loading="eager".
 if (props.printMode) {
   providePrintMode();
+} else {
+  const stepMut = useStepMutation(() => props.album.id);
+  provideStepMutate((payload) => stepMut.mutate(payload));
+
+  const undoStack = useUndoStack();
+  undoStack.registerMutators(
+    (sid, update) => stepMut.mutate({ sid, update }),
+    (update) => albumMutation.mutate(update),
+  );
+
+  const photoFocus = usePhotoFocus();
+  photoFocus.setStepOrder(() => steps.value.map((s) => s.id));
 }
 </script>
 

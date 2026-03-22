@@ -5,10 +5,11 @@ import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
 import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
+import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextMeasure } from "@/composables/useTextMeasure";
 import { filterCoverFromPages } from "./albumSections";
 import { useI18n } from "vue-i18n";
-import { computed, ref, toRef } from "vue";
+import { computed, onUnmounted, provide, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
@@ -20,8 +21,20 @@ const props = defineProps<{
 const dropZoneRef = ref<HTMLElement | null>(null);
 const coverDropRef = ref<HTMLElement | null>(null);
 
-const { printMode, isDragging, saveField, onPageUpdate, onUnusedUpdate } =
+const { printMode, isDragging, saveField, onPageUpdate, onUnusedUpdate, onCoverUpdate } =
   useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
+
+provide(STEP_ID_KEY, props.step.id);
+
+if (!printMode) {
+  const photoFocus = usePhotoFocus();
+  photoFocus.register(props.step.id, {
+    step: toRef(props, "step"),
+    onCoverUpdate,
+    onUnusedUpdate,
+  });
+  onUnmounted(() => photoFocus.unregister(props.step.id));
+}
 
 const desc = useTextMeasure(computed(() => props.step.description ?? ""));
 
@@ -59,7 +72,6 @@ const photoPages = computed(() =>
         @update:page="onPageUpdate(originalIdx, $event)"
       />
 
-      <!-- Add page drop zone (editor only) -->
       <div v-if="!printMode" class="add-zone relative-position">
         <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
           <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
@@ -69,7 +81,6 @@ const photoPages = computed(() =>
       </div>
     </div>
 
-    <!-- Unused photos sidebar (editor only) -->
     <div v-if="!printMode" class="sidebar-anchor">
       <UnusedSidebar
         :assets="step.unused"

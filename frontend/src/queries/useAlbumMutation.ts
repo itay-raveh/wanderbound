@@ -1,12 +1,14 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateAlbum } from "@/client";
 import type { Album, AlbumUpdate } from "@/client";
+import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
 import { queryKeys } from "./keys";
 
 export function useAlbumMutation(aid: () => string) {
   const cache = useQueryCache();
+  const undoStack = useUndoStack();
 
   return useMutation({
     mutation: async (update: AlbumUpdate) => {
@@ -21,6 +23,11 @@ export function useAlbumMutation(aid: () => string) {
       const prev = cache.getQueryData<Album>(key);
       if (prev) {
         cache.setQueryData(key, { ...prev, ...update });
+        undoStack.push({
+          type: "album",
+          before: pickSnapshot(prev, Object.keys(update) as (keyof AlbumUpdate)[]),
+          after: { ...update },
+        });
       }
       return prev;
     },

@@ -1,9 +1,16 @@
 import type { Step, StepUpdate } from "@/client";
 import { useDragState } from "./useDragState";
 import { usePrintMode } from "./usePrintReady";
-import { useStepMutation } from "@/queries/useStepMutation";
-import { ref, type Ref } from "vue";
+import { inject, provide, ref, type InjectionKey, type Ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
+
+type StepMutateFn = (payload: { sid: number; update: StepUpdate }) => void;
+
+const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
+
+export function provideStepMutate(fn: StepMutateFn) {
+  provide(STEP_MUTATE_KEY, fn);
+}
 
 interface DropRefs {
   dropZoneRef: Ref<HTMLElement | null>;
@@ -17,21 +24,13 @@ interface DropRefs {
 export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: DropRefs) {
   const printMode = usePrintMode();
   const isDragging = useDragState();
-  const stepMutation = useStepMutation();
+  const mutate = inject(STEP_MUTATE_KEY, null);
 
   const dropZoneList = ref<string[]>([]);
   const coverDropList = ref<string[]>([]);
 
   function saveField(patch: Partial<StepUpdate>) {
-    stepMutation.mutate({ sid: step.value.id, update: patch });
-  }
-
-  function saveLayout(patch: Partial<StepUpdate>) {
-    const s = step.value;
-    stepMutation.mutate({
-      sid: s.id,
-      update: { cover: s.cover, pages: s.pages, unused: s.unused, ...patch },
-    });
+    mutate?.({ sid: step.value.id, update: patch });
   }
 
   /** Remove a set of photos from all pages and unused list atomically. */
@@ -48,7 +47,7 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
   function onCoverUpdate(cover: string) {
     const oldCover = step.value.cover;
     const { pages, unused } = withoutPhotos(new Set([cover]));
-    saveLayout({
+    saveField({
       cover,
       pages,
       unused: oldCover ? [...unused, oldCover] : unused,
@@ -71,11 +70,11 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
         )
         .filter((p) => p.length > 0);
       const unused = s.unused.filter((p) => !addedSet.has(p));
-      saveLayout({ pages, unused });
+      saveField({ pages, unused });
     } else {
       const pages = [...s.pages];
       pages[idx] = page;
-      saveLayout({ pages });
+      saveField({ pages });
     }
   }
 
@@ -85,9 +84,9 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
 
     if (added.length > 0) {
       const cleaned = withoutPhotos(new Set(added));
-      saveLayout({ ...cleaned, unused });
+      saveField({ ...cleaned, unused });
     } else {
-      saveLayout({ unused });
+      saveField({ unused });
     }
   }
 
@@ -100,7 +99,7 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
         const photos = [...dropZoneList.value];
         dropZoneList.value = [];
         const cleaned = withoutPhotos(new Set(photos));
-        saveLayout({ ...cleaned, pages: [...cleaned.pages, photos] });
+        saveField({ ...cleaned, pages: [...cleaned.pages, photos] });
       },
     });
 
@@ -122,5 +121,6 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
     saveField,
     onPageUpdate,
     onUnusedUpdate,
+    onCoverUpdate,
   };
 }

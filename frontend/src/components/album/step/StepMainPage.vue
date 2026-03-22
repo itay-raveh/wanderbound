@@ -50,6 +50,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
           v-if="step.cover"
           :media="step.cover"
           cover
+          :focusable="false"
           class="cover-media"
         />
         <div v-else class="cover-placeholder fit flex flex-center text-faint">

@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { useAlbum } from "@/composables/useAlbum";
+import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
-import { computed, nextTick, ref } from "vue";
+import { computed, inject, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
 
@@ -13,10 +14,20 @@ const props = defineProps<{
   media: string;
   cover?: boolean;
   cols?: 1 | 2;
+  focusable?: boolean;
 }>();
 
 const { albumId } = useAlbum();
 const printMode = usePrintMode();
+
+const stepId = inject(STEP_ID_KEY, null);
+const photoFocus = usePhotoFocus();
+const canFocus = computed(() => props.focusable !== false && !printMode && stepId != null);
+const isFocused = computed(() => canFocus.value && photoFocus.focusedPhotoId.value === props.media);
+
+function handleClick() {
+  if (canFocus.value) photoFocus.focus(stepId!, props.media);
+}
 const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 
 const isVideo = computed(() => checkVideo(props.media));
@@ -85,7 +96,7 @@ function onVideoKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="media-item relative-position overflow-hidden non-selectable" data-media>
+  <div :class="['media-item', { focused: isFocused }]" class="relative-position overflow-hidden non-selectable" data-media @mousedown="handleClick">
     <template v-if="isVideo && !printMode">
       <img
         v-show="!playing"
@@ -147,6 +158,11 @@ function onVideoKey(e: KeyboardEvent) {
 
   &:active {
     cursor: grabbing;
+  }
+
+  &.focused {
+    outline: 3px solid var(--q-primary);
+    outline-offset: -3px;
   }
 }
 
