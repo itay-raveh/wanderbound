@@ -3,12 +3,14 @@ import io
 import logging
 import shutil
 from collections.abc import AsyncIterable
+from dataclasses import dataclass
 from typing import Annotated, cast
 from zipfile import BadZipFile
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Depends,
     Form,
     HTTPException,
     Request,
@@ -30,14 +32,20 @@ from app.logic.export import (
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
 from app.logic.upload import UploadResult, extract_and_scan
-from app.models.user import GoogleIdentity, User, UserUpdate
+from app.models.user import OAuthIdentity, Provider, User, UserUpdate
 
 from ..deps import SessionDep, UserDep
-from .auth import verify_google_credential
+from .auth import verify_credential
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@dataclass
+class _AuthForm:
+    credential: Annotated[str | None, Form()] = None
+    provider: Annotated[Provider | None, Form()] = None
 
 
 def _check_upload_size(file: UploadFile) -> int:
@@ -62,24 +70,21 @@ def _check_upload_size(file: UploadFile) -> int:
 async def _resolve_auth(
     uid: int | None,
     credential: str | None,
+    provider: Provider | None,
     session: SessionDep,
     request: Request,
-) -> tuple[User | None, GoogleIdentity | None]:
-    """Return (existing_user, google_identity) or raise 401."""
-    if not uid:
-        if not credential:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-        return None, await verify_google_credential(credential)
+) -> tuple[User | None, OAuthIdentity | None]:
+    """Return (existing_user, oauth_identity) or raise 401."""
+    if uid:
+        existing = await session.get(User, uid)
+        if existing:
+            return existing, None
+        # Stale session pointing to non-existent user (e.g. fresh DB)
+        request.session.clear()
 
-    existing = await session.get(User, uid)
-    if existing:
-        return existing, None
-
-    # Stale session pointing to non-existent user (e.g. fresh DB)
-    request.session.clear()
-    if not credential:
+    if not credential or not provider:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-    return None, await verify_google_credential(credential)
+    return None, await verify_credential(credential, provider)
 
 
 @router.post("/upload")
@@ -88,12 +93,14 @@ async def upload_data(
     request: Request,
     session: SessionDep,
     background_tasks: BackgroundTasks,
-    credential: Annotated[str | None, Form()] = None,
+    auth: Annotated[_AuthForm, Depends()],
 ) -> UploadResult:
     uid: int | None = request.session.get("uid")
 
     # Auth first — reject unauthorized users before processing the ZIP.
-    existing, google = await _resolve_auth(uid, credential, session, request)
+    existing, identity = await _resolve_auth(
+        uid, auth.credential, auth.provider, session, request
+    )
 
     size = _check_upload_size(file)
     logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
@@ -123,16 +130,17 @@ async def upload_data(
             user = existing
             logger.info("User %d re-uploaded ZIP", user.id)
         else:
-            # New user: google is guaranteed set (uid was absent -> credential verified)
-            g = cast("GoogleIdentity", google)
+            # New user: identity is guaranteed set (uid was absent)
+            oauth = cast("OAuthIdentity", identity)
             user = User(
                 id=ps_user.id,
-                first_name=g.first_name or ps_user.first_name,
+                first_name=oauth.first_name or ps_user.first_name or "Anonymous",
                 locale=ps_user.locale,
                 unit_is_km=ps_user.unit_is_km,
                 temperature_is_celsius=ps_user.temperature_is_celsius,
-                google_sub=g.sub,
-                profile_image_url=(str(g.picture) if g.picture else None),
+                google_sub=oauth.sub if oauth.provider == "google" else None,
+                microsoft_sub=oauth.sub if oauth.provider == "microsoft" else None,
+                profile_image_url=(str(oauth.picture) if oauth.picture else None),
                 living_location=ps_user.living_location,
                 album_ids=album_ids,
             )

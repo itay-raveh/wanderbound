@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     SENTRY_RELEASE: str | None = None
 
     VITE_GOOGLE_CLIENT_ID: str
+    VITE_MICROSOFT_CLIENT_ID: str = ""
     VITE_MAX_UPLOAD_GB: int = 4
 
     BACKEND_CORS_ORIGINS: Annotated[

@@ -179,7 +179,7 @@ class TestExportUserData:
 
         path.unlink(missing_ok=True)
 
-    async def test_excludes_google_sub(
+    async def test_excludes_provider_subs(
         self, session: AsyncSession, tmp_path: Path
     ) -> None:
         uid = 7002
@@ -196,6 +196,7 @@ class TestExportUserData:
             account = json.loads(zf.read(f"{_EXPORT_NAME}/account.json"))
 
         assert "google_sub" not in account
+        assert "microsoft_sub" not in account
         assert account["first_name"] == "Test"
         path.unlink(missing_ok=True)
 

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { deleteUser, logout } from "@/client";
 import * as Sentry from "@sentry/vue";
+import { clearMsalCache } from "@/composables/useMicrosoftAuth";
 import { googleLogout } from "vue3-google-login";
 import { useQueryCache } from "@pinia/colada";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -51,15 +52,19 @@ function onLocaleFilter(val: string, update: (fn: () => void) => void) {
   });
 }
 
+async function clearAllAuthState() {
+  Sentry.setUser(null);
+  googleLogout();
+  await Promise.all([cache.invalidateQueries(undefined, false), clearMsalCache()]);
+}
+
 async function handleSignOut() {
   try {
     await logout();
   } catch {
     /* server down - cookie will expire naturally */
   }
-  Sentry.setUser(null);
-  googleLogout();
-  void cache.invalidateQueries(undefined, false);
+  await clearAllAuthState();
   await router.push({ name: "landing" });
 }
 
@@ -67,7 +72,7 @@ async function handleDelete() {
   deleting.value = true;
   try {
     await deleteUser();
-    void cache.invalidateQueries(undefined, false);
+    await clearAllAuthState();
     await router.push({ name: "landing" });
   } catch {
     $q.notify({ type: "negative", message: t("settings.deleteFailed") });

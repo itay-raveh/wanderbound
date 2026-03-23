@@ -1,8 +1,28 @@
 import EditorView from "@/pages/EditorView.vue";
 import { readUser } from "@/client";
+import type { BodyUploadData } from "@/client";
 import { createRouter, createWebHistory } from "vue-router";
 
-export const CREDENTIAL_KEY = "google_credential";
+export type Provider = NonNullable<BodyUploadData["provider"]>;
+
+const AUTH_STATE_KEY = "auth_state";
+
+export function getAuthState(): { credential: string; provider: Provider } | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthState(credential: string, provider: Provider): void {
+  sessionStorage.setItem(AUTH_STATE_KEY, JSON.stringify({ credential, provider }));
+}
+
+export function clearAuthState(): void {
+  sessionStorage.removeItem(AUTH_STATE_KEY);
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -51,8 +71,8 @@ router.beforeEach(async (to, from) => {
   // Public routes other than landing skip auth entirely
   if (to.meta.public && to.name !== "landing") return;
 
-  // New user after Google sign-in: has credential but no session yet
-  if (to.name === "upload" && sessionStorage.getItem(CREDENTIAL_KEY)) return;
+  // New user after sign-in: has credential but no session yet
+  if (to.name === "upload" && getAuthState()) return;
 
   // In-app navigations: session was already verified on initial load
   if (from.name) return;

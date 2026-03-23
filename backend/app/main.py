@@ -25,7 +25,7 @@ setup_logging(use_rich=settings.ENVIRONMENT == "local")
 
 if settings.SENTRY_DSN:
 
-    def _before_breadcrumb(crumb: dict, hint: dict) -> dict | None:  # type: ignore[type-arg]
+    def _before_breadcrumb(crumb: dict, hint: dict) -> dict | None:
         if crumb.get("category") in SENTRY_IGNORED:
             return None
         return crumb

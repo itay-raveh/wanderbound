@@ -99,6 +99,15 @@ GOOGLE_PAYLOAD = {
     "picture": "https://example.com/photo.jpg",
 }
 
+MICROSOFT_PAYLOAD = {
+    "sub": "microsoft-456",
+    "given_name": "Test",
+    "name": "Test Microsoft",
+    "iss": "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0",
+}
+
+_DEFAULT_PAYLOADS = {"google": GOOGLE_PAYLOAD, "microsoft": MICROSOFT_PAYLOAD}
+
 PS_USER = PSUser(
     id=999,
     first_name="Zip",
@@ -112,18 +121,21 @@ TRIPS = [TripMeta(id="trip-1", title="Test Trip", step_count=5, country_codes=["
 
 @contextmanager
 def mock_jwt(
-    payload: dict | None = None, *, decode_error: bool = False
+    provider: str = "google",
+    payload: dict | None = None,
+    *,
+    decode_error: bool = False,
 ) -> Generator[None]:
     mock_key = MagicMock()
     mock_key.key = "fake-key"
     decode_kwargs: dict = (
         {"side_effect": jwt_module.InvalidTokenError}
         if decode_error
-        else {"return_value": payload or GOOGLE_PAYLOAD}
+        else {"return_value": payload or _DEFAULT_PAYLOADS[provider]}
     )
     with (
         patch(
-            "app.api.v1.routes.auth._jwks_client.get_signing_key_from_jwt",
+            f"app.api.v1.routes.auth._{provider}_jwks.get_signing_key_from_jwt",
             return_value=mock_key,
         ),
         patch("jwt.decode", **decode_kwargs),
@@ -142,11 +154,16 @@ def mock_extract(users_dir: Path) -> patch:
     )
 
 
-async def sign_in_and_upload(client: AsyncClient, users_dir: Path) -> dict:
-    with mock_jwt(), mock_extract(users_dir):
+async def sign_in_and_upload(
+    client: AsyncClient,
+    users_dir: Path,
+    provider: str = "google",
+    payload: dict | None = None,
+) -> dict:
+    with mock_jwt(provider, payload=payload), mock_extract(users_dir):
         resp = await client.post(
             "/api/v1/users/upload",
-            data={"credential": "fake"},
+            data={"credential": "fake", "provider": provider},
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
     assert resp.status_code == 200

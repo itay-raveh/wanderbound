@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import sqlalchemy as sa
 from pydantic import (
@@ -48,17 +48,27 @@ class PSUser(UserBase):
     living_location: Location | None = None
 
 
-class GoogleIdentity(BaseModel):
-    """Validated Google ID token claims."""
+Provider = Literal["google", "microsoft"]
 
+
+class OAuthIdentity(BaseModel):
     sub: str
     first_name: str
     picture: HttpUrl | None = None
+    provider: Provider
 
 
 class User(UserBase, table=True):
+    __table_args__ = (
+        sa.CheckConstraint(
+            "google_sub IS NOT NULL OR microsoft_sub IS NOT NULL",
+            name="ck_user_has_provider",
+        ),
+    )
+
     id: int = Field(primary_key=True)
-    google_sub: str = Field(unique=True, index=True)
+    google_sub: str | None = Field(default=None, unique=True, index=True)
+    microsoft_sub: str | None = Field(default=None, unique=True, index=True)
     profile_image_url: str | None = Field(default=None, max_length=500)
     living_location: Location | None = Field(
         default=None, sa_column=Column(PydanticJSON(Location), nullable=True)

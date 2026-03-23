@@ -18,7 +18,7 @@ from sqlmodel import select
 from app.core.tokens import TokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.models.album import Album
-from app.models.user import User
+from app.models.user import Provider, User
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -31,6 +31,7 @@ EXPORT_FILENAME = f"{_EXPORT_NAME}.zip"
 _EXPORT_TIMEOUT = 600
 _PROGRESS_EVERY_N_FILES = 10
 _JSON_FILES_PER_ALBUM = 3
+_EXCLUDED_USER_FIELDS = {f"{p}_sub" for p in Provider.__args__} | {"has_data"}
 
 
 class ExportProgress(BaseModel):
@@ -225,7 +226,7 @@ async def export_user_data(
     ]
     album_ids: list[str] = [a["album"]["id"] for a in albums_data]
     del albums  # release ORM objects
-    account_data = user.model_dump(mode="json", exclude={"google_sub", "has_data"})
+    account_data = user.model_dump(mode="json", exclude=_EXCLUDED_USER_FIELDS)
 
     trips_folder = user.trips_folder
     media_by_album = await asyncio.to_thread(_scan_media, trips_folder, album_ids)

@@ -16,6 +16,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.6.1",
     "@hey-api/client-fetch": "^0.13.1",
     "@mapbox/mapbox-gl-supported": "^3.0.0",
     "@pinia/colada": "^1.0.0",

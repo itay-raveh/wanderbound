@@ -5,7 +5,7 @@ import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
 import { useProcessingStream } from "@/composables/useProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { CREDENTIAL_KEY } from "@/router";
+import { getAuthState, clearAuthState as clearAuth } from "@/router";
 import { useI18n } from "vue-i18n";
 import { useMeta } from "quasar";
 import RegisterHero from "@/components/register/RegisterHero.vue";
@@ -23,7 +23,9 @@ const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
 const router = useRouter();
-const credential = sessionStorage.getItem(CREDENTIAL_KEY) ?? undefined;
+const authState = getAuthState();
+const credential = authState?.credential;
+const provider = authState?.provider;
 
 // Derive upload page state from user query.
 // For new users (credential present), the query will 401 - user stays undefined.
@@ -56,7 +58,7 @@ onMounted(() => {
 function onUploaded(data: UploadResult) {
   uploadResult.value = data;
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  sessionStorage.removeItem(CREDENTIAL_KEY);
+  clearAuth();
   stream.start();
 }
 
@@ -99,7 +101,7 @@ function onDone() {
           <q-separator class="q-my-md" />
         </template>
 
-        <ZipUploader v-if="mapboxSupported" :credential="credential" @uploaded="onUploaded" />
+        <ZipUploader v-if="mapboxSupported" :credential="credential" :provider="provider" @uploaded="onUploaded" />
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
 

@@ -1,11 +1,13 @@
 <script lang="ts" setup>
-import { authGoogle, readUser } from "@/client";
+import { authGoogle, authMicrosoft, readUser } from "@/client";
+import { microsoftLogin } from "@/composables/useMicrosoftAuth";
+import LoginButtons from "@/components/register/LoginButtons.vue";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { onMounted, ref } from "vue";
 import { type CallbackTypes } from "vue3-google-login";
-import { CREDENTIAL_KEY } from "@/router";
+import { setAuthState, type Provider } from "@/router";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -29,19 +31,32 @@ const features = [
   { key: "localization", image: "/landing/localization.jpg" },
 ] as const;
 
-async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
+const AUTH_FNS = { google: authGoogle, microsoft: authMicrosoft } as const satisfies Record<Provider, unknown>;
+
+async function handleLogin(credential: string, provider: Provider) {
+  const { data: user } = await AUTH_FNS[provider]({ body: { credential } });
+  if (user) {
+    await router.push({ name: "editor" });
+  } else {
+    setAuthState(credential, provider);
+    await router.push({ name: "upload" });
+  }
+}
+
+function notifyLoginFailed() {
+  $q.notify({ type: "negative", message: t("login.signInFailed") });
+}
+
+function onGoogleSuccess(response: CallbackTypes.CredentialPopupResponse) {
+  void handleLogin(response.credential, "google").catch(notifyLoginFailed);
+}
+
+async function onMicrosoftLogin() {
   try {
-    const { data: user } = await authGoogle({
-      body: { credential: response.credential },
-    });
-    if (user) {
-      await router.push({ name: "editor" });
-    } else {
-      sessionStorage.setItem(CREDENTIAL_KEY, response.credential);
-      await router.push({ name: "upload" });
-    }
+    const idToken = await microsoftLogin();
+    await handleLogin(idToken, "microsoft");
   } catch {
-    $q.notify({ type: "negative", message: t("login.signInFailed") });
+    notifyLoginFailed();
   }
 }
 </script>
@@ -64,7 +79,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
             size="lg"
             :to="{ name: 'editor' }"
           />
-          <GoogleLogin v-else :callback="onSuccess" />
+          <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
         </div>
       </div>
 
@@ -113,7 +128,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
           size="lg"
           :to="{ name: 'editor' }"
         />
-        <GoogleLogin v-else :callback="onSuccess" />
+        <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
       </div>
     </section>
   </main>

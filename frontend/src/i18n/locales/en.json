@@ -14,11 +14,12 @@
     "editorScreenshot": "Screenshot of the Wanderbound album editor",
     "openEditor": "Open editor",
     "ctaTitle": "Ready to make your album?",
-    "ctaBody": "Sign in with Google and upload your Polarsteps data to get started."
+    "ctaBody": "Sign in and upload your Polarsteps data to get started."
   },
 
   "login": {
     "signIn": "Sign in with Google",
+    "signInMicrosoft": "Sign in with Microsoft",
     "signInFailed": "Sign-in failed. Please try again."
   },
 

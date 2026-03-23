@@ -14,11 +14,12 @@
     "editorScreenshot": "צילום מסך של עורך האלבומים Wanderbound",
     "openEditor": "לעורך",
     "ctaTitle": "רוצים להכין אלבום?",
-    "ctaBody": "מתחברים עם Google ומעלים את הנתונים מ-Polarsteps."
+    "ctaBody": "מתחברים ומעלים את הנתונים מ-Polarsteps."
   },
 
   "login": {
     "signIn": "התחברות עם Google",
+    "signInMicrosoft": "התחברות עם Microsoft",
     "signInFailed": "ההתחברות נכשלה. נסו שוב."
   },
 

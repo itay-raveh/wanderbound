@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_BACKEND_URL: string
   readonly VITE_MAPBOX_TOKEN: string
   readonly VITE_GOOGLE_CLIENT_ID: string
+  readonly VITE_MICROSOFT_CLIENT_ID: string
   readonly VITE_CONTACT_EMAIL?: string
   readonly VITE_GITHUB_URL?: string
   readonly VITE_AUTHOR_NAME?: string

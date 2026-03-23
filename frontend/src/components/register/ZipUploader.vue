@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { client } from "@/client/client.gen";
 import type { UploadResult } from "@/client";
+import type { Provider } from "@/router";
 import { useQuasar } from "quasar";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -8,6 +9,7 @@ import RegisterStep from "./RegisterStep.vue";
 
 const props = defineProps<{
   credential?: string;
+  provider?: Provider;
 }>();
 
 const emit = defineEmits<{
@@ -16,9 +18,12 @@ const emit = defineEmits<{
 
 const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users/upload`;
 
-const formFields = computed(() =>
-  props.credential ? [{ name: "credential", value: props.credential }] : [],
-);
+const formFields = computed(() => {
+  const fields: { name: string; value: string }[] = [];
+  if (props.credential) fields.push({ name: "credential", value: props.credential });
+  if (props.provider) fields.push({ name: "provider", value: props.provider });
+  return fields;
+});
 
 const maxUploadGb = Number(import.meta.env.VITE_MAX_UPLOAD_GB) || 4;
 const maxFileSize = maxUploadGb * 1024 * 1024 * 1024;

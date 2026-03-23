@@ -127,6 +127,10 @@ Code should be self-documenting through clear names, types, and structure. Comme
 - Never comment out code - delete it; git has history
 - TODO comments are acceptable only with a concrete description of what and why, never bare `# TODO`
 
+## Testing
+
+Every bug fix must include a regression test that fails without the fix and passes with it. This ensures the same bug never reappears.
+
 ## Logging
 
 Add logging wherever it helps debugging, monitoring, or understanding system behavior. Keep it clean and useful.

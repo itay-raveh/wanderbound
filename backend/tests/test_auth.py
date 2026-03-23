@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+from app.core.config import get_settings
 from app.logic.upload import TripMeta
 
 from .conftest import (
     GOOGLE_PAYLOAD,
+    MICROSOFT_PAYLOAD,
     PS_USER,
     mock_extract,
     mock_jwt,
@@ -16,6 +18,7 @@ from .conftest import (
 )
 
 if TYPE_CHECKING:
+    import pytest
     from httpx import AsyncClient
 
 
@@ -43,6 +46,65 @@ class TestAuthGoogle:
         user = resp.json()
         assert user is not None
         assert user["google_sub"] == "google-123"
+
+
+class TestAuthMicrosoft:
+    async def test_invalid_jwt(self, client: AsyncClient) -> None:
+        with mock_jwt("microsoft", decode_error=True):
+            resp = await client.post(
+                "/api/v1/auth/microsoft", json={"credential": "bad"}
+            )
+        assert resp.status_code == 401
+
+    async def test_new_user_returns_null(self, client: AsyncClient) -> None:
+        with mock_jwt("microsoft"):
+            resp = await client.post(
+                "/api/v1/auth/microsoft", json={"credential": "fake"}
+            )
+        assert resp.status_code == 200
+        assert resp.json() is None
+
+    async def test_existing_user_returns_user(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        await sign_in_and_upload(client, tmp_path / "users", provider="microsoft")
+        await client.post("/api/v1/auth/logout")
+
+        with mock_jwt("microsoft"):
+            resp = await client.post(
+                "/api/v1/auth/microsoft", json={"credential": "fake"}
+            )
+        assert resp.status_code == 200
+        user = resp.json()
+        assert user is not None
+        assert user["microsoft_sub"] == "microsoft-456"
+
+    async def test_bad_issuer_returns_401(self, client: AsyncClient) -> None:
+        bad_iss = {**MICROSOFT_PAYLOAD, "iss": "https://evil.example.com/v2.0"}
+        with mock_jwt("microsoft", payload=bad_iss):
+            resp = await client.post(
+                "/api/v1/auth/microsoft", json={"credential": "fake"}
+            )
+        assert resp.status_code == 401
+
+    async def test_not_configured_returns_501(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(get_settings(), "VITE_MICROSOFT_CLIENT_ID", "")
+        with mock_jwt("microsoft"):
+            resp = await client.post(
+                "/api/v1/auth/microsoft", json={"credential": "fake"}
+            )
+        assert resp.status_code == 501
+
+    async def test_falls_back_to_name_when_no_given_name(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        no_given = {k: v for k, v in MICROSOFT_PAYLOAD.items() if k != "given_name"}
+        user = await sign_in_and_upload(
+            client, tmp_path / "users", provider="microsoft", payload=no_given
+        )
+        assert user["first_name"] == "Test Microsoft"
 
 
 class TestLogout:
@@ -73,19 +135,39 @@ class TestUpload:
         )
         assert resp.status_code == 401
 
-    async def test_new_user(self, client: AsyncClient, tmp_path: Path) -> None:
+    async def test_credential_without_provider(self, client: AsyncClient) -> None:
+        with mock_jwt():
+            resp = await client.post(
+                "/api/v1/users/upload",
+                data={"credential": "fake"},
+                files={"file": ("data.zip", b"fake", "application/zip")},
+            )
+        assert resp.status_code == 401
+
+    async def test_new_user_google(self, client: AsyncClient, tmp_path: Path) -> None:
         user = await sign_in_and_upload(client, tmp_path / "users")
         assert user["google_sub"] == "google-123"
+        assert user["microsoft_sub"] is None
         assert user["first_name"] == "Test"  # Google name preferred over ZIP
+
+    async def test_new_user_microsoft(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        user = await sign_in_and_upload(
+            client, tmp_path / "users", provider="microsoft"
+        )
+        assert user["microsoft_sub"] == "microsoft-456"
+        assert user["google_sub"] is None
+        assert user["first_name"] == "Test"  # from given_name in token
 
     async def test_falls_back_to_zip_name(
         self, client: AsyncClient, tmp_path: Path
     ) -> None:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
-        with mock_jwt(no_name), mock_extract(tmp_path / "users"):
+        with mock_jwt(payload=no_name), mock_extract(tmp_path / "users"):
             resp = await client.post(
                 "/api/v1/users/upload",
-                data={"credential": "fake"},
+                data={"credential": "fake", "provider": "google"},
                 files={"file": ("data.zip", b"fake", "application/zip")},
             )
         user = resp.json()["user"]

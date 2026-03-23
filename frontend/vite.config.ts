@@ -39,6 +39,10 @@ export default defineConfig({
   build: {
     sourcemap: "hidden",
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        redirect: path.resolve(__dirname, "redirect.html"),
+      },
       output: {
         manualChunks: {
           mapbox: ["mapbox-gl"],
