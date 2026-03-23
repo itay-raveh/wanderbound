@@ -2,12 +2,14 @@
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
 import { useUndoStack } from "@/composables/useUndoStack";
+import { useI18n } from "vue-i18n";
 import {
   symOutlinedKeyboard,
   symOutlinedRedo,
   symOutlinedUndo,
 } from "@quasar/extras/material-symbols-outlined";
 
+const { t } = useI18n();
 const undoStack = useUndoStack();
 </script>
 
@@ -20,7 +22,8 @@ const undoStack = useUndoStack();
       <q-tooltip>{{ KEY_LABELS.redo }}</q-tooltip>
     </q-btn>
     <q-separator vertical class="q-mx-xs" />
-    <q-btn flat dense round :icon="symOutlinedKeyboard">
+    <q-btn flat dense round :icon="symOutlinedKeyboard" :aria-label="t('shortcuts.title')">
+      <q-tooltip>{{ t("shortcuts.title") }}</q-tooltip>
       <q-popup-proxy transition-show="scale" transition-hide="scale">
         <ShortcutsPopup />
       </q-popup-proxy>

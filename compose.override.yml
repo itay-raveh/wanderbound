@@ -9,13 +9,7 @@ services:
     restart: "no"
     ports:
       - "127.0.0.1:8000:8000"
-    command:
-      - uvicorn
-      - app.main:app
-      - --reload
-      - --host
-      - "0.0.0.0"
-      - --proxy-headers
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --reload --host 0.0.0.0 --proxy-headers"
     develop:
       watch:
         - path: ./backend

@@ -1,13 +1,19 @@
 <script lang="ts" setup>
 import { RouterView } from "vue-router";
+import { useMeta } from "quasar";
 import ScreenGuard from "@/components/ScreenGuard.vue";
 import SiteFooter from "@/components/SiteFooter.vue";
+
+useMeta({
+  titleTemplate: (title) => (title ? `${title} | Wanderbound` : "Wanderbound"),
+});
 </script>
 
 <template>
   <ScreenGuard>
+    <a href="#main-content" class="skip-to-content">Skip to content</a>
     <q-layout view="hHh lpr lFf">
-      <q-page-container>
+      <q-page-container id="main-content">
         <RouterView />
       </q-page-container>
       <q-footer class="app-footer print-hide">
@@ -188,5 +194,31 @@ body,
   --danger: #dc2626;
   --surface: #f3f4f6;
   --border-color: #d1d5db;
+}
+
+/* Skip-to-content link — visible only on keyboard focus */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 9999;
+
+  &:focus {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+    height: auto;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    color: var(--text);
+    border: 2px solid var(--q-primary);
+    border-radius: var(--radius-md);
+    font-size: var(--type-sm);
+    text-decoration: none;
+  }
 }
 </style>

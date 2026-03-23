@@ -20,6 +20,10 @@
 !frontend/nginx/
 !frontend/env.d.ts
 
+# Root content used by frontend
+!PRIVACY.md
+!TERMS.md
+
 # Root config used by both
 !pyproject.toml
 !uv.lock

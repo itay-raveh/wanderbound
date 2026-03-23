@@ -15,7 +15,8 @@ const props = withDefaults(defineProps<{
   fitCover?: boolean;
   cols?: 1 | 2;
   focusable?: boolean;
-}>(), { focusable: true });
+  alt?: string;
+}>(), { focusable: true, alt: "" });
 
 const { albumId } = useAlbum();
 const printMode = usePrintMode();
@@ -109,6 +110,7 @@ function onVideoKey(e: KeyboardEvent) {
         :src="posterSrc"
         :srcset="imgSrcset"
         :sizes="imgSizes"
+        :alt="alt"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
         decoding="async"
@@ -146,6 +148,7 @@ function onVideoKey(e: KeyboardEvent) {
         :src="isVideo ? posterSrc : src"
         :srcset="imgSrcset"
         :sizes="imgSizes"
+        :alt="alt"
         :loading="imgLoading"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"

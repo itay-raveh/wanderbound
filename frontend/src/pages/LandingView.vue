@@ -47,6 +47,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
 </script>
 
 <template>
+  <main>
   <!-- Hero -->
   <section class="hero">
     <div class="hero-content column no-wrap items-center">
@@ -71,7 +72,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
     <div class="hero-showcase fade-up">
       <img
         src="/landing/editor.jpg"
-        :alt="t('brand')"
+        :alt="t('landing.editorScreenshot')"
         class="hero-screenshot"
       />
     </div>
@@ -115,6 +116,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
       <GoogleLogin v-else :callback="onSuccess" />
     </div>
   </section>
+  </main>
 </template>
 
 <style scoped>

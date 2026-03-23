@@ -1,3 +1,4 @@
+# check=skip=SecretsUsedInArgOrEnv (all ARGs are public frontend config, not secrets)
 FROM oven/bun:1 AS build-stage
 
 WORKDIR /app
@@ -11,6 +12,7 @@ WORKDIR /app/frontend
 RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
+COPY ./PRIVACY.md ./TERMS.md /app/
 COPY --from=openapi /app/backend/openapi.json ./openapi.json
 
 ARG VITE_MAX_UPLOAD_GB
@@ -22,6 +24,7 @@ ARG VITE_GITHUB_URL
 ARG VITE_AUTHOR_NAME
 ARG VITE_AUTHOR_URL
 ARG VITE_SENTRY_DSN
+ARG VITE_FRONTEND_URL
 
 RUN bun run build
 

@@ -157,7 +157,7 @@ async def _render_pdf(
                 {
                     "name": "session",
                     "value": session_cookie,
-                    "url": settings.FRONTEND_URL,
+                    "url": settings.VITE_FRONTEND_URL,
                 },
             ]
         )
@@ -169,7 +169,7 @@ async def _render_pdf(
         )
         await page.emulate_media(media="print")
         dark_param = "true" if dark else "false"
-        url = f"{settings.FRONTEND_URL}/print/{aid}?dark={dark_param}"
+        url = f"{settings.VITE_FRONTEND_URL}/print/{aid}?dark={dark_param}"
         await page.goto(url, wait_until="domcontentloaded")
         logger.info("DOM loaded for album %s", aid)
         await page.wait_for_function("window.__PRINT_READY__ === true", timeout=60_000)

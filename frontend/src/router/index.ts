@@ -24,6 +24,12 @@ const router = createRouter({
       component: () => import("@/pages/UploadView.vue"),
     },
     {
+      path: "/legal",
+      name: "legal",
+      component: () => import("@/pages/LegalView.vue"),
+      meta: { public: true },
+    },
+    {
       path: "/print/:aid",
       name: "print",
       component: () => import("@/pages/PrintView.vue"),

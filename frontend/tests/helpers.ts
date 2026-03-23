@@ -1,5 +1,5 @@
 import { createApp, type Component } from "vue";
-import { mount, type MountingOptions } from "@vue/test-utils";
+import { mount, type ComponentMountingOptions } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
@@ -36,18 +36,18 @@ export function withSetup<T>(composable: () => T): T {
 }
 
 /** Shared plugin list for mounting components under test. */
-export const testPlugins = [[Quasar, {}], createPinia(), PiniaColada, i18n] as const;
+const testPlugins = [[Quasar, {}], createPinia(), PiniaColada, i18n] as const;
 
 /** Mount a component with the standard test plugin stack. */
 export function mountWithPlugins<T extends Component>(
   component: T,
-  options: MountingOptions<unknown> = {},
+  options: ComponentMountingOptions<T> = {},
 ) {
   const { global: g, ...rest } = options;
   return mount(component, {
-    global: { plugins: [...testPlugins], ...g },
+    global: { plugins: [...testPlugins] as never, ...g },
     ...rest,
-  });
+  } as ComponentMountingOptions<T>);
 }
 
 export function makeStep(overrides: Partial<Step> = {}): Step {

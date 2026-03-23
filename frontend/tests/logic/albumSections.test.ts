@@ -362,8 +362,8 @@ describe("buildSections", () => {
       (s): s is Extract<Section, { rangeIdx: number }> => s.type === "map" || s.type === "hike",
     );
     expect(maps).toHaveLength(2);
-    expect(maps[0].rangeIdx).toBe(0);
-    expect(maps[1].rangeIdx).toBe(1);
+    expect(maps[0]!.rangeIdx).toBe(0);
+    expect(maps[1]!.rangeIdx).toBe(1);
   });
 
   it("attaches overlapping segments to map sections", () => {

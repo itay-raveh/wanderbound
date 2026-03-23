@@ -11,6 +11,7 @@
     "videoPosterBody": "Pick the perfect frame from any video to use in your album. Scrub frame-by-frame and set a poster - no screenshots needed.",
     "localizationTitle": "Localized & right-to-left",
     "localizationBody": "Supports any language, including right-to-left layout. Dates, distances, and temperatures adapt to your locale and units.",
+    "editorScreenshot": "Screenshot of the Wanderbound album editor",
     "openEditor": "Open editor",
     "ctaTitle": "Ready to make your album?",
     "ctaBody": "Sign in with Google and upload your Polarsteps data to get started."
@@ -55,6 +56,7 @@
   },
 
   "settings": {
+    "menu": "Settings",
     "appearance": "Appearance",
     "light": "Light",
     "dark": "Dark",
@@ -144,6 +146,8 @@
   },
 
   "footer": {
+    "privacy": "Privacy",
+    "terms": "Terms",
     "contact": "Questions?",
     "issues": "Report an issue"
   },

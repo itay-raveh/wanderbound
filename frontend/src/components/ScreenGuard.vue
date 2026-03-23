@@ -16,7 +16,7 @@ const screenTooSmall = computed(
 <template>
   <div v-if="screenTooSmall" class="gate flex flex-center">
     <div class="gate-content column no-wrap items-center q-gutter-y-md">
-      <q-img src="/logo.svg" class="gate-logo" />
+      <q-img src="/logo.svg" alt="" class="gate-logo" />
       <h1 class="text-h5 text-bright text-center no-margin">{{ t("screen.title") }}</h1>
       <p class="text-body1 text-muted text-center no-margin">{{ t("screen.body") }}</p>
     </div>

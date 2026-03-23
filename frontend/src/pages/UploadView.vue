@@ -7,8 +7,11 @@ import { useProcessingStream } from "@/composables/useProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { CREDENTIAL_KEY } from "@/router";
 import { useI18n } from "vue-i18n";
+import { useMeta } from "quasar";
 
 import RegisterHero from "@/components/register/RegisterHero.vue";
+
+useMeta({ title: "Upload" });
 import DataInstructions from "@/components/register/DataInstructions.vue";
 import ZipUploader from "@/components/register/ZipUploader.vue";
 import UnsupportedBanner from "@/components/register/UnsupportedBanner.vue";

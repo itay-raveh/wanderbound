@@ -10,36 +10,40 @@ const authorUrl = import.meta.env.VITE_AUTHOR_URL;
 const version = __APP_VERSION__ !== "0.0.0" ? __APP_VERSION__ : undefined;
 const year = new Date().getFullYear();
 
-const hasLinks = !!(contactEmail || githubUrl);
 const hasMeta = !!(authorName || version);
-const hasAny = hasLinks || hasMeta;
 </script>
 
 <template>
-  <nav v-if="hasAny" class="site-footer text-caption">
-    <div v-if="hasLinks" class="site-footer-group">
-      <a
-        v-if="contactEmail"
-        :href="`mailto:${contactEmail}`"
-        class="site-footer-link"
-      >
-        {{ t("footer.contact") }} {{ contactEmail }}
-      </a>
-      <span
-        v-if="contactEmail && githubUrl"
-        class="site-footer-sep"
-        aria-hidden="true"
-        >&middot;</span
-      >
-      <a
-        v-if="githubUrl"
-        :href="githubUrl"
-        target="_blank"
-        rel="noopener"
-        class="site-footer-link"
-      >
-        {{ t("footer.issues") }}
-      </a>
+  <nav class="site-footer text-caption">
+    <div class="site-footer-group">
+      <router-link to="/legal#privacy" class="site-footer-link">{{ t("footer.privacy") }}</router-link>
+      <span class="site-footer-sep" aria-hidden="true">&middot;</span>
+      <router-link to="/legal#terms" class="site-footer-link">{{ t("footer.terms") }}</router-link>
+      <template v-if="contactEmail || githubUrl">
+        <span class="site-footer-sep" aria-hidden="true">&middot;</span>
+        <a
+          v-if="contactEmail"
+          :href="`mailto:${contactEmail}`"
+          class="site-footer-link"
+        >
+          {{ t("footer.contact") }} {{ contactEmail }}
+        </a>
+        <span
+          v-if="contactEmail && githubUrl"
+          class="site-footer-sep"
+          aria-hidden="true"
+          >&middot;</span
+        >
+        <a
+          v-if="githubUrl"
+          :href="githubUrl"
+          target="_blank"
+          rel="noopener"
+          class="site-footer-link"
+        >
+          {{ t("footer.issues") }}
+        </a>
+      </template>
     </div>
     <div v-if="hasMeta" class="site-footer-group">
       <span v-if="authorName" dir="ltr">

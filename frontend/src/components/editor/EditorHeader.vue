@@ -8,7 +8,7 @@ const { t } = useI18n();
 <template>
   <q-header class="editor-header row no-wrap items-center">
     <div class="header-brand row no-wrap items-center q-gutter-x-sm">
-      <img src="/logo.svg" alt="Logo" class="header-logo" />
+      <img src="/logo.svg" alt="Wanderbound" class="header-logo" />
       <span class="header-title text-body1 text-weight-semibold text-bright">{{ t("brand") }}</span>
     </div>
 

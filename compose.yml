@@ -62,7 +62,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
       POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
       SECRET_KEY: ${SECRET_KEY:?Variable not set}
-      FRONTEND_URL: ${FRONTEND_URL:?Variable not set}
+      VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:?Variable not set}
       VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Variable not set}
       MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:?Variable not set}
       ENVIRONMENT: ${ENVIRONMENT:-local}
@@ -165,11 +165,12 @@ services:
         - VITE_BACKEND_URL=https://api.${DOMAIN:?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:?Variable not set}
         - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:?Variable not set}
-        - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL}
-        - VITE_GITHUB_URL=${VITE_GITHUB_URL}
-        - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME}
-        - VITE_AUTHOR_URL=${VITE_AUTHOR_URL}
-        - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+        - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}
+        - VITE_GITHUB_URL=${VITE_GITHUB_URL:-}
+        - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME:-}
+        - VITE_AUTHOR_URL=${VITE_AUTHOR_URL:-}
+        - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
+        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:?Variable not set}
 
 networks:
   backend:

@@ -28,7 +28,7 @@ describe("useStepMutation", () => {
       });
 
       await flushPromises();
-      expect(result.query.data.value?.steps[0].name).toBe("Amsterdam");
+      expect(result.query.data.value?.steps[0]?.name).toBe("Amsterdam");
 
       server.use(
         http.patch(`${BASE}/albums/:aid/steps/:sid`, async () => {
@@ -40,7 +40,7 @@ describe("useStepMutation", () => {
       result.mutation.mutate({ sid: 1, update: { name: "Rotterdam" } });
       await flushPromises();
 
-      expect(result.query.data.value?.steps[0].name).toBe("Rotterdam");
+      expect(result.query.data.value?.steps[0]?.name).toBe("Rotterdam");
 
       await new Promise((r) => setTimeout(r, 100));
       await flushPromises();
@@ -88,8 +88,8 @@ describe("useStepMutation", () => {
       result.mutation.mutate({ sid: 1, update: { name: "Utrecht" } });
       await flushPromises();
 
-      expect(result.query.data.value?.steps[0].name).toBe("Utrecht");
-      expect(result.query.data.value?.steps[1].name).toBe("Berlin");
+      expect(result.query.data.value?.steps[0]?.name).toBe("Utrecht");
+      expect(result.query.data.value?.steps[1]?.name).toBe("Berlin");
     });
 
     it("merges only the updated fields on the step", async () => {
@@ -123,13 +123,13 @@ describe("useStepMutation", () => {
 
       await flushPromises();
       const originalDescription =
-        result.query.data.value?.steps[0].description;
+        result.query.data.value?.steps[0]?.description;
 
       result.mutation.mutate({ sid: 1, update: { name: "New Name" } });
       await flushPromises();
 
-      expect(result.query.data.value?.steps[0].name).toBe("New Name");
-      expect(result.query.data.value?.steps[0].description).toBe(
+      expect(result.query.data.value?.steps[0]?.name).toBe("New Name");
+      expect(result.query.data.value?.steps[0]?.description).toBe(
         originalDescription,
       );
     });
@@ -221,12 +221,12 @@ describe("useStepMutation", () => {
       });
 
       await flushPromises();
-      expect(result.query.data.value?.steps[0].name).toBe("Amsterdam");
+      expect(result.query.data.value?.steps[0]?.name).toBe("Amsterdam");
 
       result.mutation.mutate({ sid: 1, update: { name: "Will Fail" } });
       await flushPromises();
 
-      expect(result.query.data.value?.steps[0].name).toBe("Amsterdam");
+      expect(result.query.data.value?.steps[0]?.name).toBe("Amsterdam");
     });
   });
 

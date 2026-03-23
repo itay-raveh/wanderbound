@@ -1,7 +1,7 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import * as Sentry from "@sentry/vue";
-import { Dark, Lang, Loading, LoadingBar, Notify, Quasar } from "quasar";
+import { Dark, Lang, Loading, LoadingBar, Meta, Notify, Quasar } from "quasar";
 import { createApp, watch } from "vue";
 
 import vue3GoogleLogin from "vue3-google-login";
@@ -76,7 +76,7 @@ app.use(Quasar, {
       warning: "#F2C037",
     },
   },
-  plugins: { Notify, LoadingBar, Loading },
+  plugins: { Meta, Notify, LoadingBar, Loading },
 });
 
 // Dark mode: restore preference from localStorage, persist changes.

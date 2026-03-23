@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    FRONTEND_URL: str
+    VITE_FRONTEND_URL: str
     ENVIRONMENT: Literal["local", "production"] = "local"
 
     SENTRY_DSN: str | None = None
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     @property
     def all_cors_origins(self) -> list[str]:
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_URL
+            self.VITE_FRONTEND_URL
         ]
 
     POSTGRES_SERVER: str
