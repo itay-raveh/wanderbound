@@ -26,10 +26,10 @@ resolve_volume() {
 
 case "${1:-}" in
     list)
-        echo "── DB backups ──"
+        echo "-- DB backups --"
         docker compose exec db-backup find /backups -name "*.sql.gz" -type f | sort
         echo ""
-        echo "── Data backups ──"
+        echo "-- Data backups --"
         docker compose exec data-backup find /archive -name "*.tar.gz" -type f | sort
         ;;
 

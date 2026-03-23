@@ -1,13 +1,6 @@
-"""Tests for elevation fetching and OSM peak correction.
-
-Covers:
-  - elevation.py: Open-Meteo DEM fetching, batching, SRTM model selection,
-    weighted rate limiter integration
-  - peaks.py: OSM ele parsing, local peak detection, peak correction logic,
-    Overpass failure handling, deviation threshold
-"""
-
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,8 +19,6 @@ from app.logic.spatial.peaks import (
 from app.services.open_meteo import OPEN_METEO_MAX_PER_REQUEST, elevations
 from tests.conftest import collect_async
 
-# Helpers
-
 
 @dataclass
 class _Loc:
@@ -36,16 +27,20 @@ class _Loc:
 
 
 def _overpass_json(peaks: list[tuple[float, str]]) -> bytes:
-    """Build a minimal Overpass JSON response from (ele, name) pairs."""
     elements = [
         {"type": "node", "lat": 0, "lon": 0, "tags": {"ele": str(e), "name": n}}
         for e, n in peaks
     ]
-
     return json.dumps({"elements": elements}).encode()
 
 
-# _parse_ele
+@contextmanager
+def _mock_overpass(peaks: list[tuple[float, str]]) -> Iterator[None]:
+    mock_response = MagicMock(status_code=200)
+    mock_response.content = _overpass_json(peaks)
+    with patch("app.logic.spatial.peaks._client") as mock_client:
+        mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        yield
 
 
 class TestParseEle:
@@ -78,9 +73,6 @@ class TestParseEle:
             _parse_ele("not a number")
 
 
-# Pydantic models
-
-
 class TestOverpassModels:
     def test_peak_tags_from_string(self) -> None:
         tags = PeakTags.model_validate({"ele": "5327 m"})
@@ -104,9 +96,6 @@ class TestOverpassModels:
     def test_overpass_response_empty(self) -> None:
         resp = OverpassResponse.model_validate({"elements": []})
         assert resp.elements == []
-
-
-# _local_peaks
 
 
 class TestLocalPeaks:
@@ -165,108 +154,71 @@ class TestLocalPeaks:
         assert list(_local_peaks([])) == []
 
 
-# correct_peaks
-
-
 class TestCorrectPeaks:
-    @pytest.mark.anyio
     async def test_no_peaks_returns_original(self) -> None:
-        """Flat trip - no local peaks, no Overpass call."""
         locs = [_Loc(0, 0), _Loc(0, 1), _Loc(0, 2)]
         elevs = [100.0, 110.0, 105.0]
         result = await correct_peaks(locs, elevs)
         assert list(result) == elevs
 
-    @pytest.mark.anyio
     async def test_corrects_summit(self) -> None:
-        """OSM peak higher than DEM within deviation threshold -> corrected."""
         locs = [_Loc(0, 0), _Loc(-16.19, -68.26), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json([(5327, "Pico Austria")])
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([(5327, "Pico Austria")]):
             result = await correct_peaks(locs, elevs)
 
         assert result[0] == 500.0  # unchanged
         assert result[1] == 5327.0  # corrected
         assert result[2] == 500.0  # unchanged
 
-    @pytest.mark.anyio
     async def test_does_not_lower_elevation(self) -> None:
-        """OSM peak lower than DEM -> keep DEM value."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5400.0, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json([(5327, "Pico Austria")])
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([(5327, "Pico Austria")]):
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 5400.0  # unchanged - OSM peak is lower
 
-    @pytest.mark.anyio
     async def test_deviation_too_large(self) -> None:
-        """OSM peak far above DEM (>10%) -> skip correction."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         dem_val = 3000.0
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION + 0.01)  # just over 10%
         elevs = [500.0, dem_val, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json([(osm_val, "Far Peak")])
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([(osm_val, "Far Peak")]):
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == dem_val  # unchanged
 
-    @pytest.mark.anyio
     async def test_deviation_exactly_at_threshold(self) -> None:
-        """OSM peak exactly at 10% above DEM -> corrected."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         dem_val = 5000.0
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION)  # exactly 10%
         elevs = [500.0, dem_val, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json([(osm_val, "Boundary Peak")])
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([(osm_val, "Boundary Peak")]):
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == osm_val  # corrected
 
-    @pytest.mark.anyio
     async def test_picks_closest_in_elevation(self) -> None:
-        """Multiple OSM peaks -> picks the one closest to DEM value."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json(
+        with _mock_overpass(
             [
-                (6088, "Huayna Potosi"),  # far in elevation
-                (5327, "Pico Austria"),  # closest
-                (5648, "Condoriri"),  # further
+                (6088, "Huayna Potosi"),
+                (5327, "Pico Austria"),
+                (5648, "Condoriri"),
             ]
-        )
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        ):
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 5327.0  # closest to 5236
 
-    @pytest.mark.anyio
     async def test_overpass_failure_returns_original(self) -> None:
-        """Overpass HTTP error -> graceful fallback to DEM values."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -278,9 +230,7 @@ class TestCorrectPeaks:
 
         assert list(result) == elevs
 
-    @pytest.mark.anyio
     async def test_overpass_non_200_returns_original(self) -> None:
-        """Overpass HTTP status error -> graceful fallback to DEM values."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
@@ -295,46 +245,26 @@ class TestCorrectPeaks:
 
         assert list(result) == elevs
 
-    @pytest.mark.anyio
     async def test_empty_overpass_response(self) -> None:
-        """Overpass returns no peaks -> original elevations."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json([])
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([]):
             result = await correct_peaks(locs, elevs)
 
         assert list(result) == elevs
 
-    @pytest.mark.anyio
     async def test_multiple_local_peaks_corrected(self) -> None:
-        """Two local peaks in one trip, both get corrected."""
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 4500.0, 1000.0, 5000.0, 500.0]
 
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = _overpass_json(
-            [
-                (4600, "Peak A"),
-                (5100, "Peak B"),
-            ]
-        )
-
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(return_value=mock_response)
+        with _mock_overpass([(4600, "Peak A"), (5100, "Peak B")]):
             result = await correct_peaks(locs, elevs)
 
         assert result[1] == 4600.0  # closest to 4500
         assert result[3] == 5100.0  # closest to 5000
         assert result[0] == 500.0  # unchanged
         assert result[2] == 1000.0  # unchanged
-
-
-# elevations (Open-Meteo DEM)
 
 
 def _elev_response(values: list[float]) -> MagicMock:
@@ -344,9 +274,7 @@ def _elev_response(values: list[float]) -> MagicMock:
 
 
 class TestElevations:
-    @pytest.mark.anyio
     async def test_single_batch(self) -> None:
-        """Fewer than 100 locations -> single API call."""
         locs = [_Loc(i, i) for i in range(5)]
         expected = [100.0, 200.0, 300.0, 400.0, 500.0]
 
@@ -359,9 +287,7 @@ class TestElevations:
         assert result == expected
         assert mock_client.return_value.get.call_count == 1
 
-    @pytest.mark.anyio
     async def test_multiple_batches(self) -> None:
-        """More than 100 locations -> multiple API calls."""
         n = OPEN_METEO_MAX_PER_REQUEST + 20  # 120
         locs = [_Loc(i, i) for i in range(n)]
         batch1 = list(range(OPEN_METEO_MAX_PER_REQUEST))
@@ -379,9 +305,7 @@ class TestElevations:
         assert len(result) == n
         assert mock_client.return_value.get.call_count == 2
 
-    @pytest.mark.anyio
     async def test_http_error_propagates(self) -> None:
-        """HTTP errors from Open-Meteo are raised."""
         locs = [_Loc(0, 0)]
 
         resp = MagicMock()

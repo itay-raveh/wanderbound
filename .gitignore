@@ -6,24 +6,30 @@
 node_modules/
 __pycache__/
 *.py[cod]
+*.egg-info
 dist/
 dist-ssr/
 *.local
 *.log
 .DS_Store
 *.sw?
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
 .env
 .env.sentry-build-plugin
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
 
 # Generated
 frontend/src/client/
 frontend/public/countries/
+frontend/openapi.json
 
 # App data
 backend/data/
+backend/tests/test_data/
+backend/.cache/
 backups/

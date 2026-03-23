@@ -1,0 +1,115 @@
+[tools]
+python = "3.14"
+bun = "1"
+
+# -- Dev servers --------------------------------------------------
+
+[tasks."dev:backend"]
+description = "Start backend dev server"
+dir = "backend"
+run = "uv run fastapi dev"
+
+[tasks."dev:frontend"]
+description = "Start frontend dev server"
+dir = "frontend"
+run = "bun run dev"
+
+# -- Testing ------------------------------------------------------
+
+[tasks."test:backend"]
+description = "Run backend tests"
+dir = "backend"
+run = "uv run pytest"
+
+[tasks."test:frontend"]
+description = "Run frontend unit tests"
+dir = "frontend"
+run = "bun run test"
+
+[tasks."test:e2e"]
+description = "Run frontend E2E tests"
+dir = "frontend"
+run = "bun run test:e2e"
+
+[tasks.test]
+description = "Run all tests"
+depends = ["test:backend", "test:frontend", "test:e2e"]
+
+# -- Linting ------------------------------------------------------
+
+[tasks."lint:backend"]
+description = "Lint backend (ruff + ty)"
+dir = "backend"
+run = [
+    "uv run ty check",
+    "uv run ruff check app",
+    "uv run ruff format app --check",
+]
+
+[tasks."lint:frontend"]
+description = "Lint frontend (eslint)"
+dir = "frontend"
+run = "bun run lint"
+
+[tasks.lint]
+description = "Run all linters"
+depends = ["lint:*"]
+
+# -- Formatting ---------------------------------------------------
+
+[tasks."format:backend"]
+description = "Format backend code"
+dir = "backend"
+run = [
+    "uv run ruff check app --fix",
+    "uv run ruff format app",
+]
+
+[tasks."format:frontend"]
+description = "Format frontend code"
+dir = "frontend"
+run = "bun run format"
+
+[tasks.format]
+description = "Format all code"
+depends = ["format:*"]
+
+# -- Build --------------------------------------------------------
+
+[tasks.build]
+description = "Build frontend for production"
+dir = "frontend"
+run = "bun run build"
+
+# -- Docker -------------------------------------------------------
+
+[tasks.up]
+description = "Start all Docker services"
+run = "docker compose up -d"
+
+[tasks.down]
+description = "Stop all Docker services and clean up"
+run = "docker compose down -v --remove-orphans"
+
+[tasks.logs]
+description = "Tail Docker Compose logs"
+run = "docker compose logs -f"
+raw = true
+
+# -- Database -----------------------------------------------------
+
+[tasks.migrate]
+description = "Run database migrations (alembic upgrade head)"
+dir = "backend"
+run = "uv run alembic upgrade head"
+
+# -- Utilities ----------------------------------------------------
+
+[tasks.restore]
+description = "Restore database or data from backups (list|db|data)"
+run = "bash scripts/restore.sh"
+raw = true
+
+[tasks."generate:countries"]
+description = "Regenerate country SVGs and bounds.json from Natural Earth data"
+run = "uv run scripts/generate_country_svgs.py"

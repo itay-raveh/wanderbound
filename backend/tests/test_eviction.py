@@ -1,25 +1,27 @@
-"""Tests for the LRU storage eviction system."""
+from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from app.core.config import get_settings
 from app.logic.eviction import _sizes_by_user, run_eviction
 from app.models.user import User
 
+from .conftest import make_async_session_mock
+
+if TYPE_CHECKING:
+    import pytest
+
 
 def _make_file(path: Path, size: int) -> Path:
-    """Create a file of the given size in bytes."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"\0" * size)
     return path
 
 
-def _make_user(uid: int, tmp_path: Path, *, hours_ago: int = 0) -> User:
-    """Build a User with controlled last_active_at."""
+def _make_user(uid: int, *, hours_ago: int = 0) -> User:
     return User(
         id=uid,
         google_sub=f"g-{uid}",
@@ -59,11 +61,9 @@ class TestSizesByUser:
 
 
 class TestRunEviction:
-    @pytest.mark.anyio
     async def test_noop_when_under_cap(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """No folders are deleted when total storage is under the cap."""
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 1000)
 
@@ -74,11 +74,9 @@ class TestRunEviction:
 
         assert (users_folder / "1" / "data.bin").exists()
 
-    @pytest.mark.anyio
     async def test_evicts_lru_user(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Oldest user's folder is deleted first."""
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 100)
 
@@ -86,15 +84,12 @@ class TestRunEviction:
         _make_file(users_folder / "1" / "data.bin", 80)
         _make_file(users_folder / "2" / "data.bin", 80)
 
-        old_user = _make_user(1, tmp_path, hours_ago=48)
-        recent_user = _make_user(2, tmp_path, hours_ago=1)
+        old_user = _make_user(1, hours_ago=48)
+        recent_user = _make_user(2, hours_ago=1)
 
         mock_result = MagicMock()
         mock_result.all.return_value = [old_user, recent_user]
-        mock_session = AsyncMock()
-        mock_session.exec = AsyncMock(return_value=mock_result)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
 
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=999)
@@ -102,11 +97,9 @@ class TestRunEviction:
         assert not (users_folder / "1").exists()
         assert (users_folder / "2" / "data.bin").exists()
 
-    @pytest.mark.anyio
     async def test_skips_uploading_user(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The skip_uid user is never evicted, even if they are the oldest."""
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
 
@@ -114,15 +107,12 @@ class TestRunEviction:
         _make_file(users_folder / "1" / "data.bin", 80)
         _make_file(users_folder / "2" / "data.bin", 80)
 
-        oldest_user = _make_user(1, tmp_path, hours_ago=100)
-        other_user = _make_user(2, tmp_path, hours_ago=10)
+        oldest_user = _make_user(1, hours_ago=100)
+        other_user = _make_user(2, hours_ago=10)
 
         mock_result = MagicMock()
         mock_result.all.return_value = [oldest_user, other_user]
-        mock_session = AsyncMock()
-        mock_session.exec = AsyncMock(return_value=mock_result)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
 
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=1)
@@ -130,11 +120,9 @@ class TestRunEviction:
         assert (users_folder / "1" / "data.bin").exists()
         assert not (users_folder / "2").exists()
 
-    @pytest.mark.anyio
     async def test_stops_when_under_cap(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Eviction stops as soon as total storage drops below the cap."""
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 120)
 
@@ -144,17 +132,14 @@ class TestRunEviction:
         _make_file(users_folder / "3" / "data.bin", 80)
 
         users = [
-            _make_user(1, tmp_path, hours_ago=72),
-            _make_user(2, tmp_path, hours_ago=48),
-            _make_user(3, tmp_path, hours_ago=24),
+            _make_user(1, hours_ago=72),
+            _make_user(2, hours_ago=48),
+            _make_user(3, hours_ago=24),
         ]
 
         mock_result = MagicMock()
         mock_result.all.return_value = users
-        mock_session = AsyncMock()
-        mock_session.exec = AsyncMock(return_value=mock_result)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
 
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=999)
@@ -163,11 +148,9 @@ class TestRunEviction:
         assert not (users_folder / "2").exists()
         assert (users_folder / "3" / "data.bin").exists()
 
-    @pytest.mark.anyio
     async def test_skips_already_evicted_users(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Users whose folders don't exist are silently skipped."""
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
 
@@ -176,16 +159,13 @@ class TestRunEviction:
         _make_file(users_folder / "2" / "data.bin", 80)
 
         users = [
-            _make_user(1, tmp_path, hours_ago=100),  # no folder on disk
-            _make_user(2, tmp_path, hours_ago=10),
+            _make_user(1, hours_ago=100),  # no folder on disk
+            _make_user(2, hours_ago=10),
         ]
 
         mock_result = MagicMock()
         mock_result.all.return_value = users
-        mock_session = AsyncMock()
-        mock_session.exec = AsyncMock(return_value=mock_result)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
 
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=999)

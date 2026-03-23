@@ -37,7 +37,8 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from) => {
-  if (to.meta.public) return;
+  // Public routes other than landing skip auth entirely
+  if (to.meta.public && to.name !== "landing") return;
 
   // New user after Google sign-in: has credential but no session yet
   if (to.name === "upload" && sessionStorage.getItem(CREDENTIAL_KEY)) return;
@@ -50,10 +51,12 @@ router.beforeEach(async (to, from) => {
   try {
     ({ data: user } = await readUser());
   } catch {
+    // Not authenticated: landing is fine, everything else → landing
+    if (to.name === "landing") return;
     return { name: "landing" };
   }
 
-  // Authenticated user on landing -> redirect to editor
+  // Authenticated user on landing → redirect to editor or upload
   if (to.name === "landing") {
     return user.album_ids?.length && user.has_data
       ? { name: "editor" }

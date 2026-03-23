@@ -1,5 +1,3 @@
-"""Tests for Open-Meteo weather fetching and WMO code mapping."""
-
 import datetime as _dt_mod
 import json
 from dataclasses import dataclass
@@ -16,8 +14,6 @@ from app.services.open_meteo import (
     _wmo_icon,
     build_weathers,
 )
-
-# Helpers
 
 
 @dataclass
@@ -44,29 +40,32 @@ def _make_step(lat: float, lon: float, ts: float, **kw: Any) -> _Step:
     return _Step(location=_Loc(lat, lon), timestamp=ts, **kw)
 
 
-def _om_response(  # noqa: PLR0913
-    dates: list[str],
-    *,
-    temp_max: list[float] | None = None,
-    temp_min: list[float] | None = None,
-    feels_max: list[float] | None = None,
-    feels_min: list[float] | None = None,
-    wmo_daily: list[int] | None = None,
-) -> dict:
+_DAILY_FIELD_MAP = {
+    "temp_max": "temperature_2m_max",
+    "temp_min": "temperature_2m_min",
+    "feels_max": "apparent_temperature_max",
+    "feels_min": "apparent_temperature_min",
+    "wmo_daily": "weather_code",
+}
+
+_DAILY_DEFAULTS: dict[str, float | int] = {
+    "temperature_2m_max": 25.0,
+    "temperature_2m_min": 15.0,
+    "apparent_temperature_max": 27.0,
+    "apparent_temperature_min": 13.0,
+    "weather_code": 0,
+}
+
+
+def _om_response(dates: list[str], **overrides: list) -> dict:
     n = len(dates)
-    return {
-        "daily": {
-            "time": dates,
-            "temperature_2m_max": temp_max or [25.0] * n,
-            "temperature_2m_min": temp_min or [15.0] * n,
-            "apparent_temperature_max": feels_max or [27.0] * n,
-            "apparent_temperature_min": feels_min or [13.0] * n,
-            "weather_code": wmo_daily or [0] * n,
-        },
-    }
-
-
-# _wmo_icon
+    daily: dict[str, list] = {"time": dates}
+    for full, default in _DAILY_DEFAULTS.items():
+        daily[full] = [default] * n
+    for short, full in _DAILY_FIELD_MAP.items():
+        if short in overrides:
+            daily[full] = overrides[short]
+    return {"daily": daily}
 
 
 class TestWmoIcon:
@@ -119,9 +118,6 @@ class TestWmoIcon:
         assert _wmo_icon(999) == "not-available"
 
 
-# _weather_from_result
-
-
 class TestWeatherFromResult:
     def test_extracts_correct_day(self) -> None:
         raw = _om_response(
@@ -152,15 +148,10 @@ class TestWeatherFromResult:
         assert _weather_from_result(step, loc) is None
 
 
-# build_weathers
-
-
 class TestBuildWeathers:
-    @pytest.mark.anyio
     async def test_empty_steps(self) -> None:
         assert [w async for w in build_weathers([])] == []
 
-    @pytest.mark.anyio
     async def test_single_step(self) -> None:
         step = _make_step(52.52, 13.41, 1704067200.0)
         resp_data = _om_response(
@@ -186,7 +177,6 @@ class TestBuildWeathers:
         assert w.night is not None
         assert w.night.temp == -2.0
 
-    @pytest.mark.anyio
     async def test_multiple_steps_routed_by_date(self) -> None:
         s1 = _make_step(52.52, 13.41, 1704067200.0)  # Jan 1
         s2 = _make_step(48.85, 2.35, 1704153600.0)  # Jan 2
@@ -210,7 +200,6 @@ class TestBuildWeathers:
         assert result[1].day.temp == 12.0
         assert result[1].day.icon == "rain"
 
-    @pytest.mark.anyio
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
         with patch("app.services.open_meteo._client") as mock_client:
@@ -221,7 +210,6 @@ class TestBuildWeathers:
                 async for _ in build_weathers([step]):
                     pass
 
-    @pytest.mark.anyio
     async def test_night_uses_daily_code(self) -> None:
         step = _make_step(52.52, 13.41, 1704067200.0)
         resp_data = _om_response(["2024-01-01"], wmo_daily=[63])
@@ -236,7 +224,6 @@ class TestBuildWeathers:
         assert result[0].night is not None
         assert result[0].night.icon == "rain"
 
-    @pytest.mark.anyio
     async def test_429_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
         mock_response = MagicMock(status_code=429)
@@ -250,9 +237,7 @@ class TestBuildWeathers:
                 async for _ in build_weathers([step]):
                     pass
 
-    @pytest.mark.anyio
     async def test_multiple_steps_own_api_call(self) -> None:
-        """Each step gets its own API call."""
         steps = [_make_step(i, i, 1720990800.0) for i in range(3)]
         resp_data = _om_response(
             ["2024-07-14"],

@@ -10,8 +10,7 @@ Converts a Polarsteps data export ZIP into a printable photo album (PDF). Users 
 
 ```
 db          PostgreSQL 18          :5432
-prestart    Alembic migrations     (runs once, then exits)
-backend     FastAPI + Uvicorn      :8000
+backend     FastAPI + Uvicorn      :8000  (runs migrations on startup)
 frontend    Vite (dev) / Nginx     :5173 (dev) / :80 (prod)
 ```
 
@@ -29,15 +28,17 @@ backend/
       http.py               Shared httpx AsyncClient factory (SQLite cache + retries)
       logging.py            Rich-based access log handler
     api/v1/
-      router.py             Mounts users, albums, assets routers + /health
-      deps.py               SessionDep, UserDep (cookie-based uid auth), BrowserDep
+      router.py             Mounts auth, users, albums, assets, health routers
+      deps.py               SessionDep, UserDep (session-based uid auth), BrowserDep
       routes/
-        users.py            POST (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
+        auth.py             POST /google (Google JWT verification + session), POST /logout
+        users.py            POST /upload (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
         assets.py           GET /{aid}/media/{name} (lazy thumbnails + poster extraction), PATCH (video frame re-extract)
+        health.py           GET /health (readiness check)
     models/
       weather.py            Weather, WeatherData (stored in step.weather JSON column)
-      user.py               User table (SQLModel) + UserUpdate
+      user.py               User table (SQLModel) + UserUpdate + PSUser (ZIP) + GoogleIdentity
       album.py              Album table + AlbumUpdate + AlbumData response model
       step.py               Step table + StepBase + StepUpdate (name, description, cover, pages, unused)
       segment.py            SegmentKind enum + Segment table (points as PydanticJSON)
@@ -50,6 +51,8 @@ backend/
                               elevations -> weather -> layouts/flatten -> DB commit
       session.py            SSE session management: ProcessingSession (background task with
                               event replay), process_stream (per-user session reuse/reconnect)
+      reconcile.py          Re-upload reconciliation: scan media, update pages/covers, probe orientations
+      eviction.py           LRU storage eviction: delete oldest users' data when disk cap exceeded
       country_colors.py     Assign distinct colors to countries (Delta-E color distance)
       layout/
         __init__.py          Exports Layout, build_step_layout
@@ -64,7 +67,7 @@ backend/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Migrations: initial tables, steps_ranges/maps_ranges string->JSON, index->date
   data/users/                User upload data (ZIPs extracted here, one folder per user ID)
-  tests/                     pytest (295 tests), conftest with async helpers
+  tests/                     pytest (384 tests), conftest with shared fixtures (SQLite engine, session, client)
   pyproject.toml             Python 3.14, deps: FastAPI, SQLModel, Polars, Playwright, Pillow, httpx
   logging.json               Uvicorn log config (Rich handlers)
 
@@ -155,7 +158,11 @@ frontend/
       animations.css         fadeUp, pulse, shimmer keyframes
     countries/
       bounds.json            Country bounding boxes for SVG viewports
+  tests/                     Vitest unit tests (happy-dom), helpers, MSW mocks
+  e2e/                       Playwright E2E tests (smoke, editor)
   openapi-ts.config.ts       Points to live backend for client generation
+  vitest.config.ts           Vitest config (happy-dom, test setup)
+  playwright.config.ts       Playwright E2E config
   vite.config.ts             Env from parent dir, Quasar plugin, mapbox-gl manual chunk
   nginx/
     nginx.conf               Prod server: rate limiting, gzip, security headers
@@ -211,9 +218,11 @@ EditorView -> useAlbumQuery + useAlbumDataQuery -> AlbumViewer
 ```
 user
   id (PK)              int (Polarsteps user ID)
-  first_name, last_name, profile_image_path, locale, unit_is_km, temperature_is_celsius
+  google_sub           str (unique, indexed - Google account identifier)
+  first_name, last_name, profile_image_url, locale, unit_is_km, temperature_is_celsius
   living_location      JSON (Location: name, detail, country_code, lat, lon)
   album_ids            JSON (list of album ID strings)
+  last_active_at       datetime (debounced activity tracking for LRU eviction)
 
 album
   (uid, id) PK         uid FK -> user.id
@@ -221,7 +230,7 @@ album
   steps_ranges         JSON (list[DateRange] - date-based step filtering)
   maps_ranges          JSON (list[DateRange] - map section date ranges)
   colors               JSON (country_code -> hex color)
-  orientations         JSON (media_name -> "p"/"l")
+  media                JSON (media_name -> "p"/"l")
 
 step
   (uid, aid, idx) PK   (uid,aid) FK -> album, uid FK -> user
@@ -242,43 +251,43 @@ segment
 
 ### Backend
 
-| Type | Location | Purpose |
-|------|----------|---------|
-| `DateRange` | `models/album.py` | `tuple[date, date]` type alias - used for steps_ranges and maps_ranges |
-| `Layout` | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) - step photo layout |
-| `SegmentKind` | `models/segment.py` | Enum: flight, hike, walking, driving |
-| `SegmentData` | `models/segment.py` | NamedTuple(kind, points) - GPS segmentation pipeline output |
-| `CountryCode`, `HexColor` | `models/polarsteps.py` | Annotated string types with validation constraints |
-| `HasLatLon` | `models/polarsteps.py` | Structural protocol for objects with lat/lon attributes |
-| `PSTrip`, `PSStep` | `models/polarsteps.py` | Polarsteps ZIP data models (not stored in DB) |
-| `Point`, `Location` | `models/polarsteps.py` | GPS point (lat, lon, time) and named location with country code |
-| `Weather`, `WeatherData` | `models/weather.py` | Day/night weather with WMO icon names |
-| `ProcessingEvent` | `logic/processing.py` | Discriminated union: TripStart | PhaseUpdate | ErrorData |
-| `MediaName` | `logic/layout/media.py` | Annotated str with UUID_UUID.(jpg|mp4) pattern |
-| `Media` | `logic/layout/media.py` | Media metadata (dimensions, orientation, aspect ratio), with `load` (photo) and `probe` (video) factories |
+| Type                      | Location                  | Purpose                                                                                                   |
+|---------------------------|---------------------------|-----------------------------------------------------------------------------------------------------------|
+| `DateRange`               | `models/album.py`         | `tuple[date, date]` type alias - used for steps_ranges and maps_ranges                                    |
+| `Layout`                  | `logic/layout/builder.py` | NamedTuple(cover, pages, orientations) - step photo layout                                                |
+| `SegmentKind`             | `models/segment.py`       | Enum: flight, hike, walking, driving                                                                      |
+| `SegmentData`             | `models/segment.py`       | NamedTuple(kind, points) - GPS segmentation pipeline output                                               |
+| `CountryCode`, `HexColor` | `models/polarsteps.py`    | Annotated string types with validation constraints                                                        |
+| `HasLatLon`               | `models/polarsteps.py`    | Structural protocol for objects with lat/lon attributes                                                   |
+| `PSTrip`, `PSStep`        | `models/polarsteps.py`    | Polarsteps ZIP data models (not stored in DB)                                                             |
+| `Point`, `Location`       | `models/polarsteps.py`    | GPS point (lat, lon, time) and named location with country code                                           |
+| `Weather`, `WeatherData`  | `models/weather.py`       | Day/night weather with WMO icon names                                                                     |
+| `ProcessingEvent`         | `logic/processing.py`     | Discriminated union: TripStart                                                                            | PhaseUpdate | ErrorData |
+| `MediaName`               | `logic/layout/media.py`   | Annotated str with UUID_UUID.(jpg                                                                         |mp4) pattern |
+| `Media`                   | `logic/layout/media.py`   | Media metadata (dimensions, orientation, aspect ratio), with `load` (photo) and `probe` (video) factories |
 
 ### Frontend
 
-| Type | Location | Purpose |
-|------|----------|---------|
-| `AlbumContext` | `composables/useAlbum.ts` | Injected context: albumId, colors, orientations, tripStart, totalDays |
-| `DescriptionType` | `composables/useTextMeasure.ts` | "short" / "long" / "extra-long" text layout classification |
-| `ProcessingPhase` | Generated from backend | "elevations" / "weather" / "layouts" |
-| All API types | `client/types.gen.ts` | Auto-generated from backend OpenAPI schema |
+| Type              | Location                        | Purpose                                                               |
+|-------------------|---------------------------------|-----------------------------------------------------------------------|
+| `AlbumContext`    | `composables/useAlbum.ts`       | Injected context: albumId, colors, orientations, tripStart, totalDays |
+| `DescriptionType` | `composables/useTextMeasure.ts` | "short" / "long" / "extra-long" text layout classification            |
+| `ProcessingPhase` | Generated from backend          | "elevations" / "weather" / "layouts"                                  |
+| All API types     | `client/types.gen.ts`           | Auto-generated from backend OpenAPI schema                            |
 
 ## Auth Model
 
-Cookie-based, no encryption. The `uid` cookie holds the Polarsteps user ID (integer). `UserDep` in `deps.py` reads it and loads the User from DB. No sessions, no tokens, no passwords. Pre-alpha only.
+Google Sign-In JWT → Starlette session. `POST /auth/google` verifies the JWT, stores `uid` in the server-side session cookie. `UserDep` in `deps.py` reads `request.session["uid"]` and loads the User from DB.
 
 ## External APIs
 
-| API | Client | Caching | Rate Limit |
-|-----|--------|---------|------------|
-| Open-Meteo Elevation | `services/open_meteo.py` | SQLite, 30 days | 480/min (weighted by batch size) |
-| Open-Meteo Archive Weather | same client | same | same limiter |
-| Overpass (OSM peaks) | `logic/spatial/peaks.py` | SQLite, 30 days (POST body key) | None (low volume) |
-| Mapbox Map Matching + Directions | `components/album/map/mapRouting.ts` (frontend) | In-memory by segment identity | Per-token limit |
-| Mapbox GL tiles | `composables/useMapbox.ts` | Browser cache | Per-token limit |
+| API                              | Client                                          | Caching                         | Rate Limit                       |
+|----------------------------------|-------------------------------------------------|---------------------------------|----------------------------------|
+| Open-Meteo Elevation             | `services/open_meteo.py`                        | SQLite, 30 days                 | 480/min (weighted by batch size) |
+| Open-Meteo Archive Weather       | same client                                     | same                            | same limiter                     |
+| Overpass (OSM peaks)             | `logic/spatial/peaks.py`                        | SQLite, 30 days (POST body key) | None (low volume)                |
+| Mapbox Map Matching + Directions | `components/album/map/mapRouting.ts` (frontend) | In-memory by segment identity   | Per-token limit                  |
+| Mapbox GL tiles                  | `composables/useMapbox.ts`                      | Browser cache                   | Per-token limit                  |
 
 ## GPS Segmentation Pipeline (`segments.py`)
 
@@ -302,22 +311,25 @@ Packs step photos into album pages:
 
 ## Build & Test
 
+All commands via [mise](https://mise.jdx.dev/) (`mise tasks` to list):
+
 ```bash
-# Backend
-cd backend && uv run pytest                  # 295 tests
-cd backend && uv run alembic upgrade head     # run migrations
-
-# Frontend
-cd frontend && bun run dev                    # dev server (regenerates API client first)
-cd frontend && bun run build                  # type-check + production build
-
-# Docker
-docker compose up                             # full stack
-docker compose -f compose.yml -f compose.override.yml up  # dev mode with hot reload
+mise run test:backend          # pytest (384 tests)
+mise run test:frontend         # vitest
+mise run test:e2e              # playwright
+mise run lint                  # ruff + ty + eslint
+mise run format                # ruff fix + prettier
+mise run migrate               # alembic upgrade head
+mise run build                 # production frontend build
+mise run up                    # docker compose up
 ```
 
 ## CI
 
-- **test-backend.yml** - start DB, run migrations, run pytest
-- **test-docker-compose.yml** - build all images, smoke-test health endpoints
-- **pre-commit.yml** - ruff check + format, ty check, eslint (also runs locally via .pre-commit-config.yaml)
+Single workflow **ci.yml** with parallel jobs:
+
+- **lint** — ruff check + format, ty check, eslint
+- **test-backend** — pytest (in-memory SQLite, no Docker)
+- **test-frontend** — vitest (happy-dom)
+- **test-e2e** — Playwright E2E tests
+- **docker** — build all images

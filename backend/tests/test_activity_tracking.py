@@ -1,5 +1,3 @@
-"""Tests for debounced activity tracking in deps.py."""
-
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,6 +12,8 @@ from app.api.v1.deps import (
     _touch_activity,
 )
 
+from .conftest import make_async_session_mock
+
 
 @pytest.fixture(autouse=True)
 def _clean_activity_cache() -> None:
@@ -21,12 +21,8 @@ def _clean_activity_cache() -> None:
 
 
 class TestTouchActivity:
-    @pytest.mark.anyio
     async def test_executes_update(self) -> None:
-        """_touch_activity issues an UPDATE statement."""
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock()
 
         with patch("app.api.v1.deps.AsyncSession", return_value=mock_session):
             await _touch_activity(42)
@@ -34,18 +30,13 @@ class TestTouchActivity:
         mock_session.exec.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
 
-    @pytest.mark.anyio
     async def test_swallows_exceptions(self) -> None:
-        """Errors are swallowed so the background task doesn't crash."""
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session = make_async_session_mock()
         mock_session.exec = AsyncMock(
             side_effect=OperationalError("SELECT", {}, Exception("db down"))
         )
 
         with patch("app.api.v1.deps.AsyncSession", return_value=mock_session):
-            # Should not raise
             await _touch_activity(42)
 
 
@@ -55,9 +46,7 @@ class TestGetUserDebounce:
         request.session = {"uid": uid}
         return request
 
-    @pytest.mark.anyio
     async def test_first_call_triggers_activity(self) -> None:
-        """First request for a user schedules an activity background task."""
         user = MagicMock()
         user.id = 1
 
@@ -71,9 +60,7 @@ class TestGetUserDebounce:
         assert 1 in _last_activity_write
         assert len(bg.tasks) == 1
 
-    @pytest.mark.anyio
     async def test_repeated_call_within_debounce_skips(self) -> None:
-        """Calls within the debounce window don't trigger another write."""
         user = MagicMock()
         user.id = 2
 
@@ -87,9 +74,7 @@ class TestGetUserDebounce:
         await _get_user(self._make_request(2), session, bg)
         assert len(bg.tasks) == 0
 
-    @pytest.mark.anyio
     async def test_call_after_debounce_triggers(self) -> None:
-        """After the debounce window expires, a new write is triggered."""
         user = MagicMock()
         user.id = 3
 

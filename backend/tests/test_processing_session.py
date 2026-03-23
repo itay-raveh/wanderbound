@@ -1,5 +1,3 @@
-"""Tests for ProcessingSession: per-user lock, reconnection, and event replay."""
-
 import asyncio
 from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock, patch
@@ -20,8 +18,6 @@ from app.logic.session import (
 from app.models.user import User
 from tests.conftest import collect_async
 
-# Helpers
-
 
 def _mock_user(uid: int = 1) -> User:
     user = AsyncMock(spec=User)
@@ -30,13 +26,8 @@ def _mock_user(uid: int = 1) -> User:
     return user
 
 
-# ProcessingSession
-
-
 class TestProcessingSession:
-    @pytest.mark.anyio
     async def test_subscribe_gets_all_events(self) -> None:
-        """Subscriber receives every event the processing run produces."""
         events = [
             TripStart(trip_index=0),
             PhaseUpdate(phase="elevations", done=1, total=5),
@@ -54,9 +45,7 @@ class TestProcessingSession:
         assert result == events
         assert session.is_done
 
-    @pytest.mark.anyio
     async def test_replay_past_events_on_late_subscribe(self) -> None:
-        """A subscriber that joins after processing completes gets all events."""
         events = [
             TripStart(trip_index=0),
             PhaseUpdate(phase="layouts", done=5, total=5),
@@ -76,10 +65,7 @@ class TestProcessingSession:
 
         assert result == events
 
-    @pytest.mark.anyio
     async def test_error_event_propagated(self) -> None:
-        """Processing errors are yielded as ErrorData events."""
-
         async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
             yield TripStart(trip_index=0)
             yield ErrorData()
@@ -92,9 +78,6 @@ class TestProcessingSession:
         assert isinstance(result[1], ErrorData)
 
 
-# process_stream (session management)
-
-
 class TestProcessStream:
     @pytest.fixture(autouse=True)
     def _clean_sessions(self) -> Iterator[None]:
@@ -102,9 +85,7 @@ class TestProcessStream:
         yield
         _sessions.clear()
 
-    @pytest.mark.anyio
     async def test_creates_new_session(self) -> None:
-        """First call creates a new session and returns events."""
         events = [TripStart(trip_index=0)]
 
         async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
@@ -117,9 +98,7 @@ class TestProcessStream:
 
         assert result == events
 
-    @pytest.mark.anyio
     async def test_reconnect_to_running_session(self) -> None:
-        """Second call while processing is running reconnects to same session."""
         gate = asyncio.Event()
         events_before_gate = [TripStart(trip_index=0)]
         events_after_gate = [PhaseUpdate(phase="elevations", done=1, total=5)]
@@ -150,9 +129,7 @@ class TestProcessStream:
 
             assert collected == events_before_gate + events_after_gate
 
-    @pytest.mark.anyio
     async def test_replays_completed_session(self) -> None:
-        """After processing completes, a new call replays the same session."""
         call_count = 0
 
         async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
@@ -168,9 +145,7 @@ class TestProcessStream:
         assert call_count == 1  # Only one processing run
         assert first == second  # Replayed same events
 
-    @pytest.mark.anyio
     async def test_concurrent_same_user_shares_session(self) -> None:
-        """Two concurrent calls for the same user share one session."""
         gate = asyncio.Event()
         call_count = 0
 
@@ -201,10 +176,7 @@ class TestProcessStream:
         assert call_count == 1  # Only one processing run
         assert result[0] == TripStart(trip_index=0)
 
-    @pytest.mark.anyio
     async def test_session_kept_for_reconnection(self) -> None:
-        """Completed sessions stay in _sessions for the TTL window."""
-
         async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
             yield TripStart(trip_index=0)
 

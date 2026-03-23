@@ -29,10 +29,10 @@ print("Reprojecting to Web Mercator...")
 gdf = gdf.to_crs(epsg=3857)
 
 # Create an output directory for the hundreds of SVG files
-output_dir = "public/countries"
+output_dir = "frontend/public/countries"
 os.makedirs(output_dir, exist_ok=True)
 
-bounds_dir = "src/countries"
+bounds_dir = "frontend/src/countries"
 os.makedirs(bounds_dir, exist_ok=True)
 json_filename = bounds_dir + "/bounds.json"
 bounds_dict = {}

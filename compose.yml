@@ -30,40 +30,11 @@ services:
       timeout: 10s
     volumes:
       - db-data:/var/lib/postgresql/data/pgdata
-    env_file:
-      - .env
     environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Variable not set}
-      - POSTGRES_USER=${POSTGRES_USER:?Variable not set}
-      - POSTGRES_DB=${POSTGRES_DB:?Variable not set}
-
-  prestart:
-    image: 'backend:${TAG:-latest}'
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    <<: *security
-    tmpfs:
-      - /tmp
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-          pids: 128
-    networks: [backend]
-    depends_on:
-      db:
-        condition: service_healthy
-        restart: true
-    command: bash scripts/prestart.sh
-    env_file:
-      - .env
-    environment:
-      - POSTGRES_SERVER=db
-    volumes:
-      - app-data:/app/backend/data
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
+      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
+      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
 
   backend:
     image: 'backend:${TAG:-latest}'
@@ -80,16 +51,23 @@ services:
           cpus: "2.0"
           pids: 512
     networks: [backend, frontend]
+    command: sh -c "alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
     depends_on:
       db:
         condition: service_healthy
         restart: true
-      prestart:
-        condition: service_completed_successfully
-    env_file:
-      - .env
     environment:
-      - POSTGRES_SERVER=db
+      POSTGRES_SERVER: db
+      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
+      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
+      SECRET_KEY: ${SECRET_KEY:?Variable not set}
+      FRONTEND_URL: ${FRONTEND_URL:?Variable not set}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Variable not set}
+      MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:?Variable not set}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" ]
       interval: 10s
@@ -97,10 +75,10 @@ services:
       retries: 5
     labels:
       - traefik.enable=true
-      - traefik.http.routers.wanderbound-api.rule=Host(`api.${DOMAIN}`)
-      - traefik.http.routers.wanderbound-api.entrypoints=websecure
-      - traefik.http.routers.wanderbound-api.tls.certresolver=letsencrypt
-      - traefik.http.services.wanderbound-api.loadbalancer.server.port=8000
+      - traefik.http.routers.wanderbound-be.rule=Host(`api.${DOMAIN}`)
+      - traefik.http.routers.wanderbound-be.entrypoints=websecure
+      - traefik.http.routers.wanderbound-be.tls.certresolver=letsencrypt
+      - traefik.http.services.wanderbound-be.loadbalancer.server.port=8000
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -173,10 +151,10 @@ services:
     networks: [frontend]
     labels:
       - traefik.enable=true
-      - traefik.http.routers.wanderbound.rule=Host(`${DOMAIN}`)
-      - traefik.http.routers.wanderbound.entrypoints=websecure
-      - traefik.http.routers.wanderbound.tls.certresolver=letsencrypt
-      - traefik.http.services.wanderbound.loadbalancer.server.port=8080
+      - traefik.http.routers.wanderbound-fe.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.wanderbound-fe.entrypoints=websecure
+      - traefik.http.routers.wanderbound-fe.tls.certresolver=letsencrypt
+      - traefik.http.services.wanderbound-fe.loadbalancer.server.port=8080
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -191,6 +169,7 @@ services:
         - VITE_GITHUB_URL=${VITE_GITHUB_URL}
         - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME}
         - VITE_AUTHOR_URL=${VITE_AUTHOR_URL}
+        - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 
 networks:
   backend:

@@ -5,41 +5,38 @@ repos:
       - id: check-added-large-files
       - id: check-toml
       - id: check-yaml
-        args:
-          - --unsafe
+        args: [--unsafe]
       - id: end-of-file-fixer
-        exclude: |
-          (?x)^(
-              frontend/src/client/.*|
-          )$
+        exclude: ^frontend/src/client/
       - id: trailing-whitespace
-        exclude: ^frontend/src/client/.*
+        exclude: ^frontend/src/client/
+
   - repo: local
     hooks:
-      - id: local-eslint
-        name: eslint
-        entry: bash -c 'cd frontend && eval "$(mise activate bash)" && bun run lint'
-        language: system
-        files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
-        pass_filenames: false
-
-      - id: local-ruff-check
+      - id: ruff-check
         name: ruff check
         entry: uv run ruff check --force-exclude --fix --exit-non-zero-on-fix
         require_serial: true
         language: system
-        types: [ python ]
+        types: [python]
 
-      - id: local-ruff-format
+      - id: ruff-format
         name: ruff format
         entry: uv run ruff format --force-exclude --exit-non-zero-on-format
         require_serial: true
         language: system
-        types: [ python ]
+        types: [python]
 
-      - id: local-ty
+      - id: ty
         name: ty check
-        entry: bash -c 'cd backend && uv run ty check'
+        entry: uv run --directory backend ty check
         require_serial: true
         language: system
+        pass_filenames: false
+
+      - id: eslint
+        name: eslint
+        entry: mise run lint:frontend
+        language: system
+        files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
         pass_filenames: false

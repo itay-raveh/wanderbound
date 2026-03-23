@@ -36,6 +36,8 @@ dev = [
     "ty<1",
     "deptry<1",
     "pytest~=9.0",
+    "pytest-asyncio~=1.0",
+    "pytest-randomly~=3.16",
     "aiosqlite~=0.22",
 ]
 
@@ -75,6 +77,7 @@ ignore = [
     "PT001", # @pytest.fixture() parentheses style
     "RUF002", # ambiguous unicode (en-dash in docstrings)
     "SLF001", # private member access (testing internals)
+    "PLR0913", # test helpers often need many parameters
 ]
 
 [tool.ruff.lint.isort]
@@ -100,6 +103,8 @@ DEP002 = [
     "python-multipart",
     "psycopg",  # SQLAlchemy driver loaded via postgresql+psycopg:// URI
     "itsdangerous",  # Required by Starlette SessionMiddleware at runtime
+    "pytest-asyncio",  # pytest plugin, loaded via pyproject.toml config
+    "pytest-randomly",
 ]
 # DEP003 = "Transitive dependency"
 DEP003 = ["app", "starlette"]  # starlette bundled with FastAPI (SessionMiddleware)
@@ -108,3 +113,14 @@ DEP003 = ["app", "starlette"]  # starlette bundled with FastAPI (SessionMiddlewa
 testpaths = ["tests"]
 pythonpath = ["."]
 strict = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+markers = [
+    "unit: pure logic, no IO or DB",
+    "integration: uses DB or external service mocks",
+]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-x",
+]

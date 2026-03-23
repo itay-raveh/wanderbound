@@ -25,7 +25,7 @@ interface DirectionsResponse {
   routes?: { geometry?: { coordinates: Coords } }[];
 }
 
-// ── Density classification ───────────────────────────────────────────
+// -- Density classification -------------------------------------------
 
 /** Average spacing above this threshold triggers Directions API instead of Map Matching. */
 const SPARSE_THRESHOLD_KM = 2;
@@ -36,12 +36,12 @@ function isSparse(coords: Coords): boolean {
   return totalKm / (coords.length - 1) > SPARSE_THRESHOLD_KM;
 }
 
-// ── Cache (deduplicates in-flight requests) ──────────────────────────
+// -- Cache (deduplicates in-flight requests) --------------------------
 
 /** Caches the Promise itself so concurrent calls for the same key share one flight. */
 const routeCache = new Map<string, Promise<Coords | null>>();
 
-// ── Shared helpers ───────────────────────────────────────────────────
+// -- Shared helpers ---------------------------------------------------
 
 function encodeCoords(coords: Coords): string {
   return coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
@@ -71,9 +71,12 @@ async function chunkedRoute(
   return allCoords.length >= 2 ? allCoords : null;
 }
 
-// ── Shared fetch ────────────────────────────────────────────────────
+// -- Shared fetch ----------------------------------------------------
 
-async function fetchMapboxJson<T>(url: string, label: string): Promise<T | null> {
+async function fetchMapboxJson<T>(
+  url: string,
+  label: string,
+): Promise<T | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -87,7 +90,7 @@ async function fetchMapboxJson<T>(url: string, label: string): Promise<T | null>
   }
 }
 
-// ── Map Matching API (dense traces) ─────────────────────────────────
+// -- Map Matching API (dense traces) ---------------------------------
 
 const MATCH_MAX_COORDS = 100;
 
@@ -119,18 +122,25 @@ async function matchChunk(
   const allCoords: Coords = [];
   for (const matching of data.matchings) {
     if (matching.geometry?.type === "LineString") {
-      allCoords.push(...(allCoords.length > 0 ? matching.geometry.coordinates.slice(1) : matching.geometry.coordinates));
+      allCoords.push(
+        ...(allCoords.length > 0
+          ? matching.geometry.coordinates.slice(1)
+          : matching.geometry.coordinates),
+      );
     }
   }
   return allCoords.length >= 2 ? allCoords : null;
 }
 
-async function matchRoute(coords: Coords, profile: Profile): Promise<Coords | null> {
+async function matchRoute(
+  coords: Coords,
+  profile: Profile,
+): Promise<Coords | null> {
   if (coords.length <= MATCH_MAX_COORDS) return matchChunk(coords, profile);
   return chunkedRoute(coords, 90, 10, (chunk) => matchChunk(chunk, profile));
 }
 
-// ── Directions API (sparse traces) ──────────────────────────────────
+// -- Directions API (sparse traces) ----------------------------------
 
 async function directionsChunk(
   coords: Coords,
@@ -143,12 +153,17 @@ async function directionsChunk(
   return route.geometry.coordinates;
 }
 
-async function directionsRoute(coords: Coords, profile: Profile): Promise<Coords | null> {
+async function directionsRoute(
+  coords: Coords,
+  profile: Profile,
+): Promise<Coords | null> {
   if (coords.length <= 25) return directionsChunk(coords, profile);
-  return chunkedRoute(coords, 20, 1, (chunk) => directionsChunk(chunk, profile));
+  return chunkedRoute(coords, 20, 1, (chunk) =>
+    directionsChunk(chunk, profile),
+  );
 }
 
-// ── Public API ───────────────────────────────────────────────────────
+// -- Public API -------------------------------------------------------
 
 export async function routeSegment(
   segment: { start_time: number; end_time: number },

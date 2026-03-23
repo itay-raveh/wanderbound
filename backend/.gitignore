@@ -1,6 +1,0 @@
-__pycache__
-app.egg-info
-.cache
-.venv
-tests/test_data
-data

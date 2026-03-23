@@ -28,7 +28,11 @@ const coverMedia = computed(() =>
 const dates = computed(() => {
   const start = parseLocalDate(props.steps[0]!.datetime);
   const end = parseLocalDate(props.steps[props.steps.length - 1]!.datetime);
-  return formatDateRange(start, end, { month: "long", day: "numeric", year: "numeric" });
+  return formatDateRange(start, end, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 });
 
 const coverField = computed(() =>
@@ -99,7 +103,7 @@ function saveCover(name: string) {
 </template>
 
 <style lang="scss" scoped>
-// ── Front Cover ──
+// -- Front Cover --
 
 .cover-dimmed {
   filter: brightness(0.55);
@@ -154,7 +158,7 @@ function saveCover(name: string) {
     0 0 30px rgba(0, 0, 0, 0.4);
 }
 
-// ── Shared ──
+// -- Shared --
 
 .cover-rule {
   width: 2.5rem;

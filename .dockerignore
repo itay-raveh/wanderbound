@@ -3,10 +3,9 @@
 
 # Backend
 !backend/app/
-!backend/scripts/
 !backend/pyproject.toml
 !backend/alembic.ini
-!backend/openapi.json
+!backend/export_openapi.py
 
 # Frontend
 !frontend/src/

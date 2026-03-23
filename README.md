@@ -57,25 +57,40 @@ For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
 
 ## Development
 
-Python 3.14+ with [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/),
-Docker (for Postgres).
+[mise](https://mise.jdx.dev/) manages tool versions (Python 3.14, Bun) and
+all project commands. Install it, then:
 
 ```bash
-docker compose up db prestart -d
+mise install            # Install Python + Bun
+cd backend && uv sync   # Install backend deps
+cd frontend && bun install  # Install frontend deps
 ```
 
-```bash
-cd backend
-uv sync
-uv run pytest              # Backend tests
-uv run uvicorn app.main:app --reload
-```
+Start Postgres, run migrations, then the dev servers:
 
 ```bash
-cd frontend
-bun install
-bun run dev
+docker compose up db -d      # Start Postgres
+mise run migrate             # Run database migrations
+mise run dev:backend         # FastAPI dev server
+mise run dev:frontend        # Vite dev server
 ```
+
+Run `mise tasks` to see everything available:
+
+| Command                  | What it does                         |
+|--------------------------|--------------------------------------|
+| `mise run test`          | Run all tests (backend + frontend)   |
+| `mise run test:backend`  | Backend tests (pytest)               |
+| `mise run test:frontend` | Frontend unit tests (vitest)         |
+| `mise run test:e2e`      | Frontend E2E tests (playwright)      |
+| `mise run lint`          | Lint everything                      |
+| `mise run format`        | Auto-format everything               |
+| `mise run build`         | Production frontend build            |
+| `mise run logs`          | Tail Docker Compose logs             |
+| `mise run restore list`  | Show available backups               |
+
+Extra arguments pass through — e.g., `mise run test:backend -k test_auth`
+runs only tests matching `test_auth`.
 
 ## License
 
