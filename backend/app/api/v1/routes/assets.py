@@ -74,7 +74,7 @@ async def get_media(
         async with _gen_lock(source):
             if not source.is_file():
                 await extract_frame(video)
-                logger.info("Lazy-extracted poster for %s", name)
+                logger.debug("Lazy-extracted poster for %s", name)
 
     if not source.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -117,4 +117,4 @@ async def update_video_frame(
     poster.unlink(missing_ok=True)
     delete_thumbnails(poster)
     await extract_frame(video, timestamp)
-    logger.info("Re-extracted frame for %s at t=%.1fs", name, timestamp)
+    logger.debug("Re-extracted frame for %s at t=%.1fs", name, timestamp)

@@ -48,6 +48,11 @@ def _check_upload_size(file: UploadFile) -> int:
     file.file.seek(0)
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     if size > max_bytes:
+        logger.warning(
+            "Upload rejected: %d MB exceeds %d MB limit",
+            size // MiB,
+            max_bytes // MiB,
+        )
         raise HTTPException(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
         )

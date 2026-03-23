@@ -185,6 +185,7 @@ async def render_album_pdf_stream(
     dark: bool = True,
 ) -> AsyncIterator[PdfEvent]:
     """Top-level SSE generator: queued -> loading -> rendering -> done/error."""
+    logger.info("PDF render queued for album %s", aid)
     yield PdfQueued()
 
     try:

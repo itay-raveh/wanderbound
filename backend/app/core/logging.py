@@ -1,13 +1,24 @@
 import logging
 import sys
 
-_NOISY = ("sqlalchemy.engine", "httpx", "httpcore", "hishel", "PIL", "playwright")
+from rich.logging import RichHandler
+
+_NOISY = (
+    "sqlalchemy.engine",
+    "httpx",
+    "httpcore",
+    "hishel",
+    "PIL",
+    "playwright",
+)
+
+# Loggers that should print to terminal but not propagate to Sentry.
+# Sentry's LoggingIntegration is configured to skip these in main.py.
+SENTRY_IGNORED = ("uvicorn.access",)
 
 
 def setup_logging(*, use_rich: bool) -> None:
     if use_rich:
-        from rich.logging import RichHandler  # noqa: PLC0415
-
         handler = RichHandler(
             rich_tracebacks=True,
             tracebacks_show_locals=True,

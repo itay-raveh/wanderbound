@@ -7,12 +7,13 @@ import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sentry_sdk.integrations.logging import LoggingIntegration
 from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
-from app.core.logging import setup_logging
+from app.core.logging import SENTRY_IGNORED, setup_logging
 from app.logic.export import lifespan as export_lifespan
 from app.logic.pdf import lifespan as pdf_lifespan
 
@@ -23,12 +24,20 @@ settings = get_settings()
 setup_logging(use_rich=settings.ENVIRONMENT == "local")
 
 if settings.SENTRY_DSN:
+
+    def _before_breadcrumb(crumb: dict, hint: dict) -> dict | None:  # type: ignore[type-arg]
+        if crumb.get("category") in SENTRY_IGNORED:
+            return None
+        return crumb
+
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
         release=settings.SENTRY_RELEASE,
         traces_sample_rate=1.0,
         enable_logs=True,
+        integrations=[LoggingIntegration(event_level=logging.ERROR)],
+        before_breadcrumb=_before_breadcrumb,
     )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +86,7 @@ app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 @app.exception_handler(NoResultFound)
 async def _not_found(request: Request, _exc: NoResultFound) -> JSONResponse:
-    logger.warning("Not found: %s %s", request.method, request.url.path)
+    logger.debug("Not found: %s %s", request.method, request.url.path)
     return JSONResponse({"detail": "Not found"}, status_code=404)
 
 

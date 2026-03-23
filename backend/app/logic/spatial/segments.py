@@ -561,7 +561,7 @@ def build_segments(
     )
 
     df = _ingest(steps, locations)
-    logger.info("Ingested %d points after noise removal", df.height)
+    logger.debug("Ingested %d points after noise removal", df.height)
 
     if df.is_empty():
         return iter([])
@@ -572,7 +572,7 @@ def build_segments(
     segments = list(_emit_segments(df, steps))
 
     counts = Counter(seg.kind for seg in segments)
-    logger.info(
+    logger.debug(
         "Segments: %s", ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
     )
 

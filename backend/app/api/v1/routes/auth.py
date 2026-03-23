@@ -41,6 +41,7 @@ async def verify_google_credential(credential: str) -> GoogleIdentity:
             issuer=GOOGLE_ISSUERS,
         )
     except jwt.InvalidTokenError:
+        logger.warning("Google JWT verification failed")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED) from None
 
     return GoogleIdentity(

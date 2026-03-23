@@ -84,7 +84,7 @@ async def correct_peaks(
         logger.warning("Overpass peak query failed: %s", exc)
         return elevs
 
-    logger.info(
+    logger.debug(
         "Overpass returned %d elements for %d local peaks",
         len(osm.elements),
         len(high_indices),
@@ -101,7 +101,7 @@ async def correct_peaks(
             continue
         deviation = (best.tags.ele - dem) / dem
         if deviation <= PEAK_MAX_DEVIATION:
-            logger.info(
+            logger.debug(
                 "Corrected step %s: %dm -> %dm",
                 best.tags.name or locs[i],
                 int(dem),
