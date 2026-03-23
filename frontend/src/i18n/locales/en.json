@@ -34,9 +34,9 @@
     "evictedBody": "Your files were cleaned up to save space, but your edits are saved. Re-upload your data to continue where you left off.",
     "reuploadTitle": "Update your data",
     "reuploadBody": "Upload new data to update your albums with the latest photos and trips.",
-    "statusReady": "your album is ready",
-    "statusError": "something went wrong",
-    "statusBuilding": "building your album",
+    "statusReady": "Your album is ready",
+    "statusError": "Something went wrong",
+    "statusBuilding": "Building your album...",
     "trips": "no trips | {n} trip | {n} trips",
     "steps": "no steps | {n} step | {n} steps",
     "countries": "no countries | {n} country | {n} countries",
@@ -61,32 +61,32 @@
     "appearance": "Appearance",
     "light": "Light",
     "dark": "Dark",
-    "locale": "Locale",
+    "locale": "Language & region",
     "distance": "Distance",
     "temperature": "Temperature",
-    "data": "Data",
+    "data": "Your data",
     "signOut": "Sign out",
     "reuploadData": "Re-upload data",
     "exportData": "Export my data",
     "deleteAll": "Delete all data",
-    "deleteFailed": "Failed to delete user."
+    "deleteFailed": "Couldn't delete your data. Please try again."
   },
 
   "delete": {
     "title": "Delete all data?",
     "body": "This will permanently remove your uploaded data and all albums. You'll need to upload again to continue.",
     "cancel": "Cancel",
-    "confirm": "Delete",
+    "confirm": "Delete everything",
     "deleting": "Deleting..."
   },
 
   "album": {
     "day": "DAY {n}",
-    "masl": "M.A.S.L",
-    "ftAsl": "FT A.S.L",
+    "masl": "m asl",
+    "ftAsl": "ft asl",
     "stepNamePlaceholder": "Step name",
     "descriptionPlaceholder": "Add a description...",
-    "dropStepCover": "Drop Step Cover",
+    "dropStepCover": "Drop to set as cover",
     "dropPhotoToAdd": "Drop photo to add page",
     "frontCover": "Front Cover",
     "backCover": "Back Cover",
@@ -115,8 +115,8 @@
 
   "overview": {
     "days": "Days",
-    "km": "Km",
-    "mi": "Mi",
+    "km": "km",
+    "mi": "mi",
     "m": "m",
     "ft": "ft",
     "photos": "Photos",
@@ -138,22 +138,22 @@
   },
 
   "error": {
-    "updatePreference": "Failed to update preference",
-    "saveAlbum": "Failed to save album settings",
-    "saveStep": "Failed to save step",
-    "videoFrame": "Failed to update video frame",
-    "pdfExport": "PDF export failed",
-    "dataExport": "Data export failed",
+    "updatePreference": "Couldn't save your preference. Please try again.",
+    "saveAlbum": "Couldn't save album changes. Please try again.",
+    "saveStep": "Couldn't save step changes. Please try again.",
+    "videoFrame": "Couldn't set the video poster. Please try again.",
+    "pdfExport": "PDF export failed. Please try again.",
+    "dataExport": "Data export failed. Please try again.",
     "processingFailed": "Processing failed. Please try again later.",
-    "connectionFailed": "Connection failed. Please try again.",
-    "adjustBoundary": "Failed to adjust segment boundary"
+    "connectionFailed": "Connection lost. Please try again.",
+    "adjustBoundary": "Couldn't adjust the boundary. Please try again."
   },
 
   "pdf": {
-    "queued": "Queued...",
+    "queued": "Waiting to start...",
     "loading": "Loading album...",
-    "renderingSingle": "Rendering...",
-    "renderingBytes": "Rendering... {size}"
+    "renderingSingle": "Generating PDF...",
+    "renderingBytes": "Generating PDF... {size}"
   },
 
   "footer": {
@@ -166,7 +166,7 @@
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "navigatePhotos": "Navigate photos",
-    "sendToUnused": "Send to unused",
+    "sendToUnused": "Move to unused",
     "setAsCover": "Set as cover",
     "clearSelection": "Clear selection",
     "undo": "Undo",

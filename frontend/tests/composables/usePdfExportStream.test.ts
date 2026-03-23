@@ -1,10 +1,10 @@
 vi.mock("@/i18n", () => {
   const t = (key: string, params?: Record<string, string>) => {
     if (key === "pdf.loading") return "Loading album...";
-    if (key === "pdf.renderingSingle") return "Rendering...";
-    if (key === "pdf.renderingBytes" && params) return `Rendering... ${params.size}`;
-    if (key === "pdf.queued") return "Queued...";
-    if (key === "error.pdfExport") return "PDF export failed";
+    if (key === "pdf.renderingSingle") return "Generating PDF...";
+    if (key === "pdf.renderingBytes" && params) return `Generating PDF... ${params.size}`;
+    if (key === "pdf.queued") return "Waiting to start...";
+    if (key === "error.pdfExport") return "PDF export failed. Please try again.";
     return key;
   };
   return {

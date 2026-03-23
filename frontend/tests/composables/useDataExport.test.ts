@@ -2,7 +2,7 @@ vi.mock("@/i18n", () => {
   const t = (key: string, params?: Record<string, unknown>) => {
     if (key === "export.preparing") return "Preparing export...";
     if (key === "export.progress" && params) return `Exporting... ${String(params.done)} / ${String(params.total)}`;
-    if (key === "error.dataExport") return "Data export failed";
+    if (key === "error.dataExport") return "Data export failed. Please try again.";
     return key;
   };
   return {

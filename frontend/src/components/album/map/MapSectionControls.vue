@@ -97,8 +97,7 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
   z-index: 2;
   gap: var(--gap-sm);
   padding: var(--gap-sm);
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  backdrop-filter: blur(8px);
+  background: var(--surface);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }

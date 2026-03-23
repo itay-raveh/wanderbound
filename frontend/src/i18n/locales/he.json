@@ -36,7 +36,7 @@
     "reuploadBody": "מעלים נתונים חדשים כדי לעדכן את האלבומים עם התמונות והטיולים האחרונים.",
     "statusReady": "האלבום מוכן",
     "statusError": "משהו השתבש",
-    "statusBuilding": "בונה את האלבום",
+    "statusBuilding": "בונה את האלבום...",
     "trips": "אין טיולים | טיול אחד | {n} טיולים",
     "steps": "אין צעדים | צעד אחד | {n} צעדים",
     "countries": "אין מדינות | מדינה אחת | {n} מדינות",
@@ -61,22 +61,22 @@
     "appearance": "מראה",
     "light": "בהיר",
     "dark": "כהה",
-    "locale": "אזור",
+    "locale": "שפה ואזור",
     "distance": "מרחק",
     "temperature": "טמפרטורה",
-    "data": "נתונים",
+    "data": "הנתונים שלך",
     "signOut": "התנתקות",
     "reuploadData": "העלאה מחדש",
     "exportData": "ייצוא הנתונים שלי",
     "deleteAll": "מחיקת כל הנתונים",
-    "deleteFailed": "המחיקה נכשלה."
+    "deleteFailed": "לא ניתן למחוק את הנתונים. נסו שוב."
   },
 
   "delete": {
     "title": "למחוק הכול?",
     "body": "זה ימחק לצמיתות את הנתונים ואת כל האלבומים. תצטרכו להעלות מחדש כדי להמשיך.",
     "cancel": "ביטול",
-    "confirm": "מחיקה",
+    "confirm": "מחיקת הכול",
     "deleting": "מוחק..."
   },
 
@@ -86,7 +86,7 @@
     "ftAsl": "רגל מעל פני הים",
     "stepNamePlaceholder": "שם צעד",
     "descriptionPlaceholder": "הוסיפו תיאור...",
-    "dropStepCover": "גררו תמונת שער",
+    "dropStepCover": "שחררו כדי להגדיר כשער",
     "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
     "frontCover": "שער קדמי",
     "backCover": "שער אחורי",
@@ -138,22 +138,22 @@
   },
 
   "error": {
-    "updatePreference": "העדכון נכשל",
-    "saveAlbum": "השמירה נכשלה",
-    "saveStep": "השמירה נכשלה",
-    "videoFrame": "עדכון הפריים נכשל",
-    "pdfExport": "ייצוא PDF נכשל",
-    "dataExport": "ייצוא הנתונים נכשל",
+    "updatePreference": "לא ניתן לשמור את ההעדפה. נסו שוב.",
+    "saveAlbum": "לא ניתן לשמור שינויים באלבום. נסו שוב.",
+    "saveStep": "לא ניתן לשמור שינויים בצעד. נסו שוב.",
+    "videoFrame": "לא ניתן לעדכן את הפוסטר. נסו שוב.",
+    "pdfExport": "ייצוא PDF נכשל. נסו שוב.",
+    "dataExport": "ייצוא הנתונים נכשל. נסו שוב.",
     "processingFailed": "העיבוד נכשל. נסו שוב מאוחר יותר.",
-    "connectionFailed": "החיבור נכשל. נסו שוב.",
-    "adjustBoundary": "שינוי הגבול נכשל"
+    "connectionFailed": "החיבור נותק. נסו שוב.",
+    "adjustBoundary": "לא ניתן לשנות את הגבול. נסו שוב."
   },
 
   "pdf": {
-    "queued": "בתור...",
+    "queued": "ממתין להתחלה...",
     "loading": "טוען אלבום...",
-    "renderingSingle": "מרנדר...",
-    "renderingBytes": "מרנדר... {size}"
+    "renderingSingle": "מייצר PDF...",
+    "renderingBytes": "מייצר PDF... {size}"
   },
 
   "footer": {
@@ -166,7 +166,7 @@
   "shortcuts": {
     "title": "קיצורי מקלדת",
     "navigatePhotos": "ניווט בין תמונות",
-    "sendToUnused": "שליחה ללא בשימוש",
+    "sendToUnused": "העברה ללא בשימוש",
     "setAsCover": "הגדרה כשער",
     "clearSelection": "ביטול בחירה",
     "undo": "ביטול",

@@ -306,7 +306,7 @@ async function handleDelete() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.3rem;
+  gap: var(--gap-sm);
   padding: var(--gap-sm-md) var(--gap-md-lg);
   border-radius: var(--radius-sm);
   font-size: var(--type-sm);

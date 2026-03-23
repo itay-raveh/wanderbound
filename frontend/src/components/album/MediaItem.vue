@@ -278,7 +278,7 @@ function onVideoKey(e: KeyboardEvent) {
   cursor: pointer;
   transition:
     background var(--duration-fast),
-    transform 0.1s;
+    transform var(--duration-fast);
 
   &:hover {
     background: #e0e0e0;

@@ -105,8 +105,13 @@ function saveCover(name: string) {
 <style lang="scss" scoped>
 // -- Front Cover --
 
-.cover-dimmed {
-  filter: brightness(0.55);
+// Dark overlay instead of filter: brightness() — filters break in Chromium's PDF backend.
+.cover-dimmed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
 
 .front-text {
@@ -126,24 +131,16 @@ function saveCover(name: string) {
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.8);
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.8),
-    0 0 12px rgba(0, 0, 0, 0.6),
-    0 0 30px rgba(0, 0, 0, 0.4);
 }
 
 .front-title {
   font-size: var(--display-1);
   font-weight: 800;
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-tight);
   color: white;
   text-align: center;
   max-width: 85%;
-  text-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.9),
-    0 0 20px rgba(0, 0, 0, 0.7),
-    0 0 60px rgba(0, 0, 0, 0.5);
 }
 
 .front-subtitle {
@@ -153,10 +150,6 @@ function saveCover(name: string) {
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
   max-width: 70%;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.8),
-    0 0 12px rgba(0, 0, 0, 0.6),
-    0 0 30px rgba(0, 0, 0, 0.4);
 }
 
 // -- Shared --
