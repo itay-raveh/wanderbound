@@ -114,7 +114,11 @@ async function captureEditor(page: Page, mode: string) {
     await page.waitForTimeout(500);
   }
 
-  await page.screenshot({ path: save("editor", mode), type: "jpeg", quality: JPEG_QUALITY });
+  await page.screenshot({
+    path: save("editor", mode),
+    type: "jpeg",
+    quality: JPEG_QUALITY,
+  });
   console.log(`  ✓ editor-${mode}.jpg`);
 }
 
@@ -130,12 +134,18 @@ async function captureAutoAlbum(page: Page, mode: string) {
       await container.scrollIntoViewIfNeeded();
       await page.waitForTimeout(500);
       await waitForImages(page, container);
-      await container.screenshot({ path: save("auto-album", mode), type: "jpeg", quality: JPEG_QUALITY });
+      await container.screenshot({
+        path: save("auto-album", mode),
+        type: "jpeg",
+        quality: JPEG_QUALITY,
+      });
       console.log(`  ✓ auto-album-${mode}.jpg`);
       return;
     }
   }
-  console.warn(`  ⚠ No step page with 3+ photos found — skipping auto-album-${mode}.jpg`);
+  console.warn(
+    `  ⚠ No step page with 3+ photos found — skipping auto-album-${mode}.jpg`,
+  );
 }
 
 /** Hike map page with elevation profile. */
@@ -151,9 +161,15 @@ async function captureHikeMap(page: Page, mode: string) {
 
   // Wait for mapbox tiles to render
   try {
-    await hike.locator("[data-map]").first().waitFor({ state: "attached", timeout: 5000 });
+    await hike
+      .locator("[data-map]")
+      .first()
+      .waitFor({ state: "attached", timeout: 5000 });
     await page.waitForFunction(
-      () => document.querySelector(".map-wrapper:has(.elevation-profile) [data-map]")?.hasAttribute("data-map-ready"),
+      () =>
+        document
+          .querySelector(".map-wrapper:has(.elevation-profile) [data-map]")
+          ?.hasAttribute("data-map-ready"),
       { timeout: 10_000 },
     );
   } catch {
@@ -163,14 +179,20 @@ async function captureHikeMap(page: Page, mode: string) {
 
   // Screenshot the inner page-container (not the wrapper with editor chrome)
   const pageContainer = hike.locator(".page-container").first();
-  await pageContainer.screenshot({ path: save("hike-map", mode), type: "jpeg", quality: JPEG_QUALITY });
+  await pageContainer.screenshot({
+    path: save("hike-map", mode),
+    type: "jpeg",
+    quality: JPEG_QUALITY,
+  });
   console.log(`  ✓ hike-map-${mode}.jpg`);
 }
 
 /** Video in playing state with "Use as poster" frame bar. */
 async function captureVideoPoster(page: Page, mode: string) {
   // Find a media item that contains a video
-  const videoItems = page.locator("[data-media]:has(video), [data-media]:has(.play-overlay)");
+  const videoItems = page.locator(
+    "[data-media]:has(video), [data-media]:has(.play-overlay)",
+  );
   if ((await videoItems.count()) === 0) {
     console.warn(`  ⚠ No video found — skipping video-poster-${mode}.jpg`);
     return;
@@ -185,11 +207,17 @@ async function captureVideoPoster(page: Page, mode: string) {
   if ((await playOverlay.count()) > 0) {
     await playOverlay.click();
     // Wait for video to start and frame bar to appear
-    await item.locator(".frame-bar").waitFor({ state: "visible", timeout: 5000 });
+    await item
+      .locator(".frame-bar")
+      .waitFor({ state: "visible", timeout: 5000 });
     await page.waitForTimeout(500);
   }
 
-  await item.screenshot({ path: save("video-poster", mode), type: "jpeg", quality: JPEG_QUALITY });
+  await item.screenshot({
+    path: save("video-poster", mode),
+    type: "jpeg",
+    quality: JPEG_QUALITY,
+  });
   console.log(`  ✓ video-poster-${mode}.jpg`);
 
   // Pause the video to avoid interfering with later screenshots
@@ -206,7 +234,9 @@ async function captureLocalization(page: Page, mode: string) {
       return resp.json() as Promise<Record<string, unknown>>;
     });
   } catch {
-    console.warn(`  ⚠ Could not fetch user data — skipping localization-${mode}.jpg`);
+    console.warn(
+      `  ⚠ Could not fetch user data — skipping localization-${mode}.jpg`,
+    );
     return;
   }
 
@@ -246,7 +276,11 @@ async function captureLocalization(page: Page, mode: string) {
     await target.scrollIntoViewIfNeeded();
     await page.waitForTimeout(500);
     await waitForImages(page, target);
-    await target.screenshot({ path: save("localization", mode), type: "jpeg", quality: JPEG_QUALITY });
+    await target.screenshot({
+      path: save("localization", mode),
+      type: "jpeg",
+      quality: JPEG_QUALITY,
+    });
     console.log(`  ✓ localization-${mode}.jpg`);
   } else {
     console.warn(`  ⚠ No step page found — skipping localization-${mode}.jpg`);
