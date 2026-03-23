@@ -199,11 +199,12 @@ body,
 /* Skip-to-content link — visible only on keyboard focus */
 .skip-to-content {
   position: absolute;
-  left: -9999px;
-  top: auto;
   width: 1px;
   height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   overflow: hidden;
+  white-space: nowrap;
   z-index: 9999;
 
   &:focus {
