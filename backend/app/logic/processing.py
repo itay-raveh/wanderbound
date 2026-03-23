@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import shutil
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -99,6 +100,20 @@ def flatten_media(album_dir: Path) -> None:
     for d in sorted(dirs, reverse=True):
         with contextlib.suppress(OSError):
             d.rmdir()
+
+
+_POLARSTEPS_METADATA = {"trip.json", "locations.json"}
+
+
+def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
+    """Free disk and avoid leaking raw location history after ingestion."""
+    for td in trip_dirs:
+        for name in _POLARSTEPS_METADATA:
+            (td / name).unlink(missing_ok=True)
+
+    shutil.rmtree(user_folder / "user", ignore_errors=True)
+
+    logger.debug("Cleaned up Polarsteps metadata for %s", user_folder.name)
 
 
 class TripResults(NamedTuple):
@@ -457,3 +472,6 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
     except SQLAlchemyError:
         logger.exception("DB save failed for user %d", user.id)
         yield ErrorData()
+        return
+
+    await asyncio.to_thread(_cleanup_metadata, user.folder, trip_dirs)

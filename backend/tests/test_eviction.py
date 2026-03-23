@@ -26,7 +26,6 @@ def _make_user(uid: int, *, hours_ago: int = 0) -> User:
         id=uid,
         google_sub=f"g-{uid}",
         first_name="U",
-        last_name=str(uid),
         locale="en-US",
         unit_is_km=True,
         temperature_is_celsius=True,

@@ -90,7 +90,6 @@ class TestUpload:
             )
         user = resp.json()["user"]
         assert user["first_name"] == "Zip"
-        assert user["last_name"] == "User"
 
     async def test_reupload_updates_trips(
         self, client: AsyncClient, tmp_path: Path

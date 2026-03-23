@@ -9,7 +9,6 @@ import {
 import { t } from "@/i18n";
 
 export type { ProcessingPhase };
-
 export type StreamState = "idle" | "running" | "done" | "error";
 
 export interface PhaseProgress {

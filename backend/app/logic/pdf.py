@@ -1,26 +1,22 @@
 import asyncio
 import base64
 import logging
-import secrets
-import shutil
-import tempfile
 from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import aclosing, suppress
+from contextlib import aclosing, asynccontextmanager, suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import Annotated, Literal
 
+from playwright.async_api import Browser, Page, async_playwright
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 from app.core.resources import MiB, detect_memory_mb
-
-if TYPE_CHECKING:
-    from playwright.async_api import Browser, Page
+from app.core.tokens import TokenStore
 
 logger = logging.getLogger(__name__)
 
-_PDF_BASELINE_MB = 512  # Python process + idle Playwright browser + headroom
-_PER_RENDER_MB = 768  # Playwright context (~250MB) + PDF on tmpfs (up to ~600MB)
+_PDF_BASELINE_MB = 512
+_PER_RENDER_MB = 768
 
 _memory_mb = detect_memory_mb()
 _max_concurrent = max(1, (_memory_mb - _PDF_BASELINE_MB) // _PER_RENDER_MB)
@@ -29,9 +25,7 @@ _render_sem = asyncio.Semaphore(_max_concurrent)
 
 _QUEUE_TIMEOUT = 120
 _RENDER_TIMEOUT = 300
-_PROGRESS_INTERVAL = 512 * 1024
-
-_TOKEN_TTL = 60  # frontend downloads immediately after generation
+_PROGRESS_CHUNK_BYTES = 512 * 1024
 
 
 class PdfQueued(BaseModel):
@@ -59,41 +53,34 @@ PdfEvent = Annotated[
     Field(discriminator="type"),
 ]
 
-_PDF_DIR = Path(tempfile.gettempdir()) / "polarsteps-pdf"
+_tokens: TokenStore[tuple[Path, str]] = TokenStore(
+    dir_name="wanderbound-pdf",
+    ttl=60,
+    label="PDF",
+    on_evict=lambda d: d[0].unlink(missing_ok=True),
+)
 
 
-def cleanup_pdf_tmp() -> None:
-    """Remove stale PDF files from previous server runs."""
-    if _PDF_DIR.exists():
-        shutil.rmtree(_PDF_DIR)
-    _PDF_DIR.mkdir(parents=True, exist_ok=True)
-
-
-_tokens: dict[str, tuple[Path, str, asyncio.TimerHandle]] = {}
-
-
-def _evict_token(token: str) -> None:
-    entry = _tokens.pop(token, None)
-    if entry is not None:
-        path, _, _ = entry
-        path.unlink(missing_ok=True)
-        logger.debug("Expired PDF token %s", token[:8])
+@asynccontextmanager
+async def lifespan() -> AsyncGenerator[Browser]:
+    """Setup/teardown for PDF rendering: tmp dir cleanup + Playwright browser."""
+    async with _tokens.lifespan():
+        pw = await async_playwright().start()
+        browser = await pw.chromium.launch(args=["--use-gl=angle", "--no-sandbox"])
+        logger.info("Playwright browser launched")
+        try:
+            yield browser
+        finally:
+            await browser.close()
+            await pw.stop()
+            logger.info("Playwright browser closed")
 
 
 def store_pdf_token(path: Path, aid: str) -> str:
-    token = secrets.token_urlsafe()
-    handle = asyncio.get_running_loop().call_later(_TOKEN_TTL, _evict_token, token)
-    _tokens[token] = (path, aid, handle)
-    return token
+    return _tokens.store((path, aid))
 
 
-def pop_pdf_token(token: str) -> tuple[Path, str] | None:
-    entry = _tokens.pop(token, None)
-    if entry is None:
-        return None
-    path, aid, timer = entry
-    timer.cancel()
-    return path, aid
+pop_pdf_token = _tokens.pop
 
 
 async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
@@ -180,7 +167,7 @@ async def _render_pdf(
         last_reported = 0
         async with aclosing(_stream_pdf_to_file(page, dest)) as stream:
             async for size in stream:
-                if size - last_reported >= _PROGRESS_INTERVAL:
+                if size - last_reported >= _PROGRESS_CHUNK_BYTES:
                     yield PdfProgress(phase="rendering", done=size)
                     last_reported = size
         yield PdfProgress(phase="rendering", done=size)
@@ -210,7 +197,7 @@ async def render_album_pdf_stream(
         )
         return
 
-    dest = _PDF_DIR / f"{secrets.token_hex(16)}.pdf"
+    dest = _tokens.make_dest(".pdf")
     size = 0
     owned = False
     try:

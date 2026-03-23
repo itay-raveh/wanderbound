@@ -46,7 +46,6 @@ async def verify_google_credential(credential: str) -> GoogleIdentity:
     return GoogleIdentity(
         sub=payload["sub"],
         first_name=payload.get("given_name", ""),
-        last_name=payload.get("family_name", ""),
         picture=payload.get("picture"),
     )
 

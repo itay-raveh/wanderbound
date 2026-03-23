@@ -60,12 +60,13 @@
     "appearance": "מראה",
     "light": "בהיר",
     "dark": "כהה",
-    "units": "יחידות",
+    "locale": "אזור",
     "distance": "מרחק",
     "temperature": "טמפרטורה",
-    "language": "שפה",
+    "data": "נתונים",
     "signOut": "התנתקות",
     "reuploadData": "העלאה מחדש",
+    "exportData": "ייצוא הנתונים שלי",
     "deleteAll": "מחיקת כל הנתונים",
     "deleteFailed": "המחיקה נכשלה."
   },
@@ -127,12 +128,18 @@
     "loading": "טוען אלבום..."
   },
 
+  "export": {
+    "preparing": "מכין ייצוא...",
+    "progress": "מייצא נתונים... {done} / {total} קבצים"
+  },
+
   "error": {
     "updatePreference": "העדכון נכשל",
     "saveAlbum": "השמירה נכשלה",
     "saveStep": "השמירה נכשלה",
     "videoFrame": "עדכון הפריים נכשל",
     "pdfExport": "ייצוא PDF נכשל",
+    "dataExport": "ייצוא הנתונים נכשל",
     "processingFailed": "העיבוד נכשל. נסו שוב מאוחר יותר.",
     "connectionFailed": "החיבור נכשל. נסו שוב.",
     "adjustBoundary": "שינוי הגבול נכשל"

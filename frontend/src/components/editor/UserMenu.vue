@@ -16,10 +16,12 @@ import {
   matLightMode,
   matDarkMode,
   matDeleteOutline,
+  matDownload,
   matSettings,
   matLogout,
   matUploadFile,
 } from "@quasar/extras/material-icons";
+import { useDataExport } from "@/composables/useDataExport";
 
 const router = useRouter();
 const cache = useQueryCache();
@@ -28,6 +30,7 @@ const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
 const { t } = useI18n();
 
+const exportStream = useDataExport();
 const menuOpen = ref(false);
 const showDeleteConfirm = ref(false);
 const deleting = ref(false);
@@ -118,9 +121,27 @@ async function handleDelete() {
             </div>
           </section>
 
-          <!-- Units -->
+          <!-- Locale -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">{{ t("settings.units") }}</h4>
+            <h4 class="section-title text-overline text-faint">{{ t("settings.locale") }}</h4>
+            <div class="locale-wrapper">
+              <q-select
+                class="compact-field"
+                :model-value="resolveLocale(user.locale)"
+                :options="filteredLocaleOptions"
+                dense
+                borderless
+                emit-value
+                map-options
+                options-dense
+                use-input
+                input-debounce="0"
+                menu-anchor="bottom start"
+                menu-self="top start"
+                @filter="onLocaleFilter"
+                @update:model-value="$event !== user.locale && patch({ locale: $event })"
+              />
+            </div>
             <div class="unit-row row no-wrap items-center justify-between">
               <span class="unit-label text-body2">{{ t("settings.distance") }}</span>
               <div class="seg-track compact">
@@ -153,35 +174,22 @@ async function handleDelete() {
             </div>
           </section>
 
-          <!-- Language -->
+          <!-- Data -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">{{ t("settings.language") }}</h4>
-            <div class="locale-wrapper">
-              <q-select
-                class="compact-field"
-                :model-value="resolveLocale(user.locale)"
-                :options="filteredLocaleOptions"
-                dense
-                borderless
-                emit-value
-                map-options
-                options-dense
-                use-input
-                input-debounce="0"
-                menu-anchor="bottom start"
-                menu-self="top start"
-                @filter="onLocaleFilter"
-                @update:model-value="$event !== user.locale && patch({ locale: $event })"
-              />
-            </div>
+            <h4 class="section-title text-overline text-faint">{{ t("settings.data") }}</h4>
+
+            <button class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
+              <q-icon :name="matUploadFile" size="1rem" />
+              {{ t("settings.reuploadData") }}
+            </button>
+
+            <button class="action-btn" @click="menuOpen = false; exportStream.start()">
+              <q-icon :name="matDownload" size="1rem" />
+              {{ t("settings.exportData") }}
+            </button>
           </section>
 
           <q-separator class="q-my-sm" />
-
-          <button class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
-            <q-icon :name="matUploadFile" size="1rem" />
-            {{ t("settings.reuploadData") }}
-          </button>
 
           <button class="action-btn" @click="handleSignOut">
             <q-icon :name="matLogout" size="1rem" />
@@ -333,6 +341,7 @@ async function handleDelete() {
   background: color-mix(in srgb, black 10%, var(--bg-secondary));
   border-radius: var(--radius-md);
   padding: 0 var(--gap-md);
+  margin-bottom: var(--gap-md-lg);
 }
 
 .action-btn,

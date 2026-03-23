@@ -1,6 +1,6 @@
 import asyncio
+import io
 import logging
-import os
 import shutil
 from collections.abc import AsyncIterable
 from typing import Annotated, cast
@@ -15,11 +15,18 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 
 from app.core.config import get_settings
 from app.core.resources import MiB
 from app.logic.eviction import run_eviction
+from app.logic.export import (
+    EXPORT_FILENAME,
+    ExportEvent,
+    export_user_data,
+    pop_export_token,
+)
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
 from app.logic.upload import UploadResult, extract_and_scan
@@ -36,11 +43,10 @@ router = APIRouter(prefix="/users", tags=["users"])
 def _check_upload_size(file: UploadFile) -> int:
     """Defense-in-depth size check (nginx is the primary limit)."""
     # Measure actual bytes on disk, not the Content-Length header (spoofable).
-    # Seek to end, read cursor position, then reset.
-    file.file.seek(0, os.SEEK_END)
+    file.file.seek(0, io.SEEK_END)
     size = file.file.tell()
     file.file.seek(0)
-    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * 1024 * 1024
+    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     if size > max_bytes:
         raise HTTPException(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
@@ -107,7 +113,6 @@ async def upload_data(
             existing.album_ids = album_ids
             existing.living_location = ps_user.living_location
             existing.first_name = existing.first_name or ps_user.first_name
-            existing.last_name = existing.last_name or ps_user.last_name
             session.add(existing)
             await session.commit()
             user = existing
@@ -118,7 +123,6 @@ async def upload_data(
             user = User(
                 id=ps_user.id,
                 first_name=g.first_name or ps_user.first_name,
-                last_name=g.last_name or ps_user.last_name,
                 locale=ps_user.locale,
                 unit_is_km=ps_user.unit_is_km,
                 temperature_is_celsius=ps_user.temperature_is_celsius,
@@ -154,6 +158,33 @@ async def upload_data(
 async def process_user(user: UserDep) -> AsyncIterable[ProcessingEvent]:
     async for event in process_stream(user):
         yield event
+
+
+@router.get(
+    "/export",
+    response_class=EventSourceResponse,
+    responses={200: {"model": list[ExportEvent]}},
+)
+async def export_data(user: UserDep, session: SessionDep) -> AsyncIterable[ExportEvent]:
+    async for event in export_user_data(user, session):
+        yield event
+
+
+@router.get("/export/download/{token}")
+async def download_export(
+    token: str, background_tasks: BackgroundTasks
+) -> FileResponse:
+    result = pop_export_token(token)
+    if result is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
+        )
+    background_tasks.add_task(result.unlink, missing_ok=True)
+    return FileResponse(
+        result,
+        media_type="application/zip",
+        filename=EXPORT_FILENAME,
+    )
 
 
 @router.get("")

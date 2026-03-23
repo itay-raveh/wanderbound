@@ -31,7 +31,6 @@ Locale = Annotated[
 
 class UserBase(SQLModel):
     first_name: str = Field(max_length=255)
-    last_name: str = Field(max_length=255)
     locale: Locale
     unit_is_km: bool
     temperature_is_celsius: bool
@@ -54,7 +53,6 @@ class GoogleIdentity(BaseModel):
 
     sub: str
     first_name: str
-    last_name: str
     picture: HttpUrl | None = None
 
 

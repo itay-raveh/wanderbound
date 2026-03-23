@@ -96,14 +96,12 @@ async def client(
 GOOGLE_PAYLOAD = {
     "sub": "google-123",
     "given_name": "Test",
-    "family_name": "User",
     "picture": "https://example.com/photo.jpg",
 }
 
 PS_USER = PSUser(
     id=999,
     first_name="Zip",
-    last_name="User",
     locale="en-US",
     unit_is_km=True,
     temperature_is_celsius=True,

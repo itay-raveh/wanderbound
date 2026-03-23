@@ -42,7 +42,6 @@ def _make_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> User:
         id=1,
         google_sub="g-1",
         first_name="Test",
-        last_name="User",
         locale="en-US",
         unit_is_km=True,
         temperature_is_celsius=True,

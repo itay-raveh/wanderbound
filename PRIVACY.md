@@ -32,11 +32,11 @@ Your uploaded data (photos, GPS tracks, trip metadata) is stored on the server t
 
 You can:
 
-- **Delete your data** — Use the "Delete all my data" option in the editor settings menu. This permanently removes your account, albums, and all uploaded files.
-- **Access your data** — Your uploaded Polarsteps archive is the source data. Export features are planned.
+- **Delete your data** — Use the "Delete all data" option in the editor settings menu. This permanently removes your account, albums, and all uploaded files.
+- **Export your data** — Use the "Export my data" option in the editor settings menu. This downloads a ZIP file containing your account info, album configurations, and all your photos and videos in a portable format (GDPR Article 20 data portability).
 - **Correct your data** — Edit your name, locale, and preferences in the editor settings.
 
-If you are in the EU, you have additional rights under the GDPR, including the right to data portability and the right to object to processing. To exercise these rights, contact the instance operator.
+If you are in the EU, you have additional rights under the GDPR. Data portability and deletion are available directly through the editor settings menu. To exercise other rights, contact the instance operator.
 
 ## Changes to This Policy
 

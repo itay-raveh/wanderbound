@@ -1,10 +1,8 @@
 vi.mock("@/i18n", () => {
-  const t = (key: string, params?: Record<string, string>) => {
-    if (key === "pdf.loading") return "Loading album...";
-    if (key === "pdf.renderingSingle") return "Rendering...";
-    if (key === "pdf.renderingBytes" && params) return `Rendering... ${params.size}`;
-    if (key === "pdf.queued") return "Queued...";
-    if (key === "error.pdfExport") return "PDF export failed";
+  const t = (key: string, params?: Record<string, unknown>) => {
+    if (key === "export.preparing") return "Preparing export...";
+    if (key === "export.progress" && params) return `Exporting... ${String(params.done)} / ${String(params.total)}`;
+    if (key === "error.dataExport") return "Data export failed";
     return key;
   };
   return {
@@ -17,7 +15,7 @@ vi.mock("@/i18n", () => {
 });
 
 vi.mock("@/client", () => ({
-  generatePdf: vi.fn(),
+  exportData: vi.fn(),
 }));
 
 vi.mock("@/client/client.gen", () => ({
@@ -28,12 +26,12 @@ vi.mock("@/client/client.gen", () => ({
 
 import type { SseDownloadHandle, SseStreamState } from "@/composables/useSseDownload";
 
-describe("usePdfExportStream", () => {
+describe("useDataExport", () => {
   let stream: SseDownloadHandle;
 
   beforeEach(async () => {
-    const mod = await import("@/composables/usePdfExportStream");
-    stream = mod.usePdfExportStream(() => "test-album-id");
+    const mod = await import("@/composables/useDataExport");
+    stream = mod.useDataExport();
   });
 
   it("starts in idle state", () => {

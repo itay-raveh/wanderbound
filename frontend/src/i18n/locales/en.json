@@ -60,12 +60,13 @@
     "appearance": "Appearance",
     "light": "Light",
     "dark": "Dark",
-    "units": "Units",
+    "locale": "Locale",
     "distance": "Distance",
     "temperature": "Temperature",
-    "language": "Language",
+    "data": "Data",
     "signOut": "Sign out",
     "reuploadData": "Re-upload data",
+    "exportData": "Export my data",
     "deleteAll": "Delete all data",
     "deleteFailed": "Failed to delete user."
   },
@@ -127,12 +128,18 @@
     "loading": "Loading album..."
   },
 
+  "export": {
+    "preparing": "Preparing export...",
+    "progress": "Exporting data... {done} / {total} files"
+  },
+
   "error": {
     "updatePreference": "Failed to update preference",
     "saveAlbum": "Failed to save album settings",
     "saveStep": "Failed to save step",
     "videoFrame": "Failed to update video frame",
     "pdfExport": "PDF export failed",
+    "dataExport": "Data export failed",
     "processingFailed": "Processing failed. Please try again later.",
     "connectionFailed": "Connection failed. Please try again.",
     "adjustBoundary": "Failed to adjust segment boundary"

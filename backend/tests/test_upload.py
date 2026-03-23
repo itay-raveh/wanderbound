@@ -186,7 +186,6 @@ class TestExtractAndScan:
 
         try:
             assert ps_user.first_name == "Test"
-            assert ps_user.last_name == "User"
             assert len(trips) == 2
             for trip in trips:
                 assert isinstance(trip, TripMeta)

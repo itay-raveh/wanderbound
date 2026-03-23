@@ -21,7 +21,7 @@ All env vars in root `.env`. Compose reads it via `env_file`. Frontend build-tim
 ```
 backend/
   app/
-    main.py                 FastAPI app, lifespan (Playwright browser on app.state), middleware
+    main.py                 FastAPI app, lifespan (composes domain lifespans from pdf.py + export.py), middleware
     core/
       config.py             Pydantic Settings (reads ../.env), USER_COOKIE constant
       db.py                 Async SQLAlchemy engine, PydanticJSON column type, all_optional helper
@@ -32,7 +32,7 @@ backend/
       deps.py               SessionDep, UserDep (session-based uid auth), BrowserDep
       routes/
         auth.py             POST /google (Google JWT verification + session), POST /logout
-        users.py            POST /upload (create from ZIP), GET, PATCH, DELETE, GET /process (SSE)
+        users.py            POST /upload (create from ZIP), GET, PATCH, DELETE, GET /process (SSE), GET /export (SSE), GET /export/download/{token}
         albums.py           GET /{aid}, GET /{aid}/data, PATCH /{aid}, PATCH /{aid}/steps/{sid}, POST /{aid}/pdf
         assets.py           GET /{aid}/media/{name} (lazy thumbnails + poster extraction), PATCH (video frame re-extract)
         health.py           GET /health (readiness check)
@@ -51,6 +51,7 @@ backend/
                               elevations -> weather -> layouts/flatten -> DB commit
       session.py            SSE session management: ProcessingSession (background task with
                               event replay), process_stream (per-user session reuse/reconnect)
+      export.py             GDPR data export: ZIP generation, SSE events, token management
       reconcile.py          Re-upload reconciliation: scan media, update pages/covers, probe orientations
       eviction.py           LRU storage eviction: delete oldest users' data when disk cap exceeded
       country_colors.py     Assign distinct colors to countries (Delta-E color distance)
@@ -67,7 +68,7 @@ backend/
       env.py                 Migration runner (renders PydanticJSON as sa.JSON)
       versions/              Migrations: initial tables, steps_ranges/maps_ranges string->JSON, index->date
   data/users/                User upload data (ZIPs extracted here, one folder per user ID)
-  tests/                     pytest (384 tests), conftest with shared fixtures (SQLite engine, session, client)
+  tests/                     pytest (392 tests), conftest with shared fixtures (SQLite engine, session, client)
   pyproject.toml             Python 3.14, deps: FastAPI, SQLModel, Polars, Playwright, Pillow, httpx
   logging.json               Uvicorn log config (Rich handlers)
 
@@ -104,7 +105,9 @@ frontend/
       useLocalCopy.ts        Writable ref synced to a prop array (needed for VueDraggable v-model)
       useTextMeasure.ts      DOM-measured text layout: short / long / extra-long via hidden containers
       usePrintReady.ts       provide/inject for print mode boolean
-      usePdfExportStream.ts  SSE consumer for PDF export progress (loading/rendering/merging, download token)
+      useSseDownload.ts      Shared SSE+download composable factory (state machine, loading overlay, token download)
+      useDataExport.ts       SSE consumer for GDPR data export (wraps useSseDownload)
+      usePdfExportStream.ts  SSE consumer for PDF export (wraps useSseDownload)
       useProcessingStream.ts SSE consumer for processing progress (phases, trips, errors)
     components/
       AlbumViewer.vue        Master album renderer: computes sections from ranges, renders cover/overview/maps/steps
@@ -140,7 +143,7 @@ frontend/
         EditorHeader.vue      Top bar with logo + UserMenu, wraps AlbumToolbar via slot
         AlbumToolbar.vue      Trip select, step date ranges, PDF export
         StepDatePicker.vue    Date range picker with country-colored event dots
-        UserMenu.vue          Settings: dark mode, units, locale, delete data
+        UserMenu.vue          Settings: appearance, units, locale, data (re-upload/export), sign out, delete
         DeleteDialog.vue      Confirmation modal for data deletion
       register/
         RegisterHero.vue      Splash header with logo
@@ -191,6 +194,16 @@ GET /users/process (SSE) -> ProcessingSession (background task, reconnectable)
   -> bulk insert Album + Steps + Segments to DB
 ```
 
+### Data Export
+
+```
+GET /users/export (SSE) -> async ZIP generation in thread
+  -> yields ExportProgress (files_done / files_total)
+  -> yields ExportDone (token for download)
+GET /users/export/download/{token} -> FileResponse (ZIP)
+  -> ZIP contains: account.json, per-album JSON (album, steps, segments) + media files
+```
+
 ### PDF Export
 
 ```
@@ -219,7 +232,7 @@ EditorView -> useAlbumQuery + useAlbumDataQuery -> AlbumViewer
 user
   id (PK)              int (Polarsteps user ID)
   google_sub           str (unique, indexed - Google account identifier)
-  first_name, last_name, profile_image_url, locale, unit_is_km, temperature_is_celsius
+  first_name, profile_image_url, locale, unit_is_km, temperature_is_celsius
   living_location      JSON (Location: name, detail, country_code, lat, lon)
   album_ids            JSON (list of album ID strings)
   last_active_at       datetime (debounced activity tracking for LRU eviction)
@@ -314,7 +327,7 @@ Packs step photos into album pages:
 All commands via [mise](https://mise.jdx.dev/) (`mise tasks` to list):
 
 ```bash
-mise run test:backend          # pytest (384 tests)
+mise run test:backend          # pytest (392 tests)
 mise run test:frontend         # vitest
 mise run test:e2e              # playwright
 mise run lint                  # ruff + ty + eslint

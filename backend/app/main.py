@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -14,6 +13,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.logic.export import lifespan as export_lifespan
+from app.logic.pdf import lifespan as pdf_lifespan
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
@@ -41,22 +42,9 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
 
-    from playwright.async_api import async_playwright  # noqa: PLC0415
-
-    from app.logic.pdf import cleanup_pdf_tmp  # noqa: PLC0415
-
-    await asyncio.to_thread(cleanup_pdf_tmp)
-
-    pw = await async_playwright().start()
-    browser = await pw.chromium.launch(
-        args=["--use-gl=angle", "--no-sandbox"],
-    )
-    app.state.browser = browser
-    logger.info("Playwright browser launched")
-    yield
-    await browser.close()
-    await pw.stop()
-    logger.info("Playwright browser closed")
+    async with pdf_lifespan() as browser, export_lifespan():
+        app.state.browser = browser
+        yield
 
 
 app = FastAPI(

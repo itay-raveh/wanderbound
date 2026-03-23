@@ -50,7 +50,7 @@ class Location(BaseModel):
     lon: float
 
 
-class PSStep(BaseModel):
+class PSStep(BaseModel, populate_by_name=True):
     id: int
     name: str = Field(validation_alias="display_name")
     slug: str = Field(validation_alias="display_slug")
