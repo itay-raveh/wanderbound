@@ -103,7 +103,19 @@ function onVideoKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="elRef" :class="['media-item', { focused: isFocused }]" class="relative-position overflow-hidden non-selectable" data-media @click="handleClick">
+  <div
+    ref="elRef"
+    :class="['media-item', { focused: isFocused }]"
+    class="relative-position overflow-hidden non-selectable"
+    data-media
+    :tabindex="canFocus ? 0 : undefined"
+    :role="canFocus ? 'button' : undefined"
+    :aria-label="canFocus ? (alt || t('album.selectPhoto')) : undefined"
+    :aria-pressed="canFocus ? isFocused : undefined"
+    @click="handleClick"
+    @keydown.enter="handleClick"
+    @keydown.space.prevent="handleClick"
+  >
     <template v-if="isVideo && !printMode">
       <img
         v-show="!playing"
@@ -172,6 +184,11 @@ function onVideoKey(e: KeyboardEvent) {
   &.focused {
     outline: 3px solid var(--q-primary);
     outline-offset: -3px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: -2px;
   }
 }
 
@@ -242,6 +259,11 @@ function onVideoKey(e: KeyboardEvent) {
   &:hover {
     background: rgba(255, 255, 255, 0.15);
   }
+
+  &:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
 }
 
 .set-frame-btn {
@@ -264,6 +286,11 @@ function onVideoKey(e: KeyboardEvent) {
 
   &:active {
     transform: scale(0.96);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
   }
 }
 

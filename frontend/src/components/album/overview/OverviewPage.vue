@@ -133,7 +133,7 @@ const stats = computed(() => [
     </div>
 
     <!-- Cloud silhouettes (top) -->
-    <svg class="clouds no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none">
+    <svg class="clouds no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true">
       <path
         d="M0 200 C150 170, 300 120, 500 150 C700 180, 850 100, 1200 140 L1200 0 L0 0Z"
         fill="var(--text)"
@@ -152,7 +152,7 @@ const stats = computed(() => [
     </svg>
 
     <!-- Rolling hills (bottom) -->
-    <svg class="hills no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none">
+    <svg class="hills no-pointer-events" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true">
       <path
         d="M0 280 C200 230, 350 260, 550 220 C750 180, 950 240, 1200 200 L1200 400 L0 400Z"
         fill="var(--text)"

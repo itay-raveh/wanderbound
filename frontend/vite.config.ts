@@ -38,6 +38,7 @@ export default defineConfig({
   },
   build: {
     sourcemap: "hidden",
+    chunkSizeWarningLimit: 1800, // mapbox-gl is ~1.7MB and cannot be tree-shaken or split
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),
@@ -46,6 +47,15 @@ export default defineConfig({
       output: {
         manualChunks: {
           mapbox: ["mapbox-gl"],
+          sentry: ["@sentry/vue"],
+          turf: [
+            "@turf/along",
+            "@turf/distance",
+            "@turf/helpers",
+            "@turf/length",
+            "@turf/nearest-point-on-line",
+            "@turf/simplify",
+          ],
         },
       },
     },

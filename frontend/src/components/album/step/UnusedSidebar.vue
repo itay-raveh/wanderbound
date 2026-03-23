@@ -74,6 +74,8 @@ function emitUnused() {
   gap: var(--gap-md);
   max-height: 60vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;

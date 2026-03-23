@@ -45,7 +45,10 @@ const totalCountries = computed(() => {
         <span v-else-if="state === 'error'" class="text-subtitle2 text-danger">
           {{ t("register.statusError") }}
         </span>
-        <span v-else class="text-subtitle2 text-muted">{{ t("register.statusBuilding") }}</span>
+        <span v-else class="text-subtitle2 text-muted">
+          <q-spinner-dots size="0.875rem" class="q-mr-xs" />
+          {{ t("register.statusBuilding") }}
+        </span>
       </div>
 
       <div class="stats row items-center wrap q-gutter-sm">
@@ -108,6 +111,12 @@ const totalCountries = computed(() => {
 <style scoped>
 .processing-card {
   padding: 1.75rem 2rem;
+}
+
+@media (max-width: 479px) {
+  .processing-card {
+    padding: 1.25rem;
+  }
 }
 
 .greeting {

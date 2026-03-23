@@ -112,5 +112,10 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
     color: var(--text);
     background: color-mix(in srgb, var(--text) 8%, transparent);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
 }
 </style>

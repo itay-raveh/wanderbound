@@ -124,6 +124,7 @@ function onDone() {
 <style scoped>
 .upload-page {
   min-height: 100%;
+  padding: var(--gap-lg);
   background: var(--page-gradient);
 }
 
@@ -135,6 +136,12 @@ function onDone() {
 .steps-card {
   padding: 1.75rem 2rem;
   animation-delay: 0.15s;
+}
+
+@media (max-width: 479px) {
+  .steps-card {
+    padding: 1.25rem;
+  }
 }
 
 .state-title {

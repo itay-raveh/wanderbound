@@ -85,7 +85,9 @@ const hasMeta = !!(authorName || version);
 .site-footer-group {
   display: flex;
   align-items: center;
-  gap: var(--gap-md);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap-sm) var(--gap-md);
 }
 
 @media (min-width: 768px) {

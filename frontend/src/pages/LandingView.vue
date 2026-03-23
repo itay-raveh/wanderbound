@@ -5,7 +5,7 @@ import LoginButtons from "@/components/register/LoginButtons.vue";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { type CallbackTypes } from "vue3-google-login";
 import { setAuthState, type Provider } from "@/router";
 
@@ -24,11 +24,13 @@ onMounted(async () => {
   }
 });
 
-const features = [
-  { key: "autoAlbum", image: "/landing/auto-album.jpg" },
-  { key: "hikeMap", image: "/landing/hike-map.jpg" },
-  { key: "videoPoster", image: "/landing/video-poster.jpg" },
-  { key: "localization", image: "/landing/localization.jpg" },
+const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
+
+const featureKeys = [
+  { key: "autoAlbum", stem: "auto-album" },
+  { key: "hikeMap", stem: "hike-map" },
+  { key: "videoPoster", stem: "video-poster" },
+  { key: "localization", stem: "localization" },
 ] as const;
 
 const AUTH_FNS = { google: authGoogle, microsoft: authMicrosoft } as const satisfies Record<Provider, unknown>;
@@ -66,7 +68,7 @@ async function onMicrosoftLogin() {
     <!-- Hero -->
     <section class="hero">
       <div class="hero-content column no-wrap items-center">
-        <q-img src="/logo.svg" class="hero-logo fade-up" />
+        <q-img src="/logo.svg" alt="" class="hero-logo fade-up" />
         <h1 class="hero-title fade-up">{{ t("brand") }}</h1>
         <p class="hero-tagline fade-up">{{ t("tagline") }}</p>
         <div class="hero-cta fade-up">
@@ -85,28 +87,34 @@ async function onMicrosoftLogin() {
 
       <!-- Hero showcase: product preview that overflows into the features section -->
       <div class="hero-showcase fade-up">
-        <img
-          src="/landing/editor.jpg"
-          :alt="t('landing.editorScreenshot')"
-          class="hero-screenshot"
-        />
+        <picture>
+          <source :srcset="`/landing/editor-${mode}.webp`" type="image/webp" />
+          <img
+            :src="`/landing/editor-${mode}.jpg`"
+            :alt="t('landing.editorScreenshot')"
+            class="hero-screenshot"
+          />
+        </picture>
       </div>
     </section>
 
     <!-- Features -->
     <section class="features">
       <div
-        v-for="(f, i) in features"
+        v-for="(f, i) in featureKeys"
         :key="f.key"
         class="feature"
         :class="{ reverse: i % 2 === 1 }"
       >
-        <img
-          :src="f.image"
-          :alt="t(`landing.${f.key}Title`)"
-          class="feature-img"
-          loading="lazy"
-        />
+        <picture>
+          <source :srcset="`/landing/${f.stem}-${mode}.webp`" type="image/webp" />
+          <img
+            :src="`/landing/${f.stem}-${mode}.jpg`"
+            :alt="t(`landing.${f.key}Title`)"
+            class="feature-img"
+            loading="lazy"
+          />
+        </picture>
         <div class="feature-text">
           <h2 class="feature-title">{{ t(`landing.${f.key}Title`) }}</h2>
           <p class="feature-body">{{ t(`landing.${f.key}Body`) }}</p>
@@ -192,10 +200,10 @@ async function onMicrosoftLogin() {
 /* Features */
 .features {
   background: var(--bg);
-  padding: 3rem 1.25rem;
+  padding: 2rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 3rem;
+  gap: 2rem;
 }
 
 .feature {
@@ -285,7 +293,7 @@ async function onMicrosoftLogin() {
 
   .features {
     padding: 5rem 1.5rem;
-    gap: 4rem;
+    gap: 3rem;
   }
 
   .feature {

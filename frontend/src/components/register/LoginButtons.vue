@@ -32,7 +32,7 @@ const emit = defineEmits<{
 }
 
 .microsoft-btn {
-  height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;

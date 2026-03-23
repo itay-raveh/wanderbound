@@ -136,8 +136,13 @@ if (props.printMode) {
       <!-- "Add map" needle before step sections without a preceding map (editor only) -->
       <div
         v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
+        role="button"
+        tabindex="0"
+        :aria-label="t('album.addMap')"
         class="map-needle row no-wrap items-center cursor-pointer"
         @click="addMapBefore(section.step)"
+        @keydown.enter="addMapBefore(section.step)"
+        @keydown.space.prevent="addMapBefore(section.step)"
       >
         <div class="needle-line" />
         <div class="needle-head row no-wrap items-center text-weight-medium">
@@ -247,8 +252,15 @@ if (props.printMode) {
   overflow: visible;
   transition: color var(--duration-fast);
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     color: var(--q-primary);
+  }
+
+  &:focus-visible .needle-head {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-full);
   }
 }
 

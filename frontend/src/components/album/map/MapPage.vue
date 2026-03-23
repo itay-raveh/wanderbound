@@ -4,8 +4,11 @@ import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
 import { useTemplateRef, watch } from "vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   steps: Step[];
@@ -43,5 +46,5 @@ watch(
 </script>
 
 <template>
-  <div ref="map" class="page-container map-page relative-position overflow-hidden" />
+  <div ref="map" role="img" :aria-label="t('album.tripRouteMap')" class="page-container map-page relative-position overflow-hidden" />
 </template>

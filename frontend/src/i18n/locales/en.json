@@ -102,12 +102,15 @@
     "loading": "Loading '{name}'...",
     "useAsPoster": "Use as poster",
     "prevFrame": "Previous frame (,)",
-    "nextFrame": "Next frame (.)"
+    "nextFrame": "Next frame (.)",
+    "selectPhoto": "Select photo",
+    "tripRouteMap": "Trip route map"
   },
 
   "hike": {
     "hours": "{n}h",
-    "days": "{n}d"
+    "days": "{n}d",
+    "mapLabel": "Hike route map"
   },
 
   "overview": {

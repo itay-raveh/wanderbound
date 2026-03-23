@@ -29,4 +29,11 @@ defineProps<{
   padding-left: 2.125rem;
   padding-right: 2.125rem;
 }
+
+@media (max-width: 479px) {
+  .step-body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
 </style>

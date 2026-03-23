@@ -247,7 +247,7 @@ watch(
 </script>
 
 <template>
-  <div ref="hike-map" class="page-container relative-position overflow-hidden">
+  <div ref="hike-map" role="img" :aria-label="`${t('hike.mapLabel')} – ${stats.distance} ${distanceUnit}`" class="page-container relative-position overflow-hidden">
     <div class="hike-overlay">
       <span class="text-h6">{{ stats.distance }} {{ distanceUnit }}</span>
       <span class="text-h6">{{ stats.duration }}</span>

@@ -89,6 +89,11 @@ function select(name: string) {
     background: rgba(0, 0, 0, 0.7);
     color: white;
   }
+
+  &:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
 }
 
 .pill-chevron {
@@ -120,10 +125,12 @@ function select(name: string) {
 .picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-  padding: 3px;
+  gap: var(--radius-xs);
+  padding: var(--radius-xs);
   max-height: 24rem;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
 
 .grid-cell {
@@ -142,6 +149,10 @@ function select(name: string) {
 
   &:hover:not(.selected) {
     outline-color: rgba(255, 255, 255, 0.5);
+  }
+
+  &:focus-visible {
+    outline-color: var(--q-primary);
   }
 }
 

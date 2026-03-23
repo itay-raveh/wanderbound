@@ -55,7 +55,7 @@ const chips = [
 }
 
 .banner-title {
-  font-size: var(--type-sm, 0.875rem);
+  font-size: var(--type-sm);
   white-space: nowrap;
   color: var(--q-primary);
 }
@@ -74,7 +74,7 @@ const chips = [
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--q-primary) 18%, transparent);
   color: var(--q-primary);
-  font-size: var(--type-xs, 0.75rem);
+  font-size: var(--type-xs);
   font-weight: 600;
   white-space: nowrap;
 }

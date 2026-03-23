@@ -102,12 +102,15 @@
     "loading": "טוען '{name}'...",
     "useAsPoster": "בחירה כפוסטר",
     "prevFrame": "פריים קודם (,)",
-    "nextFrame": "פריים הבא (.)"
+    "nextFrame": "פריים הבא (.)",
+    "selectPhoto": "בחר תמונה",
+    "tripRouteMap": "מפת מסלול הטיול"
   },
 
   "hike": {
     "hours": "{n} שע׳",
-    "days": "{n} ימים"
+    "days": "{n} ימים",
+    "mapLabel": "מפת מסלול טרק"
   },
 
   "overview": {

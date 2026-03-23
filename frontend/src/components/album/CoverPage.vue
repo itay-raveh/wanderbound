@@ -117,6 +117,7 @@ function saveCover(name: string) {
   justify-content: center;
   padding: var(--page-inset-y) 4rem;
   gap: var(--gap-md);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, transparent 70%);
 }
 
 .front-date {

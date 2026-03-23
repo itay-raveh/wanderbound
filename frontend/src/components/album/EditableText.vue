@@ -65,9 +65,14 @@ function saveDialog() {
   <!-- Multiline: styled div that opens a modal -->
   <div
     v-else-if="multiline"
+    role="button"
+    tabindex="0"
     class="editable-text"
     :data-placeholder="placeholder"
+    :aria-label="placeholder || t('album.editDescription')"
     @click="dialogOpen = true"
+    @keydown.enter="dialogOpen = true"
+    @keydown.space.prevent="dialogOpen = true"
   >
     {{ displayValue ?? modelValue }}
 
@@ -96,6 +101,8 @@ function saveDialog() {
   <div
     v-else
     ref="el"
+    role="textbox"
+    :aria-label="placeholder || undefined"
     class="editable-text"
     contenteditable="plaintext-only"
     :data-placeholder="placeholder"

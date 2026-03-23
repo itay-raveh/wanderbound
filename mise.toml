@@ -115,3 +115,8 @@ raw = true
 [tasks."generate:countries"]
 description = "Regenerate country SVGs and bounds.json from Natural Earth data"
 run = "uv run scripts/generate_country_svgs.py"
+
+[tasks."generate:landing"]
+description = "Screenshot landing page images from running app (requires dev servers + real data)"
+dir = "frontend"
+run = "bun scripts/landing-screenshots.ts"

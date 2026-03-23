@@ -41,8 +41,8 @@ const shortcuts = computed(() => [
   padding: var(--gap-xs) var(--gap-sm);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--text) 10%, transparent);
-  font-family: var(--font-mono, monospace);
-  font-size: var(--type-xs, 0.75rem);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
   font-weight: 600;
   white-space: nowrap;
 }

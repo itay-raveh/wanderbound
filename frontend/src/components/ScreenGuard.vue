@@ -26,8 +26,8 @@ const screenTooSmall = computed(
 
 <style scoped>
 .gate {
-  min-height: 100vh;
-  padding: 2rem;
+  min-height: 100dvh;
+  padding: 2rem 1.5rem;
   background: var(--page-gradient);
 }
 

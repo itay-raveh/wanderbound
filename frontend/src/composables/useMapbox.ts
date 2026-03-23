@@ -1,4 +1,5 @@
 import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 

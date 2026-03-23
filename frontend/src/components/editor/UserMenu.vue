@@ -232,6 +232,11 @@ async function handleDelete() {
     border-color: color-mix(in srgb, var(--text) 30%, transparent);
     background: var(--border-color);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
+  }
 }
 
 .trigger-avatar {
@@ -313,6 +318,11 @@ async function handleDelete() {
     color: var(--text);
   }
 
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
+
   &.active {
     background: var(--bg-secondary);
     color: var(--text-bright);
@@ -363,6 +373,11 @@ async function handleDelete() {
   font-weight: 500;
   box-sizing: border-box;
   transition: background var(--duration-fast) ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: -1px;
+  }
 }
 
 .action-btn {

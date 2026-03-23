@@ -125,6 +125,9 @@ onMounted(waitForPrintReady);
 html,
 body,
 #app {
+  // Constrain the layout width to the page width so Chromium's printToPDF
+  // doesn't scale down a wider viewport to fit the @page size.
+  width: 297mm !important;
   height: auto !important;
   overflow: visible !important;
   margin: 0 !important;
