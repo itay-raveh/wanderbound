@@ -130,34 +130,34 @@ applies to any component rendered inside the album viewer (everything under
 
 **Broken — never use in album pages:**
 
-| Property                                   | Print behavior                                                                                                |
-|--------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| `box-shadow`                               | Renders as solid black blocks or disappears entirely. Use `border` instead.                                   |
-| `text-shadow`                              | Dropped or degraded. Remove for printable elements.                                                           |
-| `backdrop-filter` (blur, drop-shadow)      | Non-functional. Use solid/semi-transparent backgrounds instead.                                               |
-| `filter: blur()` / `filter: drop-shadow()` | Not expressible in Skia's PDF backend. Other filter functions (`grayscale`, `brightness`) are unreliable too. |
-| `mix-blend-mode` / `background-blend-mode` | Unreliable compositing — may render fully opaque or with wrong colors.                                        |
-| `position: fixed`                          | Does not repeat across pages as spec says. Inconsistent placement. Use `static`/`relative`.                   |
-| `position: sticky`                         | Treated as `static` in paged media.                                                                           |
-| `clip-path` / `mask-image`                 | Complex paths may be ignored or rendered incorrectly.                                                         |
+| Property                                   | Print behavior                                                                     |
+|--------------------------------------------|------------------------------------------------------------------------------------|
+| `backdrop-filter` (blur, drop-shadow)      | Non-functional. Use solid/semi-transparent backgrounds instead.                    |
+| `mask-image`                               | Silently ignored by Chromium's PDF backend. No workaround.                         |
+| `mix-blend-mode` / `background-blend-mode` | Unreliable compositing — may render fully opaque or with wrong colors.             |
+| `position: fixed`                          | Does not repeat across pages as spec says. Inconsistent placement.                 |
+| `position: sticky`                         | Treated as `static` in paged media.                                                |
 
 **Requires care:**
 
 | Property                                            | Issue                                                                          | Fix                                                                                                         |
 |-----------------------------------------------------|--------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
 | `background-color` / `background-image` / gradients | Stripped by default                                                            | Must have `print-color-adjust: exact` + Playwright's `printBackground: true` (already set in our PDF route) |
-| `repeating-linear-gradient`                         | Known bug — may render as solid pink                                           | Test thoroughly; prefer `linear-gradient`                                                                   |
+| `repeating-linear-gradient` / `repeating-conic-gradient` | May render as solid pink (viewer bug) or have sub-pixel moire patterns    | Test thoroughly; prefer non-repeating gradients                                                              |
 | `border-radius` + `linear-gradient` together        | Gradient can bleed outside the radius                                          | Test combination carefully                                                                                  |
+| `box-shadow` / `text-shadow`                        | Work but trigger rasterization (bitmap, not vector) — increases PDF file size  | Fine to use; be aware of file size impact on shadow-heavy pages                                             |
+| `filter: blur()` / `filter: drop-shadow()`          | Work via rasterization fallback — element becomes bitmap in PDF                | Use sparingly; content loses vector crispness                                                               |
+| `clip-path`                                         | Basic shapes (`polygon`, `circle`, `inset`) work fine; SVG-based `url()` may not | Stick to CSS shape functions                                                                               |
 | `border` < 1pt (~1.33px)                            | Invisible or snapped to 1pt minimum                                            | Use at least 1pt borders                                                                                    |
 | `opacity`                                           | Mostly works but interacts badly with blend modes                              | Avoid combining with blend modes                                                                            |
 | `overflow: hidden`                                  | Clips content permanently — scrollable content is lost                         | Content must fit; no reliance on scroll                                                                     |
 | `will-change` / `transform`                         | Compositor layers may not composite correctly, causing z-order issues          | Avoid in static print layout                                                                                |
 | CSS transitions                                     | Chrome captures mid-transition state if animation is running when print starts | Already handled by `usePrintReady` disabling transitions                                                    |
 
-**Rule of thumb:** Album page CSS should be "flat" — solid colors, real
-borders, no blur/shadow/filter effects, no fixed/sticky positioning. If a
-visual effect requires GPU compositing on screen, it almost certainly won't
-survive the Skia PDF pipeline.
+**Rule of thumb:** The main things that genuinely break are `backdrop-filter`,
+`mask-image`, blend modes, and fixed/sticky positioning. Shadows and filters
+work but trigger rasterization (bitmap output instead of vector). Basic
+gradients and `clip-path` shapes work fine.
 
 ### Theme colors
 
@@ -170,6 +170,10 @@ Dark/light mode colors are CSS custom properties on `.body--dark` /
 
 Centralized in `src/components/album/colors.ts` as `STAT_COLORS` - used by
 overview page components. Add new stat colors there, not as inline hex values.
+
+## Design Context
+
+Read `/.impeccable.md` at the project root for the full design context: users, brand personality, aesthetic direction, design principles, and token reference.
 
 ## Anti-Patterns
 
