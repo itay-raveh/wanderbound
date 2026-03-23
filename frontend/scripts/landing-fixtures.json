@@ -1,0 +1,416 @@
+{
+  "albumId": "sa-2024",
+  "userId": 1,
+
+  "mediaMap": {
+    "paucartambo-1.jpg": "paucartambo_172806048/photos/85ab3fe3-ac89-41a1-8b84-42bc03815cb2_72acd683-4b56-4cbd-8d40-9d5acfbec779.jpg.jpg",
+
+    "iguazu-waterfall.jpg": "puerto-iguazu_145417731/photos/cd534e65-ffac-45c3-a668-0657b6078bd1_e55275d1-4e3f-40da-b45d-c22a8a0c0fef.jpg.jpg",
+    "iguazu-panoramic.jpg": "puerto-iguazu_145417731/photos/30403266-f09f-4ec2-aca7-b2133d7fb833_82cc4262-7694-4f47-af4d-a5bbfe2f57cc.jpg.jpg",
+    "iguazu-coatis.jpg": "puerto-iguazu_145417731/photos/32f2b04e-1699-47af-a34b-07a24cceb5e4_e97104a1-a050-4796-923d-872dd3af6cab.jpg.jpg",
+    "huayhuash-mountains.jpg": "bolognesi_184476166/photos/e382e687-ae45-43b4-9193-46f47a53bc1a_c9b9827a-ed7a-49e7-a248-570937e64f03.jpg.jpg",
+
+    "booby-video.jpg": "parroquia-tomas-de-berlanga-santo-tomas_188708578/photos/0315b5d6-ab50-4ca5-be7a-d554dacce1e6_7e7d11ab-622a-4a60-b028-ebda7db86aa0.jpg.jpg",
+    "booby-video.mp4": "parroquia-tomas-de-berlanga-santo-tomas_188708578/videos/e712884e-8995-4669-9b80-445b407ddfcc_d062193c-feb3-44cd-8b9b-25b8d686533d.mp4",
+
+    "ausangate-1.jpg": "cusipata_174627947/photos/cea84632-28cc-481e-9311-591f46af9ff3_1ad54fd7-9a31-4137-a4c6-9723b49c16c3.jpg.jpg",
+    "ausangate-2.jpg": "quispicanchi_176354615/photos/8ef5f8e2-b1fd-4c8d-bb8a-6c8ab7288b07_6396d486-d61c-44bb-b3ea-c8dba2b25412.jpg.jpg",
+    "ausangate-3.jpg": "ocongate_176354616/photos/1491574a-f19f-4d74-980c-3070815ec40e_199324f0-2c98-4e91-9670-ad2a4763c6df.jpg.jpg",
+    "ausangate-4.jpg": "pitumarca_176354617/photos/019b695d-9d6b-4b46-b96d-95a0210ec7c5_d3aeb6a9-6984-4d40-9ba8-e22d474250f9.jpg.jpg",
+    "ausangate-5.jpg": "canchis_176354620/photos/229fc57b-39aa-4768-8e91-fea3d85f0703_ffecfa22-520f-4c38-8757-a811aee2ad31.jpg.jpg",
+    "ausangate-6.jpg": "pitumarca_176354618/photos/a51139bd-b7a4-4441-a5df-b053ee08da55_c68897d8-264e-4ab9-87b2-385f641ecc5a.jpg.jpg",
+    "ausangate-7.jpg": "ocongate_176354619/photos/642c12d9-5e2e-4ee1-b246-54c4702c0868_f26f91fb-d743-4fca-b3f4-6c861f44a988.jpg.jpg",
+
+    "galapagos-1.jpg": "parroquia-santa-rosa_187740935/photos/f63996de-cc69-4e0b-916c-f64c52bf4712_66fc9b3a-58f7-4a44-9b50-3ba01f7bfc04.jpg.jpg"
+  },
+
+  "user": {
+    "id": 1,
+    "first_name": "Itay",
+    "locale": "en-US",
+    "unit_is_km": true,
+    "temperature_is_celsius": true,
+    "google_sub": "g-1",
+    "profile_image_url": null,
+    "album_ids": ["sa-2024"],
+    "has_data": true,
+    "living_location": {
+      "name": "Herzliya",
+      "detail": "Israel",
+      "country_code": "IL",
+      "lat": 32.16,
+      "lon": 34.84
+    }
+  },
+
+  "album": {
+    "id": "sa-2024",
+    "uid": 1,
+    "title": "South America",
+    "subtitle": "Adventure of a lifetime!",
+    "steps_ranges": [["2025-01-01", "2025-03-01"]],
+    "maps_ranges": [["2025-02-16", "2025-02-22"]],
+    "front_cover_photo": "ausangate-1.jpg",
+    "back_cover_photo": "ausangate-7.jpg",
+    "colors": { "ar": "#75AADB", "pe": "#D91023", "ec": "#FFD100" },
+    "media": {
+      "paucartambo-1.jpg": "p",
+      "iguazu-waterfall.jpg": "p",
+      "iguazu-panoramic.jpg": "l",
+      "iguazu-coatis.jpg": "l",
+      "huayhuash-mountains.jpg": "l",
+      "booby-video.jpg": "l",
+      "booby-video.mp4": "l",
+      "ausangate-1.jpg": "l",
+      "ausangate-2.jpg": "l",
+      "ausangate-3.jpg": "l",
+      "ausangate-4.jpg": "l",
+      "ausangate-5.jpg": "p",
+      "ausangate-6.jpg": "l",
+      "ausangate-7.jpg": "l",
+      "galapagos-1.jpg": "p"
+    }
+  },
+
+  "albumData": {
+    "steps": [
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 1,
+        "name": "Paucartambo",
+        "description": "The Tres Cruces viewpoint at dawn — watching the sunrise over the Amazon basin from 3,700 meters.\n\nWe left Paucartambo at 3am, driving the winding mountain road in complete darkness. The temperature dropped steadily as we climbed, and by the time we reached the viewpoint it was close to freezing. A handful of other travelers huddled together in the dark, wrapped in blankets, waiting.\n\nThen the sky began to change. First a thin orange line on the horizon, then layers of pink and gold spreading across the cloud sea below. The Amazon basin stretched endlessly beneath us — an ocean of clouds with islands of distant peaks poking through. The locals call this the 'balcony over the jungle,' and standing there at 3,700 meters watching the sun rise over an infinite green carpet, I understood why.",
+        "cover": "paucartambo-1.jpg",
+        "pages": [["paucartambo-1.jpg"]],
+        "unused": [],
+        "timestamp": 1736035200,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Paucartambo",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.3175,
+          "lon": -71.5935
+        },
+        "elevation": 3700,
+        "weather": {
+          "day": { "temp": 12, "feels_like": 8, "icon": "partly-cloudy-day" },
+          "night": { "temp": 4, "feels_like": 1, "icon": "clear-night" }
+        },
+        "datetime": "2025-01-05T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 2,
+        "name": "Puerto Iguazú",
+        "description": "The mighty waterfalls of Iguazú — one of the seven natural wonders of the world.",
+        "cover": "iguazu-panoramic.jpg",
+        "pages": [
+          [
+            "iguazu-panoramic.jpg",
+            "iguazu-waterfall.jpg",
+            "iguazu-coatis.jpg",
+            "huayhuash-mountains.jpg"
+          ]
+        ],
+        "unused": [],
+        "timestamp": 1736899200,
+        "timezone_id": "America/Argentina/Buenos_Aires",
+        "location": {
+          "name": "Puerto Iguazú",
+          "detail": "Misiones",
+          "country_code": "ar",
+          "lat": -25.6953,
+          "lon": -54.4367
+        },
+        "elevation": 185,
+        "weather": {
+          "day": { "temp": 32, "feels_like": 35, "icon": "partly-cloudy-day" },
+          "night": { "temp": 24, "feels_like": 26, "icon": "partly-cloudy-night" }
+        },
+        "datetime": "2025-01-15T09:00:00-03:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 3,
+        "name": "Puerto Iguazú",
+        "description": "Wandering through the misty walkways above the Devil's Throat.",
+        "cover": "booby-video.jpg",
+        "pages": [["booby-video.mp4"]],
+        "unused": [],
+        "timestamp": 1736985600,
+        "timezone_id": "America/Argentina/Buenos_Aires",
+        "location": {
+          "name": "Puerto Iguazú",
+          "detail": "Misiones",
+          "country_code": "ar",
+          "lat": -25.5972,
+          "lon": -54.5787
+        },
+        "elevation": 185,
+        "weather": {
+          "day": { "temp": 30, "feels_like": 33, "icon": "clear-day" },
+          "night": { "temp": 22, "feels_like": 24, "icon": "clear-night" }
+        },
+        "datetime": "2025-01-16T10:00:00-03:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 4,
+        "name": "Rainbow Mountain",
+        "description": "",
+        "cover": "ausangate-1.jpg",
+        "pages": [["ausangate-1.jpg"]],
+        "unused": [],
+        "timestamp": 1739617200,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Rainbow Mountain",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.868,
+          "lon": -71.303
+        },
+        "elevation": 5036,
+        "weather": {
+          "day": { "temp": 5, "feels_like": 0, "icon": "partly-cloudy-day" },
+          "night": { "temp": -2, "feels_like": -7, "icon": "clear-night" }
+        },
+        "datetime": "2025-02-15T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 5,
+        "name": "Ausangate: Upis",
+        "description": "",
+        "cover": "ausangate-2.jpg",
+        "pages": [["ausangate-2.jpg"]],
+        "unused": [],
+        "timestamp": 1739703600,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Upis",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.78,
+          "lon": -71.27
+        },
+        "elevation": 4400,
+        "weather": {
+          "day": { "temp": 4, "feels_like": -1, "icon": "partly-cloudy-day" },
+          "night": { "temp": -3, "feels_like": -8, "icon": "clear-night" }
+        },
+        "datetime": "2025-02-16T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 6,
+        "name": "Ausangate: Laguna Puaca",
+        "description": "",
+        "cover": "ausangate-3.jpg",
+        "pages": [["ausangate-3.jpg"]],
+        "unused": [],
+        "timestamp": 1739790000,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Laguna Puaca",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.817,
+          "lon": -71.25
+        },
+        "elevation": 4600,
+        "weather": {
+          "day": { "temp": 3, "feels_like": -2, "icon": "partly-cloudy-day" },
+          "night": { "temp": -4, "feels_like": -9, "icon": "partly-cloudy-night" }
+        },
+        "datetime": "2025-02-17T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 7,
+        "name": "Ausangate: Palomani Pass",
+        "description": "",
+        "cover": "ausangate-4.jpg",
+        "pages": [["ausangate-4.jpg"]],
+        "unused": [],
+        "timestamp": 1739876400,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Palomani Pass",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.81,
+          "lon": -71.195
+        },
+        "elevation": 5100,
+        "weather": {
+          "day": { "temp": 2, "feels_like": -3, "icon": "partly-cloudy-day" },
+          "night": { "temp": -5, "feels_like": -11, "icon": "clear-night" }
+        },
+        "datetime": "2025-02-18T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 8,
+        "name": "Ausangate: Mirador Jatunhuma",
+        "description": "",
+        "cover": "ausangate-5.jpg",
+        "pages": [["ausangate-5.jpg"]],
+        "unused": [],
+        "timestamp": 1739919600,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Mirador Jatunhuma",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.785,
+          "lon": -71.168
+        },
+        "elevation": 4900,
+        "weather": {
+          "day": { "temp": 3, "feels_like": -2, "icon": "partly-cloudy-day" },
+          "night": { "temp": -4, "feels_like": -9, "icon": "clear-night" }
+        },
+        "datetime": "2025-02-18T14:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 9,
+        "name": "Ausangate: Campa Pass",
+        "description": "",
+        "cover": "ausangate-6.jpg",
+        "pages": [["ausangate-6.jpg"]],
+        "unused": [],
+        "timestamp": 1739962800,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "Campa Pass",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.762,
+          "lon": -71.2
+        },
+        "elevation": 5000,
+        "weather": {
+          "day": { "temp": 2, "feels_like": -4, "icon": "partly-cloudy-day" },
+          "night": { "temp": -5, "feels_like": -10, "icon": "partly-cloudy-night" }
+        },
+        "datetime": "2025-02-19T06:00:00-05:00"
+      },
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 10,
+        "name": "Ausangate: 7 Lagunas",
+        "description": "",
+        "cover": "ausangate-7.jpg",
+        "pages": [["ausangate-7.jpg"]],
+        "unused": [],
+        "timestamp": 1740049200,
+        "timezone_id": "America/Lima",
+        "location": {
+          "name": "7 Lagunas",
+          "detail": "Cusco",
+          "country_code": "pe",
+          "lat": -13.755,
+          "lon": -71.235
+        },
+        "elevation": 4700,
+        "weather": {
+          "day": { "temp": 4, "feels_like": -1, "icon": "partly-cloudy-day" },
+          "night": { "temp": -3, "feels_like": -7, "icon": "clear-night" }
+        },
+        "datetime": "2025-02-20T06:00:00-05:00"
+      }
+    ],
+    "segments": [
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "start_time": 1739703600,
+        "end_time": 1739991600,
+        "kind": "hike",
+        "points": [
+          { "lat": -13.78, "lon": -71.27, "time": 1739703600 },
+          { "lat": -13.795, "lon": -71.275, "time": 1739710800 },
+          { "lat": -13.815, "lon": -71.275, "time": 1739718000 },
+          { "lat": -13.817, "lon": -71.26, "time": 1739725200 },
+          { "lat": -13.817, "lon": -71.25, "time": 1739790000 },
+          { "lat": -13.818, "lon": -71.235, "time": 1739797200 },
+          { "lat": -13.818, "lon": -71.22, "time": 1739804400 },
+          { "lat": -13.815, "lon": -71.2, "time": 1739811600 },
+          { "lat": -13.81, "lon": -71.195, "time": 1739818800 },
+          { "lat": -13.805, "lon": -71.18, "time": 1739876400 },
+          { "lat": -13.8, "lon": -71.17, "time": 1739883600 },
+          { "lat": -13.785, "lon": -71.168, "time": 1739890800 },
+          { "lat": -13.775, "lon": -71.165, "time": 1739898000 },
+          { "lat": -13.762, "lon": -71.175, "time": 1739905200 },
+          { "lat": -13.76, "lon": -71.185, "time": 1739912400 },
+          { "lat": -13.762, "lon": -71.2, "time": 1739919600 },
+          { "lat": -13.762, "lon": -71.2, "time": 1739962800 },
+          { "lat": -13.758, "lon": -71.215, "time": 1739970000 },
+          { "lat": -13.755, "lon": -71.225, "time": 1739977200 },
+          { "lat": -13.755, "lon": -71.235, "time": 1739984400 },
+          { "lat": -13.76, "lon": -71.25, "time": 1739991600 }
+        ]
+      }
+    ]
+  },
+
+  "hebrewAlbumData": {
+    "steps": [
+      {
+        "uid": 1,
+        "aid": "sa-2024",
+        "id": 11,
+        "name": "איי גלאפגוס",
+        "description": "שחינו עם כרישי פטיש, ראינו צבי ענק ואיגואנות ימיות מקרוב, והבנו למה דארווין התלהב.\n\nהגענו לסנטה קרוז ברגע שהשמש שקעה מאחורי הר הגעש. למחרת בבוקר יצאנו לשנורקלינג ליד קיקר רוק — המים היו קרים אבל שקופים לחלוטין, וכרישי פטיש עברו מתחתינו כאילו אנחנו לא שם. אחר הצהריים טיילנו בתחנת צ׳ארלס דארווין, ראינו צבי ענק שמגיעים לגיל 170 ואיגואנות יבשתיות שנראות כמו דינוזאורים קטנים.\n\nביום השני שטנו לאי איזבלה. הנוף מהסירה היה מטורף — סלעי לבה שחורים עם קקטוסים ענקיים, ושקיענים כתומים שלא ייגמרו. צללנו עם צבי ים, כוכבי ים, ופינגווינים שחיים על קו המשווה. בערב ישבנו על החוף וראינו איגואנות ימיות חוזרות מהים, מכוסות מלח, מתחממות על הסלעים.",
+        "cover": "galapagos-1.jpg",
+        "pages": [["galapagos-1.jpg"]],
+        "unused": [],
+        "timestamp": 1740441600,
+        "timezone_id": "Pacific/Galapagos",
+        "location": {
+          "name": "איי גלאפגוס",
+          "detail": "אקוודור",
+          "country_code": "ec",
+          "lat": -0.7393,
+          "lon": -90.315
+        },
+        "elevation": 3,
+        "weather": {
+          "day": { "temp": 28, "feels_like": 30, "icon": "clear-day" },
+          "night": { "temp": 23, "feels_like": 25, "icon": "partly-cloudy-night" }
+        },
+        "datetime": "2025-02-25T10:00:00-06:00"
+      }
+    ],
+    "segments": []
+  },
+
+  "hebrewAlbum": {
+    "id": "sa-2024",
+    "uid": 1,
+    "title": "דרום אמריקה 2024-2025",
+    "subtitle": "הטיול הגדול!",
+    "steps_ranges": [["2025-01-01", "2025-03-01"]],
+    "maps_ranges": [],
+    "front_cover_photo": "ausangate-1.jpg",
+    "back_cover_photo": "ausangate-7.jpg",
+    "colors": { "ec": "#FFD100" },
+    "media": {
+      "ausangate-1.jpg": "l",
+      "ausangate-7.jpg": "l",
+      "galapagos-1.jpg": "p"
+    }
+  }
+}

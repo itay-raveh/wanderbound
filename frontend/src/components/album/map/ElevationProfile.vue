@@ -111,9 +111,9 @@ const yAnchor = computed(() => yLabels.value[0]?.anchor ?? "end");
         <stop offset="100%" :stop-color="`${accent}08`" />
       </linearGradient>
       <linearGradient :id="fadeId" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--page-dark-surface)" stop-opacity="0" />
-        <stop offset="55%" stop-color="var(--page-dark-surface)" stop-opacity="1" />
-        <stop offset="100%" stop-color="var(--page-dark-surface)" stop-opacity="1" />
+        <stop offset="0%" stop-color="var(--bg)" stop-opacity="0" />
+        <stop offset="55%" stop-color="var(--bg)" stop-opacity="1" />
+        <stop offset="100%" stop-color="var(--bg)" stop-opacity="1" />
       </linearGradient>
     </defs>
 
@@ -128,7 +128,7 @@ const yAnchor = computed(() => yLabels.value[0]?.anchor ?? "end");
       :y1="l.y"
       :x2="LEFT_PAD + PLOT_W"
       :y2="l.y"
-      stroke="rgba(255,255,255,0.15)"
+      class="grid-line"
       stroke-width="0.5"
     />
 
@@ -176,15 +176,20 @@ const yAnchor = computed(() => yLabels.value[0]?.anchor ?? "end");
   overflow: visible;
 }
 
+.grid-line {
+  stroke: color-mix(in srgb, var(--text) 15%, transparent);
+  stroke-width: 0.5;
+}
+
 .axis-label {
   font-size: 5.5px;
-  fill: rgba(255, 255, 255, 0.75);
+  fill: color-mix(in srgb, var(--text) 75%, transparent);
   font-family: var(--font-body);
   font-weight: 500;
 }
 
 .unit-label {
   font-size: 5px;
-  fill: rgba(255, 255, 255, 0.45);
+  fill: color-mix(in srgb, var(--text) 45%, transparent);
 }
 </style>

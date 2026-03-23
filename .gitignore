@@ -26,6 +26,7 @@ playwright/.auth/
 # Generated
 frontend/src/client/
 frontend/public/countries/
+frontend/public/landing/
 frontend/openapi.json
 
 # App data

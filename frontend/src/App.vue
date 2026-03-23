@@ -92,10 +92,6 @@ body,
   --photo-gap-sm: 3mm;
   --photo-gap-xs: 2mm;
 
-  /* Map page tokens */
-  --page-dark-surface: rgb(24, 24, 28);
-  --page-dark-overlay: rgb(30, 30, 34);
-
   /* Transition / animation */
   --duration-fast: 0.15s;
   --duration-normal: 0.3s;
@@ -138,6 +134,7 @@ body,
 /* Theme colors */
 
 .body--dark {
+  color-scheme: dark;
   --page-bg: #1e1e2e;
   --bg: #1e1e2e;
   --bg-secondary: #252540;
@@ -183,6 +180,7 @@ body,
 }
 
 .body--light {
+  color-scheme: light;
   --page-bg: #ffffff;
   --bg: #f3f4f6;
   --bg-secondary: #ffffff;

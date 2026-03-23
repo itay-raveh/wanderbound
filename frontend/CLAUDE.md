@@ -114,7 +114,6 @@ from `App.vue`:
 - **Step layout:** `--meta-ratio` (0.42) - meta panel fraction of page width,
   used in step components and `useTextMeasure.ts`
 - **Photo grids:** `--photo-gap-lg` (5mm) through `--photo-gap-xs` (2mm)
-- **Map pages:** `--page-dark-surface`, `--page-dark-overlay`
 - **Timing:** `--duration-fast` (0.15s), `--duration-normal` (0.3s),
   `--duration-slow` (0.5s)
 

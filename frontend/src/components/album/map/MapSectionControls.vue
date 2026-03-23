@@ -92,8 +92,7 @@ function onRangeEnd(range: { from: YMD; to: YMD }) {
 .map-controls {
   position: absolute;
   top: var(--gap-md);
-  /* rtl:ignore */
-  left: var(--gap-md);
+  right: var(--gap-md);
   z-index: 2;
   gap: var(--gap-sm);
   padding: var(--gap-sm);

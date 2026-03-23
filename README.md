@@ -8,10 +8,6 @@
   Converts a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into a print-ready photo album.
 </p>
 
-<p align="center">
-  <img src="frontend/public/landing/editor.jpg" width="800" alt="Editor">
-</p>
-
 Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
 maps, photo pages - that you can edit and export to PDF.
 
@@ -22,10 +18,6 @@ maps, photo pages - that you can edit and export to PDF.
   with satellite imagery and elevation profiles
 - Album supports any locale (UI in English and Hebrew).
 - PDF export
-
-<p align="center">
-  <img src="frontend/public/landing/hike-map.jpg" width="700" alt="Hike map page">
-</p>
 
 ## Tech Stack
 
@@ -91,6 +83,10 @@ Run `mise tasks` to see everything available:
 
 Extra arguments pass through — e.g., `mise run test:backend -k test_auth`
 runs only tests matching `test_auth`.
+
+## Roadmap
+
+- [ ] HDR → SDR tone-mapping for video poster extraction
 
 ## License
 

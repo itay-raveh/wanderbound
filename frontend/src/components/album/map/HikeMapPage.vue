@@ -272,9 +272,8 @@ watch(
 .hike-overlay {
   position: absolute;
   top: var(--gap-lg);
-  /* rtl:ignore */
-  right: var(--gap-lg);
-  background: var(--page-dark-overlay);
+  left: var(--gap-lg);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   border-radius: var(--radius-md);
   padding: var(--gap-md) var(--gap-lg);
   display: flex;

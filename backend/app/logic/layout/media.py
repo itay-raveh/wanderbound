@@ -145,7 +145,30 @@ class Media(BaseModel):
         )
 
 
-async def extract_frame(video: Path, timestamp: float = 1) -> Path:
+async def _video_duration(path: Path) -> float:
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        str(path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    try:
+        return float(stdout.decode().strip())
+    except ValueError:
+        return 2.0  # safe fallback
+
+
+async def extract_frame(video: Path, timestamp: float | None = None) -> Path:
+    if timestamp is None:
+        duration = await _video_duration(video)
+        timestamp = duration / 2
     frame_path = video.with_suffix(".jpg")
     command = [
         "ffmpeg",

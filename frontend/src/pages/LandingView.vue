@@ -26,6 +26,14 @@ onMounted(async () => {
 
 const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
 
+const WIDTHS = [640, 1024, 1536];
+
+function srcset(stem: string) {
+  const set = WIDTHS.map((w) => `/landing/${stem}-${mode.value}-${w}w.webp ${w}w`);
+  set.push(`/landing/${stem}-${mode.value}.webp 2400w`);
+  return set.join(", ");
+}
+
 const featureKeys = [
   { key: "autoAlbum", stem: "auto-album" },
   { key: "hikeMap", stem: "hike-map" },
@@ -87,8 +95,8 @@ async function onMicrosoftLogin() {
 
       <!-- Hero showcase: product preview that overflows into the features section -->
       <div class="hero-showcase fade-up">
-        <picture>
-          <source :srcset="`/landing/editor-${mode}.webp`" type="image/webp" />
+        <picture class="hero-picture">
+          <source :srcset="srcset('editor')" sizes="(min-width: 1024px) 1024px, 100vw" type="image/webp" />
           <img
             :src="`/landing/editor-${mode}.jpg`"
             :alt="t('landing.editorScreenshot')"
@@ -106,8 +114,8 @@ async function onMicrosoftLogin() {
         class="feature"
         :class="{ reverse: i % 2 === 1 }"
       >
-        <picture>
-          <source :srcset="`/landing/${f.stem}-${mode}.webp`" type="image/webp" />
+        <picture class="feature-picture">
+          <source :srcset="srcset(f.stem)" sizes="(min-width: 768px) 512px, 100vw" type="image/webp" />
           <img
             :src="`/landing/${f.stem}-${mode}.jpg`"
             :alt="t(`landing.${f.key}Title`)"
@@ -186,15 +194,18 @@ async function onMicrosoftLogin() {
   animation-delay: 0.15s;
 }
 
-.hero-screenshot {
+.hero-picture {
   display: block;
-  width: 100%;
   max-width: 64rem;
   margin: 0 auto;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  box-shadow:
-    0 -4px 32px rgba(0, 0, 0, 0.08),
-    0 -1px 0 rgba(255, 255, 255, 0.06) inset;
+  overflow: hidden;
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.08);
+}
+
+.hero-screenshot {
+  display: block;
+  width: 100%;
 }
 
 /* Features */
@@ -216,10 +227,16 @@ async function onMicrosoftLogin() {
   align-items: center;
 }
 
-.feature-img {
-  width: 100%;
+.feature-picture {
+  display: block;
   border-radius: var(--radius-lg);
+  overflow: hidden;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+.feature-img {
+  display: block;
+  width: 100%;
 }
 
 .feature-title {
@@ -305,7 +322,7 @@ async function onMicrosoftLogin() {
     padding: 5rem 2rem;
   }
 
-  .feature.reverse .feature-img {
+  .feature.reverse picture {
     order: 2;
   }
 

@@ -176,8 +176,10 @@ const dateStr = computed(() => {
           />
         </div>
         <div class="badge-rail">
-          <div class="badge-arrow" />
-          <div class="step-badge text-bright">{{ t("album.day", { n: dayNumber }) }}</div>
+          <div class="badge-group">
+            <div class="badge-arrow" />
+            <div class="step-badge text-bright">{{ t("album.day", { n: dayNumber }) }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -346,19 +348,21 @@ const dateStr = computed(() => {
 
 .badge-rail {
   position: relative;
-  width: 100%;
-  // Reserve space: arrow (5px) + badge (~1rem)
   height: calc(5px + 1.1rem);
   margin-top: var(--gap-sm);
 }
 
-// Arrow + badge both clamped so the arrow never escapes the badge box.
-// 5px = arrow half-width (border-left/right).
-.badge-arrow {
+.badge-group {
   position: absolute;
   top: 0;
-  left: clamp(5px, var(--progress), calc(100% - 5px));
+  left: var(--progress);
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.badge-arrow {
   width: 0;
   height: 0;
   border-left: 5px solid transparent;
@@ -366,16 +370,8 @@ const dateStr = computed(() => {
   border-bottom: 5px solid v-bind(countryColor);
 }
 
-// 1px overlap with arrow (top: 4px instead of 5px) prevents sub-pixel gaps.
 .step-badge {
-  --half-w: 1.75rem;
-  position: absolute;
-  top: 4px;
-  left: clamp(
-    0px,
-    calc(var(--progress) - var(--half-w)),
-    calc(100% - 2 * var(--half-w))
-  );
+  margin-top: -1px;
   font-size: var(--type-3xs);
   font-weight: 700;
   padding: var(--gap-xs) var(--gap-md);
