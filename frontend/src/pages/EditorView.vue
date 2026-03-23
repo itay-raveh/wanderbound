@@ -8,13 +8,13 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
 import { useLocale } from "@/composables/useLocale";
-import { useMeta } from "quasar";
 import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
-
-useMeta({ title: "Editor" });
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
+import { useMeta } from "quasar";
 import { ref, computed, watch } from "vue";
+
+useMeta({ title: "Editor" });
 
 const LAST_ALBUM_KEY = "last-album-id";
 const selectedAlbumId = ref<string | null>(localStorage.getItem(LAST_ALBUM_KEY));

@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { computed, onMounted } from "vue";
-import { useRoute } from "vue-router";
 import { useMeta } from "quasar";
 import { marked } from "marked";
 import privacyRaw from "../../../PRIVACY.md?raw";
@@ -8,18 +6,8 @@ import termsRaw from "../../../TERMS.md?raw";
 
 useMeta({ title: "Legal" });
 
-const privacyHtml = computed(() => marked.parse(privacyRaw) as string);
-const termsHtml = computed(() => marked.parse(termsRaw) as string);
-
-const route = useRoute();
-
-onMounted(() => {
-  const hash = route.hash;
-  if (hash) {
-    const el = document.querySelector(hash);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  }
-});
+const privacyHtml = marked.parse(privacyRaw) as string;
+const termsHtml = marked.parse(termsRaw) as string;
 </script>
 
 <template>
@@ -49,7 +37,6 @@ onMounted(() => {
   border-top: 1px solid var(--border-color);
 }
 
-/* Prose styling for rendered markdown */
 .prose :deep(h1) {
   font-size: 1.75rem;
   font-weight: 700;

@@ -85,11 +85,11 @@ run = "bun run build"
 
 [tasks.up]
 description = "Start all Docker services"
-run = "docker compose up -d"
+run = "docker compose up"
 
 [tasks.down]
 description = "Stop all Docker services and clean up"
-run = "docker compose down -v --remove-orphans"
+run = "docker compose down --remove-orphans"
 
 [tasks.logs]
 description = "Tail Docker Compose logs"

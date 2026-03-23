@@ -48,13 +48,62 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
 
 <template>
   <main>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content column no-wrap items-center">
-      <q-img src="/logo.svg" class="hero-logo fade-up" />
-      <h1 class="hero-title fade-up">{{ t("brand") }}</h1>
-      <p class="hero-tagline fade-up">{{ t("tagline") }}</p>
-      <div class="hero-cta fade-up">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-content column no-wrap items-center">
+        <q-img src="/logo.svg" class="hero-logo fade-up" />
+        <h1 class="hero-title fade-up">{{ t("brand") }}</h1>
+        <p class="hero-tagline fade-up">{{ t("tagline") }}</p>
+        <div class="hero-cta fade-up">
+          <q-btn
+            v-if="authenticated"
+            :label="t('landing.openEditor')"
+            color="primary"
+            unelevated
+            no-caps
+            size="lg"
+            :to="{ name: 'editor' }"
+          />
+          <GoogleLogin v-else :callback="onSuccess" />
+        </div>
+      </div>
+
+      <!-- Hero showcase: product preview that overflows into the features section -->
+      <div class="hero-showcase fade-up">
+        <img
+          src="/landing/editor.jpg"
+          :alt="t('landing.editorScreenshot')"
+          class="hero-screenshot"
+        />
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features">
+      <div
+        v-for="(f, i) in features"
+        :key="f.key"
+        class="feature"
+        :class="{ reverse: i % 2 === 1 }"
+      >
+        <img
+          :src="f.image"
+          :alt="t(`landing.${f.key}Title`)"
+          class="feature-img"
+          loading="lazy"
+        />
+        <div class="feature-text">
+          <h2 class="feature-title">{{ t(`landing.${f.key}Title`) }}</h2>
+          <p class="feature-body">{{ t(`landing.${f.key}Body`) }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom CTA -->
+    <section class="cta column no-wrap flex-center">
+      <h2 class="cta-title">{{ t("landing.ctaTitle") }}</h2>
+      <p class="cta-subtitle">{{ t("landing.ctaBody") }}</p>
+      <div class="cta-button">
         <q-btn
           v-if="authenticated"
           :label="t('landing.openEditor')"
@@ -66,56 +115,7 @@ async function onSuccess(response: CallbackTypes.CredentialPopupResponse) {
         />
         <GoogleLogin v-else :callback="onSuccess" />
       </div>
-    </div>
-
-    <!-- Hero showcase: product preview that overflows into the features section -->
-    <div class="hero-showcase fade-up">
-      <img
-        src="/landing/editor.jpg"
-        :alt="t('landing.editorScreenshot')"
-        class="hero-screenshot"
-      />
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="features">
-    <div
-      v-for="(f, i) in features"
-      :key="f.key"
-      class="feature"
-      :class="{ reverse: i % 2 === 1 }"
-    >
-      <img
-        :src="f.image"
-        :alt="t(`landing.${f.key}Title`)"
-        class="feature-img"
-        loading="lazy"
-      />
-      <div class="feature-text">
-        <h2 class="feature-title">{{ t(`landing.${f.key}Title`) }}</h2>
-        <p class="feature-body">{{ t(`landing.${f.key}Body`) }}</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Bottom CTA -->
-  <section class="cta column no-wrap flex-center">
-    <h2 class="cta-title">{{ t("landing.ctaTitle") }}</h2>
-    <p class="cta-subtitle">{{ t("landing.ctaBody") }}</p>
-    <div class="cta-button">
-      <q-btn
-        v-if="authenticated"
-        :label="t('landing.openEditor')"
-        color="primary"
-        unelevated
-        no-caps
-        size="lg"
-        :to="{ name: 'editor' }"
-      />
-      <GoogleLogin v-else :callback="onSuccess" />
-    </div>
-  </section>
+    </section>
   </main>
 </template>
 
