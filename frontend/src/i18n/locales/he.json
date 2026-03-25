@@ -25,11 +25,18 @@
 
   "register": {
     "getDataTitle": "הורידו את המידע מ-Polarsteps",
-    "getDataBody": "נכנסים ל-{link}. עוברים ל-{settings}, גוללים ל-{download}, ולוחצים על {startArchive}. תקבלו מייל עם קישור להורדה.",
+    "getDataStep1": "נכנסים ל-{link} במחשב",
+    "getDataStep2": "עוברים ל-{settings}, גוללים ל-{download}",
+    "getDataStep3": "לוחצים על {startArchive}",
+    "getDataStep4": "בודקים את המייל לקישור הורדה",
+    "getDataWait": "הארכיון בדרך כלל מגיע תוך דקות, אבל יכול לקחת עד כמה שעות.",
     "uploadTitle": "העלו את ה-{file}",
     "uploadFailed": "ההעלאה נכשלה. נסו שוב.",
     "fileTooLarge": "הקובץ גדול מדי. מקסימום {max} GB.",
     "greeting": "היי {name},",
+    "greetingMorning": "בוקר טוב, {name}",
+    "greetingAfternoon": "צהריים טובים, {name}",
+    "greetingEvening": "ערב טוב, {name}",
     "evictedTitle": "!הגעתם בחזרה",
     "evictedBody": "הקבצים נמחקו כדי לפנות מקום, אבל העריכות נשמרו. העלו מחדש את הנתונים כדי להמשיך מאיפה שעצרתם.",
     "reuploadTitle": "עדכון נתונים",
@@ -37,13 +44,23 @@
     "statusReady": "האלבום מוכן",
     "statusError": "משהו השתבש",
     "statusBuilding": "בונה את האלבום...",
+    "statusPhase": {
+      "elevations": "עוקב אחרי השטח שעברתם...",
+      "weather": "נזכר במזג האוויר לאורך הדרך...",
+      "layouts": "מסדר את התמונות על הדף..."
+    },
+    "tripsProgress": "טיול {current} מתוך {total}",
     "trips": "אין טיולים | טיול אחד | {n} טיולים",
     "steps": "אין צעדים | צעד אחד | {n} צעדים",
     "countries": "אין מדינות | מדינה אחת | {n} מדינות",
     "tryAgain": "נסו שוב",
     "openAlbum": "לאלבום",
     "unsupportedTitle": "הדפדפן לא נתמך",
-    "unsupportedBody": "עברו לדפדפן עדכני: {chrome}, {firefox}, {safari}, או {edge}."
+    "unsupportedBody": "עברו לדפדפן עדכני: {chrome}, {firefox}, {safari}, או {edge}.",
+    "welcomeNew": "ברוכים הבאים ל-Wanderbound",
+    "welcomeBack": "ברוכים השבים ל-Wanderbound",
+    "dropZone": "גררו את הקובץ לכאן או לחצו לבחירה",
+    "getDataGuide": "למדריך המפורט של Polarsteps"
   },
 
   "phase": {

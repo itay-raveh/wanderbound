@@ -13,6 +13,16 @@
   animation: fadeUp var(--duration-slow) ease both;
 }
 
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--duration-normal) ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 @keyframes pulse {
   0%,
   100% {

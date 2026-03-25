@@ -1,15 +1,15 @@
 <script lang="ts" setup>
-import { computed } from "vue";
-import type { TripMeta, User } from "@/client";
+import { computed, watch } from "vue";
+import type { TripMeta } from "@/client";
+import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { useI18n } from "vue-i18n";
 import TripTimeline from "./TripTimeline.vue";
 import { symOutlinedLuggage, symOutlinedPinDrop, symOutlinedPublic } from "@quasar/extras/material-symbols-outlined";
-import { matErrorOutline, matRefresh, matArrowForward } from "@quasar/extras/material-icons";
+import { matCheckCircle, matErrorOutline, matRefresh, matArrowForward } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   trips: TripMeta[];
-  user: User;
   state: StreamState;
   tripIndex: number;
   phaseDone: PhaseDone;
@@ -31,38 +31,64 @@ const totalCountries = computed(() => {
   const codes = new Set(props.trips.flatMap((trip) => trip.country_codes));
   return codes.size;
 });
+
+const statusMessage = computed(() => {
+  for (const p of PHASE_ORDER) {
+    const { done, total } = props.phaseDone[p];
+    if (total > 0 && done < total) return t(`register.statusPhase.${p}`);
+  }
+  return t("register.statusBuilding");
+});
+
+watch(() => props.state, async (s) => {
+  if (s !== "done") return;
+  const { default: confetti } = await import("canvas-confetti");
+  const primary = getComputedStyle(document.documentElement).getPropertyValue("--q-primary").trim();
+  void confetti({
+    particleCount: 80,
+    spread: 70,
+    origin: { y: 0.7 },
+    colors: [primary, "#fbbf24", "#a78bfa"],
+    disableForReducedMotion: true,
+  });
+});
 </script>
 
 <template>
-  <q-card class="processing-card fade-up">
-    <!-- Header -->
-    <div class="column no-wrap q-gutter-y-sm">
-      <div class="greeting column no-wrap">
-        <span class="text-h6 text-bright">{{ t("register.greeting", { name: user.first_name }) }}</span>
-        <span v-if="state === 'done'" class="text-subtitle2 text-positive">
-          {{ t("register.statusReady") }}
-        </span>
-        <span v-else-if="state === 'error'" class="text-subtitle2 text-danger">
-          {{ t("register.statusError") }}
-        </span>
-        <span v-else class="text-subtitle2 text-muted">
-          <q-spinner-dots size="0.875rem" class="q-mr-xs" />
-          {{ t("register.statusBuilding") }}
-        </span>
-      </div>
+  <q-card class="fade-up">
+    <!-- Status + stats -->
+    <div class="column no-wrap q-gutter-y-sm" aria-live="polite">
+      <span v-if="state === 'done'" class="status-done row inline no-wrap items-center q-gutter-x-xs text-subtitle2 text-positive">
+        <q-icon :name="matCheckCircle" size="1rem" class="done-check" />
+        {{ t("register.statusReady") }}
+      </span>
+      <span v-else-if="state === 'error'" class="text-subtitle2 text-danger">
+        {{ t("register.statusError") }}
+      </span>
+      <span v-else class="status-building text-subtitle2 text-muted">
+        <q-spinner-dots size="0.875rem" class="q-mr-xs" />
+        <Transition name="fade" mode="out-in">
+          <span :key="statusMessage">{{ statusMessage }}</span>
+        </Transition>
+      </span>
 
-      <div class="stats row items-center wrap q-gutter-sm">
-        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
+      <div class="stats row items-center wrap q-gutter-x-xs">
+        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
           <q-icon :name="symOutlinedLuggage" size="0.875rem" />
-          {{ t("register.trips", trips.length) }}
+          <template v-if="state === 'running' && trips.length > 1">
+            {{ t("register.tripsProgress", { current: tripIndex + 1, total: trips.length }) }}
+          </template>
+          <template v-else>
+            {{ t("register.trips", trips.length) }}
+          </template>
         </span>
-        <span class="stat-dot" />
-        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
+        <span class="text-faint" aria-hidden="true">&middot;</span>
+        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
           <q-icon :name="symOutlinedPinDrop" size="0.875rem" />
           {{ t("register.steps", totalSteps) }}
         </span>
-        <span class="stat-dot" />
-        <span class="stat row inline no-wrap items-center q-gutter-x-xs text-overline text-faint">
+        <span class="text-faint" aria-hidden="true">&middot;</span>
+        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
           <q-icon :name="symOutlinedPublic" size="0.875rem" />
           {{ t("register.countries", totalCountries) }}
         </span>
@@ -80,8 +106,8 @@ const totalCountries = computed(() => {
     />
 
     <!-- Error state -->
-    <template v-if="state === 'error'">
-      <q-separator class="q-my-md" />
+    <div v-if="state === 'error'" class="state-section fade-up">
+      <q-separator class="q-my-lg" />
       <div class="error-banner row no-wrap q-gutter-x-sm">
         <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon text-danger" />
         <div class="error-body column no-wrap q-gutter-y-sm">
@@ -89,46 +115,29 @@ const totalCountries = computed(() => {
           <q-btn outline no-caps dense :icon="matRefresh" :label="t('register.tryAgain')" class="retry-btn bg-surface" @click="$emit('retry')" />
         </div>
       </div>
-    </template>
+    </div>
 
     <!-- Done state -->
-    <template v-if="state === 'done'">
-      <q-separator class="q-my-md" />
+    <div v-if="state === 'done'" class="state-section fade-up">
+      <q-separator class="q-my-lg" />
       <q-btn
         color="primary"
         unelevated
         no-caps
-        class="fade-up full-width text-subtitle1"
+        class="done-btn full-width text-subtitle1"
         @click="$emit('done')"
       >
         {{ t("register.openAlbum") }}
         <q-icon :name="matArrowForward" size="1rem" class="rtl-flip" />
       </q-btn>
-    </template>
+    </div>
   </q-card>
 </template>
 
 <style scoped>
-.processing-card {
-  padding: 1.75rem 2rem;
-}
-
-@media (max-width: 479px) {
-  .processing-card {
-    padding: 1.25rem;
-  }
-}
-
-.greeting {
-  gap: var(--gap-xs);
-}
-
-.stat-dot {
-  width: 0.1875rem;
-  height: 0.1875rem;
-  border-radius: 50%;
-  background: var(--border-color);
-  flex-shrink: 0;
+.status-building {
+  display: inline-flex;
+  align-items: center;
 }
 
 .error-banner {
@@ -140,7 +149,7 @@ const totalCountries = computed(() => {
 
 .error-icon {
   flex-shrink: 0;
-  margin-top: 0.0625rem;
+  margin-top: 1px; /* optical alignment with text baseline */
 }
 
 .error-msg {
@@ -150,6 +159,45 @@ const totalCountries = computed(() => {
 .retry-btn {
   border-color: var(--border-color);
   color: var(--text);
+  align-self: flex-start;
 }
 
+.done-check {
+  animation: scaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.done-btn {
+  animation: ctaGlow 0.8s ease-out 0.4s both;
+  transition:
+    transform var(--duration-fast) cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow var(--duration-fast) ease;
+}
+
+@keyframes ctaGlow {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-primary) 35%, transparent); }
+  100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--q-primary) 0%, transparent); }
+}
+
+.done-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--q-primary) 30%, transparent);
+}
+
+.done-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .done-check,
+  .done-btn {
+    animation: none;
+    transition: none;
+  }
+}
 </style>

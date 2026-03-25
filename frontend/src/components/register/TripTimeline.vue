@@ -97,7 +97,7 @@ const overallPercent = computed(() => {
       <!-- Trip content -->
       <div class="trip-content">
         <div class="row no-wrap items-baseline justify-between q-gutter-x-sm">
-          <span class="trip-title text-subtitle1 ellipsis text-bright">{{ trip.title }}</span>
+          <span class="trip-title text-subtitle1 ellipsis text-bright" :title="trip.title">{{ trip.title }}</span>
           <span class="trip-meta text-overline text-faint">
             {{ t("register.steps", trip.step_count) }}
           </span>
@@ -129,7 +129,7 @@ const overallPercent = computed(() => {
             </span>
 
             <!-- Per-phase mini progress bar (only for multi-item phases) -->
-            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track overflow-hidden">
+            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track overflow-hidden" aria-hidden="true">
               <div
                 class="phase-fill"
                 :style="{ width: `${phasePercent(p)}%` }"
@@ -138,7 +138,7 @@ const overallPercent = computed(() => {
           </div>
 
           <!-- Overall progress bar -->
-          <div class="progress-track overflow-hidden">
+          <div class="progress-track overflow-hidden" role="progressbar" :aria-valuenow="overallPercent" aria-valuemin="0" aria-valuemax="100">
             <div
               class="progress-fill relative-position"
               :style="{ width: `${overallPercent}%` }"
@@ -187,7 +187,7 @@ const overallPercent = computed(() => {
 .trip.done .trip-dot {
   border-color: var(--q-primary);
   background: var(--q-primary);
-  color: #fff;
+  color: white;
 }
 
 .trip.active .trip-dot {
@@ -207,11 +207,22 @@ const overallPercent = computed(() => {
   flex: 1;
   min-height: 1rem;
   background: var(--border-color);
-  transition: background var(--duration-normal) ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.trip.done .trip-line {
+.trip-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: var(--q-primary);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform var(--duration-slow) cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.trip.done .trip-line::after {
+  transform: scaleY(1);
 }
 
 .trip-content {
@@ -232,21 +243,16 @@ const overallPercent = computed(() => {
 .phase {
   gap: var(--gap-sm-md);
   color: var(--text-faint);
-  transition:
-    color var(--duration-normal) ease,
-    opacity var(--duration-normal) ease;
-  opacity: 0.5;
+  transition: color var(--duration-normal) ease;
   height: 1.375rem;
 }
 
 .phase.done {
   color: var(--text-muted);
-  opacity: 0.7;
 }
 
 .phase.active {
   color: var(--q-primary);
-  opacity: 1;
   font-weight: 600;
 }
 
@@ -258,7 +264,6 @@ const overallPercent = computed(() => {
   animation: pulse 1.8s ease-in-out infinite;
 }
 
-
 .phase-count {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -266,6 +271,18 @@ const overallPercent = computed(() => {
 
 .phase-check {
   opacity: 0.6;
+  animation: scaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0.6;
+  }
 }
 
 .phase-track {
@@ -304,9 +321,22 @@ const overallPercent = computed(() => {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.2),
+    color-mix(in srgb, var(--text-bright) 20%, transparent),
     transparent
   );
   animation: shimmer 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-dot-pulse,
+  .phase.active .phase-icon,
+  .progress-fill::after,
+  .phase-check {
+    animation: none;
+  }
+
+  .trip-line::after {
+    transition: none;
+  }
 }
 </style>

@@ -25,11 +25,18 @@
 
   "register": {
     "getDataTitle": "Get your data from Polarsteps",
-    "getDataBody": "Log in at {link} on a desktop computer. Go to {settings}, scroll to {download} in the privacy section, and click {startArchive}. You'll get an email with a download link.",
+    "getDataStep1": "Log in at {link} on a desktop computer",
+    "getDataStep2": "Go to {settings}, scroll to {download}",
+    "getDataStep3": "Click {startArchive}",
+    "getDataStep4": "Check your email for the download link",
+    "getDataWait": "The archive usually arrives within minutes, but can take up to a few hours.",
     "uploadTitle": "Upload your {file}",
     "uploadFailed": "Upload failed. Please try again.",
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
     "greeting": "Hey {name},",
+    "greetingMorning": "Good morning, {name}",
+    "greetingAfternoon": "Good afternoon, {name}",
+    "greetingEvening": "Good evening, {name}",
     "evictedTitle": "Welcome back!",
     "evictedBody": "Your files were cleaned up to save space, but your edits are saved. Re-upload your data to continue where you left off.",
     "reuploadTitle": "Update your data",
@@ -37,13 +44,23 @@
     "statusReady": "Your album is ready",
     "statusError": "Something went wrong",
     "statusBuilding": "Building your album...",
+    "statusPhase": {
+      "elevations": "Tracing the terrain you crossed...",
+      "weather": "Recalling the weather along the way...",
+      "layouts": "Arranging your photos on the page..."
+    },
+    "tripsProgress": "{current} of {total} trips",
     "trips": "no trips | {n} trip | {n} trips",
     "steps": "no steps | {n} step | {n} steps",
     "countries": "no countries | {n} country | {n} countries",
     "tryAgain": "Try again",
     "openAlbum": "Open your album",
     "unsupportedTitle": "Browser not supported",
-    "unsupportedBody": "Switch to a recent browser: {chrome}, {firefox}, {safari}, or {edge}."
+    "unsupportedBody": "Switch to a recent browser: {chrome}, {firefox}, {safari}, or {edge}.",
+    "welcomeNew": "Welcome to Wanderbound",
+    "welcomeBack": "Welcome back to Wanderbound",
+    "dropZone": "Drop your file here or click to browse",
+    "getDataGuide": "See Polarsteps' step-by-step guide"
   },
 
   "phase": {

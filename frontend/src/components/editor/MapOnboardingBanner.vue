@@ -80,14 +80,4 @@ const chips = [
   flex-shrink: 0;
   font-weight: 600;
 }
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity var(--duration-normal) ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 </style>
