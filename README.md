@@ -87,6 +87,7 @@ runs only tests matching `test_auth`.
 ## Roadmap
 
 - [ ] HDR → SDR tone-mapping for video poster extraction
+- [ ] Add "Try with demo data" feature.
 
 ## License
 
