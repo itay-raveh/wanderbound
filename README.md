@@ -86,8 +86,9 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] HDR → SDR tone-mapping for video poster extraction
+- [ ] Automatic maps for multi day hikes.
 - [ ] Add "Try with demo data" feature.
+- [ ] HDR → SDR tone-mapping for video poster extraction
 
 ## License
 
