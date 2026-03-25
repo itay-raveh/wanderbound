@@ -14,8 +14,8 @@ const hasMeta = !!(authorName || version);
 </script>
 
 <template>
-  <nav class="site-footer text-caption">
-    <div class="site-footer-group">
+  <footer class="site-footer text-caption">
+    <nav class="site-footer-group">
       <router-link to="/legal#privacy" class="site-footer-link">{{ t("footer.privacy") }}</router-link>
       <span class="site-footer-sep" aria-hidden="true">&middot;</span>
       <router-link to="/legal#terms" class="site-footer-link">{{ t("footer.terms") }}</router-link>
@@ -44,7 +44,7 @@ const hasMeta = !!(authorName || version);
           {{ t("footer.issues") }}
         </a>
       </template>
-    </div>
+    </nav>
     <div v-if="hasMeta" class="site-footer-group">
       <span v-if="authorName" dir="ltr">
         &copy; {{ year }}
@@ -67,18 +67,22 @@ const hasMeta = !!(authorName || version);
       >
       <span v-if="version">v{{ version }}</span>
     </div>
-  </nav>
+    <p class="site-footer-disclaimer">
+      {{ t("footer.disclaimerIndependent") }}<br />
+      {{ t("footer.disclaimerRecommendation") }}
+    </p>
+  </footer>
 </template>
 
 <style scoped>
 .site-footer {
   display: flex;
-  justify-content: center;
-  align-items: center;
   flex-direction: column;
+  align-items: center;
   gap: var(--gap-sm);
-  padding: var(--gap-md-lg) var(--gap-lg);
+  padding: var(--gap-lg) var(--gap-lg) var(--gap-md-lg);
   border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   color: var(--text-muted);
 }
 
@@ -88,14 +92,6 @@ const hasMeta = !!(authorName || version);
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--gap-sm) var(--gap-md);
-}
-
-@media (min-width: 768px) {
-  .site-footer {
-    flex-direction: row;
-    justify-content: space-between;
-    gap: var(--gap-md);
-  }
 }
 
 .site-footer-link {
@@ -110,5 +106,13 @@ const hasMeta = !!(authorName || version);
 
 .site-footer-sep {
   color: var(--border-color);
+}
+
+.site-footer-disclaimer {
+  margin: var(--gap-sm) 0 0;
+  max-width: 52rem;
+  text-align: center;
+  color: var(--text-faint);
+  line-height: 1.5;
 }
 </style>

@@ -12,13 +12,11 @@ useMeta({
 <template>
   <ScreenGuard>
     <a href="#main-content" class="skip-to-content">Skip to content</a>
-    <q-layout view="hHh lpr lFf">
+    <q-layout view="hHh lpr lff">
       <q-page-container id="main-content">
         <RouterView />
+        <SiteFooter class="print-hide" />
       </q-page-container>
-      <q-footer class="app-footer print-hide">
-        <SiteFooter />
-      </q-footer>
     </q-layout>
   </ScreenGuard>
 </template>
@@ -29,10 +27,6 @@ body,
 #app {
   height: 100%;
   margin: 0;
-}
-
-.app-footer {
-  background: var(--bg-secondary);
 }
 
 /* Design tokens (theme-independent) */

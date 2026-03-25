@@ -5,7 +5,7 @@ import LoginButtons from "@/components/register/LoginButtons.vue";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { type CallbackTypes } from "vue3-google-login";
 import { setAuthState, type Provider } from "@/router";
 
@@ -62,16 +62,63 @@ async function onMicrosoftLogin() {
     notifyLoginFailed();
   }
 }
+
+/* 3D tilt on hero card fan — tracks cursor across the entire hero section */
+const heroRef = ref<HTMLElement>();
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function onHeroMouseMove(e: MouseEvent) {
+  const el = heroRef.value;
+  if (!el || reducedMotion.matches) return;
+  if ((e.target as HTMLElement).closest(".hero-card")) return;
+  const rect = el.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width - 0.5;
+  const y = (e.clientY - rect.top) / rect.height - 0.5;
+  el.style.setProperty("--tilt-x", `${(y * -10).toFixed(2)}deg`);
+  el.style.setProperty("--tilt-y", `${(x * 16).toFixed(2)}deg`);
+}
+
+function onHeroMouseLeave() {
+  heroRef.value?.style.removeProperty("--tilt-x");
+  heroRef.value?.style.removeProperty("--tilt-y");
+}
+
+/* Scroll-driven feature reveals via IntersectionObserver */
+let revealObserver: IntersectionObserver | undefined;
+
+onMounted(() => {
+  if (reducedMotion.matches) return;
+
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          (entry.target as HTMLElement).classList.add("revealed");
+          revealObserver!.unobserve(entry.target);
+        }
+      }
+    },
+    { threshold: 0.12 },
+  );
+
+  document.querySelectorAll(".scroll-reveal").forEach((el) => revealObserver!.observe(el));
+});
+
+onUnmounted(() => revealObserver?.disconnect());
 </script>
 
 <template>
   <main>
     <!-- Hero -->
-    <section class="hero" aria-labelledby="hero-heading">
+    <section ref="heroRef" class="hero" aria-labelledby="hero-heading" @mousemove="onHeroMouseMove" @mouseleave="onHeroMouseLeave">
       <div class="hero-content column no-wrap items-center">
-        <img src="/logo.svg" alt="" class="hero-logo fade-up" />
-        <h1 id="hero-heading" class="hero-title fade-up">{{ t("brand") }}</h1>
-        <p class="hero-tagline fade-up">{{ t("tagline") }}</p>
+        <div class="hero-brand fade-up">
+          <img src="/logo.svg" alt="" class="hero-logo" />
+          <h1 id="hero-heading" class="hero-title">{{ t("brand") }}</h1>
+        </div>
+        <i18n-t keypath="tagline" tag="p" class="hero-tagline fade-up">
+          <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+        </i18n-t>
         <div class="hero-cta fade-up">
           <q-btn
             v-if="authenticated"
@@ -122,21 +169,23 @@ async function onMicrosoftLogin() {
 
     <!-- Feature: autoAlbum — core product showcase, standard 50/50 -->
     <section class="band band--default" aria-labelledby="auto-album-heading">
-      <div class="feature feature--standard">
+      <div class="feature feature--standard scroll-reveal">
         <picture class="feature-picture">
           <source :srcset="srcset('auto-album')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
           <img :src="`/landing/auto-album-${mode}.jpg`" :alt="t('landing.autoAlbumTitle')" class="feature-img" loading="lazy" />
         </picture>
         <div class="feature-text">
           <h2 id="auto-album-heading" class="feature-title">{{ t("landing.autoAlbumTitle") }}</h2>
-          <p class="feature-body">{{ t("landing.autoAlbumBody") }}</p>
+          <i18n-t keypath="landing.autoAlbumBody" tag="p" class="feature-body">
+            <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+          </i18n-t>
         </div>
       </div>
     </section>
 
     <!-- Feature: hikeMap — visually stunning, full-width breakout -->
     <section class="band band--showstopper" aria-labelledby="hike-map-heading">
-      <div class="feature feature--hero">
+      <div class="feature feature--hero scroll-reveal">
         <div class="feature-text text-center">
           <h2 id="hike-map-heading" class="feature-title feature-title--lg">{{ t("landing.hikeMapTitle") }}</h2>
           <p class="feature-body">{{ t("landing.hikeMapBody") }}</p>
@@ -148,18 +197,20 @@ async function onMicrosoftLogin() {
       </div>
     </section>
 
-    <!-- Features: stepPage + overview — data richness pair -->
-    <section class="band band--default" aria-labelledby="step-page-heading overview-heading">
+    <!-- Features: localization + overview — paired features -->
+    <section class="band band--default" aria-labelledby="localization-heading overview-heading">
       <div class="feature-pair">
-        <div class="feature-pair-item">
+        <div class="feature-pair-item scroll-reveal">
           <picture class="feature-picture">
-            <source :srcset="srcset('step-page')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
-            <img :src="`/landing/step-page-${mode}.jpg`" :alt="t('landing.stepPageTitle')" class="feature-img" loading="lazy" />
+            <source :srcset="srcset('localization')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
+            <img :src="`/landing/localization-${mode}.jpg`" :alt="t('landing.localizationTitle')" class="feature-img" loading="lazy" />
           </picture>
-          <h2 id="step-page-heading" class="feature-title">{{ t("landing.stepPageTitle") }}</h2>
-          <p class="feature-body">{{ t("landing.stepPageBody") }}</p>
+          <h2 id="localization-heading" class="feature-title">{{ t("landing.localizationTitle") }}</h2>
+          <i18n-t keypath="landing.localizationBody" tag="p" class="feature-body">
+            <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+          </i18n-t>
         </div>
-        <div class="feature-pair-item">
+        <div class="feature-pair-item scroll-reveal">
           <picture class="feature-picture">
             <source :srcset="srcset('overview')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
             <img :src="`/landing/overview-${mode}.jpg`" :alt="t('landing.overviewTitle')" class="feature-img" loading="lazy" />
@@ -170,25 +221,13 @@ async function onMicrosoftLogin() {
       </div>
     </section>
 
-    <!-- Feature: localization — supporting detail, compact centered -->
-    <section class="band band--accent" aria-labelledby="localization-heading">
-      <div class="feature feature--compact">
-        <picture class="feature-picture">
-          <source :srcset="srcset('localization')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
-          <img :src="`/landing/localization-${mode}.jpg`" :alt="t('landing.localizationTitle')" class="feature-img" loading="lazy" />
-        </picture>
-        <div class="feature-text">
-          <h2 id="localization-heading" class="feature-title">{{ t("landing.localizationTitle") }}</h2>
-          <p class="feature-body">{{ t("landing.localizationBody") }}</p>
-        </div>
-      </div>
-    </section>
-
     <!-- Bottom CTA -->
     <section class="cta column no-wrap flex-center" aria-labelledby="cta-heading">
-      <h2 id="cta-heading" class="cta-title">{{ t("landing.ctaTitle") }}</h2>
-      <p class="cta-subtitle">{{ t("landing.ctaBody") }}</p>
-      <div class="cta-button">
+      <h2 id="cta-heading" class="cta-title scroll-reveal">{{ t("landing.ctaTitle") }}</h2>
+      <i18n-t keypath="landing.ctaBody" tag="p" class="cta-subtitle scroll-reveal">
+        <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+      </i18n-t>
+      <div class="cta-button scroll-reveal">
         <q-btn
           v-if="authenticated"
           :label="t('landing.openEditor')"
@@ -205,6 +244,12 @@ async function onMicrosoftLogin() {
 </template>
 
 <style scoped>
+/* Polarsteps brand reference — stands out from surrounding muted text */
+.ps-brand {
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
 /* Hero — tight vertical stack so everything fits above the fold */
 .hero {
   background: var(--page-gradient);
@@ -215,6 +260,12 @@ async function onMicrosoftLogin() {
 
 .hero-content {
   padding: 2rem 1.5rem 0;
+}
+
+.hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .hero-logo {
@@ -240,6 +291,7 @@ async function onMicrosoftLogin() {
   font-size: var(--type-md);
   color: var(--text-muted);
   max-width: 32rem;
+  text-wrap: balance;
 }
 
 .hero-cta {
@@ -248,15 +300,15 @@ async function onMicrosoftLogin() {
 
 /* Cascading hero reveal — each element unfolds with deliberate pacing */
 .hero-content > .fade-up:nth-child(1) { animation-delay: 0s; }
-.hero-content > .fade-up:nth-child(2) { animation-delay: 0.1s; }
-.hero-content > .fade-up:nth-child(3) { animation-delay: 0.2s; }
-.hero-content > .fade-up:nth-child(4) { animation-delay: 0.35s; }
+.hero-content > .fade-up:nth-child(2) { animation-delay: 0.15s; }
+.hero-content > .fade-up:nth-child(3) { animation-delay: 0.3s; }
 
 /* Product preview in hero — fanned spread of album pages */
 .hero-showcase {
   margin-top: 1.25rem;
   padding: 0 0.5rem;
   animation-delay: 0.5s;
+  perspective: 800px;
 }
 
 .hero-fan {
@@ -265,6 +317,8 @@ async function onMicrosoftLogin() {
   max-width: 32rem;
   height: 20rem;
   margin: 0 auto;
+  transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 .hero-card {
@@ -357,9 +411,6 @@ async function onMicrosoftLogin() {
   background: var(--bg);
 }
 
-.band--accent {
-  background: var(--bg-secondary);
-}
 
 /* Showstopper band (hike map) — extra vertical breathing room + stronger bg */
 .band--showstopper {
@@ -411,7 +462,7 @@ async function onMicrosoftLogin() {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
-  max-width: 52rem;
+  max-width: 64rem;
   margin: 0 auto;
   width: 100%;
 }
@@ -431,17 +482,6 @@ async function onMicrosoftLogin() {
 
 .feature-pair-item .feature-body {
   margin: 0.375rem 0 0;
-}
-
-/* Compact feature (localization) — narrower, centered */
-.feature--compact {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-  max-width: 46rem;
-  margin: 0 auto;
-  width: 100%;
-  align-items: center;
 }
 
 /* Shared feature atoms */
@@ -472,6 +512,7 @@ async function onMicrosoftLogin() {
   font-weight: 700;
   color: var(--text-bright);
   letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
 }
 
 .feature-title--lg {
@@ -480,6 +521,7 @@ async function onMicrosoftLogin() {
 
 .feature-body {
   margin: 0.75rem 0 0;
+  text-wrap: pretty;
   font-size: var(--type-md);
   color: var(--text-muted);
   line-height: 1.65;
@@ -500,6 +542,7 @@ async function onMicrosoftLogin() {
   font-weight: 700;
   color: var(--text-bright);
   letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
 }
 
 .cta-subtitle {
@@ -574,6 +617,15 @@ async function onMicrosoftLogin() {
 
 /* Desktop — multi-column features, full-size hero fan */
 @media (min-width: 1024px) {
+  .hero-brand {
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .hero-brand .hero-title {
+    margin: 0;
+  }
+
   .hero-showcase {
     padding: 0 3rem;
   }
@@ -612,18 +664,38 @@ async function onMicrosoftLogin() {
     gap: 3rem;
   }
 
-  .feature--compact {
-    grid-template-columns: 3fr 2fr;
-    gap: 2rem;
-  }
-
-  .feature--compact .feature-text {
-    order: -1;
-  }
 
   .cta {
     padding: 6rem 2rem;
   }
+}
+
+/* ─── Scroll-driven feature reveals ─── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(3rem);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger the second item in paired features */
+.feature-pair-item.scroll-reveal:nth-child(2) {
+  transition-delay: 0.15s;
+}
+
+/* Cascade the CTA elements */
+.cta-subtitle.scroll-reveal {
+  transition-delay: 0.1s;
+}
+
+.cta-button.scroll-reveal {
+  transition-delay: 0.2s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -644,6 +716,17 @@ async function onMicrosoftLogin() {
 
   .hero-scroll-hint svg {
     animation: none;
+  }
+
+  .hero-fan {
+    transform: none;
+    transition: none;
+  }
+
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
 </style>
