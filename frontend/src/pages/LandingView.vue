@@ -63,22 +63,30 @@ async function onMicrosoftLogin() {
   }
 }
 
+const mainRef = ref<HTMLElement>();
+
 /* 3D tilt on hero card fan — tracks cursor across the entire hero section */
 const heroRef = ref<HTMLElement>();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let tiltFrame = 0;
 
 function onHeroMouseMove(e: MouseEvent) {
   const el = heroRef.value;
   if (!el || reducedMotion.matches) return;
   if ((e.target as HTMLElement).closest(".hero-card")) return;
-  const rect = el.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width - 0.5;
-  const y = (e.clientY - rect.top) / rect.height - 0.5;
-  el.style.setProperty("--tilt-x", `${(y * -10).toFixed(2)}deg`);
-  el.style.setProperty("--tilt-y", `${(x * 16).toFixed(2)}deg`);
+  const { clientX, clientY } = e;
+  cancelAnimationFrame(tiltFrame);
+  tiltFrame = requestAnimationFrame(() => {
+    const rect = el.getBoundingClientRect();
+    const x = (clientX - rect.left) / rect.width - 0.5;
+    const y = (clientY - rect.top) / rect.height - 0.5;
+    el.style.setProperty("--tilt-x", `${(y * -10).toFixed(2)}deg`);
+    el.style.setProperty("--tilt-y", `${(x * 16).toFixed(2)}deg`);
+  });
 }
 
 function onHeroMouseLeave() {
+  cancelAnimationFrame(tiltFrame);
   heroRef.value?.style.removeProperty("--tilt-x");
   heroRef.value?.style.removeProperty("--tilt-y");
 }
@@ -101,14 +109,17 @@ onMounted(() => {
     { threshold: 0.12 },
   );
 
-  document.querySelectorAll(".scroll-reveal").forEach((el) => revealObserver!.observe(el));
+  mainRef.value?.querySelectorAll(".scroll-reveal").forEach((el) => revealObserver!.observe(el));
 });
 
-onUnmounted(() => revealObserver?.disconnect());
+onUnmounted(() => {
+  revealObserver?.disconnect();
+  cancelAnimationFrame(tiltFrame);
+});
 </script>
 
 <template>
-  <main>
+  <main ref="mainRef">
     <!-- Hero -->
     <section ref="heroRef" class="hero" aria-labelledby="hero-heading" @mousemove="onHeroMouseMove" @mouseleave="onHeroMouseLeave">
       <div class="hero-content column no-wrap items-center">
@@ -135,26 +146,26 @@ onUnmounted(() => revealObserver?.disconnect());
 
       <!-- Hero showcase: fanned spread of different album page types -->
       <div class="hero-showcase fade-up">
-        <div class="hero-fan">
-          <picture class="hero-card" tabindex="0">
+        <div class="hero-fan" aria-hidden="true">
+          <picture class="hero-card">
             <source :srcset="srcset('cover')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/cover-${mode}.jpg`" alt="" class="hero-card-img" />
+            <img :src="`/landing/cover-${mode}.jpg`" alt="" class="hero-card-img" loading="lazy" />
           </picture>
-          <picture class="hero-card" tabindex="0">
+          <picture class="hero-card">
             <source :srcset="srcset('hike-map')" sizes="320px" type="image/webp" />
             <img :src="`/landing/hike-map-${mode}.jpg`" alt="" class="hero-card-img" />
           </picture>
-          <picture class="hero-card" tabindex="0">
+          <picture class="hero-card">
             <source :srcset="srcset('step-page')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/step-page-${mode}.jpg`" :alt="t('landing.heroScreenshot')" class="hero-card-img" fetchpriority="high" />
+            <img :src="`/landing/step-page-${mode}.jpg`" alt="" class="hero-card-img" fetchpriority="high" />
           </picture>
-          <picture class="hero-card" tabindex="0">
+          <picture class="hero-card">
             <source :srcset="srcset('overview')" sizes="320px" type="image/webp" />
             <img :src="`/landing/overview-${mode}.jpg`" alt="" class="hero-card-img" />
           </picture>
-          <picture class="hero-card" tabindex="0">
+          <picture class="hero-card">
             <source :srcset="srcset('auto-album')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/auto-album-${mode}.jpg`" alt="" class="hero-card-img" />
+            <img :src="`/landing/auto-album-${mode}.jpg`" alt="" class="hero-card-img" loading="lazy" />
           </picture>
         </div>
       </div>
@@ -186,7 +197,7 @@ onUnmounted(() => revealObserver?.disconnect());
     <!-- Feature: hikeMap — visually stunning, full-width breakout -->
     <section class="band band--showstopper" aria-labelledby="hike-map-heading">
       <div class="feature feature--hero scroll-reveal">
-        <div class="feature-text text-center">
+        <div class="feature-text">
           <h2 id="hike-map-heading" class="feature-title feature-title--lg">{{ t("landing.hikeMapTitle") }}</h2>
           <p class="feature-body">{{ t("landing.hikeMapBody") }}</p>
         </div>
@@ -223,7 +234,7 @@ onUnmounted(() => revealObserver?.disconnect());
 
     <!-- Bottom CTA -->
     <section class="cta column no-wrap flex-center" aria-labelledby="cta-heading">
-      <h2 id="cta-heading" class="cta-title scroll-reveal">{{ t("landing.ctaTitle") }}</h2>
+      <h2 id="cta-heading" class="feature-title feature-title--lg scroll-reveal">{{ t("landing.ctaTitle") }}</h2>
       <i18n-t keypath="landing.ctaBody" tag="p" class="cta-subtitle scroll-reveal">
         <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
       </i18n-t>
@@ -279,16 +290,18 @@ onUnmounted(() => revealObserver?.disconnect());
 }
 
 .hero-title {
-  margin: 0.5rem 0 0;
+  margin: var(--gap-md) 0 0;
   font-size: clamp(var(--type-2xl), 5vw, var(--display-1));
   font-weight: 800;
   color: var(--text-bright);
   letter-spacing: var(--tracking-tight);
+  overflow-wrap: break-word;
 }
 
 .hero-tagline {
-  margin: 0.375rem 0 0;
+  margin: var(--gap-sm-md) 0 0;
   font-size: var(--type-md);
+  line-height: 1.5;
   color: var(--text-muted);
   max-width: 32rem;
   text-wrap: balance;
@@ -306,7 +319,7 @@ onUnmounted(() => revealObserver?.disconnect());
 /* Product preview in hero — fanned spread of album pages */
 .hero-showcase {
   margin-top: 1.25rem;
-  padding: 0 0.5rem;
+  padding: 0 var(--gap-md);
   animation-delay: 0.5s;
   perspective: 800px;
 }
@@ -327,6 +340,7 @@ onUnmounted(() => revealObserver?.disconnect());
   left: 50%;
   border-radius: var(--radius-md);
   overflow: hidden;
+  background: var(--surface);
   box-shadow: var(--shadow-md);
   --spread: 0rem;
   --s: 1;
@@ -338,27 +352,19 @@ onUnmounted(() => revealObserver?.disconnect());
   animation: fan-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-.hero-card:hover,
-.hero-card:focus-visible {
+.hero-card:hover {
   transform: translate(-50%, -50%) translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15);
   z-index: 10 !important;
   box-shadow: var(--shadow-lg);
 }
 
-.hero-card:focus-visible {
-  outline: 2px solid var(--q-primary);
-  outline-offset: 2px;
-}
-
-/* Siblings shrink and spread so the hovered/focused card is fully isolated */
-.hero-card:has(~ .hero-card:hover),
-.hero-card:has(~ .hero-card:focus-visible) {
+/* Siblings shrink and spread so the hovered card is fully isolated */
+.hero-card:has(~ .hero-card:hover) {
   --spread: -7rem;
   --s: 0.8;
 }
 
-.hero-card:hover ~ .hero-card,
-.hero-card:focus-visible ~ .hero-card {
+.hero-card:hover ~ .hero-card {
   --spread: 7rem;
   --s: 0.8;
 }
@@ -367,6 +373,7 @@ onUnmounted(() => revealObserver?.disconnect());
   display: block;
   width: 100%;
   aspect-ratio: var(--page-aspect);
+  object-fit: cover;
 }
 
 @keyframes fan-in {
@@ -385,7 +392,7 @@ onUnmounted(() => revealObserver?.disconnect());
 
 /* Scroll hint — gentle nudge that content continues */
 .hero-scroll-hint {
-  margin-top: 0.25rem;
+  margin-top: var(--gap-sm);
   color: var(--text-faint);
   animation-delay: 1.2s;
   display: flex;
@@ -410,7 +417,6 @@ onUnmounted(() => revealObserver?.disconnect());
 .band--default {
   background: var(--bg);
 }
-
 
 /* Showstopper band (hike map) — extra vertical breathing room + stronger bg */
 .band--showstopper {
@@ -442,6 +448,7 @@ onUnmounted(() => revealObserver?.disconnect());
 
 .feature--hero .feature-text {
   max-width: 36rem;
+  text-align: center;
 }
 
 .feature-picture--wide {
@@ -473,7 +480,7 @@ onUnmounted(() => revealObserver?.disconnect());
 }
 
 .feature-pair-item .feature-picture {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--gap-md-lg);
 }
 
 .feature-pair-item .feature-title {
@@ -481,7 +488,7 @@ onUnmounted(() => revealObserver?.disconnect());
 }
 
 .feature-pair-item .feature-body {
-  margin: 0.375rem 0 0;
+  margin: var(--gap-sm-md) 0 0;
 }
 
 /* Shared feature atoms */
@@ -489,6 +496,7 @@ onUnmounted(() => revealObserver?.disconnect());
   display: block;
   border-radius: var(--radius-lg);
   overflow: hidden;
+  background: var(--surface);
   box-shadow: var(--shadow-md);
   transition:
     transform var(--duration-normal) ease,
@@ -504,6 +512,7 @@ onUnmounted(() => revealObserver?.disconnect());
   display: block;
   width: 100%;
   aspect-ratio: var(--page-aspect);
+  object-fit: cover;
 }
 
 .feature-title {
@@ -513,6 +522,7 @@ onUnmounted(() => revealObserver?.disconnect());
   color: var(--text-bright);
   letter-spacing: var(--tracking-tight);
   text-wrap: balance;
+  overflow-wrap: break-word;
 }
 
 .feature-title--lg {
@@ -520,7 +530,7 @@ onUnmounted(() => revealObserver?.disconnect());
 }
 
 .feature-body {
-  margin: 0.75rem 0 0;
+  margin: var(--gap-md-lg) 0 0;
   text-wrap: pretty;
   font-size: var(--type-md);
   color: var(--text-muted);
@@ -536,21 +546,13 @@ onUnmounted(() => revealObserver?.disconnect());
   text-align: center;
 }
 
-.cta-title {
-  margin: 0;
-  font-size: clamp(var(--type-2xl), 4vw, var(--display-2));
-  font-weight: 700;
-  color: var(--text-bright);
-  letter-spacing: var(--tracking-tight);
-  text-wrap: balance;
-}
-
 .cta-subtitle {
-  margin: 1rem 0 0;
+  margin: var(--gap-lg) 0 0;
   font-size: var(--type-md);
   color: var(--text-muted);
   max-width: 28rem;
   line-height: 1.65;
+  text-wrap: pretty;
 }
 
 .cta-button {
@@ -569,7 +571,7 @@ onUnmounted(() => revealObserver?.disconnect());
   }
 
   .hero-title {
-    margin: 0.75rem 0 0;
+    margin: var(--gap-md-lg) 0 0;
   }
 
   .hero-tagline {
@@ -619,7 +621,7 @@ onUnmounted(() => revealObserver?.disconnect());
 @media (min-width: 1024px) {
   .hero-brand {
     flex-direction: row;
-    gap: 1rem;
+    gap: var(--gap-lg);
   }
 
   .hero-brand .hero-title {
@@ -641,10 +643,8 @@ onUnmounted(() => revealObserver?.disconnect());
   .hero-card:nth-child(4) { --x: 10.5rem; width: 16rem; }
   .hero-card:nth-child(5) { --x: 20rem; width: 13rem; }
 
-  .hero-card:has(~ .hero-card:hover),
-  .hero-card:has(~ .hero-card:focus-visible) { --spread: -9rem; }
-  .hero-card:hover ~ .hero-card,
-  .hero-card:focus-visible ~ .hero-card { --spread: 9rem; }
+  .hero-card:has(~ .hero-card:hover) { --spread: -9rem; }
+  .hero-card:hover ~ .hero-card { --spread: 9rem; }
 
   .band {
     padding: 4.5rem 2rem;
@@ -663,7 +663,6 @@ onUnmounted(() => revealObserver?.disconnect());
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
   }
-
 
   .cta {
     padding: 6rem 2rem;
