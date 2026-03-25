@@ -103,8 +103,8 @@ classes over custom CSS:
 Album pages have specific typographic design for A4 print. Use the token scale
 from `App.vue`:
 
-- **Font sizes:** `--display-1` (3.75rem), `--display-2` (3rem), `--type-xl`
-  through `--type-3xs`
+- **Font sizes:** `--display-1` (3.75rem), `--display-2` (3rem), `--type-2xl`
+  (1.75rem), `--type-xl` through `--type-3xs`
 - **Radius:** `--radius-xs` (2px) through `--radius-full` (999px)
 - **Tracking:** `--tracking-tight` (-0.02em), `--tracking-wide` (0.06em),
   `--tracking-wider` (0.2em)
@@ -116,6 +116,9 @@ from `App.vue`:
 - **Photo grids:** `--photo-gap-lg` (5mm) through `--photo-gap-xs` (2mm)
 - **Timing:** `--duration-fast` (0.15s), `--duration-normal` (0.3s),
   `--duration-slow` (0.5s)
+- **Elevation:** `--shadow-sm`, `--shadow-md`, `--shadow-lg` — theme-adaptive
+  box-shadows (higher opacity in dark mode). For editor chrome, prefer Quasar
+  `.shadow-1`–`.shadow-5` classes instead.
 
 Font weights in album pages stay as literal values (`font-weight: 600`) - no
 token needed since they don't vary by theme.

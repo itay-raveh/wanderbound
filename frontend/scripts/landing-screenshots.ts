@@ -44,32 +44,27 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
 
   try {
-    // Run 3 contexts per mode in parallel, modes sequentially
     for (const mode of MODES) {
       console.log(`\n=== ${mode} mode ===`);
-      await Promise.all([
-        withContext(browser, mode, async (page) => {
-          await setupMocks(page);
-          await navigateToPrint(page, mode);
-          await captureAutoAlbum(page, mode);
-          await captureHikeMap(page, mode);
-        }),
-        withContext(browser, mode, async (page) => {
-          await setupMocks(page);
-          await navigateToEditor(page);
-          await captureEditor(page, mode);
-          await captureVideoPoster(page, mode);
-        }),
-        withContext(browser, mode, async (page) => {
-          await setupMocks(page, {
-            userOverrides: { locale: "he-IL" },
-            album: fixtures.hebrewAlbum,
-            albumData: fixtures.hebrewAlbumData,
-          });
-          await navigateToPrint(page, mode);
-          await captureLocalization(page, mode);
-        }),
-      ]);
+      await withContext(browser, mode, async (page) => {
+        await setupMocks(page);
+        await navigateToPrint(page, mode);
+        await captureCover(page, mode);
+        await captureAutoAlbum(page, mode);
+        await captureHikeMap(page, mode);
+        await captureStepPage(page, mode);
+        await captureOverview(page, mode);
+      });
+      // Separate context with Hebrew locale for the localization screenshot
+      await withContext(browser, mode, async (page) => {
+        await setupMocks(page, {
+          userOverrides: { locale: "he-IL" },
+          album: fixtures.hebrewAlbum,
+          albumData: fixtures.hebrewAlbumData,
+        });
+        await navigateToPrint(page, mode);
+        await captureLocalization(page, mode);
+      });
     }
   } finally {
     await browser.close();
@@ -157,6 +152,7 @@ async function withContext(
     deviceScaleFactor: 2,
     colorScheme: mode as "dark" | "light",
   });
+  context.setDefaultTimeout(60_000);
   try {
     await fn(await context.newPage());
   } finally {
@@ -164,56 +160,45 @@ async function withContext(
   }
 }
 
-async function navigateToEditor(page: Page) {
-  console.log("  Navigating to editor...");
-  await page.goto(`${BASE}/editor`, { waitUntil: "networkidle" });
-  await page.waitForSelector(".album-container", { timeout: 15_000 });
-  await page.waitForTimeout(1500);
-}
-
 async function navigateToPrint(page: Page, mode: string) {
   const dark = mode === "dark" ? "?dark=true" : "";
   console.log(`  Navigating to print view (${mode})...`);
-  await page.goto(`${BASE}/print/${ALBUM_ID}${dark}`, { waitUntil: "networkidle" });
-  await page.waitForFunction(
-    () => (window as unknown as Record<string, boolean>).__PRINT_READY__ === true,
-    { timeout: 30_000 },
-  );
-  await page.waitForTimeout(500);
+
+  // Headless Chromium without GPU tile rasterisation may never fire Mapbox
+  // "idle" events.  Force data-map-ready on all map elements.
+  await page.addInitScript(() => {
+    setInterval(() => {
+      document.querySelectorAll("[data-map]:not([data-map-ready])").forEach((el) => {
+        (el as HTMLElement).dataset.mapReady = "";
+      });
+    }, 500);
+  });
+
+  await page.goto(`${BASE}/print/${ALBUM_ID}${dark}`, { waitUntil: "load", timeout: 30_000 });
+
+  // Wait for the album container, then give content time to render.
+  // We don't rely on __PRINT_READY__ because the page-count check blocks
+  // when not all pages render in headless Chromium.
+  await page.waitForSelector(".album-container", { timeout: 30_000 });
+  console.log(`  Album container found, waiting for content to settle...`);
+  await page.waitForTimeout(15_000);
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Scroll through lazy sections until `selector` appears in the DOM. */
-async function scrollToReveal(page: Page, selector: string): Promise<boolean> {
-  if ((await page.locator(selector).count()) > 0) return true;
-
-  const lazySections = page.locator(".lazy-placeholder, .lazy-section");
-  const total = await lazySections.count();
-
-  for (let i = 0; i < total; i++) {
-    try {
-      await lazySections.nth(i).scrollIntoViewIfNeeded();
-    } catch {
-      await page.waitForTimeout(300);
-      continue;
-    }
-    await page.waitForTimeout(500);
-    if ((await page.locator(selector).count()) > 0) return true;
-  }
-  return false;
-}
-
-async function waitForImages(scope: Locator) {
-  await scope.evaluate((el) =>
-    Promise.all(
-      Array.from(el.querySelectorAll<HTMLImageElement>("img"))
-        .filter((img) => !img.complete)
-        .map((img) => new Promise<void>((r) => { img.onload = img.onerror = () => r(); })),
+async function waitForImages(scope: Locator, timeoutMs = 10_000) {
+  await Promise.race([
+    scope.evaluate((el) =>
+      Promise.all(
+        Array.from(el.querySelectorAll<HTMLImageElement>("img"))
+          .filter((img) => !img.complete)
+          .map((img) => new Promise<void>((r) => { img.onload = img.onerror = () => r(); })),
+      ),
     ),
-  );
+    new Promise<void>((r) => setTimeout(r, timeoutMs)),
+  ]);
 }
 
 /** Crop edge pixels that leak page background into element screenshots. */
@@ -250,18 +235,17 @@ function save(name: string, mode: string) {
 // Screenshot captures
 // ---------------------------------------------------------------------------
 
-/** Full editor viewport — header, sidebar, Paucartambo step visible. */
-async function captureEditor(page: Page, mode: string) {
-  await scrollToReveal(page, ".step-entry");
-  const firstStep = page.locator(".step-entry").first();
-  if ((await firstStep.count()) > 0) {
-    await firstStep.scrollIntoViewIfNeeded();
-    await page.evaluate(() => window.scrollBy(0, -60));
-    await page.waitForTimeout(500);
+/** Front cover page — album title over full-bleed photo (print mode). */
+async function captureCover(page: Page, mode: string) {
+  const cover = page.locator(".page-container.cover-page").first();
+  if ((await cover.count()) === 0) {
+    console.warn(`  ⚠ No cover page found — skipping cover-${mode}.jpg`);
+    return;
   }
 
-  await page.screenshot({ path: save("editor", mode), type: "jpeg", quality: JPEG_QUALITY });
-  console.log(`  ✓ editor-${mode}.jpg`);
+  await waitForImages(cover);
+  await captureElement(page, cover, save("cover", mode));
+  console.log(`  ✓ cover-${mode}.jpg`);
 }
 
 /** Close-up of a 1P+2L photo grid page (print mode — no editor chrome). */
@@ -273,12 +257,18 @@ async function captureAutoAlbum(page: Page, mode: string) {
     const container = pages.nth(i);
     if ((await container.locator("[data-media]").count()) >= 3) {
       await waitForImages(container);
+      // Skip pages where images failed to load (dummy fixture photos)
+      const hasLoadedImage = await container.evaluate((el) =>
+        Array.from(el.querySelectorAll<HTMLImageElement>("img"))
+          .some((img) => img.naturalWidth > 0),
+      );
+      if (!hasLoadedImage) continue;
       await captureElement(page, container, save("auto-album", mode));
       console.log(`  ✓ auto-album-${mode}.jpg`);
       return;
     }
   }
-  console.warn(`  ⚠ No page with 3+ photos — skipping auto-album-${mode}.jpg`);
+  console.warn(`  ⚠ No page with 3+ loaded photos — skipping auto-album-${mode}.jpg`);
 }
 
 /** Hike map page with elevation profile (print mode). */
@@ -290,92 +280,54 @@ async function captureHikeMap(page: Page, mode: string) {
   }
 
   // Wait for elevation profile SVG path to render
-  await page.waitForFunction(
-    () => (document.querySelector(".elevation-overlay svg path")?.getAttribute("d")?.length ?? 0) > 10,
-    { timeout: 15_000 },
-  ).catch(() => console.warn("    Elevation profile may not be loaded"));
+  await Promise.race([
+    page.waitForFunction(
+      () => (document.querySelector(".elevation-overlay svg path")?.getAttribute("d")?.length ?? 0) > 10,
+    ),
+    page.waitForTimeout(15_000),
+  ]).catch(() => console.warn("    Elevation profile may not be loaded"));
   await page.waitForTimeout(1000);
 
   await captureElement(page, hike, save("hike-map", mode));
   console.log(`  ✓ hike-map-${mode}.jpg`);
 }
 
-/** Video with frame selection toolbar visible. */
-async function captureVideoPoster(page: Page, mode: string) {
-  if (!(await scrollToReveal(page, "[data-media] .play-overlay"))) {
-    console.warn(`  ⚠ No video found — skipping video-poster-${mode}.jpg`);
+/** Step main page with metadata panel — weather, elevation, coordinates (print mode). */
+async function captureStepPage(page: Page, mode: string) {
+  const stepMain = page.locator(".page-container.step-main").first();
+  if ((await stepMain.count()) === 0) {
+    console.warn(`  ⚠ No step main page found — skipping step-page-${mode}.jpg`);
     return;
   }
 
-  const playOverlay = page.locator("[data-media] .play-overlay").first();
-  const mediaItem = playOverlay.locator("..");
-  await mediaItem.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
-  await waitForImages(mediaItem);
-
-  // Click play — triggers video load + photoFocus
-  await playOverlay.click();
-
-  // Wait for the video to load its first frame (fixes loading spinner)
-  await page.evaluate(() =>
-    new Promise<void>((resolve) => {
-      const video = document.querySelector<HTMLVideoElement>("[data-media] video");
-      if (!video) return resolve();
-      if (video.readyState >= 2) return resolve();
-      video.addEventListener("loadeddata", () => resolve(), { once: true });
-    }),
-  );
-
-  // Pause, wait for duration, then seek to mid-point
-  await page.evaluate(() => {
-    document.querySelector<HTMLVideoElement>("[data-media] video")?.pause();
-  });
-  // Poll until duration is available (loadedmetadata may have fired before our listener)
-  const duration = await page.evaluate(() =>
-    new Promise<number>((resolve) => {
-      const check = () => {
-        const video = document.querySelector<HTMLVideoElement>("[data-media] video");
-        if (video && Number.isFinite(video.duration)) return resolve(video.duration);
-        requestAnimationFrame(check);
-      };
-      check();
-    }),
-  );
-  await page.evaluate(
-    (t) =>
-      new Promise<void>((resolve) => {
-        const video = document.querySelector<HTMLVideoElement>("[data-media] video");
-        if (!video) return resolve();
-        video.addEventListener("seeked", () => resolve(), { once: true });
-        video.currentTime = t;
-      }),
-    duration / 2,
-  );
-  await page.evaluate(() => {
-    document.querySelectorAll(".media-item.focused").forEach((el) => el.classList.remove("focused"));
-    (document.activeElement as HTMLElement)?.blur();
-  });
-  await page.waitForTimeout(500);
-
-  const frameBar = page.locator("[data-media] .frame-bar").first();
-  await frameBar.waitFor({ state: "visible", timeout: 5000 });
-
-  const videoItem = page.locator("[data-media]:has(.frame-bar)").first();
-  await videoItem.screenshot({ path: save("video-poster", mode), type: "jpeg", quality: JPEG_QUALITY });
-  await trimEdges(save("video-poster", mode));
-  console.log(`  ✓ video-poster-${mode}.jpg`);
+  await waitForImages(stepMain);
+  await captureElement(page, stepMain, save("step-page", mode));
+  console.log(`  ✓ step-page-${mode}.jpg`);
 }
 
-/** Step page in Hebrew (RTL) — demonstrates localization (print mode). */
-async function captureLocalization(page: Page, mode: string) {
-  const target = page.locator(".step-entry .page-container").first();
-  if ((await target.count()) === 0) {
-    console.warn(`  ⚠ No step page found — skipping localization-${mode}.jpg`);
+/** Overview page with trip stats — days, distance, photos, countries (print mode). */
+async function captureOverview(page: Page, mode: string) {
+  const overview = page.locator(".page-container.overview").first();
+  if ((await overview.count()) === 0) {
+    console.warn(`  ⚠ No overview page found — skipping overview-${mode}.jpg`);
     return;
   }
 
-  await waitForImages(target);
-  await captureElement(page, target, save("localization", mode));
+  await waitForImages(overview);
+  await captureElement(page, overview, save("overview", mode));
+  console.log(`  ✓ overview-${mode}.jpg`);
+}
+
+/** Step page rendered in Hebrew (RTL) to showcase localization support. */
+async function captureLocalization(page: Page, mode: string) {
+  const stepMain = page.locator(".page-container.step-main").first();
+  if ((await stepMain.count()) === 0) {
+    console.warn(`  ⚠ No step main page found — skipping localization-${mode}.jpg`);
+    return;
+  }
+
+  await waitForImages(stepMain);
+  await captureElement(page, stepMain, save("localization", mode));
   console.log(`  ✓ localization-${mode}.jpg`);
 }
 

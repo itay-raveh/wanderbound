@@ -1,24 +1,27 @@
 {
   "brand": "Wanderbound",
-  "tagline": "Turn your Polarsteps trips into photo albums",
+  "tagline": "The photo album your trip deserves",
 
   "landing": {
-    "autoAlbumTitle": "Instant album from your data",
-    "autoAlbumBody": "Upload your Polarsteps export and get a full photo album in seconds - covers, stats, photo layouts, ready to customize.",
-    "hikeMapTitle": "Hike maps & GPS tracks",
-    "hikeMapBody": "Hikes and flights are detected from your GPS data. Add map pages with satellite imagery, elevation profiles, and trail stats.",
-    "videoPosterTitle": "Video poster frames",
-    "videoPosterBody": "Pick the perfect frame from any video to use in your album. Scrub frame-by-frame and set a poster - no screenshots needed.",
-    "localizationTitle": "Localized & right-to-left",
-    "localizationBody": "Supports any language, including right-to-left layout. Dates, distances, and temperatures adapt to your locale and units.",
-    "editorScreenshot": "Screenshot of the Wanderbound album editor",
+    "heroScreenshot": "Album pages showing photos, maps, stats, and more",
+    "autoAlbumTitle": "Your photos, beautifully laid out",
+    "autoAlbumBody": "Upload your Polarsteps export and every photo finds its place - arranged across pages, balanced and print-ready. You just pick your favorites.",
+    "stepPageTitle": "The weather, the altitude, the whole story",
+    "stepPageBody": "Each stop becomes its own album page - temperature and elevation, country flags and coordinates, your description alongside your photos. Every detail that made the day.",
+    "hikeMapTitle": "See the trail the way you remember it",
+    "hikeMapBody": "Your hikes appear on satellite imagery with the exact route you walked and an elevation profile showing every climb and descent.",
+    "overviewTitle": "47 days, 4 countries, one page",
+    "overviewBody": "Total distance, photos taken, highest point, coldest morning, furthest you got from home - your entire trip measured and laid out on a single page.",
+    "localizationTitle": "Your story, in the language you think in",
+    "localizationBody": "Write in Hebrew, Arabic, Japanese, or any language. Full right-to-left support - your album reads the way you do.",
     "openEditor": "Open editor",
-    "ctaTitle": "Ready to make your album?",
-    "ctaBody": "Sign in and upload your Polarsteps data to get started."
+    "ctaTitle": "Your trip is already worth remembering",
+    "ctaBody": "Turn the photos sitting in your export into an album you'll actually flip through."
   },
 
   "login": {
     "signIn": "Sign in with Google",
+    "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
     "signInFailed": "Sign-in failed. Please try again."
   },

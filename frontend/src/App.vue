@@ -62,6 +62,7 @@ body,
   /* Page typography scale (album pages - beyond Quasar's 12 type levels) */
   --display-1: 3.75rem;
   --display-2: 3rem;
+  --type-2xl: 1.75rem;
   --type-xl: 1.375rem;
   --type-lg: 1.25rem;
   --type-subtitle: 1.1rem;
@@ -146,11 +147,9 @@ body,
   --danger: #ef4444;
   --surface: #2a2a3e;
   --border-color: #3a3a50;
-}
-
-/* Derived tokens - reference theme vars, resolved lazily at use site */
-.body--dark,
-.body--light {
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.55);
   --page-gradient: linear-gradient(
     to bottom,
     color-mix(in srgb, var(--q-primary) 8%, var(--bg-deep)),
@@ -184,14 +183,22 @@ body,
   --page-bg: #ffffff;
   --bg: #f3f4f6;
   --bg-secondary: #ffffff;
-  --bg-deep: #e5e7eb;
+  --bg-deep: #dce1e8;
   --text: #1f2937;
   --text-bright: #111827;
-  --text-muted: #6b7280;
+  --text-muted: #5d646f;
   --text-faint: #9ca3af;
   --danger: #dc2626;
   --surface: #f3f4f6;
   --border-color: #d1d5db;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.22);
+  --page-gradient: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--q-primary) 14%, var(--bg-deep)),
+    var(--bg)
+  );
 }
 
 /* Skip-to-content link — visible only on keyboard focus */

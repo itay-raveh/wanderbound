@@ -79,7 +79,7 @@ const hasMeta = !!(authorName || version);
   gap: var(--gap-sm);
   padding: var(--gap-md-lg) var(--gap-lg);
   border-top: 1px solid var(--border-color);
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 .site-footer-group {
@@ -99,7 +99,7 @@ const hasMeta = !!(authorName || version);
 }
 
 .site-footer-link {
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-decoration: none;
   transition: color var(--duration-fast);
 
