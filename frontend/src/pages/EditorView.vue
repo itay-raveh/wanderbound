@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumNav from "@/components/editor/AlbumNav.vue";
 import AlbumToolbar from "@/components/editor/AlbumToolbar.vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import EditorFloatingBar from "@/components/editor/EditorFloatingBar.vue";
@@ -16,12 +17,18 @@ import { ref, computed, watch } from "vue";
 
 useMeta({ title: "Editor" });
 
+const DRAWER_WIDTH = 240;
 const LAST_ALBUM_KEY = "last-album-id";
-const selectedAlbumId = ref<string | null>(localStorage.getItem(LAST_ALBUM_KEY));
+
+let savedAlbumId: string | null = null;
+try { savedAlbumId = localStorage.getItem(LAST_ALBUM_KEY); } catch {}
+const selectedAlbumId = ref<string | null>(savedAlbumId);
 
 watch(selectedAlbumId, (id) => {
-  if (id) localStorage.setItem(LAST_ALBUM_KEY, id);
-  else localStorage.removeItem(LAST_ALBUM_KEY);
+  try {
+    if (id) localStorage.setItem(LAST_ALBUM_KEY, id);
+    else localStorage.removeItem(LAST_ALBUM_KEY);
+  } catch {}
 });
 
 const { data: userData, locale } = useUserQuery();
@@ -50,7 +57,26 @@ watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); });
 
   <OnboardingBanner />
 
-  <q-page class="editor-page">
+  <q-drawer
+    side="left"
+    :model-value="true"
+    persistent
+    bordered
+    :width="DRAWER_WIDTH"
+    class="print-hide"
+  >
+    <AlbumNav
+      v-if="album && albumData"
+      :steps="albumData.steps"
+      :album-id="album.id"
+      :colors="album.colors ?? undefined"
+    />
+    <div v-else class="fit flex flex-center">
+      <q-spinner-dots color="primary" size="2rem" />
+    </div>
+  </q-drawer>
+
+  <q-page class="editor-page" :style="{ '--drawer-width': DRAWER_WIDTH + 'px' }">
     <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
     <EditorFloatingBar v-if="album" class="print-hide" />
   </q-page>

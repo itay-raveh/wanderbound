@@ -12,7 +12,7 @@ useMeta({
 <template>
   <ScreenGuard>
     <a href="#main-content" class="skip-to-content">Skip to content</a>
-    <q-layout view="hHh lpr lff">
+    <q-layout view="hHh Lpr lff">
       <q-page-container id="main-content">
         <RouterView />
         <SiteFooter class="print-hide" />
@@ -97,7 +97,7 @@ body,
    Set --accent on the element to control the accent color. */
 .accent-card {
   padding: 0.625rem var(--gap-md-lg);
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
   border-radius: var(--radius-sm);
 }
@@ -130,7 +130,7 @@ body,
 
 .body--dark {
   color-scheme: dark;
-  --page-bg: #1e1e2e;
+  --page-bg: #232338;
   --bg: #1e1e2e;
   --bg-secondary: #252540;
   --bg-deep: #0a0a12;
@@ -141,6 +141,7 @@ body,
   --danger: #ef4444;
   --surface: #2a2a3e;
   --border-color: #3a3a50;
+  --primary-text: color-mix(in srgb, var(--q-primary) 60%, white);
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.55);
@@ -185,6 +186,7 @@ body,
   --danger: #dc2626;
   --surface: #f3f4f6;
   --border-color: #d1d5db;
+  --primary-text: var(--q-primary);
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.22);

@@ -3,7 +3,7 @@ import type { Album, AlbumUpdate, Step } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import { parseLocalDate, toIso, toQDate } from "@/utils/date";
+import { parseLocalDate, SHORT_DATE, toIso, toQDate } from "@/utils/date";
 import StepDatePicker from "./StepDatePicker.vue";
 import {
   symOutlinedCalendarMonth,
@@ -96,7 +96,7 @@ const rangeDisplay = computed(() => {
   if (!ranges?.length) return "";
   return ranges
     .map(([from, to]) =>
-      formatDateRange(parseLocalDate(from), parseLocalDate(to), { day: "numeric", month: "short" }),
+      formatDateRange(parseLocalDate(from), parseLocalDate(to), SHORT_DATE),
     )
     .join(", ");
 });

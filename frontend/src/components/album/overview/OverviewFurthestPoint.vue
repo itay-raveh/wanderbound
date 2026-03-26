@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { type Location, type Step } from "@/client";
 import { STAT_COLORS } from "../colors";
-import { parseLocalDate } from "@/utils/date";
+import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { flagUrl } from "@/utils/media";
 import { useI18n } from "vue-i18n";
@@ -37,10 +37,7 @@ const furthest = computed(() => {
     }
   }
 
-  const dateStr = formatDate(parseLocalDate(bestStep.datetime), {
-    month: "short",
-    day: "numeric",
-  });
+  const dateStr = formatDate(parseLocalDate(bestStep.datetime), SHORT_DATE);
   return {
     location: bestStep.location,
     dist: formatDistance(maxDist),
@@ -132,6 +129,7 @@ const furthest = computed(() => {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
+  min-width: 0;
 }
 
 .fp-info.right {
@@ -145,6 +143,7 @@ const furthest = computed(() => {
   font-size: var(--type-xs);
   font-weight: 700;
   line-height: 1.2;
+  overflow-wrap: break-word;
 }
 
 .fp-sub {

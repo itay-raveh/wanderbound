@@ -192,6 +192,12 @@
     "redo": "Redo"
   },
 
+  "nav": {
+    "steps": "Steps",
+    "search": "Search steps…",
+    "noResults": "No matching steps"
+  },
+
   "onboarding": {
     "editorTitle": "Your album is ready to customize",
     "editText": "Click any text to edit",
@@ -202,7 +208,8 @@
     "hikesDetected": "Hikes detected from GPS",
     "dragHandles": "Drag handles to adjust boundaries",
     "filterDates": "Filter dates with the calendar",
-    "gotIt": "Got it"
+    "gotIt": "Got it",
+    "showTips": "Show tips"
   },
 
   "screen": {

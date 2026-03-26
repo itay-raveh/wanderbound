@@ -16,6 +16,7 @@ import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date"
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import MapOnboardingBanner from "./editor/MapOnboardingBanner.vue";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
+import { vSpyStep } from "@/composables/useStepScrollSpy";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -155,6 +156,7 @@ if (props.printMode) {
       <LazySection
         :page-count="sectionPageCounts[i]"
         :has-chrome="section.type === 'step'"
+        v-spy-step="section.type === 'step' ? section.step.id : undefined"
       >
         <!-- Map / Hike section with shared controls -->
         <template v-if="section.type === 'map' || section.type === 'hike'">
@@ -267,16 +269,16 @@ if (props.printMode) {
 .needle-head {
   flex-shrink: 0;
   gap: var(--gap-sm);
-  padding: var(--gap-sm) 0.625rem;
+  padding: var(--gap-sm-md) var(--gap-md-lg);
   border-radius: var(--radius-full);
-  border: 1px solid currentColor;
+  border: 2px solid currentColor;
   white-space: nowrap;
-  font-size: var(--type-xs);
+  font-size: var(--type-sm);
 }
 
 .needle-line {
   flex: 1;
-  height: 1px;
+  height: 2px;
   background: currentColor;
 }
 

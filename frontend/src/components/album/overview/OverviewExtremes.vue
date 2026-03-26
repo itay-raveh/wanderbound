@@ -2,7 +2,7 @@
 import type { Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { STAT_COLORS } from "../colors";
-import { parseLocalDate } from "@/utils/date";
+import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
@@ -48,7 +48,7 @@ const records = computed<ExtremeRecord[]>(() => {
   }
 
   const fmtDate = (s: Step) =>
-    formatDate(parseLocalDate(s.datetime), { month: "short", day: "numeric" });
+    formatDate(parseLocalDate(s.datetime), SHORT_DATE);
 
   const meta = (step: Step) => ({
     place: step.name,
@@ -147,6 +147,7 @@ const records = computed<ExtremeRecord[]>(() => {
   font-weight: 600;
   line-height: 1.3;
   margin-top: var(--gap-xs);
+  overflow-wrap: break-word;
 }
 
 .record-meta {

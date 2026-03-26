@@ -4,18 +4,11 @@ import {
   symOutlinedOpenWith,
   symOutlinedCalendarMonth,
 } from "@quasar/extras/material-symbols-outlined";
+import { useEditorHints } from "@/composables/useEditorHints";
 import { useI18n } from "vue-i18n";
-import { ref } from "vue";
 
-const STORAGE_KEY = "onboarding-map-dismissed";
 const { t } = useI18n();
-
-const dismissed = ref(localStorage.getItem(STORAGE_KEY) === "1");
-
-function dismiss() {
-  dismissed.value = true;
-  localStorage.setItem(STORAGE_KEY, "1");
-}
+const { mapBannerDismissed, dismissMapBanner } = useEditorHints();
 
 const chips = [
   { icon: symOutlinedRoute, key: "onboarding.hikesDetected" },
@@ -26,7 +19,7 @@ const chips = [
 
 <template>
   <Transition name="fade">
-    <div v-if="!dismissed" class="map-onboarding fade-up">
+    <div v-if="!mapBannerDismissed" role="status" class="map-onboarding fade-up">
       <span class="banner-title text-weight-semibold text-bright">{{ t("onboarding.mapTitle") }}</span>
       <div class="chips row no-wrap items-center">
         <div v-for="chip in chips" :key="chip.key" class="chip row no-wrap items-center">
@@ -34,7 +27,7 @@ const chips = [
           <span>{{ t(chip.key) }}</span>
         </div>
       </div>
-      <q-btn flat dense no-caps class="got-it" @click="dismiss">{{ t("onboarding.gotIt") }}</q-btn>
+      <q-btn flat dense no-caps class="got-it" :aria-label="t('onboarding.gotIt')" @click="dismissMapBanner">{{ t("onboarding.gotIt") }}</q-btn>
     </div>
   </Transition>
 </template>
@@ -62,22 +55,25 @@ const chips = [
 .chips {
   gap: var(--gap-sm-md);
   flex: 1;
+  min-width: 0;
   justify-content: center;
+  overflow: hidden;
 }
 
 .chip {
   gap: var(--gap-sm);
   padding: var(--gap-xs) var(--gap-md);
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  color: var(--q-primary);
+  background: color-mix(in srgb, var(--q-primary) 18%, transparent);
+  color: var(--primary-text);
   font-size: var(--type-xs);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .got-it {
   flex-shrink: 0;
   font-weight: 600;
+  color: var(--primary-text);
 }
 </style>

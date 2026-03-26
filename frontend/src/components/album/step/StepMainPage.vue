@@ -2,6 +2,7 @@
 import type { Step } from "@/client";
 import type { DescriptionType } from "@/composables/useTextMeasure";
 import { useI18n } from "vue-i18n";
+import { symOutlinedImage } from "@quasar/extras/material-symbols-outlined";
 import EditableText from "../EditableText.vue";
 import { computed } from "vue";
 import MediaItem from "../MediaItem.vue";
@@ -53,8 +54,9 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
           :focusable="false"
           class="cover-media"
         />
-        <div v-else class="cover-placeholder fit flex flex-center text-faint">
-          <span>{{ t("album.dropStepCover") }}</span>
+        <div v-else class="cover-placeholder">
+          <q-icon :name="symOutlinedImage" class="placeholder-icon" />
+          <span class="placeholder-text">{{ t("album.dropStepCover") }}</span>
         </div>
       </template>
     </div>
@@ -88,8 +90,25 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
 }
 
 .cover-placeholder {
-  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-md);
+  background: color-mix(in srgb, var(--border-color) 30%, var(--page-bg, var(--bg)));
+  border: 2px dashed color-mix(in srgb, var(--text) 15%, transparent);
+  margin: var(--gap-md-lg);
+}
+
+.placeholder-icon {
+  font-size: var(--display-2);
+  color: var(--text-faint);
+}
+
+.placeholder-text {
   font-size: var(--type-sm);
+  font-weight: 500;
+  color: var(--text-faint);
 }
 
 .description-full {

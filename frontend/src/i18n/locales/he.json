@@ -192,6 +192,12 @@
     "redo": "חזרה"
   },
 
+  "nav": {
+    "steps": "צעדים",
+    "search": "חיפוש צעדים…",
+    "noResults": "לא נמצאו צעדים"
+  },
+
   "onboarding": {
     "editorTitle": "האלבום מוכן להתאמה אישית",
     "editText": "לחצו על טקסט כדי לערוך",
@@ -202,7 +208,8 @@
     "hikesDetected": "טיולים זוהו מה-GPS",
     "dragHandles": "גררו ידיות לכוונון גבולות",
     "filterDates": "סננו תאריכים עם הלוח",
-    "gotIt": "הבנתי"
+    "gotIt": "הבנתי",
+    "showTips": "הצגת טיפים"
   },
 
   "screen": {

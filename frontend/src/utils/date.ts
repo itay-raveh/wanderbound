@@ -32,6 +32,8 @@ export const toQDate = (iso: string) => iso.replace(/-/g, "/");
 /** QDate "YYYY/MM/DD" -> ISO "YYYY-MM-DD" */
 export const toIso = (qd: string) => qd.replace(/\//g, "-");
 
+export const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+
 /** Quasar range-end YMD object -> ISO "YYYY-MM-DD". */
 export function ymdToIso({ year, month, day }: { year: number; month: number; day: number }): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
