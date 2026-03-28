@@ -26,8 +26,8 @@ function select(name: string) {
 </script>
 
 <template>
-  <div class="picker relative-position">
-    <button class="picker-pill" @click="open = !open">
+  <div class="picker relative-position" @keydown.escape="open = false">
+    <button class="picker-pill" :aria-expanded="open" @click="open = !open">
       <span>{{ label }}</span>
       <q-icon
         :name="matExpandMore"
@@ -37,16 +37,20 @@ function select(name: string) {
       />
     </button>
 
-    <div v-show="open" class="picker-panel overflow-hidden">
+    <div v-if="open" class="picker-backdrop" @click="open = false" />
+    <div v-if="open" class="picker-panel overflow-hidden" role="listbox" :aria-label="label">
       <div v-if="photos.length === 0" class="picker-empty text-center">
         {{ t("album.noLandscapePhotos") }}
       </div>
       <div v-else class="picker-grid">
         <button
-          v-for="photo in photos"
+          v-for="(photo, idx) in photos"
           :key="photo"
+          role="option"
           class="grid-cell"
           :class="{ selected: photo === modelValue }"
+          :aria-selected="photo === modelValue"
+          :aria-label="t('album.selectPhoto') + ` ${idx + 1}`"
           @click="select(photo)"
         >
           <img
@@ -73,20 +77,20 @@ function select(name: string) {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
-  padding: 0.3rem 0.625rem;
+  padding: var(--gap-sm-md) var(--gap-md-lg);
   border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   color: rgba(255, 255, 255, 0.9);
   font-size: var(--type-sm);
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
   transition:
     background-color var(--duration-fast) ease,
     color var(--duration-fast) ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
     color: white;
   }
 
@@ -104,15 +108,21 @@ function select(name: string) {
   }
 }
 
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+}
+
 .picker-panel {
   position: absolute;
   top: 100%;
-  left: 0;
+  inset-inline-start: 0;
   margin-top: var(--gap-sm);
   width: 24rem;
   border-radius: var(--radius-md);
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
   z-index: 10;
 }
 
@@ -125,8 +135,8 @@ function select(name: string) {
 .picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--radius-xs);
-  padding: var(--radius-xs);
+  gap: var(--gap-xs);
+  padding: var(--gap-xs);
   max-height: 24rem;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -160,5 +170,19 @@ function select(name: string) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+@media (pointer: coarse) {
+  .picker-pill {
+    padding: var(--gap-md) var(--gap-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-pill,
+  .pill-chevron,
+  .grid-cell {
+    transition: none;
+  }
 }
 </style>

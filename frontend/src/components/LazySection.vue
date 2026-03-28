@@ -14,13 +14,20 @@ const el = ref<HTMLElement>();
 const mounted = ref(printMode);
 
 let observer: IntersectionObserver | null = null;
+let unmountTimer = 0;
 
 onMounted(() => {
   if (printMode || !el.value) return;
 
   observer = new IntersectionObserver(
     ([entry]) => {
-      if (entry) mounted.value = entry.isIntersecting;
+      if (!entry) return;
+      if (entry.isIntersecting) {
+        clearTimeout(unmountTimer);
+        mounted.value = true;
+      } else {
+        unmountTimer = window.setTimeout(() => { mounted.value = false; }, 500);
+      }
     },
     {
       root: null,
@@ -30,12 +37,16 @@ onMounted(() => {
   observer.observe(el.value);
 });
 
-onUnmounted(() => observer?.disconnect());
+onUnmounted(() => {
+  clearTimeout(unmountTimer);
+  observer?.disconnect();
+});
 </script>
 
 <template>
   <div
     ref="el"
+    :aria-busy="!mounted ? 'true' : undefined"
     :class="{
       'lazy-section': mounted && !printMode,
       'lazy-placeholder': !mounted && pageCount,

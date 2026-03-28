@@ -1,9 +1,8 @@
 <script lang="ts" setup>
-import type { Album, AlbumData, DateRange, Step } from "@/client";
+import type { Album, AlbumData } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import LazySection from "./LazySection.vue";
-import MapSectionControls from "./album/map/MapSectionControls.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
 import { provideStepMutate } from "@/composables/useStepLayout";
@@ -14,8 +13,6 @@ import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
-import MapOnboardingBanner from "./editor/MapOnboardingBanner.vue";
-import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { vSpyStep } from "@/composables/useStepScrollSpy";
 import { computed, defineAsyncComponent, defineComponent, h } from "vue";
 import { useI18n } from "vue-i18n";
@@ -93,13 +90,6 @@ const expectedPageCount = computed(() =>
   4 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 
-function addMapBefore(step: Step) {
-  const sd = isoDate(step.datetime);
-  const ranges: DateRange[] = [...(props.album.maps_ranges ?? []), [sd, sd]];
-  ranges.sort(([a], [b]) => a.localeCompare(b));
-  albumMutation.mutate({ maps_ranges: ranges });
-}
-
 // In print mode, provide a flag so child components can set loading="eager".
 if (props.printMode) {
   providePrintMode();
@@ -128,57 +118,30 @@ if (props.printMode) {
     <CoverPage :album="album" :steps="steps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="steps" />
 
-    <!-- Fixed full-trip map: covers the entire album date range, not user-editable -->
+    <!-- Not user-editable: always covers the full trip -->
     <div class="map-wrapper">
       <MapPage :segments="segments" :steps="steps" />
     </div>
 
     <template v-for="(section, i) in sections" :key="sectionKey(section)">
-      <!-- "Add map" needle before step sections without a preceding map (editor only) -->
-      <div
-        v-if="!printMode && section.type === 'step' && sections[i - 1]?.type !== 'map' && sections[i - 1]?.type !== 'hike'"
-        role="button"
-        tabindex="0"
-        :aria-label="t('album.addMap')"
-        class="map-needle row no-wrap items-center cursor-pointer"
-        @click="addMapBefore(section.step)"
-        @keydown.enter="addMapBefore(section.step)"
-        @keydown.space.prevent="addMapBefore(section.step)"
-      >
-        <div class="needle-line" />
-        <div class="needle-head row no-wrap items-center text-weight-medium">
-          <q-icon :name="symOutlinedMap" size="1rem" />
-          <span>{{ t("album.addMap") }}</span>
-        </div>
-        <div class="needle-line" />
-      </div>
-
       <LazySection
+        :data-section-key="sectionKey(section)"
         :page-count="sectionPageCounts[i]"
         :has-chrome="section.type === 'step'"
-        v-spy-step="section.type === 'step' ? section.step.id : undefined"
+        v-spy-step="section.type === 'step' ? section.step.id : sectionKey(section)"
       >
         <!-- Map / Hike section with shared controls -->
         <template v-if="section.type === 'map' || section.type === 'hike'">
-        <MapOnboardingBanner class="print-hide" />
-        <div class="map-wrapper">
-          <MapSectionControls
-            v-if="!printMode"
-            :album-id="album.id"
-            :maps-ranges="album.maps_ranges ?? []"
-            :range-idx="section.rangeIdx"
-            :date-range="section.dateRange"
-            :steps="steps"
-          />
-          <MapPage v-if="section.type === 'map'" :segments="section.segments" :steps="section.steps" />
-          <HikeMapPage
-            v-else
-            :segments="section.segments"
-            :steps="section.steps"
-            :hike-segment="section.hikeSegment"
-            :all-segments="data.segments"
-          />
-        </div>
+          <div class="map-wrapper">
+            <MapPage v-if="section.type === 'map'" :segments="section.segments" :steps="section.steps" />
+            <HikeMapPage
+              v-else
+              :segments="section.segments"
+              :steps="section.steps"
+              :hike-segment="section.hikeSegment"
+              :all-segments="data.segments"
+            />
+          </div>
         </template>
 
         <StepEntry v-else :step="section.step" />
@@ -220,6 +183,11 @@ if (props.printMode) {
     }
   }
 
+  :deep(.lazy-section),
+  :deep(.lazy-placeholder) {
+    margin-top: var(--gap-lg);
+  }
+
   // Map wrapper: fixed layout size matching zoomed page dimensions
   .map-wrapper {
     position: relative;
@@ -244,42 +212,6 @@ if (props.printMode) {
       /* rtl:end:ignore */
     }
   }
-}
-
-// "Add map" needle between sections (editor only)
-.map-needle {
-  width: calc(var(--page-width) * var(--editor-zoom));
-  margin: 2rem auto var(--gap-md-lg);
-  color: var(--text-faint);
-  overflow: visible;
-  transition: color var(--duration-fast);
-
-  &:hover,
-  &:focus-visible {
-    color: var(--q-primary);
-  }
-
-  &:focus-visible .needle-head {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 2px;
-    border-radius: var(--radius-full);
-  }
-}
-
-.needle-head {
-  flex-shrink: 0;
-  gap: var(--gap-sm);
-  padding: var(--gap-sm-md) var(--gap-md-lg);
-  border-radius: var(--radius-full);
-  border: 2px solid currentColor;
-  white-space: nowrap;
-  font-size: var(--type-sm);
-}
-
-.needle-line {
-  flex: 1;
-  height: 2px;
-  background: currentColor;
 }
 
 // Print mode: override contain:strict from base rule - size containment
@@ -331,8 +263,5 @@ if (props.printMode) {
     }
   }
 
-  .map-needle {
-    display: none !important;
-  }
 }
 </style>

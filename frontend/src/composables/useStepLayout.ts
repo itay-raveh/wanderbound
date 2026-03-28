@@ -8,6 +8,26 @@ type StepMutateFn = (payload: { sid: number; update: StepUpdate }) => void;
 
 const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 
+/** Remove a set of photos from all pages and unused list of a step. */
+export function stripPhotos(step: Step, photoSet: Set<string>) {
+  return {
+    pages: step.pages
+      .map((page) => page.filter((p) => !photoSet.has(p)))
+      .filter((page) => page.length > 0),
+    unused: step.unused.filter((p) => !photoSet.has(p)),
+  };
+}
+
+/** Compute the update payload when the unused list changes (reorder, add from page). */
+export function unusedUpdatePayload(step: Step, nextUnused: string[]): Partial<StepUpdate> {
+  const existing = new Set(step.unused);
+  const added = nextUnused.filter((p) => !existing.has(p));
+  if (added.length > 0) {
+    return { ...stripPhotos(step, new Set(added)), unused: nextUnused };
+  }
+  return { unused: nextUnused };
+}
+
 export function provideStepMutate(fn: StepMutateFn) {
   provide(STEP_MUTATE_KEY, fn);
 }
@@ -33,15 +53,8 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
     mutate?.({ sid: step.value.id, update: patch });
   }
 
-  /** Remove a set of photos from all pages and unused list atomically. */
   function withoutPhotos(photoSet: Set<string>) {
-    const s = step.value;
-    return {
-      pages: s.pages
-        .map((page) => page.filter((p) => !photoSet.has(p)))
-        .filter((page) => page.length > 0),
-      unused: s.unused.filter((p) => !photoSet.has(p)),
-    };
+    return stripPhotos(step.value, photoSet);
   }
 
   function onCoverUpdate(cover: string) {
@@ -79,15 +92,7 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
   }
 
   function onUnusedUpdate(unused: string[]) {
-    const existing = new Set(step.value.unused);
-    const added = unused.filter((p) => !existing.has(p));
-
-    if (added.length > 0) {
-      const cleaned = withoutPhotos(new Set(added));
-      saveField({ ...cleaned, unused });
-    } else {
-      saveField({ unused });
-    }
+    saveField(unusedUpdatePayload(step.value, unused));
   }
 
   if (!printMode) {

@@ -30,11 +30,20 @@ export function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: numbe
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
 }
 
+export function rangeSectionKey(type: "map" | "hike", dateRange: DateRange): string {
+  return `${type}-${dateRange[0]}-${dateRange[1]}`;
+}
+
+export function sectionKeyMatchesRange(key: string | null, dr: DateRange): boolean {
+  if (!key) return false;
+  return key === rangeSectionKey("map", dr) || key === rangeSectionKey("hike", dr);
+}
+
 export function sectionKey(section: Section): string {
   switch (section.type) {
     case "step": return `step-${section.step.id}`;
-    case "map": return `map-${section.dateRange[0]}-${section.dateRange[1]}`;
-    case "hike": return `hike-${section.dateRange[0]}-${section.dateRange[1]}`;
+    case "map":
+    case "hike": return rangeSectionKey(section.type, section.dateRange);
   }
 }
 
@@ -44,6 +53,21 @@ export function sectionPageCount(section: Section): number {
   const layout = measureDescription(step.description || "");
   const pages = filterCoverFromPages(step.pages, step.cover, layout.type === "short");
   return 1 + pages.length + layout.continuationTexts.length;
+}
+
+/** Group map ranges by the ID of their first overlapping step. */
+export function mapInsertionsByStep<T extends { dateRange: DateRange }>(
+  steps: Step[],
+  entries: T[],
+): Map<number, T[]> {
+  const result = new Map<number, T[]>();
+  for (const entry of entries) {
+    const first = steps.find((s) => inDateRange(isoDate(s.datetime), entry.dateRange));
+    if (!first) continue;
+    if (!result.has(first.id)) result.set(first.id, []);
+    result.get(first.id)!.push(entry);
+  }
+  return result;
 }
 
 /**
@@ -76,15 +100,7 @@ export function buildSections(
   });
 
   const result: Section[] = [];
-  const mapInsertionPoints = new Map<number, MapEntry[]>();
-  for (const entry of mapEntries) {
-    if (entry.steps.length === 0) continue;
-    const firstId = entry.steps[0]!.id;
-    if (!mapInsertionPoints.has(firstId)) {
-      mapInsertionPoints.set(firstId, []);
-    }
-    mapInsertionPoints.get(firstId)!.push(entry);
-  }
+  const mapInsertionPoints = mapInsertionsByStep(allSteps, mapEntries);
 
   for (const step of allSteps) {
     const maps = mapInsertionPoints.get(step.id);

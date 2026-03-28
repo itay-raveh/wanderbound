@@ -12,6 +12,7 @@ import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import DeleteDialog from "./DeleteDialog.vue";
+
 import {
   matPerson,
   matLightMode,
@@ -84,7 +85,7 @@ async function handleDelete() {
 
 <template>
   <template v-if="user">
-    <button class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen">
+    <button class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen" aria-haspopup="menu">
       <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
         <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
       </q-avatar>
@@ -106,9 +107,10 @@ async function handleDelete() {
           <!-- Appearance -->
           <section class="card-section">
             <h4 class="section-title text-overline text-faint">{{ t("settings.appearance") }}</h4>
-            <div class="seg-track">
+            <div class="seg-track" role="group" :aria-label="t('settings.appearance')">
               <button
                 :class="{ active: !$q.dark.isActive }"
+                :aria-pressed="!$q.dark.isActive"
                 class="seg-btn"
                 @click="$q.dark.isActive && $q.dark.set(false)"
               >
@@ -117,6 +119,7 @@ async function handleDelete() {
               </button>
               <button
                 :class="{ active: $q.dark.isActive }"
+                :aria-pressed="$q.dark.isActive"
                 class="seg-btn"
                 @click="$q.dark.isActive || $q.dark.set(true)"
               >
@@ -149,14 +152,16 @@ async function handleDelete() {
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
               <span class="unit-label text-body2">{{ t("settings.distance") }}</span>
-              <div class="seg-track compact">
+              <div class="seg-track compact" role="group" :aria-label="t('settings.distance')">
                 <button
                   :class="{ active: isKm }"
+                  :aria-pressed="isKm"
                   class="seg-btn"
                   @click="isKm || patch({ unit_is_km: true })"
                 >{{ t("overview.km") }}</button>
                 <button
                   :class="{ active: !isKm }"
+                  :aria-pressed="!isKm"
                   class="seg-btn"
                   @click="isKm && patch({ unit_is_km: false })"
                 >{{ t("overview.mi") }}</button>
@@ -164,14 +169,16 @@ async function handleDelete() {
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
               <span class="unit-label text-body2">{{ t("settings.temperature") }}</span>
-              <div class="seg-track compact">
+              <div class="seg-track compact" role="group" :aria-label="t('settings.temperature')">
                 <button
                   :class="{ active: isCelsius }"
+                  :aria-pressed="isCelsius"
                   class="seg-btn"
                   @click="isCelsius || patch({ temperature_is_celsius: true })"
                 >°C</button>
                 <button
                   :class="{ active: !isCelsius }"
+                  :aria-pressed="!isCelsius"
                   class="seg-btn"
                   @click="isCelsius && patch({ temperature_is_celsius: false })"
                 >°F</button>
@@ -219,7 +226,7 @@ async function handleDelete() {
   display: flex;
   align-items: center;
   gap: var(--gap-md);
-  padding: var(--gap-sm-md) 0.6rem var(--gap-sm-md) var(--gap-sm-md);
+  padding: var(--gap-sm-md) var(--gap-md) var(--gap-sm-md) var(--gap-sm-md);
   border-radius: var(--radius-full);
   border: 1px solid var(--border-color);
   background: var(--surface);
@@ -294,9 +301,9 @@ async function handleDelete() {
 .seg-track {
   display: flex;
   gap: var(--gap-xs);
-  padding: 3px;
+  padding: var(--gap-xs);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, black 10%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--text) 8%, var(--bg-secondary));
 }
 
 .seg-btn {
@@ -326,9 +333,7 @@ async function handleDelete() {
   &.active {
     background: var(--bg-secondary);
     color: var(--text-bright);
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.1),
-      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
   }
 }
 
@@ -337,7 +342,7 @@ async function handleDelete() {
   flex-shrink: 0;
 
   .seg-btn {
-    padding: var(--gap-sm) var(--gap-md);
+    padding: var(--gap-sm-md) var(--gap-md);
     font-weight: 600;
   }
 }
@@ -353,7 +358,7 @@ async function handleDelete() {
 }
 
 .locale-wrapper {
-  background: color-mix(in srgb, black 10%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--text) 8%, var(--bg-secondary));
   border-radius: var(--radius-md);
   padding: 0 var(--gap-md);
   margin-bottom: var(--gap-md-lg);
@@ -394,6 +399,16 @@ async function handleDelete() {
 
   &:hover {
     background: color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-trigger,
+  .trigger-gear,
+  .seg-btn,
+  .action-btn,
+  .danger-btn {
+    transition: none;
   }
 }
 </style>

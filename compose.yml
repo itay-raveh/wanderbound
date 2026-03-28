@@ -10,7 +10,7 @@ services:
     image: postgres:18
     restart: always
     <<: *security
-    cap_add: [CHOWN, FOWNER, SETGID, SETUID]
+    cap_add: [CHOWN, DAC_READ_SEARCH, FOWNER, SETGID, SETUID]
     shm_size: 128m
     tmpfs:
       - /tmp

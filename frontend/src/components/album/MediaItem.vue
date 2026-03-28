@@ -137,20 +137,20 @@ function onVideoKey(e: KeyboardEvent) {
         @ended="playing = false"
         @keydown="onVideoKey"
       />
-      <div v-if="!playing" class="play-overlay absolute-full cursor-pointer flex flex-center" @click="togglePlay">
+      <button v-if="!playing" class="play-overlay absolute-full cursor-pointer flex flex-center" :aria-label="t('album.playVideo')" @click="togglePlay">
         <div class="play-icon flex flex-center">
           <q-icon :name="matPlayArrow" />
         </div>
-      </div>
+      </button>
       <div v-if="playing" class="frame-bar row no-wrap items-center">
-        <button class="frame-step-btn rtl-flip flex flex-center" :title="t('album.prevFrame')" @click="scrub(-FRAME_STEP)">
+        <button class="frame-step-btn rtl-flip flex flex-center" :aria-label="t('album.prevFrame')" @click="scrub(-FRAME_STEP)">
           <q-icon :name="matChevronLeft" />
         </button>
         <button class="set-frame-btn row no-wrap items-center" @click="setFrame">
           <span>{{ t("album.useAsPoster") }}</span>
           <q-icon :name="matCheck" size="1.1rem" />
         </button>
-        <button class="frame-step-btn rtl-flip flex flex-center" :title="t('album.nextFrame')" @click="scrub(FRAME_STEP)">
+        <button class="frame-step-btn rtl-flip flex flex-center" :aria-label="t('album.nextFrame')" @click="scrub(FRAME_STEP)">
           <q-icon :name="matChevronRight" />
         </button>
       </div>
@@ -202,7 +202,17 @@ function onVideoKey(e: KeyboardEvent) {
 
 .video-playing {
   object-fit: contain;
-  background: black;
+  background: black; /* letterbox — intentionally pure black, not theme-adaptive */
+}
+
+// Button reset — <button> replaces <div> for a11y but needs native chrome stripped.
+// Don't use all:unset (it kills Quasar utility classes on the same element).
+.play-overlay {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
 }
 
 // Play button - scales with container so it looks right in both
@@ -237,7 +247,7 @@ function onVideoKey(e: KeyboardEvent) {
   margin: 0 auto;
   gap: var(--gap-sm);
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
   border-radius: var(--radius-full);
   padding: var(--gap-sm);
 }
@@ -270,18 +280,20 @@ function onVideoKey(e: KeyboardEvent) {
   gap: var(--gap-sm-md);
   border: none;
   border-radius: var(--radius-full);
+  /* always on dark video backdrop — not theme-adaptive */
   background: white;
   color: #111;
   font-size: var(--type-sm);
   font-weight: 600;
-  padding: var(--gap-sm-md) 0.9rem var(--gap-sm-md) 0.6rem;
+  padding: var(--gap-sm-md) var(--gap-lg) var(--gap-sm-md) var(--gap-md-lg);
   cursor: pointer;
   transition:
     background var(--duration-fast),
     transform var(--duration-fast);
 
+  /* always on dark backdrop — light-mode-only button */
   &:hover {
-    background: #e0e0e0;
+    background: color-mix(in srgb, white 85%, black);
   }
 
   &:active {
@@ -298,6 +310,25 @@ function onVideoKey(e: KeyboardEvent) {
   .play-overlay,
   .frame-bar {
     display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .frame-step-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .set-frame-btn {
+    padding: var(--gap-md) var(--gap-lg) var(--gap-md) var(--gap-md-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-icon,
+  .frame-step-btn,
+  .set-frame-btn {
+    transition: none;
   }
 }
 </style>

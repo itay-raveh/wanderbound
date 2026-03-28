@@ -4,42 +4,74 @@ import { readonly, ref } from "vue";
 const elements = new Map<number, Element>();
 const elementIds = new Map<Element, number>();
 const visibleStepId = ref<number | null>(null);
-let observer: IntersectionObserver | null = null;
-const ratios = new Map<number, number>();
+const visible = new Set<number>();
 
-function ensureObserver() {
-  if (observer) return;
+const sectionEls = new Map<string, Element>();
+const sectionIds = new Map<Element, string>();
+const visibleSections = new Set<string>();
+const visibleSectionKey = ref<string | null>(null);
+
+let observer: IntersectionObserver | null = null;
+let rafId = 0;
+
+/** Pick the element whose top edge is closest to the upper quarter of the viewport. */
+function pickBest() {
+  rafId = 0;
+  const target = window.innerHeight * 0.25;
+  let bestStepId: number | null = null;
+  let bestSectionKey: string | null = null;
+  let bestDist = Infinity;
+
+  function consider(el: Element, stepId: number | null, secKey: string | null) {
+    const dist = Math.abs(el.getBoundingClientRect().top - target);
+    if (dist < bestDist) { bestDist = dist; bestStepId = stepId; bestSectionKey = secKey; }
+  }
+
+  for (const id of visible) { const el = elements.get(id); if (el) consider(el, id, null); }
+  for (const key of visibleSections) { const el = sectionEls.get(key); if (el) consider(el, null, key); }
+
+  visibleStepId.value = bestStepId;
+  visibleSectionKey.value = bestSectionKey;
+}
+
+function createObserver() {
   observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
-        const id = elementIds.get(entry.target);
-        if (id == null) continue;
-        if (entry.isIntersecting) ratios.set(id, entry.intersectionRatio);
-        else ratios.delete(id);
-      }
-      let bestId: number | null = null;
-      let bestRatio = 0;
-      for (const [id, ratio] of ratios) {
-        if (ratio > bestRatio) {
-          bestRatio = ratio;
-          bestId = id;
+        const stepId = elementIds.get(entry.target);
+        if (stepId != null) {
+          if (entry.isIntersecting) visible.add(stepId);
+          else visible.delete(stepId);
+          continue;
+        }
+        const secKey = sectionIds.get(entry.target);
+        if (secKey != null) {
+          if (entry.isIntersecting) visibleSections.add(secKey);
+          else visibleSections.delete(secKey);
         }
       }
-      if (bestId == null && ratios.size > 0) {
-        bestId = ratios.keys().next().value ?? null;
-      }
-      if (bestId !== visibleStepId.value) visibleStepId.value = bestId;
+      if (!rafId) rafId = requestAnimationFrame(pickBest);
     },
-    { threshold: [0, 0.25] },
+    { threshold: 0 },
   );
-
   for (const el of elements.values()) observer.observe(el);
+  for (const el of sectionEls.values()) observer.observe(el);
 }
 
 function register(id: number, el: Element) {
   elements.set(id, el);
   elementIds.set(el, id);
-  observer?.observe(el);
+  if (!observer) createObserver();
+  observer!.observe(el);
+}
+
+function maybeDisconnect() {
+  if (elements.size === 0 && sectionEls.size === 0) {
+    observer?.disconnect();
+    observer = null;
+    visibleStepId.value = null;
+    visibleSectionKey.value = null;
+  }
 }
 
 function unregister(id: number) {
@@ -48,38 +80,93 @@ function unregister(id: number) {
     observer?.unobserve(el);
     elements.delete(id);
     elementIds.delete(el);
-    ratios.delete(id);
+    visible.delete(id);
   }
-  if (elements.size === 0) {
-    observer?.disconnect();
-    observer = null;
-    visibleStepId.value = null;
+  maybeDisconnect();
+}
+
+function registerSection(key: string, el: Element) {
+  sectionEls.set(key, el);
+  sectionIds.set(el, key);
+  if (!observer) createObserver();
+  observer!.observe(el);
+}
+
+function unregisterSection(key: string) {
+  const el = sectionEls.get(key);
+  if (el) {
+    observer?.unobserve(el);
+    sectionEls.delete(key);
+    sectionIds.delete(el);
+    visibleSections.delete(key);
   }
+  maybeDisconnect();
+}
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function scrollBehavior(): ScrollBehavior {
+  return reducedMotion.matches ? "instant" : "smooth";
 }
 
 function scrollTo(id: number) {
-  elements.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  elements.get(id)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+}
+
+function scrollToSection(key: string): boolean {
+  const el = sectionEls.get(key);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+  return true;
+}
+
+function resetScrollSpy() {
+  cancelAnimationFrame(rafId);
+  rafId = 0;
+  observer?.disconnect();
+  observer = null;
+  elements.clear();
+  elementIds.clear();
+  visible.clear();
+  sectionEls.clear();
+  sectionIds.clear();
+  visibleSections.clear();
+  visibleStepId.value = null;
+  visibleSectionKey.value = null;
 }
 
 export function useStepScrollSpy() {
-  ensureObserver();
-  return { visibleStepId: readonly(visibleStepId), scrollTo };
+  if (!observer && (elements.size > 0 || sectionEls.size > 0)) createObserver();
+  return { visibleStepId: readonly(visibleStepId), visibleSectionKey: readonly(visibleSectionKey), scrollTo, scrollToSection, scrollBehavior, resetScrollSpy };
+}
+
+type SpyValue = number | string | undefined;
+
+function spyMount(el: HTMLElement, value: SpyValue) {
+  if (typeof value === "number") register(value, el);
+  else if (typeof value === "string") registerSection(value, el);
+}
+
+function spyUnmount(value: SpyValue | null) {
+  if (typeof value === "number") unregister(value);
+  else if (typeof value === "string") unregisterSection(value);
 }
 
 /**
  * Directive for registering elements with the scroll-spy.
- * Usage: v-spy-step="stepId" (pass undefined to skip registration).
+ * Pass a step ID (number) to track as a step, a section key (string) to track
+ * as a section (map/hike), or undefined to skip registration.
  */
-export const vSpyStep: Directive<HTMLElement, number | undefined> = {
+export const vSpyStep: Directive<HTMLElement, SpyValue> = {
   mounted(el, { value }) {
-    if (value != null) register(value, el);
+    spyMount(el, value);
   },
   updated(el, { value, oldValue }) {
     if (value === oldValue) return;
-    if (oldValue != null) unregister(oldValue);
-    if (value != null) register(value, el);
+    spyUnmount(oldValue);
+    spyMount(el, value);
   },
   unmounted(_el, { value }) {
-    if (value != null) unregister(value);
+    spyUnmount(value);
   },
 };

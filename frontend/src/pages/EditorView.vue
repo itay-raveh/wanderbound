@@ -2,9 +2,8 @@
 import AlbumNav from "@/components/editor/AlbumNav.vue";
 import AlbumToolbar from "@/components/editor/AlbumToolbar.vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
-import EditorFloatingBar from "@/components/editor/EditorFloatingBar.vue";
 import EditorHeader from "@/components/editor/EditorHeader.vue";
-import OnboardingBanner from "@/components/editor/OnboardingBanner.vue";
+import UnusedDrawer from "@/components/editor/UnusedDrawer.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
@@ -12,8 +11,12 @@ import { useLocale } from "@/composables/useLocale";
 import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
+import { useStepScrollSpy } from "@/composables/useStepScrollSpy";
 import { useMeta } from "quasar";
-import { ref, computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { ref, computed, watch, onBeforeUnmount } from "vue";
+
+const { t } = useI18n();
 
 useMeta({ title: "Editor" });
 
@@ -41,7 +44,15 @@ useEditorKeyboard();
 
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
-watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); });
+watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetScrollSpy(); });
+
+const { visibleStepId, resetScrollSpy } = useStepScrollSpy();
+onBeforeUnmount(resetScrollSpy);
+const activeStep = computed(() =>
+  visibleStepId.value != null
+    ? albumData.value?.steps.find((s) => s.id === visibleStepId.value)
+    : undefined,
+);
 </script>
 
 <template>
@@ -55,14 +66,13 @@ watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); });
     />
   </EditorHeader>
 
-  <OnboardingBanner />
-
   <q-drawer
     side="left"
     :model-value="true"
     persistent
     bordered
     :width="DRAWER_WIDTH"
+    :aria-label="t('nav.stepNavigation')"
     class="print-hide"
   >
     <AlbumNav
@@ -70,15 +80,27 @@ watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); });
       :steps="albumData.steps"
       :album-id="album.id"
       :colors="album.colors ?? undefined"
+      :maps-ranges="album.maps_ranges ?? undefined"
     />
-    <div v-else class="fit flex flex-center">
-      <q-spinner-dots color="primary" size="2rem" />
+    <div v-else class="fit flex flex-center" role="status">
+      <q-spinner-dots color="primary" size="2rem" :aria-label="t('album.loading', { name: '' })" />
     </div>
   </q-drawer>
 
-  <q-page class="editor-page" :style="{ '--drawer-width': DRAWER_WIDTH + 'px' }">
+  <q-drawer
+    side="right"
+    :model-value="!!activeStep"
+    persistent
+    bordered
+    :width="DRAWER_WIDTH"
+    :aria-label="t('nav.unusedPhotos')"
+    class="print-hide"
+  >
+    <UnusedDrawer v-if="activeStep && album" :key="activeStep.id" :step="activeStep" :album-id="album.id" />
+  </q-drawer>
+
+  <q-page class="editor-page">
     <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
-    <EditorFloatingBar v-if="album" class="print-hide" />
   </q-page>
 </template>
 

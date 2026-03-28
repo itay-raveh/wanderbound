@@ -3,7 +3,6 @@ import type { Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepTextPage from "./step/StepTextPage.vue";
-import UnusedSidebar from "./step/UnusedSidebar.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextMeasure } from "@/composables/useTextMeasure";
@@ -41,6 +40,11 @@ const desc = useTextMeasure(computed(() => props.step.description ?? ""));
 const photoPages = computed(() =>
   filterCoverFromPages(props.step.pages, props.step.cover, desc.value.type === "short"),
 );
+
+// Steps with 0-1 photos have nothing to drag into a new page, so the drop zone is hidden.
+const totalPhotos = computed(() =>
+  props.step.pages.reduce((n, p) => n + p.length, 0) + props.step.unused.length,
+);
 </script>
 
 <template>
@@ -72,7 +76,7 @@ const photoPages = computed(() =>
         @update:page="onPageUpdate(originalIdx, $event)"
       />
 
-      <div v-if="!printMode" class="add-zone relative-position">
+      <div v-if="!printMode && totalPhotos >= 2" class="add-zone relative-position">
         <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
           <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
           <span>{{ t("album.dropPhotoToAdd") }}</span>
@@ -80,14 +84,6 @@ const photoPages = computed(() =>
         <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
       </div>
     </div>
-
-    <div class="sidebar-anchor print-hide">
-      <UnusedSidebar
-        :assets="step.unused"
-        @update:unused-photos="onUnusedUpdate"
-      />
-    </div>
-
   </div>
 </template>
 
@@ -95,13 +91,6 @@ const photoPages = computed(() =>
 .step-entry {
   --meta-width: calc(var(--meta-ratio) * 100%);
   position: relative;
-}
-
-.sidebar-anchor {
-  position: absolute;
-  right: var(--gap-md-lg);
-  top: 0;
-  bottom: 0;
 }
 
 .cover-drop-overlay {
@@ -140,7 +129,7 @@ const photoPages = computed(() =>
 
 .add-zone {
   width: calc(var(--page-width) * var(--editor-zoom));
-  margin: var(--gap-md) auto var(--page-inset-x);
+  margin: var(--gap-md) auto 0;
   min-height: 3.5rem;
 }
 
@@ -195,6 +184,12 @@ const photoPages = computed(() =>
 
   .add-zone {
     display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .add-zone-content {
+    transition: none;
   }
 }
 </style>

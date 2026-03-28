@@ -17,7 +17,6 @@
   },
 
   "login": {
-    "signIn": "התחברות עם Google",
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
     "signInFailed": "ההתחברות נכשלה. נסו שוב."
@@ -37,7 +36,7 @@
     "greetingMorning": "בוקר טוב, {name}",
     "greetingAfternoon": "צהריים טובים, {name}",
     "greetingEvening": "ערב טוב, {name}",
-    "evictedTitle": "!הגעתם בחזרה",
+    "evictedTitle": "הגעתם בחזרה!",
     "evictedBody": "הקבצים נמחקו כדי לפנות מקום, אבל העריכות נשמרו. העלו מחדש את הנתונים כדי להמשיך מאיפה שעצרתם.",
     "reuploadTitle": "עדכון נתונים",
     "reuploadBody": "מעלים נתונים חדשים כדי לעדכן את האלבומים עם התמונות והטיולים האחרונים.",
@@ -81,7 +80,7 @@
     "locale": "שפה ואזור",
     "distance": "מרחק",
     "temperature": "טמפרטורה",
-    "data": "הנתונים שלך",
+    "data": "הנתונים שלכם",
     "signOut": "התנתקות",
     "reuploadData": "העלאה מחדש",
     "exportData": "ייצוא הנתונים שלי",
@@ -109,6 +108,7 @@
     "backCover": "שער אחורי",
     "noLandscapePhotos": "אין תמונות לרוחב",
     "unused": "לא בשימוש",
+    "unusedHint": "תמונות מהצעד — גררו לעמוד כדי לשבץ",
     "dropPhotosHere": "גררו תמונות לכאן",
     "addMap": "הוספת מפה",
     "removeMap": "הסרת מפה",
@@ -120,8 +120,10 @@
     "useAsPoster": "בחירה כפוסטר",
     "prevFrame": "פריים קודם (,)",
     "nextFrame": "פריים הבא (.)",
-    "selectPhoto": "בחר תמונה",
-    "tripRouteMap": "מפת מסלול הטיול"
+    "selectPhoto": "בחרו תמונה",
+    "allDates": "כל התאריכים",
+    "tripRouteMap": "מפת מסלול הטיול",
+    "playVideo": "הפעלת סרטון"
   },
 
   "hike": {
@@ -134,8 +136,8 @@
     "days": "ימים",
     "km": "ק״מ",
     "mi": "מייל",
-    "m": " מ׳",
-    "ft": " רגל",
+    "m": "מ׳",
+    "ft": "רגל",
     "photos": "תמונות",
     "steps": "צעדים",
     "coldest": "הכי קר",
@@ -195,21 +197,13 @@
   "nav": {
     "steps": "צעדים",
     "search": "חיפוש צעדים…",
-    "noResults": "לא נמצאו צעדים"
-  },
-
-  "onboarding": {
-    "editorTitle": "האלבום מוכן להתאמה אישית",
-    "editText": "לחצו על טקסט כדי לערוך",
-    "dragPhotos": "גררו תמונות לסידור מחדש",
-    "settings": "התאמת יחידות ועיצוב",
-    "exportPdf": "ייצוא כ-PDF בסיום",
-    "mapTitle": "לגבי המפה",
-    "hikesDetected": "טיולים זוהו מה-GPS",
-    "dragHandles": "גררו ידיות לכוונון גבולות",
-    "filterDates": "סננו תאריכים עם הלוח",
-    "gotIt": "הבנתי",
-    "showTips": "הצגת טיפים"
+    "noResults": "לא נמצאו צעדים",
+    "map": "מפה",
+    "clickToPlace": "לחצו על צעד כדי להוסיף מפה לפניו",
+    "stepNavigation": "ניווט צעדים",
+    "unusedPhotos": "תמונות שלא בשימוש",
+    "selectAlbum": "בחירת אלבום",
+    "dateFilter": "סינון לפי תאריכים"
   },
 
   "screen": {

@@ -12,7 +12,7 @@ useMeta({
 <template>
   <ScreenGuard>
     <a href="#main-content" class="skip-to-content">Skip to content</a>
-    <q-layout view="hHh Lpr lff">
+    <q-layout view="hHh LpR lff">
       <q-page-container id="main-content">
         <RouterView />
         <SiteFooter class="print-hide" />
@@ -195,6 +195,13 @@ body,
     color-mix(in srgb, var(--q-primary) 14%, var(--bg-deep)),
     var(--bg)
   );
+}
+
+/* Hide editor chrome during print/PDF export */
+.print-hide {
+  @media print {
+    display: none !important;
+  }
 }
 
 /* Skip-to-content link — visible only on keyboard focus */
