@@ -105,19 +105,30 @@ function unregisterSection(key: string) {
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+let scrollOverride: {
+  scrollTo: (id: number) => void;
+  scrollToSection: (key: string) => boolean;
+} | null = null;
+
 function scrollBehavior(): ScrollBehavior {
   return reducedMotion.matches ? "instant" : "smooth";
 }
 
 function scrollTo(id: number) {
+  if (scrollOverride) { scrollOverride.scrollTo(id); return; }
   elements.get(id)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
 }
 
 function scrollToSection(key: string): boolean {
+  if (scrollOverride) return scrollOverride.scrollToSection(key);
   const el = sectionEls.get(key);
   if (!el) return false;
   el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
   return true;
+}
+
+function setScrollOverride(override: typeof scrollOverride) {
+  scrollOverride = override;
 }
 
 function resetScrollSpy() {
@@ -133,11 +144,12 @@ function resetScrollSpy() {
   visibleSections.clear();
   visibleStepId.value = null;
   visibleSectionKey.value = null;
+  scrollOverride = null;
 }
 
 export function useStepScrollSpy() {
   if (!observer && (elements.size > 0 || sectionEls.size > 0)) createObserver();
-  return { visibleStepId: readonly(visibleStepId), visibleSectionKey: readonly(visibleSectionKey), scrollTo, scrollToSection, scrollBehavior, resetScrollSpy };
+  return { visibleStepId: readonly(visibleStepId), visibleSectionKey: readonly(visibleSectionKey), scrollTo, scrollToSection, scrollBehavior, setScrollOverride, resetScrollSpy };
 }
 
 type SpyValue = number | string | undefined;

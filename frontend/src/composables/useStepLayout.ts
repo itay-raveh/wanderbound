@@ -1,7 +1,7 @@
 import type { Step, StepUpdate } from "@/client";
 import { useDragState } from "./useDragState";
 import { usePrintMode } from "./usePrintReady";
-import { inject, provide, ref, type InjectionKey, type Ref } from "vue";
+import { inject, provide, ref, watch, type InjectionKey, type Ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
 
 type StepMutateFn = (payload: { sid: number; update: StepUpdate }) => void;
@@ -96,9 +96,12 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
   }
 
   if (!printMode) {
-    useDraggable(dropZoneRef, dropZoneList, {
+    // dropZoneRef is null when totalPhotos < 2 (v-if hides the element).
+    // Defer SortableJS init until the element actually exists.
+    const dropDraggable = useDraggable(dropZoneRef, dropZoneList, {
       group: "photos",
       animation: 200,
+      immediate: false,
       onAdd: () => {
         if (dropZoneList.value.length === 0) return;
         const photos = [...dropZoneList.value];
@@ -107,6 +110,7 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
         saveField({ ...cleaned, pages: [...cleaned.pages, photos] });
       },
     });
+    watch(dropZoneRef, (el) => { if (el) dropDraggable.start(el); });
 
     useDraggable(coverDropRef, coverDropList, {
       group: "photos",

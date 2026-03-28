@@ -22,10 +22,8 @@ describe("CoverPhotoPicker", () => {
 
   it("starts with the panel closed", () => {
     const wrapper = mountPicker();
-    const panel = wrapper.find(".picker-panel");
-    // v-show makes it display:none, but the element exists
-    expect(panel.exists()).toBe(true);
-    expect((panel.element as HTMLElement).style.display).toBe("none");
+    // v-if removes the element from the DOM when closed
+    expect(wrapper.find(".picker-panel").exists()).toBe(false);
   });
 
   it("toggles the panel open on pill click", async () => {
@@ -45,8 +43,7 @@ describe("CoverPhotoPicker", () => {
     await pill.trigger("click");
     await pill.trigger("click");
 
-    const panel = wrapper.find(".picker-panel");
-    expect((panel.element as HTMLElement).style.display).toBe("none");
+    expect(wrapper.find(".picker-panel").exists()).toBe(false);
   });
 
   it("rotates chevron icon when open", async () => {
@@ -116,8 +113,7 @@ describe("CoverPhotoPicker", () => {
     const cells = wrapper.findAll(".grid-cell");
     await cells[1]!.trigger("click");
 
-    const panel = wrapper.find(".picker-panel");
-    expect((panel.element as HTMLElement).style.display).toBe("none");
+    expect(wrapper.find(".picker-panel").exists()).toBe(false);
   });
 
   it("shows empty message when photos array is empty", async () => {

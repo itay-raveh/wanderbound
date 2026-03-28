@@ -1,0 +1,84 @@
+/**
+ * Drop-in replacement for @tanstack/vue-virtual's useWindowVirtualizer.
+ *
+ * The upstream adapter wraps the Virtualizer in a shallowRef and calls
+ * triggerRef() on every change. Vue 3.4+'s computed deduplication treats a
+ * same-reference shallowRef as unchanged, so downstream computeds and the
+ * render effect never re-run (vuejs/core#9579, #11929, #8036).
+ *
+ * This adapter avoids shallowRef+triggerRef entirely. It holds the Virtualizer
+ * in a plain variable and exposes pre-computed reactive refs for the two values
+ * templates actually need: virtualItems and totalSize. A regular ref<number>
+ * version counter drives reactivity — the most fundamental primitive that
+ * Vue's scheduler cannot skip.
+ *
+ * When @tanstack/vue-virtual fixes its shallowRef+triggerRef pattern
+ * (tracked in TanStack/virtual — no issue filed yet as of March 2026),
+ * delete this file and switch back to the upstream useWindowVirtualizer.
+ */
+import {
+  Virtualizer,
+  observeWindowOffset,
+  observeWindowRect,
+  windowScroll,
+  type PartialKeys,
+  type VirtualizerOptions,
+  type VirtualItem,
+} from "@tanstack/vue-virtual";
+import { computed, onScopeDispose, ref, unref, watch, type MaybeRef } from "vue";
+
+type WindowVirtualizerOpts = PartialKeys<
+  VirtualizerOptions<Window, Element>,
+  "observeElementRect" | "observeElementOffset" | "scrollToFn" | "getScrollElement"
+>;
+
+export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
+  const version = ref(0);
+
+  function bump() {
+    version.value++;
+  }
+
+  function resolveOptions(): VirtualizerOptions<Window, Element> {
+    const opts = unref(options);
+    return {
+      getScrollElement: () => (typeof document !== "undefined" ? window : null),
+      observeElementRect: observeWindowRect,
+      observeElementOffset: observeWindowOffset,
+      scrollToFn: windowScroll,
+      initialOffset: () => (typeof document !== "undefined" ? window.scrollY : 0),
+      ...opts,
+      onChange: (instance: Virtualizer<Window, Element>, sync: boolean) => {
+        bump();
+        opts.onChange?.(instance, sync);
+      },
+    };
+  }
+
+  const virtualizer = new Virtualizer<Window, Element>(resolveOptions());
+  const cleanup = virtualizer._didMount();
+
+  watch(
+    () => unref(options),
+    () => {
+      virtualizer.setOptions(resolveOptions());
+      virtualizer._willUpdate();
+      bump();
+    },
+    { immediate: true },
+  );
+
+  onScopeDispose(cleanup);
+
+  const items = computed<VirtualItem[]>(() => {
+    void version.value;
+    return virtualizer.getVirtualItems();
+  });
+
+  const size = computed<number>(() => {
+    void version.value;
+    return virtualizer.getTotalSize();
+  });
+
+  return { virtualizer, items, size };
+}
