@@ -65,7 +65,6 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
       virtualizer._willUpdate();
       bump();
     },
-    { immediate: true },
   );
 
   onScopeDispose(cleanup);

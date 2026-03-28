@@ -14,7 +14,7 @@ import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date"
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { vSpyStep, useStepScrollSpy } from "@/composables/useStepScrollSpy";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
-import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, onUpdated, ref } from "vue";
+import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -97,15 +97,14 @@ const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
 const scrollMargin = ref(0);
 
-// 210 mm (A4 landscape height) → pixels at 96 DPI
-const PAGE_PX = Math.round(210 * 96 / 25.4);
+// Estimated height of one A4 page at editor zoom: 210mm → px at 96 DPI, scaled, plus gap.
+const PAGE_H = Math.round(210 * 96 / 25.4 * EDITOR_ZOOM) + 12;
 
 const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
   count: HEADER_COUNT + sections.value.length,
   estimateSize: (index: number) => {
-    const pageH = Math.round(PAGE_PX * EDITOR_ZOOM) + 12;
-    if (index < HEADER_COUNT) return pageH;
-    return (sectionPageCounts.value[index - HEADER_COUNT] ?? 1) * pageH;
+    if (index < HEADER_COUNT) return PAGE_H;
+    return (sectionPageCounts.value[index - HEADER_COUNT] ?? 1) * PAGE_H;
   },
   overscan: 3,
   gap: 16,
@@ -170,23 +169,22 @@ if (props.printMode) {
     return map;
   });
 
+  function scrollToVIdx(idx: number) {
+    virtualizer.scrollToIndex(idx, {
+      align: "start",
+      behavior: getScrollBehavior() === "smooth" ? "smooth" : "auto",
+    });
+  }
+
   setScrollOverride({
     scrollTo(id: number) {
       const idx = stepIdToVIdx.value.get(id);
-      if (idx != null) {
-        virtualizer.scrollToIndex(idx, {
-          align: "start",
-          behavior: getScrollBehavior() === "smooth" ? "smooth" : "auto",
-        });
-      }
+      if (idx != null) scrollToVIdx(idx);
     },
     scrollToSection(key: string): boolean {
       const idx = secKeyToVIdx.value.get(key);
       if (idx == null) return false;
-      virtualizer.scrollToIndex(idx, {
-        align: "start",
-        behavior: getScrollBehavior() === "smooth" ? "smooth" : "auto",
-      });
+      scrollToVIdx(idx);
       return true;
     },
   });
@@ -197,7 +195,7 @@ if (props.printMode) {
     }
     measureAll();
   });
-  onUpdated(measureAll);
+  watch(items, measureAll);
   onUnmounted(() => {
     setScrollOverride(null);
   });

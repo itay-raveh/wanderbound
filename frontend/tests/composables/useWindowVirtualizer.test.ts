@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { withSetup } from "../helpers";
 
@@ -56,7 +56,7 @@ describe("useWindowVirtualizer", () => {
     expect(typeof virtualizer.scrollToIndex).toBe("function");
   });
 
-  it("updates items and size when options change", () => {
+  it("updates items and size when options change", async () => {
     const count = ref(5);
 
     const { size } = withSetup(() =>
@@ -72,6 +72,7 @@ describe("useWindowVirtualizer", () => {
     const initialSize = size.value;
 
     count.value = 20;
+    await nextTick();
 
     // Size should increase with more items
     expect(size.value).toBeGreaterThan(initialSize);
