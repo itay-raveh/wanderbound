@@ -250,6 +250,26 @@ class TestClassification:
         gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
         assert _hikes([_step(0.0, 0.2, 14.0)], gps)
 
+    def test_brief_transfer_between_hikes_absorbed(self) -> None:
+        """A short fast gap (taxi between trailheads) between two hikes -> one hike.
+
+        Regression: a 5-min drive at 17 km/h between two hike days produced
+        two separate hike segments, breaking the single-hike-segment
+        assumption in the frontend's HikeMapPage.
+        """
+        # Hike day 1: 3h, ~6 km at ~2 km/h
+        hike1 = _track(0.0, 0.0, 0.0, 0.05, h0=8.0, h1=11.0, n=30)
+        # 10 min taxi at ~20 km/h (0.03° ≈ 3.3 km in 10 min)
+        taxi = [_pt(0.0, 0.05, hours=11.0), _pt(0.0, 0.08, hours=11.17)]
+        # Hike day 2: 3h, ~6 km
+        hike2 = _track(0.0, 0.08, 0.0, 0.13, h0=11.17, h1=14.17, n=30)
+
+        steps = [_step(0.0, 0.0, 8.0), _step(0.0, 0.13, 14.17)]
+        hikes = _hikes(steps, hike1 + taxi + hike2)
+        assert len(hikes) == 1, (
+            f"Brief transfer should be absorbed into one hike, got {len(hikes)}"
+        )
+
 
 # Hike validation thresholds
 
@@ -428,8 +448,27 @@ class TestKnownHikes:
             (8, 8, [("2024-11-23 12:00", "2024-11-23 17:30")]),
             (9, 9, [("2024-11-27 11:30", "2024-11-27 17:30")]),
             (10, 12, []),
+            # Patagonia treks
             (12, 16, [("2024-12-01 11:30", "2024-12-04 18:00")]),
             (18, 21, [("2024-12-08 11:30", "2024-12-11 15:30")]),
+            # Puyehue day hike
+            (43, 44, [("2025-01-11 09:00", "2025-01-12 18:00")]),
+            # Cajón del Azul
+            (53, 55, [("2025-01-24 09:00", "2025-01-26 18:00")]),
+            # Salkentay
+            (115, 116, [("2025-04-25 07:00", "2025-04-26 16:00")]),
+            # Pico Austria
+            (120, 121, [("2025-05-05 09:00", "2025-05-06 15:00")]),
+            # Maragua circuit (one hike despite 5-min taxi between trailheads)
+            (139, 146, [("2025-05-25 11:00", "2025-05-27 13:00")]),
+            # Huayna Potosi
+            (158, 159, [("2025-06-09 09:00", "2025-06-11 12:00")]),
+            # Ausangate Circuit
+            (178, 183, [("2025-07-23 08:00", "2025-07-26 18:00")]),
+            # Choquequirao
+            (184, 186, [("2025-07-28 08:00", "2025-07-31 18:00")]),
+            # Huayhuash Circuit
+            (192, 201, [("2025-08-10 07:00", "2025-08-17 18:00")]),
         ],
     )
     def test_hike_times(

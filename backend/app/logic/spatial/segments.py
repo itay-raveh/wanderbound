@@ -342,19 +342,30 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
     """Fold short GPS-dropout gaps (< 4 km, < 3 h, hike speed) back into hike.
 
     Requires a following hike anchor so we don't absorb post-hike drift.
+    Brief transfers (< 30 min) between two hikes skip the speed check
+    (e.g. taxi/shuttle between trailheads).
     Nulls the gap's mode and forward-fills from the preceding hike.
     """
     df, stats = _run_stats(df)
     stats = stats.with_columns(
         pl.col("run_h").shift(-1).fill_null(0.0).alias("next_run_h"),
+        pl.col("run_mode").shift(1).alias("prev_run_mode"),
+        pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
     )
     df = df.join(stats, on="run_id")
+
+    at_hike_speed = pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH
+    is_brief_transfer = (
+        (pl.col("run_h") < 0.5)
+        & (pl.col("prev_run_mode") == "hike")
+        & (pl.col("prev_run_h") >= HIKE_ANCHOR_MIN_H)
+    )
 
     is_noise_gap = (
         (pl.col("run_mode") == "other")
         & (pl.col("run_dist_km") < NOISE_GAP_MAX_DIST_KM)
         & (pl.col("run_h") < NOISE_GAP_MAX_H)
-        & (pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH)
+        & (at_hike_speed | is_brief_transfer)
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
     )
 
@@ -366,7 +377,16 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
         .alias("mode"),
     )
     return df.drop(
-        ["run_id", "run_mode", "run_h", "run_dist_km", "run_speed_kmh", "next_run_h"]
+        [
+            "run_id",
+            "run_mode",
+            "run_h",
+            "run_dist_km",
+            "run_speed_kmh",
+            "next_run_h",
+            "prev_run_mode",
+            "prev_run_h",
+        ]
     )
 
 
