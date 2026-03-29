@@ -21,9 +21,8 @@ Run only the tests relevant to the change:
 
 ## Backend (pytest)
 
-- Markers: `@pytest.mark.unit` (no IO/DB), `@pytest.mark.integration`
-- Fixtures in conftest: async SQLite engine, session with rollback, ASGI test client
-- mock_jwt() for OAuth token mocking, create_test_jpeg() for image fixtures
+- **File naming**: `test_{module}.py` mirrors the source module it tests (`app/logic/processing.py` → `tests/test_processing.py`). Never create per-feature test files — put tests in the file that maps to the source module.
+- Fixtures: `mock_jwt()` (OAuth), `create_test_jpeg()` (EXIF orientation), async SQLite engine with rollback
 - pytest-asyncio auto mode. pytest-randomly for ordering.
 
 ## Frontend (vitest)

@@ -35,5 +35,4 @@ Memory-aware concurrency: 512MB baseline + 768MB per render.
 
 ## Testing
 
-Project-specific fixtures: `mock_jwt()` for OAuth, `create_test_jpeg()` for images with EXIF orientation.
-Tests use in-memory async SQLite with transaction rollback.
+See @.claude/rules/testing.md for conventions. Backend-specific: in-memory async SQLite with transaction rollback.

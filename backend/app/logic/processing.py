@@ -293,8 +293,40 @@ async def _media_pipeline(
     return layout_by_idx, cover_name, cover_orientation
 
 
+def resolve_international_waters(steps: list[PSStep]) -> None:
+    """Replace '00' (international waters) country codes with the previous step's code.
+
+    Polarsteps uses '00' for steps at sea. This assigns them to the last
+    visited country and warns when the *next* land step belongs to a
+    different country (ambiguous attribution).
+    """
+    prev_code: str | None = None
+    run: list[PSStep] = []
+
+    for step in steps:
+        if step.location.country_code == "00":
+            if prev_code is not None:
+                step.location.country_code = prev_code
+                run.append(step)
+            continue
+
+        if run and step.location.country_code != prev_code:
+            names = ", ".join(s.name for s in run)
+            logger.warning(
+                "International-water steps [%s] attributed to %s, "
+                "but next step '%s' is %s",
+                names,
+                prev_code.upper(),  # type: ignore[union-attr]
+                step.name,
+                step.location.country_code.upper(),
+            )
+        run.clear()
+        prev_code = step.location.country_code
+
+
 def load_trip_data(trip_dir: Path) -> tuple[PSTrip, list[Point]]:
     """Read trip metadata and GPS locations (blocking I/O, run in thread)."""
     trip = PSTrip.from_trip_dir(trip_dir)
+    resolve_international_waters(trip.all_steps)
     locations = PSLocations.from_trip_dir(trip_dir).locations
     return trip, locations

@@ -86,10 +86,9 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix "00" codes.
 - [ ] Automatic maps for multi day hikes.
-- [ ] Add "Try with demo data" feature.
 - [ ] HDR → SDR tone-mapping for video poster extraction
+- [ ] Add "Try with demo data" feature.
 
 ## License
 

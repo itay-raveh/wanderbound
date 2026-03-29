@@ -115,7 +115,7 @@ def extract_and_scan(file: BinaryIO) -> tuple[Path, PSUser, list[TripMeta]]:
                     title=trip.title,
                     step_count=trip.step_count,
                     country_codes=list(
-                        {s.location.country_code for s in trip.all_steps}
+                        {s.location.country_code for s in trip.all_steps} - {"00"}
                     ),
                 )
             )

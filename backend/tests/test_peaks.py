@@ -1,3 +1,5 @@
+"""Tests for app.logic.spatial.peaks."""
+
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -16,8 +18,6 @@ from app.logic.spatial.peaks import (
     _parse_ele,
     correct_peaks,
 )
-from app.services.open_meteo import OPEN_METEO_MAX_PER_REQUEST, elevations
-from tests.conftest import collect_async
 
 
 @dataclass
@@ -265,55 +265,3 @@ class TestCorrectPeaks:
         assert result[3] == 5100.0  # closest to 5000
         assert result[0] == 500.0  # unchanged
         assert result[2] == 1000.0  # unchanged
-
-
-def _elev_response(values: list[float]) -> MagicMock:
-    resp = MagicMock(status_code=200)
-    resp.content = json.dumps({"elevation": values}).encode()
-    return resp
-
-
-class TestElevations:
-    async def test_single_batch(self) -> None:
-        locs = [_Loc(i, i) for i in range(5)]
-        expected = [100.0, 200.0, 300.0, 400.0, 500.0]
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                return_value=_elev_response(expected)
-            )
-            result = [e async for e in elevations(locs)]
-
-        assert result == expected
-        assert mock_client.return_value.get.call_count == 1
-
-    async def test_multiple_batches(self) -> None:
-        n = OPEN_METEO_MAX_PER_REQUEST + 20  # 120
-        locs = [_Loc(i, i) for i in range(n)]
-        batch1 = list(range(OPEN_METEO_MAX_PER_REQUEST))
-        batch2 = list(range(20))
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                side_effect=[
-                    _elev_response([float(x) for x in batch1]),
-                    _elev_response([float(x) for x in batch2]),
-                ]
-            )
-            result = [e async for e in elevations(locs)]
-
-        assert len(result) == n
-        assert mock_client.return_value.get.call_count == 2
-
-    async def test_http_error_propagates(self) -> None:
-        locs = [_Loc(0, 0)]
-
-        resp = MagicMock()
-        resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "500", request=MagicMock(), response=MagicMock()
-        )
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=resp)
-            with pytest.raises(httpx.HTTPStatusError):
-                await collect_async(elevations(locs))
