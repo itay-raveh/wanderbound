@@ -86,7 +86,8 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Allow hiding covers, overview
+- [ ] Allow hiding covers, overview.
+- [ ] Add controls for zoom, page padding.
 - [ ] HDR → SDR tone-mapping for video poster extraction
 - [ ] Add "Try with demo data" feature.
 
