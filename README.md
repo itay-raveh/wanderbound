@@ -86,6 +86,7 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
+- [ ] Allow hiding covers, overview
 - [ ] HDR → SDR tone-mapping for video poster extraction
 - [ ] Add "Try with demo data" feature.
 
