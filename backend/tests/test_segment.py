@@ -15,6 +15,7 @@ def _seg(kind: str, points: list[tuple[float, float, float]]) -> Segment:
         start_time=pts[0].time,
         end_time=pts[-1].time,
         kind=SegmentKind(kind),
+        timezone_id="UTC",
         points=pts,
     )
 

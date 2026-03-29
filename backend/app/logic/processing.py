@@ -1,9 +1,13 @@
 import asyncio
 import contextlib
 import logging
+import math
+from collections import defaultdict
 from collections.abc import AsyncIterator
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +22,7 @@ from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
 from app.models.album import Album
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
-from app.models.segment import Segment
+from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather
@@ -103,6 +107,82 @@ class TripResults(NamedTuple):
     cover_orientation: str
 
 
+def _segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
+    """Find the timezone of the step closest to a segment's start time."""
+    best = all_steps[0]
+    for step in all_steps:
+        if step.timestamp <= seg_start:
+            best = step
+        else:
+            break
+    return best.timezone_id
+
+
+_EARTH_RADIUS_KM = 6371.0
+ACTIVE_HIKE_DAY_MIN_KM = 2.0
+
+
+def _haversine_scalar(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Haversine distance in km between two points."""
+    to_rad = math.pi / 180.0
+    phi1, phi2 = lat1 * to_rad, lat2 * to_rad
+    dphi = (lat2 - lat1) * to_rad
+    dlam = (lon2 - lon1) * to_rad
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    )
+    return _EARTH_RADIUS_KM * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _merge_date_ranges(
+    ranges: list[tuple[date, date]],
+) -> list[tuple[date, date]]:
+    """Sort and merge overlapping or adjacent date ranges."""
+    if not ranges:
+        return []
+    merged = [sorted(ranges)[0]]
+    for start, end in sorted(ranges)[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def _multi_day_hike_ranges(
+    segments: list[Segment],
+) -> list[tuple[date, date]]:
+    """Return date ranges for hike segments with significant hiking on ≥2 days.
+
+    For each hike segment, partitions GPS points by calendar day and computes
+    the haversine distance traveled per day.  Only days with ≥ ACTIVE_HIKE_DAY_MIN_KM
+    count.  Overlapping ranges from adjacent segments are merged.
+    """
+    ranges: list[tuple[date, date]] = []
+    for seg in segments:
+        if seg.kind != SegmentKind.hike:
+            continue
+        tz = ZoneInfo(seg.timezone_id)
+
+        daily_km: dict[date, float] = defaultdict(float)
+        pts = seg.points
+        for i in range(1, len(pts)):
+            day = datetime.fromtimestamp(pts[i].time, tz).date()
+            daily_km[day] += _haversine_scalar(
+                pts[i - 1].lat, pts[i - 1].lon, pts[i].lat, pts[i].lon
+            )
+
+        active_days = sorted(
+            d for d, km in daily_km.items() if km >= ACTIVE_HIKE_DAY_MIN_KM
+        )
+        if len(active_days) >= 2:
+            ranges.append((active_days[0], active_days[-1]))
+
+    return _merge_date_ranges(ranges)
+
+
 def build_trip_objects(
     user: User,
     aid: str,
@@ -121,21 +201,6 @@ def build_trip_objects(
         if layout:
             merged_media.update(layout.orientations)
 
-    first_date = trip.all_steps[0].datetime.date()
-    last_date = trip.all_steps[-1].datetime.date()
-    album = Album(
-        uid=user.id,
-        id=aid,
-        colors=build_country_colors(
-            {s.location.country_code for s in trip.all_steps},
-        ),
-        steps_ranges=[(first_date, last_date)],
-        title=trip.title,
-        subtitle=trip.subtitle,
-        front_cover_photo=results.cover_name,
-        back_cover_photo=results.cover_name,
-        media=merged_media,
-    )
     steps = [
         build_step(user.id, aid, ps, elev, wthr, layout)
         for ps, elev, wthr, layout in zip(
@@ -149,10 +214,28 @@ def build_trip_objects(
             start_time=seg.points[0].time,
             end_time=seg.points[-1].time,
             kind=seg.kind,
+            timezone_id=_segment_timezone(seg.points[0].time, trip.all_steps),
             points=seg.points,
         )
         for seg in build_segments(steps, locations)
     ]
+
+    first_date = trip.all_steps[0].datetime.date()
+    last_date = trip.all_steps[-1].datetime.date()
+    album = Album(
+        uid=user.id,
+        id=aid,
+        colors=build_country_colors(
+            {s.location.country_code for s in trip.all_steps},
+        ),
+        steps_ranges=[(first_date, last_date)],
+        maps_ranges=_multi_day_hike_ranges(segments),
+        title=trip.title,
+        subtitle=trip.subtitle,
+        front_cover_photo=results.cover_name,
+        back_cover_photo=results.cover_name,
+        media=merged_media,
+    )
     return [album, *steps, *segments]
 
 

@@ -16,18 +16,19 @@ how segments are pre-computed at user creation time.
 
 import datetime as _dt_mod
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import polars as pl
 import pytest
 
+from app.logic.processing import _multi_day_hike_ranges, _segment_timezone
 from app.logic.spatial.segments import (
     _remove_gps_noise,
     build_segments,
 )
 from app.models.polarsteps import Point, PSLocations, PSTrip
-from app.models.segment import SegmentData, SegmentKind
+from app.models.segment import Segment, SegmentData, SegmentKind
 
 # Helpers
 
@@ -518,3 +519,325 @@ class TestStepLocationInHike:
             f"Step 9 ({step9.location.lat:.4f}, {step9.location.lon:.4f})"
             " not in any hike"
         )
+
+
+# -- Multi-day hike range detection ------------------------------------------
+
+_KM_PER_DEG_LAT = 111.32  # at equator
+
+
+def _multi_day_seg(
+    daily_km: list[float],
+    start_date: date,
+    tz: str = "America/Santiago",
+) -> Segment:
+    """Create a hike segment with specified GPS distance per calendar day.
+
+    Each day gets two points (08:00 and 17:00 local), spaced along latitude
+    at the equator so haversine distance ≈ the requested km.  Overnight gaps
+    have zero displacement (camping).
+    """
+    zone = ZoneInfo(tz)
+    points: list[Point] = []
+    lat = 0.0
+
+    for i, km in enumerate(daily_km):
+        day = start_date + timedelta(days=i)
+        t_start = datetime(day.year, day.month, day.day, 8, 0, tzinfo=zone).timestamp()
+        t_end = datetime(day.year, day.month, day.day, 17, 0, tzinfo=zone).timestamp()
+
+        points.append(Point(lat=lat, lon=0.0, time=t_start))
+        lat += km / _KM_PER_DEG_LAT
+        points.append(Point(lat=lat, lon=0.0, time=t_end))
+
+    return Segment(
+        uid=1,
+        aid="trip1",
+        start_time=points[0].time,
+        end_time=points[-1].time,
+        kind=SegmentKind.hike,
+        timezone_id=tz,
+        points=points,
+    )
+
+
+def _minimal_seg(
+    kind: SegmentKind,
+    start: float,
+    end: float,
+    tz: str = "America/Santiago",
+) -> Segment:
+    """Segment with only start/end endpoints (no per-day detail)."""
+    return Segment(
+        uid=1,
+        aid="trip1",
+        start_time=start,
+        end_time=end,
+        kind=kind,
+        timezone_id=tz,
+        points=[
+            Point(lat=0, lon=0, time=start),
+            Point(lat=0, lon=0, time=end),
+        ],
+    )
+
+
+class TestMultiDayHikeRanges:
+    """Tests for _multi_day_hike_ranges (per-day distance analysis)."""
+
+    # -- Basic behaviour --
+
+    def test_multi_day_hike_produces_range(self) -> None:
+        seg = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
+        ranges = _multi_day_hike_ranges([seg])
+        assert ranges == [(date(2024, 12, 8), date(2024, 12, 11))]
+
+    def test_single_day_hike_excluded(self) -> None:
+        # 6-hour same-day hike — only 1 point pair, 1 calendar day
+        seg = _multi_day_seg([8.0], date(2024, 12, 8))
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_non_hike_segments_excluded(self) -> None:
+        seg = _minimal_seg(SegmentKind.driving, 1e9, 1e9 + 4 * 86400)
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_uses_local_timezone_for_date(self) -> None:
+        """Late evening in Santiago (23:30 local) is still the same local date."""
+        zone = ZoneInfo("America/Santiago")
+        # Dec 8 08:00 Santiago
+        t1 = datetime(2024, 12, 8, 8, 0, tzinfo=zone).timestamp()
+        # Dec 8 23:30 Santiago — next day in UTC but same day local
+        t2 = datetime(2024, 12, 8, 23, 30, tzinfo=zone).timestamp()
+        seg = Segment(
+            uid=1,
+            aid="trip1",
+            start_time=t1,
+            end_time=t2,
+            kind=SegmentKind.hike,
+            timezone_id="America/Santiago",
+            points=[
+                Point(lat=0.0, lon=0.0, time=t1),
+                Point(lat=0.072, lon=0.0, time=t2),  # ~8 km
+            ],
+        )
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_multiple_hikes(self) -> None:
+        seg1 = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
+        seg2 = _multi_day_seg([10, 10, 10, 10], date(2025, 1, 7))
+        ranges = _multi_day_hike_ranges([seg1, seg2])
+        assert len(ranges) == 2
+
+    # -- True positives (confirmed good multi-day hikes) --
+
+    def test_patagonia_4day_trek(self) -> None:
+        seg = _multi_day_seg([15, 14, 13, 14], date(2024, 12, 1))
+        ranges = _multi_day_hike_ranges([seg])
+        assert ranges == [(date(2024, 12, 1), date(2024, 12, 4))]
+
+    def test_2day_hike_low_daily_distance(self) -> None:
+        """Weakest true positive: models Jun 10-11 (4.8 km total, ~2.4 km/day)."""
+        seg = _multi_day_seg([2.5, 2.3], date(2025, 6, 10), "America/Lima")
+        ranges = _multi_day_hike_ranges([seg])
+        assert ranges == [(date(2025, 6, 10), date(2025, 6, 11))]
+
+    def test_week_long_trek(self) -> None:
+        """Models Aug 10-17: 81.6 km over 8 days."""
+        seg = _multi_day_seg([12, 10, 11, 9, 10, 11, 10, 8], date(2025, 8, 10))
+        ranges = _multi_day_hike_ranges([seg])
+        assert ranges == [(date(2025, 8, 10), date(2025, 8, 17))]
+
+    # -- False positives: not multi-day (real hike, single active day) --
+
+    def test_midnight_crossing_single_day_hike(self) -> None:
+        """Nov 15-16: single hike on the 15th crossing midnight.
+
+        ~8 km day 1, ~1 km day 2.
+        """
+        zone = ZoneInfo("America/Santiago")
+        d1 = date(2024, 11, 15)
+        d2 = d1 + timedelta(days=1)
+        t1 = datetime(d1.year, d1.month, d1.day, 18, 0, tzinfo=zone).timestamp()
+        t2 = datetime(d1.year, d1.month, d1.day, 23, 59, tzinfo=zone).timestamp()
+        t3 = datetime(d2.year, d2.month, d2.day, 6, 0, tzinfo=zone).timestamp()
+        seg = Segment(
+            uid=1,
+            aid="trip1",
+            start_time=t1,
+            end_time=t3,
+            kind=SegmentKind.hike,
+            timezone_id="America/Santiago",
+            points=[
+                Point(lat=0.0, lon=0.0, time=t1),
+                Point(lat=0.072, lon=0.0, time=t2),  # ~8 km
+                Point(lat=0.081, lon=0.0, time=t3),  # ~1 km more
+            ],
+        )
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_single_day_hike_other_day_below_threshold(self) -> None:
+        """Dec 24-25: only the 24th had a hike.  Day 2 has < 2 km."""
+        seg = _multi_day_seg([10.0, 1.5], date(2024, 12, 24))
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_two_separate_day_hikes_included(self) -> None:
+        """May 14-15: two separate day hikes absorbed into one segment.
+
+        Each day has significant distance — the per-day check correctly
+        includes it.  The frontend shows a map covering both, which is useful.
+        """
+        seg = _multi_day_seg([6.0, 5.0], date(2025, 5, 14))
+        ranges = _multi_day_hike_ranges([seg])
+        assert ranges == [(date(2025, 5, 14), date(2025, 5, 15))]
+
+    # -- False positives: GPS drift (not hikes at all) --
+
+    def test_gps_drift_crosses_midnight(self) -> None:
+        """Dec 15-16: GPS drift, ~1.5 km total across 2 days."""
+        zone = ZoneInfo("America/Santiago")
+        d1 = date(2024, 12, 15)
+        d2 = d1 + timedelta(days=1)
+        t1 = datetime(d1.year, d1.month, d1.day, 14, 0, tzinfo=zone).timestamp()
+        t_mid = datetime(d1.year, d1.month, d1.day, 23, 30, tzinfo=zone).timestamp()
+        t2 = datetime(d2.year, d2.month, d2.day, 10, 0, tzinfo=zone).timestamp()
+        seg = Segment(
+            uid=1,
+            aid="trip1",
+            start_time=t1,
+            end_time=t2,
+            kind=SegmentKind.hike,
+            timezone_id="America/Santiago",
+            points=[
+                Point(lat=0.0, lon=0.0, time=t1),
+                Point(lat=0.009, lon=0.0, time=t_mid),  # ~1 km
+                Point(lat=0.0135, lon=0.0, time=t2),  # ~0.5 km more
+            ],
+        )
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_overmerged_camping_one_active_day(self) -> None:
+        """Jan 26-Feb 2: 171 h segment but only one day has real hiking."""
+        seg = _multi_day_seg(
+            [0.3, 0.4, 5.0, 0.2, 0.3, 0.3, 0.4, 0.3],
+            date(2025, 1, 26),
+        )
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_drift_low_distance_multiday(self) -> None:
+        """Feb 9-10 pattern: multi-day GPS drift, < 2 km every day."""
+        seg = _multi_day_seg([0.5, 0.7, 0.3], date(2025, 2, 9))
+        assert _multi_day_hike_ranges([seg]) == []
+
+    # -- Merge --
+
+    def test_adjacent_ranges_merged(self) -> None:
+        """May 25-26 + May 26-27 → single range May 25-27."""
+        seg1 = _multi_day_seg([6.0, 4.0], date(2025, 5, 25))
+        seg2 = _multi_day_seg([3.0, 5.0], date(2025, 5, 26))
+        ranges = _multi_day_hike_ranges([seg1, seg2])
+        assert ranges == [(date(2025, 5, 25), date(2025, 5, 27))]
+
+    # -- Edge cases --
+
+    def test_all_days_below_threshold(self) -> None:
+        """3 days of 1.5 km/day — below 2.0 km threshold on every day."""
+        seg = _multi_day_seg([1.5, 1.5, 1.5], date(2025, 3, 1))
+        assert _multi_day_hike_ranges([seg]) == []
+
+    def test_non_overlapping_ranges_stay_separate(self) -> None:
+        """Two multi-day hikes a week apart stay as separate ranges."""
+        seg1 = _multi_day_seg([10, 10], date(2025, 4, 1))
+        seg2 = _multi_day_seg([10, 10], date(2025, 4, 10))
+        ranges = _multi_day_hike_ranges([seg1, seg2])
+        assert ranges == [
+            (date(2025, 4, 1), date(2025, 4, 2)),
+            (date(2025, 4, 10), date(2025, 4, 11)),
+        ]
+
+
+class TestMultiDayHikeRangesIntegration:
+    """Verify _multi_day_hike_ranges against real South America 2024-2025 data.
+
+    Builds Segment objects from the full trip's pipeline output, exactly as
+    build_trip_objects() does, then checks that the per-day distance analysis
+    produces the expected ranges — eliminating false positives while keeping
+    all confirmed multi-day hikes.
+    """
+
+    @pytest.fixture(scope="class")
+    def real_segments(
+        self,
+        sa_trip: PSTrip,
+        all_segments: list[SegmentData],
+    ) -> list[Segment]:
+        steps = sa_trip.all_steps
+        return [
+            Segment(
+                uid=1,
+                aid="sa2024",
+                start_time=seg.points[0].time,
+                end_time=seg.points[-1].time,
+                kind=seg.kind,
+                timezone_id=_segment_timezone(seg.points[0].time, steps),
+                points=seg.points,
+            )
+            for seg in all_segments
+        ]
+
+    @pytest.fixture(scope="class")
+    def real_ranges(self, real_segments: list[Segment]) -> list[tuple[date, date]]:
+        return _multi_day_hike_ranges(real_segments)
+
+    def test_confirmed_multiday_hikes_present(
+        self, real_ranges: list[tuple[date, date]]
+    ) -> None:
+        """All user-confirmed multi-day hikes must appear."""
+        expected_good = [
+            (date(2024, 12, 1), date(2024, 12, 4)),  # Patagonia trek 1
+            (date(2024, 12, 8), date(2024, 12, 11)),  # Patagonia trek 2
+        ]
+        for start, end in expected_good:
+            assert any(s <= start and end <= e for s, e in real_ranges), (
+                f"Missing confirmed hike {start} -> {end}"
+            )
+
+    def test_false_positives_eliminated(
+        self, real_ranges: list[tuple[date, date]]
+    ) -> None:
+        """Ranges that the old naive check produced but aren't real multi-day hikes."""
+        should_not_appear = [
+            (date(2024, 11, 15), date(2024, 11, 16)),  # single hike on 15th
+            (date(2024, 12, 15), date(2024, 12, 16)),  # GPS drift
+            (date(2024, 12, 16), date(2024, 12, 17)),  # same drift, second hit
+            (date(2024, 12, 21), date(2024, 12, 22)),  # not a hike
+            (date(2025, 1, 4), date(2025, 1, 5)),  # not a hike
+            (date(2025, 2, 9), date(2025, 2, 10)),  # GPS drift
+            (date(2025, 2, 11), date(2025, 2, 12)),  # GPS drift
+            (date(2025, 5, 29), date(2025, 5, 30)),  # not a hike
+            (date(2025, 6, 7), date(2025, 6, 8)),  # not a hike
+            (date(2025, 6, 22), date(2025, 6, 23)),  # not a hike
+            (date(2025, 7, 6), date(2025, 7, 7)),  # not a hike
+            (date(2025, 7, 10), date(2025, 7, 11)),  # not multiday
+            (date(2025, 7, 15), date(2025, 7, 16)),  # not a hike
+            (date(2025, 8, 29), date(2025, 8, 30)),  # not a hike
+            (date(2025, 8, 30), date(2025, 8, 31)),  # not a hike
+            (date(2025, 9, 1), date(2025, 9, 2)),  # not a hike
+        ]
+        for start, end in should_not_appear:
+            assert (start, end) not in real_ranges, (
+                f"False positive still present: {start} -> {end}"
+            )
+
+    def test_split_hike_merged(self, real_ranges: list[tuple[date, date]]) -> None:
+        """May 25-26 + May 26-27 should merge into a single range."""
+        assert (date(2025, 5, 25), date(2025, 5, 26)) not in real_ranges
+        assert (date(2025, 5, 26), date(2025, 5, 27)) not in real_ranges
+        # Merged range should exist
+        assert any(
+            s <= date(2025, 5, 25) and date(2025, 5, 27) <= e for s, e in real_ranges
+        ), "May 25-27 merged range missing"
+
+    def test_range_count_reduced(self, real_ranges: list[tuple[date, date]]) -> None:
+        """Fewer ranges than the old naive date-crossing check."""
+        # Old naive check produced 40 ranges; new should be ~22
+        assert len(real_ranges) < 30, f"Too many ranges: {len(real_ranges)}"

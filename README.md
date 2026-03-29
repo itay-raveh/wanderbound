@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Automatic maps for multi day hikes.
 - [ ] HDR → SDR tone-mapping for video poster extraction
 - [ ] Add "Try with demo data" feature.
 

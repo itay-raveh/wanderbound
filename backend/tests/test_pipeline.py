@@ -94,6 +94,7 @@ class TestSaveReuploadDeletesSegments:
                 start_time=100.0,
                 end_time=500.0,
                 kind=SegmentKind.driving,
+                timezone_id="UTC",
                 points=_make_points([100.0, 300.0, 500.0]),
             )
             session.add(segment)

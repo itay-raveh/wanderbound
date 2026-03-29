@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import pytest
 
-from app.logic.processing import resolve_international_waters
+from app.logic.processing import (
+    _segment_timezone,
+    resolve_international_waters,
+)
 from app.models.polarsteps import Location, PSStep
 
 
@@ -100,3 +103,21 @@ class TestResolveInternationalWaters:
         ]
         resolve_international_waters(steps)
         assert steps[1].location.country_code == "it"
+
+
+class TestSegmentTimezone:
+    def test_picks_step_before_segment_start(self) -> None:
+        steps = [
+            _step("A", "CL", 100),
+            _step("B", "CL", 200),
+            _step("C", "CL", 400),
+        ]
+        steps[0].timezone_id = "America/Santiago"
+        steps[1].timezone_id = "America/Santiago"
+        steps[2].timezone_id = "America/Buenos_Aires"
+        assert _segment_timezone(250, steps) == "America/Santiago"
+
+    def test_falls_back_to_first_step(self) -> None:
+        steps = [_step("A", "CL", 500)]
+        steps[0].timezone_id = "America/Santiago"
+        assert _segment_timezone(100, steps) == "America/Santiago"

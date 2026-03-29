@@ -37,6 +37,7 @@ class Segment(SQLModel, table=True):
     start_time: float = Field(primary_key=True)
     end_time: float = Field(primary_key=True)
     kind: SegmentKind
+    timezone_id: str = Field(max_length=255)
     points: list[Point] = Field(
         sa_column=Column(PydanticJSON(list[Point]), nullable=False)
     )
@@ -116,6 +117,7 @@ def split_segments(
         start_time=early_points[0].time,
         end_time=early_points[-1].time,
         kind=earlier_seg.kind,
+        timezone_id=earlier_seg.timezone_id,
         points=early_points,
     )
     new_later = Segment(
@@ -124,6 +126,7 @@ def split_segments(
         start_time=late_points[0].time,
         end_time=late_points[-1].time,
         kind=later_seg.kind,
+        timezone_id=later_seg.timezone_id,
         points=late_points,
     )
     return new_earlier, new_later

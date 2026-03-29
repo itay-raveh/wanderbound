@@ -96,6 +96,7 @@ async def _insert_segment(session: AsyncSession, uid: int, aid: str) -> Segment:
         start_time=1700000000.0,
         end_time=1700003600.0,
         kind="walking",
+        timezone_id="UTC",
         points=[
             Point(lat=52.0, lon=4.0, time=1700000000.0),
             Point(lat=52.1, lon=4.1, time=1700003600.0),
