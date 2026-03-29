@@ -1,0 +1,39 @@
+# Backend
+
+See @mise.toml — relevant tasks: `test:backend`, `lint:backend`, `format:backend`, `migrate`.
+
+## Architecture
+
+Routes handle HTTP concerns only. Logic modules own business rules. Services wrap external APIs.
+
+### GPS Segments (logic/spatial/segments.py)
+
+5-stage pipeline: Ingest → Label → Absorb → Validate → Emit.
+Speed thresholds: hike ≤ 6.5 km/h, flight ≥ 200 km/h + 100 km distance.
+Pre-computed at user creation, stored in DB. Albums read from DB (no on-the-fly computation).
+
+### PDF Generation (logic/pdf.py)
+
+Playwright Chrome → loads frontend `/print/:aid` → waits for `__PRINT_READY__` → streams PDF via CDP.
+Memory-aware concurrency: 512MB baseline + 768MB per render.
+
+## Non-Obvious Patterns
+
+- `PydanticJSON` TypeDecorator: JSON columns round-trip through Pydantic validation. Alembic renders as `sa.JSON()`.
+- `all_optional()`: makes any model PATCH-friendly (all fields Optional).
+- `TokenStore[T]`: temporary download URLs with TTL + eviction callbacks (PDF, exports).
+- SSE reconnect: `ProcessingSession` replays all past events to reconnecting clients.
+- Activity debouncing: writes to DB every 1h/user via bounded `OrderedDict` (1024 entries).
+- Session opened only for DB writes — reads use the session cookie but don't start a DB transaction.
+- Upload security: magic-byte MIME checks, path traversal detection, symlink rejection, decompression bomb limits.
+- Open-Meteo: hishel 30-day HTTP cache (2xx only), 480 calls/min rate limit.
+
+## DB Conventions
+
+- Composite PKs on segment: `(uid, aid, start_time, end_time)`.
+- `Album.colors`: country → hex, auto-computed via CIELAB Delta-E to minimize collisions.
+
+## Testing
+
+Project-specific fixtures: `mock_jwt()` for OAuth, `create_test_jpeg()` for images with EXIF orientation.
+Tests use in-memory async SQLite with transaction rollback.

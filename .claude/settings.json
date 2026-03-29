@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Edit(frontend/src/client/**)",
+      "Write(frontend/src/client/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "STOP. Before committing, do these in order:\n1. Run /simplify on all changed files to catch AI bloat and duplication.\n2. Run /code-review on the staged changes. Address any high-confidence issues before proceeding.\n3. If architecture, commands, conventions, or file organization changed, run /revise-claude-md to update the relevant CLAUDE.md files.\n4. If README.md or PRIVACY.md may be stale (features changed, new dependencies, different data collection/cookies/third-party services), update them.\n5. Only then proceed with the commit."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before finishing:\n1. Did you run scoped tests for all changes made? If not, run them now.\n2. If you fixed a bug, did you write a regression test? If not, write one now.\n3. If you made visual/layout changes to frontend components, did you verify them in the browser? If not, do it now.\n4. Run /superpowers:verification-before-completion to verify work matches the plan/spec before claiming done."
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
+  }
+}

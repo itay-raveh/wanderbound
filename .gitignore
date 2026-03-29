@@ -2,7 +2,6 @@
 .vscode/*
 !.vscode/extensions.json
 .venv
-.claude
 node_modules/
 __pycache__/
 *.py[cod]
