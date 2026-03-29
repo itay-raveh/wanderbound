@@ -110,9 +110,11 @@ describe("ElevationProfile", () => {
 
     const texts = wrapper.findAll("text.axis-label");
     const textContents = texts.map((t) => t.text());
-    // 200m * 3.28084 = ~656ft, 100m * 3.28084 = ~328ft
-    expect(textContents.some((t) => t.includes("656"))).toBe(true);
-    expect(textContents.some((t) => t.includes("328"))).toBe(true);
+    // 100-200m → 328-656ft. niceTicks produces [0, 500, 1000] — nice round feet values
+    // Filter for values ≥ 100 to isolate y-axis ticks from x-axis distance ticks
+    const yValues = textContents.map(Number).filter((n) => !isNaN(n) && n >= 100);
+    expect(yValues.length).toBeGreaterThanOrEqual(2);
+    expect(yValues.every((v) => v % 100 === 0)).toBe(true);
   });
 
   it("renders X-axis labels", () => {
@@ -127,16 +129,21 @@ describe("ElevationProfile", () => {
 
     const texts = wrapper.findAll("text.axis-label");
     const textContents = texts.map((t) => t.text());
-    // Should include "0" and "10.0 Km" (or similar)
+    // niceTicks(0, 10, 5) produces [0, 5, 10]; last tick gets unit suffix
     expect(textContents.some((t) => t.includes("0"))).toBe(true);
-    expect(textContents.some((t) => t.includes("10.0"))).toBe(true);
+    expect(textContents.some((t) => t.includes("10"))).toBe(true);
   });
 
   it("renders grid lines for each Y label", () => {
     const wrapper = mountProfile();
     const lines = wrapper.findAll("line");
-    // 3 y labels -> 3 grid lines
-    expect(lines.length).toBe(3);
+    const yLabels = wrapper.findAll("text.axis-label").filter((t) => {
+      const n = Number(t.text());
+      return !isNaN(n) && n >= 100;
+    });
+    // One grid line per Y-axis tick
+    expect(lines.length).toBe(yLabels.length);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
   });
 
   it("renders nothing when all points have the same distance (totalDist=0)", () => {

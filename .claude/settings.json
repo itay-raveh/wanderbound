@@ -3,7 +3,8 @@
   "permissions": {
     "deny": [
       "Edit(frontend/src/client/**)",
-      "Write(frontend/src/client/**)"
+      "Write(frontend/src/client/**)",
+      "Bash(*git push*)"
     ]
   },
   "hooks": {
@@ -12,9 +13,9 @@
         "matcher": "Bash",
         "hooks": [
           {
-            "type": "prompt",
+            "type": "command",
             "if": "Bash(*git commit*)",
-            "prompt": "STOP. Before committing, do these in order:\n1. Run /simplify on all changed files to catch AI bloat and duplication.\n2. Run /code-review on the staged changes. Address any high-confidence issues before proceeding.\n3. If architecture, commands, conventions, or file organization changed, run /revise-claude-md to update the relevant CLAUDE.md files.\n4. If README.md or PRIVACY.md may be stale (features changed, new dependencies, different data collection/cookies/third-party services), update them.\n5. Only then proceed with the commit."
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"STOP. Do NOT commit without explicit user approval. Before committing, do these in order:\\n1. Run /simplify on all changed files to catch AI bloat and duplication.\\n2. Run /code-review on the staged changes. Address any high-confidence issues before proceeding.\\n3. If architecture, commands, conventions, or file organization changed, run /revise-claude-md to update the relevant CLAUDE.md files.\\n4. If README.md or PRIVACY.md may be stale (features changed, new dependencies, different data collection/cookies/third-party services), update them.\\n5. Ask the user for permission to commit. Only proceed after they say yes.\"}}'"
           }
         ]
       }
@@ -24,8 +25,9 @@
         "matcher": "",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Before stopping, verify ALL of these that apply:\n1. Were scoped tests run for ALL code changes? (backend->pytest, frontend->vitest, cross-cutting->e2e)\n2. If a bug was fixed, was a regression test written?\n3. If visual/layout changes were made to frontend components, were they verified in the browser?\n4. Were all completion claims backed by fresh command output (not just assertions like 'should work')?\n\nIf ANY check fails: set ok=false, list what is missing, then GO DO those things immediately. Do NOT stop — continue working until all checks pass, then try stopping again."
+            "type": "agent",
+            "model": "sonnet",
+            "prompt": "You are a pre-stop verification agent. Check whether Claude should be allowed to stop by evaluating ALL of the following that apply:\n1. Were scoped tests run for ALL code changes? (backend->pytest, frontend->vitest, cross-cutting->e2e). Look for test command output in the transcript.\n2. If a bug was fixed, was a regression test written?\n3. If visual/layout changes were made to frontend components, were they verified in the browser?\n4. Were all completion claims backed by fresh command output (not just assertions like 'should work')?\n\nIf stop_hook_active is true in the arguments, return ok=true to prevent infinite loops.\nOtherwise, if ANY check fails, return ok=false with reason listing exactly what is missing."
           }
         ]
       }

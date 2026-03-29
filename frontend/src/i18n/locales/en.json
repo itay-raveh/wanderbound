@@ -198,6 +198,7 @@
     "steps": "Steps",
     "search": "Search steps…",
     "noResults": "No matching steps",
+    "cover": "Cover",
     "map": "Map",
     "clickToPlace": "Click a step to add a map before it",
     "stepNavigation": "Step navigation",

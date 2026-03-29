@@ -135,6 +135,9 @@ function select(name: string) {
 .picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  // CSS grid auto-rows ignores aspect-ratio when the container has overflow.
+  // Derive row height from the column fraction: (width - gaps) / 3 * (210/297).
+  grid-auto-rows: calc((24rem - 4 * var(--gap-xs)) / 3 * 210 / 297);
   gap: var(--gap-xs);
   padding: var(--gap-xs);
   max-height: 24rem;
@@ -144,7 +147,12 @@ function select(name: string) {
 }
 
 .grid-cell {
-  all: unset;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
   aspect-ratio: var(--page-aspect);
   border-radius: var(--radius-xs);

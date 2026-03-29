@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
-import { useQuasar } from "quasar";
 import { computed, useId } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -17,14 +16,13 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const $q = useQuasar();
 const uid = useId();
 const gradId = `elev-gradient-${uid}`;
 const fadeId = `elev-bg-fade-${uid}`;
 
 // Layout constants (SVG coordinate space)
 const LEFT_PAD = 40;
-const RIGHT_PAD = 40;
+const RIGHT_PAD = 8;
 const TOP_PAD = 8;
 const BOTTOM_PAD = 20;
 const WIDTH = 500;
@@ -33,6 +31,31 @@ const FADE_H = 30;
 const HEIGHT = CHART_H + FADE_H;
 const PLOT_W = WIDTH - LEFT_PAD - RIGHT_PAD;
 const PLOT_H = CHART_H - TOP_PAD - BOTTOM_PAD;
+
+/** Nice round multipliers in ascending order within a decade. */
+const NICE_STEPS = [1, 2, 5, 10];
+
+/** Generate nice ticks covering [lo, hi] with at most `maxTicks` values. */
+function niceTicks(lo: number, hi: number, maxTicks: number): number[] {
+  const range = hi - lo;
+  if (range === 0) return [Math.round(lo)];
+
+  // Start with the smallest nice step and increase until tick count fits
+  const mag = 10 ** Math.floor(Math.log10(range / maxTicks));
+  for (const nice of NICE_STEPS) {
+    const step = nice * mag;
+    const tickLo = Math.floor(lo / step) * step;
+    const tickHi = Math.ceil(hi / step) * step;
+    const count = Math.round((tickHi - tickLo) / step) + 1;
+    if (count <= maxTicks) {
+      const ticks: number[] = [];
+      for (let v = tickLo; v <= tickHi + step * 0.01; v += step) ticks.push(Math.round(v));
+      return ticks;
+    }
+  }
+  // Fallback: use 10 * mag (shouldn't reach here)
+  return niceTicks(lo, hi, maxTicks + 1);
+}
 
 const chart = computed(() => {
   if (props.points.length < 2) return null;
@@ -43,12 +66,20 @@ const chart = computed(() => {
   const elevations = props.points.map((p) => p.elevation);
   const minElev = Math.min(...elevations);
   const maxElev = Math.max(...elevations);
-  const range = maxElev - minElev || 1;
-  const yMin = minElev - range * 0.1;
-  const yRange = range * 1.2;
 
-  const rtl = $q.lang.rtl;
-  const toX = (frac: number) => LEFT_PAD + (rtl ? 1 - frac : frac) * PLOT_W;
+  // Y-axis: nice ticks in display units, always ~3 ticks
+  const elevFactor = props.isKm ? 1 : M_TO_FT;
+  const yTicks = niceTicks(minElev * elevFactor, maxElev * elevFactor, 3);
+  const tickLo = yTicks[0]!;
+  const tickHi = yTicks[yTicks.length - 1]!;
+
+  // Scale covers tick range + 5% padding so ticks aren't flush with plot edges
+  const tickRange = (tickHi - tickLo) / elevFactor || 1;
+  const yMin = tickLo / elevFactor - tickRange * 0.05;
+  const yRange = tickRange * 1.1;
+
+  // Graphs are math — always left-to-right regardless of document direction
+  const toX = (frac: number) => LEFT_PAD + frac * PLOT_W;
   const toY = (elev: number) => FADE_H + TOP_PAD + (1 - (elev - yMin) / yRange) * PLOT_H;
 
   const pixels = props.points.map((p) => ({
@@ -63,44 +94,45 @@ const chart = computed(() => {
   const bottomY = FADE_H + TOP_PAD + PLOT_H;
   const areaPath = `${linePath} L${pixels.at(-1)!.x.toFixed(1)},${bottomY} L${pixels[0]!.x.toFixed(1)},${bottomY} Z`;
 
-  return { linePath, areaPath, toX, toY, minElev, maxElev, rtl };
+  // X-axis: nice ticks in display units, ~5 ticks
+  const distFactor = props.isKm ? 1 : KM_TO_MI;
+  const distDisplay = totalDist * distFactor;
+  const xTicks = niceTicks(0, distDisplay, 5);
+
+  return { linePath, areaPath, toX, toY, yTicks, xTicks, totalDist, distDisplay };
 });
 
 const yLabels = computed(() => {
   if (!chart.value) return [];
-  const { minElev, maxElev, toY, rtl } = chart.value;
-  const midElev = (minElev + maxElev) / 2;
-  const factor = props.isKm ? 1 : M_TO_FT;
-  return [maxElev, midElev, minElev].map((elev) => ({
-    value: Math.round(elev * factor),
-    y: toY(elev),
-    x: rtl ? LEFT_PAD + PLOT_W + 10 : LEFT_PAD - 4,
-    anchor: rtl ? "start" : "end",
+  const { yTicks, toY } = chart.value;
+  const elevFactor = props.isKm ? 1 : M_TO_FT;
+  return yTicks.map((value) => ({
+    value,
+    y: toY(value / elevFactor),
+    x: LEFT_PAD - 4,
+    anchor: "end" as const,
   }));
 });
 
 const xLabels = computed(() => {
   if (!chart.value) return [];
-  const { toX, rtl } = chart.value;
-  const totalDist = props.totalDistKm ?? props.points[props.points.length - 1]!.dist;
-  const distVal = props.isKm ? totalDist : totalDist * KM_TO_MI;
+  const { xTicks, toX, distDisplay } = chart.value;
   const unit = t(props.isKm ? "overview.km" : "overview.mi");
-  const fracs = [0, 0.33, 0.67, 1] as const;
 
-  return fracs.map((f, i) => {
+  return xTicks.map((value, i) => {
+    const frac = distDisplay > 0 ? value / distDisplay : 0;
     const isFirst = i === 0;
-    const isLast = i === fracs.length - 1;
+    const isLast = i === xTicks.length - 1;
     return {
-      text: isLast ? `${distVal.toFixed(1)} ${unit}` : (distVal * f).toFixed(isFirst ? 0 : 1),
-      x: toX(f),
-      anchor: isFirst ? (rtl ? "end" : "start") : isLast ? (rtl ? "start" : "end") : "middle",
+      text: isLast ? `${value} ${unit}` : String(value),
+      x: toX(frac),
+      anchor: isFirst ? ("start" as const) : isLast ? ("end" as const) : ("middle" as const),
     };
   });
 });
 
 const elevUnit = computed(() => t(props.isKm ? "overview.m" : "overview.ft"));
-const yAxisX = computed(() => yLabels.value[0]?.x ?? 0);
-const yAnchor = computed(() => yLabels.value[0]?.anchor ?? "end");
+const unitY = computed(() => (yLabels.value.at(-1)?.y ?? FADE_H + TOP_PAD) - 6);
 </script>
 
 <template>
@@ -151,7 +183,7 @@ const yAnchor = computed(() => yLabels.value[0]?.anchor ?? "end");
     </text>
 
     <!-- Y-axis unit -->
-    <text :x="yAxisX" :y="FADE_H + TOP_PAD - 2" :text-anchor="yAnchor" class="axis-label unit-label">
+    <text :x="LEFT_PAD - 4" :y="unitY" text-anchor="end" class="axis-label unit-label">
       {{ elevUnit }}
     </text>
 

@@ -165,6 +165,7 @@ if (props.printMode) {
   });
   const secKeyToVIdx = computed(() => {
     const map = new Map<string, number>();
+    map.set("cover-front", 0);
     sections.value.forEach((s, i) => map.set(sectionKey(s), HEADER_COUNT + i));
     return map;
   });

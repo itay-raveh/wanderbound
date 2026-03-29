@@ -8,6 +8,7 @@ import mapboxgl from "mapbox-gl";
 const LAYER_PREFIX = "seg-";
 const MARKER_CLASS = "map-step-marker";
 const FLIGHT_ICON_CLASS = "map-flight-icon";
+const FAINT_OPACITY = 0.75;
 
 function cleanup(m: mapboxgl.Map) {
   for (const layer of m.getStyle()?.layers ?? []) {
@@ -107,7 +108,7 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
     "line-color": "rgba(255, 255, 255, 0.85)",
     "line-width": faint ? 0.8 : 1.2,
     "line-dasharray": [2, 3],
-    "line-opacity": faint ? 0.2 : 0.7,
+    "line-opacity": faint ? FAINT_OPACITY : 0.7,
   });
 
   if (!faint) {
@@ -155,9 +156,9 @@ function drawHike(
   }
 
   addLine(m, id, lineFeature(coords), {
-    "line-color": opts.faint ? "rgba(255,255,255,0.3)" : hikeColor,
+    "line-color": opts.faint ? "rgba(255, 255, 255, 0.75)" : hikeColor,
     "line-width": opts.faint ? 1.5 : 4,
-    "line-opacity": opts.faint ? 0.3 : 1,
+    "line-opacity": opts.faint ? FAINT_OPACITY : 1,
   });
 
   if (!opts.faint && coords.length >= 2 && !opts.draggableEndpoints) {
@@ -226,7 +227,7 @@ function drawRouteLayers(
     addLine(m, style.sourceId, data, {
       "line-color": "#ffffff",
       "line-width": faint ? 1.5 : style.width,
-      "line-opacity": faint ? 0.3 : 1,
+      "line-opacity": faint ? FAINT_OPACITY : 1,
       ...(style.dasharray ? { "line-dasharray": style.dasharray } : {}),
     });
   }

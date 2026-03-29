@@ -15,6 +15,7 @@ import {
   symOutlinedMap,
   symOutlinedClose,
   symOutlinedCalendarMonth,
+  symOutlinedMenuBook,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
@@ -276,6 +277,19 @@ watch(visibleSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
+      <button
+        type="button"
+        :class="['nav-item', 'cover-item', { visible: !visibleStepId && !visibleSectionKey }]"
+        @click="scrollToSection('cover-front')"
+      >
+        <div class="item-thumb cover-thumb">
+          <q-icon :name="symOutlinedMenuBook" size="var(--type-md)" />
+        </div>
+        <div class="item-info">
+          <span class="item-name">{{ t("nav.cover") }}</span>
+        </div>
+      </button>
+
       <q-expansion-item
         v-for="group in groups"
         :key="group.key"
@@ -559,6 +573,38 @@ watch(visibleSectionKey, (key) => {
   &:focus-visible {
     outline: 2px solid var(--q-primary);
     outline-offset: -2px;
+  }
+}
+
+.cover-item {
+  border-top: none;
+  margin-bottom: var(--gap-sm);
+  border-bottom: 1px solid var(--border-color);
+
+  &.visible {
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+    border-inline-start-color: var(--q-primary);
+
+    &:hover {
+      background: color-mix(in srgb, var(--q-primary) 18%, transparent);
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--q-primary) 24%, transparent);
+    }
+  }
+}
+
+.cover-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+
+  .cover-item.visible & {
+    color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
   }
 }
 
