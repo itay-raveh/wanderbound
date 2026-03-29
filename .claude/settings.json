@@ -14,8 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(*git commit*)",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"STOP. Do NOT commit without explicit user approval. Before committing, do these in order:\\n1. Run /simplify on all changed files to catch AI bloat and duplication.\\n2. Run /code-review on the staged changes. Address any high-confidence issues before proceeding.\\n3. If architecture, commands, conventions, or file organization changed, run /revise-claude-md to update the relevant CLAUDE.md files.\\n4. If README.md or PRIVACY.md may be stale (features changed, new dependencies, different data collection/cookies/third-party services), update them.\\n5. Ask the user for permission to commit. Only proceed after they say yes.\"}}'"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-commit-approval.sh"
           }
         ]
       }
@@ -32,6 +31,9 @@
         ]
       }
     ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true,

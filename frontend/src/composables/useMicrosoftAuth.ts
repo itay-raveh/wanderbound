@@ -1,4 +1,4 @@
-import { PublicClientApplication } from "@azure/msal-browser";
+import type { PublicClientApplication } from "@azure/msal-browser";
 
 const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 
@@ -7,7 +7,8 @@ let msalPromise: Promise<PublicClientApplication> | null = null;
 function getInstance(): Promise<PublicClientApplication> {
   if (!msalPromise) {
     msalPromise = (async () => {
-      const instance = new PublicClientApplication({
+      const { PublicClientApplication: MsalClient } = await import("@azure/msal-browser");
+      const instance = new MsalClient({
         auth: {
           clientId,
           authority: "https://login.microsoftonline.com/common",

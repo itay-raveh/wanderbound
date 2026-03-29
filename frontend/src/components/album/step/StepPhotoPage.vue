@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-import { computed } from "vue";
-import { VueDraggable } from "vue-draggable-plus";
+import { computed, ref, watch } from "vue";
+import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
-import { useLocalCopy } from "@/composables/useLocalCopy";
+import { usePrintMode } from "@/composables/usePrintReady";
 
 const { media } = useAlbum();
+const printMode = usePrintMode();
 
 const props = defineProps<{
   page: string[];
@@ -17,27 +18,47 @@ const emit = defineEmits<{
 
 const isPortrait = (m: string) => media.value[m] === "p";
 
-/** In 1P+2L and 1P+3L layouts the portrait must be first (it spans all rows). */
-function enforcePortraitFirst(page: string[]): string[] {
+/**
+ * Mixed layouts depend on orientation ordering:
+ * - 1P+2L / 1P+3L: portrait must be first (spans all rows on the left).
+ * - 2P+1L: landscape must be last (spans full bottom row).
+ */
+function enforceOrientationOrder(page: string[]): string[] {
   if (page.length !== 3 && page.length !== 4) return page;
-  if (isPortrait(page[0]!)) return page;
-  const portrait = page.find(isPortrait);
-  if (!portrait) return page;
-  // Multiple portraits use a symmetric grid — reordering would be arbitrary
-  if (page.filter(isPortrait).length !== 1) return page;
-  return [portrait, ...page.filter((m) => m !== portrait)];
+  const portraits = page.filter(isPortrait);
+  const landscapes = page.filter((m) => !isPortrait(m));
+  if (portraits.length === 1) return [portraits[0]!, ...landscapes];
+  if (portraits.length === 2 && page.length === 3) return [...portraits, landscapes[0]!];
+  return page;
 }
 
-const localPage = useLocalCopy(() => enforcePortraitFirst(props.page));
+/** Local copy for instant drag feedback. Syncs from prop on external changes. */
+const localPage = ref(enforceOrientationOrder([...props.page]));
+watch(() => props.page, (val) => {
+  const enforced = enforceOrientationOrder(val);
+  if (enforced.length === localPage.value.length &&
+      enforced.every((v, i) => v === localPage.value[i])) return;
+  localPage.value = [...enforced];
+});
 
-function emitPage() {
-  localPage.value = enforcePortraitFirst(localPage.value);
+const containerRef = ref<HTMLElement | null>(null);
+
+function syncPage() {
+  localPage.value = enforceOrientationOrder(localPage.value);
   emit("update:page", [...localPage.value]);
+}
+
+if (!printMode) {
+  useDraggable(containerRef, localPage, {
+    group: "photos",
+    animation: 200,
+    onUpdate: syncPage,
+    onAdd: syncPage,
+  });
 }
 
 const layoutClass = computed(() => {
   const page = localPage.value;
-  // 5+ photos use the same grid regardless of orientation mix
   if (page.length >= 5) return `layout-${page.length}`;
   const p = page.filter(isPortrait).length;
   const l = page.length - p;
@@ -47,21 +68,14 @@ const layoutClass = computed(() => {
 
 <template>
   <div class="page page-container">
-    <VueDraggable
-      v-model="localPage"
-      :class="['container', layoutClass]"
-      group="photos"
-      :animation="200"
-      @update="emitPage"
-      @add="emitPage"
-    >
+    <div ref="containerRef" :class="['container', layoutClass]">
       <MediaItem
         v-for="photo in localPage"
         :key="photo"
         :media="photo"
         class="item"
       />
-    </VueDraggable>
+    </div>
   </div>
 </template>
 
@@ -167,6 +181,10 @@ const layoutClass = computed(() => {
 
   .item:last-child {
     grid-column: 1 / 3;
+  }
+
+  :deep(img) {
+    object-fit: contain;
   }
 }
 

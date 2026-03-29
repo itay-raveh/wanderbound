@@ -6,7 +6,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
 import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
-import { computed, onMounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
@@ -49,6 +49,8 @@ async function loadFonts(): Promise<void> {
  * then waits for fonts and a short map-tile grace before setting
  * window.__PRINT_READY__.
  */
+let pollTimer = 0;
+
 function waitForPrintReady() {
   const MAX_WAIT = 45_000;
   const startTime = Date.now();
@@ -56,6 +58,11 @@ function waitForPrintReady() {
 
   // Kick off font loading immediately - don't wait for images
   const fontsReady = loadFonts();
+
+  function schedulePoll(ms: number) {
+    clearTimeout(pollTimer);
+    pollTimer = window.setTimeout(poll, ms);
+  }
 
   function poll() {
     if (waiting) return;
@@ -66,13 +73,13 @@ function waitForPrintReady() {
     }
 
     const container = document.querySelector<HTMLElement>(".album-container");
-    if (!container) { setTimeout(poll, 100); return; }
+    if (!container) { schedulePoll(100); return; }
 
     const expected = parseInt(container.dataset.expectedPages || "0", 10);
     const actual = container.querySelectorAll(".page-container").length;
     if (actual < expected) {
       console.log("[print] pages:", actual, "/", expected);
-      setTimeout(poll, 500);
+      schedulePoll(500);
       return;
     }
 
@@ -81,7 +88,7 @@ function waitForPrintReady() {
     ).filter((img) => !img.complete);
     if (pending.length > 0) {
       console.log("[print]", pending.length, "images still loading");
-      setTimeout(poll, 300);
+      schedulePoll(300);
       return;
     }
 
@@ -89,7 +96,7 @@ function waitForPrintReady() {
     const unreadyMaps = document.querySelectorAll("[data-map]:not([data-map-ready])");
     if (unreadyMaps.length > 0) {
       console.log("[print]", unreadyMaps.length, "maps still rendering");
-      setTimeout(poll, 300);
+      schedulePoll(300);
       return;
     }
 
@@ -102,6 +109,7 @@ function waitForPrintReady() {
   }
 
   function setReady() {
+    clearTimeout(pollTimer);
     (window as unknown as Record<string, boolean>).__PRINT_READY__ = true;
   }
 
@@ -109,6 +117,7 @@ function waitForPrintReady() {
 }
 
 onMounted(waitForPrintReady);
+onUnmounted(() => clearTimeout(pollTimer));
 </script>
 
 <template>

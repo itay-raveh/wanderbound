@@ -1,12 +1,12 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import { VueDraggable } from "vue-draggable-plus";
+import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../album/MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
-import { useLocalCopy } from "@/composables/useLocalCopy";
 import { unusedUpdatePayload } from "@/composables/useStepLayout";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { useI18n } from "vue-i18n";
+import { ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -16,11 +16,27 @@ const props = defineProps<{
 }>();
 
 const stepMut = useStepMutation(() => props.albumId);
-const localUnused = useLocalCopy(() => props.step.unused);
 
-function onUnusedChange() {
+/** Local copy for instant drag feedback. Syncs from prop on external changes. */
+const localUnused = ref([...props.step.unused]);
+watch(() => props.step.unused, (val) => {
+  if (val.length === localUnused.value.length &&
+      val.every((v, i) => v === localUnused.value[i])) return;
+  localUnused.value = [...val];
+});
+
+function save() {
   stepMut.mutate({ sid: props.step.id, update: unusedUpdatePayload(props.step, [...localUnused.value]) });
 }
+
+const trackRef = ref<HTMLElement | null>(null);
+
+useDraggable(trackRef, localUnused, {
+  group: "photos",
+  animation: 200,
+  onUpdate() { save(); },
+  onAdd() { save(); },
+});
 </script>
 
 <template>
@@ -31,20 +47,13 @@ function onUnusedChange() {
       <span class="text-faint">{{ localUnused.length }}</span>
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
     </div>
-    <VueDraggable
-      v-model="localUnused"
-      class="drawer-track column no-wrap"
-      group="photos"
-      :animation="200"
-      @update="onUnusedChange"
-      @add="onUnusedChange"
-    >
+    <div ref="trackRef" class="drawer-track column no-wrap">
       <MediaItem
         v-for="photo in localUnused"
         :key="photo"
         :media="photo"
       />
-    </VueDraggable>
+    </div>
     <div v-if="localUnused.length === 0" class="drawer-empty">
       {{ t("album.dropPhotosHere") }}
     </div>

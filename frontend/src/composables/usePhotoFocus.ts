@@ -1,5 +1,5 @@
 import type { Step } from "@/client";
-import { ref, type InjectionKey, type Ref, readonly } from "vue";
+import { nextTick, ref, type InjectionKey, type Ref, readonly } from "vue";
 
 export const STEP_ID_KEY: InjectionKey<number> = Symbol("step-id");
 
@@ -33,6 +33,7 @@ function advanceFocus(photos: string[], removedIdx: number) {
   }
   const focusIdx = removedIdx < photos.length - 1 ? removedIdx + 1 : removedIdx - 1;
   focusedPhotoId.value = photos[focusIdx]!;
+  scrollFocusedIntoView();
 }
 
 function register(stepId: number, context: StepFocusContext) {
@@ -49,6 +50,16 @@ function unregister(stepId: number) {
 
 function setStepOrder(getter: () => number[]) {
   getStepOrder = getter;
+}
+
+/** Scroll the focused media element into view after Vue flushes the DOM. */
+function scrollFocusedIntoView() {
+  void nextTick(() => {
+    const photoId = focusedPhotoId.value;
+    if (!photoId) return;
+    const el = document.querySelector<HTMLElement>(`.media-item.focused`);
+    el?.closest(".page-container")?.scrollIntoView({ block: "center" });
+  });
 }
 
 function focus(stepId: number, photoId: string) {
@@ -81,6 +92,7 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 
     focusedStepId.value = nextStepId;
     focusedPhotoId.value = direction === "next" ? photos[0]! : photos[photos.length - 1]!;
+    scrollFocusedIntoView();
     return true;
   }
 
@@ -114,6 +126,7 @@ function move(direction: "prev" | "next") {
 
   const nextIdx = direction === "next" ? currentIdx + 1 : currentIdx - 1;
   focusedPhotoId.value = photos[nextIdx]!;
+  scrollFocusedIntoView();
 }
 
 function sendToUnused(): boolean {

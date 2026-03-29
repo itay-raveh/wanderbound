@@ -95,6 +95,7 @@ const expectedPageCount = computed(() =>
 const HEADER_COUNT = 4; // front cover, back cover, overview, full-trip map
 const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
+const measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
 // Estimated height of one A4 page at editor zoom: 210mm → px at 96 DPI, scaled, plus gap.
@@ -127,10 +128,12 @@ function spyValue(vIndex: number): number | string | undefined {
   return sec.type === "step" ? sec.step.id : sectionKey(sec);
 }
 
-function measureAll() {
-  virtualizer.measureElement(null);
+function measureNew() {
   for (const el of itemEls.value) {
-    if (el) virtualizer.measureElement(el);
+    if (el && !measuredEls.has(el)) {
+      measuredEls.add(el);
+      virtualizer.measureElement(el);
+    }
   }
 }
 
@@ -194,9 +197,9 @@ if (props.printMode) {
     if (listRef.value) {
       scrollMargin.value = Math.round(listRef.value.getBoundingClientRect().top + window.scrollY);
     }
-    measureAll();
+    measureNew();
   });
-  watch(items, measureAll);
+  watch(items, measureNew);
   onUnmounted(() => {
     setScrollOverride(null);
   });

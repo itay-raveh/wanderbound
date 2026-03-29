@@ -1,4 +1,3 @@
-import EditorView from "@/pages/EditorView.vue";
 import { readUser } from "@/client";
 import type { BodyUploadData } from "@/client";
 import { createRouter, createWebHistory } from "vue-router";
@@ -41,7 +40,7 @@ const router = createRouter({
     {
       path: "/editor",
       name: "editor",
-      component: EditorView,
+      component: () => import("@/pages/EditorView.vue"),
     },
     {
       path: "/upload",

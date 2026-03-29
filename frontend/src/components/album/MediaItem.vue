@@ -4,7 +4,7 @@ import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
-import { computed, inject, nextTick, ref, watch } from "vue";
+import { computed, inject, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
 
@@ -28,14 +28,11 @@ const isFocused = computed(() => canFocus.value && photoFocus.focusedPhotoId.val
 
 const elRef = ref<HTMLElement | null>(null);
 
-watch(isFocused, (focused) => {
-  if (focused) elRef.value?.closest(".page-container")?.scrollIntoView({ block: "center" });
-});
-
 function handleClick() {
-  if (canFocus.value) photoFocus.focus(stepId!, props.media);
+  if (!canFocus.value) return;
+  photoFocus.focus(stepId!, props.media);
+  elRef.value?.closest(".page-container")?.scrollIntoView({ block: "center" });
 }
-const imgLoading = computed(() => (printMode ? "eager" : "lazy"));
 
 const isVideo = computed(() => checkVideo(props.media));
 const src = computed(() => mediaUrl(props.media, albumId.value));
@@ -49,8 +46,6 @@ const posterSrc = computed(() => {
 const imgSrcset = computed(() => {
   if (printMode) return undefined;
   const name = isVideo.value ? posterPath(props.media) : props.media;
-  // After a frame change, bust the srcset URLs too so the browser
-  // doesn't serve stale cached thumbnails.
   const v = posterCacheBust.value;
   if (v != null) {
     const base = mediaUrl(name, albumId.value);
@@ -65,6 +60,7 @@ const imgSizes = computed(() => {
 
 const playing = ref(false);
 const videoRef = ref<HTMLVideoElement | null>(null);
+
 const frameMutation = useVideoFrameMutation();
 
 function togglePlay() {
@@ -107,7 +103,7 @@ function onVideoKey(e: KeyboardEvent) {
     ref="elRef"
     :class="['media-item', { focused: isFocused }]"
     class="relative-position overflow-hidden non-selectable"
-    data-media
+    :data-media="media"
     :tabindex="canFocus ? 0 : undefined"
     :role="canFocus ? 'button' : undefined"
     :aria-label="canFocus ? (alt || t('album.selectPhoto')) : undefined"
@@ -161,7 +157,7 @@ function onVideoKey(e: KeyboardEvent) {
         :srcset="imgSrcset"
         :sizes="imgSizes"
         :alt="alt"
-        :loading="imgLoading"
+        loading="eager"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
       >
