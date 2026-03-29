@@ -1,7 +1,8 @@
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.api.v1.routes.assets import get_media, update_video_frame
+from app.api.v1.routes.assets import _gen_lock, get_media, update_video_frame
 from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
 from tests.conftest import create_test_jpeg
 
@@ -159,3 +160,38 @@ class TestUpdateVideoFrame:
             stem = poster_path.stem
             thumb = album_dir / ".thumbs" / str(w) / f"{stem}.webp"
             assert not thumb.exists()
+
+
+class TestGenLockConcurrency:
+    """Regression for _gen_lock race condition.
+
+    Old _gen_lock deleted the dict entry after the first holder released, so a
+    third coroutine could create a new Lock and bypass serialization while a
+    second coroutine was still waiting.
+    """
+
+    async def test_three_coroutines_serialize_on_same_path(self) -> None:
+        path = Path("/fake/thumb.webp")
+        order: list[int] = []
+        gate = asyncio.Event()
+
+        async def worker(n: int) -> None:
+            async with _gen_lock(path):
+                order.append(n)
+                if n == 1:
+                    # Hold the lock until we've verified #2 and #3 are queued.
+                    await gate.wait()
+
+        t1 = asyncio.create_task(worker(1))
+        await asyncio.sleep(0)  # Let #1 acquire the lock.
+
+        t2 = asyncio.create_task(worker(2))
+        t3 = asyncio.create_task(worker(3))
+        await asyncio.sleep(0)  # Let #2 and #3 queue on the lock.
+
+        gate.set()  # Release #1.
+        await asyncio.gather(t1, t2, t3)
+
+        # All three must have entered the critical section one at a time.
+        assert sorted(order) == [1, 2, 3]
+        assert order[0] == 1  # #1 was first (held the gate).

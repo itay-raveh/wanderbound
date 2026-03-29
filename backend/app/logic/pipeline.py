@@ -29,6 +29,7 @@ from app.logic.processing import (
 )
 from app.logic.reconcile import reconcile_trip
 from app.models.album import Album
+from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
 
@@ -140,6 +141,11 @@ async def _save_reupload(
                 delete(Step)
                 .where(Step.uid == uid)  # type: ignore[arg-type]
                 .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+            )
+            await session.exec(
+                delete(Segment)
+                .where(Segment.uid == uid)  # type: ignore[arg-type]
+                .where(Segment.aid.in_(reconciled_aids))  # type: ignore[union-attr]
             )
 
         current_aids = {d.name for d in trip_dirs}

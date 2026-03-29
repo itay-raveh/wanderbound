@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -31,19 +32,21 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 _CACHE_REVALIDATE = "public, no-cache"
 
 # Deduplicates concurrent lazy generation of the same file (poster or thumbnail).
-_gen_locks: dict[Path, asyncio.Lock] = {}
+# WeakValueDictionary auto-collects locks when no coroutine holds a reference,
+# avoiding the race where manual cleanup deletes a lock while a waiter exists.
+_gen_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
+    weakref.WeakValueDictionary()
+)
 
 
 @asynccontextmanager
 async def _gen_lock(path: Path) -> AsyncIterator[None]:
-    if path not in _gen_locks:
-        _gen_locks[path] = asyncio.Lock()
-    lock = _gen_locks[path]
+    lock = _gen_locks.get(path)
+    if lock is None:
+        lock = asyncio.Lock()
+        _gen_locks[path] = lock
     async with lock:
         yield
-    # Clean up when no other coroutine is waiting on this lock.
-    if not lock.locked():
-        _gen_locks.pop(path, None)
 
 
 def _album_dir(user: User, aid: str) -> Path:
