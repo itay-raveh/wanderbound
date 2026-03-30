@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import AlbumViewer from "@/components/AlbumViewer.vue";
-import { useAlbumQuery } from "@/queries/useAlbumQuery";
-import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
+import { usePrintBundleQuery } from "@/queries/usePrintBundleQuery";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
 import { ALLOWED_FONTS } from "@/utils/fonts";
@@ -9,6 +8,7 @@ import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
 import { computed, onMounted, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
+import type { SegmentOutline } from "@/client";
 
 const route = useRoute();
 const aid = computed(() => (route.params.aid as string) || null);
@@ -16,11 +16,25 @@ const darkMode = computed(() => route.query.dark === "true");
 
 onMounted(() => Dark.set(darkMode.value));
 
-const { data: album, error } = useAlbumQuery(aid);
-const { data: albumData } = useAlbumDataQuery(aid);
+const { data: bundle, error } = usePrintBundleQuery(aid);
 const { locale } = useUserQuery();
 const { t } = useI18n();
 useLocale(locale);
+
+const album = computed(() => bundle.value?.album);
+const media = computed(() => bundle.value?.album.media ?? []);
+const steps = computed(() => bundle.value?.steps ?? []);
+const segmentOutlines = computed<SegmentOutline[]>(() => {
+  if (!bundle.value) return [];
+  return bundle.value.segments.map((s) => ({
+    start_time: s.start_time,
+    end_time: s.end_time,
+    kind: s.kind,
+    timezone_id: s.timezone_id,
+    start_coord: s.points.length ? [s.points[0]!.lat, s.points[0]!.lon] as [number, number] : [0, 0] as [number, number],
+    end_coord: s.points.length ? [s.points[s.points.length - 1]!.lat, s.points[s.points.length - 1]!.lon] as [number, number] : [0, 0] as [number, number],
+  }));
+});
 
 /**
  * Force-load every registered self-hosted font face.
@@ -126,7 +140,14 @@ onUnmounted(() => clearTimeout(pollTimer));
     <div v-if="error" class="status-message flex flex-center text-negative">
       {{ t("print.loadFailed") }} {{ error.message }}
     </div>
-    <AlbumViewer v-else-if="album && albumData" :album="album" :data="albumData" print-mode />
+    <AlbumViewer
+      v-else-if="bundle"
+      :album="album!"
+      :media="media"
+      :steps="steps"
+      :segment-outlines="segmentOutlines"
+      print-mode
+    />
     <div v-else class="status-message flex flex-center text-muted">{{ t("print.loading") }}</div>
   </div>
 </template>
