@@ -11,7 +11,7 @@ export interface SseDownloadHandle {
 
 type EventAction = { loading: string } | { done: string } | { error: string };
 
-export interface SseDownloadConfig<T = unknown> {
+interface SseDownloadConfig<T = unknown> {
   connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
   onEvent(event: T): EventAction;
   downloadUrl(token: string): string;

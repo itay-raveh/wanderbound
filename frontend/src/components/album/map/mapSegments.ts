@@ -40,7 +40,7 @@ export function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON
   return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
 }
 
-export function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJSON) {
+function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJSON) {
   map.getSource<mapboxgl.GeoJSONSource>(id)?.setData(data);
 }
 
@@ -253,7 +253,7 @@ interface DrawOptions {
   draggableEndpoints?: boolean;
 }
 
-export interface DrawResult {
+interface DrawResult {
   allCoords: [number, number][];
   hikeEndpoints: HikeEndpoint[];
 }

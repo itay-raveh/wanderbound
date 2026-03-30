@@ -6,7 +6,7 @@ import {
   type Ref,
 } from "vue";
 
-export interface AlbumContext {
+interface AlbumContext {
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
   media: ComputedRef<Record<string, string>>;

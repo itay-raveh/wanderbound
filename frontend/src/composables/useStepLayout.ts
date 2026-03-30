@@ -9,7 +9,7 @@ type StepMutateFn = (payload: { sid: number; update: StepUpdate }) => void;
 const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 
 /** Remove a set of photos from all pages and unused list of a step. */
-export function stripPhotos(step: Step, photoSet: Set<string>) {
+function stripPhotos(step: Step, photoSet: Set<string>) {
   return {
     pages: step.pages
       .map((page) => page.filter((p) => !photoSet.has(p)))

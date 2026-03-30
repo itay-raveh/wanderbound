@@ -30,6 +30,10 @@ jobs:
         working-directory: backend
       - run: bun run lint
         working-directory: frontend
+      - run: uv run vulture
+        working-directory: backend
+      - run: bun x knip
+        working-directory: frontend
 
   test-backend:
     runs-on: ubuntu-latest

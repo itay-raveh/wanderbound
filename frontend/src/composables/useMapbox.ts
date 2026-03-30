@@ -19,7 +19,7 @@ mapboxgl.setRTLTextPlugin(
   true, // lazy: only load when RTL text is encountered
 );
 
-export interface UseMapboxOptions {
+interface UseMapboxOptions {
   container: Ref<HTMLElement | null>;
   style?: string;
   interactive?: boolean;

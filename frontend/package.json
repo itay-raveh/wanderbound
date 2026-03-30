@@ -23,6 +23,7 @@
     "@pinia/colada": "^1.0.0",
     "@quasar/extras": "^1.17.0",
     "@sentry/vue": "^10.45.0",
+    "@tanstack/vue-virtual": "^3.13.23",
     "@turf/along": "^7.3.4",
     "@turf/distance": "^7.3.4",
     "@turf/helpers": "^7.3.4",
@@ -63,7 +64,6 @@
     "sass": "^1.98.0",
     "sharp": "^0.34.5",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.57.1",
     "vite": "^7.3.1",
     "vitest": "^4.1.0",
     "vue-tsc": "^3.2.6"

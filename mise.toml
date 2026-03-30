@@ -54,7 +54,23 @@ run = "bun run lint"
 
 [tasks.lint]
 description = "Run all linters"
-depends = ["lint:*"]
+depends = ["lint:*", "deadcode:*"]
+
+# -- Dead code ----------------------------------------------------
+
+[tasks."deadcode:backend"]
+description = "Find dead Python code (vulture)"
+dir = "backend"
+run = "uv run vulture"
+
+[tasks."deadcode:frontend"]
+description = "Find dead JS/TS code (knip)"
+dir = "frontend"
+run = "bun x knip"
+
+[tasks.deadcode]
+description = "Find all dead code"
+depends = ["deadcode:*"]
 
 # -- Formatting ---------------------------------------------------
 

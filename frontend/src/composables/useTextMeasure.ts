@@ -3,7 +3,7 @@ import { ALLOWED_FONTS } from "@/utils/fonts";
 
 export type DescriptionType = "short" | "long" | "extra-long";
 
-export interface TextLayout {
+interface TextLayout {
   type: DescriptionType;
   mainPageText: string;
   continuationTexts: string[];

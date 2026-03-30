@@ -1,0 +1,6 @@
+{
+  "entry": ["scripts/**/*.ts"],
+  "project": ["src/**/*.{ts,vue}", "!src/client/**"],
+  "ignoreDependencies": ["postcss-rtlcss", "@hey-api/client-fetch", "@types/sharp"],
+  "ignoreBinaries": ["uv"]
+}

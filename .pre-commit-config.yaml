@@ -40,3 +40,19 @@ repos:
         language: system
         files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
         pass_filenames: false
+
+      - id: vulture
+        name: vulture
+        entry: mise run deadcode:backend
+        require_serial: true
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: knip
+        name: knip
+        entry: mise run deadcode:frontend
+        require_serial: true
+        language: system
+        files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
+        pass_filenames: false
