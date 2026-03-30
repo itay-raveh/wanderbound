@@ -1,7 +1,7 @@
 import OverviewPage from "@/components/album/overview/OverviewPage.vue";
 import type { Album } from "@/client";
 import { computed, ref } from "vue";
-import { makeStep, makeSegment, mountWithPlugins } from "../helpers";
+import { makeStep, makeSegmentOutline, mountWithPlugins } from "../helpers";
 
 function makeAlbum(overrides: Partial<Album> = {}): Album {
   return {
@@ -71,16 +71,12 @@ function mountOverview(props: Record<string, unknown> = {}) {
     props: {
       album: makeAlbum(),
       steps,
-      segments: [makeSegment({
-        aid: "album-1",
+      segments: [makeSegmentOutline({
         start_time: 1712880000,
         end_time: 1712890000,
         kind: "walking",
-        points: [
-          { lat: 52.37, lon: 4.89, time: 1712880000 },
-          { lat: 52.38, lon: 4.9, time: 1712885000 },
-          { lat: 52.39, lon: 4.91, time: 1712890000 },
-        ],
+        start_coord: [52.37, 4.89],
+        end_coord: [52.39, 4.91],
       })],
       ...props,
     },

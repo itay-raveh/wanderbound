@@ -5,7 +5,7 @@ import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
-import type { Step, Segment } from "@/client";
+import type { Step, Segment, SegmentOutline } from "@/client";
 
 // Set base URL for test API calls (MSW intercepts these).
 client.setConfig({ baseUrl: "http://localhost:8000" });
@@ -83,6 +83,18 @@ export function makeSegment(overrides: Partial<Segment> = {}): Segment {
     timezone_id: "UTC",
     points: [],
     route: null,
+    ...overrides,
+  };
+}
+
+export function makeSegmentOutline(overrides: Partial<SegmentOutline> = {}): SegmentOutline {
+  return {
+    start_time: 0,
+    end_time: 100,
+    kind: "driving",
+    timezone_id: "UTC",
+    start_coord: [0, 0],
+    end_coord: [1, 1],
     ...overrides,
   };
 }
