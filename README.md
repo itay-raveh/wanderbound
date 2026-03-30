@@ -86,6 +86,8 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
+- [ ] Fix scroll spy.
+- [ ] Fix map lines.
 - [ ] Fix photo focus.
 - [ ] Fix reupload.
 - [ ] Critique overview page.
