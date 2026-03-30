@@ -1,7 +1,7 @@
 import { useQuery } from "@pinia/colada";
+import { markRaw, type Ref } from "vue";
 import { readAlbum } from "@/client";
-import { queryKeys } from "./keys";
-import type { Ref } from "vue";
+import { queryKeys, STALE_TIME } from "./keys";
 
 export function useAlbumQuery(aid: Ref<string | null>) {
   return useQuery({
@@ -9,9 +9,9 @@ export function useAlbumQuery(aid: Ref<string | null>) {
     query: async () => {
       if (!aid.value) throw new Error("No album selected");
       const { data } = await readAlbum({ path: { aid: aid.value } });
-      return data;
+      return markRaw(data);
     },
     enabled: () => !!aid.value,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
   });
 }

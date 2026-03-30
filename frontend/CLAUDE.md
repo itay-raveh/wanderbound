@@ -9,7 +9,7 @@ To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
 - `useAlbum()`: provides album context via inject — must be called inside AlbumViewer hierarchy.
 - `useTextMeasure()`: hidden DOM containers measure description text to determine layout (short/long/extra-long).
 - Pinia Colada mutations: optimistic cache update → push undo stack → revert on error → invalidate on settle.
-- Map matching moved to backend (`services/mapbox.py`). Frontend map pages fetch segment points lazily via `useSegmentPointsQuery`.
+- Map matching moved to backend (`logic/matching.py`). Frontend map pages fetch segment points lazily via `useSegmentPointsQuery`.
 - `markRaw()`: query composables wrap immutable responses (media, steps, segments) with `markRaw()` to prevent Vue deep-proxying. Never remove this.
 - `stripPhotos()`: atomically removes photos from all page lists to prevent duplicates during drag-and-drop.
 - Font constants (`ALLOWED_FONTS`, defaults, fallback stacks) live in `src/utils/fonts.ts` — single source of truth.

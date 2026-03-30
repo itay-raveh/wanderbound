@@ -48,6 +48,7 @@
       "weather": "נזכר במזג האוויר לאורך הדרך...",
       "layouts": "מסדר את התמונות על הדף..."
     },
+    "overallProgress": "התקדמות כללית",
     "tripsProgress": "טיול {current} מתוך {total}",
     "trips": "אין טיולים | טיול אחד | {n} טיולים",
     "steps": "אין צעדים | צעד אחד | {n} צעדים",
@@ -132,7 +133,8 @@
   "hike": {
     "hours": "{n} שע׳",
     "days": "{n} ימים",
-    "mapLabel": "מפת מסלול טרק"
+    "mapLabel": "מפת מסלול טרק",
+    "elevationProfile": "פרופיל גובה"
   },
 
   "overview": {

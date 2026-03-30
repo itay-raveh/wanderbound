@@ -143,13 +143,13 @@ watch(() => props.state, async (s) => {
 .error-banner {
   padding: var(--gap-lg);
   border-radius: var(--radius-md);
-  border: 1px solid var(--danger);
+  border: 0.0625rem solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }
 
 .error-icon {
   flex-shrink: 0;
-  margin-top: 1px; /* optical alignment with text baseline */
+  margin-top: 0.0625rem; /* optical alignment with text baseline */
 }
 
 .error-msg {
@@ -180,12 +180,12 @@ watch(() => props.state, async (s) => {
 
 @keyframes ctaGlow {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-primary) 35%, transparent); }
-  100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--q-primary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0.5rem color-mix(in srgb, var(--q-primary) 0%, transparent); }
 }
 
 .done-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--q-primary) 30%, transparent);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--q-primary) 30%, transparent);
 }
 
 .done-btn:active {

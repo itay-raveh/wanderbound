@@ -28,6 +28,7 @@ dependencies = [
     "pyjwt[crypto]~=2.0",
     "puremagic>=2.1.0",
     "sentry-sdk[fastapi]~=2.35",
+    "alembic-postgresql-enum>=1.10.0",
 ]
 
 [dependency-groups]
@@ -93,6 +94,9 @@ combine-as-imports = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
+
+[tool.ty.environment]
+extra-paths = ["typings"]
 
 [tool.ty.rules]
 invalid-type-form = "ignore"  # ty false positive on properties named `datetime`

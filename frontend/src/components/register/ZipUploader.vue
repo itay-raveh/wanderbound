@@ -116,8 +116,8 @@ function onFailed() {
 
 .upload-title code {
   font-family: var(--font-mono);
-  font-size: 0.9em;
-  padding: 0.1em 0.35em;
+  font-size: 0.875rem;
+  padding: 0.125rem 0.375rem;
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
 }
@@ -136,7 +136,7 @@ function onFailed() {
   padding: 2rem var(--gap-lg);
   gap: var(--gap-md);
   cursor: pointer;
-  border: 2px dashed var(--border-color);
+  border: 0.125rem dashed var(--border-color);
   border-radius: var(--radius-md);
   transition:
     border-color var(--duration-fast) ease,
@@ -149,8 +149,8 @@ function onFailed() {
 }
 
 .drop-zone:focus-visible {
-  outline: 2px solid var(--q-primary);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
   border-color: var(--q-primary);
 }
 
@@ -162,7 +162,7 @@ function onFailed() {
 
 .drop-zone:hover .drop-zone-icon {
   color: var(--q-primary) !important;
-  transform: translateY(-2px);
+  transform: translateY(-0.125rem);
 }
 
 /* Quasar adds .q-uploader--dnd to the root during drag-over */

@@ -70,7 +70,7 @@
 // PDF export loading overlay
 .pdf-loading-overlay {
   backdrop-filter: blur(0.5rem);
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: color-mix(in srgb, var(--text) 40%, transparent) !important;
 }
 
 // Mapbox injects its own font stack on .mapboxgl-map — override to use ours

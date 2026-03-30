@@ -258,24 +258,23 @@ if (props.printMode) {
 
           <!-- Section items -->
           <template v-else>
-            <div
-              v-if="sections[vItem.index - HEADER_COUNT]?.type !== 'step'"
-              class="map-wrapper"
-            >
-              <MapPage
-                v-if="sections[vItem.index - HEADER_COUNT]?.type === 'map'"
-                :segment-outlines="(sections[vItem.index - HEADER_COUNT] as any).segments"
-                :steps="(sections[vItem.index - HEADER_COUNT] as any).steps"
-              />
-              <HikeMapPage
-                v-else
-                :segments="(sections[vItem.index - HEADER_COUNT] as any).segments"
-                :steps="(sections[vItem.index - HEADER_COUNT] as any).steps"
-                :hike-segment="(sections[vItem.index - HEADER_COUNT] as any).hikeSegment"
-                :all-segments="segmentOutlines"
-              />
-            </div>
-            <StepEntry v-else :step="(sections[vItem.index - HEADER_COUNT] as any).step" />
+            <template v-for="(sec, i) in [sections[vItem.index - HEADER_COUNT]!]" :key="i">
+              <div v-if="sec.type !== 'step'" class="map-wrapper">
+                <MapPage
+                  v-if="sec.type === 'map'"
+                  :segment-outlines="sec.segments"
+                  :steps="sec.steps"
+                />
+                <HikeMapPage
+                  v-else
+                  :segments="sec.segments"
+                  :steps="sec.steps"
+                  :hike-segment="sec.hikeSegment"
+                  :all-segments="segmentOutlines"
+                />
+              </div>
+              <StepEntry v-else :step="sec.step" />
+            </template>
           </template>
         </div>
       </div>

@@ -7,7 +7,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
-import { useTemplateRef, computed, ref, watch } from "vue";
+import { useTemplateRef, computed, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -30,12 +30,7 @@ const toTime = computed(() =>
     : 0,
 );
 
-const fromTimeRef = ref(fromTime.value);
-const toTimeRef = ref(toTime.value);
-watch(fromTime, (v) => { fromTimeRef.value = v; });
-watch(toTime, (v) => { toTimeRef.value = v; });
-
-const { data: segments } = useSegmentPointsQuery(fromTimeRef, toTimeRef);
+const { data: segments } = useSegmentPointsQuery(fromTime, toTime);
 
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({ container, locale, onReady: draw });

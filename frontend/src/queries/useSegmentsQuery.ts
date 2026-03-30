@@ -1,7 +1,7 @@
 import { useQuery } from "@pinia/colada";
 import { markRaw, type Ref } from "vue";
 import { readSegments } from "@/client";
-import { queryKeys } from "./keys";
+import { queryKeys, STALE_TIME } from "./keys";
 
 export function useSegmentsQuery(aid: Ref<string | null>) {
   return useQuery({
@@ -12,6 +12,6 @@ export function useSegmentsQuery(aid: Ref<string | null>) {
       return markRaw(data);
     },
     enabled: () => !!aid.value,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
   });
 }

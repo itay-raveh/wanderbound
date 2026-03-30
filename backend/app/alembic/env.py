@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+import alembic_postgresql_enum  # noqa: F401 - auto-handle enum types in migrations
 import app.models  # noqa: F401 - register all table models
 from app.core.config import get_settings
 from app.core.db import PydanticJSON

@@ -118,7 +118,7 @@ function saveDialog() {
   cursor: text;
   border-radius: var(--radius-xs);
   box-decoration-break: clone;
-  outline: 2px dashed color-mix(in srgb, currentColor 35%, transparent);
+  outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
   outline-offset: var(--gap-sm);
   transition:
     outline-color var(--duration-fast) ease,
@@ -126,6 +126,10 @@ function saveDialog() {
 
   &:hover {
     outline-color: color-mix(in srgb, currentColor 55%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 
   &:empty::before {

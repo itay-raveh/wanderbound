@@ -26,14 +26,14 @@ Memory-aware concurrency: 512MB baseline + 768MB per render.
 - Activity debouncing: writes to DB every 1h/user via bounded `OrderedDict` (1024 entries).
 - Session opened only for DB writes — reads use the session cookie but don't start a DB transaction.
 - Upload security: magic-byte MIME checks, path traversal detection, symlink rejection, decompression bomb limits.
-- Open-Meteo: hishel 30-day HTTP cache (2xx only), 480 calls/min rate limit.
-- Mapbox matching: `services/mapbox.py` — density-based API selection (Map Matching for dense GPS, Directions for sparse), RDP simplification, auto-match on first segment-points request. Results stored in `segment.route`.
+- External API services: `@cache` def `_client()` wrapping `cached_client()` from `core/http.py` (SQLite cache + retries). Lazy to avoid import-time settings access. Custom transports (e.g. rate limiting) via `transport=` param.
+- Mapbox matching: `services/mapbox.py` (API client) + `logic/matching.py` (RDP, haversine). Density-based API selection, auto-match on first segment-points request. Results stored in `segment.route`.
 
 ## DB Conventions
 
 - Composite PKs on segment: `(uid, aid, start_time, end_time)`.
 - `Album.colors`: country → hex, auto-computed via CIELAB Delta-E to minimize collisions.
-- Alembic + PostgreSQL enums: `sa.Enum()` creates a DB-level type that outlives the table. Always `DROP TYPE IF EXISTS` in `downgrade()`.
+- Alembic + PostgreSQL enums: `alembic-postgresql-enum` handles CREATE/DROP TYPE automatically. Never manually edit generated migrations.
 
 ## Testing
 

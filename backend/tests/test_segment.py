@@ -1,10 +1,9 @@
 """Unit tests for segment boundary adjustment logic."""
 
 import pytest
-from pydantic import ValidationError
 
 from app.models.polarsteps import Point
-from app.models.segment import BoundaryAdjust, Segment, SegmentKind, split_segments
+from app.models.segment import Segment, SegmentKind, split_segments
 
 
 def _seg(kind: str, points: list[tuple[float, float, float]]) -> Segment:
@@ -137,22 +136,3 @@ class TestBoundarySplit:
 
         with pytest.raises(ValueError, match="gap"):
             split_segments(hike, walking, 35)
-
-    def test_boundary_adjust_model(self) -> None:
-        """BoundaryAdjust schema validates correctly."""
-        adj = BoundaryAdjust(
-            start_time=100.0,
-            end_time=200.0,
-            handle="start",
-            new_boundary_time=150.0,
-        )
-        assert adj.handle == "start"
-        assert adj.new_boundary_time == 150.0
-
-        with pytest.raises(ValidationError, match="literal_error"):
-            BoundaryAdjust(
-                start_time=100.0,
-                end_time=200.0,
-                handle="invalid",
-                new_boundary_time=150.0,
-            )

@@ -138,7 +138,7 @@ const overallPercent = computed(() => {
           </div>
 
           <!-- Overall progress bar -->
-          <div class="progress-track overflow-hidden" role="progressbar" :aria-valuenow="overallPercent" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-track overflow-hidden" role="progressbar" :aria-valuenow="overallPercent" aria-valuemin="0" aria-valuemax="100" :aria-label="t('register.overallProgress')">
             <div
               class="progress-fill relative-position"
               :style="{ width: `${overallPercent}%` }"
@@ -175,7 +175,7 @@ const overallPercent = computed(() => {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  border: 2px solid var(--border-color);
+  border: 0.125rem solid var(--border-color);
   flex-shrink: 0;
   background: var(--bg-secondary);
   transition:
@@ -203,7 +203,7 @@ const overallPercent = computed(() => {
 }
 
 .trip-line {
-  width: 2px;
+  width: 0.125rem;
   flex: 1;
   min-height: 1rem;
   background: var(--border-color);

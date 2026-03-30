@@ -174,7 +174,7 @@ const furthest = computed(() => {
 
 .fp-line {
   flex: 1;
-  border-top: 1.5px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  border-top: 0.09375rem dashed color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .fp-badge {

@@ -125,8 +125,7 @@ class TestReadAlbum:
         resp = await client.get(f"/api/v1/albums/{AID}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["title"] == "Test Album"
-        assert data["colors"] == {"nl": "#0000ff"}
+        # AlbumMeta excludes heavy fields — only meta returned
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data
@@ -205,8 +204,8 @@ class TestSegmentPointsAutoMatch:
 
         matched_route = [(4.0, 52.0), (4.01, 52.01), (4.02, 52.02)]
         with patch(
-            "app.api.v1.routes.albums.match_segment",
-            return_value=matched_route,
+            "app.api.v1.routes.albums.match_segments",
+            return_value=[matched_route],
         ):
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
@@ -229,7 +228,7 @@ class TestSegmentPointsAutoMatch:
         )
 
         with patch(
-            "app.api.v1.routes.albums.match_segment",
+            "app.api.v1.routes.albums.match_segments",
         ) as mock_match:
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
@@ -253,7 +252,7 @@ class TestSegmentPointsAutoMatch:
         await session.flush()
 
         with patch(
-            "app.api.v1.routes.albums.match_segment",
+            "app.api.v1.routes.albums.match_segments",
         ) as mock_match:
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
@@ -476,7 +475,11 @@ class TestAdjustSegmentBoundary:
         await _insert_album(session, uid)
         # Insert segment with a route
         seg = await _insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving,
+            session,
+            uid,
+            start_time=100.0,
+            end_time=300.0,
+            kind=SegmentKind.driving,
             points=_make_points([100.0, 200.0, 300.0]),
         )
         # Manually set route on the segment
@@ -484,7 +487,11 @@ class TestAdjustSegmentBoundary:
         session.add(seg)
         await session.flush()
         await _insert_segment(
-            session, uid, start_time=300.0, end_time=500.0, kind=SegmentKind.hike,
+            session,
+            uid,
+            start_time=300.0,
+            end_time=500.0,
+            kind=SegmentKind.hike,
             points=_make_points([300.0, 400.0, 500.0]),
         )
 

@@ -48,6 +48,7 @@
       "weather": "Recalling the weather along the way...",
       "layouts": "Arranging your photos on the page..."
     },
+    "overallProgress": "Overall progress",
     "tripsProgress": "{current} of {total} trips",
     "trips": "no trips | {n} trip | {n} trips",
     "steps": "no steps | {n} step | {n} steps",
@@ -132,7 +133,8 @@
   "hike": {
     "hours": "{n}h",
     "days": "{n}d",
-    "mapLabel": "Hike route map"
+    "mapLabel": "Hike route map",
+    "elevationProfile": "Elevation profile"
   },
 
   "overview": {

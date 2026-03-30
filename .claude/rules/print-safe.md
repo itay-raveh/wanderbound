@@ -8,6 +8,10 @@ paths:
 
 Album components render in Chromium's PDF backend (Skia) via Playwright `page.pdf()`.
 
+## WYSIWYG — preview and print must be identical
+
+Never conditionally alter album page visuals between editor preview and print mode. No `usePrintMode()` guards to strip effects, no `.print-mode` overrides that change design. If an effect can't render in PDF, don't use it in the editor either. The only acceptable print-mode differences are editor UI chrome (handles, dashed borders, interactive overlays).
+
 ## Genuinely broken — avoid entirely
 
 - backdrop-filter → not supported (Skia can't composite backdrop)

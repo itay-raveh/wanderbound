@@ -1,6 +1,5 @@
 import logging
 from collections.abc import AsyncIterable, Sequence
-from math import atan2, cos, radians, sin, sqrt
 from typing import Annotated
 
 from fastapi import (
@@ -18,8 +17,9 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import select
 
 from app.logic.layout.media import Media
-from app.logic.matching import MATCHABLE_KINDS, match_segment
+from app.logic.matching import MATCHABLE_KINDS
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
+from app.logic.spatial.geo import haversine_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,
@@ -29,6 +29,7 @@ from app.models.segment import (
     split_segments,
 )
 from app.models.step import Step, StepUpdate
+from app.services.mapbox import match_segments
 
 from ..deps import BrowserDep, SessionDep, UserDep
 
@@ -119,15 +120,15 @@ async def read_segment_points(
     segments = result.all()
 
     # Auto-match driving/walking segments that don't have a route yet
-    for seg in segments:
-        if seg.kind in MATCHABLE_KINDS and seg.route is None:
-            profile = "driving" if seg.kind == SegmentKind.driving else "walking"
-            coords_lonlat = [(p.lon, p.lat) for p in seg.points]
-            route = await match_segment(coords_lonlat, profile)
+    unmatched = [s for s in segments if s.kind in MATCHABLE_KINDS and s.route is None]
+    if unmatched:
+        pairs = [([(p.lon, p.lat) for p in s.points], str(s.kind)) for s in unmatched]
+        routes = await match_segments(pairs)
+        for seg, route in zip(unmatched, routes, strict=True):
             if route:
                 seg.route = route
                 session.add(seg)
-    await session.commit()
+        await session.commit()
 
     return segments
 
@@ -237,22 +238,11 @@ async def adjust_segment_boundary(
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
 
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    r = 6371
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    )
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a))
-
-
 def _total_distance_km(segments: list[Segment]) -> float:
     total = 0.0
     for seg in segments:
         for i in range(len(seg.points) - 1):
-            total += _haversine_km(
+            total += haversine_km(
                 seg.points[i].lat,
                 seg.points[i].lon,
                 seg.points[i + 1].lat,
@@ -263,9 +253,8 @@ def _total_distance_km(segments: list[Segment]) -> float:
 
 @router.get("/{aid}/print-bundle")
 async def read_print_bundle(
-    aid: str, user: UserDep, session: SessionDep
+    aid: str, album: AlbumDep, user: UserDep, session: SessionDep
 ) -> PrintBundle:
-    album = await session.get_one(Album, (user.id, aid))
     steps_result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)

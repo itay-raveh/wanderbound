@@ -34,10 +34,8 @@ const printMode = usePrintMode();
 const boundaryMutation = useSegmentBoundaryMutation();
 
 // Fetch full segment points for the hike segment's time range
-const fromTime = ref(props.hikeSegment.start_time);
-const toTime = ref(props.hikeSegment.end_time);
-watch(() => props.hikeSegment.start_time, (v) => { fromTime.value = v; });
-watch(() => props.hikeSegment.end_time, (v) => { toTime.value = v; });
+const fromTime = computed(() => props.hikeSegment.start_time);
+const toTime = computed(() => props.hikeSegment.end_time);
 
 const { data: fetchedSegments } = useSegmentPointsQuery(fromTime, toTime);
 
@@ -280,7 +278,6 @@ watch(fullHikeSegment, () => {
         :accent="countryColor"
         :total-dist-km="totalDistKm"
         :is-km="isKm"
-        bg-color=""
       />
     </div>
   </div>

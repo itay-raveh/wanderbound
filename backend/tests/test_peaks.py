@@ -12,8 +12,6 @@ import pytest
 from app.logic.spatial.peaks import (
     PEAK_MAX_DEVIATION,
     PEAK_MIN_PROMINENCE,
-    OverpassResponse,
-    PeakTags,
     _local_peaks,
     _parse_ele,
     correct_peaks,
@@ -71,31 +69,6 @@ class TestParseEle:
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError, match="not a number"):
             _parse_ele("not a number")
-
-
-class TestOverpassModels:
-    def test_peak_tags_from_string(self) -> None:
-        tags = PeakTags.model_validate({"ele": "5327 m"})
-        assert tags.ele == 5327.0
-
-    def test_peak_tags_from_float(self) -> None:
-        tags = PeakTags.model_validate({"ele": 1234.5})
-        assert tags.ele == 1234.5
-
-    def test_overpass_response(self) -> None:
-        data = {
-            "elements": [
-                {"tags": {"ele": "5327"}},
-                {"tags": {"ele": "4500"}},
-            ]
-        }
-        resp = OverpassResponse.model_validate(data)
-        assert len(resp.elements) == 2
-        assert resp.elements[0].tags.ele == 5327.0
-
-    def test_overpass_response_empty(self) -> None:
-        resp = OverpassResponse.model_validate({"elements": []})
-        assert resp.elements == []
 
 
 class TestLocalPeaks:

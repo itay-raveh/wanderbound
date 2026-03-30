@@ -96,7 +96,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
   justify-content: center;
   gap: var(--gap-md);
   background: color-mix(in srgb, var(--border-color) 30%, var(--page-bg, var(--bg)));
-  border: 2px dashed color-mix(in srgb, var(--text) 15%, transparent);
+  border: 0.125rem dashed color-mix(in srgb, var(--text) 15%, transparent);
   margin: var(--gap-md-lg);
 }
 

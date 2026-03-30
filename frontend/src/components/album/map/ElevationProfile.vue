@@ -136,11 +136,11 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? FADE_H + TOP_PAD) - 6);
 </script>
 
 <template>
-  <svg v-if="chart" :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" class="elevation-chart">
+  <svg v-if="chart" :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" class="elevation-chart" role="img" :aria-label="t('hike.elevationProfile')">
     <defs>
       <linearGradient :id="gradId" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" :stop-color="`${accent}55`" />
-        <stop offset="100%" :stop-color="`${accent}08`" />
+        <stop offset="0%" :stop-color="accent" stop-opacity="0.33" />
+        <stop offset="100%" :stop-color="accent" stop-opacity="0.03" />
       </linearGradient>
       <linearGradient :id="fadeId" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="var(--bg)" stop-opacity="0" />

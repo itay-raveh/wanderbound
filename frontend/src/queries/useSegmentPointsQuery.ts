@@ -1,7 +1,7 @@
 import { useQuery } from "@pinia/colada";
 import { markRaw, type Ref } from "vue";
 import { readSegmentPoints } from "@/client";
-import { queryKeys } from "./keys";
+import { queryKeys, STALE_TIME } from "./keys";
 import { useAlbum } from "@/composables/useAlbum";
 
 export function useSegmentPointsQuery(
@@ -19,6 +19,6 @@ export function useSegmentPointsQuery(
       });
       return markRaw(data);
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
   });
 }

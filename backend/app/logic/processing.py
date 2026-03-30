@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import logging
-import math
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from datetime import date, datetime
@@ -18,6 +17,7 @@ from app.logic.layout.media import (
     Media,
     normalize_name,
 )
+from app.logic.spatial.geo import haversine_km
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
 from app.models.album import DEFAULT_BODY_FONT, DEFAULT_FONT, Album
@@ -117,21 +117,7 @@ def _segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
     return best.timezone_id
 
 
-_EARTH_RADIUS_KM = 6371.0
 ACTIVE_HIKE_DAY_MIN_KM = 2.0
-
-
-def _haversine_scalar(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Haversine distance in km between two points."""
-    to_rad = math.pi / 180.0
-    phi1, phi2 = lat1 * to_rad, lat2 * to_rad
-    dphi = (lat2 - lat1) * to_rad
-    dlam = (lon2 - lon1) * to_rad
-    a = (
-        math.sin(dphi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
-    )
-    return _EARTH_RADIUS_KM * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _merge_date_ranges(
@@ -169,7 +155,7 @@ def _multi_day_hike_ranges(
         pts = seg.points
         for i in range(1, len(pts)):
             day = datetime.fromtimestamp(pts[i].time, tz).date()
-            daily_km[day] += _haversine_scalar(
+            daily_km[day] += haversine_km(
                 pts[i - 1].lat, pts[i - 1].lon, pts[i].lat, pts[i].lon
             )
 

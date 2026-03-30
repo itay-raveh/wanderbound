@@ -32,8 +32,9 @@ from typing import Protocol, cast
 
 import numpy as np
 import polars as pl
-from simplification.cutil import simplify_coords_idx  # ty: ignore[unresolved-import]
+from simplification.cutil import simplify_coords_idx
 
+from app.logic.spatial.geo import EARTH_RADIUS_KM
 from app.models.polarsteps import HasLatLon, Point
 from app.models.segment import SegmentData, SegmentKind
 
@@ -125,13 +126,11 @@ def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
     )
 
 
-_EARTH_RADIUS_KM = 6371.0
-
-
 # https://en.wikipedia.org/wiki/Haversine_formula#Formulation
 def _haversine_km(
     lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr
 ) -> pl.Expr:
+    """Vectorized haversine on Polars expressions (not the scalar version in geo.py)."""
     to_rad = math.pi / 180.0
     phi_1 = lat1 * to_rad
     phi_2 = lat2 * to_rad
@@ -144,7 +143,7 @@ def _haversine_km(
     a = (d_phi / 2).sin() ** 2 + phi_1.cos() * phi_2.cos() * (d_lambda / 2).sin() ** 2
     c = 2 * pl.arctan2(a.sqrt(), (1 - a).sqrt())
 
-    return c * _EARTH_RADIUS_KM
+    return c * EARTH_RADIUS_KM
 
 
 def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
