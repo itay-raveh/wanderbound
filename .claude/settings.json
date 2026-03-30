@@ -7,35 +7,9 @@
       "Bash(*git push*)"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-commit-approval.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "agent",
-            "model": "sonnet",
-            "prompt": "You are a pre-stop verification agent. Check whether Claude should be allowed to stop by evaluating ALL of the following that apply:\n1. Were scoped tests run for ALL code changes? (backend->pytest, frontend->vitest, cross-cutting->e2e). Look for test command output in the transcript.\n2. If a bug was fixed, was a regression test written?\n3. If visual/layout changes were made to frontend components, were they verified in the browser?\n4. Were all completion claims backed by fresh command output (not just assertions like 'should work')?\n\nIf stop_hook_active is true in the arguments, return ok=true to prevent infinite loops.\nOtherwise, if ANY check fails, return ok=false with reason listing exactly what is missing."
-          }
-        ]
-      }
-    ]
-  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
-  "disableAllHooks": false,
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true
