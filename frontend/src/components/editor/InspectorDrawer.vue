@@ -88,12 +88,12 @@ const panelLabel = computed(() => {
     <template v-if="context === 'cover'">
       <div v-if="landscapePhotos.length" class="cover-grid">
         <img
-          v-for="photo in landscapePhotos"
+          v-for="(photo, index) in landscapePhotos"
           :key="photo"
           :src="mediaThumbUrl(photo, album.id)"
           class="cover-cell"
           :class="{ selected: photo === activeCoverPhoto }"
-          :aria-label="t('album.selectPhoto')"
+          :aria-label="t('album.selectCoverPhoto', { index: index + 1, total: landscapePhotos.length })"
           role="button"
           tabindex="0"
           loading="lazy"
@@ -163,7 +163,7 @@ const panelLabel = computed(() => {
 
 .cover-cell {
   width: 100%;
-  aspect-ratio: 297 / 210;
+  aspect-ratio: var(--page-aspect);
   object-fit: cover;
   cursor: pointer;
   border-radius: var(--radius-xs);

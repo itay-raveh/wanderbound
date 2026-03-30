@@ -50,7 +50,7 @@ function saveText(field: "title" | "subtitle", value: string) {
     <template v-if="!isBack">
       <div class="front-text absolute-full">
         <div dir="auto" class="front-date">{{ dates }}</div>
-        <div class="cover-rule" />
+        <div class="cover-rule" aria-hidden="true" />
 
         <EditableText
           :model-value="album.title"
@@ -90,7 +90,7 @@ function saveText(field: "title" | "subtitle", value: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--page-inset-y) 4rem;
+  padding: var(--page-inset-y) var(--page-inset-x);
   gap: var(--gap-md);
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, transparent 70%);
 }
@@ -110,6 +110,7 @@ function saveText(field: "title" | "subtitle", value: string) {
   letter-spacing: var(--tracking-tight);
   color: white;
   text-align: center;
+  text-wrap: balance;
   max-width: 85%;
 }
 
@@ -119,6 +120,7 @@ function saveText(field: "title" | "subtitle", value: string) {
   letter-spacing: var(--tracking-wide);
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
+  text-wrap: balance;
   max-width: 70%;
 }
 
@@ -126,8 +128,8 @@ function saveText(field: "title" | "subtitle", value: string) {
 
 .cover-rule {
   width: 2.5rem;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.3);
+  height: 0.125rem;
+  background: rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
 }
 

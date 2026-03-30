@@ -125,6 +125,7 @@
     "prevFrame": "פריים קודם (,)",
     "nextFrame": "פריים הבא (.)",
     "selectPhoto": "בחרו תמונה",
+    "selectCoverPhoto": "בחרו תמונת שער {index} מתוך {total}",
     "allDates": "כל התאריכים",
     "tripRouteMap": "מפת מסלול הטיול",
     "playVideo": "הפעלת סרטון"

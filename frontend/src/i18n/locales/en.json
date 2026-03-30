@@ -125,6 +125,7 @@
     "prevFrame": "Previous frame (,)",
     "nextFrame": "Next frame (.)",
     "selectPhoto": "Select photo",
+    "selectCoverPhoto": "Select cover photo {index} of {total}",
     "allDates": "All dates",
     "tripRouteMap": "Trip route map",
     "playVideo": "Play video"
