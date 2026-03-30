@@ -195,13 +195,7 @@ async def export_user_data(
 ) -> AsyncGenerator[ExportEvent]:
     logger.info("Starting data export for user %d", user.id)
 
-    albums = list(
-        (
-            await session.exec(
-                select(Album).where(Album.uid == user.id)
-            )
-        ).all()
-    )
+    albums = list((await session.exec(select(Album).where(Album.uid == user.id))).all())
     album_ids_loaded = [a.id for a in albums]
 
     steps_by_album: dict[str, list[Step]] = {aid: [] for aid in album_ids_loaded}

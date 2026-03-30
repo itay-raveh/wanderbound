@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncIterable
+from math import atan2, cos, radians, sin, sqrt
 from typing import Annotated
 
 from fastapi import (
@@ -19,7 +20,7 @@ from sqlmodel import select
 from app.logic.layout.media import Media
 from app.logic.matching import MATCHABLE_KINDS, match_segment
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
-from app.models.album import Album, AlbumMeta, AlbumUpdate
+from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,
     Segment,
@@ -234,6 +235,50 @@ async def adjust_segment_boundary(
         .order_by(Segment.start_time)  # type: ignore[union-attr]
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return r * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _total_distance_km(segments: list[Segment]) -> float:
+    total = 0.0
+    for seg in segments:
+        for i in range(len(seg.points) - 1):
+            total += _haversine_km(
+                seg.points[i].lat, seg.points[i].lon,
+                seg.points[i + 1].lat, seg.points[i + 1].lon,
+            )
+    return round(total, 1)
+
+
+@router.get("/{aid}/print-bundle")
+async def read_print_bundle(
+    aid: str, user: UserDep, session: SessionDep
+) -> PrintBundle:
+    album = await session.get_one(Album, (user.id, aid))
+    steps_result = await session.exec(
+        select(Step)
+        .where(Step.uid == user.id, Step.aid == aid)
+        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+    )
+    segments_result = await session.exec(
+        select(Segment)
+        .where(Segment.uid == user.id, Segment.aid == aid)
+        .order_by(Segment.start_time)  # type: ignore[union-attr]
+    )
+    steps = list(steps_result.all())
+    segments = list(segments_result.all())
+    return PrintBundle(
+        album=album,
+        steps=steps,
+        segments=segments,
+        total_distance_km=_total_distance_km(segments),
+    )
 
 
 @router.post(

@@ -557,6 +557,29 @@ class TestReadMedia:
         assert data[0]["height"] == 1080
 
 
+class TestPrintBundle:
+    async def test_returns_full_bundle(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        await _insert_step(session, uid)
+        await _insert_segment(session, uid)
+
+        resp = await client.get(f"/api/v1/albums/{AID}/print-bundle")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "album" in data
+        assert "steps" in data
+        assert "segments" in data
+        assert "total_distance_km" in data
+        # Album should include media (full Album, not AlbumMeta)
+        assert "media" in data["album"]
+        assert len(data["steps"]) == 1
+        assert len(data["segments"]) == 1
+        assert isinstance(data["total_distance_km"], float)
+
+
 class TestDownloadPdf:
     async def test_valid_token_returns_file(
         self, client: AsyncClient, tmp_path: Path

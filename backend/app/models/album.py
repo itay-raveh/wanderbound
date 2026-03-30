@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 from datetime import date
 
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
 from app.logic.layout.media import Media
 from app.models.polarsteps import CountryCode, HexColor
+from app.models.segment import Segment
+from app.models.step import Step
 
 type DateRange = tuple[date, date]
 
@@ -61,9 +65,7 @@ class AlbumMeta(AlbumBase):
     uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     id: str = Field(primary_key=True)
     colors: dict[CountryCode, HexColor] = Field(
-        sa_column=Column(
-            PydanticJSON(dict[CountryCode, HexColor]), nullable=False
-        )
+        sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
     )
 
 
@@ -74,3 +76,12 @@ class Album(AlbumMeta, table=True):
         default_factory=list,
         sa_column=Column(PydanticJSON(list[Media]), nullable=False),
     )
+
+
+class PrintBundle(BaseModel):
+    """Everything needed for PDF rendering in one response."""
+
+    album: Album
+    steps: list[Step]
+    segments: list[Segment]
+    total_distance_km: float
