@@ -4,6 +4,8 @@ Polarsteps ZIP → print-ready photo album. FastAPI + Vue 3 monorepo.
 
 ## Principles
 
+When asked a question, answer the question, don't take it as a "hint" and start working.
+
 LESS CODE is the top goal. Builtins, canonical packages, platform features first. If a different approach saves significant code, propose it.
 Prefer big sweeping correct changes over localized hacks. This is pre-alpha with full freedom to restructure — but always targeting production quality. Never "good enough for now."
 Never ignore issues as "pre-existing" or "unrelated." Fix everything encountered.
