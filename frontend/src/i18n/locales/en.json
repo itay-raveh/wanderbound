@@ -69,6 +69,7 @@
   },
 
   "editor": {
+    "toolbar": "Album tools",
     "exportPdf": "Export PDF",
     "font": "Heading font",
     "bodyFont": "Body font"

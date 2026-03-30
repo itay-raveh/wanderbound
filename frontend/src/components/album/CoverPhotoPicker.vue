@@ -84,7 +84,7 @@ function select(name: string) {
   font-size: var(--type-sm);
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(0.625rem);
   transition:
     background-color var(--duration-fast) ease,
     color var(--duration-fast) ease;
@@ -95,8 +95,8 @@ function select(name: string) {
   }
 
   &:focus-visible {
-    outline: 2px solid white;
-    outline-offset: 2px;
+    outline: 0.125rem solid white;
+    outline-offset: 0.125rem;
   }
 }
 
@@ -122,13 +122,13 @@ function select(name: string) {
   width: 24rem;
   border-radius: var(--radius-md);
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(0.625rem);
   z-index: 10;
 }
 
 .picker-empty {
   padding: var(--gap-md-lg) var(--gap-lg);
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -157,8 +157,8 @@ function select(name: string) {
   aspect-ratio: var(--page-aspect);
   border-radius: var(--radius-xs);
   overflow: hidden;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
+  outline: 0.125rem solid transparent;
+  outline-offset: -0.125rem;
   transition: outline-color var(--duration-fast) ease;
 
   &.selected {
@@ -191,6 +191,13 @@ function select(name: string) {
   .pill-chevron,
   .grid-cell {
     transition: none;
+  }
+}
+
+@media print {
+  .picker-pill,
+  .picker-panel {
+    backdrop-filter: none;
   }
 }
 </style>

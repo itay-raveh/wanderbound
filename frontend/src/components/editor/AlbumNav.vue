@@ -391,9 +391,9 @@ watch(visibleSectionKey, (key) => {
 
     <div v-if="steps.length" class="nav-controls">
       <button type="button" class="nav-chip" :aria-label="t('nav.dateFilter')" aria-haspopup="dialog" @click.stop>
-        <q-icon :name="symOutlinedCalendarMonth" size="var(--type-2xs)" />
+        <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
         <span dir="auto">{{ rangeDisplay || t("album.allDates") }}</span>
-        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-2xs)" class="chip-chevron" />
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" class="chip-chevron" />
         <q-popup-proxy ref="filterPopupRef" transition-show="scale" transition-hide="scale" @before-show="onFilterPickerOpen" @before-hide="onFilterPickerClose">
           <div class="picker-panel">
             <StepDatePicker
@@ -413,9 +413,9 @@ watch(visibleSectionKey, (key) => {
       </button>
 
       <button type="button" class="nav-chip" :aria-label="t('nav.mapRanges')" aria-haspopup="dialog" @click.stop>
-        <q-icon :name="symOutlinedMap" size="var(--type-2xs)" />
+        <q-icon :name="symOutlinedMap" size="var(--type-xs)" />
         <span>{{ t("nav.maps") }}</span>
-        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-2xs)" class="chip-chevron" />
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" class="chip-chevron" />
         <q-popup-proxy ref="mapRangesPopupRef" transition-show="scale" transition-hide="scale" @before-show="onMapRangesPickerOpen" @before-hide="onMapRangesPickerClose">
           <div class="picker-panel">
             <StepDatePicker
@@ -506,7 +506,7 @@ watch(visibleSectionKey, (key) => {
             <div class="item-info">
               <span class="item-name">{{ t("nav.map") }}</span>
               <button type="button" class="map-dates" aria-haspopup="dialog" @click.stop>
-                <q-icon :name="symOutlinedCalendarMonth" size="var(--type-2xs)" />
+                <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
                 {{ formatMapRange(entry.dateRange) }}
                 <q-popup-proxy
                   :ref="setPopupRef(entry.key)"
@@ -609,7 +609,7 @@ watch(visibleSectionKey, (key) => {
   gap: var(--gap-sm);
   flex: 1;
   font: inherit;
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   color: var(--text);
   cursor: pointer;
   padding: var(--gap-sm) var(--gap-sm-md);
@@ -627,8 +627,8 @@ watch(visibleSectionKey, (key) => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
@@ -655,7 +655,7 @@ watch(visibleSectionKey, (key) => {
 .group-header {
   min-height: 2.75rem;
   padding: var(--gap-sm) var(--gap-md-lg);
-  border-top: 1px solid var(--border-color);
+  border-top: 0.0625rem solid var(--border-color);
   transition: background var(--duration-fast);
 
   .q-expansion-item:first-child & {
@@ -680,7 +680,7 @@ watch(visibleSectionKey, (key) => {
 }
 
 .group-name {
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
@@ -702,7 +702,7 @@ watch(visibleSectionKey, (key) => {
 
 .group-header .group-dates {
   display: grid;
-  font-size: var(--type-3xs);
+  font-size: var(--type-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -752,8 +752,8 @@ watch(visibleSectionKey, (key) => {
 
   &:focus-visible {
     opacity: 1;
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
@@ -772,7 +772,7 @@ watch(visibleSectionKey, (key) => {
   padding-block: var(--gap-md);
   padding-inline: 2rem var(--gap-md-lg); // indent aligns with country name inside group header
   border: none;
-  border-inline-start: 3px solid transparent;
+  border-inline-start: 0.1875rem solid transparent;
   transition: background var(--duration-fast), border-color var(--duration-fast);
 
   &:hover {
@@ -801,15 +801,15 @@ watch(visibleSectionKey, (key) => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: -2px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: -0.125rem;
   }
 }
 
 .cover-item {
   border-top: none;
   margin-bottom: var(--gap-sm);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 0.0625rem solid var(--border-color);
 
   &.visible {
     background: color-mix(in srgb, var(--q-primary) 12%, transparent);
@@ -852,12 +852,12 @@ watch(visibleSectionKey, (key) => {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
-  font-size: var(--type-3xs);
+  font-size: var(--type-xs);
   color: var(--text-muted);
   cursor: pointer;
   padding: var(--gap-xs);
   border-radius: var(--radius-xs);
-  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
+  border-bottom: 0.0625rem dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
   transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
 
   &:hover {
@@ -872,8 +872,8 @@ watch(visibleSectionKey, (key) => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
@@ -912,8 +912,8 @@ watch(visibleSectionKey, (key) => {
 
   &:focus-visible {
     opacity: 1;
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
@@ -958,7 +958,7 @@ watch(visibleSectionKey, (key) => {
 }
 
 .item-name {
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
@@ -967,7 +967,7 @@ watch(visibleSectionKey, (key) => {
 }
 
 .item-date {
-  font-size: var(--type-3xs);
+  font-size: var(--type-xs);
 }
 
 .picker-panel {
@@ -980,7 +980,7 @@ watch(visibleSectionKey, (key) => {
   align-items: center;
   justify-content: space-between;
   padding: var(--gap-sm) var(--gap-md);
-  border-top: 1px solid var(--border-color);
+  border-top: 0.0625rem solid var(--border-color);
   gap: var(--gap-sm);
 }
 
@@ -989,7 +989,7 @@ watch(visibleSectionKey, (key) => {
   background: none;
   border: none;
   font: inherit;
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   color: var(--text-muted);
   cursor: pointer;
   padding: var(--gap-xs) var(--gap-sm);
@@ -1007,13 +1007,13 @@ watch(visibleSectionKey, (key) => {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
 .picker-confirm-text {
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   color: var(--text-muted);
 }
 
@@ -1028,15 +1028,15 @@ watch(visibleSectionKey, (key) => {
   appearance: none;
   border: none;
   font: inherit;
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   cursor: pointer;
   padding: var(--gap-xs) var(--gap-sm-md);
   border-radius: var(--radius-sm);
   transition: background var(--duration-fast);
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 }
 
@@ -1086,7 +1086,12 @@ watch(visibleSectionKey, (key) => {
   .step-toggle,
   .country-toggle,
   .map-delete {
-    padding: var(--gap-md);
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--gap-md-lg);
   }
 }
 

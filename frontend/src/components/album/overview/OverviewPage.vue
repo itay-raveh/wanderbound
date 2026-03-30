@@ -241,7 +241,7 @@ const stats = computed(() => [
 }
 
 .stat-label {
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
@@ -253,8 +253,8 @@ const stats = computed(() => [
   justify-content: center;
   gap: var(--gap-md) 1.25rem;
   padding: var(--gap-lg) var(--page-inset-x);
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
-  border-bottom: 1px solid
+  border-top: 0.0625rem solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  border-bottom: 0.0625rem solid
     color-mix(in srgb, var(--border-color) 40%, transparent);
 }
 
@@ -266,7 +266,7 @@ const stats = computed(() => [
 }
 
 .country-accent {
-  width: 3px;
+  width: 0.1875rem;
   height: 1.375rem;
   border-radius: var(--radius-xs);
   flex-shrink: 0;

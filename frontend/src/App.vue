@@ -65,9 +65,8 @@ body,
   --type-subtitle: 1.1rem;
   --type-md: 1rem;
   --type-sm: 0.875rem;
-  --type-xs: 0.75rem;
-  --type-2xs: 0.6875rem;
-  --type-3xs: 0.5625rem;
+  --type-xs: 0.75rem; /* smallest UI size */
+  --type-3xs: 0.5625rem; /* print-only — album pages at A4 scale */
 
   /* Letter-spacing */
   --tracking-tight: -0.02em;
@@ -100,7 +99,7 @@ body,
    Set --accent on the element to control the accent color. */
 .accent-card {
   padding: 0.625rem var(--gap-md-lg);
-  border-inline-start: 3px solid var(--accent);
+  border-inline-start: 0.1875rem solid var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
   border-radius: var(--radius-sm);
 }
@@ -228,7 +227,7 @@ body,
     padding: 0.5rem 1rem;
     background: var(--bg-secondary);
     color: var(--text);
-    border: 2px solid var(--q-primary);
+    border: 0.125rem solid var(--q-primary);
     border-radius: var(--radius-md);
     font-size: var(--type-sm);
     text-decoration: none;

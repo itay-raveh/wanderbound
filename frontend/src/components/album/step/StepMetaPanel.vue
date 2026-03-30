@@ -212,7 +212,7 @@ const dateStr = computed(() => {
   flex-direction: column;
   gap: var(--gap-xs);
   font-family: var(--font-mono);
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding-top: var(--gap-sm);
@@ -292,7 +292,7 @@ const dateStr = computed(() => {
 }
 
 .stat-label {
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
@@ -335,7 +335,7 @@ const dateStr = computed(() => {
 .progress-track {
   display: flex;
   width: 100%;
-  height: 4px;
+  height: 0.25rem;
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--text) 10%, transparent);
   overflow: hidden;
@@ -349,7 +349,7 @@ const dateStr = computed(() => {
 
 .badge-rail {
   position: relative;
-  height: calc(5px + 1.1rem);
+  height: calc(0.3125rem + 1.1rem);
   margin-top: var(--gap-sm);
 }
 
@@ -366,13 +366,13 @@ const dateStr = computed(() => {
 .badge-arrow {
   width: 0;
   height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 5px solid v-bind(countryColor);
+  border-left: 0.3125rem solid transparent;
+  border-right: 0.3125rem solid transparent;
+  border-bottom: 0.3125rem solid v-bind(countryColor);
 }
 
 .step-badge {
-  margin-top: -1px;
+  margin-top: -0.0625rem;
   font-size: var(--type-3xs);
   font-weight: 700;
   padding: var(--gap-xs) var(--gap-md);

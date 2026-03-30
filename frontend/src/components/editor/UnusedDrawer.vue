@@ -81,9 +81,9 @@ useDraggable(trackRef, localUnused, {
   align-items: center;
   justify-content: center;
   padding: var(--gap-md-lg) var(--gap-sm);
-  border: 1.5px dashed color-mix(in srgb, var(--text) 18%, transparent);
+  border: 0.125rem dashed color-mix(in srgb, var(--text) 18%, transparent);
   border-radius: var(--radius-sm);
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   color: var(--text-faint);
   text-align: center;
   transition: border-color var(--duration-fast), color var(--duration-fast);
@@ -108,7 +108,7 @@ useDraggable(trackRef, localUnused, {
   scrollbar-color: var(--border-color) transparent;
 
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 0.25rem;
   }
 
   &::-webkit-scrollbar-thumb {

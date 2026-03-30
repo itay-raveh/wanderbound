@@ -226,7 +226,7 @@ async function handleDelete() {
   gap: var(--gap-md);
   padding: var(--gap-sm-md) var(--gap-md) var(--gap-sm-md) var(--gap-sm-md);
   border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border: 0.0625rem solid color-mix(in srgb, var(--text) 18%, transparent);
   background: var(--surface);
   cursor: pointer;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
@@ -239,8 +239,8 @@ async function handleDelete() {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 2px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.125rem;
   }
 }
 
@@ -262,7 +262,7 @@ async function handleDelete() {
 }
 
 .trigger-divider {
-  width: 1px;
+  width: 0.0625rem;
   height: 1.25rem;
   background: var(--border-color);
   flex-shrink: 0;
@@ -295,7 +295,7 @@ async function handleDelete() {
 .section-title {
   margin: 0 0 var(--gap-md);
   padding: 0 var(--gap-xs);
-  font-size: var(--type-2xs);
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-faint);
   text-transform: none;
@@ -359,8 +359,8 @@ async function handleDelete() {
   }
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
   }
 
   &.active {
@@ -413,8 +413,8 @@ async function handleDelete() {
   transition: background var(--duration-fast) ease;
 
   &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: -1px;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: -0.0625rem;
   }
 }
 
@@ -440,12 +440,17 @@ async function handleDelete() {
   .trigger-gear,
   .seg-btn,
   .action-btn,
-  .danger-btn {
+  .danger-btn,
+  .account-details > summary::after {
     transition: none;
   }
 
   .settings-trigger:hover .trigger-gear,
   .settings-trigger.open .trigger-gear {
+    transform: none;
+  }
+
+  .account-details[open] > summary::after {
     transform: none;
   }
 }

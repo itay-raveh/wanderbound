@@ -69,6 +69,7 @@
   },
 
   "editor": {
+    "toolbar": "כלי אלבום",
     "exportPdf": "הורדת PDF",
     "font": "גופן כותרות",
     "bodyFont": "גופן גוף"
