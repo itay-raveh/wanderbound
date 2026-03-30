@@ -1,11 +1,10 @@
 <script lang="ts" setup>
-import type { Album, Segment, Step } from "@/client";
+import type { AlbumMeta, SegmentOutline, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
+import { useOverview } from "@/composables/useOverview";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
-import { lineString } from "@turf/helpers";
-import length from "@turf/length";
 import { STAT_COLORS } from "../colors";
 import { flagUrl } from "@/utils/media";
 import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
@@ -13,14 +12,18 @@ import OverviewExtremes from "./OverviewExtremes.vue";
 import OverviewFurthestPoint from "./OverviewFurthestPoint.vue";
 
 const props = defineProps<{
-  album: Album;
+  album: AlbumMeta;
   steps: Step[];
-  segments: Segment[];
+  segments: SegmentOutline[];
 }>();
 
 const { totalDays } = useAlbum();
 const { user, formatDistance, distanceUnit, locale, countryName } = useUserQuery();
 const { t } = useI18n();
+
+const overview = computed(() =>
+  useOverview(props.steps, props.segments, null, null),
+);
 
 const stepsCount = computed(() =>
   props.steps.length.toLocaleString(locale.value),
@@ -30,31 +33,15 @@ const daysCount = computed(() =>
   totalDays.value.toLocaleString(locale.value),
 );
 
-const photosCount = computed(() => {
-  let n = 0;
-  for (const { pages } of props.steps)
-    for (const page of pages) n += page.length;
-  return n.toLocaleString(locale.value);
-});
+const photosCount = computed(() =>
+  overview.value.totalPhotos.toLocaleString(locale.value),
+);
 
-const countries = computed(() => {
-  const seen = new Map<string, string>();
-  for (const { location } of props.steps) {
-    if (location.country_code !== "00") {
-      seen.set(location.country_code, location.detail);
-    }
-  }
-  return [...seen];
-});
+const countries = computed(() => overview.value.countries);
 
-const totalDistance = computed(() => {
-  const km = props.segments.reduce((acc, seg) => {
-    if (seg.points.length < 2) return acc;
-    const coords = seg.points.map((p) => [p.lon, p.lat] as [number, number]);
-    return acc + length(lineString(coords), { units: "kilometers" });
-  }, 0);
-  return formatDistance(km);
-});
+const totalDistance = computed(() =>
+  formatDistance(overview.value.distanceKm),
+);
 
 const stats = computed(() => [
   {
@@ -104,7 +91,7 @@ const stats = computed(() => [
 
       <!-- Countries -->
       <div class="countries-strip">
-        <div v-for="[code, name] in countries" :key="code" class="country-chip">
+        <div v-for="{ code, detail } in countries" :key="code" class="country-chip">
           <div
             class="country-accent"
             :style="{
@@ -113,11 +100,11 @@ const stats = computed(() => [
           />
           <img
             :src="flagUrl(code)"
-            :alt="name"
+            :alt="detail"
             class="country-flag"
             loading="eager"
           >
-          <span class="country-name text-bright">{{ countryName(code, name) }}</span>
+          <span class="country-name text-bright">{{ countryName(code, detail) }}</span>
         </div>
       </div>
 
