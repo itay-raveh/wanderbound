@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import logging
 from collections import defaultdict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
@@ -106,7 +106,7 @@ class TripResults(NamedTuple):
     cover_name: str
 
 
-def _segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
+def segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
     """Find the timezone of the step closest to a segment's start time."""
     best = all_steps[0]
     for step in all_steps:
@@ -136,7 +136,7 @@ def _merge_date_ranges(
     return merged
 
 
-def _multi_day_hike_ranges(
+def multi_day_hike_ranges(
     segments: list[Segment],
 ) -> list[tuple[date, date]]:
     """Return date ranges for hike segments with significant hiking on ≥2 days.
@@ -168,6 +168,28 @@ def _multi_day_hike_ranges(
     return _merge_date_ranges(ranges)
 
 
+def build_segment_objects(
+    uid: int,
+    aid: str,
+    steps: Sequence[Step],
+    locations: Iterable[Point],
+    all_ps_steps: list[PSStep],
+) -> list[Segment]:
+    """Build Segment DB objects from GPS locations and step waypoints."""
+    return [
+        Segment(
+            uid=uid,
+            aid=aid,
+            start_time=seg.points[0].time,
+            end_time=seg.points[-1].time,
+            kind=seg.kind,
+            timezone_id=segment_timezone(seg.points[0].time, all_ps_steps),
+            points=seg.points,
+        )
+        for seg in build_segments(steps, locations)
+    ]
+
+
 def build_trip_objects(
     user: User,
     aid: str,
@@ -194,18 +216,7 @@ def build_trip_objects(
             trip.all_steps, results.elevations, weathers, layouts, strict=True
         )
     ]
-    segments = [
-        Segment(
-            uid=user.id,
-            aid=aid,
-            start_time=seg.points[0].time,
-            end_time=seg.points[-1].time,
-            kind=seg.kind,
-            timezone_id=_segment_timezone(seg.points[0].time, trip.all_steps),
-            points=seg.points,
-        )
-        for seg in build_segments(steps, locations)
-    ]
+    segments = build_segment_objects(user.id, aid, steps, locations, trip.all_steps)
 
     album = Album(
         uid=user.id,
@@ -214,7 +225,7 @@ def build_trip_objects(
             {s.location.country_code for s in trip.all_steps},
         ),
         excluded_steps=[],
-        maps_ranges=_multi_day_hike_ranges(segments),
+        maps_ranges=multi_day_hike_ranges(segments),
         title=trip.title,
         subtitle=trip.subtitle,
         front_cover_photo=results.cover_name,

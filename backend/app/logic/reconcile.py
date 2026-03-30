@@ -15,11 +15,13 @@ from app.logic.processing import (
     DbRow,
     PhaseUpdate,
     TripResults,
+    build_segment_objects,
     build_step,
     cover_name_from_trip,
     drain_queue,
     fetch_layouts,
     load_trip_data,
+    multi_day_hike_ranges,
     prepare_media,
     run_elevations,
     run_weather,
@@ -206,7 +208,7 @@ async def reconcile_trip(
     get media reconciliation.
     """
     aid = trip_dir.name
-    trip, _locations = await asyncio.to_thread(load_trip_data, trip_dir)
+    trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
     logger.info(
         "Reconciling '%s' with %d steps (%d existing)",
         trip.title,
@@ -268,6 +270,20 @@ async def reconcile_trip(
     album.title = trip.title
     album.subtitle = trip.subtitle
 
+    # Rebuild segments from GPS data (segments are not persisted across
+    # re-uploads; always rebuild from GPS locations).
+    all_steps = [*reconciled_steps, *new_step_objects]
+    all_steps.sort(key=lambda s: s.timestamp)
+    segments = await asyncio.to_thread(
+        build_segment_objects,
+        user.id,
+        aid,
+        all_steps,
+        locations,
+        trip.all_steps,
+    )
+    album.maps_ranges = multi_day_hike_ranges(segments)
+
     db_out.append(album)
-    db_out.extend(reconciled_steps)
-    db_out.extend(new_step_objects)
+    db_out.extend(all_steps)
+    db_out.extend(segments)

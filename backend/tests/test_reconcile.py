@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from app.logic.layout.media import Media
@@ -6,11 +7,17 @@ from app.logic.reconcile import (
     _pick_cover,
     _reconcile_step,
     _scan_step_media,
+    reconcile_trip,
 )
 from app.models.album import Album
 from app.models.polarsteps import Location, PSStep
+from app.models.segment import Segment
 from app.models.step import Step
+from app.models.user import User
 from app.models.weather import Weather, WeatherData
+from tests.conftest import collect_async
+
+_UID = 1
 
 _LOC = Location(name="Place", detail="", country_code="nl", lat=52.0, lon=4.0)
 _LOC2 = Location(name="Updated", detail="center", country_code="de", lat=48.0, lon=11.0)
@@ -103,14 +110,19 @@ class TestScanStepMedia:
 
 
 def _media(name: str, *, portrait: bool) -> Media:
-    return Media(name=name, width=600 if portrait else 1920, height=1000 if portrait else 1080)
+    return Media(
+        name=name, width=600 if portrait else 1920, height=1000 if portrait else 1080
+    )
 
 
 class TestPickCover:
     def test_prefers_portrait(self) -> None:
         pages = [["a.jpg", "b.jpg"]]
         unused = ["c.jpg"]
-        media = {n: _media(n, portrait=p) for n, p in [("a.jpg", False), ("b.jpg", True), ("c.jpg", False)]}
+        media = {
+            n: _media(n, portrait=p)
+            for n, p in [("a.jpg", False), ("b.jpg", True), ("c.jpg", False)]
+        }
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
     def test_pages_before_unused(self) -> None:
@@ -122,7 +134,10 @@ class TestPickCover:
     def test_portrait_in_unused(self) -> None:
         pages = [["land.jpg"]]
         unused = ["port.jpg"]
-        media = {"land.jpg": _media("land.jpg", portrait=False), "port.jpg": _media("port.jpg", portrait=True)}
+        media = {
+            "land.jpg": _media("land.jpg", portrait=False),
+            "port.jpg": _media("port.jpg", portrait=True),
+        }
         assert _pick_cover(pages, unused, media) == "port.jpg"
 
 
@@ -258,3 +273,82 @@ class TestFixAlbumCovers:
         _fix_album_covers(album, all_on_disk, "missing.jpg", steps)
         assert album.front_cover_photo == "s2_cover.jpg"
         assert album.back_cover_photo == "s2_cover.jpg"
+
+
+_RECONCILE_AID = "test-trip_1"
+_LOC_B = Location(name="B", detail="", country_code="nl", lat=52.5, lon=5.0)
+
+
+def _build_trip_dir(tmp_path: Path, ps_steps: list[PSStep]) -> Path:
+    """Create a minimal trip directory with trip.json and locations.json."""
+    trip_dir = tmp_path / _RECONCILE_AID
+    trip_dir.mkdir()
+    trip_json = {
+        "id": 1,
+        "slug": "test-trip",
+        "name": "Test Trip",
+        "summary": "",
+        "cover_photo_path": "https://example.com/cover.jpg",
+        "step_count": len(ps_steps),
+        "all_steps": [s.model_dump(by_alias=True) for s in ps_steps],
+    }
+    (trip_dir / "trip.json").write_text(json.dumps(trip_json))
+    # Dense GPS points between the two steps (simulates a driving track)
+    gps_points = [
+        {"lat": 52.0 + i * 0.05, "lon": 4.0 + i * 0.1, "time": 1_000_000.0 + i * 360}
+        for i in range(11)
+    ]
+    (trip_dir / "locations.json").write_text(json.dumps({"locations": gps_points}))
+    return trip_dir
+
+
+class TestReconcileTripRebuildsSegments:
+    """Regression: reconcile_trip must rebuild segments from GPS data.
+
+    Previously, reconcile_trip never called build_segments, so after
+    _save_reupload deleted old segments the table stayed empty — route
+    lines disappeared from trip maps.
+    """
+
+    async def test_segments_included_in_db_out(self, tmp_path: Path) -> None:
+        ps_steps = [
+            _ps_step(1, slug="start"),
+            _ps_step(2, slug="end", location=_LOC_B),
+        ]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+
+        existing_steps = [
+            _step(1, name="Start"),
+            _step(2, name="End"),
+        ]
+        for s in existing_steps:
+            s.uid = _UID
+            s.aid = _RECONCILE_AID
+
+        album = _album()
+        album.uid = _UID
+        album.id = _RECONCILE_AID
+
+        user = User(
+            id=_UID,
+            first_name="Test",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            google_sub="test",
+        )
+
+        db_out: list = []
+        await collect_async(
+            reconcile_trip(user, trip_dir, album, existing_steps, db_out)
+        )
+
+        segments = [obj for obj in db_out if isinstance(obj, Segment)]
+        assert len(segments) > 0, (
+            "reconcile_trip must rebuild segments from GPS data; "
+            "got 0 segments in db_out (route lines would be missing)"
+        )
+        for seg in segments:
+            assert seg.uid == _UID
+            assert seg.aid == _RECONCILE_AID
+            assert len(seg.points) >= 2

@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     import pytest
 
 from app.logic.processing import (
-    _segment_timezone,
     resolve_international_waters,
+    segment_timezone,
 )
 from app.models.polarsteps import Location, PSStep
 
@@ -115,9 +115,9 @@ class TestSegmentTimezone:
         steps[0].timezone_id = "America/Santiago"
         steps[1].timezone_id = "America/Santiago"
         steps[2].timezone_id = "America/Buenos_Aires"
-        assert _segment_timezone(250, steps) == "America/Santiago"
+        assert segment_timezone(250, steps) == "America/Santiago"
 
     def test_falls_back_to_first_step(self) -> None:
         steps = [_step("A", "CL", 500)]
         steps[0].timezone_id = "America/Santiago"
-        assert _segment_timezone(100, steps) == "America/Santiago"
+        assert segment_timezone(100, steps) == "America/Santiago"

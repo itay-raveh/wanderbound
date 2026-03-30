@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 import pytest
 
-from app.logic.processing import _multi_day_hike_ranges, _segment_timezone
+from app.logic.processing import multi_day_hike_ranges, segment_timezone
 from app.logic.spatial.segments import (
     _remove_gps_noise,
     build_segments,
@@ -641,23 +641,23 @@ def _minimal_seg(
 
 
 class TestMultiDayHikeRanges:
-    """Tests for _multi_day_hike_ranges (per-day distance analysis)."""
+    """Tests for multi_day_hike_ranges (per-day distance analysis)."""
 
     # -- Basic behaviour --
 
     def test_multi_day_hike_produces_range(self) -> None:
         seg = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
-        ranges = _multi_day_hike_ranges([seg])
+        ranges = multi_day_hike_ranges([seg])
         assert ranges == [(date(2024, 12, 8), date(2024, 12, 11))]
 
     def test_single_day_hike_excluded(self) -> None:
         # 6-hour same-day hike — only 1 point pair, 1 calendar day
         seg = _multi_day_seg([8.0], date(2024, 12, 8))
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_non_hike_segments_excluded(self) -> None:
         seg = _minimal_seg(SegmentKind.driving, 1e9, 1e9 + 4 * 86400)
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_uses_local_timezone_for_date(self) -> None:
         """Late evening in Santiago (23:30 local) is still the same local date."""
@@ -678,31 +678,31 @@ class TestMultiDayHikeRanges:
                 Point(lat=0.072, lon=0.0, time=t2),  # ~8 km
             ],
         )
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_multiple_hikes(self) -> None:
         seg1 = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
         seg2 = _multi_day_seg([10, 10, 10, 10], date(2025, 1, 7))
-        ranges = _multi_day_hike_ranges([seg1, seg2])
+        ranges = multi_day_hike_ranges([seg1, seg2])
         assert len(ranges) == 2
 
     # -- True positives (confirmed good multi-day hikes) --
 
     def test_patagonia_4day_trek(self) -> None:
         seg = _multi_day_seg([15, 14, 13, 14], date(2024, 12, 1))
-        ranges = _multi_day_hike_ranges([seg])
+        ranges = multi_day_hike_ranges([seg])
         assert ranges == [(date(2024, 12, 1), date(2024, 12, 4))]
 
     def test_2day_hike_low_daily_distance(self) -> None:
         """Weakest true positive: models Jun 10-11 (4.8 km total, ~2.4 km/day)."""
         seg = _multi_day_seg([2.5, 2.3], date(2025, 6, 10), "America/Lima")
-        ranges = _multi_day_hike_ranges([seg])
+        ranges = multi_day_hike_ranges([seg])
         assert ranges == [(date(2025, 6, 10), date(2025, 6, 11))]
 
     def test_week_long_trek(self) -> None:
         """Models Aug 10-17: 81.6 km over 8 days."""
         seg = _multi_day_seg([12, 10, 11, 9, 10, 11, 10, 8], date(2025, 8, 10))
-        ranges = _multi_day_hike_ranges([seg])
+        ranges = multi_day_hike_ranges([seg])
         assert ranges == [(date(2025, 8, 10), date(2025, 8, 17))]
 
     # -- False positives: not multi-day (real hike, single active day) --
@@ -731,12 +731,12 @@ class TestMultiDayHikeRanges:
                 Point(lat=0.081, lon=0.0, time=t3),  # ~1 km more
             ],
         )
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_single_day_hike_other_day_below_threshold(self) -> None:
         """Dec 24-25: only the 24th had a hike.  Day 2 has < 2 km."""
         seg = _multi_day_seg([10.0, 1.5], date(2024, 12, 24))
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_two_separate_day_hikes_included(self) -> None:
         """May 14-15: two separate day hikes absorbed into one segment.
@@ -745,7 +745,7 @@ class TestMultiDayHikeRanges:
         includes it.  The frontend shows a map covering both, which is useful.
         """
         seg = _multi_day_seg([6.0, 5.0], date(2025, 5, 14))
-        ranges = _multi_day_hike_ranges([seg])
+        ranges = multi_day_hike_ranges([seg])
         assert ranges == [(date(2025, 5, 14), date(2025, 5, 15))]
 
     # -- False positives: GPS drift (not hikes at all) --
@@ -771,7 +771,7 @@ class TestMultiDayHikeRanges:
                 Point(lat=0.0135, lon=0.0, time=t2),  # ~0.5 km more
             ],
         )
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_overmerged_camping_one_active_day(self) -> None:
         """Jan 26-Feb 2: 171 h segment but only one day has real hiking."""
@@ -779,12 +779,12 @@ class TestMultiDayHikeRanges:
             [0.3, 0.4, 5.0, 0.2, 0.3, 0.3, 0.4, 0.3],
             date(2025, 1, 26),
         )
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_drift_low_distance_multiday(self) -> None:
         """Feb 9-10 pattern: multi-day GPS drift, < 2 km every day."""
         seg = _multi_day_seg([0.5, 0.7, 0.3], date(2025, 2, 9))
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     # -- Merge --
 
@@ -792,7 +792,7 @@ class TestMultiDayHikeRanges:
         """May 25-26 + May 26-27 → single range May 25-27."""
         seg1 = _multi_day_seg([6.0, 4.0], date(2025, 5, 25))
         seg2 = _multi_day_seg([3.0, 5.0], date(2025, 5, 26))
-        ranges = _multi_day_hike_ranges([seg1, seg2])
+        ranges = multi_day_hike_ranges([seg1, seg2])
         assert ranges == [(date(2025, 5, 25), date(2025, 5, 27))]
 
     # -- Edge cases --
@@ -800,13 +800,13 @@ class TestMultiDayHikeRanges:
     def test_all_days_below_threshold(self) -> None:
         """3 days of 1.5 km/day — below 2.0 km threshold on every day."""
         seg = _multi_day_seg([1.5, 1.5, 1.5], date(2025, 3, 1))
-        assert _multi_day_hike_ranges([seg]) == []
+        assert multi_day_hike_ranges([seg]) == []
 
     def test_non_overlapping_ranges_stay_separate(self) -> None:
         """Two multi-day hikes a week apart stay as separate ranges."""
         seg1 = _multi_day_seg([10, 10], date(2025, 4, 1))
         seg2 = _multi_day_seg([10, 10], date(2025, 4, 10))
-        ranges = _multi_day_hike_ranges([seg1, seg2])
+        ranges = multi_day_hike_ranges([seg1, seg2])
         assert ranges == [
             (date(2025, 4, 1), date(2025, 4, 2)),
             (date(2025, 4, 10), date(2025, 4, 11)),
@@ -814,7 +814,7 @@ class TestMultiDayHikeRanges:
 
 
 class TestMultiDayHikeRangesIntegration:
-    """Verify _multi_day_hike_ranges against real South America 2024-2025 data.
+    """Verify multi_day_hike_ranges against real South America 2024-2025 data.
 
     Builds Segment objects from the full trip's pipeline output, exactly as
     build_trip_objects() does, then checks that the per-day distance analysis
@@ -836,7 +836,7 @@ class TestMultiDayHikeRangesIntegration:
                 start_time=seg.points[0].time,
                 end_time=seg.points[-1].time,
                 kind=seg.kind,
-                timezone_id=_segment_timezone(seg.points[0].time, steps),
+                timezone_id=segment_timezone(seg.points[0].time, steps),
                 points=seg.points,
             )
             for seg in all_segments
@@ -844,7 +844,7 @@ class TestMultiDayHikeRangesIntegration:
 
     @pytest.fixture(scope="class")
     def real_ranges(self, real_segments: list[Segment]) -> list[tuple[date, date]]:
-        return _multi_day_hike_ranges(real_segments)
+        return multi_day_hike_ranges(real_segments)
 
     def test_confirmed_multiday_hikes_present(
         self, real_ranges: list[tuple[date, date]]
