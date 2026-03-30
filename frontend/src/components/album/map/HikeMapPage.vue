@@ -253,9 +253,9 @@ function scheduleElevationQuery(m: mapboxgl.Map) {
   m.on("idle", handler);
 }
 
-// When fetched data arrives or changes, redraw
+// When fetched data arrives or changes, redraw (onReady handles initial draw if data arrives first)
 watch(fullHikeSegment, () => {
-  if (!map.value || !fullHikeSegment.value) return;
+  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded()) return;
   elevationSamples.value = [];
   drawMap(map.value);
   scheduleElevationQuery(map.value);

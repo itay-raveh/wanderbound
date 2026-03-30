@@ -1,6 +1,8 @@
 import { readUser } from "@/client";
 import type { BodyUploadData } from "@/client";
+import { useQueryCache } from "@pinia/colada";
 import { createRouter, createWebHistory } from "vue-router";
+import { queryKeys } from "@/queries/keys";
 
 export type Provider = NonNullable<BodyUploadData["provider"]>;
 
@@ -80,6 +82,7 @@ router.beforeEach(async (to, from) => {
   let user;
   try {
     ({ data: user } = await readUser());
+    useQueryCache().setQueryData(queryKeys.user(), user);
   } catch {
     // Not authenticated: landing is fine, everything else → landing
     if (to.name === "landing") return;

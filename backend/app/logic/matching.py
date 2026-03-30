@@ -12,9 +12,9 @@ SPARSE_THRESHOLD_KM = 2
 
 # RDP tolerances (degrees, approximate)
 _RDP_TOLERANCES = [
-    (10, 0.00005),  # < 10km: ~5m
-    (100, 0.0002),  # < 100km: ~20m
-    (float("inf"), 0.0005),  # >= 100km: ~50m
+    (10, 0.00001),  # < 10km: ~1m
+    (100, 0.0001),  # < 100km: ~10m
+    (float("inf"), 0.001),  # >= 100km: ~110m
 ]
 
 

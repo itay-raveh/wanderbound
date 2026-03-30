@@ -1,9 +1,3 @@
-"""Mapbox Map Matching & Directions API client.
-
-Density-based API selection: dense (<2km avg spacing) → Map Matching,
-sparse (≥2km) → Directions. Results cached in DB via Segment.route.
-"""
-
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
@@ -37,9 +31,6 @@ def _client() -> httpx.AsyncClient:
     return cached_client()
 
 
-# -- Mapbox API response models ----------------------------------------
-
-
 class _GeoJSONLineString(BaseModel):
     type: Literal["LineString"]
     coordinates: list[list[float]]
@@ -59,9 +50,6 @@ class _Route(BaseModel):
 
 class _DirectionsResponse(BaseModel):
     routes: list[_Route] = []
-
-
-# -- Internal helpers --------------------------------------------------
 
 
 def _encode_coords(coords: Coords) -> str:
@@ -141,9 +129,6 @@ async def _chunked_route(
     return all_coords if len(all_coords) >= 2 else None
 
 
-# -- Public API --------------------------------------------------------
-
-
 async def _match_one(
     client: httpx.AsyncClient,
     points_lonlat: Coords,
@@ -175,10 +160,22 @@ async def _match_one(
         )
 
     if raw is None:
+        logger.debug(
+            "Matching failed for %s segment (%d pts)", profile, len(points_lonlat)
+        )
         return None
 
     span = total_length_km(points_lonlat)
-    return simplify_route(raw, span)
+    simplified = simplify_route(raw, span)
+    logger.debug(
+        "Matched %s segment: %d GPS → %d matched → %d simplified (%.1f km)",
+        profile,
+        len(points_lonlat),
+        len(raw),
+        len(simplified),
+        span,
+    )
+    return simplified
 
 
 async def match_segment(
@@ -190,9 +187,9 @@ async def match_segment(
     Automatically selects Map Matching (dense) or Directions (sparse).
     Returns road-snapped coordinates in [lon, lat] order, or None on failure.
     """
-    token = get_settings().MAPBOX_TOKEN
+    token = get_settings().VITE_MAPBOX_TOKEN
     if not token:
-        logger.warning("No MAPBOX_TOKEN configured, skipping matching")
+        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
         return None
 
     return await _match_one(_client(), points_lonlat, profile, token)
@@ -205,9 +202,9 @@ async def match_segments(
     if not pairs:
         return []
 
-    token = get_settings().MAPBOX_TOKEN
+    token = get_settings().VITE_MAPBOX_TOKEN
     if not token:
-        logger.warning("No MAPBOX_TOKEN configured, skipping matching")
+        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
         return [None] * len(pairs)
 
     client = _client()

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     VITE_FRONTEND_URL: str
     ENVIRONMENT: Literal["local", "production"] = "local"
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     SENTRY_DSN: str | None = None
     SENTRY_RELEASE: str | None = None
@@ -69,7 +70,7 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         )
 
-    MAPBOX_TOKEN: str | None = None
+    VITE_MAPBOX_TOKEN: str | None = None
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
     MAX_STORAGE_BYTES: int

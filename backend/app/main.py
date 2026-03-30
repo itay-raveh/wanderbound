@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from fastapi.routing import APIRoute
 
 settings = get_settings()
-setup_logging(use_rich=settings.ENVIRONMENT == "local")
+setup_logging(use_rich=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
 
 if settings.SENTRY_DSN:
 

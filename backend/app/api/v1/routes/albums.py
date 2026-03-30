@@ -17,9 +17,8 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import select
 
 from app.logic.layout.media import Media
-from app.logic.matching import MATCHABLE_KINDS
+from app.logic.matching import MATCHABLE_KINDS, total_length_km
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
-from app.logic.spatial.geo import haversine_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,
@@ -239,16 +238,10 @@ async def adjust_segment_boundary(
 
 
 def _total_distance_km(segments: list[Segment]) -> float:
-    total = 0.0
-    for seg in segments:
-        for i in range(len(seg.points) - 1):
-            total += haversine_km(
-                seg.points[i].lat,
-                seg.points[i].lon,
-                seg.points[i + 1].lat,
-                seg.points[i + 1].lon,
-            )
-    return round(total, 1)
+    return round(
+        sum(total_length_km([(p.lon, p.lat) for p in seg.points]) for seg in segments),
+        1,
+    )
 
 
 @router.get("/{aid}/print-bundle")

@@ -17,7 +17,7 @@ _NOISY = (
 SENTRY_IGNORED = ("uvicorn.access",)
 
 
-def setup_logging(*, use_rich: bool) -> None:
+def setup_logging(*, use_rich: bool, log_level: str = "INFO") -> None:
     if use_rich:
         handler = RichHandler(
             rich_tracebacks=True,
@@ -32,7 +32,7 @@ def setup_logging(*, use_rich: bool) -> None:
         )
 
     logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
-    logging.getLogger("app").setLevel(logging.INFO)
+    logging.getLogger("app").setLevel(getattr(logging, log_level.upper()))
     logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
     for name in _NOISY:

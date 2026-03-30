@@ -191,7 +191,7 @@ class TestMatchSegment:
 
     @patch("app.services.mapbox.get_settings")
     async def test_no_token(self, mock_settings: MagicMock) -> None:
-        mock_settings.return_value.MAPBOX_TOKEN = ""
+        mock_settings.return_value.VITE_MAPBOX_TOKEN = ""
         result = await match_segment([(4.0, 52.0), (4.1, 52.1)], "driving")
         assert result is None
 
@@ -200,7 +200,7 @@ class TestMatchSegment:
     async def test_dense_uses_matching(
         self, mock_settings: MagicMock, mock_client_fn: MagicMock
     ) -> None:
-        mock_settings.return_value.MAPBOX_TOKEN = "test-token"  # noqa: S105
+        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
         coords: Coords = [(4.0 + i * 0.001, 52.0) for i in range(10)]
         route_coords = [[c[0], c[1]] for c in coords]
 
@@ -218,7 +218,7 @@ class TestMatchSegment:
     async def test_sparse_uses_directions(
         self, mock_settings: MagicMock, mock_client_fn: MagicMock
     ) -> None:
-        mock_settings.return_value.MAPBOX_TOKEN = "test-token"  # noqa: S105
+        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
         coords: Coords = [(4.0, 52.0), (5.0, 52.0), (6.0, 52.0)]
         route_coords = [[c[0], c[1]] for c in coords]
 
@@ -244,7 +244,7 @@ class TestMatchSegments:
 
     @patch("app.services.mapbox.get_settings")
     async def test_no_token(self, mock_settings: MagicMock) -> None:
-        mock_settings.return_value.MAPBOX_TOKEN = ""
+        mock_settings.return_value.VITE_MAPBOX_TOKEN = ""
         result = await match_segments(
             [
                 ([(4.0, 52.0), (4.1, 52.1)], "driving"),
@@ -259,7 +259,7 @@ class TestMatchSegments:
         self, mock_settings: MagicMock, mock_client_fn: MagicMock
     ) -> None:
         """All segments in a batch share one cached client."""
-        mock_settings.return_value.MAPBOX_TOKEN = "test-token"  # noqa: S105
+        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
         coords_a: Coords = [(4.0 + i * 0.001, 52.0) for i in range(5)]
         coords_b: Coords = [(5.0 + i * 0.001, 52.0) for i in range(5)]
 
