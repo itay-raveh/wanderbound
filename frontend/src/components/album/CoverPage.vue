@@ -1,17 +1,13 @@
 <script lang="ts" setup>
 import { parseLocalDate } from "@/utils/date";
-import { isVideo } from "@/utils/media";
 import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { useI18n } from "vue-i18n";
 import EditableText from "./EditableText.vue";
-import CoverPhotoPicker from "./CoverPhotoPicker.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
 
 const { formatDateRange } = useUserQuery();
-const { t } = useI18n();
 
 const props = defineProps<{
   album: Album;
@@ -35,23 +31,8 @@ const dates = computed(() => {
   });
 });
 
-const coverField = computed(() =>
-  props.isBack ? "back_cover_photo" : "front_cover_photo",
-);
-
-const landscapePhotos = computed(() => {
-  const mediaMap = (props.album.media ?? {}) as Record<string, string>;
-  return Object.keys(mediaMap).filter(
-    (name) => mediaMap[name] === "l" && !isVideo(name),
-  );
-});
-
 function saveText(field: "title" | "subtitle", value: string) {
   albumMutation.mutate({ [field]: value });
-}
-
-function saveCover(name: string) {
-  albumMutation.mutate({ [coverField.value]: name });
 }
 </script>
 
@@ -64,17 +45,6 @@ function saveCover(name: string) {
       fit-cover
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />
-
-    <!-- Cover photo picker (editor only) -->
-    <div class="cover-picker-anchor print-hide">
-      <CoverPhotoPicker
-        :model-value="coverMedia"
-        :album-id="album.id"
-        :photos="landscapePhotos"
-        :label="isBack ? t('album.backCover') : t('album.frontCover')"
-        @update:model-value="saveCover"
-      />
-    </div>
 
     <!-- ═══ FRONT COVER ═══ -->
     <template v-if="!isBack">
@@ -161,11 +131,4 @@ function saveCover(name: string) {
   flex-shrink: 0;
 }
 
-.cover-picker-anchor {
-  position: absolute;
-  top: var(--gap-md);
-  left: var(--gap-md);
-  z-index: 3;
-  zoom: calc(1 / var(--editor-zoom, 1));
-}
 </style>

@@ -12,7 +12,7 @@ import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
-import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
+import { buildSections, HEADER_KEYS, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { vSpyStep, useStepScrollSpy } from "@/composables/useStepScrollSpy";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, ref, watch } from "vue";
@@ -95,7 +95,7 @@ const expectedPageCount = computed(() =>
 // ---------------------------------------------------------------------------
 // Virtual scroller — only active in editor mode
 // ---------------------------------------------------------------------------
-const HEADER_COUNT = 4; // front cover, back cover, overview, full-trip map
+const HEADER_COUNT = HEADER_KEYS.length;
 const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
 const measuredEls = new WeakSet<Element>();
@@ -114,18 +114,15 @@ const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
   gap: 16,
   scrollMargin: scrollMargin.value,
   getItemKey: (index: number) => {
-    if (index === 0) return "cover-front";
-    if (index === 1) return "cover-back";
-    if (index === 2) return "overview";
-    if (index === 3) return "full-map";
+    if (index < HEADER_COUNT) return HEADER_KEYS[index]!;
     const sec = sections.value[index - HEADER_COUNT];
     return sec ? sectionKey(sec) : index;
   },
 })));
 
-/** Map virtual-item index → scroll-spy value (step id | section key | undefined). */
+/** Map virtual-item index → scroll-spy value (step id | section key | header key). */
 function spyValue(vIndex: number): number | string | undefined {
-  if (vIndex < HEADER_COUNT) return undefined;
+  if (vIndex < HEADER_COUNT) return HEADER_KEYS[vIndex];
   const sec = sections.value[vIndex - HEADER_COUNT];
   if (!sec) return undefined;
   return sec.type === "step" ? sec.step.id : sectionKey(sec);
@@ -171,7 +168,7 @@ if (props.printMode) {
   });
   const secKeyToVIdx = computed(() => {
     const map = new Map<string, number>();
-    map.set("cover-front", 0);
+    HEADER_KEYS.forEach((key, i) => map.set(key, i));
     sections.value.forEach((s, i) => map.set(sectionKey(s), HEADER_COUNT + i));
     return map;
   });

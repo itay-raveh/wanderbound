@@ -2,6 +2,9 @@ import type { DateRange, Segment, Step } from "@/client";
 import { measureDescription } from "@/composables/useTextMeasure";
 import { inDateRange, isoDate } from "@/utils/date";
 
+/** Keys for fixed album pages that precede the data-driven sections. */
+export const HEADER_KEYS = ["cover-front", "cover-back", "overview", "full-map"] as const;
+
 interface IndexedPage {
   originalIdx: number;
   page: string[];

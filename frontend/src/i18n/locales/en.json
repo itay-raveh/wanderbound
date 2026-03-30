@@ -149,6 +149,12 @@
     "furthestFromHome": "Furthest from home"
   },
 
+  "inspector": {
+    "overview": "Overview",
+    "mapHint": "Route and markers are generated from your GPS tracks",
+    "overviewHint": "Statistics are calculated from your trip data"
+  },
+
   "print": {
     "loadFailed": "Failed to load album:",
     "loading": "Loading album..."
@@ -216,7 +222,8 @@
     "removeAllMaps": "Remove all maps?",
     "remove": "Remove",
     "mapsCleared": "All maps removed",
-    "filterCleared": "Filter cleared"
+    "filterCleared": "Filter cleared",
+    "inspector": "Inspector"
   },
 
   "screen": {

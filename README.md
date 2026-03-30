@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Critique right drawer.
 - [ ] Critique cover pages.
 - [ ] Critique overview page.
 - [ ] Critique step main pages.

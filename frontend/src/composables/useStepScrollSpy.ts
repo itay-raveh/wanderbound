@@ -14,17 +14,30 @@ const visibleSectionKey = ref<string | null>(null);
 let observer: IntersectionObserver | null = null;
 let rafId = 0;
 
-/** Pick the element whose top edge is closest to the upper quarter of the viewport. */
+/**
+ * Pick the visible element whose top edge is closest to the upper quarter of the viewport.
+ * Prefer elements already scrolled past the target line (top < target) over ones still below it,
+ * so that a partially visible next section doesn't steal focus from the current one.
+ */
 function pickBest() {
   rafId = 0;
   const target = window.innerHeight * 0.25;
   let bestStepId: number | null = null;
   let bestSectionKey: string | null = null;
+  let bestAbove = false;
   let bestDist = Infinity;
 
   function consider(el: Element, stepId: number | null, secKey: string | null) {
-    const dist = Math.abs(el.getBoundingClientRect().top - target);
-    if (dist < bestDist) { bestDist = dist; bestStepId = stepId; bestSectionKey = secKey; }
+    const top = el.getBoundingClientRect().top;
+    const above = top <= target;
+    const dist = Math.abs(top - target);
+    // An element above the target line always beats one below it.
+    if (above === bestAbove ? dist < bestDist : above) {
+      bestDist = dist;
+      bestAbove = above;
+      bestStepId = stepId;
+      bestSectionKey = secKey;
+    }
   }
 
   for (const id of visible) { const el = elements.get(id); if (el) consider(el, id, null); }
@@ -167,7 +180,7 @@ function spyUnmount(value: SpyValue | null) {
 /**
  * Directive for registering elements with the scroll-spy.
  * Pass a step ID (number) to track as a step, a section key (string) to track
- * as a section (map/hike), or undefined to skip registration.
+ * as a named page (cover, overview, map, hike), or undefined to skip registration.
  */
 export const vSpyStep: Directive<HTMLElement, SpyValue> = {
   mounted(el, { value }) {

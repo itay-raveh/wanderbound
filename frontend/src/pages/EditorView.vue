@@ -3,7 +3,7 @@ import AlbumNav from "@/components/editor/AlbumNav.vue";
 import AlbumToolbar from "@/components/editor/AlbumToolbar.vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import EditorHeader from "@/components/editor/EditorHeader.vue";
-import UnusedDrawer from "@/components/editor/UnusedDrawer.vue";
+import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
@@ -46,7 +46,7 @@ const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetScrollSpy(); });
 
-const { visibleStepId, resetScrollSpy } = useStepScrollSpy();
+const { visibleStepId, visibleSectionKey, resetScrollSpy } = useStepScrollSpy();
 onBeforeUnmount(resetScrollSpy);
 const activeStep = computed(() =>
   visibleStepId.value != null
@@ -85,14 +85,20 @@ const activeStep = computed(() =>
 
   <q-drawer
     side="right"
-    :model-value="!!activeStep"
+    :model-value="true"
     persistent
     bordered
     :width="DRAWER_WIDTH"
-    :aria-label="t('nav.unusedPhotos')"
+    :aria-label="t('nav.inspector')"
     class="print-hide"
   >
-    <UnusedDrawer v-if="activeStep && album" :key="activeStep.id" :step="activeStep" :album-id="album.id" />
+    <InspectorDrawer
+      v-if="album"
+      :key="activeStep?.id ?? visibleSectionKey ?? 'empty'"
+      :album="album"
+      :step="activeStep"
+      :section-key="visibleSectionKey"
+    />
   </q-drawer>
 
   <q-page class="editor-page">

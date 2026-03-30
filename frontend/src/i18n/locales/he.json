@@ -149,6 +149,12 @@
     "furthestFromHome": "הכי רחוק מהבית"
   },
 
+  "inspector": {
+    "overview": "סקירה",
+    "mapHint": "מסלול וסמנים נוצרים מנתוני ה-GPS שלכם",
+    "overviewHint": "הסטטיסטיקות מחושבות מנתוני הטיול"
+  },
+
   "print": {
     "loadFailed": "טעינת האלבום נכשלה:",
     "loading": "טוען אלבום..."
@@ -216,7 +222,8 @@
     "removeAllMaps": "להסיר את כל המפות?",
     "remove": "הסרה",
     "mapsCleared": "כל המפות הוסרו",
-    "filterCleared": "הסינון נוקה"
+    "filterCleared": "הסינון נוקה",
+    "inspector": "מאפיינים"
   },
 
   "screen": {

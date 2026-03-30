@@ -3,7 +3,7 @@ import type { DateRange, Step } from "@/client";
 import { flagUrl, mediaThumbUrl } from "@/utils/media";
 import { isoDate, inDateRange, datesToRanges, parseLocalDate, parseYMD, toQDate, toIso, ymdToIso, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
-import { mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
+import { HEADER_KEYS, mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
@@ -19,6 +19,7 @@ import {
   symOutlinedKeyboardArrowDown,
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
+  symOutlinedBarChart,
   symOutlinedVisibility,
   symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
@@ -340,6 +341,24 @@ function openGroupFor(predicate: (e: GroupEntry) => boolean) {
   }
 }
 
+const HEADER_ICONS: Record<string, string> = {
+  "cover-front": symOutlinedMenuBook,
+  "cover-back": symOutlinedMenuBook,
+  "overview": symOutlinedBarChart,
+  "full-map": symOutlinedMap,
+};
+const HEADER_LABELS: Record<string, string> = {
+  "cover-front": "nav.cover",
+  "cover-back": "album.backCover",
+  "overview": "inspector.overview",
+  "full-map": "album.tripRouteMap",
+};
+const headerNavItems = computed(() =>
+  HEADER_KEYS.map((key) => ({ key, icon: HEADER_ICONS[key]!, label: t(HEADER_LABELS[key]!) })),
+);
+
+const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
+
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
     const el = listRef.value?.querySelector(selector);
@@ -355,6 +374,10 @@ watch(visibleStepId, (id) => {
 
 watch(visibleSectionKey, (key) => {
   if (key == null) return;
+  if (HEADER_KEY_SET.has(key)) {
+    scrollNavItemIntoView(`[data-nav-section="${key}"]`);
+    return;
+  }
   for (const g of groups.value) {
     for (const e of g.entries) {
       if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
@@ -449,18 +472,19 @@ watch(visibleSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <button
-        type="button"
-        :class="['nav-item', 'cover-item', { visible: !visibleStepId && !visibleSectionKey }]"
-        @click="scrollToSection('cover-front')"
-      >
-        <div class="item-thumb cover-thumb">
-          <q-icon :name="symOutlinedMenuBook" size="var(--type-md)" />
-        </div>
-        <div class="item-info">
-          <span class="item-name">{{ t("nav.cover") }}</span>
-        </div>
-      </button>
+      <div class="header-items">
+        <button
+          v-for="item in headerNavItems"
+          :key="item.key"
+          type="button"
+          :data-nav-section="item.key"
+          :class="['nav-item', 'header-item', { visible: visibleSectionKey === item.key }]"
+          @click="scrollToSection(item.key)"
+        >
+          <q-icon :name="item.icon" size="var(--type-sm)" />
+          <span>{{ item.label }}</span>
+        </button>
+      </div>
 
       <q-expansion-item
         v-for="group in groups"
@@ -806,12 +830,28 @@ watch(visibleSectionKey, (key) => {
   }
 }
 
-.cover-item {
-  border-top: none;
-  margin-bottom: var(--gap-sm);
+.header-items {
+  display: flex;
+  flex-direction: column;
   border-bottom: 0.0625rem solid var(--border-color);
+  padding-bottom: var(--gap-sm);
+  margin-bottom: var(--gap-sm);
+}
+
+// Extends .nav-item (added as a class in the template) with compact overrides.
+.header-item {
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md-lg);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-bright);
+  }
 
   &.visible {
+    color: var(--q-primary);
     background: color-mix(in srgb, var(--q-primary) 12%, transparent);
     border-inline-start-color: var(--q-primary);
 
@@ -822,19 +862,6 @@ watch(visibleSectionKey, (key) => {
     &:active {
       background: color-mix(in srgb, var(--q-primary) 24%, transparent);
     }
-  }
-}
-
-.cover-thumb {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  color: var(--text-muted);
-
-  .cover-item.visible & {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
   }
 }
 
@@ -1096,6 +1123,7 @@ watch(visibleSectionKey, (key) => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .header-item,
   .nav-item,
   .group-header,
   .group-flag,
