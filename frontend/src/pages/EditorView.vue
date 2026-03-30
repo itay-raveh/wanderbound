@@ -6,7 +6,9 @@ import EditorHeader from "@/components/editor/EditorHeader.vue";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumQuery } from "@/queries/useAlbumQuery";
-import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
+import { useMediaQuery } from "@/queries/useMediaQuery";
+import { useStepsQuery } from "@/queries/useStepsQuery";
+import { useSegmentsQuery } from "@/queries/useSegmentsQuery";
 import { useLocale } from "@/composables/useLocale";
 import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
@@ -37,7 +39,9 @@ watch(selectedAlbumId, (id) => {
 const { data: userData, locale } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
-const { data: albumData } = useAlbumDataQuery(selectedAlbumId);
+const { data: media } = useMediaQuery(selectedAlbumId);
+const { data: steps } = useStepsQuery(selectedAlbumId);
+const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
 
 useLocale(locale);
 useEditorKeyboard();
@@ -50,7 +54,7 @@ const { visibleStepId, visibleSectionKey, resetScrollSpy } = useStepScrollSpy();
 onBeforeUnmount(resetScrollSpy);
 const activeStep = computed(() =>
   visibleStepId.value != null
-    ? albumData.value?.steps.find((s) => s.id === visibleStepId.value)
+    ? steps.value?.find((s) => s.id === visibleStepId.value)
     : undefined,
 );
 </script>
@@ -70,10 +74,10 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <AlbumNav
-      v-if="album && albumData"
+      v-if="album && steps"
       v-model:album-id="selectedAlbumId"
       :album-ids="albumIds ?? undefined"
-      :steps="albumData.steps"
+      :steps="steps"
       :excluded-steps="album.excluded_steps ?? undefined"
       :colors="album.colors ?? undefined"
       :maps-ranges="album.maps_ranges ?? undefined"
@@ -93,16 +97,23 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <InspectorDrawer
-      v-if="album"
+      v-if="album && media"
       :key="activeStep?.id ?? visibleSectionKey ?? 'empty'"
       :album="album"
+      :media="media"
       :step="activeStep"
       :section-key="visibleSectionKey"
     />
   </q-drawer>
 
   <q-page class="editor-page">
-    <AlbumViewer v-if="album && albumData" :album="album" :data="albumData" />
+    <AlbumViewer
+      v-if="album && steps && media && segmentOutlines"
+      :album="album"
+      :media="media"
+      :steps="steps"
+      :segment-outlines="segmentOutlines"
+    />
   </q-page>
 </template>
 
