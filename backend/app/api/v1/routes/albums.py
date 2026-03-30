@@ -14,23 +14,23 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
-from pydantic import BaseModel
 from sqlmodel import select
 
 from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.models.album import Album, AlbumMeta, AlbumUpdate
-from app.models.segment import BoundaryAdjust, Segment, SegmentKind, split_segments
+from app.models.segment import (
+    BoundaryAdjust,
+    Segment,
+    SegmentKind,
+    SegmentOutline,
+    split_segments,
+)
 from app.models.step import Step, StepUpdate
 
 from ..deps import BrowserDep, SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
-
-
-class AlbumData(BaseModel):
-    steps: list[Step]
-    segments: list[Segment]
 
 
 async def _get_album(
@@ -74,23 +74,47 @@ async def read_media(aid: str, album: AlbumDep) -> list[Media]:
     return album.media
 
 
-async def _album_data(album: Album, session: SessionDep) -> AlbumData:
-    steps_result = await session.exec(
+@router.get("/{aid}/steps")
+async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[Step]:
+    result = await session.exec(
         select(Step)
-        .where(Step.uid == album.uid, Step.aid == album.id)
+        .where(Step.uid == user.id, Step.aid == aid)
         .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
     )
-    segments_result = await session.exec(
+    return list(result.all())
+
+
+@router.get("/{aid}/segments")
+async def read_segments(
+    aid: str, user: UserDep, session: SessionDep
+) -> list[SegmentOutline]:
+    result = await session.exec(
         select(Segment)
-        .where(Segment.uid == album.uid, Segment.aid == album.id)
+        .where(Segment.uid == user.id, Segment.aid == aid)
         .order_by(Segment.start_time)  # type: ignore[union-attr]
     )
-    return AlbumData(steps=list(steps_result), segments=list(segments_result))
+    return [SegmentOutline.from_segment(s) for s in result.all()]
 
 
-@router.get("/{aid}/data")
-async def read_album_data(aid: str, album: AlbumDep, session: SessionDep) -> AlbumData:
-    return await _album_data(album, session)
+@router.get("/{aid}/segments/points")
+async def read_segment_points(
+    aid: str,
+    user: UserDep,
+    session: SessionDep,
+    from_time: Annotated[float, Query()],
+    to_time: Annotated[float, Query()],
+) -> list[Segment]:
+    result = await session.exec(
+        select(Segment)
+        .where(
+            Segment.uid == user.id,
+            Segment.aid == aid,
+            Segment.start_time >= from_time,
+            Segment.end_time <= to_time,
+        )
+        .order_by(Segment.start_time)  # type: ignore[union-attr]
+    )
+    return list(result.all())
 
 
 @router.patch("/{aid}")
@@ -128,9 +152,8 @@ async def adjust_segment_boundary(
     aid: str,
     body: BoundaryAdjust,
     user: UserDep,
-    album: AlbumDep,
     session: SessionDep,
-) -> AlbumData:
+) -> list[SegmentOutline]:
     uid = user.id
 
     # Lock the target segment for the duration of this transaction
@@ -191,7 +214,12 @@ async def adjust_segment_boundary(
         extra={"uid": uid, "aid": aid, "handle": body.handle},
     )
 
-    return await _album_data(album, session)
+    result = await session.exec(
+        select(Segment)
+        .where(Segment.uid == uid, Segment.aid == aid)
+        .order_by(Segment.start_time)  # type: ignore[union-attr]
+    )
+    return [SegmentOutline.from_segment(s) for s in result.all()]
 
 
 @router.post(

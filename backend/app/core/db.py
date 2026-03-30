@@ -16,7 +16,7 @@ class PydanticJSON(TypeDecorator[Any]):
     impl = JSON
     cache_ok = True
 
-    def __init__(self, tp: type) -> None:
+    def __init__(self, tp: Any) -> None:
         super().__init__()
         self._adapter = TypeAdapter(tp)
 

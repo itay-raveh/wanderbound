@@ -41,6 +41,10 @@ class Segment(SQLModel, table=True):
     points: list[Point] = Field(
         sa_column=Column(PydanticJSON(list[Point]), nullable=False)
     )
+    route: list[tuple[float, float]] | None = Field(
+        default=None,
+        sa_column=Column(PydanticJSON(list[tuple[float, float]] | None), nullable=True),
+    )
 
 
 class BoundaryAdjust(BaseModel):
@@ -48,6 +52,28 @@ class BoundaryAdjust(BaseModel):
     end_time: float
     handle: Literal["start", "end"]
     new_boundary_time: float
+
+
+class SegmentOutline(BaseModel):
+    """Lightweight segment projection — no points or route."""
+
+    start_time: float
+    end_time: float
+    kind: SegmentKind
+    timezone_id: str
+    start_coord: tuple[float, float]  # (lat, lon) from points[0]
+    end_coord: tuple[float, float]  # (lat, lon) from points[-1]
+
+    @classmethod
+    def from_segment(cls, seg: Segment) -> SegmentOutline:
+        return cls(
+            start_time=seg.start_time,
+            end_time=seg.end_time,
+            kind=seg.kind,
+            timezone_id=seg.timezone_id,
+            start_coord=(seg.points[0].lat, seg.points[0].lon),
+            end_coord=(seg.points[-1].lat, seg.points[-1].lon),
+        )
 
 
 def _interpolate_point(p0: Point, p1: Point, t: float) -> Point:

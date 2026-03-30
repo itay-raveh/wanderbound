@@ -132,22 +132,65 @@ class TestReadAlbum:
         assert "segments" not in data
 
 
-class TestReadAlbumData:
-    async def test_returns_steps_and_segments(
+class TestReadSegments:
+    async def test_returns_outlines_without_points(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
     ) -> None:
         uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
         await _insert_album(session, uid)
-        await _insert_step(session, uid)
         await _insert_segment(session, uid)
 
-        resp = await client.get(f"/api/v1/albums/{AID}/data")
+        resp = await client.get(f"/api/v1/albums/{AID}/segments")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["steps"]) == 1
-        assert len(data["segments"]) == 1
-        assert data["steps"][0]["name"] == "Test Step"
-        assert data["segments"][0]["kind"] == "driving"
+        assert len(data) == 1
+        outline = data[0]
+        assert outline["kind"] == "driving"
+        assert "start_coord" in outline
+        assert "end_coord" in outline
+        assert "points" not in outline
+        assert "route" not in outline
+
+
+class TestReadSteps:
+    async def test_returns_all_steps(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        await _insert_step(session, uid, step_id=1)
+        await _insert_step(session, uid, step_id=2, timestamp=1_700_100_000.0)
+
+        resp = await client.get(f"/api/v1/albums/{AID}/steps")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        assert data[0]["name"] == "Test Step"
+
+
+class TestReadSegmentPoints:
+    async def test_returns_segments_with_points_for_time_range(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        await _insert_segment(
+            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+        )
+        await _insert_segment(
+            session, uid, start_time=500.0, end_time=700.0, kind=SegmentKind.hike
+        )
+
+        # Request range that only covers the first segment
+        resp = await client.get(
+            f"/api/v1/albums/{AID}/segments/points",
+            params={"from_time": 50.0, "to_time": 400.0},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["kind"] == "driving"
+        assert len(data[0]["points"]) == 3
 
 
 class TestUpdateAlbum:
@@ -310,9 +353,12 @@ class TestAdjustSegmentBoundary:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert "steps" in data
-        assert "segments" in data
-        assert len(data["segments"]) == 2
+        # Response is now a flat list of SegmentOutline objects
+        assert isinstance(data, list)
+        assert len(data) == 2
+        assert "start_coord" in data[0]
+        assert "end_coord" in data[0]
+        assert "points" not in data[0]
 
     async def test_adjust_start_handle_success(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
@@ -349,7 +395,42 @@ class TestAdjustSegmentBoundary:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["segments"]) == 2
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+    async def test_route_reset_after_boundary_adjust(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        # Insert segment with a route
+        seg = await _insert_segment(
+            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving,
+            points=_make_points([100.0, 200.0, 300.0]),
+        )
+        # Manually set route on the segment
+        seg.route = [(4.0, 52.0), (4.01, 52.01)]
+        session.add(seg)
+        await session.flush()
+        await _insert_segment(
+            session, uid, start_time=300.0, end_time=500.0, kind=SegmentKind.hike,
+            points=_make_points([300.0, 400.0, 500.0]),
+        )
+
+        resp = await client.patch(
+            f"/api/v1/albums/{AID}/segments/adjust-boundary",
+            json={
+                "start_time": 100.0,
+                "end_time": 300.0,
+                "new_boundary_time": 200.0,
+                "handle": "end",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        # Both new segments should have route=None (reset by split_segments)
+        for seg_data in data:
+            assert seg_data.get("route") is None
 
     async def test_adjacent_flight_skipped(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
