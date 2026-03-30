@@ -90,6 +90,7 @@ runs only tests matching `test_auth`.
 - [ ] Add controls for zoom, page padding.
 - [ ] HDR → SDR tone-mapping for video poster extraction
 - [ ] Add "Try with demo data" feature.
+- [ ] Add onboarding flow.
 - [ ] Add double page photos.
 
 ## License
