@@ -66,7 +66,7 @@ class TestSaveReuploadDeletesSegments:
                 front_cover_photo="a.jpg",
                 back_cover_photo="b.jpg",
                 colors={},
-                media={},
+                media=[],
                 font="Assistant",
                 body_font="Frank Ruhl Libre",
             )
@@ -115,7 +115,7 @@ class TestSaveReuploadDeletesSegments:
             front_cover_photo="c.jpg",
             back_cover_photo="d.jpg",
             colors={},
-            media={},
+            media=[],
             body_font="Frank Ruhl Libre",
         )
         new_step = Step(

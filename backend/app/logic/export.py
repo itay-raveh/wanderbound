@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.tokens import TokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.models.album import Album
+from app.models.segment import Segment
+from app.models.step import Step
 from app.models.user import Provider, User
 
 if TYPE_CHECKING:
@@ -197,29 +198,44 @@ async def export_user_data(
     albums = list(
         (
             await session.exec(
-                select(Album)
-                .where(Album.uid == user.id)
-                .options(
-                    selectinload(Album.steps),  # type: ignore[arg-type]
-                    selectinload(Album.segments),  # type: ignore[arg-type]
-                )
+                select(Album).where(Album.uid == user.id)
             )
         ).all()
     )
+    album_ids_loaded = [a.id for a in albums]
+
+    steps_by_album: dict[str, list[Step]] = {aid: [] for aid in album_ids_loaded}
+    for step in (
+        await session.exec(
+            select(Step)
+            .where(Step.uid == user.id, Step.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
+            .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+        )
+    ).all():
+        steps_by_album[step.aid].append(step)
+
+    segments_by_album: dict[str, list[Segment]] = {aid: [] for aid in album_ids_loaded}
+    for segment in (
+        await session.exec(
+            select(Segment)
+            .where(Segment.uid == user.id, Segment.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
+            .order_by(Segment.start_time)  # type: ignore[union-attr]
+        )
+    ).all():
+        segments_by_album[segment.aid].append(segment)
 
     # Serialize on the event loop — model_dump touches SQLAlchemy descriptors
     # which are not thread-safe, and there's no I/O here (data is pre-loaded).
     albums_data: list[dict[str, Any]] = [
         {
-            "album": album.model_dump(
-                mode="json", exclude={"uid", "steps", "segments"}
-            ),
+            "album": album.model_dump(mode="json", exclude={"uid"}),
             "steps": [
-                s.model_dump(mode="json", exclude={"uid", "aid"}) for s in album.steps
+                s.model_dump(mode="json", exclude={"uid", "aid"})
+                for s in steps_by_album[album.id]
             ],
             "segments": [
                 s.model_dump(mode="json", exclude={"uid", "aid"})
-                for s in album.segments
+                for s in segments_by_album[album.id]
             ],
         }
         for album in albums

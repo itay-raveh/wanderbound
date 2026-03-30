@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+from app.logic.layout.media import Media
 from app.models.album import Album
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment, SegmentKind
@@ -45,7 +46,7 @@ async def _insert_album(
         front_cover_photo="photo1.jpg",
         back_cover_photo="photo2.jpg",
         colors={"nl": "#0000ff"},
-        media={},
+        media=[Media(name="photo1.jpg", width=1920, height=1080)],
         font="Assistant",
         body_font="Frank Ruhl Libre",
     )
@@ -114,6 +115,21 @@ class TestReadAlbum:
 
         resp = await client.get("/api/v1/albums/other-trip")
         assert resp.status_code == 404
+
+    async def test_returns_album_meta_without_media(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+
+        resp = await client.get(f"/api/v1/albums/{AID}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["title"] == "Test Album"
+        assert data["colors"] == {"nl": "#0000ff"}
+        assert "media" not in data
+        assert "steps" not in data
+        assert "segments" not in data
 
 
 class TestReadAlbumData:
@@ -371,6 +387,22 @@ class TestAdjustSegmentBoundary:
         # No non-flight adjacent found
         assert resp.status_code == 404
         assert "adjacent" in resp.json()["detail"].lower()
+
+
+class TestReadMedia:
+    async def test_returns_media_list(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+
+        resp = await client.get(f"/api/v1/albums/{AID}/media")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "photo1.jpg"
+        assert data[0]["width"] == 1920
+        assert data[0]["height"] == 1080
 
 
 class TestDownloadPdf:

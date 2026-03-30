@@ -1,13 +1,11 @@
 from datetime import date
 
-from pydantic import BaseModel, field_validator
-from sqlmodel import JSON, Column, Field, Relationship, SQLModel
+from pydantic import field_validator
+from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
+from app.logic.layout.media import Media
 from app.models.polarsteps import CountryCode, HexColor
-
-from .segment import Segment
-from .step import Step
 
 type DateRange = tuple[date, date]
 
@@ -24,6 +22,8 @@ def _validate_font(v: str, field_name: str) -> str:
 
 
 class AlbumBase(SQLModel):
+    """User-editable settings."""
+
     title: str = Field(max_length=255)
     subtitle: str = Field(max_length=255)
     excluded_steps: list[int] = Field(
@@ -55,24 +55,22 @@ class AlbumUpdate(AlbumBase):
     pass
 
 
-class Album(AlbumBase, table=True):
+class AlbumMeta(AlbumBase):
+    """GET/PATCH response — everything except media."""
+
     uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     id: str = Field(primary_key=True)
-
-    steps: list[Step] = Relationship(
-        cascade_delete=True,
-        sa_relationship_kwargs={"order_by": "[Step.timestamp, Step.id]"},
-    )
-    segments: list[Segment] = Relationship(
-        cascade_delete=True,
-        sa_relationship_kwargs={"order_by": "Segment.start_time"},
-    )
-    colors: dict[CountryCode, HexColor] = Field(sa_column=Column(JSON, nullable=False))
-    media: dict[str, str] = Field(
-        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    colors: dict[CountryCode, HexColor] = Field(
+        sa_column=Column(
+            PydanticJSON(dict[CountryCode, HexColor]), nullable=False
+        )
     )
 
 
-class AlbumData(BaseModel):
-    steps: list[Step]
-    segments: list[Segment]
+class Album(AlbumMeta, table=True):
+    """Full DB row. Only adds media — no relationships."""
+
+    media: list[Media] = Field(
+        default_factory=list,
+        sa_column=Column(PydanticJSON(list[Media]), nullable=False),
+    )

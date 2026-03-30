@@ -14,16 +14,23 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
+from pydantic import BaseModel
 from sqlmodel import select
 
+from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
-from app.models.album import Album, AlbumData, AlbumUpdate
+from app.models.album import Album, AlbumMeta, AlbumUpdate
 from app.models.segment import BoundaryAdjust, Segment, SegmentKind, split_segments
 from app.models.step import Step, StepUpdate
 
 from ..deps import BrowserDep, SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
+
+
+class AlbumData(BaseModel):
+    steps: list[Step]
+    segments: list[Segment]
 
 
 async def _get_album(
@@ -58,13 +65,27 @@ async def download_pdf(
 
 
 @router.get("/{aid}")
-async def read_album(aid: str, album: AlbumDep) -> Album:
-    return album
+async def read_album(aid: str, album: AlbumDep) -> AlbumMeta:
+    return AlbumMeta.model_validate(album)
+
+
+@router.get("/{aid}/media")
+async def read_media(aid: str, album: AlbumDep) -> list[Media]:
+    return album.media
 
 
 async def _album_data(album: Album, session: SessionDep) -> AlbumData:
-    await session.refresh(album, attribute_names=["steps", "segments"])
-    return AlbumData(steps=album.steps, segments=album.segments)
+    steps_result = await session.exec(
+        select(Step)
+        .where(Step.uid == album.uid, Step.aid == album.id)
+        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+    )
+    segments_result = await session.exec(
+        select(Segment)
+        .where(Segment.uid == album.uid, Segment.aid == album.id)
+        .order_by(Segment.start_time)  # type: ignore[union-attr]
+    )
+    return AlbumData(steps=list(steps_result), segments=list(segments_result))
 
 
 @router.get("/{aid}/data")
@@ -78,12 +99,12 @@ async def update_album(
     update: AlbumUpdate,
     album: AlbumDep,
     session: SessionDep,
-) -> Album:
+) -> AlbumMeta:
     album.sqlmodel_update(update.model_dump(exclude_unset=True))
     session.add(album)
     await session.commit()
     await session.refresh(album)
-    return album
+    return AlbumMeta.model_validate(album)
 
 
 @router.patch("/{aid}/steps/{sid}")

@@ -24,6 +24,7 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.logic.layout.media import Media
 from app.models.album import Album
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment
@@ -61,7 +62,7 @@ async def _insert_album(session: AsyncSession, uid: int, aid: str) -> Album:
         front_cover_photo="cover.jpg",
         back_cover_photo="back.jpg",
         colors={"NL": "#FF6B35"},
-        media={"photo1.jpg": "l"},
+        media=[Media(name="photo1.jpg", width=1920, height=1080)],
         font="Assistant",
         body_font="Frank Ruhl Libre",
     )
