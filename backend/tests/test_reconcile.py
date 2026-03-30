@@ -71,7 +71,7 @@ def _album(
         back_cover_photo=back_cover_photo,
         media=media or {},
         colors={},
-        steps_ranges=[],
+        excluded_steps=[],
         maps_ranges=[],
     )
 

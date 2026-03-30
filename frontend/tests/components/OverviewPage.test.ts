@@ -7,7 +7,7 @@ function makeAlbum(overrides: Partial<Album> = {}): Album {
   return {
     title: "My Trip",
     subtitle: "Europe 2024",
-    steps_ranges: [["2024-04-10", "2024-04-20"]],
+    excluded_steps: [],
     front_cover_photo: "cover.jpg",
     back_cover_photo: "back.jpg",
     uid: 1,

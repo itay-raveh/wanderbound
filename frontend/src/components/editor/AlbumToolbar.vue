@@ -1,163 +1,38 @@
 <script lang="ts" setup>
-import type { Album, AlbumUpdate, Step } from "@/client";
-import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { useUserQuery } from "@/queries/useUserQuery";
+import type { Album } from "@/client";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
-import { parseLocalDate, SHORT_DATE, toIso, toQDate } from "@/utils/date";
-import StepDatePicker from "./StepDatePicker.vue";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 
 import {
-  symOutlinedCalendarMonth,
-  symOutlinedFlightTakeoff,
   symOutlinedKeyboard,
   symOutlinedPictureAsPdf,
   symOutlinedRedo,
   symOutlinedUndo,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 
 const { t } = useI18n();
 
 const props = defineProps<{
-  albumIds: string[];
   album?: Album;
-  allSteps?: Step[];
 }>();
 
-const albumId = defineModel<string | null>("albumId");
-
-const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
-const { formatDateRange } = useUserQuery();
 const pdf = usePdfExportStream(() => props.album?.id ?? "");
 const pdfBusy = computed(() => pdf.state.value !== "idle" && pdf.state.value !== "error");
 const undoStack = useUndoStack();
-
-function save(patch: AlbumUpdate) {
-  if (!props.album) return;
-  albumMutation.mutate(patch);
-}
-
-const albumOptions = computed(() =>
-  props.albumIds.map((value) => ({ label: toTitleCase(value), value })),
-);
-
-const toTitleCase = (str: string) =>
-  str
-    .replace(/([a-z])-/g, "$1 ")
-    .replace(/_\d+$/, "")
-    .replace(
-      /\w\S*/g,
-      (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase(),
-    );
 
 function onExportPdf() {
   if (!props.album) return;
   pdf.start();
 }
-
-type QDateRange = { from: string; to: string };
-
-const albumColors = computed(() => (props.album?.colors ?? {}) as Record<string, string>);
-
-const dateRangeModel = computed(() => {
-  const ranges = props.album?.steps_ranges;
-  if (!ranges?.length) return undefined;
-  return ranges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
-});
-
-/** Local draft while the picker is open - only persisted on popup close. */
-const draft = ref<(QDateRange | string)[] | QDateRange | string | null>(null);
-const pickerOpen = ref(false);
-
-watch(dateRangeModel, (v) => { if (!pickerOpen.value) draft.value = v ?? null; });
-
-function onPickerOpen() {
-  draft.value = dateRangeModel.value ?? null;
-  pickerOpen.value = true;
-}
-
-function onPickerClose() {
-  pickerOpen.value = false;
-  const val = draft.value;
-  if (!val) {
-    save({ steps_ranges: [] });
-    return;
-  }
-  const entries = Array.isArray(val) ? val : [val];
-  const ranges: [string, string][] = entries.map((e) => {
-    if (typeof e === "string") return [toIso(e), toIso(e)];
-    const a = toIso(e.from), b = toIso(e.to);
-    return a <= b ? [a, b] : [b, a];
-  });
-  save({ steps_ranges: ranges.sort(([a], [b]) => a.localeCompare(b)) });
-}
-
-const rangeDisplay = computed(() => {
-  const ranges = props.album?.steps_ranges;
-  if (!ranges?.length) return "";
-  return ranges
-    .map(([from, to]) =>
-      formatDateRange(parseLocalDate(from), parseLocalDate(to), SHORT_DATE),
-    )
-    .join(", ");
-});
 </script>
 
 <template>
   <div class="album-toolbar row no-wrap items-center">
-    <!-- Navigation & filter controls -->
-    <div class="toolbar-group row no-wrap items-center q-gutter-x-sm">
-      <q-select
-        v-model="albumId"
-        :options="albumOptions"
-        :aria-label="t('nav.selectAlbum')"
-        class="compact-field toolbar-field"
-        dense
-        outlined
-        options-dense
-        emit-value
-        map-options
-      >
-        <template #prepend>
-          <q-icon :name="symOutlinedFlightTakeoff" size="1.125rem" class="rtl-flip" />
-        </template>
-      </q-select>
-
-      <q-input
-        v-if="album && allSteps?.length"
-        :model-value="rangeDisplay"
-        :placeholder="t('album.allDates')"
-        :aria-label="t('nav.dateFilter')"
-        dir="auto"
-        class="compact-field toolbar-field"
-        dense
-        outlined
-        readonly
-      >
-        <template #prepend>
-          <q-icon :name="symOutlinedCalendarMonth" size="1rem" class="cursor-pointer">
-            <q-popup-proxy transition-show="scale" transition-hide="scale" @before-show="onPickerOpen" @before-hide="onPickerClose">
-              <StepDatePicker
-                v-model="draft"
-                :steps="allSteps!"
-                :colors="albumColors"
-                range
-                multiple
-              />
-            </q-popup-proxy>
-          </q-icon>
-        </template>
-      </q-input>
-    </div>
-
-    <div class="toolbar-spacer" />
-
-    <!-- Editing actions -->
-    <div v-if="album" class="toolbar-actions row no-wrap items-center">
+    <div v-if="album" class="toolbar-actions row no-wrap items-center" role="toolbar">
       <q-btn class="action-btn" flat dense round :icon="symOutlinedUndo" :disable="!undoStack.canUndo.value" :aria-label="t('shortcuts.undo')" @click="undoStack.undo()">
         <q-tooltip>{{ KEY_LABELS.undo }}</q-tooltip>
       </q-btn>
@@ -173,15 +48,15 @@ const rangeDisplay = computed(() => {
       </q-btn>
       <q-separator vertical class="action-divider" />
       <q-btn
-        color="primary"
-        unelevated
+        flat
         no-caps
         dense
         :disable="pdfBusy"
         :aria-busy="pdfBusy"
+        class="export-btn"
         @click="onExportPdf"
       >
-        <q-icon :name="symOutlinedPictureAsPdf" size="1.25rem" class="q-mr-xs" />
+        <q-icon :name="symOutlinedPictureAsPdf" size="var(--type-lg)" class="q-mr-xs" />
         {{ t("editor.exportPdf") }}
       </q-btn>
     </div>
@@ -193,16 +68,9 @@ const rangeDisplay = computed(() => {
   gap: var(--gap-lg);
 }
 
-.toolbar-spacer {
-  flex: 1;
-}
-
-.toolbar-field {
-  width: 18rem;
-}
-
 .toolbar-actions {
-  gap: var(--gap-xs);
+  margin-inline-start: auto;
+  gap: var(--gap-sm);
 }
 
 .action-btn {
@@ -227,11 +95,38 @@ const rangeDisplay = computed(() => {
 }
 
 .util-btn {
-  color: var(--text-faint);
+  color: var(--text-muted);
   transition: color var(--duration-fast);
 
   &:hover {
-    color: var(--text-muted);
+    color: var(--text);
+  }
+}
+
+.export-btn {
+  color: var(--q-primary);
+  border: 1px solid var(--q-primary);
+  padding: var(--gap-sm) var(--gap-md-lg);
+  transition: background var(--duration-fast), color var(--duration-fast);
+
+  :deep(.q-focus-helper) {
+    display: none;
+  }
+
+  &:hover:not(.disabled) {
+    background: var(--q-primary);
+    color: #fff; // white-on-primary — standard Quasar convention
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
+  }
+
+  &.disabled {
+    opacity: 0.4;
+    border-color: var(--text-faint);
+    color: var(--text-faint);
   }
 }
 
@@ -241,7 +136,8 @@ const rangeDisplay = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .util-btn {
+  .util-btn,
+  .export-btn {
     transition: none;
   }
 }

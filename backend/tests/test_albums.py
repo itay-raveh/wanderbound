@@ -40,7 +40,7 @@ async def _insert_album(
         id=aid,
         title="Test Album",
         subtitle="A subtitle",
-        steps_ranges=[],
+        excluded_steps=[],
         maps_ranges=[],
         front_cover_photo="photo1.jpg",
         back_cover_photo="photo2.jpg",

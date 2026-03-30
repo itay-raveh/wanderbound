@@ -85,6 +85,7 @@ defineExpose({
     :options="dateOptions"
     :events="hasStep"
     :event-color="eventColor"
+    :default-year-month="nav.min"
     :navigation-min-year-month="nav.min"
     :navigation-max-year-month="nav.max"
   />

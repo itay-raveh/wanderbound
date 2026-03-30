@@ -110,7 +110,6 @@
     "unused": "לא בשימוש",
     "unusedHint": "תמונות מהצעד — גררו לעמוד כדי לשבץ",
     "dropPhotosHere": "גררו תמונות לכאן",
-    "addMap": "הוספת מפה",
     "removeMap": "הסרת מפה",
     "changeDateRange": "שינוי תאריכים",
     "editDescription": "עריכת תיאור",
@@ -196,15 +195,24 @@
 
   "nav": {
     "steps": "צעדים",
-    "search": "חיפוש צעדים…",
-    "noResults": "לא נמצאו צעדים",
     "cover": "שער",
     "map": "מפה",
-    "clickToPlace": "לחצו על צעד כדי להוסיף מפה לפניו",
     "stepNavigation": "ניווט צעדים",
     "unusedPhotos": "תמונות שלא בשימוש",
     "selectAlbum": "בחירת אלבום",
-    "dateFilter": "סינון לפי תאריכים"
+    "dateFilter": "סינון לפי תאריכים",
+    "hideStep": "הסתרת צעד",
+    "showStep": "הצגת צעד",
+    "hideAll": "הסתרת הכל",
+    "showAll": "הצגת הכל",
+    "maps": "מפות",
+    "mapRanges": "טווחי תאריכי מפות",
+    "clear": "ניקוי",
+    "clearFilter": "ניקוי סינון",
+    "removeAllMaps": "להסיר את כל המפות?",
+    "remove": "הסרה",
+    "mapsCleared": "כל המפות הוסרו",
+    "filterCleared": "הסינון נוקה"
   },
 
   "screen": {

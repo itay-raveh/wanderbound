@@ -220,15 +220,13 @@ def build_trip_objects(
         for seg in build_segments(steps, locations)
     ]
 
-    first_date = trip.all_steps[0].datetime.date()
-    last_date = trip.all_steps[-1].datetime.date()
     album = Album(
         uid=user.id,
         id=aid,
         colors=build_country_colors(
             {s.location.country_code for s in trip.all_steps},
         ),
-        steps_ranges=[(first_date, last_date)],
+        excluded_steps=[],
         maps_ranges=_multi_day_hike_ranges(segments),
         title=trip.title,
         subtitle=trip.subtitle,

@@ -10,7 +10,7 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
-import { daysBetween, isoDate, inDateRange, parseLocalDate } from "@/utils/date";
+import { daysBetween, parseLocalDate } from "@/utils/date";
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { vSpyStep, useStepScrollSpy } from "@/composables/useStepScrollSpy";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
@@ -54,12 +54,9 @@ const albumMedia = computed(() => (props.album.media ?? {}) as Record<string, st
 const albumMutation = useAlbumMutation(() => props.album.id);
 
 const steps = computed(() => {
-  const ranges = props.album.steps_ranges;
-  if (!ranges?.length) return props.data.steps;
-  return props.data.steps.filter((s) => {
-    const d = isoDate(s.datetime);
-    return ranges.some((r) => inDateRange(d, r));
-  });
+  const excluded = new Set(props.album.excluded_steps ?? []);
+  if (!excluded.size) return props.data.steps;
+  return props.data.steps.filter((s) => !excluded.has(s.id));
 });
 
 const segments = computed(() => {

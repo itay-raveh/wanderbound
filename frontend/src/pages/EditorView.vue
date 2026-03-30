@@ -20,7 +20,7 @@ const { t } = useI18n();
 
 useMeta({ title: "Editor" });
 
-const DRAWER_WIDTH = 240;
+const DRAWER_WIDTH = 280;
 const LAST_ALBUM_KEY = "last-album-id";
 
 let savedAlbumId: string | null = null;
@@ -57,13 +57,7 @@ const activeStep = computed(() =>
 
 <template>
   <EditorHeader class="print-hide">
-    <AlbumToolbar
-      v-if="albumIds"
-      v-model:album-id="selectedAlbumId"
-      :album="album ?? undefined"
-      :album-ids="albumIds"
-      :all-steps="albumData?.steps"
-    />
+    <AlbumToolbar v-if="album" :album="album" />
   </EditorHeader>
 
   <q-drawer
@@ -77,8 +71,10 @@ const activeStep = computed(() =>
   >
     <AlbumNav
       v-if="album && albumData"
+      v-model:album-id="selectedAlbumId"
+      :album-ids="albumIds ?? undefined"
       :steps="albumData.steps"
-      :album-id="album.id"
+      :excluded-steps="album.excluded_steps ?? undefined"
       :colors="album.colors ?? undefined"
       :maps-ranges="album.maps_ranges ?? undefined"
     />

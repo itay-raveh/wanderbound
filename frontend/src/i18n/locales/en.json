@@ -110,7 +110,6 @@
     "unused": "Unused",
     "unusedHint": "Photos from this step — drag to a page to place",
     "dropPhotosHere": "Drop photos here",
-    "addMap": "Add Map",
     "removeMap": "Remove map",
     "changeDateRange": "Change date range",
     "editDescription": "Edit description",
@@ -196,15 +195,24 @@
 
   "nav": {
     "steps": "Steps",
-    "search": "Search steps…",
-    "noResults": "No matching steps",
     "cover": "Cover",
     "map": "Map",
-    "clickToPlace": "Click a step to add a map before it",
     "stepNavigation": "Step navigation",
     "unusedPhotos": "Unused photos",
     "selectAlbum": "Select album",
-    "dateFilter": "Filter by date range"
+    "dateFilter": "Filter by date range",
+    "hideStep": "Hide step",
+    "showStep": "Show step",
+    "hideAll": "Hide all",
+    "showAll": "Show all",
+    "maps": "Maps",
+    "mapRanges": "Map date ranges",
+    "clear": "Clear",
+    "clearFilter": "Clear filter",
+    "removeAllMaps": "Remove all maps?",
+    "remove": "Remove",
+    "mapsCleared": "All maps removed",
+    "filterCleared": "Filter cleared"
   },
 
   "screen": {

@@ -21,7 +21,7 @@ const mockAlbum = {
   uid: 1,
   title: "South America",
   subtitle: "A great adventure",
-  steps_ranges: [["2024-01-01", "2024-01-15"]],
+  excluded_steps: [],
   maps_ranges: [],
   front_cover_photo: "cover.jpg",
   back_cover_photo: "back.jpg",

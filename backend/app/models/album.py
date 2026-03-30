@@ -15,8 +15,9 @@ type DateRange = tuple[date, date]
 class AlbumBase(SQLModel):
     title: str = Field(max_length=255)
     subtitle: str = Field(max_length=255)
-    steps_ranges: list[DateRange] = Field(
-        sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),
+    excluded_steps: list[int] = Field(
+        sa_column=Column(PydanticJSON(list[int]), nullable=False),
+        default_factory=list,
     )
     maps_ranges: list[DateRange] = Field(
         sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),

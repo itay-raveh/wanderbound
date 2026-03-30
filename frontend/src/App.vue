@@ -46,7 +46,7 @@ body,
   --meta-ratio: 0.42;
 
   /* Border radius scale */
-  --radius-xs: 2px;
+  --radius-xs: 0.125rem;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;

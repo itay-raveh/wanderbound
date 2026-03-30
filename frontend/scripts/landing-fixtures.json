@@ -44,12 +44,7 @@
     "uid": 1,
     "title": "South America",
     "subtitle": "Adventure of a lifetime!",
-    "steps_ranges": [
-      [
-        "2025-01-01",
-        "2025-03-01"
-      ]
-    ],
+    "excluded_steps": [],
     "maps_ranges": [
       [
         "2025-02-16",
@@ -2961,12 +2956,7 @@
     "uid": 1,
     "title": "דרום אמריקה 2024-2025",
     "subtitle": "הטיול הגדול!",
-    "steps_ranges": [
-      [
-        "2025-01-01",
-        "2025-03-01"
-      ]
-    ],
+    "excluded_steps": [],
     "maps_ranges": [],
     "front_cover_photo": "ausangate-1.jpg",
     "back_cover_photo": "ausangate-7.jpg",

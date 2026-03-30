@@ -22,7 +22,7 @@ const { t } = useI18n();
 
 <style lang="scss" scoped>
 .editor-header {
-  padding: var(--gap-md) var(--gap-md-lg) var(--gap-md) 1.25rem;
+  padding: var(--gap-md) var(--gap-md-lg) var(--gap-md) 1.25rem; // optical alignment — no matching gap token
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }

@@ -85,7 +85,7 @@ async function handleDelete() {
 
 <template>
   <template v-if="user">
-    <button class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen" aria-haspopup="menu">
+    <button type="button" class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen" aria-haspopup="menu">
       <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
         <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
       </q-avatar>
@@ -409,6 +409,11 @@ async function handleDelete() {
   .action-btn,
   .danger-btn {
     transition: none;
+  }
+
+  .settings-trigger:hover .trigger-gear,
+  .settings-trigger.open .trigger-gear {
+    transform: none;
   }
 }
 </style>

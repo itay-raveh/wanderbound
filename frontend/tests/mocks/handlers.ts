@@ -21,7 +21,7 @@ export const defaultAlbum = {
   uid: 1,
   title: "Test Album",
   subtitle: "A test trip",
-  steps_ranges: [["2024-01-01", "2024-01-10"]],
+  excluded_steps: [],
   maps_ranges: [],
   front_cover_photo: "cover.jpg",
   back_cover_photo: "back.jpg",

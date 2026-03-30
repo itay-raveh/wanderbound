@@ -1,42 +1,119 @@
 <script lang="ts" setup>
 import type { DateRange, Step } from "@/client";
 import { flagUrl, mediaThumbUrl } from "@/utils/media";
-import { isoDate, parseLocalDate, parseYMD, toQDate, ymdToIso, SHORT_DATE } from "@/utils/date";
+import { isoDate, inDateRange, datesToRanges, parseLocalDate, parseYMD, toQDate, toIso, ymdToIso, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
 import { mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import { useI18n } from "vue-i18n";
+import { useQuasar } from "quasar";
 import { useStepScrollSpy } from "@/composables/useStepScrollSpy";
+import { useUndoStack } from "@/composables/useUndoStack";
 import { ref, computed, watch, nextTick } from "vue";
 import {
-  symOutlinedSearch,
   symOutlinedMap,
   symOutlinedClose,
   symOutlinedCalendarMonth,
+  symOutlinedKeyboardArrowDown,
+  symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
+  symOutlinedVisibility,
+  symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
+const $q = useQuasar();
+const undoStack = useUndoStack();
 const { formatDate, formatDateRange, countryName } = useUserQuery();
 
 const props = withDefaults(
   defineProps<{
     steps: Step[];
-    albumId: string;
+    albumIds?: string[];
+    excludedSteps?: number[];
     colors?: Record<string, unknown>;
     mapsRanges?: DateRange[];
   }>(),
-  { colors: () => ({}), mapsRanges: () => [] },
+  { albumIds: () => [], excludedSteps: () => [], colors: () => ({}), mapsRanges: () => [] },
 );
 
+const selectedAlbumId = defineModel<string | null>("albumId");
+
 const { visibleStepId, visibleSectionKey, scrollTo, scrollToSection, scrollBehavior } = useStepScrollSpy();
-const albumMutation = useAlbumMutation(() => props.albumId);
+const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
-const query = ref("");
 const openGroupKey = ref<string | null>(null);
-const addingMap = ref(false);
+
+// ── Album selector (moved from toolbar) ──────────────────────────────
+
+const toTitleCase = (str: string) =>
+  str
+    .replace(/([a-z])-/g, "$1 ")
+    .replace(/_\d+$/, "")
+    .replace(
+      /\w\S*/g,
+      (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase(),
+    );
+
+const albumOptions = computed(() =>
+  props.albumIds.map((value) => ({ label: toTitleCase(value), value })),
+);
+
+// ── Shared types ────────────────────────────────────────────────────
+
+type QDateRange = { from: string; to: string };
+type PopupExpose = { hide: () => void };
+
+// ── Date range filter (moved from toolbar, writes excluded_steps) ────
+
+const excludedSet = computed(() => new Set(props.excludedSteps));
+const albumColors = computed(() => (props.colors ?? {}) as Record<string, string>);
+const filterDraft = ref<(QDateRange | string)[] | QDateRange | string | null>(null);
+const filterPickerOpen = ref(false);
+
+const dateRangeModel = computed(() => {
+  if (!excludedSet.value.size) return undefined;
+  const included = props.steps.filter((s) => !excludedSet.value.has(s.id));
+  if (!included.length || included.length === props.steps.length) return undefined;
+  return datesToRanges(included.map((s) => isoDate(s.datetime)))
+    .map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
+});
+
+watch(dateRangeModel, (v) => { if (!filterPickerOpen.value) filterDraft.value = v ?? null; });
+
+function onFilterPickerOpen() {
+  filterDraft.value = dateRangeModel.value ?? null;
+  filterPickerOpen.value = true;
+}
+
+function onFilterPickerClose() {
+  filterPickerOpen.value = false;
+  const val = filterDraft.value;
+  if (!val) {
+    albumMutation.mutate({ excluded_steps: [] });
+    return;
+  }
+  const entries = Array.isArray(val) ? val : [val];
+  const ranges: [string, string][] = entries.map((e) => {
+    if (typeof e === "string") return [toIso(e), toIso(e)];
+    const a = toIso(e.from), b = toIso(e.to);
+    return a <= b ? [a, b] : [b, a];
+  });
+  const excluded = props.steps
+    .filter((s) => !ranges.some((r) => inDateRange(isoDate(s.datetime), r)))
+    .map((s) => s.id);
+  albumMutation.mutate({ excluded_steps: excluded });
+}
+
+const rangeDisplay = computed(() => {
+  if (!excludedSet.value.size) return "";
+  const included = props.steps.filter((s) => !excludedSet.value.has(s.id));
+  if (!included.length || included.length === props.steps.length) return "";
+  const dates = included.map((s) => parseLocalDate(s.datetime)).sort((a, b) => a.getTime() - b.getTime());
+  return formatDateRange(dates[0]!, dates.at(-1)!, SHORT_DATE);
+});
 
 interface StepItem {
   id: number;
@@ -55,15 +132,10 @@ const stepItems = computed<StepItem[]>(() =>
     country: s.location.country_code,
     color: getCountryColor(props.colors as Record<string, string>, s.location.country_code),
     date: parseLocalDate(s.datetime),
-    thumb: s.cover ? mediaThumbUrl(s.cover, props.albumId) : null,
+    thumb: s.cover && selectedAlbumId.value ? mediaThumbUrl(s.cover, selectedAlbumId.value) : null,
     detail: s.location.detail,
   })),
 );
-
-const filteredItems = computed<StepItem[]>(() => {
-  const q = query.value.toLocaleLowerCase().trim();
-  return q ? stepItems.value.filter((s) => s.name.toLocaleLowerCase().includes(q)) : stepItems.value;
-});
 
 const mapInsertions = computed(() => {
   const entries = props.mapsRanges.map((dateRange, rangeIdx) => ({ rangeIdx, dateRange }));
@@ -83,8 +155,6 @@ interface CountryVisit {
   dateRange: string;
 }
 
-const showMaps = computed(() => !query.value.trim());
-
 function toMapEntry(m: { rangeIdx: number; dateRange: DateRange }): Extract<GroupEntry, { type: "map" }> {
   return { type: "map", ...m, key: rangeSectionKey("map", m.dateRange) };
 }
@@ -99,9 +169,8 @@ function computeGroupDateRange(entries: GroupEntry[]): string {
 
 const groups = computed<CountryVisit[]>(() => {
   const visits: CountryVisit[] = [];
-  for (const item of filteredItems.value) {
-    const maps = showMaps.value ? mapInsertions.value.get(item.id) : undefined;
-    const mapEntries = maps?.map(toMapEntry) ?? [];
+  for (const item of stepItems.value) {
+    const mapEntries = mapInsertions.value.get(item.id)?.map(toMapEntry) ?? [];
     const prev = visits.at(-1);
     if (prev && prev.code === item.country) {
       prev.entries.push(...mapEntries, { type: "step", item });
@@ -124,28 +193,94 @@ function formatMapRange(dr: DateRange): string {
   return formatDateRange(parseLocalDate(dr[0]), parseLocalDate(dr[1]), SHORT_DATE);
 }
 
-function onStepClick(item: StepItem) {
-  if (addingMap.value) {
-    addMapBefore(item.id);
-  } else {
-    scrollTo(item.id);
-  }
+function toggleStep(stepId: number) {
+  const excluded = [...props.excludedSteps];
+  const idx = excluded.indexOf(stepId);
+  if (idx >= 0) excluded.splice(idx, 1);
+  else excluded.push(stepId);
+  albumMutation.mutate({ excluded_steps: excluded });
 }
 
-function addMapBefore(stepId: number) {
-  const step = props.steps.find((s) => s.id === stepId);
-  if (!step) return;
-  const sd = isoDate(step.datetime);
-  const ranges: DateRange[] = [...props.mapsRanges, [sd, sd]];
-  ranges.sort(([a], [b]) => a.localeCompare(b));
-  albumMutation.mutate({ maps_ranges: ranges });
-  addingMap.value = false;
+function countryStepIds(group: CountryVisit): number[] {
+  return group.entries
+    .filter((e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step")
+    .map((e) => e.item.id);
+}
+
+function countryAllExcluded(group: CountryVisit): boolean {
+  return countryStepIds(group).every((id) => excludedSet.value.has(id));
+}
+
+function toggleCountry(group: CountryVisit) {
+  const stepIds = countryStepIds(group);
+  if (countryAllExcluded(group)) {
+    const toRemove = new Set(stepIds);
+    albumMutation.mutate({ excluded_steps: props.excludedSteps.filter((id) => !toRemove.has(id)) });
+  } else {
+    albumMutation.mutate({ excluded_steps: [...new Set([...props.excludedSteps, ...stepIds])] });
+  }
 }
 
 function deleteMap(rangeIdx: number) {
   const ranges = [...props.mapsRanges];
   ranges.splice(rangeIdx, 1);
   albumMutation.mutate({ maps_ranges: ranges });
+}
+
+const filterPopupRef = ref<PopupExpose>();
+
+function showUndoToast(message: string) {
+  $q.notify({
+    message,
+    timeout: 4000,
+    actions: [{ label: t("shortcuts.undo"), color: "primary", handler: () => undoStack.undo() }],
+  });
+}
+
+function clearFilter() {
+  filterDraft.value = null;
+  filterPopupRef.value?.hide();
+  void nextTick(() => showUndoToast(t("nav.filterCleared")));
+}
+
+// ── Batch map range picker ──────────────────────────────────────────
+
+const mapRangesDraft = ref<(QDateRange | string)[] | QDateRange | string | null>(null);
+const confirmingMapClear = ref(false);
+
+const mapRangesModel = computed(() => {
+  if (!props.mapsRanges.length) return null;
+  return props.mapsRanges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
+});
+
+const mapRangesPopupRef = ref<PopupExpose>();
+
+function onMapRangesPickerOpen() {
+  mapRangesDraft.value = mapRangesModel.value ?? null;
+  confirmingMapClear.value = false;
+}
+
+function onMapRangesPickerClose() {
+  const val = mapRangesDraft.value;
+  if (!val) {
+    albumMutation.mutate({ maps_ranges: [] });
+    return;
+  }
+  const entries = Array.isArray(val) ? val : [val];
+  const ranges = entries.map((e): DateRange => {
+    if (typeof e === "string") return [toIso(e), toIso(e)];
+    const a = toIso(e.from), b = toIso(e.to);
+    return a <= b ? [a, b] : [b, a];
+  });
+  ranges.sort(([a], [b]) => a.localeCompare(b));
+  albumMutation.mutate({ maps_ranges: ranges });
+}
+
+function clearAllMaps() {
+  mapRangesDraft.value = null;
+  confirmingMapClear.value = false;
+  mapRangesPopupRef.value?.hide();
+  void nextTick(() => showUndoToast(t("nav.mapsCleared")));
 }
 
 function scrollToMap(dateRange: DateRange) {
@@ -156,7 +291,6 @@ function scrollToMap(dateRange: DateRange) {
 
 type YMD = ReturnType<typeof parseYMD>;
 type DatePickerExpose = { setEditingRange: (r: YMD) => void };
-type PopupExpose = { hide: () => void };
 
 /** Stable ref-callback cache: avoids creating new closures on each render while cleaning up on unmount. */
 function makeRefCache<T>() {
@@ -199,11 +333,6 @@ function onMapDateEnd(key: string, rangeIdx: number, range: { from: YMD; to: YMD
   popupProxyRefs.get(key)?.hide();
 }
 
-watch(query, () => {
-  openGroupKey.value = null;
-  addingMap.value = false;
-});
-
 function openGroupFor(predicate: (e: GroupEntry) => boolean) {
   const groupKey = groups.value.find((g) => g.entries.some(predicate))?.key;
   if (groupKey && groupKey !== openGroupKey.value) {
@@ -239,41 +368,84 @@ watch(visibleSectionKey, (key) => {
 </script>
 
 <template>
-  <nav class="album-nav" :aria-label="t('nav.steps')" @keydown.escape="addingMap = false">
-    <div class="nav-header">
-      <span class="header-label text-muted">{{ t("nav.steps") }}</span>
-      <button
-        v-if="!addingMap"
-        type="button"
-        class="add-map-btn"
-        :aria-label="t('album.addMap')"
-        @click="addingMap = true"
-      >
-        <q-icon :name="symOutlinedMap" size="var(--type-sm)" />
-        <q-tooltip>{{ t("album.addMap") }}</q-tooltip>
-      </button>
-      <button v-else type="button" class="cancel-btn text-faint" @click="addingMap = false">
-        {{ t("album.cancel") }}
-      </button>
-    </div>
-
-    <q-input
-      v-model="query"
+  <nav class="album-nav" :aria-label="t('nav.steps')">
+    <q-select
+      v-if="albumIds.length"
+      v-model="selectedAlbumId"
+      :options="albumOptions"
+      :aria-label="t('nav.selectAlbum')"
+      class="nav-album-select"
       dense
-      borderless
-      clearable
-      debounce="200"
-      :placeholder="t('nav.search')"
-      :aria-label="t('nav.search')"
-      class="nav-search"
+      outlined
+      options-dense
+      emit-value
+      map-options
     >
       <template #prepend>
-        <q-icon :name="symOutlinedSearch" size="var(--type-sm)" class="text-faint" />
+        <q-icon :name="symOutlinedFlightTakeoff" size="var(--type-md)" class="rtl-flip" />
       </template>
-    </q-input>
+      <template #selected-item="{ opt }">
+        <span dir="ltr" class="album-select-label">{{ opt.label }}</span>
+      </template>
+    </q-select>
 
-    <div v-if="addingMap" class="insertion-hint">
-      {{ t("nav.clickToPlace") }}
+    <div v-if="steps.length" class="nav-controls">
+      <button type="button" class="nav-chip" :aria-label="t('nav.dateFilter')" aria-haspopup="dialog" @click.stop>
+        <q-icon :name="symOutlinedCalendarMonth" size="var(--type-2xs)" />
+        <span dir="auto">{{ rangeDisplay || t("album.allDates") }}</span>
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-2xs)" class="chip-chevron" />
+        <q-popup-proxy ref="filterPopupRef" transition-show="scale" transition-hide="scale" @before-show="onFilterPickerOpen" @before-hide="onFilterPickerClose">
+          <div class="picker-panel">
+            <StepDatePicker
+              v-model="filterDraft"
+              :steps="steps"
+              :colors="albumColors"
+              range
+              multiple
+            />
+            <div v-if="excludedSet.size" class="picker-footer">
+              <button type="button" class="picker-clear-btn" @click="clearFilter">
+                {{ t("nav.clearFilter") }}
+              </button>
+            </div>
+          </div>
+        </q-popup-proxy>
+      </button>
+
+      <button type="button" class="nav-chip" :aria-label="t('nav.mapRanges')" aria-haspopup="dialog" @click.stop>
+        <q-icon :name="symOutlinedMap" size="var(--type-2xs)" />
+        <span>{{ t("nav.maps") }}</span>
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-2xs)" class="chip-chevron" />
+        <q-popup-proxy ref="mapRangesPopupRef" transition-show="scale" transition-hide="scale" @before-show="onMapRangesPickerOpen" @before-hide="onMapRangesPickerClose">
+          <div class="picker-panel">
+            <StepDatePicker
+              v-model="mapRangesDraft"
+              :steps="steps"
+              :colors="albumColors"
+              range
+              multiple
+            />
+            <div v-if="mapsRanges.length" class="picker-footer">
+              <template v-if="!confirmingMapClear">
+                <button type="button" class="picker-clear-btn" @click="confirmingMapClear = true">
+                  {{ t("nav.clear") }}
+                </button>
+              </template>
+              <template v-else>
+                <span class="picker-confirm-text">{{ t("nav.removeAllMaps") }}</span>
+                <div class="picker-confirm-actions">
+                  <button type="button" class="picker-cancel-btn" @click="confirmingMapClear = false">
+                    {{ t("album.cancel") }}
+                  </button>
+                  <button type="button" class="picker-remove-btn" @click="clearAllMaps">
+                    {{ t("nav.remove") }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </q-popup-proxy>
+      </button>
     </div>
 
     <div ref="listRef" class="nav-list">
@@ -295,7 +467,7 @@ watch(visibleSectionKey, (key) => {
         :key="group.key"
         :model-value="openGroupKey === group.key"
         dense
-        header-class="group-header"
+        :header-class="['group-header', { 'group-excluded': countryAllExcluded(group) }]"
         expand-icon-class="text-faint"
         :style="{ '--country-color': group.color }"
         @update:model-value="openGroupKey = $event ? group.key : null"
@@ -304,23 +476,29 @@ watch(visibleSectionKey, (key) => {
           <q-item-section avatar class="group-avatar">
             <img :src="flagUrl(group.code)" alt="" width="14" height="10" class="group-flag" />
           </q-item-section>
-          <q-item-section class="group-name">{{ group.name }}</q-item-section>
-          <q-item-section side class="group-dates text-muted">
-            {{ group.dateRange }}
+          <q-item-section class="group-name" dir="auto">{{ group.name }}</q-item-section>
+          <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-excluded': countryAllExcluded(group) }]">
+            <span class="group-dates-text">{{ group.dateRange }}</span>
+            <button
+              type="button"
+              class="country-toggle"
+              :aria-label="countryAllExcluded(group) ? t('nav.showAll') : t('nav.hideAll')"
+              @click.stop="toggleCountry(group)"
+            >
+              <q-icon :name="countryAllExcluded(group) ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+              <q-tooltip>{{ countryAllExcluded(group) ? t("nav.showAll") : t("nav.hideAll") }}</q-tooltip>
+            </button>
           </q-item-section>
         </template>
 
         <template v-for="entry in group.entries" :key="entry.type === 'step' ? entry.item.id : entry.key">
-          <div
+          <button
             v-if="entry.type === 'map'"
-            role="button"
+            type="button"
             :data-nav-section="entry.key"
             :class="['nav-item', 'map-item', { visible: sectionKeyMatchesRange(visibleSectionKey, entry.dateRange) }]"
-            tabindex="0"
             :aria-label="`${t('nav.map')}: ${formatMapRange(entry.dateRange)}`"
             @click="scrollToMap(entry.dateRange)"
-            @keydown.enter="scrollToMap(entry.dateRange)"
-            @keydown.space.prevent="scrollToMap(entry.dateRange)"
           >
             <div class="item-thumb map-thumb">
               <q-icon :name="symOutlinedMap" size="var(--type-md)" />
@@ -354,73 +532,98 @@ watch(visibleSectionKey, (key) => {
               :aria-label="t('album.removeMap')"
               @click.stop="deleteMap(entry.rangeIdx)"
             >
-              <q-icon :name="symOutlinedClose" size="var(--type-2xs)" />
+              <q-icon :name="symOutlinedClose" size="var(--type-xs)" />
               <q-tooltip>{{ t("album.removeMap") }}</q-tooltip>
             </button>
-          </div>
+          </button>
 
           <button
             v-else
             type="button"
             :data-nav-step="entry.item.id"
-            :class="['nav-item', { visible: visibleStepId === entry.item.id, inserting: addingMap }]"
+            :class="['nav-item', { visible: visibleStepId === entry.item.id, excluded: excludedSet.has(entry.item.id) }]"
             :aria-current="visibleStepId === entry.item.id ? 'step' : undefined"
-            @click="onStepClick(entry.item)"
+            @click="scrollTo(entry.item.id)"
           >
             <div class="item-thumb">
               <img v-if="entry.item.thumb" :src="entry.item.thumb" alt="" width="36" height="28" class="thumb-img" loading="lazy" />
               <div v-else class="thumb-empty" :style="{ background: entry.item.color }" />
             </div>
             <div class="item-info">
-              <span class="item-name">{{ entry.item.name }}</span>
+              <span class="item-name" dir="auto">{{ entry.item.name }}</span>
               <span class="item-date text-muted">{{ formatDate(entry.item.date, SHORT_DATE) }}</span>
             </div>
+            <button
+              type="button"
+              class="step-toggle"
+              :aria-label="excludedSet.has(entry.item.id) ? t('nav.showStep') : t('nav.hideStep')"
+              @click.stop="toggleStep(entry.item.id)"
+            >
+              <q-icon :name="excludedSet.has(entry.item.id) ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+              <q-tooltip>{{ excludedSet.has(entry.item.id) ? t("nav.showStep") : t("nav.hideStep") }}</q-tooltip>
+            </button>
           </button>
         </template>
       </q-expansion-item>
-      <p v-if="!groups.length && query" class="nav-empty text-faint">
-        {{ t("nav.noResults") }}
-      </p>
     </div>
   </nav>
 </template>
 
 <style lang="scss" scoped>
 .album-nav {
+  --opacity-excluded: 0.45;
+  --opacity-toggle-idle: 0.5;
+  --opacity-thumb-empty: 0.25;
+
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--bg-secondary);
 }
 
-.nav-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--gap-md) var(--gap-md-lg);
+.nav-album-select {
+  margin: var(--gap-md) var(--gap-md-lg) 0;
   flex-shrink: 0;
 }
 
-.header-label {
-  font-size: var(--type-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
+.album-select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.add-map-btn {
+.nav-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md-lg) var(--gap-md);
+  flex-shrink: 0;
+}
+
+.nav-chip {
   appearance: none;
-  background: none;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   border: none;
-  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex: 1;
+  font: inherit;
+  font-size: var(--type-2xs);
+  color: var(--text);
   cursor: pointer;
-  padding: var(--gap-sm);
-  border-radius: var(--radius-sm);
+  padding: var(--gap-sm) var(--gap-sm-md);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
   transition: color var(--duration-fast), background var(--duration-fast);
 
   &:hover {
     color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--q-primary) 18%, transparent);
   }
 
   &:focus-visible {
@@ -429,38 +632,8 @@ watch(visibleSectionKey, (key) => {
   }
 }
 
-.cancel-btn {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--type-2xs);
-  padding: var(--gap-sm) var(--gap-sm-md);
-  border-radius: var(--radius-sm);
-  transition: color var(--duration-fast);
-
-  &:hover {
-    color: var(--text);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--q-primary);
-    outline-offset: 1px;
-  }
-}
-
-.nav-search {
-  margin: 0 var(--gap-md-lg) var(--gap-md);
-  flex-shrink: 0;
-  font-size: var(--type-2xs);
-}
-
-.insertion-hint {
-  font-size: var(--type-2xs);
-  color: var(--q-primary);
-  padding: 0 var(--gap-md-lg) var(--gap-md);
-  flex-shrink: 0;
+.chip-chevron {
+  margin-inline-start: auto;
 }
 
 .nav-list {
@@ -470,7 +643,7 @@ watch(visibleSectionKey, (key) => {
   scrollbar-color: var(--border-color) transparent;
 
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 0.25rem;
   }
 
   &::-webkit-scrollbar-thumb {
@@ -503,6 +676,7 @@ watch(visibleSectionKey, (key) => {
   width: 0.875rem;
   height: 0.625rem;
   border-radius: var(--radius-xs);
+  transition: opacity var(--duration-fast);
 }
 
 .group-name {
@@ -515,15 +689,72 @@ watch(visibleSectionKey, (key) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity var(--duration-fast);
+
+  .group-excluded & {
+    opacity: var(--opacity-excluded);
+  }
 }
 
-.group-dates {
+.group-excluded .group-flag {
+  opacity: var(--opacity-excluded);
+}
+
+.group-header .group-dates {
+  display: grid;
   font-size: var(--type-3xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  flex-shrink: 1 !important;
+  flex-shrink: 1;
+
+  > * {
+    grid-area: 1 / 1;
+    justify-self: end;
+    align-self: center;
+  }
+}
+
+.group-dates-text {
+  transition: opacity var(--duration-fast);
+
+  .group-header:hover &,
+  .group-dates-excluded & {
+    opacity: 0;
+  }
+}
+
+.country-toggle {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--gap-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+
+  .group-header:hover &,
+  .group-dates-excluded & {
+    opacity: 1;
+  }
+
+  &:hover {
+    color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
 }
 
 .nav-item {
@@ -539,7 +770,7 @@ watch(visibleSectionKey, (key) => {
   gap: var(--gap-sm-md);
   width: 100%;
   padding-block: var(--gap-md);
-  padding-inline: 2rem var(--gap-md-lg);
+  padding-inline: 2rem var(--gap-md-lg); // indent aligns with country name inside group header
   border: none;
   border-inline-start: 3px solid transparent;
   transition: background var(--duration-fast), border-color var(--duration-fast);
@@ -565,9 +796,8 @@ watch(visibleSectionKey, (key) => {
     }
   }
 
-  &.inserting:hover {
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-    border-inline-start-color: var(--q-primary);
+  &.excluded {
+    opacity: var(--opacity-excluded);
   }
 
   &:focus-visible {
@@ -637,6 +867,10 @@ watch(visibleSectionKey, (key) => {
     border-bottom-style: solid;
   }
 
+  &:active {
+    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
+  }
+
   &:focus-visible {
     outline: 2px solid var(--q-primary);
     outline-offset: 1px;
@@ -651,30 +885,47 @@ watch(visibleSectionKey, (key) => {
   color: var(--q-primary);
 }
 
-.map-delete {
+.map-delete,
+.step-toggle {
   appearance: none;
   background: none;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0;
-  padding: var(--gap-sm-md);
-  border-radius: var(--radius-xs);
+  padding: var(--gap-sm);
+  border-radius: var(--radius-sm);
   color: var(--text-faint);
-  transition: opacity var(--duration-fast), color var(--duration-fast);
+  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
 
   .nav-item:hover & {
     opacity: 1;
   }
 
-  &:hover {
-    color: var(--text) !important;
+  .nav-item &:hover {
+    color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+  }
+
+  .nav-item &:active {
+    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
   }
 
   &:focus-visible {
     opacity: 1;
     outline: 2px solid var(--q-primary);
     outline-offset: 1px;
+  }
+}
+
+.map-delete {
+  opacity: 0;
+}
+
+.step-toggle {
+  opacity: var(--opacity-toggle-idle);
+
+  .nav-item.excluded & {
+    opacity: 1;
   }
 }
 
@@ -695,7 +946,7 @@ watch(visibleSectionKey, (key) => {
 .thumb-empty {
   width: 100%;
   height: 100%;
-  opacity: 0.25;
+  opacity: var(--opacity-thumb-empty);
 }
 
 .item-info {
@@ -719,40 +970,140 @@ watch(visibleSectionKey, (key) => {
   font-size: var(--type-3xs);
 }
 
-.nav-empty {
-  margin: 0;
-  padding: var(--gap-lg) var(--gap-md-lg);
+.picker-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-sm) var(--gap-md);
+  border-top: 1px solid var(--border-color);
+  gap: var(--gap-sm);
+}
+
+.picker-clear-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
   font-size: var(--type-2xs);
-  text-align: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--gap-xs) var(--gap-sm);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast), background var(--duration-fast);
+  margin-inline-start: auto;
+
+  &:hover {
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--danger) 16%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
+}
+
+.picker-confirm-text {
+  font-size: var(--type-2xs);
+  color: var(--text-muted);
+}
+
+.picker-confirm-actions {
+  display: flex;
+  gap: var(--gap-sm);
+  margin-inline-start: auto;
+}
+
+.picker-cancel-btn,
+.picker-remove-btn {
+  appearance: none;
+  border: none;
+  font: inherit;
+  font-size: var(--type-2xs);
+  cursor: pointer;
+  padding: var(--gap-xs) var(--gap-sm-md);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast);
+
+  &:focus-visible {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
+}
+
+.picker-cancel-btn {
+  background: none;
+  color: var(--text-muted);
+
+  &:hover {
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+}
+
+.picker-remove-btn {
+  background: var(--danger);
+  color: #fff; // white-on-danger — standard for filled destructive buttons
+
+  &:hover {
+    background: color-mix(in srgb, var(--danger) 85%, black);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--danger) 75%, black);
+  }
 }
 
 @media (hover: none) {
-  .map-delete {
+  .map-delete,
+  .step-toggle,
+  .country-toggle {
     opacity: 1;
   }
 }
 
 @media (pointer: coarse) {
-  .add-map-btn {
-    padding: var(--gap-md-lg);
-  }
-
-  .cancel-btn {
-    padding: var(--gap-md) var(--gap-md-lg);
+  .nav-chip {
+    padding: var(--gap-sm-md) var(--gap-md);
   }
 
   .map-dates {
     padding: var(--gap-sm-md) var(--gap-md);
+  }
+
+  .step-toggle,
+  .country-toggle,
+  .map-delete {
+    padding: var(--gap-md);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-item,
   .group-header,
-  .add-map-btn,
+  .group-flag,
+  .group-name,
+  .group-dates-text,
+  .nav-chip,
   .map-dates,
   .map-delete,
-  .cancel-btn {
+  .step-toggle,
+  .country-toggle,
+  .picker-clear-btn,
+  .picker-cancel-btn,
+  .picker-remove-btn {
     transition: none;
   }
 }
