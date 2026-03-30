@@ -228,7 +228,7 @@ async def export_user_data(
     # which are not thread-safe, and there's no I/O here (data is pre-loaded).
     albums_data: list[dict[str, Any]] = [
         {
-            "album": album.model_dump(mode="json", exclude={"uid"}),
+            "album": album.model_dump(mode="json", exclude={"uid", "media"}),
             "steps": [
                 s.model_dump(mode="json", exclude={"uid", "aid"})
                 for s in steps_by_album[album.id]
