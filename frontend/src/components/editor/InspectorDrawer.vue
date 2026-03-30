@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album, Step } from "@/client";
+import type { Album, Step, Media } from "@/client";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { mediaThumbUrl, isVideo } from "@/utils/media";
@@ -11,6 +11,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   album: Album;
+  media: Media[];
   step?: Step;
   sectionKey?: string | null;
 }>();
@@ -35,10 +36,9 @@ const coverField = computed(() =>
 );
 const activeCoverPhoto = computed(() => props.album[coverField.value]);
 
-const landscapePhotos = computed(() => {
-  const media = (props.album.media ?? {}) as Record<string, string>;
-  return Object.keys(media).filter((name) => media[name] === "l" && !isVideo(name));
-});
+const landscapePhotos = computed(() =>
+  props.media.filter((m) => m.width / m.height > 4 / 5 && !isVideo(m.name)).map((m) => m.name),
+);
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });

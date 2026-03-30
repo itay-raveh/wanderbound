@@ -5,11 +5,12 @@ import {
   type InjectionKey,
   type Ref,
 } from "vue";
+import type { Media } from "@/client";
 
 interface AlbumContext {
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
-  media: ComputedRef<Record<string, string>>;
+  media: ComputedRef<Media[]>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
 }

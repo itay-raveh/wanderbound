@@ -4,6 +4,7 @@ import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
+import type { Media } from "@/client";
 
 const { media } = useAlbum();
 const printMode = usePrintMode();
@@ -16,7 +17,15 @@ const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
 
-const isPortrait = (m: string) => media.value[m] === "p";
+const mediaByName = computed(() => {
+  const map = new Map<string, Media>();
+  for (const m of media.value) map.set(m.name, m);
+  return map;
+});
+const isPortrait = (name: string) => {
+  const m = mediaByName.value.get(name);
+  return m ? m.width / m.height <= 4 / 5 : false;
+};
 
 /**
  * Mixed layouts depend on orientation ordering:
