@@ -1,29 +1,50 @@
 <script lang="ts" setup>
-import type { Segment, Step } from "@/client";
+import type { SegmentOutline, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
+import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
-import { useTemplateRef, watch } from "vue";
+import { useTemplateRef, computed, ref, watch } from "vue";
 
 const { t } = useI18n();
 
 const props = defineProps<{
   steps: Step[];
-  segments: Segment[];
+  segmentOutlines: SegmentOutline[];
 }>();
 
 const { albumId } = useAlbum();
 const { locale } = useUserQuery();
+
+const fromTime = computed(() =>
+  props.segmentOutlines.length
+    ? Math.min(...props.segmentOutlines.map((s) => s.start_time))
+    : 0,
+);
+const toTime = computed(() =>
+  props.segmentOutlines.length
+    ? Math.max(...props.segmentOutlines.map((s) => s.end_time))
+    : 0,
+);
+
+const fromTimeRef = ref(fromTime.value);
+const toTimeRef = ref(toTime.value);
+watch(fromTime, (v) => { fromTimeRef.value = v; });
+watch(toTime, (v) => { toTimeRef.value = v; });
+
+const { data: segments } = useSegmentPointsQuery(fromTimeRef, toTimeRef);
+
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({ container, locale, onReady: draw });
 
 function draw(m: Map) {
+  if (!segments.value) return;
   m.resize();
   drawSegmentsAndMarkers(m, {
-    segments: props.segments,
+    segments: segments.value,
     steps: props.steps,
     albumId: albumId.value,
   });
@@ -34,15 +55,12 @@ function draw(m: Map) {
   fitBounds(coords, 60);
 }
 
-watch(
-  [() => props.segments, () => props.steps],
-  () => {
-    const m = map.value;
-    if (!m) return;
-    if (m.isStyleLoaded()) draw(m);
-    else m.once("load", () => draw(m));
-  },
-);
+watch(segments, () => {
+  const m = map.value;
+  if (!m) return;
+  if (m.isStyleLoaded()) draw(m);
+  else m.once("load", () => draw(m));
+});
 </script>
 
 <template>

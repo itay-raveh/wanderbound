@@ -1,4 +1,4 @@
-import type { Segment, BoundaryAdjust } from "@/client";
+import type { Segment, SegmentOutline, BoundaryAdjust } from "@/client";
 import type { HikeEndpoint } from "@/components/album/map/mapSegments";
 import { addLine, lineFeature, removeMapLayer } from "@/components/album/map/mapSegments";
 import distance from "@turf/distance";
@@ -10,18 +10,18 @@ const HANDLE_CLASS = "hike-handle";
 interface DragContext {
   map: mapboxgl.Map;
   hikeSegment: Segment;
-  allSegments: Segment[];
+  allSegments: SegmentOutline[];
   hikeColor: string;
   onCommit: (adjust: BoundaryAdjust) => void;
 }
 
 /** Mirror of the adjacency query in albums.py adjust_segment_boundary - keep in sync. */
 function findAdjacentSegment(
-  segments: Segment[],
-  hike: Segment,
+  segments: SegmentOutline[],
+  hike: { start_time: number; end_time: number },
   handle: "start" | "end",
-): Segment | null {
-  let best: Segment | null = null;
+): SegmentOutline | null {
+  let best: SegmentOutline | null = null;
   for (const seg of segments) {
     if ((seg.start_time === hike.start_time && seg.end_time === hike.end_time) || seg.kind === "flight") continue;
     if (handle === "start") {
@@ -63,11 +63,20 @@ export function setupBoundaryHandles(
     const isStart = ep.handle === "start";
     const ghostId = `boundary-ghost-${ep.handle}`;
 
-    // Adjacent segments are temporally non-overlapping - concat in time order
-    const combinedPoints = isStart
-      ? [...adjacent.points, ...ctx.hikeSegment.points]
-      : [...ctx.hikeSegment.points, ...adjacent.points];
-    const extendedCoords: [number, number][] = combinedPoints.map((p) => [p.lon, p.lat]);
+    // Build extended line: adjacent outline (start→end coords) + hike GPS points
+    const adjCoords: [number, number][] = [adjacent.start_coord, adjacent.end_coord];
+    const hikeCoordsFull: [number, number][] = ctx.hikeSegment.points.map((p) => [p.lon, p.lat]);
+    const extendedCoords: [number, number][] = isStart
+      ? [...adjCoords, ...hikeCoordsFull]
+      : [...hikeCoordsFull, ...adjCoords];
+
+    // Build combined time array matching extendedCoords for boundary interpolation
+    const adjTimes = [adjacent.start_time, adjacent.end_time];
+    const hikeTimes = ctx.hikeSegment.points.map((p) => p.time);
+    const combinedTimes = isStart
+      ? [...adjTimes, ...hikeTimes]
+      : [...hikeTimes, ...adjTimes];
+
     const extendedLine = lineFeature(extendedCoords);
 
     // Precompute cumulative geodesic distances along the extended line (km).
@@ -78,9 +87,10 @@ export function setupBoundaryHandles(
 
     const originalLngLat = marker.getLngLat();
 
-    const hikeLen = ctx.hikeSegment.points.length;
+    const adjLen = adjCoords.length;
+    const hikeLen = hikeCoordsFull.length;
     const originalHikeCoords = isStart
-      ? extendedCoords.slice(adjacent.points.length)
+      ? extendedCoords.slice(adjLen)
       : extendedCoords.slice(0, hikeLen);
 
     let snappedTime: number | null = null;
@@ -88,9 +98,9 @@ export function setupBoundaryHandles(
 
     /** Interpolate boundary time using geodesic distance along the line. */
     function computeBoundaryTime(location: number, edgeIdx: number): number {
-      const t0 = combinedPoints[edgeIdx]!.time;
-      if (edgeIdx + 1 >= combinedPoints.length) return t0;
-      const t1 = combinedPoints[edgeIdx + 1]!.time;
+      const t0 = combinedTimes[edgeIdx]!;
+      if (edgeIdx + 1 >= combinedTimes.length) return t0;
+      const t1 = combinedTimes[edgeIdx + 1]!;
       const edgeDist = cumDist[edgeIdx + 1]! - cumDist[edgeIdx]!;
       if (edgeDist < 1e-10) return t0;
       const frac = Math.min(1, (location - cumDist[edgeIdx]!) / edgeDist);

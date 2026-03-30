@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-import type { Segment, Step } from "@/client";
+import type { SegmentOutline, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { setupBoundaryHandles } from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
+import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { useUserQuery, KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import { getCountryColor } from "../colors";
 import along from "@turf/along";
@@ -20,10 +21,10 @@ const { t } = useI18n();
 
 const props = defineProps<{
   steps: Step[];
-  segments: Segment[];
-  hikeSegment: Segment;
+  segments: SegmentOutline[];
+  hikeSegment: SegmentOutline;
   /** All album segments (unfiltered) - needed to find adjacent segments for boundary drag. */
-  allSegments: Segment[];
+  allSegments: SegmentOutline[];
 }>();
 
 const { albumId, colors } = useAlbum();
@@ -31,6 +32,20 @@ const container = useTemplateRef("hike-map");
 const { isKm, locale, distanceUnit, elevationUnit } = useUserQuery();
 const printMode = usePrintMode();
 const boundaryMutation = useSegmentBoundaryMutation();
+
+// Fetch full segment points for the hike segment's time range
+const fromTime = ref(props.hikeSegment.start_time);
+const toTime = ref(props.hikeSegment.end_time);
+watch(() => props.hikeSegment.start_time, (v) => { fromTime.value = v; });
+watch(() => props.hikeSegment.end_time, (v) => { toTime.value = v; });
+
+const { data: fetchedSegments } = useSegmentPointsQuery(fromTime, toTime);
+
+const fullHikeSegment = computed(() =>
+  fetchedSegments.value?.find(
+    (s) => s.start_time === props.hikeSegment.start_time && s.end_time === props.hikeSegment.end_time,
+  ),
+);
 
 let cleanupHandles: (() => void) | null = null;
 let pendingIdleHandler: (() => void) | null = null;
@@ -53,10 +68,11 @@ const elevationSamples = ref<
 >([]);
 
 const stats = computed(() => {
-  const pts = props.hikeSegment.points;
-  if (pts.length < 2)
+  const seg = fullHikeSegment.value;
+  if (!seg || seg.points.length < 2)
     return { distance: "0", duration: t("hike.hours", { n: 0 }), elevGain: 0 };
 
+  const pts = seg.points;
   const startTime = pts[0]!.time;
   const endTime = pts[pts.length - 1]!.time;
   const hours = (endTime - startTime) / 3600;
@@ -111,9 +127,10 @@ const totalDistKm = computed(() =>
  * Sample elevation at regular intervals along the hike path using turf.along.
  */
 function queryElevations(m: mapboxgl.Map) {
-  const pts = props.hikeSegment.points;
-  if (pts.length < 2) return;
+  const seg = fullHikeSegment.value;
+  if (!seg || seg.points.length < 2) return;
 
+  const pts = seg.points;
   const coords: [number, number][] = pts.map((p) => [p.lon, p.lat]);
   const line = lineString(coords);
   const totalDist = turfLength(line, { units: "kilometers" });
@@ -152,9 +169,12 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
   cleanupHandles?.();
   cleanupHandles = null;
 
-  const h = props.hikeSegment;
-  const otherSegments = props.segments.filter(
-    (s) => s.start_time !== h.start_time || s.end_time !== h.end_time,
+  const hikeSeg = fullHikeSegment.value;
+  if (!hikeSeg) return;
+
+  // Other fetched segments for faint background drawing
+  const otherSegments = (fetchedSegments.value ?? []).filter(
+    (s) => s.start_time !== hikeSeg.start_time || s.end_time !== hikeSeg.end_time,
   );
 
   try {
@@ -168,7 +188,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
 
     // Prominent hike + step markers (skip cleanup to keep faint layers)
     const { allCoords, hikeEndpoints } = drawSegmentsAndMarkers(m, {
-      segments: [props.hikeSegment],
+      segments: [hikeSeg],
       steps: props.steps,
       albumId: albumId.value,
       skipCleanup: true,
@@ -180,7 +200,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
     if (!printMode && hikeEndpoints.length > 0) {
       cleanupHandles = setupBoundaryHandles(hikeEndpoints, {
         map: m,
-        hikeSegment: props.hikeSegment,
+        hikeSegment: hikeSeg,
         allSegments: props.allSegments,
         hikeColor: countryColor.value,
         onCommit: (adjust) => boundaryMutation.mutate(adjust),
@@ -213,9 +233,10 @@ const { map, fitBounds } = useMapbox({
       console.warn("[hike-map] terrain setup failed:", e);
     }
 
-    drawMap(m);
-
-    scheduleElevationQuery(m);
+    if (fullHikeSegment.value) {
+      drawMap(m);
+      scheduleElevationQuery(m);
+    }
   },
 });
 
@@ -234,16 +255,13 @@ function scheduleElevationQuery(m: mapboxgl.Map) {
   m.on("idle", handler);
 }
 
-// Re-draw when segment data actually changes (e.g. after boundary mutation).
-watch(
-  () => [props.hikeSegment.start_time, props.hikeSegment.end_time] as const,
-  () => {
-    if (!map.value) return;
-    elevationSamples.value = [];
-    drawMap(map.value);
-    scheduleElevationQuery(map.value);
-  },
-);
+// When fetched data arrives or changes, redraw
+watch(fullHikeSegment, () => {
+  if (!map.value || !fullHikeSegment.value) return;
+  elevationSamples.value = [];
+  drawMap(map.value);
+  scheduleElevationQuery(map.value);
+});
 </script>
 
 <template>

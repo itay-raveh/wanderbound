@@ -1,7 +1,6 @@
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "../colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
-import { routeSegment } from "./mapRouting";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 
@@ -258,23 +257,17 @@ interface DrawResult {
   hikeEndpoints: HikeEndpoint[];
 }
 
-/** Per-map generation counter - routing callbacks from stale draws are discarded. */
-const drawGenerations = new WeakMap<mapboxgl.Map, number>();
-
 /** Draw segments and step markers. Returns all coords for fitBounds + hike endpoint info. */
 export function drawSegmentsAndMarkers(
   m: mapboxgl.Map,
   options: DrawOptions,
 ): DrawResult {
   if (!options.skipCleanup) cleanup(m);
-  const gen = (drawGenerations.get(m) ?? 0) + 1;
-  drawGenerations.set(m, gen);
 
   const { segments, steps, albumId, style = "normal" } = options;
   const faint = style === "faint";
   const allCoords: [number, number][] = [];
   const hikeEndpoints: HikeEndpoint[] = [];
-  const useRouting = !faint && steps.length < 30;
 
   // Collect driving/walking coords for batched rendering (avoids overlap stacking).
   const routeBuckets: Record<"driving" | "walking", [number, number][][]> = {
@@ -311,24 +304,10 @@ export function drawSegmentsAndMarkers(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        const style = ROUTE_STYLES[kind];
-        const bucket = routeBuckets[kind];
-        const idx = bucket.length;
-        bucket.push(coords);
+        // Use backend-computed route if available, fall back to raw GPS
+        const routeCoords: [number, number][] = seg.route ?? coords;
+        routeBuckets[kind].push(routeCoords);
         allCoords.push(...coords);
-
-        if (!useRouting) break;
-        void routeSegment(seg, coords, kind).then((routed) => {
-          if (!routed || gen !== drawGenerations.get(m)) return;
-          bucket[idx] = routed;
-          try {
-            const fc = multiLine(bucket);
-            setSourceData(m, style.shadowId, fc);
-            setSourceData(m, style.sourceId, fc);
-          } catch {
-            // Source removed before routing completed (e.g. navigated away)
-          }
-        });
         break;
       }
     }

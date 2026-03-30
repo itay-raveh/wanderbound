@@ -205,12 +205,12 @@ if (props.printMode) {
     <CoverPage :album="album" :steps="visibleSteps" />
     <CoverPage :album="album" :steps="visibleSteps" is-back />
     <OverviewPage :album="album" :segments="segments" :steps="visibleSteps" />
-    <div class="map-wrapper"><MapPage :segments="segments" :steps="visibleSteps" /></div>
+    <div class="map-wrapper"><MapPage :segment-outlines="segments" :steps="visibleSteps" /></div>
 
     <template v-for="section in sections" :key="sectionKey(section)">
       <template v-if="section.type === 'map' || section.type === 'hike'">
         <div class="map-wrapper">
-          <MapPage v-if="section.type === 'map'" :segments="section.segments" :steps="section.steps" />
+          <MapPage v-if="section.type === 'map'" :segment-outlines="section.segments" :steps="section.steps" />
           <HikeMapPage
             v-else
             :segments="section.segments"
@@ -253,7 +253,7 @@ if (props.printMode) {
           <CoverPage v-else-if="vItem.index === 1" :album="album" :steps="visibleSteps" is-back />
           <OverviewPage v-else-if="vItem.index === 2" :album="album" :segments="segments" :steps="visibleSteps" />
           <div v-else-if="vItem.index === 3" class="map-wrapper">
-            <MapPage :segments="segments" :steps="visibleSteps" />
+            <MapPage :segment-outlines="segments" :steps="visibleSteps" />
           </div>
 
           <!-- Section items -->
@@ -264,7 +264,7 @@ if (props.printMode) {
             >
               <MapPage
                 v-if="sections[vItem.index - HEADER_COUNT]?.type === 'map'"
-                :segments="(sections[vItem.index - HEADER_COUNT] as any).segments"
+                :segment-outlines="(sections[vItem.index - HEADER_COUNT] as any).segments"
                 :steps="(sections[vItem.index - HEADER_COUNT] as any).steps"
               />
               <HikeMapPage
