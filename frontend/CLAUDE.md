@@ -11,6 +11,9 @@ To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
 - Pinia Colada mutations: optimistic cache update → push undo stack → revert on error → invalidate on settle.
 - Map routing: Map Matching API for dense GPS traces (<2km avg spacing), Directions API for sparse. Chunked with in-memory cache.
 - `stripPhotos()`: atomically removes photos from all page lists to prevent duplicates during drag-and-drop.
+- Font constants (`ALLOWED_FONTS`, defaults, fallback stacks) live in `src/utils/fonts.ts` — single source of truth.
+- `useTextMeasure()` containers live in `document.body`, outside `.album-container` — they only see `:root` CSS vars, not inline style overrides.
+- Quasar q-select `#option` slots: use `v-bind="itemProps"` for click handling, never `toggleOption`.
 
 ## CSS Rules
 

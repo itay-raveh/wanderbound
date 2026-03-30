@@ -216,7 +216,7 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? FADE_H + TOP_PAD) - 6);
 .axis-label {
   font-size: 5.5px;
   fill: color-mix(in srgb, var(--text) 75%, transparent);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-weight: 500;
 }
 

@@ -73,6 +73,8 @@ def _album(
         colors={},
         excluded_steps=[],
         maps_ranges=[],
+        font="Assistant",
+        body_font="Frank Ruhl Libre",
     )
 
 

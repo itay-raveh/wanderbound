@@ -10,6 +10,7 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
+import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { buildSections, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
 import { vSpyStep, useStepScrollSpy } from "@/composables/useStepScrollSpy";
@@ -51,6 +52,11 @@ const props = defineProps<{
 const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
 const albumMedia = computed(() => (props.album.media ?? {}) as Record<string, string>);
+
+const albumFontStyle = computed(() => ({
+  '--font-album': fontStack(props.album.font ?? DEFAULT_FONT),
+  '--font-album-body': fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
+}));
 const albumMutation = useAlbumMutation(() => props.album.id);
 
 const steps = computed(() => {
@@ -209,6 +215,7 @@ if (props.printMode) {
     v-if="printMode && steps.length"
     class="album-container print-mode"
     :data-expected-pages="expectedPageCount"
+    :style="albumFontStyle"
   >
     <CoverPage :album="album" :steps="steps" />
     <CoverPage :album="album" :steps="steps" is-back />
@@ -237,7 +244,7 @@ if (props.printMode) {
     v-else-if="steps.length"
     class="album-container"
     :data-expected-pages="expectedPageCount"
-    :style="{ '--editor-zoom': String(EDITOR_ZOOM) }"
+    :style="[{ '--editor-zoom': String(EDITOR_ZOOM) }, albumFontStyle]"
   >
     <div ref="listRef" :style="{ height: `${size}px`, position: 'relative' }">
       <div
@@ -304,6 +311,7 @@ if (props.printMode) {
   width: var(--page-width);
   height: var(--page-height);
   background-color: var(--page-bg, var(--bg));
+  font-family: var(--font-album);
   contain: strict;
 }
 

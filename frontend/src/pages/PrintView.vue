@@ -4,6 +4,7 @@ import { useAlbumQuery } from "@/queries/useAlbumQuery";
 import { useAlbumDataQuery } from "@/queries/useAlbumDataQuery";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
+import { ALLOWED_FONTS } from "@/utils/fonts";
 import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
 import { computed, onMounted, onUnmounted } from "vue";
@@ -22,13 +23,13 @@ const { t } = useI18n();
 useLocale(locale);
 
 /**
- * Force-load every registered Inter font face.
+ * Force-load every registered self-hosted font face.
  * Our @font-face rules use font-display:block, but explicitly calling
  * FontFace.load() ensures the woff2 files are downloaded and activated
  * before we signal readiness to Playwright.
  */
 async function loadFonts(): Promise<void> {
-  const families = new Set(["Inter", "JetBrains Mono"]);
+  const families = new Set([...ALLOWED_FONTS, "JetBrains Mono"]);
   const faces: Promise<FontFace>[] = [];
   for (const face of document.fonts) {
     if (families.has(face.family)) faces.push(face.load());

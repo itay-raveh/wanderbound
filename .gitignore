@@ -30,6 +30,7 @@ frontend/openapi.json
 
 # Claude Code
 .claude/.ship-active
+.superpowers
 
 # App data
 backend/data/

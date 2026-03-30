@@ -253,6 +253,7 @@ const dateStr = computed(() => {
 }
 
 .description {
+  font-family: var(--font-album-body);
   font-size: var(--type-xs);
   line-height: 1.65;
   color: var(--text);

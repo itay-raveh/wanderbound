@@ -46,6 +46,8 @@ async def _insert_album(
         back_cover_photo="photo2.jpg",
         colors={"nl": "#0000ff"},
         media={},
+        font="Assistant",
+        body_font="Frank Ruhl Libre",
     )
     session.add(album)
     await session.flush()

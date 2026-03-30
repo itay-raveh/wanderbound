@@ -9,7 +9,7 @@ import vue3GoogleLogin from "vue3-google-login";
 import i18n from "@/i18n";
 import { applyLocale } from "@/composables/useLocale";
 
-// Self-hosted Inter + Heebo (Hebrew) with font-display: block.
+// Self-hosted Assistant + Frank Ruhl Libre + JetBrains Mono with font-display: block.
 // Guarantees fonts are loaded before rendering (critical for PDF generation).
 import "@/styles/fonts.css";
 

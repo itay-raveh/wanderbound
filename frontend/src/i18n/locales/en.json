@@ -69,7 +69,9 @@
   },
 
   "editor": {
-    "exportPdf": "Export PDF"
+    "exportPdf": "Export PDF",
+    "font": "Heading font",
+    "bodyFont": "Body font"
   },
 
   "settings": {

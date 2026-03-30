@@ -74,7 +74,7 @@
 }
 
 // Mapbox injects its own font stack on .mapboxgl-map — override to use ours
-.mapboxgl-map { font-family: var(--font-body); }
+.mapboxgl-map { font-family: var(--font-ui); }
 
 // Directional icons that should mirror in RTL (arrows, planes, etc.)
 [dir="rtl"] .rtl-flip { transform: scaleX(-1); }

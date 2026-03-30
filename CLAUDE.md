@@ -33,6 +33,7 @@ Read @mise.toml for all available tasks. Always use `mise run <task>` to run the
 - Processing sessions replay all past SSE events on reconnect (no restart needed).
 - Use pathlib, never os/os.path. Use rem, never px.
 - Python 3.14: `except A, B:` is valid — no parentheses needed.
+- Font allowlist: backend `ALLOWED_FONTS` in `models/album.py`, frontend in `utils/fonts.ts`. Keep in sync.
 
 Design context (brand, users, visual direction): read @.impeccable.md.
 

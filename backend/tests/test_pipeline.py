@@ -67,6 +67,8 @@ class TestSaveReuploadDeletesSegments:
                 back_cover_photo="b.jpg",
                 colors={},
                 media={},
+                font="Assistant",
+                body_font="Frank Ruhl Libre",
             )
             session.add(album)
             step = Step(
@@ -114,6 +116,7 @@ class TestSaveReuploadDeletesSegments:
             back_cover_photo="d.jpg",
             colors={},
             media={},
+            body_font="Frank Ruhl Libre",
         )
         new_step = Step(
             uid=UID,

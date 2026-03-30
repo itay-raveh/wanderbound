@@ -32,9 +32,12 @@ body,
 /* Design tokens (theme-independent) */
 
 :root {
-  /* Font stacks - self-hosted in fonts.css. Quasar's $typography-font-family
-     (quasar-variables.sass) mirrors --font-body at build time; keep them in sync. */
-  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  /* Typography stacks. --font-ui is for editor chrome; --font-album for album
+     headings/labels; --font-album-body for step description text.
+     (quasar-variables.sass) mirrors --font-ui at build time; keep them in sync. */
+  --font-ui: "Assistant", system-ui, -apple-system, sans-serif;
+  --font-album: "Assistant", system-ui, -apple-system, sans-serif;
+  --font-album-body: "Frank Ruhl Libre", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* A4 landscape page dimensions (single source of truth for album pages). */
@@ -116,6 +119,7 @@ body,
    measurement in sync with rendering. */
 .text-body-columns {
   padding: var(--page-inset-y) var(--page-inset-x);
+  font-family: var(--font-album-body);
   font-size: var(--type-sm);
   line-height: 1.65;
   white-space: pre-wrap;

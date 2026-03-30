@@ -1,8 +1,10 @@
 <script lang="ts" setup>
 import type { Album } from "@/client";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
+import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
+import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT } from "@/utils/fonts";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 
 import {
@@ -23,10 +25,22 @@ const props = defineProps<{
 const pdf = usePdfExportStream(() => props.album?.id ?? "");
 const pdfBusy = computed(() => pdf.state.value !== "idle" && pdf.state.value !== "error");
 const undoStack = useUndoStack();
+const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
+
+const currentFont = computed(() => props.album?.font ?? DEFAULT_FONT);
+const currentBodyFont = computed(() => props.album?.body_font ?? DEFAULT_BODY_FONT);
 
 function onExportPdf() {
   if (!props.album) return;
   pdf.start();
+}
+
+function updateFont(font: string) {
+  albumMutation.mutate({ font });
+}
+
+function updateBodyFont(font: string) {
+  albumMutation.mutate({ body_font: font });
 }
 </script>
 
@@ -39,6 +53,39 @@ function onExportPdf() {
       <q-btn class="action-btn" flat dense round :icon="symOutlinedRedo" :disable="!undoStack.canRedo.value" :aria-label="t('shortcuts.redo')" @click="undoStack.redo()">
         <q-tooltip>{{ KEY_LABELS.redo }}</q-tooltip>
       </q-btn>
+      <q-separator vertical class="action-divider" />
+      <q-select
+        :model-value="currentFont"
+        :options="ALLOWED_FONTS"
+        :label="t('editor.font')"
+        dense
+        outlined
+        options-dense
+        class="font-picker"
+        @update:model-value="updateFont"
+      >
+        <template #option="{ itemProps, opt }">
+          <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
+            <q-item-section>{{ opt }}</q-item-section>
+          </q-item>
+        </template>
+      </q-select>
+      <q-select
+        :model-value="currentBodyFont"
+        :options="ALLOWED_FONTS"
+        :label="t('editor.bodyFont')"
+        dense
+        outlined
+        options-dense
+        class="font-picker"
+        @update:model-value="updateBodyFont"
+      >
+        <template #option="{ itemProps, opt }">
+          <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
+            <q-item-section>{{ opt }}</q-item-section>
+          </q-item>
+        </template>
+      </q-select>
       <q-separator vertical class="action-divider" />
       <q-btn class="util-btn" flat dense round :icon="symOutlinedKeyboard" :aria-label="t('shortcuts.title')">
         <q-tooltip>{{ t("shortcuts.title") }}</q-tooltip>
@@ -128,6 +175,10 @@ function onExportPdf() {
     border-color: var(--text-faint);
     color: var(--text-faint);
   }
+}
+
+.font-picker {
+  width: 11rem;
 }
 
 .action-divider {

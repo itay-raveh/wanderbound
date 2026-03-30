@@ -47,7 +47,7 @@ const emit = defineEmits<{
   width: 16.25rem;
   height: 2.75rem;
   padding: 0 1.25rem;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: var(--type-sm);
   font-weight: 600;
   border-radius: var(--radius-full);

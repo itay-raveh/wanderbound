@@ -69,7 +69,9 @@
   },
 
   "editor": {
-    "exportPdf": "הורדת PDF"
+    "exportPdf": "הורדת PDF",
+    "font": "גופן כותרות",
+    "bodyFont": "גופן גוף"
   },
 
   "settings": {

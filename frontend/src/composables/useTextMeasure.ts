@@ -1,4 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { ALLOWED_FONTS } from "@/utils/fonts";
 
 export type DescriptionType = "short" | "long" | "extra-long";
 
@@ -18,7 +19,7 @@ function cached(text: string, layout: TextLayout): TextLayout {
 
 // --- Font readiness tracking (reactive - triggers recomputation in computed contexts) ---
 // Revision counter bumped when fonts finish loading. The loadingdone listener handles
-// unicode-range fonts (e.g. Heebo for Hebrew) that load on demand after initial ready.
+// unicode-range fonts (e.g. Hebrew subsets) that load on demand after initial ready.
 // Debounced so rapid successive loads (multiple unicode-range slices) collapse into one
 // cache invalidation instead of causing repeated layout thrashing.
 const fontsRevision = ref(0);
@@ -33,7 +34,7 @@ if (typeof document !== "undefined") {
   };
   void document.fonts.ready.then(bumpRevision);
   document.fonts.addEventListener("loadingdone", ((e: FontFaceSetLoadEvent) => {
-    if (e.fontfaces.some((f) => f.family === "Inter")) bumpRevision();
+    if (e.fontfaces.some((f) => (ALLOWED_FONTS as readonly string[]).includes(f.family))) bumpRevision();
   }) as EventListener);
 }
 
@@ -49,7 +50,6 @@ const MEASURE_STYLE = [
   "visibility:hidden",
   "pointer-events:none",
   "z-index:-1",
-  "font-family:var(--font-body)",
 ].join(";");
 
 function createContainer(extraStyle: string, className?: string): HTMLDivElement {
@@ -73,6 +73,7 @@ function ensureContainers() {
       "box-sizing:border-box",
       "width:calc(var(--page-width) * var(--meta-ratio) - var(--page-inset-x) - var(--page-inset-y))",
       "height:calc(var(--page-height) - 21rem)",
+      "font-family:var(--font-album-body)",
       "font-size:var(--type-xs)",
       "line-height:1.65",
     ].join(";"),

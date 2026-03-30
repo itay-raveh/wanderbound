@@ -20,7 +20,7 @@ from app.logic.layout.media import (
 )
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
-from app.models.album import Album
+from app.models.album import DEFAULT_BODY_FONT, DEFAULT_FONT, Album
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -233,6 +233,8 @@ def build_trip_objects(
         front_cover_photo=results.cover_name,
         back_cover_photo=results.cover_name,
         media=merged_media,
+        font=DEFAULT_FONT,
+        body_font=DEFAULT_FONT if user.locale.startswith("he") else DEFAULT_BODY_FONT,
     )
     return [album, *steps, *segments]
 
