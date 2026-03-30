@@ -1,5 +1,5 @@
 import logging
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Sequence
 from math import atan2, cos, radians, sin, sqrt
 from typing import Annotated
 
@@ -105,7 +105,7 @@ async def read_segment_points(
     session: SessionDep,
     from_time: Annotated[float, Query()],
     to_time: Annotated[float, Query()],
-) -> list[Segment]:
+) -> Sequence[Segment]:
     result = await session.exec(
         select(Segment)
         .where(

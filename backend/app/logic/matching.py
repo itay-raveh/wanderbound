@@ -150,7 +150,7 @@ async def _fetch_matching(
     for matching in matchings:
         geom = matching.get("geometry", {})
         if geom.get("type") == "LineString":
-            pts: Coords = [tuple(c) for c in geom["coordinates"]]  # type: ignore[misc]
+            pts: Coords = [tuple(c) for c in geom["coordinates"]]
             all_coords.extend(pts[1:] if all_coords else pts)
     return all_coords if len(all_coords) >= 2 else None
 
@@ -175,7 +175,7 @@ async def _fetch_directions(
     if not routes:
         return None
     geom_coords = routes[0].get("geometry", {}).get("coordinates", [])
-    result: Coords = [tuple(c) for c in geom_coords]  # type: ignore[misc]
+    result: Coords = [tuple(c) for c in geom_coords]
     return result if len(result) >= 2 else None
 
 
