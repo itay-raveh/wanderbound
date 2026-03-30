@@ -18,8 +18,8 @@ export function useSegmentBoundaryMutation() {
       });
       return data;
     },
-    onSuccess: (data) => {
-      cache.setQueryData(queryKeys.albumData(albumId.value), data);
+    onSuccess: (outlines) => {
+      cache.setQueryData(queryKeys.segments(albumId.value), outlines);
     },
     onError: () => {
       Notify.create({ type: "negative", message: t("error.adjustBoundary") });

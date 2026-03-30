@@ -80,7 +80,9 @@ export function makeSegment(overrides: Partial<Segment> = {}): Segment {
     start_time: 0,
     end_time: 100,
     kind: "driving",
+    timezone_id: "UTC",
     points: [],
+    route: null,
     ...overrides,
   };
 }

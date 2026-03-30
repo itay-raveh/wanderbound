@@ -1,6 +1,6 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep } from "@/client";
-import type { AlbumData, StepUpdate } from "@/client";
+import type { Step, StepUpdate } from "@/client";
 import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
@@ -20,18 +20,18 @@ export function useStepMutation(aid: () => string) {
     },
     onMutate: (payload) => {
       const albumId = aid();
-      const key = queryKeys.albumData(albumId);
-      const prev = cache.getQueryData<AlbumData>(key);
+      const key = queryKeys.steps(albumId);
+      const prev = cache.getQueryData<Array<Step>>(key);
       if (prev) {
-        let oldStep: (typeof prev.steps)[number] | undefined;
-        cache.setQueryData(key, {
-          ...prev,
-          steps: prev.steps.map((s) => {
+        let oldStep: Step | undefined;
+        cache.setQueryData(
+          key,
+          prev.map((s) => {
             if (s.id !== payload.sid) return s;
             oldStep = s;
             return { ...s, ...payload.update };
           }),
-        });
+        );
         if (oldStep) {
           undoStack.push({
             type: "step",
@@ -45,14 +45,9 @@ export function useStepMutation(aid: () => string) {
     },
     onError: (_error, _vars, ctx) => {
       if (ctx?.prev) {
-        cache.setQueryData(queryKeys.albumData(ctx.aid), ctx.prev);
+        cache.setQueryData(queryKeys.steps(ctx.aid), ctx.prev);
       }
       Notify.create({ type: "negative", message: t("error.saveStep") });
-    },
-    onSettled: (_data, _error, _vars, ctx) => {
-      if (ctx?.aid) {
-        void cache.invalidateQueries({ key: queryKeys.albumData(ctx.aid), exact: true });
-      }
     },
   });
 }

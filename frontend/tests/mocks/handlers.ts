@@ -26,12 +26,15 @@ export const defaultAlbum = {
   front_cover_photo: "cover.jpg",
   back_cover_photo: "back.jpg",
   colors: { nl: "#e77c31" },
-  media: {},
 };
 
+export const defaultMedia = [
+  { name: "cover.jpg", width: 1920, height: 1080 },
+  { name: "photo1.jpg", width: 1920, height: 1080 },
+  { name: "photo2.jpg", width: 1080, height: 1920 },
+];
+
 const defaultStep = {
-  uid: 1,
-  aid: "aid-1",
   id: 1,
   name: "Amsterdam",
   description: "Visited the canals.",
@@ -55,17 +58,27 @@ const defaultStep = {
   datetime: "2024-01-01T12:00:00+01:00",
 };
 
-export const defaultAlbumData = {
-  steps: [defaultStep],
-  segments: [],
-};
+export const defaultSteps = [defaultStep];
+
+export const defaultSegmentOutlines = [
+  {
+    start_time: 1704060000,
+    end_time: 1704067200,
+    kind: "driving",
+    timezone_id: "Europe/Amsterdam",
+    start_coord: [52.0, 4.0],
+    end_coord: [52.37, 4.89],
+  },
+];
 
 export const handlers = [
   http.get(`${BASE}/users`, () => HttpResponse.json(defaultUser)),
   http.patch(`${BASE}/users`, () => HttpResponse.json(defaultUser)),
   http.get(`${BASE}/albums/:aid`, () => HttpResponse.json(defaultAlbum)),
   http.patch(`${BASE}/albums/:aid`, () => HttpResponse.json(defaultAlbum)),
-  http.get(`${BASE}/albums/:aid/data`, () => HttpResponse.json(defaultAlbumData)),
+  http.get(`${BASE}/albums/:aid/media`, () => HttpResponse.json(defaultMedia)),
+  http.get(`${BASE}/albums/:aid/steps`, () => HttpResponse.json(defaultSteps)),
+  http.get(`${BASE}/albums/:aid/segments`, () => HttpResponse.json(defaultSegmentOutlines)),
   http.patch(`${BASE}/albums/:aid/steps/:sid`, () =>
     HttpResponse.json(defaultStep),
   ),

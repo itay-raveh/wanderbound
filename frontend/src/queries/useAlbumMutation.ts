@@ -1,6 +1,6 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateAlbum } from "@/client";
-import type { Album, AlbumUpdate } from "@/client";
+import type { AlbumMeta, AlbumUpdate } from "@/client";
 import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
@@ -20,7 +20,7 @@ export function useAlbumMutation(aid: () => string) {
     },
     onMutate: (update) => {
       const key = queryKeys.album(aid());
-      const prev = cache.getQueryData<Album>(key);
+      const prev = cache.getQueryData<AlbumMeta>(key);
       if (prev) {
         cache.setQueryData(key, { ...prev, ...update });
         undoStack.push({
@@ -36,9 +36,6 @@ export function useAlbumMutation(aid: () => string) {
         cache.setQueryData(queryKeys.album(aid()), prev);
       }
       Notify.create({ type: "negative", message: t("error.saveAlbum") });
-    },
-    onSettled: () => {
-      void cache.invalidateQueries({ key: queryKeys.album(aid()), exact: true });
     },
   });
 }
