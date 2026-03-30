@@ -80,6 +80,7 @@
     "locale": "Language & region",
     "distance": "Distance",
     "temperature": "Temperature",
+    "account": "Account",
     "data": "Your data",
     "signOut": "Sign out",
     "reuploadData": "Re-upload data",

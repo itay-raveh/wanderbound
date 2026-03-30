@@ -106,7 +106,6 @@ async function handleDelete() {
         <div class="settings-card">
           <!-- Appearance -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">{{ t("settings.appearance") }}</h4>
             <div class="seg-track" role="group" :aria-label="t('settings.appearance')">
               <button
                 :class="{ active: !$q.dark.isActive }"
@@ -131,7 +130,6 @@ async function handleDelete() {
 
           <!-- Locale -->
           <section class="card-section">
-            <h4 class="section-title text-overline text-faint">{{ t("settings.locale") }}</h4>
             <div class="locale-wrapper">
               <q-select
                 class="compact-field"
@@ -186,9 +184,9 @@ async function handleDelete() {
             </div>
           </section>
 
-          <!-- Data -->
-          <section class="card-section">
-            <h4 class="section-title text-overline text-faint">{{ t("settings.data") }}</h4>
+          <!-- Account (collapsible) -->
+          <details class="card-section account-details">
+            <summary class="section-title">{{ t("settings.account") }}</summary>
 
             <button class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
               <q-icon :name="matUploadFile" size="1rem" />
@@ -199,18 +197,18 @@ async function handleDelete() {
               <q-icon :name="matDownload" size="1rem" />
               {{ t("settings.exportData") }}
             </button>
-          </section>
+
+            <button class="danger-btn" @click="showDeleteConfirm = true">
+              <q-icon :name="matDeleteOutline" size="1rem" />
+              {{ t("settings.deleteAll") }}
+            </button>
+          </details>
 
           <q-separator class="q-my-sm" />
 
           <button class="action-btn" @click="handleSignOut">
             <q-icon :name="matLogout" size="1rem" />
             {{ t("settings.signOut") }}
-          </button>
-
-          <button class="danger-btn" @click="showDeleteConfirm = true">
-            <q-icon :name="matDeleteOutline" size="1rem" />
-            {{ t("settings.deleteAll") }}
           </button>
         </div>
       </q-menu>
@@ -228,7 +226,7 @@ async function handleDelete() {
   gap: var(--gap-md);
   padding: var(--gap-sm-md) var(--gap-md) var(--gap-sm-md) var(--gap-sm-md);
   border-radius: var(--radius-full);
-  border: 1px solid var(--border-color);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
   background: var(--surface);
   cursor: pointer;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
@@ -285,6 +283,7 @@ async function handleDelete() {
 .settings-card {
   padding: var(--gap-md-lg);
   min-width: 15rem;
+  overflow: visible;
 }
 
 .card-section {
@@ -296,6 +295,40 @@ async function handleDelete() {
 .section-title {
   margin: 0 0 var(--gap-md);
   padding: 0 var(--gap-xs);
+  font-size: var(--type-2xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.account-details {
+  > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+
+    &::after {
+      content: "›";
+      font-size: var(--type-sm);
+      color: var(--text-faint);
+      transition: transform var(--duration-fast) ease;
+    }
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  &[open] > summary::after {
+    transform: rotate(90deg);
+  }
+
+  > :not(summary) {
+    margin-top: var(--gap-sm-md);
+  }
 }
 
 .seg-track {
