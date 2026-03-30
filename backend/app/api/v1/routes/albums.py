@@ -17,6 +17,7 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import select
 
 from app.logic.layout.media import Media
+from app.logic.matching import MATCHABLE_KINDS, match_segment
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.models.album import Album, AlbumMeta, AlbumUpdate
 from app.models.segment import (
@@ -114,7 +115,20 @@ async def read_segment_points(
         )
         .order_by(Segment.start_time)  # type: ignore[union-attr]
     )
-    return list(result.all())
+    segments = result.all()
+
+    # Auto-match driving/walking segments that don't have a route yet
+    for seg in segments:
+        if seg.kind in MATCHABLE_KINDS and seg.route is None:
+            profile = "driving" if seg.kind == SegmentKind.driving else "walking"
+            coords_lonlat = [(p.lon, p.lat) for p in seg.points]
+            route = await match_segment(coords_lonlat, profile)
+            if route:
+                seg.route = route
+                session.add(seg)
+    await session.commit()
+
+    return segments
 
 
 @router.patch("/{aid}")

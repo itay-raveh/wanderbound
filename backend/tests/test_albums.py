@@ -193,6 +193,77 @@ class TestReadSegmentPoints:
         assert len(data[0]["points"]) == 3
 
 
+class TestSegmentPointsAutoMatch:
+    async def test_driving_segment_gets_matched(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        await _insert_segment(
+            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+        )
+
+        matched_route = [(4.0, 52.0), (4.01, 52.01), (4.02, 52.02)]
+        with patch(
+            "app.api.v1.routes.albums.match_segment",
+            return_value=matched_route,
+        ):
+            resp = await client.get(
+                f"/api/v1/albums/{AID}/segments/points",
+                params={"from_time": 0.0, "to_time": 1000.0},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        # JSON serializes tuples as arrays
+        assert data[0]["route"] == [[4.0, 52.0], [4.01, 52.01], [4.02, 52.02]]
+
+    async def test_hike_segment_not_matched(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        await _insert_segment(
+            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.hike
+        )
+
+        with patch(
+            "app.api.v1.routes.albums.match_segment",
+        ) as mock_match:
+            resp = await client.get(
+                f"/api/v1/albums/{AID}/segments/points",
+                params={"from_time": 0.0, "to_time": 1000.0},
+            )
+
+        mock_match.assert_not_called()
+        data = resp.json()
+        assert data[0]["route"] is None
+
+    async def test_already_matched_not_re_matched(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await _insert_album(session, uid)
+        seg = await _insert_segment(
+            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+        )
+        seg.route = [(4.0, 52.0), (4.01, 52.01)]
+        session.add(seg)
+        await session.flush()
+
+        with patch(
+            "app.api.v1.routes.albums.match_segment",
+        ) as mock_match:
+            resp = await client.get(
+                f"/api/v1/albums/{AID}/segments/points",
+                params={"from_time": 0.0, "to_time": 1000.0},
+            )
+
+        mock_match.assert_not_called()
+        assert resp.json()[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
+
+
 class TestUpdateAlbum:
     async def test_update_cover_photos(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path

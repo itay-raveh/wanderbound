@@ -69,6 +69,8 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         )
 
+    MAPBOX_TOKEN: str | None = None
+
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
     MAX_STORAGE_BYTES: int
 
