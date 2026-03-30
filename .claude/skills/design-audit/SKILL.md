@@ -8,7 +8,7 @@ allowed-tools: Agent, Skill, Bash, Read, Edit, Write, Glob, Grep
 
 # Design Audit Workflow
 
-You are running a structured design audit pipeline. Follow these steps exactly.
+You are running a structured design audit pipeline. Follow these steps exactly, as a task list.
 
 ## Step 1: Determine scope
 

@@ -7,7 +7,7 @@ paths:
 
 # Semantic Naming
 
-On every change, reconsider ALL names in the affected scope:
+On every change, reconsider ALL names in the affected scope (not only of new things you created, everything you come across):
 
 - **Variables/constants**: describe the value, not the type (`tripDays` not `num`, `segmentKind` not `type`)
 - **Functions**: verb + noun describing the action (`buildStepLayout`, `parseGpsEdges`)
@@ -18,4 +18,4 @@ On every change, reconsider ALL names in the affected scope:
 - **Routes/endpoints**: RESTful nouns (`GET /albums/{aid}`, not `GET /getAlbum`)
 - **DB columns**: snake_case, descriptive, no abbreviations (`start_time` not `st`)
 
-When renaming, update ALL references. No orphaned old names.
+When renaming, update ALL references. No orphaned old names. Use bash tools with robust regex to achieve this cleanly.

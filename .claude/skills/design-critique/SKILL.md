@@ -8,7 +8,7 @@ allowed-tools: Agent, Skill, Bash, Read, Edit, Write, Glob, Grep, AskUserQuestio
 
 # Design Critique Workflow
 
-You are running a structured design critique pipeline with user involvement. Follow these steps exactly.
+You are running a structured design critique pipeline with user involvement.  Follow these steps exactly, as a task list.
 
 ## Step 1: Determine scope
 
