@@ -86,6 +86,13 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
+- [ ] Critique right drawer.
+- [ ] Critique cover pages.
+- [ ] Critique overview page.
+- [ ] Critique step main pages.
+- [ ] Critique step photo pages.
+- [ ] Critique landing.
+- [ ] Critique upload.
 - [ ] Allow hiding covers, overview.
 - [ ] Add controls for zoom, page padding.
 - [ ] HDR → SDR tone-mapping for video poster extraction
