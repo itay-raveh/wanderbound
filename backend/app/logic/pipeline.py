@@ -73,13 +73,12 @@ async def _process_trip(
                 )
         finally:
             await queue.put(None)
-        layout_by_idx, final_cover_name, cover_orientation = media_task.result()
+        layout_by_idx, final_cover_name = media_task.result()
         return TripResults(
             elevations=elev_task.result(),
             weather_by_idx=weather_task.result(),
             layout_by_idx=layout_by_idx,
             cover_name=final_cover_name,
-            cover_orientation=cover_orientation,
         )
 
     runner = asyncio.create_task(_phases())

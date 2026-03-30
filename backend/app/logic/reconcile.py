@@ -50,11 +50,11 @@ def _scan_step_media(trip_dir: Path, ps_step: PSStep) -> set[str]:
 def _pick_cover(
     pages: list[list[str]],
     unused: list[str],
-    media_dict: dict[str, str],
+    media_by_name: dict[str, Media],
 ) -> str | None:
     """Pick a cover photo, preferring portraits."""
     candidates = [f for pg in pages for f in pg] + unused
-    portraits = [f for f in candidates if media_dict.get(f) == "p"]
+    portraits = [f for f in candidates if (m := media_by_name.get(f)) and m.is_portrait]
     return portraits[0] if portraits else (candidates[0] if candidates else None)
 
 
@@ -63,7 +63,7 @@ def _reconcile_step(
     ps_step: PSStep,
     disk_media: set[str],
     all_on_disk: set[str],
-    media_dict: dict[str, str],
+    media_by_name: dict[str, Media],
 ) -> Step:
     """Update a single step's media references and metadata."""
     old_media: set[str] = set()
@@ -83,7 +83,7 @@ def _reconcile_step(
     step.unused = [f for f in step.unused if f not in missing] + sorted(added)
 
     if step.cover and step.cover in missing:
-        step.cover = _pick_cover(step.pages, step.unused, media_dict)
+        step.cover = _pick_cover(step.pages, step.unused, media_by_name)
 
     step.name = ps_step.name
     step.description = ps_step.description
@@ -93,12 +93,12 @@ def _reconcile_step(
     return step
 
 
-async def _probe_orientations(
+async def _probe_media(
     trip_dir: Path,
     steps: list[Step],
-    known: dict[str, str],
-) -> dict[str, str]:
-    """Probe orientations for unknown media files, return full merged dict."""
+    known: dict[str, Media],
+) -> list[Media]:
+    """Probe dimensions for unknown media files, return full merged list."""
     to_probe: set[str] = set()
     for step_obj in steps:
         for pg in step_obj.pages:
@@ -107,17 +107,18 @@ async def _probe_orientations(
             to_probe.add(step_obj.cover)
         to_probe.update(f for f in step_obj.unused if f not in known)
 
-    async def _probe(name: str) -> tuple[str, str]:
+    async def _probe(name: str) -> Media:
         async with media_sem:
             try:
-                m = await asyncio.to_thread(Media.load, trip_dir / name)
+                return await asyncio.to_thread(Media.load, trip_dir / name)
             except OSError, ValueError:
-                return name, "l"
-            else:
-                return name, m.orientation
+                return Media(name=name, width=1920, height=1080)
 
     probed = await asyncio.gather(*[_probe(f) for f in to_probe])
-    return {**known, **dict(probed)}
+    merged = dict(known)
+    for m in probed:
+        merged[m.name] = m
+    return list(merged.values())
 
 
 def _fix_album_covers(
@@ -138,12 +139,11 @@ def _fix_album_covers(
             setattr(album, attr, cover_fallback)
 
 
-async def _process_new_steps(  # noqa: PLR0913
+async def _process_new_steps(
     user: User,
     aid: str,
     new_ps_steps: list[PSStep],
     cover_name: str,
-    cover_orientation: str,
     step_out: list[Step],
 ) -> AsyncIterator[PhaseUpdate]:
     """Run full processing (elevations, weather, layouts) for new steps."""
@@ -175,7 +175,6 @@ async def _process_new_steps(  # noqa: PLR0913
             weather_by_idx=weather_task.result(),
             layout_by_idx=layout_task.result(),
             cover_name=cover_name,
-            cover_orientation=cover_orientation,
         )
 
     runner = asyncio.create_task(_phases())
@@ -225,7 +224,7 @@ async def reconcile_trip(
 
     # Phase 2: Flatten media and detect cover
     cover_name = cover_name_from_trip(trip)
-    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name)
+    cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 
     # Phase 3: New steps get full processing
     db_by_step_id = {s.id: s for s in existing_steps}
@@ -234,7 +233,7 @@ async def reconcile_trip(
     new_step_objects: list[Step] = []
     if new_ps_steps:
         async for event in _process_new_steps(
-            user, aid, new_ps_steps, cover_name, cover_orientation, new_step_objects
+            user, aid, new_ps_steps, cover_name, new_step_objects
         ):
             yield event
 
@@ -244,23 +243,25 @@ async def reconcile_trip(
         for f in trip_dir.iterdir()  # noqa: ASYNC240
         if f.is_file()
     }
+    media_by_name: dict[str, Media] = {m.name: m for m in album.media}
     reconciled_steps = [
         _reconcile_step(
             db_by_step_id[ps.id],
             ps,
             step_media_map.get(ps.id, set()),
             all_on_disk,
-            album.media,
+            media_by_name,
         )
         for ps in trip.all_steps
         if ps.id in db_by_step_id
     ]
 
-    # Phase 5: Reconcile album media orientations
-    merged_media: dict[str, str] = {cover_name: cover_orientation}
-    merged_media |= {n: o for n, o in album.media.items() if n in all_on_disk}
-    album.media = await _probe_orientations(
-        trip_dir, [*new_step_objects, *reconciled_steps], merged_media
+    # Phase 5: Probe media dimensions for any new/unknown files
+    known_media: dict[str, Media] = {
+        m.name: m for m in album.media if m.name in all_on_disk
+    }
+    album.media = await _probe_media(
+        trip_dir, [*new_step_objects, *reconciled_steps], known_media
     )
 
     _fix_album_covers(album, all_on_disk, cover_name, reconciled_steps)

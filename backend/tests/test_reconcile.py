@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.logic.layout.media import Media
 from app.logic.reconcile import (
     _fix_album_covers,
     _pick_cover,
@@ -60,7 +61,7 @@ def _album(
     *,
     front_cover_photo: str = "front.jpg",
     back_cover_photo: str = "back.jpg",
-    media: dict[str, str] | None = None,
+    media: list[Media] | None = None,
 ) -> Album:
     return Album(
         uid=1,
@@ -69,7 +70,7 @@ def _album(
         subtitle="Sub",
         front_cover_photo=front_cover_photo,
         back_cover_photo=back_cover_photo,
-        media=media or {},
+        media=media or [],
         colors={},
         excluded_steps=[],
         maps_ranges=[],
@@ -101,23 +102,27 @@ class TestScanStepMedia:
         assert "IMG_ABC.jpg" in result
 
 
+def _media(name: str, *, portrait: bool) -> Media:
+    return Media(name=name, width=600 if portrait else 1920, height=1000 if portrait else 1080)
+
+
 class TestPickCover:
     def test_prefers_portrait(self) -> None:
         pages = [["a.jpg", "b.jpg"]]
         unused = ["c.jpg"]
-        media = {"a.jpg": "l", "b.jpg": "p", "c.jpg": "l"}
+        media = {n: _media(n, portrait=p) for n, p in [("a.jpg", False), ("b.jpg", True), ("c.jpg", False)]}
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
     def test_pages_before_unused(self) -> None:
         pages = [["p1.jpg"]]
         unused = ["u1.jpg"]
-        media = {"p1.jpg": "p", "u1.jpg": "p"}
+        media = {n: _media(n, portrait=True) for n in ("p1.jpg", "u1.jpg")}
         assert _pick_cover(pages, unused, media) == "p1.jpg"
 
     def test_portrait_in_unused(self) -> None:
         pages = [["land.jpg"]]
         unused = ["port.jpg"]
-        media = {"land.jpg": "l", "port.jpg": "p"}
+        media = {"land.jpg": _media("land.jpg", portrait=False), "port.jpg": _media("port.jpg", portrait=True)}
         assert _pick_cover(pages, unused, media) == "port.jpg"
 
 
@@ -172,9 +177,9 @@ class TestReconcileStep:
         ps = _ps_step(1)
         all_on_disk = {"remain.jpg"}
         disk_media = {"remain.jpg"}
-        media_dict = {"remain.jpg": "p"}
+        media_by_name = {"remain.jpg": _media("remain.jpg", portrait=True)}
 
-        result = _reconcile_step(step, ps, disk_media, all_on_disk, media_dict)
+        result = _reconcile_step(step, ps, disk_media, all_on_disk, media_by_name)
         assert result.cover == "remain.jpg"
 
     def test_cover_none_when_all_media_gone(self) -> None:

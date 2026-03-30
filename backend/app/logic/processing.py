@@ -104,7 +104,6 @@ class TripResults(NamedTuple):
     weather_by_idx: dict[int, Weather]
     layout_by_idx: dict[int, Layout | None]
     cover_name: str
-    cover_orientation: str
 
 
 def _segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
@@ -194,12 +193,14 @@ def build_trip_objects(
     weathers = [results.weather_by_idx[i] for i in range(n)]
     layouts = [results.layout_by_idx[i] for i in range(n)]
 
-    merged_media: dict[str, str] = {
-        results.cover_name: results.cover_orientation,
-    }
+    merged_media: list[Media] = []
+    seen: set[str] = set()
     for layout in layouts:
         if layout:
-            merged_media.update(layout.orientations)
+            for m in layout.media:
+                if m.name not in seen:
+                    merged_media.append(m)
+                    seen.add(m.name)
 
     steps = [
         build_step(user.id, aid, ps, elev, wthr, layout)
@@ -355,13 +356,13 @@ async def _media_pipeline(
     trip_dir: Path,
     cover_name: str,
     queue: asyncio.Queue[PhaseUpdate | None],
-) -> tuple[dict[int, Layout | None], str, str]:
+) -> tuple[dict[int, Layout | None], str]:
     """Layouts -> flatten (sequential pipeline).
 
     Runs as one TaskGroup member so flattening starts as soon as
     layouts finish, without waiting for the API calls to complete.
     Video posters and thumbnails are generated lazily on first request.
-    Returns (layout_by_idx, cover_name, cover_orientation).
+    Returns (layout_by_idx, cover_name).
     """
     aid = trip_dir.name
     n_steps = len(trip.all_steps)
@@ -371,9 +372,9 @@ async def _media_pipeline(
         )
     )
 
-    cover_name, cover_orientation = await prepare_media(trip_dir, cover_name)
+    cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 
-    return layout_by_idx, cover_name, cover_orientation
+    return layout_by_idx, cover_name
 
 
 def resolve_international_waters(steps: list[PSStep]) -> None:

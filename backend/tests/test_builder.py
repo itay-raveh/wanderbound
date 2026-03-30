@@ -139,11 +139,11 @@ class TestBuildStepLayout:
 
         assert layout is not None
         assert layout.cover in portrait_names
-        for name, orient in layout.orientations.items():
-            if name in portrait_names:
-                assert orient == "p"
-            else:
-                assert orient == "l"
+        media_by_name = {m.name: m for m in layout.media}
+        for name in portrait_names:
+            assert media_by_name[name].is_portrait
+        for name in landscape_names:
+            assert not media_by_name[name].is_portrait
         flat = [name for page in layout.pages for name in page]
         assert sorted(flat) == sorted(portrait_names + landscape_names)
 
@@ -170,7 +170,8 @@ class TestBuildStepLayout:
 
         assert layout is not None
         assert layout.cover == jpg_name
-        assert layout.orientations[jpg_name] == "p"
-        assert layout.orientations[vid_name] == "l"
+        media_by_name = {m.name: m for m in layout.media}
+        assert media_by_name[jpg_name].is_portrait
+        assert not media_by_name[vid_name].is_portrait
         flat = [name for page in layout.pages for name in page]
         assert sorted(flat) == sorted([jpg_name, vid_name])

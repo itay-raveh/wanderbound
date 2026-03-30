@@ -18,7 +18,7 @@ _ffprobe_sem = asyncio.Semaphore(8)
 class Layout(NamedTuple):
     cover: MediaName
     pages: list[list[MediaName]]
-    orientations: dict[MediaName, str]
+    media: list[Media]
 
 
 logger = logging.getLogger(__name__)
@@ -155,7 +155,6 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
         logger.debug("Step '%s' has no media files, skipping layout", step.name)
         return None
 
-    orientations: dict[str, str] = {m.name: m.orientation for m in media}
     cover = portraits[0] if portraits else landscapes[0]
 
-    return Layout(cover, list(_build_pages(portraits, landscapes)), orientations)
+    return Layout(cover, list(_build_pages(portraits, landscapes)), list(media))
