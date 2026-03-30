@@ -99,6 +99,7 @@ runs only tests matching `test_auth`.
 - [ ] Add "Try with demo data" feature.
 - [ ] Add onboarding flow.
 - [ ] Add double page photos.
+- [ ] Create deployment strategy.
 
 ## License
 
