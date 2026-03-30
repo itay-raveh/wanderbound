@@ -28,6 +28,9 @@ frontend/public/countries/
 frontend/public/landing/
 frontend/openapi.json
 
+# Claude Code
+.claude/.ship-active
+
 # App data
 backend/data/
 backend/tests/test_data/

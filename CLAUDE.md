@@ -21,7 +21,7 @@ Read @mise.toml for all available tasks. Always use `mise run <task>` to run the
 1. After changes — run scoped tests: backend-only for Python, frontend-only for Vue/TS, E2E for cross-cutting.
 2. After bugfixes — write a regression test that fails without the fix before moving on.
 3. After frontend visual changes — verify in browser with Chrome tools. This is as important as tests.
-4. Pre-commit checks are enforced by hooks in @.claude/settings.json — do not skip them.
+4. To commit — ALWAYS use `/ship`. Never use `/commit` or raw `git commit`. `/ship` runs the full quality pipeline: scoped tests → /simplify → /code-review → /revise-claude-md → commit.
 
 ## Gotchas
 
