@@ -81,17 +81,19 @@ function updateBodyFont(font: string) {
         <q-tooltip>{{ KEY_LABELS.redo }}</q-tooltip>
       </q-btn>
       <q-btn
-        class="util-btn"
+        class="keyboard-btn"
         flat
         dense
         round
         :icon="symOutlinedKeyboard"
         :aria-label="t('shortcuts.title')"
       >
-        <q-tooltip>{{ t("shortcuts.title") }}</q-tooltip>
-        <q-popup-proxy transition-show="scale" transition-hide="scale">
-          <ShortcutsPopup />
-        </q-popup-proxy>
+        <q-tooltip
+          transition-show="scale"
+          transition-hide="scale"
+          class="q-menu"
+          ><ShortcutsPopup
+        /></q-tooltip>
       </q-btn>
       <q-separator vertical class="action-divider" />
       <div class="font-pickers row no-wrap items-center">
@@ -185,7 +187,7 @@ function updateBodyFont(font: string) {
   }
 }
 
-.util-btn {
+.keyboard-btn {
   color: var(--text-muted);
   transition: color var(--duration-fast);
 
@@ -247,7 +249,7 @@ function updateBodyFont(font: string) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .util-btn,
+  .keyboard-btn,
   .export-btn,
   .font-picker {
     transition: none;
