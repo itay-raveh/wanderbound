@@ -1,16 +1,21 @@
+"""Mapbox Map Matching & Directions API client.
+
+Density-based API selection: dense GPS → Map Matching, sparse → Directions.
+Rate-limited to stay under Mapbox free-tier limits (60 req/min).
+"""
+
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from functools import cache
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
+import httpx
+from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 
-if TYPE_CHECKING:
-    import httpx
-
 from app.core.config import get_settings
-from app.core.http import cached_client
+from app.core.http import RateLimitedTransport, cached_client
 from app.logic.matching import (
     Coords,
     is_sparse,
@@ -25,10 +30,17 @@ type Profile = str  # "driving" or "walking"
 
 MATCH_MAX_COORDS = 100
 
+_MATCHING_URL = "https://api.mapbox.com/matching/v5/mapbox"
+_DIRECTIONS_URL = "https://api.mapbox.com/directions/v5/mapbox"
+
+# Mapbox free tier: 300 req/min (matching), 60 req/min (directions).
+# Use the stricter limit as shared budget.
+_limiter = AsyncLimiter(50, 60)
+
 
 @cache
 def _client() -> httpx.AsyncClient:
-    return cached_client()
+    return cached_client(transport=RateLimitedTransport(_limiter))
 
 
 class _GeoJSONLineString(BaseModel):
@@ -56,6 +68,13 @@ def _encode_coords(coords: Coords) -> str:
     return ";".join(f"{lon},{lat}" for lon, lat in coords)
 
 
+def _token() -> str | None:
+    token = get_settings().VITE_MAPBOX_TOKEN
+    if not token:
+        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
+    return token
+
+
 async def _fetch_matching(
     client: httpx.AsyncClient,
     coords: Coords,
@@ -63,14 +82,19 @@ async def _fetch_matching(
     token: str,
 ) -> Coords | None:
     reduced = reduce_coords(coords, MATCH_MAX_COORDS)
-    url = (
-        f"https://api.mapbox.com/matching/v5/mapbox/{profile}/"
-        f"{_encode_coords(reduced)}"
-        f"?geometries=geojson&overview=full&tidy=true&access_token={token}"
-    )
-    resp = await client.get(url)
-    if resp.status_code != 200:
-        logger.warning("Matching API error: %s", resp.status_code)
+    try:
+        resp = await client.get(
+            f"{_MATCHING_URL}/{profile}/{_encode_coords(reduced)}",
+            params={
+                "geometries": "geojson",
+                "overview": "full",
+                "tidy": "true",
+                "access_token": token,
+            },
+        )
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        logger.warning("Matching API error: %s", e.response.status_code)
         return None
     data = _MatchingResponse.model_validate_json(resp.content)
     if not data.matchings:
@@ -88,14 +112,18 @@ async def _fetch_directions(
     profile: Profile,
     token: str,
 ) -> Coords | None:
-    url = (
-        f"https://api.mapbox.com/directions/v5/mapbox/{profile}/"
-        f"{_encode_coords(coords)}"
-        f"?geometries=geojson&overview=full&access_token={token}"
-    )
-    resp = await client.get(url)
-    if resp.status_code != 200:
-        logger.warning("Directions API error: %s", resp.status_code)
+    try:
+        resp = await client.get(
+            f"{_DIRECTIONS_URL}/{profile}/{_encode_coords(coords)}",
+            params={
+                "geometries": "geojson",
+                "overview": "full",
+                "access_token": token,
+            },
+        )
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        logger.warning("Directions API error: %s", e.response.status_code)
         return None
     data = _DirectionsResponse.model_validate_json(resp.content)
     if not data.routes:
@@ -161,7 +189,9 @@ async def _match_one(
 
     if raw is None:
         logger.debug(
-            "Matching failed for %s segment (%d pts)", profile, len(points_lonlat)
+            "Matching failed for %s segment (%d pts)",
+            profile,
+            len(points_lonlat),
         )
         return None
 
@@ -187,9 +217,8 @@ async def match_segment(
     Automatically selects Map Matching (dense) or Directions (sparse).
     Returns road-snapped coordinates in [lon, lat] order, or None on failure.
     """
-    token = get_settings().VITE_MAPBOX_TOKEN
+    token = _token()
     if not token:
-        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
         return None
 
     return await _match_one(_client(), points_lonlat, profile, token)
@@ -202,9 +231,8 @@ async def match_segments(
     if not pairs:
         return []
 
-    token = get_settings().VITE_MAPBOX_TOKEN
+    token = _token()
     if not token:
-        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
         return [None] * len(pairs)
 
     client = _client()

@@ -3,6 +3,8 @@
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+
 from app.services.mapbox import (
     _chunked_route,
     _fetch_directions,
@@ -36,7 +38,11 @@ def _directions_json(coords: list[list[float]]) -> bytes:
 
 
 def _error_response(status: int = 422) -> MagicMock:
-    return MagicMock(status_code=status)
+    resp = MagicMock(status_code=status)
+    resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+        f"{status}", request=MagicMock(), response=resp
+    )
+    return resp
 
 
 def _ok_response(content: bytes) -> MagicMock:

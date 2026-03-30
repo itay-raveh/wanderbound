@@ -13,10 +13,10 @@ from typing import Protocol
 
 import httpx
 from aiolimiter import AsyncLimiter
-from httpx import AsyncBaseTransport, AsyncHTTPTransport, Request, Response
+from httpx import Request
 from pydantic import BaseModel
 
-from app.core.http import cached_client
+from app.core.http import RateLimitedTransport, cached_client
 from app.models.polarsteps import HasLatLon
 from app.models.weather import Weather, WeatherData
 
@@ -36,26 +36,10 @@ class _StepLike(Protocol):
     def datetime(self) -> datetime: ...
 
 
-class _RateLimitedTransport(AsyncBaseTransport):
-    """Rate-limits and caps concurrency on cache miss only.
-
-    For the elevation API each coordinate in the batch counts as one call,
-    so the weight is derived from the comma-separated ``latitude`` param.
-    """
-
-    def __init__(self, limiter: AsyncLimiter, max_concurrent: int = 20) -> None:
-        self._transport = AsyncHTTPTransport()
-        self._limiter = limiter
-        self._sem = asyncio.Semaphore(max_concurrent)
-
-    async def handle_async_request(self, request: Request) -> Response:
-        weight = 1
-        lat = request.url.params.get("latitude", "")
-        if "," in lat:
-            weight = lat.count(",") + 1
-        await self._limiter.acquire(weight)
-        async with self._sem:
-            return await self._transport.handle_async_request(request)
+def _elevation_weight(request: Request) -> int:
+    """Each coordinate in a batched elevation request counts as one API call."""
+    lat = request.url.params.get("latitude", "")
+    return lat.count(",") + 1 if "," in lat else 1
 
 
 # Free tier: 600 calls/min, 5 000/hr.  We stay under with 480/min.
@@ -64,7 +48,11 @@ _limiter = AsyncLimiter(480, 60)
 
 @cache
 def _client() -> httpx.AsyncClient:
-    return cached_client(transport=_RateLimitedTransport(limiter=_limiter))
+    return cached_client(
+        transport=RateLimitedTransport(
+            _limiter, max_concurrent=20, weight_fn=_elevation_weight
+        )
+    )
 
 
 class _ElevationResult(BaseModel):
