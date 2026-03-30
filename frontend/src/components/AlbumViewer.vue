@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album, AlbumData } from "@/client";
+import type { AlbumMeta, Media, Step, SegmentOutline } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";
@@ -20,13 +20,10 @@ import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
-// Fallback for async components that fail to load (e.g. mapbox-gl in headless Chromium).
-// Renders an empty page-container so page count stays correct and a blank page appears in the PDF.
 const EmptyPage = defineComponent({
   render: () => h("div", { class: "page-container" }),
 });
 
-// Async components - splits turf/mapbox-gl out of the main chunk.
 const MapPage = defineAsyncComponent({
   loader: () => import("./album/map/MapPage.vue"),
   errorComponent: EmptyPage,
@@ -44,14 +41,16 @@ const OverviewPage = defineAsyncComponent({
 });
 
 const props = defineProps<{
-  album: Album;
-  data: AlbumData;
+  album: AlbumMeta;
+  media: Media[];
+  steps: Step[];
+  segmentOutlines: SegmentOutline[];
   printMode?: boolean;
 }>();
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
-const albumMedia = computed(() => (props.album.media ?? {}) as Record<string, string>);
+const albumMedia = computed(() => props.media);
 
 const albumFontStyle = computed(() => ({
   '--font-album': fontStack(props.album.font ?? DEFAULT_FONT),
@@ -59,21 +58,21 @@ const albumFontStyle = computed(() => ({
 }));
 const albumMutation = useAlbumMutation(() => props.album.id);
 
-const steps = computed(() => {
+const visibleSteps = computed(() => {
   const excluded = new Set(props.album.excluded_steps ?? []);
-  if (!excluded.size) return props.data.steps;
-  return props.data.steps.filter((s) => !excluded.has(s.id));
+  if (!excluded.size) return props.steps;
+  return props.steps.filter((s) => !excluded.has(s.id));
 });
 
 const segments = computed(() => {
-  const s = steps.value;
+  const s = visibleSteps.value;
   if (s.length === 0) return [];
-  return segmentsOverlapping(props.data.segments, s[0]!.timestamp, s[s.length - 1]!.timestamp);
+  return segmentsOverlapping(props.segmentOutlines, s[0]!.timestamp, s[s.length - 1]!.timestamp);
 });
 
-const tripStart = computed(() => steps.value[0]?.datetime ?? "");
+const tripStart = computed(() => visibleSteps.value[0]?.datetime ?? "");
 const totalDays = computed(() => {
-  const s = steps.value;
+  const s = visibleSteps.value;
   if (s.length < 2) return 1;
   const first = parseLocalDate(s[0]!.datetime);
   const last = parseLocalDate(s[s.length - 1]!.datetime);
@@ -82,26 +81,21 @@ const totalDays = computed(() => {
 provideAlbum({ albumId, colors: albumColors, media: albumMedia, tripStart, totalDays });
 
 const sections = computed(() =>
-  buildSections(steps.value, segments.value, props.album.maps_ranges ?? []),
+  buildSections(visibleSteps.value, segments.value, props.album.maps_ranges ?? []),
 );
 
 const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 
-/** Total page-container count: covers (2) + overview (1) + full-trip map (1) + sections. */
 const expectedPageCount = computed(() =>
   4 + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 
-// ---------------------------------------------------------------------------
-// Virtual scroller — only active in editor mode
-// ---------------------------------------------------------------------------
 const HEADER_COUNT = HEADER_KEYS.length;
 const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
 const measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
-// Estimated height of one A4 page at editor zoom: 210mm → px at 96 DPI, scaled, plus gap.
 const PAGE_H = Math.round(210 * 96 / 25.4 * EDITOR_ZOOM) + 12;
 
 const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
@@ -120,7 +114,6 @@ const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
   },
 })));
 
-/** Map virtual-item index → scroll-spy value (step id | section key | header key). */
 function spyValue(vIndex: number): number | string | undefined {
   if (vIndex < HEADER_COUNT) return HEADER_KEYS[vIndex];
   const sec = sections.value[vIndex - HEADER_COUNT];
@@ -137,9 +130,6 @@ function measureNew() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Mode-specific setup
-// ---------------------------------------------------------------------------
 if (props.printMode) {
   providePrintMode();
 } else {
@@ -153,10 +143,8 @@ if (props.printMode) {
   );
 
   const photoFocus = usePhotoFocus();
-  photoFocus.setStepOrder(() => steps.value.map((s) => s.id));
+  photoFocus.setStepOrder(() => visibleSteps.value.map((s) => s.id));
 
-  // Wire scroll-spy navigation through the virtualizer so clicking a nav
-  // item scrolls even when the target section is off-screen (not in the DOM).
   const { setScrollOverride, scrollBehavior: getScrollBehavior } = useStepScrollSpy();
 
   const stepIdToVIdx = computed(() => {
@@ -209,15 +197,15 @@ if (props.printMode) {
 <template>
   <!-- Print mode: everything in normal document flow for page breaks -->
   <div
-    v-if="printMode && steps.length"
+    v-if="printMode && visibleSteps.length"
     class="album-container print-mode"
     :data-expected-pages="expectedPageCount"
     :style="albumFontStyle"
   >
-    <CoverPage :album="album" :steps="steps" />
-    <CoverPage :album="album" :steps="steps" is-back />
-    <OverviewPage :album="album" :segments="segments" :steps="steps" />
-    <div class="map-wrapper"><MapPage :segments="segments" :steps="steps" /></div>
+    <CoverPage :album="album" :steps="visibleSteps" />
+    <CoverPage :album="album" :steps="visibleSteps" is-back />
+    <OverviewPage :album="album" :segments="segments" :steps="visibleSteps" />
+    <div class="map-wrapper"><MapPage :segments="segments" :steps="visibleSteps" /></div>
 
     <template v-for="section in sections" :key="sectionKey(section)">
       <template v-if="section.type === 'map' || section.type === 'hike'">
@@ -228,7 +216,7 @@ if (props.printMode) {
             :segments="section.segments"
             :steps="section.steps"
             :hike-segment="section.hikeSegment"
-            :all-segments="data.segments"
+            :all-segments="segmentOutlines"
           />
         </div>
       </template>
@@ -238,7 +226,7 @@ if (props.printMode) {
 
   <!-- Editor mode: virtual scrolling — only visible sections are in the DOM -->
   <div
-    v-else-if="steps.length"
+    v-else-if="visibleSteps.length"
     class="album-container"
     :data-expected-pages="expectedPageCount"
     :style="[{ '--editor-zoom': String(EDITOR_ZOOM) }, albumFontStyle]"
@@ -261,11 +249,11 @@ if (props.printMode) {
           v-spy-step="spyValue(vItem.index)"
         >
           <!-- Header items -->
-          <CoverPage v-if="vItem.index === 0" :album="album" :steps="steps" />
-          <CoverPage v-else-if="vItem.index === 1" :album="album" :steps="steps" is-back />
-          <OverviewPage v-else-if="vItem.index === 2" :album="album" :segments="segments" :steps="steps" />
+          <CoverPage v-if="vItem.index === 0" :album="album" :steps="visibleSteps" />
+          <CoverPage v-else-if="vItem.index === 1" :album="album" :steps="visibleSteps" is-back />
+          <OverviewPage v-else-if="vItem.index === 2" :album="album" :segments="segments" :steps="visibleSteps" />
           <div v-else-if="vItem.index === 3" class="map-wrapper">
-            <MapPage :segments="segments" :steps="steps" />
+            <MapPage :segments="segments" :steps="visibleSteps" />
           </div>
 
           <!-- Section items -->
@@ -284,7 +272,7 @@ if (props.printMode) {
                 :segments="(sections[vItem.index - HEADER_COUNT] as any).segments"
                 :steps="(sections[vItem.index - HEADER_COUNT] as any).steps"
                 :hike-segment="(sections[vItem.index - HEADER_COUNT] as any).hikeSegment"
-                :all-segments="data.segments"
+                :all-segments="segmentOutlines"
               />
             </div>
             <StepEntry v-else :step="(sections[vItem.index - HEADER_COUNT] as any).step" />

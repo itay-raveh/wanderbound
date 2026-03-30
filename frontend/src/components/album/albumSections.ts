@@ -1,4 +1,4 @@
-import type { DateRange, Segment, Step } from "@/client";
+import type { DateRange, SegmentOutline, Step } from "@/client";
 import { measureDescription } from "@/composables/useTextMeasure";
 import { inDateRange, isoDate } from "@/utils/date";
 
@@ -25,11 +25,11 @@ export function filterCoverFromPages(
 }
 
 export type Section =
-  | { type: "map"; steps: Step[]; segments: Segment[]; rangeIdx: number; dateRange: DateRange }
-  | { type: "hike"; steps: Step[]; segments: Segment[]; hikeSegment: Segment; rangeIdx: number; dateRange: DateRange }
+  | { type: "map"; steps: Step[]; segments: SegmentOutline[]; rangeIdx: number; dateRange: DateRange }
+  | { type: "hike"; steps: Step[]; segments: SegmentOutline[]; hikeSegment: SegmentOutline; rangeIdx: number; dateRange: DateRange }
   | { type: "step"; step: Step };
 
-export function segmentsOverlapping(segs: Segment[], tStart: number, tEnd: number): Segment[] {
+export function segmentsOverlapping(segs: SegmentOutline[], tStart: number, tEnd: number): SegmentOutline[] {
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
 }
 
@@ -82,14 +82,14 @@ export function mapInsertionsByStep<T extends { dateRange: DateRange }>(
  */
 export function buildSections(
   allSteps: Step[],
-  allSegments: Segment[],
+  allSegments: SegmentOutline[],
   mapRanges: DateRange[],
 ): Section[] {
   type MapEntry = {
     rangeIdx: number;
     dateRange: DateRange;
     steps: Step[];
-    segments: Segment[];
+    segments: SegmentOutline[];
   };
   const mapEntries: MapEntry[] = mapRanges.map((dr, i) => {
     const rangeSteps = allSteps.filter((s) => inDateRange(isoDate(s.datetime), dr));
