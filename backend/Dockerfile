@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
 RUN playwright install chromium --with-deps
 
-COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/export_openapi.py /app/backend/
+COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/scripts/export_openapi.py /app/backend/
 
 COPY ./backend/app /app/backend/app
 
