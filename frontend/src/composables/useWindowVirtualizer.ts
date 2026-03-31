@@ -79,5 +79,5 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
     return virtualizer.getTotalSize();
   });
 
-  return { virtualizer, items, size };
+  return { virtualizer, items, size, version };
 }

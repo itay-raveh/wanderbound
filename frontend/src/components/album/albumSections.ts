@@ -50,6 +50,19 @@ export function sectionKey(section: Section): string {
   }
 }
 
+/**
+ * Map a virtualizer index to its active-section identifier.
+ * Header indices (< HEADER_KEYS.length) return the header key string.
+ * Section indices return the step ID (number) or section key (string).
+ */
+export function activeSectionId(sections: readonly Section[], vIndex: number): number | string | undefined {
+  const headerCount = HEADER_KEYS.length;
+  if (vIndex < headerCount) return HEADER_KEYS[vIndex];
+  const sec = sections[vIndex - headerCount];
+  if (!sec) return undefined;
+  return sec.type === "step" ? sec.step.id : sectionKey(sec);
+}
+
 export function sectionPageCount(section: Section): number {
   if (section.type === "map" || section.type === "hike") return 1;
   const step = section.step;

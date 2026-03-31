@@ -2,6 +2,7 @@
 import type { Album, Step, Media } from "@/client";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { provideAlbum } from "@/composables/useAlbum";
 import { mediaThumbUrl, isVideo } from "@/utils/media";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
@@ -15,6 +16,16 @@ const props = defineProps<{
   step?: Step;
   sectionKey?: string | null;
 }>();
+
+// Provide album context so child components (MediaItem in UnusedDrawer)
+// can call useAlbum() even though InspectorDrawer lives outside AlbumViewer.
+provideAlbum({
+  albumId: computed(() => props.album.id),
+  colors: computed(() => (props.album.colors ?? {}) as Record<string, string>),
+  media: computed(() => props.media),
+  tripStart: computed(() => ""),
+  totalDays: computed(() => 1),
+});
 
 type Context = "step" | "cover" | "map" | "overview" | "empty";
 

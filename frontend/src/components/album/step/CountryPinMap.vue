@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import countryBounds from "@/countries/bounds.json";
+import { countryBounds } from "@/utils/countryBounds";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
+import CountrySilhouette from "../CountrySilhouette.vue";
 
 const props = defineProps<{
   countryCode: string;
@@ -10,7 +11,7 @@ const props = defineProps<{
   color?: string;
 }>();
 
-const bounds = countryBounds as unknown as Record<string, [number, number, number, number]>;
+const bounds = countryBounds;
 
 /** Web Mercator (EPSG:3857) half-circumference in metres: π × 6 378 137 */
 const WEB_MERCATOR_EXTENT = 20037508.34;
@@ -20,11 +21,9 @@ const dotColor = computed(() => {
   if (!props.color) return "currentColor";
   return qColors.lighten(props.color, Dark.isActive ? 40 : -40);
 });
-const code = computed(() => props.countryCode.toLowerCase());
-const svgHref = computed(() => `/countries/${code.value}.svg#map`);
 
 const rawViewBox = computed(() => {
-  const b = bounds[code.value];
+  const b = bounds[props.countryCode.toLowerCase()];
   return b ? `${b[0]} ${b[1]} ${b[2]} ${b[3]}` : null;
 });
 
@@ -38,7 +37,8 @@ function toSvgCoords(lat: number, lon: number): [number, number] {
 }
 
 const pin = computed(() => {
-  const b = bounds[code.value];
+  const code = props.countryCode.toLowerCase();
+  const b = bounds[code];
   if (!b) return null;
   const [x, y] = toSvgCoords(props.lat, props.lon);
   const w = b[2];
@@ -51,7 +51,8 @@ const pin = computed(() => {
 // Expand viewBox so the pin is never clipped at edges
 const viewBox = computed(() => {
   if (!rawViewBox.value || !pin.value) return rawViewBox.value;
-  const b = bounds[code.value]!;
+  const code = props.countryCode.toLowerCase();
+  const b = bounds[code]!;
   let [minX, minY, w, h] = b;
   const { x, y, r } = pin.value;
   const pad = r * 3;
@@ -66,13 +67,13 @@ const viewBox = computed(() => {
 </script>
 
 <template>
-  <svg
+  <CountrySilhouette
     v-if="viewBox"
-    :viewBox="viewBox"
-    class="country-silhouette"
-    preserveAspectRatio="xMidYMid meet"
+    :country-code="countryCode"
+    :view-box="viewBox"
+    :color="fillColor"
   >
-    <defs>
+    <template #defs>
       <filter :id="`glow-${countryCode}`" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur in="SourceGraphic" :stdDeviation="pin ? pin.r * 0.8 : 2" result="blur" />
         <feMerge>
@@ -80,8 +81,7 @@ const viewBox = computed(() => {
           <feMergeNode in="SourceGraphic" />
         </feMerge>
       </filter>
-    </defs>
-    <use :href="svgHref" :style="{ color: fillColor }" />
+    </template>
     <circle
       v-if="pin"
       :cx="pin.x"
@@ -90,12 +90,5 @@ const viewBox = computed(() => {
       :fill="dotColor"
       :filter="`url(#glow-${countryCode})`"
     />
-  </svg>
+  </CountrySilhouette>
 </template>
-
-<style scoped>
-.country-silhouette {
-  width: 100%;
-  height: 100%;
-}
-</style>

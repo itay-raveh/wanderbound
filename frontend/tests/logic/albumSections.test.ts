@@ -4,6 +4,8 @@ import {
   sectionKey,
   buildSections,
   sectionPageCount,
+  activeSectionId,
+  HEADER_KEYS,
   type Section,
 } from "@/components/album/albumSections";
 import type { DateRange } from "@/client";
@@ -384,5 +386,51 @@ describe("buildSections", () => {
       expect(mapSection.segments).toHaveLength(1);
       expect(mapSection.segments[0]!.start_time).toBe(50);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activeSectionId — maps virtualizer indices to section identifiers
+// ---------------------------------------------------------------------------
+
+describe("activeSectionId", () => {
+  const stepSection = (id: number): Section => ({
+    type: "step",
+    step: makeStep({ id }),
+  });
+  const mapSection = (dateRange: DateRange): Section => ({
+    type: "map",
+    steps: [],
+    segments: [],
+    rangeIdx: 0,
+    dateRange,
+  });
+
+  it("returns header keys for header indices", () => {
+    const sections: Section[] = [];
+    expect(activeSectionId(sections, 0)).toBe("cover-front");
+    expect(activeSectionId(sections, 1)).toBe("cover-back");
+    expect(activeSectionId(sections, 2)).toBe("overview");
+    expect(activeSectionId(sections, 3)).toBe("full-map");
+  });
+
+  it("returns step ID (number) for step sections", () => {
+    const sections = [stepSection(42), stepSection(99)];
+    // Header count = 4, so section index 0 = virtualizer index 4
+    expect(activeSectionId(sections, HEADER_KEYS.length)).toBe(42);
+    expect(activeSectionId(sections, HEADER_KEYS.length + 1)).toBe(99);
+  });
+
+  it("returns section key (string) for map sections", () => {
+    const range: DateRange = ["2024-01-01", "2024-01-31"];
+    const sections = [mapSection(range), stepSection(1)];
+    const result = activeSectionId(sections, HEADER_KEYS.length);
+    expect(typeof result).toBe("string");
+    expect(result).toBe(sectionKey(sections[0]!));
+  });
+
+  it("returns undefined for out-of-bounds index", () => {
+    expect(activeSectionId([], HEADER_KEYS.length)).toBeUndefined();
+    expect(activeSectionId([stepSection(1)], HEADER_KEYS.length + 5)).toBeUndefined();
   });
 });

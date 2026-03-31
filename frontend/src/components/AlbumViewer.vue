@@ -12,10 +12,10 @@ import { useStepMutation } from "@/queries/useStepMutation";
 import { EDITOR_ZOOM } from "@/utils/media";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
-import { buildSections, HEADER_KEYS, sectionKey, sectionPageCount, segmentsOverlapping } from "./album/albumSections";
-import { vSpyStep, useStepScrollSpy } from "@/composables/useStepScrollSpy";
+import { buildSections, HEADER_KEYS, sectionKey, sectionPageCount, segmentsOverlapping, activeSectionId } from "./album/albumSections";
+import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
-import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -98,7 +98,7 @@ const scrollMargin = ref(0);
 
 const PAGE_H = Math.round(210 * 96 / 25.4 * EDITOR_ZOOM) + 12;
 
-const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
+const { virtualizer, items, size, version } = useWindowVirtualizer(computed(() => ({
   count: HEADER_COUNT + sections.value.length,
   estimateSize: (index: number) => {
     if (index < HEADER_COUNT) return PAGE_H;
@@ -114,11 +114,8 @@ const { virtualizer, items, size } = useWindowVirtualizer(computed(() => ({
   },
 })));
 
-function spyValue(vIndex: number): number | string | undefined {
-  if (vIndex < HEADER_COUNT) return HEADER_KEYS[vIndex];
-  const sec = sections.value[vIndex - HEADER_COUNT];
-  if (!sec) return undefined;
-  return sec.type === "step" ? sec.step.id : sectionKey(sec);
+function sectionIdAt(vIndex: number) {
+  return activeSectionId(sections.value, vIndex);
 }
 
 function measureNew() {
@@ -145,7 +142,7 @@ if (props.printMode) {
   const photoFocus = usePhotoFocus();
   photoFocus.setStepOrder(() => visibleSteps.value.map((s) => s.id));
 
-  const { setScrollOverride, scrollBehavior: getScrollBehavior } = useStepScrollSpy();
+  const { setScrollOverride, setActive, scrollBehavior: getScrollBehavior } = useActiveSection();
 
   const stepIdToVIdx = computed(() => {
     const map = new Map<number, number>();
@@ -179,6 +176,15 @@ if (props.printMode) {
       scrollToVIdx(idx);
       return true;
     },
+  });
+
+  watchEffect(() => {
+    void version.value; // subscribe to every scroll tick
+    const vItems = items.value;
+    if (!vItems.length) { setActive(null); return; }
+
+    const best = pickBestItem(vItems, window.scrollY, scrollMargin.value, window.innerHeight / 2);
+    setActive(best ? sectionIdAt(best.index) ?? null : null);
   });
 
   onMounted(() => {
@@ -246,7 +252,6 @@ if (props.printMode) {
           :key="vItem.key as PropertyKey"
           :data-index="vItem.index"
           ref="itemEls"
-          v-spy-step="spyValue(vItem.index)"
         >
           <!-- Header items -->
           <CoverPage v-if="vItem.index === 0" :album="album" :steps="visibleSteps" />

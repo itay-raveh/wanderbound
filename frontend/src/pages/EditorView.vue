@@ -13,7 +13,7 @@ import { useLocale } from "@/composables/useLocale";
 import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
-import { useStepScrollSpy } from "@/composables/useStepScrollSpy";
+import { useActiveSection } from "@/composables/useActiveSection";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
 import { ref, computed, watch, onBeforeUnmount } from "vue";
@@ -48,13 +48,13 @@ useEditorKeyboard();
 
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
-watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetScrollSpy(); });
+watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetActiveSection(); });
 
-const { visibleStepId, visibleSectionKey, resetScrollSpy } = useStepScrollSpy();
-onBeforeUnmount(resetScrollSpy);
+const { activeStepId, activeSectionKey, resetActiveSection } = useActiveSection();
+onBeforeUnmount(resetActiveSection);
 const activeStep = computed(() =>
-  visibleStepId.value != null
-    ? steps.value?.find((s) => s.id === visibleStepId.value)
+  activeStepId.value != null
+    ? steps.value?.find((s) => s.id === activeStepId.value)
     : undefined,
 );
 </script>
@@ -98,11 +98,11 @@ const activeStep = computed(() =>
   >
     <InspectorDrawer
       v-if="album && media"
-      :key="activeStep?.id ?? visibleSectionKey ?? 'empty'"
+      :key="activeStep?.id ?? activeSectionKey ?? 'empty'"
       :album="album"
       :media="media"
       :step="activeStep"
-      :section-key="visibleSectionKey"
+      :section-key="activeSectionKey"
     />
   </q-drawer>
 

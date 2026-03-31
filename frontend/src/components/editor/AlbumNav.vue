@@ -9,7 +9,7 @@ import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import { useI18n } from "vue-i18n";
 import { useQuasar } from "quasar";
-import { useStepScrollSpy } from "@/composables/useStepScrollSpy";
+import { useActiveSection } from "@/composables/useActiveSection";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { ref, computed, watch, nextTick } from "vue";
 import {
@@ -42,7 +42,7 @@ const props = withDefaults(
 
 const selectedAlbumId = defineModel<string | null>("albumId");
 
-const { visibleStepId, visibleSectionKey, scrollTo, scrollToSection, scrollBehavior } = useStepScrollSpy();
+const { activeStepId, activeSectionKey, scrollTo, scrollToSection, scrollBehavior } = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
 const openGroupKey = ref<string | null>(null);
@@ -366,13 +366,13 @@ function scrollNavItemIntoView(selector: string) {
   });
 }
 
-watch(visibleStepId, (id) => {
+watch(activeStepId, (id) => {
   if (id == null) return;
   openGroupFor((e) => e.type === "step" && e.item.id === id);
   scrollNavItemIntoView(`[data-nav-step="${id}"]`);
 });
 
-watch(visibleSectionKey, (key) => {
+watch(activeSectionKey, (key) => {
   if (key == null) return;
   if (HEADER_KEY_SET.has(key)) {
     scrollNavItemIntoView(`[data-nav-section="${key}"]`);
@@ -478,7 +478,7 @@ watch(visibleSectionKey, (key) => {
           :key="item.key"
           type="button"
           :data-nav-section="item.key"
-          :class="['nav-item', 'header-item', { visible: visibleSectionKey === item.key }]"
+          :class="['nav-item', 'header-item', { visible: activeSectionKey === item.key }]"
           @click="scrollToSection(item.key)"
         >
           <q-icon :name="item.icon" size="var(--type-sm)" />
@@ -516,13 +516,15 @@ watch(visibleSectionKey, (key) => {
         </template>
 
         <template v-for="entry in group.entries" :key="entry.type === 'step' ? entry.item.id : entry.key">
-          <button
+          <div
             v-if="entry.type === 'map'"
-            type="button"
+            role="button"
+            tabindex="0"
             :data-nav-section="entry.key"
-            :class="['nav-item', 'map-item', { visible: sectionKeyMatchesRange(visibleSectionKey, entry.dateRange) }]"
+            :class="['nav-item', 'map-item', { visible: sectionKeyMatchesRange(activeSectionKey, entry.dateRange) }]"
             :aria-label="`${t('nav.map')}: ${formatMapRange(entry.dateRange)}`"
             @click="scrollToMap(entry.dateRange)"
+            @keydown.enter="scrollToMap(entry.dateRange)"
           >
             <div class="item-thumb map-thumb">
               <q-icon :name="symOutlinedMap" size="var(--type-md)" />
@@ -559,15 +561,17 @@ watch(visibleSectionKey, (key) => {
               <q-icon :name="symOutlinedClose" size="var(--type-xs)" />
               <q-tooltip>{{ t("album.removeMap") }}</q-tooltip>
             </button>
-          </button>
+          </div>
 
-          <button
+          <div
             v-else
-            type="button"
+            role="button"
+            tabindex="0"
             :data-nav-step="entry.item.id"
-            :class="['nav-item', { visible: visibleStepId === entry.item.id, excluded: excludedSet.has(entry.item.id) }]"
-            :aria-current="visibleStepId === entry.item.id ? 'step' : undefined"
+            :class="['nav-item', { visible: activeStepId === entry.item.id, excluded: excludedSet.has(entry.item.id) }]"
+            :aria-current="activeStepId === entry.item.id ? 'step' : undefined"
             @click="scrollTo(entry.item.id)"
+            @keydown.enter="scrollTo(entry.item.id)"
           >
             <div class="item-thumb">
               <img v-if="entry.item.thumb" :src="entry.item.thumb" alt="" width="36" height="28" class="thumb-img" loading="lazy" />
@@ -586,7 +590,7 @@ watch(visibleSectionKey, (key) => {
               <q-icon :name="excludedSet.has(entry.item.id) ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
               <q-tooltip>{{ excludedSet.has(entry.item.id) ? t("nav.showStep") : t("nav.hideStep") }}</q-tooltip>
             </button>
-          </button>
+          </div>
         </template>
       </q-expansion-item>
     </div>

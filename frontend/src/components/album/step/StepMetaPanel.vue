@@ -9,7 +9,7 @@ import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { colors as qColors, Dark } from "quasar";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
-import CountrySilhouette from "./CountrySilhouette.vue";
+import CountryPinMap from "./CountryPinMap.vue";
 import { useAlbum } from "@/composables/useAlbum";
 
 const props = defineProps<{
@@ -83,7 +83,7 @@ const dateStr = computed(() => {
     <!-- Country silhouette + coordinates -->
     <div class="silhouette-row">
       <div class="silhouette-box">
-        <CountrySilhouette
+        <CountryPinMap
           :country-code="step.location.country_code"
           :lat="step.location.lat"
           :lon="step.location.lon"
