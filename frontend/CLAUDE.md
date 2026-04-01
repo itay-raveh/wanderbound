@@ -23,6 +23,7 @@ To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
 - Use --q-primary for accent color (shares value with Quasar components).
 - Design tokens are in App.vue `:root`. Dark/light mode key: `"album-dark-mode"` in localStorage.
 - Type scale: `--type-xs` (0.75rem) is the smallest UI size. `--type-3xs` (0.5625rem) is print-only (album pages at A4 scale).
+- RTL flipping: use the `rtl-flip` class (in `quasar-overrides.scss`), not custom `[dir="rtl"]` rules.
 
 ## Do NOT
 

@@ -97,6 +97,8 @@ const hasMeta = !!(authorName || version);
 .site-footer-link {
   color: var(--text-muted);
   text-decoration: none;
+  padding: var(--gap-sm-md) var(--gap-md);
+  margin: calc(-1 * var(--gap-sm-md)) calc(-1 * var(--gap-md));
   transition: color var(--duration-fast);
 
   &:hover {
@@ -112,7 +114,7 @@ const hasMeta = !!(authorName || version);
   margin: var(--gap-sm) 0 0;
   max-width: 52rem;
   text-align: center;
-  color: var(--text-faint);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 </style>

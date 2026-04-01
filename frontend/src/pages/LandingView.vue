@@ -130,18 +130,6 @@ onUnmounted(() => {
         <i18n-t keypath="tagline" tag="p" class="hero-tagline fade-up">
           <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
         </i18n-t>
-        <div class="hero-cta fade-up">
-          <q-btn
-            v-if="authenticated"
-            :label="t('landing.openEditor')"
-            color="primary"
-            unelevated
-            no-caps
-            size="lg"
-            :to="{ name: 'editor' }"
-          />
-          <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
-        </div>
       </div>
 
       <!-- Hero showcase: fanned spread of different album page types -->
@@ -149,7 +137,7 @@ onUnmounted(() => {
         <div class="hero-fan" aria-hidden="true">
           <picture class="hero-card">
             <source :srcset="srcset('cover')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/cover-${mode}.jpg`" alt="" class="hero-card-img" loading="lazy" />
+            <img :src="`/landing/cover-${mode}.jpg`" alt="" class="hero-card-img" />
           </picture>
           <picture class="hero-card">
             <source :srcset="srcset('hike-map')" sizes="320px" type="image/webp" />
@@ -165,17 +153,24 @@ onUnmounted(() => {
           </picture>
           <picture class="hero-card">
             <source :srcset="srcset('auto-album')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/auto-album-${mode}.jpg`" alt="" class="hero-card-img" loading="lazy" />
+            <img :src="`/landing/auto-album-${mode}.jpg`" alt="" class="hero-card-img" />
           </picture>
         </div>
       </div>
 
-      <!-- Scroll hint — fades out as user scrolls -->
-      <div class="hero-scroll-hint fade-up" aria-hidden="true">
-        <svg width="20" height="10" viewBox="0 0 20 10" fill="none">
-          <path d="M1 1l9 8 9-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+      <div class="hero-cta fade-up">
+        <q-btn
+          v-if="authenticated"
+          :label="t('landing.openEditor')"
+          color="primary"
+          unelevated
+          no-caps
+          size="lg"
+          :to="{ name: 'editor' }"
+        />
+        <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
       </div>
+
     </section>
 
     <!-- Feature: autoAlbum — core product showcase, standard 50/50 -->
@@ -266,7 +261,7 @@ onUnmounted(() => {
   background: var(--page-gradient);
   text-align: center;
   overflow: hidden;
-  padding-bottom: 1.5rem;
+  padding-bottom: var(--gap-lg);
 }
 
 .hero-content {
@@ -308,19 +303,21 @@ onUnmounted(() => {
 }
 
 .hero-cta {
-  margin-top: 1.25rem;
+  margin-top: var(--gap-lg);
+  display: flex;
+  justify-content: center;
+  animation-delay: 0.55s;
 }
 
 /* Cascading hero reveal — each element unfolds with deliberate pacing */
 .hero-content > .fade-up:nth-child(1) { animation-delay: 0s; }
 .hero-content > .fade-up:nth-child(2) { animation-delay: 0.15s; }
-.hero-content > .fade-up:nth-child(3) { animation-delay: 0.3s; }
 
 /* Product preview in hero — fanned spread of album pages */
 .hero-showcase {
   margin-top: 1.25rem;
   padding: 0 var(--gap-md);
-  animation-delay: 0.5s;
+  animation-delay: 0.35s;
   perspective: 800px;
 }
 
@@ -389,25 +386,6 @@ onUnmounted(() => {
 .hero-card:nth-child(3) { z-index: 5; width: 14rem; animation-delay: 0.7s; }
 .hero-card:nth-child(4) { --x: 5.5rem; --r: 3deg; z-index: 3; width: 12rem; animation-delay: 0.8s; }
 .hero-card:nth-child(5) { --x: 8rem; --r: 6deg; z-index: 1; width: 11rem; display: none; animation-delay: 0.9s; }
-
-/* Scroll hint — gentle nudge that content continues */
-.hero-scroll-hint {
-  margin-top: var(--gap-sm);
-  color: var(--text-faint);
-  animation-delay: 1.2s;
-  display: flex;
-  justify-content: center;
-}
-
-.hero-scroll-hint svg {
-  animation: scroll-bob 2s ease-in-out infinite;
-  animation-delay: 2s;
-}
-
-@keyframes scroll-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
-}
 
 /* Feature bands — varied vertical rhythm creates narrative arc */
 .band {
@@ -498,14 +476,6 @@ onUnmounted(() => {
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  transition:
-    transform var(--duration-normal) ease,
-    box-shadow var(--duration-normal) ease;
-}
-
-.feature-picture:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
 }
 
 .feature-img {
@@ -562,7 +532,7 @@ onUnmounted(() => {
 /* Tablet — hero scales up, features stay single-column */
 @media (min-width: 768px) {
   .hero-content {
-    padding: 3rem 2rem 0;
+    padding: 2.5rem 2rem 0;
   }
 
   .hero-logo {
@@ -579,7 +549,7 @@ onUnmounted(() => {
   }
 
   .hero-showcase {
-    margin-top: 2rem;
+    margin-top: 1.25rem;
     padding: 0 2rem;
   }
 
@@ -634,7 +604,7 @@ onUnmounted(() => {
 
   .hero-fan {
     max-width: 60rem;
-    height: 26rem;
+    height: 22rem;
   }
 
   .hero-card:nth-child(1) { --x: -20rem; width: 13rem; }
@@ -663,6 +633,7 @@ onUnmounted(() => {
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
   }
+
 
   .cta {
     padding: 6rem 2rem;
@@ -699,7 +670,6 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-logo,
-  .feature-picture,
   .hero-card {
     transition: none;
     animation: none;
@@ -707,14 +677,6 @@ onUnmounted(() => {
 
   .hero-logo:hover {
     transform: none;
-  }
-
-  .feature-picture:hover {
-    transform: none;
-  }
-
-  .hero-scroll-hint svg {
-    animation: none;
   }
 
   .hero-fan {
