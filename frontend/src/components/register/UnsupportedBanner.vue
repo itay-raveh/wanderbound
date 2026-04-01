@@ -10,7 +10,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="banner">
+  <div class="banner" role="alert">
     <div class="banner-header row no-wrap items-center q-gutter-x-sm">
       <q-icon :name="matWarning" size="sm" class="text-danger" />
       <span class="text-subtitle1 text-bright">{{ t("register.unsupportedTitle") }}</span>
@@ -27,9 +27,9 @@ const { t } = useI18n();
 
 <style scoped>
 .banner {
-  padding: 1rem 1.25rem;
+  padding: var(--gap-lg);
   border-radius: var(--radius-md);
-  border: 1px solid var(--danger);
+  border: 0.0625rem solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }
 

@@ -87,30 +87,22 @@ function onDone() {
       <q-card v-if="!uploadResult" class="upload-card fade-up">
         <!-- Evicted user message -->
         <template v-if="pageState === 'evicted'">
-          <h3 class="state-title text-h6 text-weight-bold">{{ t("register.evictedTitle") }}</h3>
+          <h2 class="state-title text-h6 text-weight-bold">{{ t("register.evictedTitle") }}</h2>
           <p class="state-body text-body2 text-muted">{{ t("register.evictedBody") }}</p>
           <q-separator class="q-my-md" />
         </template>
 
         <!-- Manual re-upload message -->
         <template v-else-if="pageState === 'reupload'">
-          <h3 class="state-title text-h6 text-weight-bold">{{ t("register.reuploadTitle") }}</h3>
+          <h2 class="state-title text-h6 text-weight-bold">{{ t("register.reuploadTitle") }}</h2>
           <p class="state-body text-body2 text-muted">{{ t("register.reuploadBody") }}</p>
           <q-separator class="q-my-md" />
         </template>
 
-        <!-- New user: collapsible instructions -->
+        <!-- New user: instructions -->
         <template v-else>
-          <q-expansion-item
-            :label="t('register.getDataTitle')"
-            default-opened
-            dense
-            :duration="200"
-            header-class="data-instructions-header text-weight-semibold text-bright"
-            class="data-instructions"
-          >
-            <DataInstructions />
-          </q-expansion-item>
+          <h2 class="state-title text-h6 text-weight-bold">{{ t('register.getDataTitle') }}</h2>
+          <DataInstructions />
           <q-separator class="q-my-md" />
         </template>
 
@@ -146,21 +138,10 @@ function onDone() {
 .upload-page::before {
   content: "";
   position: absolute;
-  inset: -20%;
-  opacity: 0.35;
-  background:
-    radial-gradient(ellipse 60% 50% at var(--aurora-x1) 20%, var(--q-primary), transparent 70%),
-    radial-gradient(ellipse 50% 45% at var(--aurora-x2) 80%, var(--aurora-accent), transparent 70%);
-  animation: aurora 20s ease-in-out infinite alternate;
+  inset: -10%;
   pointer-events: none;
-  filter: blur(60px);
-}
-
-@keyframes aurora {
-  to {
-    --aurora-x1: 60%;
-    --aurora-x2: 40%;
-  }
+  opacity: 0.09;
+  background: url('/topo-contours.svg') center / cover no-repeat;
 }
 
 .upload-content {
@@ -188,44 +169,4 @@ function onDone() {
   line-height: 1.5;
 }
 
-.data-instructions {
-  margin: -0.5rem -1rem;
-  border-radius: var(--radius-md);
-}
-
-.data-instructions :deep(.q-expansion-item__content) {
-  padding: 0 1rem var(--gap-md);
-}
-
-.data-instructions :deep(.data-instructions-header) {
-  padding: var(--gap-md) 1rem;
-  min-height: unset;
-  font-size: var(--type-md);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .upload-page::before {
-    animation: none;
-  }
-}
-</style>
-
-<style>
-@property --aurora-accent {
-  syntax: "<color>";
-  inherits: false;
-  initial-value: #818cf8;
-}
-
-@property --aurora-x1 {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 20%;
-}
-
-@property --aurora-x2 {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 80%;
-}
 </style>

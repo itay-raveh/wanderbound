@@ -61,7 +61,7 @@ function onFailed() {
   <div>
     <h3 class="upload-title text-h6 text-weight-semibold text-bright">
       <i18n-t keypath="register.uploadTitle">
-        <template #file><code>user_data.zip</code></template>
+        <template #file><strong class="file-name">user_data.zip</strong></template>
       </i18n-t>
     </h3>
     <q-uploader
@@ -93,16 +93,17 @@ function onFailed() {
           class="drop-zone column items-center justify-center"
           role="button"
           tabindex="0"
+          :aria-label="t('register.dropZone')"
           @click="scope.pickFiles"
           @keydown.enter.prevent="scope.pickFiles"
           @keydown.space.prevent="scope.pickFiles"
         >
           <q-uploader-add-trigger />
-          <q-icon :name="symOutlinedLuggage" size="2.5rem" class="drop-zone-icon text-faint" />
+          <q-icon :name="symOutlinedLuggage" size="3rem" class="drop-zone-icon" />
           <span class="text-body2 text-muted">{{ t("register.dropZone") }}</span>
         </div>
         <div v-else-if="scope.isUploading" class="upload-progress">
-          <q-linear-progress :value="scope.files[0].__progress" color="primary" class="upload-bar" />
+          <q-linear-progress :value="scope.files[0].__progress" color="primary" class="upload-bar" role="progressbar" :aria-valuenow="Math.round(scope.files[0].__progress * 100)" aria-valuemin="0" aria-valuemax="100" :aria-label="t('register.uploadProgress')" />
         </div>
       </template>
     </q-uploader>
@@ -114,12 +115,8 @@ function onFailed() {
   margin: 0 0 var(--gap-md-lg);
 }
 
-.upload-title code {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--surface) 60%, transparent);
+.upload-title .file-name {
+  font-weight: 700;
 }
 
 .uploader {
@@ -133,8 +130,8 @@ function onFailed() {
 }
 
 .drop-zone {
-  padding: 2rem var(--gap-lg);
-  gap: var(--gap-md);
+  padding: 3rem var(--gap-lg);
+  gap: var(--gap-md-lg);
   cursor: pointer;
   border: 0.125rem dashed var(--border-color);
   border-radius: var(--radius-md);
@@ -155,13 +152,14 @@ function onFailed() {
 }
 
 .drop-zone-icon {
+  color: var(--text-faint);
   transition:
     color var(--duration-fast) ease,
     transform var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .drop-zone:hover .drop-zone-icon {
-  color: var(--q-primary) !important;
+  color: var(--q-primary);
   transform: translateY(-0.125rem);
 }
 
@@ -172,7 +170,7 @@ function onFailed() {
 }
 
 .uploader.q-uploader--dnd .drop-zone-icon {
-  color: var(--q-primary) !important;
+  color: var(--q-primary);
   transform: scale(1.1);
 }
 

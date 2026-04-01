@@ -106,7 +106,7 @@ watch(() => props.state, async (s) => {
     />
 
     <!-- Error state -->
-    <div v-if="state === 'error'" class="state-section fade-up">
+    <div v-if="state === 'error'" class="fade-up">
       <q-separator class="q-my-lg" />
       <div class="error-banner row no-wrap q-gutter-x-sm">
         <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon text-danger" />
@@ -118,7 +118,7 @@ watch(() => props.state, async (s) => {
     </div>
 
     <!-- Done state -->
-    <div v-if="state === 'done'" class="state-section fade-up">
+    <div v-if="state === 'done'" class="fade-up">
       <q-separator class="q-my-lg" />
       <q-btn
         color="primary"
@@ -160,6 +160,14 @@ watch(() => props.state, async (s) => {
   border-color: var(--border-color);
   color: var(--text);
   align-self: flex-start;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+.retry-btn:hover {
+  border-color: var(--text-faint);
+  background: var(--surface);
 }
 
 .done-check {
@@ -195,7 +203,8 @@ watch(() => props.state, async (s) => {
 
 @media (prefers-reduced-motion: reduce) {
   .done-check,
-  .done-btn {
+  .done-btn,
+  .retry-btn {
     animation: none;
     transition: none;
   }

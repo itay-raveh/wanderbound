@@ -42,7 +42,7 @@ const POLARSTEPS_GUIDE =
 <style scoped>
 .steps {
   margin: 0;
-  padding-inline-start: 1.5em;
+  padding-inline-start: 1.5rem;
   line-height: 1.75;
 }
 
@@ -58,6 +58,12 @@ const POLARSTEPS_GUIDE =
 
 .instructions a:hover {
   text-decoration: underline;
+}
+
+.instructions a:focus-visible {
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
+  border-radius: var(--radius-xs);
 }
 
 .instructions strong {

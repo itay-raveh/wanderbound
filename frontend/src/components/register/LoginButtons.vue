@@ -37,7 +37,6 @@ const emit = defineEmits<{
   gap: var(--gap-md-lg);
 }
 
-/* Shared base for both providers */
 .auth-btn {
   all: unset;
   box-sizing: border-box;
@@ -52,6 +51,10 @@ const emit = defineEmits<{
   font-weight: 600;
   border-radius: var(--radius-full);
   cursor: pointer;
+  color: var(--text-bright);
+  background: var(--surface);
+  border: 0.0625rem solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   transition:
     background var(--duration-fast),
     box-shadow var(--duration-fast),
@@ -59,26 +62,18 @@ const emit = defineEmits<{
 }
 
 .auth-btn:focus-visible {
-  outline: 2px solid var(--q-primary);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
 }
 
 /* Google wrapper: show focus ring when the iframe overlay receives keyboard focus */
 .auth-btn-wrapper:has(:focus-visible) > .auth-btn {
-  outline: 2px solid var(--q-primary);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
 }
 
 .auth-btn:active {
   transform: scale(0.98);
-}
-
-/* Both providers: same visual weight */
-.auth-btn {
-  color: var(--text-bright);
-  background: var(--surface);
-  border: 1.5px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
 }
 
 .auth-btn:hover,
@@ -97,7 +92,7 @@ const emit = defineEmits<{
   width: 1.125rem;
   height: 1.125rem;
   flex-shrink: 0;
-  margin-inline-end: 0.5rem;
+  margin-inline-end: var(--gap-md);
 }
 
 /* Google overlay: invisible iframe on top captures clicks */
@@ -123,5 +118,11 @@ const emit = defineEmits<{
 .auth-btn-overlay :deep(.g-btn-wrapper) {
   width: 100%;
   height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-btn {
+    transition: none;
+  }
 }
 </style>
