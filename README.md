@@ -86,15 +86,11 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix scroll spy.
 - [ ] Fix map lines.
 - [ ] Fix photo focus.
-- [ ] Fix reupload.
 - [ ] Critique overview page.
 - [ ] Critique step main pages.
 - [ ] Critique step photo pages.
-- [ ] Critique landing.
-- [ ] Critique upload.
 - [ ] Allow hiding covers, overview.
 - [ ] Add controls for zoom, page padding.
 - [ ] HDR → SDR tone-mapping for video poster extraction
