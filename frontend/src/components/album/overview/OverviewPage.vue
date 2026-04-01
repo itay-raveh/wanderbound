@@ -5,7 +5,6 @@ import { useOverview } from "@/composables/useOverview";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
-import { STAT_COLORS } from "../colors";
 import { flagUrl } from "@/utils/media";
 import { symOutlinedCalendarMonth, symOutlinedExplore, symOutlinedPhotoCamera, symOutlinedTimeline } from "@quasar/extras/material-symbols-outlined";
 import OverviewExtremes from "./OverviewExtremes.vue";
@@ -48,25 +47,21 @@ const stats = computed(() => [
     value: daysCount.value,
     label: t("overview.days"),
     icon: symOutlinedCalendarMonth,
-    color: STAT_COLORS.days,
   },
   {
     value: totalDistance.value,
     label: distanceUnit.value,
     icon: symOutlinedExplore,
-    color: STAT_COLORS.distance,
   },
   {
     value: photosCount.value,
     label: t("overview.photos"),
     icon: symOutlinedPhotoCamera,
-    color: STAT_COLORS.photos,
   },
   {
     value: stepsCount.value,
     label: t("overview.steps"),
     icon: symOutlinedTimeline,
-    color: STAT_COLORS.steps,
   },
 ]);
 </script>
@@ -81,7 +76,6 @@ const stats = computed(() => [
           v-for="(stat, i) in stats"
           :key="i"
           class="stat relative-position overflow-hidden"
-          :style="{ '--sc': stat.color }"
         >
           <q-icon :name="stat.icon" size="2.5rem" class="stat-watermark no-pointer-events" />
           <span class="stat-number">{{ stat.value }}</span>
@@ -215,14 +209,14 @@ const stats = computed(() => [
   position: absolute;
   top: var(--gap-xs);
   right: 0;
-  color: var(--sc);
+  color: var(--text-bright);
   opacity: 0.1;
 }
 
 .stat-number {
   font-size: var(--display-2);
   font-weight: 800;
-  color: var(--sc);
+  color: var(--text-bright);
   letter-spacing: var(--tracking-tight);
   line-height: 1;
 }
