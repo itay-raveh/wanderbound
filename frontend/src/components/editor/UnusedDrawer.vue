@@ -102,7 +102,9 @@ useDraggable(trackRef, localUnused, {
 
 .drawer-track {
   flex: 1;
-  gap: var(--gap-md);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--gap-sm);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
@@ -126,7 +128,6 @@ useDraggable(trackRef, localUnused, {
   > :deep(*) {
     width: 100%;
     aspect-ratio: 4 / 3;
-    flex-shrink: 0;
     border-radius: var(--radius-xs);
     overflow: hidden;
     cursor: grab;
