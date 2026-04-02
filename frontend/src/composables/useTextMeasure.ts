@@ -1,12 +1,18 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { layoutItemsFromString, breakLines, positionItems } from "tex-linebreak";
 import { ALLOWED_FONTS } from "@/utils/fonts";
 
 export type DescriptionType = "short" | "long" | "extra-long";
 
+export interface JustifiedLine {
+  text: string;
+  wordSpacing: number; // CSS word-spacing delta in px (0 = default spacing)
+}
+
 interface TextLayout {
   type: DescriptionType;
-  mainPageText: string;
-  continuationTexts: string[];
+  mainLines: JustifiedLine[] | null;
+  continuationLines: JustifiedLine[][];
 }
 
 // --- Measurement cache (cleared when fonts finish loading) ---
@@ -30,6 +36,7 @@ if (typeof document !== "undefined") {
     debounceTimer = setTimeout(() => {
       fontsRevision.value++;
       cache.clear();
+      layoutConfig = null;
     }, 100);
   };
   void document.fonts.ready.then(bumpRevision);
@@ -38,238 +45,169 @@ if (typeof document !== "undefined") {
   }) as EventListener);
 }
 
-// --- Hidden DOM containers (created once on first use) ---
-let metaMeasure: HTMLDivElement | null = null;
-let fullMeasure: HTMLDivElement | null = null;
-let contMeasure: HTMLDivElement | null = null;
+// --- Canvas text measurement (no DOM reflow) ---
+let canvasCtx: CanvasRenderingContext2D | null = null;
+let canvasFont = "";
 
-// Positioning for all hidden measurement containers - text formatting
-// comes from the .text-body-columns CSS class (App.vue) or inline styles.
-const MEASURE_STYLE = [
-  "position:fixed",
-  "visibility:hidden",
-  "pointer-events:none",
-  "z-index:-1",
-].join(";");
-
-function createContainer(extraStyle: string, className?: string): HTMLDivElement {
-  const el = document.createElement("div");
-  el.style.cssText = MEASURE_STYLE + ";" + extraStyle;
-  if (className) el.className = className;
-  document.body.appendChild(el);
-  return el;
+function ensureCanvas(font: string): CanvasRenderingContext2D {
+  if (!canvasCtx) canvasCtx = document.createElement("canvas").getContext("2d")!;
+  if (canvasFont !== font) {
+    canvasCtx.font = font;
+    canvasFont = font;
+  }
+  return canvasCtx;
 }
 
-function ensureContainers() {
-  if (metaMeasure) return;
+// --- Zone geometry (resolved from CSS vars) ---
+interface ZoneConfig {
+  columnWidth: number;
+  maxLines: number;
+  font: string;
+}
 
-  // Matches StepMetaPanel .description - flex:1 area in the meta-ratio-wide sidebar.
-  // Empirical height (21rem) accounts for silhouette, name-block, stats, and progress.
-  metaMeasure = createContainer(
-    [
-      "white-space:pre-wrap",
-      "text-align:justify",
-      "overflow:hidden",
-      "box-sizing:border-box",
-      "width:calc(var(--page-width) * var(--meta-ratio) - var(--page-inset-x) - var(--page-inset-y))",
-      "height:calc(var(--page-height) - 21rem)",
-      "font-family:var(--font-album-body)",
-      "font-size:var(--type-xs)",
-      "line-height:1.65",
-    ].join(";"),
-  );
+interface LayoutConfig {
+  meta: ZoneConfig;
+  full: ZoneConfig;
+  cont: ZoneConfig;
+}
 
-  // Matches StepMainPage .description-full - full-width 2-column layout below compact meta.
-  // Empirical height (11rem) accounts for the compact meta header grid.
-  // Text formatting from .text-body-columns class (App.vue) - single source of truth.
-  fullMeasure = createContainer(
-    [
-      "width:var(--page-width)",
-      "height:calc(var(--page-height) - 11rem)",
-    ].join(";"),
-    "text-body-columns",
-  );
+let layoutConfig: LayoutConfig | null = null;
 
-  // Matches StepTextPage .text-page-body - continuation text pages (same 2-column layout).
-  // Text formatting from .text-body-columns class (App.vue) - single source of truth.
-  contMeasure = createContainer(
-    [
-      "width:var(--page-width)",
-      "height:var(--page-height)",
-    ].join(";"),
-    "text-body-columns",
-  );
+function ensureConfig(): LayoutConfig {
+  if (layoutConfig) return layoutConfig;
+
+  const rootStyle = getComputedStyle(document.documentElement);
+  const remPx = parseFloat(rootStyle.fontSize);
+  const mmPx = 96 / 25.4;
+  const lineHeight = 1.65;
+
+  const pageWidth = parseFloat(rootStyle.getPropertyValue("--page-width")) * mmPx;
+  const pageHeight = parseFloat(rootStyle.getPropertyValue("--page-height")) * mmPx;
+  const metaRatio = parseFloat(rootStyle.getPropertyValue("--meta-ratio"));
+  const insetX = parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx;
+  const insetY = parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx;
+  const typeXs = parseFloat(rootStyle.getPropertyValue("--type-xs")) * remPx;
+  const typeSm = parseFloat(rootStyle.getPropertyValue("--type-sm")) * remPx;
+  const fontBody = rootStyle.getPropertyValue("--font-album-body").trim();
+
+  // Meta zone: single column in the meta panel sidebar.
+  // Empirical 21rem accounts for silhouette, name-block, stats, and progress.
+  const metaColWidth = pageWidth * metaRatio - insetX - insetY;
+  const metaMaxLines = Math.floor((pageHeight - 21 * remPx) / (typeXs * lineHeight));
+
+  // Full/continuation zones: 2-column layout from .text-body-columns (App.vue).
+  // Column gap = insetY. Padding = insetY top/bottom, insetX left/right, box-sizing: border-box.
+  const colWidth = (pageWidth - 2 * insetX - insetY) / 2;
+  // Full zone: below compact meta header (empirical 11rem) with top+bottom padding.
+  const fullMaxLines = 2 * Math.floor((pageHeight - 11 * remPx - 2 * insetY) / (typeSm * lineHeight));
+  // Continuation zone: full page height with top+bottom padding.
+  const contMaxLines = 2 * Math.floor((pageHeight - 2 * insetY) / (typeSm * lineHeight));
+
+  layoutConfig = {
+    meta: { columnWidth: metaColWidth, maxLines: metaMaxLines, font: `${typeXs}px ${fontBody}` },
+    full: { columnWidth: colWidth, maxLines: fullMaxLines, font: `${typeSm}px ${fontBody}` },
+    cont: { columnWidth: colWidth, maxLines: contMaxLines, font: `${typeSm}px ${fontBody}` },
+  };
+  return layoutConfig;
+}
+
+// --- Knuth-Plass line breaking via tex-linebreak ---
+
+function breakParagraph(para: string, columnWidth: number, measure: (w: string) => number): JustifiedLine[] {
+  const items = layoutItemsFromString(para, measure);
+  const breakpoints = breakLines(items, columnWidth, { maxAdjustmentRatio: null });
+  const positions = positionItems(items, columnWidth, breakpoints, { includeGlue: true });
+  const lineCount = breakpoints.length - 1;
+  const normalSpaceWidth = measure(" ");
+
+  const result: JustifiedLine[] = [];
+  let posIdx = 0;
+
+  for (let lineNum = 0; lineNum < lineCount; lineNum++) {
+    const words: string[] = [];
+    let glueWidth = normalSpaceWidth;
+
+    while (posIdx < positions.length && positions[posIdx]!.line === lineNum) {
+      const pos = positions[posIdx]!;
+      const item = items[pos.item]!;
+      if (item.type === "box") words.push(item.text);
+      else if (item.type === "glue") glueWidth = pos.width;
+      posIdx++;
+    }
+
+    const isLast = lineNum === lineCount - 1;
+    result.push({
+      text: words.join(" "),
+      wordSpacing: isLast || words.length <= 1 ? 0 : glueWidth - normalSpaceWidth,
+    });
+  }
+
+  return result;
+}
+
+function breakText(text: string, columnWidth: number, font: string): JustifiedLine[] {
+  const ctx = ensureCanvas(font);
+  const measure = (w: string) => ctx.measureText(w).width;
+  const lines: JustifiedLine[] = [];
+
+  for (const para of text.split("\n")) {
+    if (!para) {
+      lines.push({ text: "", wordSpacing: 0 });
+      continue;
+    }
+    lines.push(...breakParagraph(para, columnWidth, measure));
+  }
+
+  return lines;
 }
 
 // --- Character-count estimate (fallback while fonts load, ~50-100ms) ---
+// Only classifies type — no text splitting or line data until fonts are ready.
 const EST_CHARS_PER_LINE = 65;
 const EST_SHORT = 1200;
 const EST_PAGE = 3600;
 
-function estimateVisualLength(text: string): number {
-  if (!text) return 0;
-  let lines = 0;
+function estimateType(text: string): DescriptionType {
+  if (!text) return "short";
+  let chars = 0;
   for (const para of text.split("\n")) {
-    lines += para ? Math.ceil(para.length / EST_CHARS_PER_LINE) : 1;
+    chars += para ? Math.ceil(para.length / EST_CHARS_PER_LINE) * EST_CHARS_PER_LINE : EST_CHARS_PER_LINE;
   }
-  return lines * EST_CHARS_PER_LINE;
-}
-
-function estimateSplit(text: string, maxChars: number): [string, string] {
-  const paras = text.split("\n");
-  let consumed = 0;
-  let splitIdx = 0;
-  for (let i = 0; i < paras.length; i++) {
-    const paraLen = paras[i]!.length || EST_CHARS_PER_LINE;
-    if (consumed + paraLen > maxChars && i > 0) break;
-    consumed += paraLen;
-    splitIdx = i + 1;
-  }
-  if (splitIdx === 0) splitIdx = 1;
-  return [paras.slice(0, splitIdx).join("\n"), paras.slice(splitIdx).join("\n")];
-}
-
-function estimateLayout(text: string): TextLayout {
-  const vl = estimateVisualLength(text);
-  if (vl <= EST_SHORT) return { type: "short", mainPageText: text, continuationTexts: [] };
-  if (vl <= EST_PAGE) return { type: "long", mainPageText: text, continuationTexts: [] };
-
-  const [mainText, initialRemainder] = estimateSplit(text, EST_PAGE);
-  const continuationTexts: string[] = [];
-  let remainder = initialRemainder;
-  while (remainder.trim()) {
-    const [chunk, rest] = estimateSplit(remainder, EST_PAGE);
-    continuationTexts.push(chunk);
-    remainder = rest;
-  }
-  return { type: "extra-long", mainPageText: mainText, continuationTexts };
-}
-
-// --- DOM measurement helpers ---
-
-/** Vertical overflow only - for single-column containers. */
-function overflowsV(container: HTMLDivElement): boolean {
-  return container.scrollHeight > container.clientHeight;
-}
-
-/** Vertical or horizontal overflow - for multi-column containers where
- *  excess content spills into columns beyond the container width.
- *  (scrollWidth check is unreliable for single-column RTL; browsers
- *  report a few extra pixels due to the RTL scroll origin.) */
-function overflowsMultiCol(container: HTMLDivElement): boolean {
-  return (
-    container.scrollHeight > container.clientHeight ||
-    container.scrollWidth > container.clientWidth
-  );
-}
-
-function fits(container: HTMLDivElement, text: string, multiCol = false): boolean {
-  container.textContent = text;
-  return multiCol ? !overflowsMultiCol(container) : !overflowsV(container);
-}
-
-/** Binary-search split within a single paragraph by word boundaries. */
-function splitByWords(
-  container: HTMLDivElement,
-  paragraph: string,
-): [string, string] {
-  const words = paragraph.split(/(?<=\s)/);
-  if (words.length <= 1) return [paragraph, ""];
-
-  // Pre-build joined prefixes so each binary search probe is O(1) lookup
-  const prefixes: string[] = new Array(words.length);
-  prefixes[0] = words[0]!;
-  for (let i = 1; i < words.length; i++) {
-    prefixes[i] = prefixes[i - 1]! + words[i]!;
-  }
-
-  let lo = 0;
-  let hi = words.length - 1;
-  let splitAt = 1; // take at least one word
-
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    container.textContent = prefixes[mid]!;
-    if (!overflowsMultiCol(container)) {
-      splitAt = mid + 1;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-
-  if (splitAt >= words.length) return [paragraph, ""];
-  return [
-    prefixes[splitAt - 1]!.trimEnd(),
-    words.slice(splitAt).join(""),
-  ];
-}
-
-function splitToFit(
-  container: HTMLDivElement,
-  text: string,
-): [string, string] {
-  const paras = text.split("\n");
-
-  // Pre-build joined prefixes so each binary search probe is O(1) lookup
-  const prefixes: string[] = new Array(paras.length);
-  for (let i = 0; i < paras.length; i++) {
-    prefixes[i] = i === 0 ? paras[0]! : prefixes[i - 1]! + "\n" + paras[i]!;
-  }
-
-  let lo = 0;
-  let hi = paras.length - 1;
-  let mainEnd = 0;
-
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    container.textContent = prefixes[mid]!;
-    if (!overflowsMultiCol(container)) {
-      mainEnd = mid + 1;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-
-  // If even the first paragraph overflows, split it by words
-  if (mainEnd === 0 && paras.length > 0) {
-    const [head, tail] = splitByWords(container, paras[0]!);
-    const rest = paras.slice(1).join("\n");
-    return [head, tail + (rest ? "\n" + rest : "")];
-  }
-
-  if (mainEnd >= paras.length) return [text, ""];
-  return [prefixes[mainEnd - 1]!, paras.slice(mainEnd).join("\n")];
+  if (chars <= EST_SHORT) return "short";
+  if (chars <= EST_PAGE) return "long";
+  return "extra-long";
 }
 
 // --- Public API ---
 
 export function measureDescription(text: string): TextLayout {
-  if (fontsRevision.value === 0) return estimateLayout(text);
+  if (fontsRevision.value === 0) return { type: estimateType(text), mainLines: null, continuationLines: [] };
 
   const hit = cache.get(text);
   if (hit) return hit;
 
-  ensureContainers();
+  const config = ensureConfig();
 
-  if (fits(metaMeasure!, text))
-    return cached(text, { type: "short", mainPageText: text, continuationTexts: [] });
+  // Short: fits in meta panel sidebar (single column, smaller font)
+  const metaLines = breakText(text, config.meta.columnWidth, config.meta.font);
+  if (metaLines.length <= config.meta.maxLines)
+    return cached(text, { type: "short", mainLines: metaLines, continuationLines: [] });
 
-  if (fits(fullMeasure!, text, true))
-    return cached(text, { type: "long", mainPageText: text, continuationTexts: [] });
+  // Long: fits in full-width 2-column area below compact meta header
+  const fullLines = breakText(text, config.full.columnWidth, config.full.font);
+  if (fullLines.length <= config.full.maxLines)
+    return cached(text, { type: "long", mainLines: fullLines, continuationLines: [] });
 
-  const [mainPageText, remainder] = splitToFit(fullMeasure!, text);
-  const continuationTexts: string[] = [];
-  let remaining = remainder;
-
-  while (remaining.trim()) {
-    const [chunk, rest] = splitToFit(contMeasure!, remaining);
-    continuationTexts.push(chunk);
-    remaining = rest;
+  // Extra-long: split across main page + continuation pages
+  const mainLines = fullLines.slice(0, config.full.maxLines);
+  let remaining = fullLines.slice(config.full.maxLines);
+  const continuationLines: JustifiedLine[][] = [];
+  while (remaining.length > 0) {
+    continuationLines.push(remaining.slice(0, config.cont.maxLines));
+    remaining = remaining.slice(config.cont.maxLines);
   }
 
-  return cached(text, { type: "extra-long", mainPageText, continuationTexts });
+  return cached(text, { type: "extra-long", mainLines, continuationLines });
 }
 
 export function useTextMeasure(description: Ref<string>): ComputedRef<TextLayout> {

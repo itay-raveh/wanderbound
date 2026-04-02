@@ -1,5 +1,7 @@
 <script lang="ts" setup>
+import type { JustifiedLine } from "@/composables/useTextMeasure";
 import { usePrintMode } from "@/composables/usePrintReady";
+import JustifiedText from "./JustifiedText.vue";
 import { useI18n } from "vue-i18n";
 import { ref } from "vue";
 
@@ -8,9 +10,9 @@ const { t } = useI18n();
 const props = withDefaults(
   defineProps<{
     modelValue: string;
-    displayValue?: string;
     multiline?: boolean;
     placeholder?: string;
+    lines?: JustifiedLine[] | null;
   }>(),
   { multiline: false, placeholder: "" },
 );
@@ -60,7 +62,8 @@ function saveDialog() {
 
 <template>
   <!-- Print mode: plain text, no editing affordances -->
-  <div v-if="printMode">{{ displayValue ?? modelValue }}</div>
+  <JustifiedText v-if="printMode && lines" :lines="lines" />
+  <div v-else-if="printMode">{{ modelValue }}</div>
 
   <!-- Multiline: styled div that opens a modal -->
   <div
@@ -74,7 +77,8 @@ function saveDialog() {
     @keydown.enter="dialogOpen = true"
     @keydown.space.prevent="dialogOpen = true"
   >
-    {{ displayValue ?? modelValue }}
+    <JustifiedText v-if="lines" :lines="lines" />
+    <template v-else>{{ modelValue }}</template>
 
     <q-dialog v-model="dialogOpen" @before-show="draft = modelValue">
       <q-card class="desc-dialog column no-wrap">

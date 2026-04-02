@@ -68,7 +68,7 @@ export function sectionPageCount(section: Section): number {
   const step = section.step;
   const layout = measureDescription(step.description || "");
   const pages = filterCoverFromPages(step.pages, step.cover, layout.type === "short");
-  return 1 + pages.length + layout.continuationTexts.length;
+  return 1 + pages.length + layout.continuationLines.length;
 }
 
 /** Group map ranges by the ID of their first overlapping step. */

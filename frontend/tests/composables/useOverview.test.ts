@@ -72,6 +72,15 @@ describe("useOverview", () => {
     ]);
   });
 
+  it("excludes countries with code '00'", () => {
+    const steps = [
+      makeStep({ location: { lat: 0, lon: 0, name: "Unknown", detail: "Unknown", country_code: "00" } }),
+      makeStep({ id: 2, location: { lat: 52.52, lon: 13.4, name: "Berlin", detail: "Germany", country_code: "DE" } }),
+    ];
+    const overview = useOverview(steps, [], null, null);
+    expect(overview.countries).toEqual([{ code: "DE", detail: "Germany" }]);
+  });
+
   it("finds coldest and hottest steps", () => {
     const steps = [
       makeStep({

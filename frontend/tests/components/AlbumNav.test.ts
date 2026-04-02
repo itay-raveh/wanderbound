@@ -9,10 +9,10 @@ import type { DateRange } from "@/client";
 vi.mock("@/composables/useTextMeasure", () => ({
   measureDescription: (text: string) => {
     if (!text || text.length < 100)
-      return { type: "short", mainPageText: text || "", continuationTexts: [] };
+      return { type: "short", mainLines: null, continuationLines: [] };
     if (text.length < 500)
-      return { type: "long", mainPageText: text, continuationTexts: [] };
-    return { type: "extra-long", mainPageText: text.slice(0, 500), continuationTexts: [text.slice(500)] };
+      return { type: "long", mainLines: null, continuationLines: [] };
+    return { type: "extra-long", mainLines: null, continuationLines: [[]] };
   },
 }));
 

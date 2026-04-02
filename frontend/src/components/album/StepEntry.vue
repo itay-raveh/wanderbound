@@ -54,7 +54,7 @@ const totalPhotos = computed(() =>
         <StepMainPage
           :step="step"
           :description-type="desc.type"
-          :main-page-text="desc.mainPageText"
+          :main-lines="desc.mainLines"
           @update:name="saveField({ name: $event })"
           @update:description="saveField({ description: $event })"
         />
@@ -62,9 +62,9 @@ const totalPhotos = computed(() =>
       </div>
 
       <StepTextPage
-        v-for="(text, i) in desc.continuationTexts"
+        v-for="(pageLines, i) in desc.continuationLines"
         :key="`text-${i}`"
-        :text="text"
+        :lines="pageLines"
         :description="step.description ?? ''"
         @update:description="saveField({ description: $event })"
       />

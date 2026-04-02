@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import type { DescriptionType } from "@/composables/useTextMeasure";
+import type { DescriptionType, JustifiedLine } from "@/composables/useTextMeasure";
 import { useI18n } from "vue-i18n";
 import { symOutlinedImage } from "@quasar/extras/material-symbols-outlined";
 import EditableText from "../EditableText.vue";
@@ -13,7 +13,7 @@ const { t } = useI18n();
 const props = defineProps<{
   step: Step;
   descriptionType: DescriptionType;
-  mainPageText: string;
+  mainLines?: JustifiedLine[] | null;
 }>();
 
 const emit = defineEmits<{
@@ -29,7 +29,7 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
     <StepMetaPanel
       :step="step"
       :description-type="descriptionType"
-      :main-page-text="mainPageText"
+      :lines="mainLines"
       :compact="isLongDesc"
       class="meta-side"
       @update:name="emit('update:name', $event)"
@@ -38,12 +38,12 @@ const isLongDesc = computed(() => props.descriptionType !== "short");
 
     <div class="content-panel">
       <EditableText
-        v-if="isLongDesc && mainPageText"
+        v-if="isLongDesc && step.description"
         :model-value="step.description ?? ''"
         multiline
         dir="auto"
         class="text-body-columns description-full"
-        :display-value="mainPageText"
+        :lines="mainLines"
         @update:model-value="emit('update:description', $event)"
       />
       <template v-else>

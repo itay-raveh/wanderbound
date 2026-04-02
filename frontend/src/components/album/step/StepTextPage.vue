@@ -1,8 +1,9 @@
 <script lang="ts" setup>
+import type { JustifiedLine } from "@/composables/useTextMeasure";
 import EditableText from "../EditableText.vue";
 
 defineProps<{
-  text: string;
+  lines: JustifiedLine[];
   description: string;
 }>();
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
       multiline
       dir="auto"
       class="text-body-columns text-page-body"
-      :display-value="text"
+      :lines="lines"
       @update:model-value="emit('update:description', $event)"
     />
   </div>

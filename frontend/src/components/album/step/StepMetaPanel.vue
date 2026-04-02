@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import type { DescriptionType } from "@/composables/useTextMeasure";
+import type { DescriptionType, JustifiedLine } from "@/composables/useTextMeasure";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";
 import { getCountryColor } from "../colors";
@@ -15,7 +15,7 @@ import { useAlbum } from "@/composables/useAlbum";
 const props = defineProps<{
   step: Step;
   descriptionType: DescriptionType;
-  mainPageText: string;
+  lines?: JustifiedLine[] | null;
   compact?: boolean;
 }>();
 
@@ -118,7 +118,7 @@ const dateStr = computed(() => {
       :placeholder="t('album.descriptionPlaceholder')"
       dir="auto"
       class="description"
-      :display-value="mainPageText"
+      :lines="lines"
       @update:model-value="emit('update:description', $event)"
     />
 
