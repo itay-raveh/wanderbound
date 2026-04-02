@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix map lines.
 - [ ] Fix photo focus.
 - [ ] Critique overview page.
 - [ ] Critique step main pages.

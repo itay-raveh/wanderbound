@@ -122,12 +122,10 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
 
     const el = document.createElement("div");
     el.className = FLIGHT_ICON_CLASS;
-    el.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" style="
-      color: rgba(255,255,255,0.95);
-      transform: rotate(${90 - angle}deg);
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-    "><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg>`;
-    new mapboxgl.Marker({ element: el }).setLngLat(midCoord).addTo(m);
+    el.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg>`;
+    new mapboxgl.Marker({ element: el, rotation: 90 - angle, rotationAlignment: "map" })
+      .setLngLat(midCoord)
+      .addTo(m);
   }
 }
 
@@ -146,26 +144,27 @@ function drawHike(
   const hikeColor = opts.color ?? DEFAULT_COUNTRY_COLOR;
 
   if (!opts.faint) {
-    // Dark stroke behind the colored line for contrast on satellite imagery
-    addLine(m, `${id}-stroke`, lineFeature(coords), {
-      "line-color": "rgba(0, 0, 0, 0.5)",
-      "line-width": 7,
-      "line-opacity": 1,
+    // Dark soft glow — visible on snow/ice; colored line handles dark terrain
+    addLine(m, `${id}-glow`, lineFeature(coords), {
+      "line-color": "#000000",
+      "line-width": 8,
+      "line-blur": 5,
+      "line-opacity": 0.35,
     });
   }
 
   addLine(m, id, lineFeature(coords), {
-    "line-color": opts.faint ? "rgba(255, 255, 255, 0.75)" : hikeColor,
-    "line-width": opts.faint ? 1.5 : 4,
+    "line-color": opts.faint ? "rgba(255, 255, 255, 0.6)" : hikeColor,
+    "line-width": opts.faint ? 1 : 3,
     "line-opacity": opts.faint ? FAINT_OPACITY : 1,
   });
 
   if (!opts.faint && coords.length >= 2 && !opts.draggableEndpoints) {
     const endpointPaint: mapboxgl.CirclePaint = {
-      "circle-radius": 6,
+      "circle-radius": 3.5,
       "circle-color": hikeColor,
-      "circle-stroke-color": "rgba(0,0,0,0.4)",
-      "circle-stroke-width": 2,
+      "circle-stroke-color": "rgba(0,0,0,0.25)",
+      "circle-stroke-width": 1,
     };
     addCircle(m, `${id}-start-pt`, coords[0]!, endpointPaint);
     addCircle(m, `${id}-end-pt`, coords[coords.length - 1]!, endpointPaint);
@@ -186,13 +185,13 @@ const ROUTE_STYLES: Record<"driving" | "walking", RouteStyle> = {
   driving: {
     sourceId: `${LAYER_PREFIX}drive`,
     shadowId: `${LAYER_PREFIX}drive-shadow`,
-    width: 4, shadowWidth: 12, shadowOpacity: 0.7,
+    width: 3.5, shadowWidth: 8, shadowOpacity: 0.35,
   },
   walking: {
     sourceId: `${LAYER_PREFIX}walk`,
     shadowId: `${LAYER_PREFIX}walk-shadow`,
-    width: 3, shadowWidth: 10, shadowOpacity: 0.6,
-    dasharray: [2, 3],
+    width: 2.5, shadowWidth: 6, shadowOpacity: 0.3,
+    dasharray: [1, 2],
   },
 };
 
@@ -219,13 +218,13 @@ function drawRouteLayers(
       addLine(m, style.shadowId, data, {
         "line-color": "#000000",
         "line-width": style.shadowWidth,
-        "line-blur": 8,
+        "line-blur": 4,
         "line-opacity": style.shadowOpacity,
       });
     }
     addLine(m, style.sourceId, data, {
-      "line-color": "#ffffff",
-      "line-width": faint ? 1.5 : style.width,
+      "line-color": "rgba(255, 255, 255, 0.85)",
+      "line-width": faint ? 1 : style.width,
       "line-opacity": faint ? FAINT_OPACITY : 1,
       ...(style.dasharray ? { "line-dasharray": style.dasharray } : {}),
     });
@@ -293,7 +292,7 @@ export function drawSegmentsAndMarkers(
             if (c.length < 2) return;
             feature.geometry.coordinates = c;
             setSourceData(m, id, feature);
-            setSourceData(m, `${id}-stroke`, feature);
+            setSourceData(m, `${id}-glow`, feature);
           };
           hikeEndpoints.push(
             { coord: coords[0]!, handle: "start", updateLine },
@@ -316,12 +315,21 @@ export function drawSegmentsAndMarkers(
   // Draw all driving/walking as batched layers (single source per kind).
   drawRouteLayers(m, routeBuckets, faint);
 
+  // Scale markers: large on sparse maps, compact on dense ones.
+  // 3rem at 1 step, shrinks ~0.07rem per step, floors at 1.25rem.
+  const markerRem = Math.max(1.25, 3 - steps.length * 0.07);
+  const markerSize = `${markerRem}rem`;
+
   for (const step of steps) {
     const lngLat: [number, number] = [step.location.lon, step.location.lat];
     allCoords.push(lngLat);
 
     const el = document.createElement("div");
     el.className = MARKER_CLASS;
+    el.style.width = markerSize;
+    el.style.height = markerSize;
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", step.name);
     if (step.cover) {
       const coverPath = posterPath(step.cover);
       el.style.backgroundImage = `url(${mediaThumbUrl(coverPath, albumId)})`;

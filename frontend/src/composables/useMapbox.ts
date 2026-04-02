@@ -59,6 +59,10 @@ export function useMapbox(options: UseMapboxOptions) {
         config: {
           basemap: {
             showPointOfInterestLabels: false,
+            showRoadsAndTransit: false,
+            showRoadLabels: false,
+            showPedestrianRoads: false,
+            showTransitLabels: false,
           },
         },
       });

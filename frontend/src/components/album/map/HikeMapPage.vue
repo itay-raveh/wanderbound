@@ -8,7 +8,7 @@ import { setupBoundaryHandles } from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { useUserQuery, KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
-import { getCountryColor } from "../colors";
+import { getCountryColor, ensureSatelliteContrast } from "../colors";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
@@ -56,8 +56,10 @@ onUnmounted(() => {
 });
 
 const countryColor = computed(() => {
-  if (!props.steps.length) return getCountryColor({}, "");
-  return getCountryColor(colors.value, props.steps[0]!.location.country_code);
+  const raw = props.steps.length
+    ? getCountryColor(colors.value, props.steps[0]!.location.country_code)
+    : getCountryColor({}, "");
+  return ensureSatelliteContrast(raw);
 });
 
 /** Elevation samples at regular intervals along the path. */
@@ -206,8 +208,13 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
     }
 
     if (shouldFit) {
-      // Pad bottom so the path stays above the elevation overlay
-      fitBounds(allCoords, { top: 80, right: 80, bottom: 250, left: 80 });
+      // Pad bottom so the path stays above the elevation overlay.
+      // The chart SVG has a 500:70 aspect ratio; the gradient fade above
+      // it adds roughly another half-chart of hazard zone.
+      const el = container.value;
+      const chartH = el ? el.clientWidth * (70 / 500) : 110;
+      const bottomPad = Math.round(chartH * 1.5);
+      fitBounds(allCoords, { top: 80, right: 80, bottom: bottomPad, left: 80 });
     }
   } catch (e) {
     console.warn("[hike-map] segment drawing failed:", e);
@@ -264,14 +271,18 @@ watch(fullHikeSegment, () => {
 
 <template>
   <div ref="hike-map" role="img" :aria-label="`${t('hike.mapLabel')} – ${stats.distance} ${distanceUnit}`" class="page-container relative-position overflow-hidden">
-    <div class="hike-overlay">
-      <span class="text-h6">{{ stats.distance }} {{ distanceUnit }}</span>
-      <span class="text-h6">{{ stats.duration }}</span>
-      <span v-if="stats.elevGain" class="text-h6"
-        >{{ stats.elevGain }} {{ elevationUnit }}+</span
-      >
+    <div class="stats-block">
+      <div class="stat-distance" :style="{ color: countryColor }">
+        {{ stats.distance }} {{ distanceUnit }}
+      </div>
+      <div class="stat-meta">
+        {{ stats.duration }}
+        <template v-if="stats.elevGain">
+          <span class="stat-sep">&middot;</span>
+          +{{ stats.elevGain }} {{ elevationUnit }}
+        </template>
+      </div>
     </div>
-
     <div class="elevation-overlay">
       <ElevationProfile
         :points="elevationSamples"
@@ -284,24 +295,71 @@ watch(fullHikeSegment, () => {
 </template>
 
 <style lang="scss" scoped>
-.hike-overlay {
-  position: absolute;
-  top: var(--gap-lg);
-  left: var(--gap-lg);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border-radius: var(--radius-md);
-  padding: var(--gap-md) var(--gap-lg);
-  display: flex;
-  gap: var(--gap-lg);
-  z-index: 1;
-}
-
-// Chart overlay pinned to bottom - the SVG includes its own gradient bg
+// Chart panel pinned to bottom. Gradient starts well above the chart
+// content so all ticks/labels sit in the fully-dark zone, and extends
+// past the SVG bottom to eliminate any satellite sliver at the page edge.
 .elevation-overlay {
   position: absolute;
-  bottom: 0;
+  bottom: -0.25rem;
   left: 0;
   right: 0;
   z-index: 1;
+  padding-top: 0;
+  padding-bottom: var(--gap-md);
+  /* rtl:ignore */
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--bg) 88%, transparent),
+      color-mix(in srgb, var(--bg) 70%, transparent) 4%,
+      transparent 12%
+    ),
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--bg) 97%, transparent),
+      color-mix(in srgb, var(--bg) 95%, transparent) 15%,
+      color-mix(in srgb, var(--bg) 88%, transparent) 35%,
+      color-mix(in srgb, var(--bg) 65%, transparent) 60%,
+      transparent
+    );
+  print-color-adjust: exact;
+}
+
+// Floating stats pill in the top-right corner of the map page.
+// Separate from the chart overlay — readable over any satellite imagery.
+.stats-block {
+  position: absolute;
+  z-index: 2;
+  /* rtl:ignore */
+  top: var(--gap-md);
+  /* rtl:ignore */
+  right: var(--gap-md);
+  /* rtl:ignore */
+  text-align: right;
+  /* rtl:ignore */
+  padding: var(--gap-sm) var(--gap-md);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border-radius: var(--radius-sm);
+  print-color-adjust: exact;
+}
+
+.stat-distance {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: var(--type-xl);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+}
+
+.stat-meta {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--type-xs);
+  color: var(--text-bright);
+  line-height: 1.3;
+}
+
+.stat-sep {
+  opacity: 0.4;
 }
 </style>

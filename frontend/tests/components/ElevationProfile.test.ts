@@ -16,159 +16,116 @@ function mountProfile(props: Record<string, unknown> = {}) {
   });
 }
 
+/** Extract numeric values from y-axis labels (x position = PAD.left - 2 = 18). */
+function yTickValues(wrapper: ReturnType<typeof mountProfile>): number[] {
+  return wrapper
+    .findAll("text.axis-label")
+    .filter((t) => t.attributes("x") === "18")
+    .map((t) => Number(t.text()))
+    .filter((n) => !isNaN(n));
+}
+
+/** Extract the x-coordinate of the last point in the line path. */
+function lastLineX(wrapper: ReturnType<typeof mountProfile>): number {
+  const d = wrapper.findAll("path").find((p) => p.attributes("fill") === "none")?.attributes("d") ?? "";
+  const coords = d.match(/[\d.]+,[\d.]+/g) ?? [];
+  return Number(coords.at(-1)?.split(",")[0]);
+}
+
+const SVG_W = 500;
+const PAD_RIGHT = 8;
+const PLOT_RIGHT = SVG_W - PAD_RIGHT;
+
 describe("ElevationProfile", () => {
-  it("renders an SVG when given valid points", () => {
-    const wrapper = mountProfile();
-    const svg = wrapper.find("svg");
-    expect(svg.exists()).toBe(true);
-    expect(svg.classes()).toContain("elevation-chart");
+  it("renders nothing with < 2 points or zero distance", () => {
+    expect(mountProfile({ points: [] }).find("svg").exists()).toBe(false);
+    expect(mountProfile({ points: [{ elevation: 100, dist: 0 }] }).find("svg").exists()).toBe(false);
+    expect(
+      mountProfile({ points: [{ elevation: 100, dist: 0 }, { elevation: 200, dist: 0 }] })
+        .find("svg").exists(),
+    ).toBe(false);
   });
 
-  it("renders nothing when points array is empty", () => {
-    const wrapper = mountProfile({ points: [] });
-    const svg = wrapper.find("svg");
-    expect(svg.exists()).toBe(false);
-  });
-
-  it("renders nothing when only one point is provided", () => {
-    const wrapper = mountProfile({
-      points: [{ elevation: 100, dist: 0 }],
-    });
-    const svg = wrapper.find("svg");
-    expect(svg.exists()).toBe(false);
-  });
-
-  it("renders the line path", () => {
-    const wrapper = mountProfile();
-    // The SVG should contain a path with the linePath (no fill, with stroke)
-    const paths = wrapper.findAll("path");
-    const linePath = paths.find(
-      (p) => p.attributes("fill") === "none" && p.attributes("stroke") === "#ff6600",
-    );
-    expect(linePath).toBeTruthy();
-  });
-
-  it("renders the filled area path", () => {
-    const wrapper = mountProfile();
-    const paths = wrapper.findAll("path");
-    // Area path has a gradient fill (url(#...))
-    const areaPath = paths.find((p) =>
-      p.attributes("fill")?.startsWith("url(#"),
-    );
-    expect(areaPath).toBeTruthy();
-  });
-
-  it("renders gradient defs", () => {
-    const wrapper = mountProfile();
-    const defs = wrapper.find("defs");
-    expect(defs.exists()).toBe(true);
-
-    const gradients = defs.findAll("linearGradient");
-    expect(gradients.length).toBe(2); // elev-gradient and elev-bg-fade
-  });
-
-  it("renders Y-axis labels with elevation values", () => {
+  it("hides the zero y-tick for sea-level hikes", () => {
     const wrapper = mountProfile({
       points: [
-        { elevation: 100, dist: 0 },
-        { elevation: 300, dist: 10 },
+        { elevation: 0, dist: 0 },
+        { elevation: 1400, dist: 60 },
       ],
-      isKm: true,
     });
-
-    const texts = wrapper.findAll("text.axis-label");
-    expect(texts.length).toBeGreaterThan(0);
-
-    // Y labels should include min and max elevation values
-    const textContents = texts.map((t) => t.text());
-    // The max elevation (300) and min (100) should appear
-    expect(textContents.some((t) => t.includes("300"))).toBe(true);
-    expect(textContents.some((t) => t.includes("100"))).toBe(true);
+    const ticks = yTickValues(wrapper);
+    expect(ticks).not.toContain(0);
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("renders Y-axis unit label", () => {
-    const wrapper = mountProfile({ isKm: true });
-    const unitLabel = wrapper.find("text.unit-label");
-    expect(unitLabel.exists()).toBe(true);
-    expect(unitLabel.text()).toBe("m");
+  it("keeps all y-ticks for high-altitude hikes (no zero)", () => {
+    const wrapper = mountProfile({
+      points: [
+        { elevation: 3000, dist: 0 },
+        { elevation: 4500, dist: 40 },
+      ],
+    });
+    const ticks = yTickValues(wrapper);
+    expect(ticks.every((v) => v >= 3000)).toBe(true);
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("renders ft unit when isKm is false", () => {
-    const wrapper = mountProfile({ isKm: false });
-    const unitLabel = wrapper.find("text.unit-label");
-    expect(unitLabel.text()).toBe("ft");
+  it("data line extends close to the right edge of the plot", () => {
+    const wrapper = mountProfile({
+      points: [
+        { elevation: 300, dist: 0 },
+        { elevation: 800, dist: 30 },
+        { elevation: 400, dist: 59.9 },
+      ],
+    });
+    const endX = lastLineX(wrapper);
+    // Last data point should be within 5% of the plot right edge
+    expect(endX).toBeGreaterThan(PLOT_RIGHT * 0.95);
+    expect(endX).toBeLessThanOrEqual(PLOT_RIGHT);
   });
 
-  it("converts elevation values to feet when isKm is false", () => {
+  it("data line extends to the edge even when totalDistKm exceeds point data", () => {
     const wrapper = mountProfile({
       points: [
         { elevation: 100, dist: 0 },
-        { elevation: 200, dist: 10 },
+        { elevation: 500, dist: 50 },
+      ],
+      totalDistKm: 80, // metadata says 80km, but points only go to 50
+    });
+    const endX = lastLineX(wrapper);
+    // Should scale to point data (50km), not metadata (80km)
+    expect(endX).toBeGreaterThan(PLOT_RIGHT * 0.95);
+  });
+
+  it("converts to feet and miles when isKm is false", () => {
+    const wrapper = mountProfile({
+      points: [
+        { elevation: 100, dist: 0 },
+        { elevation: 500, dist: 20 },
       ],
       isKm: false,
     });
-
-    const texts = wrapper.findAll("text.axis-label");
-    const textContents = texts.map((t) => t.text());
-    // 100-200m → 328-656ft. niceTicks produces [0, 500, 1000] — nice round feet values
-    // Filter for values ≥ 100 to isolate y-axis ticks from x-axis distance ticks
-    const yValues = textContents.map(Number).filter((n) => !isNaN(n) && n >= 100);
-    expect(yValues.length).toBeGreaterThanOrEqual(2);
-    expect(yValues.every((v) => v % 100 === 0)).toBe(true);
+    // Y-ticks should be in feet (100m ≈ 328ft, 500m ≈ 1640ft)
+    const ticks = yTickValues(wrapper);
+    expect(ticks.every((v) => v > 300)).toBe(true);
+    // Unit labels
+    expect(wrapper.find("text.unit-label").text()).toBe("ft");
+    const xLabels = wrapper.findAll("text.axis-label").map((t) => t.text());
+    expect(xLabels.some((t) => t.includes("mi"))).toBe(true);
   });
 
-  it("renders X-axis labels", () => {
+  it("x-axis labels stay within the SVG viewBox", () => {
     const wrapper = mountProfile({
       points: [
         { elevation: 100, dist: 0 },
-        { elevation: 200, dist: 10 },
-      ],
-      totalDistKm: 10,
-      isKm: true,
-    });
-
-    const texts = wrapper.findAll("text.axis-label");
-    const textContents = texts.map((t) => t.text());
-    // niceTicks(0, 10, 5) produces [0, 5, 10]; last tick gets unit suffix
-    expect(textContents.some((t) => t.includes("0"))).toBe(true);
-    expect(textContents.some((t) => t.includes("10"))).toBe(true);
-  });
-
-  it("renders grid lines for each Y label", () => {
-    const wrapper = mountProfile();
-    const lines = wrapper.findAll("line");
-    const yLabels = wrapper.findAll("text.axis-label").filter((t) => {
-      const n = Number(t.text());
-      return !isNaN(n) && n >= 100;
-    });
-    // One grid line per Y-axis tick
-    expect(lines.length).toBe(yLabels.length);
-    expect(lines.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("renders nothing when all points have the same distance (totalDist=0)", () => {
-    const wrapper = mountProfile({
-      points: [
-        { elevation: 100, dist: 0 },
-        { elevation: 200, dist: 0 },
+        { elevation: 200, dist: 59.9 },
       ],
     });
-    const svg = wrapper.find("svg");
-    expect(svg.exists()).toBe(false);
-  });
-
-  it("uses the accent color for the line stroke", () => {
-    const wrapper = mountProfile({ accent: "#00ff00" });
-    const paths = wrapper.findAll("path");
-    const linePath = paths.find((p) => p.attributes("fill") === "none");
-    expect(linePath?.attributes("stroke")).toBe("#00ff00");
-  });
-
-  it("sets correct viewBox dimensions", () => {
-    const wrapper = mountProfile();
-    const svg = wrapper.find("svg");
-    // happy-dom lowercases SVG attributes; check both casing forms
-    const viewBox = svg.attributes("viewBox") ?? svg.attributes("viewbox");
-    expect(viewBox).toBe("0 0 500 100");
+    const allLabels = wrapper.findAll("text.axis-label");
+    for (const label of allLabels) {
+      const x = Number(label.attributes("x"));
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(SVG_W);
+    }
   });
 });

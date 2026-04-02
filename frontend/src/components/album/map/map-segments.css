@@ -11,47 +11,83 @@
 /* rtl:end:ignore */
 
 .map-step-marker {
-  width: 2.25rem;
-  height: 2.25rem;
+  /* width/height set inline by drawSegmentsAndMarkers (scales with step count) */
   border-radius: 50%;
-  border: 0.125rem solid white;
+  border: 0.125rem solid rgba(255, 255, 255, 0.9);
   background-color: #333;
   background-size: cover;
   background-position: center;
-  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.5);
+  outline: 0.0625rem solid rgba(0, 0, 0, 0.2);
   cursor: default;
 }
 
 .map-flight-icon {
   pointer-events: none;
   line-height: 1;
+  color: rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(0 0.0625rem 0.125rem rgba(0, 0, 0, 0.5));
 }
 
 .hike-handle {
-  width: 1.125rem;
-  height: 1.125rem;
-  background: white;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--surface);
   border: 0.1875rem solid var(--q-primary);
-  border-radius: 50%;
+  border-radius: 0.375rem;
   cursor: grab;
-  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5);
   transition: transform var(--duration-fast) ease;
+  animation: handle-pulse 1.5s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Grip icon — two thick horizontal bars */
+.hike-handle::after {
+  content: "";
+  display: block;
+  width: 0.75rem;
+  height: 0.5rem;
+  border-top: 0.125rem solid var(--q-primary);
+  border-bottom: 0.125rem solid var(--q-primary);
+}
+
+@keyframes handle-pulse {
+  0% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(25, 118, 210, 0.5); }
+  50% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5), 0 0 0 0.75rem rgba(25, 118, 210, 0); }
+  100% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hike-handle {
+    transition: none;
+    animation: none;
+  }
 }
 
 .hike-handle:hover {
-  transform: scale(1.3);
+  transform: scale(1.15);
 }
 
 .hike-handle.dragging {
   cursor: grabbing;
-  transform: scale(1.2);
+  transform: scale(1.1);
 }
 
 .hike-handle.static {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0.0625rem solid rgba(255, 255, 255, 0.7);
   cursor: default;
-  opacity: 0.7;
+  animation: none;
+  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.3);
+}
+
+.hike-handle.static::after {
+  display: none;
 }
 
 .hike-handle.static:hover {
