@@ -1,6 +1,13 @@
 /** Default accent color when no country color is available. */
 export const DEFAULT_COUNTRY_COLOR = "#4A90D9";
 
+/**
+ * Theme-independent contrast text colors (matching --text-bright in each theme).
+ * Used when text color must adapt to a dynamic background rather than the app theme.
+ */
+export const CONTRAST_TEXT_DARK = "#111827";
+export const CONTRAST_TEXT_LIGHT = "#f0f0f5";
+
 export const STAT_COLORS = {
   distance: "#00897b",
   cold: "#42a5f5",

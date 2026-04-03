@@ -58,10 +58,6 @@ const emit = defineEmits<{
 
 .cover-media {
   cursor: default;
-
-  &:active {
-    cursor: default;
-  }
 }
 
 .topo-filler {

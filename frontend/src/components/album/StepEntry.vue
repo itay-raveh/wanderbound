@@ -152,7 +152,7 @@ const totalPhotos = computed(() =>
 
 .add-zone {
   width: calc(var(--page-width) * var(--editor-zoom));
-  margin: var(--gap-md) auto 0;
+  margin: var(--gap-md) auto var(--gap-lg);
   min-height: 3.5rem;
 }
 

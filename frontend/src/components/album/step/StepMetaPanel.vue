@@ -3,7 +3,7 @@ import type { Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";
-import { getCountryColor } from "../colors";
+import { getCountryColor, CONTRAST_TEXT_DARK, CONTRAST_TEXT_LIGHT } from "../colors";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { colors as qColors, Dark } from "quasar";
@@ -32,6 +32,15 @@ const countryColor = computed(() => {
   const hex = getCountryColor(colors.value, props.step.location.country_code);
   return qColors.lighten(hex, Dark.isActive ? -20 : 20);
 });
+
+const badgeTextColor = computed(() =>
+  qColors.brightness(countryColor.value) > 128 ? CONTRAST_TEXT_DARK : CONTRAST_TEXT_LIGHT,
+);
+
+/** Derive alt text from Basmilius weather icon names (e.g. "partly-cloudy-day" → "partly cloudy"). */
+function weatherAlt(icon: string): string {
+  return icon.replace(/-day|-night/g, "").replace(/-/g, " ");
+}
 
 function toDMS(decimal: number, isLat: boolean): string {
   const abs = Math.abs(decimal);
@@ -130,11 +139,11 @@ const dateStr = computed(() => {
 
         <!-- Weather -->
         <div v-if="step.weather?.day" class="stat-col weather-col">
-          <div v-if="step.weather?.night" class="weather-row weather-night">
+          <div v-if="step.weather?.night" class="weather-row">
             <img
               :src="weatherIconUrl(step.weather.night.icon)"
               class="weather-icon-sm"
-              alt=""
+              :alt="weatherAlt(step.weather.night.icon)"
             />
             <span class="stat-label text-muted">{{
               formatTemp(step.weather.night.temp)
@@ -144,7 +153,7 @@ const dateStr = computed(() => {
             <img
               :src="weatherIconUrl(step.weather.day.icon)"
               class="weather-icon-lg"
-              alt=""
+              :alt="weatherAlt(step.weather.day.icon)"
             />
             <span class="stat-value text-bright">{{
               formatTemp(step.weather.day.temp)
@@ -164,6 +173,11 @@ const dateStr = computed(() => {
       <!-- Progress bar with day badge -->
       <div
         class="progress-section relative-position"
+        role="progressbar"
+        :aria-valuenow="dayNumber"
+        aria-valuemin="1"
+        :aria-valuemax="totalDays"
+        :aria-label="t('album.day', { n: dayNumber })"
         :style="{ '--progress': `${progressPercent}%` }"
       >
         <div class="progress-track">
@@ -175,7 +189,7 @@ const dateStr = computed(() => {
         <div class="badge-rail">
           <div class="badge-group">
             <div class="badge-arrow" />
-            <div class="step-badge text-bright">{{ t("album.day", { n: dayNumber }) }}</div>
+            <div class="step-badge">{{ t("album.day", { n: dayNumber }) }}</div>
           </div>
         </div>
       </div>
@@ -187,7 +201,8 @@ const dateStr = computed(() => {
 .meta-panel {
   display: flex;
   flex-direction: column;
-  padding: var(--page-inset-y) var(--page-inset-y) 0 var(--page-inset-x);
+  padding-block: var(--page-inset-y) 0;
+  padding-inline: var(--page-inset-x) var(--page-inset-y);
   box-sizing: border-box;
 }
 
@@ -202,7 +217,6 @@ const dateStr = computed(() => {
   width: 5rem;
   height: 5rem;
   flex-shrink: 0;
-  opacity: 0.85;
 }
 
 .coords {
@@ -210,8 +224,9 @@ const dateStr = computed(() => {
   flex-direction: column;
   gap: var(--gap-xs);
   font-family: var(--font-mono);
-  font-size: var(--type-xs);
-  font-weight: 500;
+  font-size: var(--type-sm);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-mono);
   padding-top: var(--gap-sm);
   white-space: pre;
@@ -255,9 +270,9 @@ const dateStr = computed(() => {
   font-family: var(--font-album-body);
   font-size: var(--type-xs);
   line-height: 1.65;
-  color: var(--text);
   white-space: pre-wrap;
   text-align: justify;
+  hyphens: auto;
   overflow: hidden;
   flex: 1;
   margin-bottom: var(--gap-lg);
@@ -300,6 +315,7 @@ const dateStr = computed(() => {
 .stat-value {
   font-size: var(--type-xl);
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   line-height: 1.1;
   letter-spacing: var(--tracking-tight);
 }
@@ -312,10 +328,6 @@ const dateStr = computed(() => {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
-}
-
-.weather-night {
-  color: var(--text-muted);
 }
 
 .weather-icon-sm {
@@ -334,21 +346,23 @@ const dateStr = computed(() => {
 .progress-track {
   display: flex;
   width: 100%;
-  height: 0.25rem;
+  height: 0.375rem;
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--text) 10%, transparent);
   overflow: hidden;
+  print-color-adjust: exact;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: var(--radius-xs);
   background: v-bind(countryColor);
+  print-color-adjust: exact;
 }
 
 .badge-rail {
   position: relative;
-  height: calc(0.3125rem + 1.1rem);
+  height: calc(0.375rem + 1.3rem);
   margin-top: var(--gap-sm);
 }
 
@@ -365,19 +379,22 @@ const dateStr = computed(() => {
 .badge-arrow {
   width: 0;
   height: 0;
-  border-left: 0.3125rem solid transparent;
-  border-right: 0.3125rem solid transparent;
-  border-bottom: 0.3125rem solid v-bind(countryColor);
+  border-left: 0.375rem solid transparent;
+  border-right: 0.375rem solid transparent;
+  border-bottom: 0.375rem solid v-bind(countryColor);
+  print-color-adjust: exact;
 }
 
 .step-badge {
   margin-top: -0.0625rem;
-  font-size: var(--type-3xs);
+  font-size: var(--type-xs);
   font-weight: 700;
   padding: var(--gap-xs) var(--gap-md);
   border-radius: var(--radius-xs);
   white-space: nowrap;
   letter-spacing: var(--tracking-wide);
+  color: v-bind(badgeTextColor);
   background: v-bind(countryColor);
+  print-color-adjust: exact;
 }
 </style>
