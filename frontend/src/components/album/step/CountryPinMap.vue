@@ -4,6 +4,7 @@ import { toSvgMercator } from "@/utils/geo";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "../CountrySilhouette.vue";
+import { CONTRAST_TEXT_DARK, CONTRAST_TEXT_LIGHT } from "../colors";
 
 const props = defineProps<{
   countryCode: string;
@@ -17,6 +18,7 @@ const dotColor = computed(() => {
   if (!props.color) return "currentColor";
   return qColors.lighten(props.color, Dark.isActive ? 40 : -40);
 });
+const strokeColor = computed(() => Dark.isActive ? CONTRAST_TEXT_LIGHT : CONTRAST_TEXT_DARK);
 
 const pin = computed(() => {
   const code = props.countryCode.toLowerCase();
@@ -26,7 +28,7 @@ const pin = computed(() => {
   const w = b[2];
   const h = b[3];
   const diag = Math.sqrt(w * w + h * h);
-  const r = diag * 0.025;
+  const r = diag * 0.05;
   return { x, y, r };
 });
 
@@ -61,6 +63,8 @@ const viewBox = computed(() => {
       :cy="pin.y"
       :r="pin.r"
       :fill="dotColor"
+      :stroke="strokeColor"
+      :stroke-width="pin.r * 0.2"
     />
   </CountrySilhouette>
 </template>
