@@ -1,2 +1,7 @@
 * text=auto
 *.sh text eol=lf
+
+fixtures/demo/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+fixtures/demo/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+fixtures/demo/**/*.png filter=lfs diff=lfs merge=lfs -text
+fixtures/demo/**/*.webp filter=lfs diff=lfs merge=lfs -text
