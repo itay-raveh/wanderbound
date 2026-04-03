@@ -5,6 +5,7 @@ import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { useI18n } from "vue-i18n";
 import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary } from "@quasar/extras/material-icons";
+import ProgressBar from "@/components/ui/ProgressBar.vue";
 
 const props = defineProps<{
   trips: TripMeta[];
@@ -138,12 +139,15 @@ const overallPercent = computed(() => {
           </div>
 
           <!-- Overall progress bar -->
-          <div class="progress-track overflow-hidden" role="progressbar" :aria-valuenow="overallPercent" aria-valuemin="0" aria-valuemax="100" :aria-label="t('register.overallProgress')">
-            <div
-              class="progress-fill relative-position"
-              :style="{ transform: `scaleX(${overallPercent / 100})` }"
-            />
-          </div>
+          <ProgressBar
+            :progress="overallPercent / 100"
+            class="overall-progress"
+            role="progressbar"
+            :aria-valuenow="overallPercent"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-label="t('register.overallProgress')"
+          />
         </div>
       </div>
     </div>
@@ -310,43 +314,13 @@ const overallPercent = computed(() => {
   transform-origin: right;
 }
 
-.progress-track {
-  height: 0.25rem;
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+.overall-progress {
   margin-top: var(--gap-md);
-}
-
-.progress-fill {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-xs);
-  background: var(--q-primary);
-  transform-origin: left;
-  transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:dir(rtl) .progress-fill {
-  transform-origin: right;
-}
-
-.progress-fill::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--text-bright) 20%, transparent),
-    transparent
-  );
-  animation: shimmer 2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .trip-dot-pulse,
   .phase.active .phase-icon,
-  .progress-fill::after,
   .phase-check {
     animation: none;
   }
