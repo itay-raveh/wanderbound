@@ -18,8 +18,7 @@ A test should break only when behavior breaks. Tests verify outcomes at boundari
    - Frontend: Vitest + MSW. Composables that interact with API, Pinia Colada query/mutation flows, component rendering with mocked network
 
 4. **E2E tests** (few, high-value) — test what users actually do:
-   - Fast suite (mocked API): navigation, routing, auth flows — every commit
-   - Full suite (real backend): drag-drop, photo focus, scroll, undo/redo — pre-merge/nightly
+   - Mocked API, Playwright: navigation, routing, auth flows — every commit
 
 ## What NOT to test
 
@@ -36,8 +35,7 @@ The test must fail without the fix and pass with it. No exceptions.
 
 - **Unit tests**: synthetic data only. Factory functions build exactly what each test needs.
 - **Integration tests**: JSON fixtures from `fixtures/trips/` for real-world regression. Synthetic data for everything else.
-- **E2E tests (full)**: demo trip from `fixtures/demo/` seeded via API.
-- **E2E tests (fast)**: shared mock objects from `frontend/tests/fixtures/mocks.ts`.
+- **E2E tests**: shared mock objects from `frontend/tests/fixtures/mocks.ts`.
 
 ## Scope
 
@@ -65,6 +63,5 @@ Run only the tests relevant to the change:
 
 ## E2E (Playwright)
 
-- `e2e/fast/` — mocked API, runs every commit
-- `e2e/full/` — real backend, runs pre-merge/nightly
+- Tests live in `e2e/`, mocked API, runs every commit
 - Shared mock data imported from `tests/fixtures/mocks.ts`

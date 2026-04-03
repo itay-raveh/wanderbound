@@ -8,18 +8,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [
-    {
-      name: "fast",
-      testDir: "./e2e/fast",
-      use: { browserName: "chromium" },
-    },
-    {
-      name: "full",
-      testDir: "./e2e/full",
-      use: { browserName: "chromium" },
-    },
-  ],
+  testDir: "./e2e",
   webServer: {
     command: "bun run dev",
     url: "http://localhost:5173",

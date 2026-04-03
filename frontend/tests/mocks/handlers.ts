@@ -16,7 +16,6 @@ export {
   mockAlbum as defaultAlbum,
   mockMedia as defaultMedia,
   mockSteps as defaultSteps,
-  mockSegmentOutlines as defaultSegmentOutlines,
 } from "../fixtures/mocks";
 
 export const handlers = [

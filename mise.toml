@@ -32,11 +32,6 @@ description = "Run frontend E2E tests"
 dir = "frontend"
 run = "bun run test:e2e"
 
-[tasks."test:e2e:full"]
-description = "Run full E2E tests (real backend, pre-merge)"
-dir = "frontend"
-run = "bun run test:e2e:full"
-
 [tasks.test]
 description = "Run all tests"
 depends = ["test:backend", "test:frontend", "test:e2e"]

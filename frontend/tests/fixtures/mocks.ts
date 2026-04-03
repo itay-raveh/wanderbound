@@ -1,6 +1,3 @@
-// Single source of truth for test mock data.
-// Used by both Vitest MSW handlers and Playwright E2E fixtures.
-
 export const mockUser = {
   id: 1,
   google_sub: "g-1",
