@@ -12,9 +12,9 @@ import urllib.request
 import geopandas as gpd
 import shapely.affinity
 
-# 1. Download HIGH FIDELITY GeoJSON (10m)
-url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson"
-ne_filename = "ne_10m_admin_0_countries.geojson"
+# 1. Download medium-resolution GeoJSON (50m) — clean silhouettes for print
+url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
+ne_filename = "ne_50m_admin_0_countries.geojson"
 
 if not os.path.exists(ne_filename):
     print(f"Downloading {ne_filename} (this may take a moment)...")
