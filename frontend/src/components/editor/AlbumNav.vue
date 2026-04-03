@@ -308,6 +308,8 @@ watch(activeSectionKey, (key) => {
 </template>
 
 <style lang="scss" scoped>
+@use "nav/nav-item";
+
 .album-nav {
   --opacity-excluded: 0.45;
   --opacity-toggle-idle: 0.5;
@@ -362,52 +364,7 @@ watch(activeSectionKey, (key) => {
   margin-bottom: var(--gap-sm);
 }
 
-.nav-item {
-  appearance: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm-md);
-  width: 100%;
-  padding-block: var(--gap-md);
-  padding-inline: 2rem var(--gap-md-lg);
-  border: none;
-  border-inline-start: 0.1875rem solid transparent;
-  transition: background var(--duration-fast), border-color var(--duration-fast);
-
-  &:hover {
-    background: color-mix(in srgb, var(--text) 6%, transparent);
-  }
-
-  &:active {
-    background: color-mix(in srgb, var(--text) 10%, transparent);
-  }
-
-  &.visible {
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-    border-inline-start-color: var(--q-primary);
-
-    &:hover {
-      background: color-mix(in srgb, var(--q-primary) 18%, transparent);
-    }
-
-    &:active {
-      background: color-mix(in srgb, var(--q-primary) 24%, transparent);
-    }
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: -0.125rem;
-  }
-}
-
-// Extends .nav-item (added as a class in the template) with compact overrides.
+// Extends .nav-item (from _nav-item.scss partial) with compact header overrides.
 .header-item {
   gap: var(--gap-sm);
   padding: var(--gap-sm) var(--gap-md-lg);
@@ -421,12 +378,21 @@ watch(activeSectionKey, (key) => {
 
   &.visible {
     color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+    border-inline-start-color: var(--q-primary);
+
+    &:hover {
+      background: color-mix(in srgb, var(--q-primary) 18%, transparent);
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--q-primary) 24%, transparent);
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-item,
-  .nav-item {
+  .header-item {
     transition: none;
   }
 }

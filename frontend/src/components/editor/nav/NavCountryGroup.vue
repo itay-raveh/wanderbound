@@ -6,6 +6,7 @@ import { SHORT_DATE } from "@/utils/date";
 import { sectionKeyMatchesRange } from "../../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
+import { computed } from "vue";
 import NavStepItem from "./NavStepItem.vue";
 import NavMapItem from "./NavMapItem.vue";
 import {
@@ -37,22 +38,22 @@ const emit = defineEmits<{
   mapDateChange: [rangeIdx: number, range: DateRange];
 }>();
 
-function countryStepIds(): number[] {
-  return props.group.entries
+const countryStepIds = computed(() =>
+  props.group.entries
     .filter((e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step")
-    .map((e) => e.item.id);
-}
+    .map((e) => e.item.id),
+);
 
-function allExcluded(): boolean {
-  return countryStepIds().every((id) => props.excludedSet.has(id));
-}
+const allExcluded = computed(() =>
+  countryStepIds.value.every((id) => props.excludedSet.has(id)),
+);
 </script>
 
 <template>
   <q-expansion-item
     :model-value="open"
     dense
-    :header-class="['group-header', { 'group-excluded': allExcluded() }]"
+    :header-class="['group-header', { 'group-excluded': allExcluded }]"
     expand-icon-class="text-faint"
     :style="{ '--country-color': group.color }"
     @update:model-value="emit('toggleOpen')"
@@ -62,16 +63,16 @@ function allExcluded(): boolean {
         <img :src="flagUrl(group.code)" alt="" width="14" height="10" class="group-flag" />
       </q-item-section>
       <q-item-section class="group-name" dir="auto">{{ group.name }}</q-item-section>
-      <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-excluded': allExcluded() }]">
+      <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-excluded': allExcluded }]">
         <span class="group-dates-text">{{ group.dateRange }}</span>
         <button
           type="button"
           class="country-toggle"
-          :aria-label="allExcluded() ? t('nav.showAll') : t('nav.hideAll')"
+          :aria-label="allExcluded ? t('nav.showAll') : t('nav.hideAll')"
           @click.stop="emit('toggleCountry')"
         >
-          <q-icon :name="allExcluded() ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
-          <q-tooltip>{{ allExcluded() ? t("nav.showAll") : t("nav.hideAll") }}</q-tooltip>
+          <q-icon :name="allExcluded ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+          <q-tooltip>{{ allExcluded ? t("nav.showAll") : t("nav.hideAll") }}</q-tooltip>
         </button>
       </q-item-section>
     </template>

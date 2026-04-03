@@ -52,54 +52,7 @@ defineEmits<{
 </template>
 
 <style lang="scss" scoped>
-.nav-item {
-  appearance: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm-md);
-  width: 100%;
-  padding-block: var(--gap-md);
-  padding-inline: 2rem var(--gap-md-lg);
-  border: none;
-  border-inline-start: 0.1875rem solid transparent;
-  transition: background var(--duration-fast), border-color var(--duration-fast);
-
-  &:hover {
-    background: color-mix(in srgb, var(--text) 6%, transparent);
-  }
-
-  &:active {
-    background: color-mix(in srgb, var(--text) 10%, transparent);
-  }
-
-  &.visible {
-    background: color-mix(in srgb, var(--country-color) 18%, transparent);
-    border-inline-start-color: var(--country-color);
-
-    &:hover {
-      background: color-mix(in srgb, var(--country-color) 24%, transparent);
-    }
-
-    &:active {
-      background: color-mix(in srgb, var(--country-color) 28%, transparent);
-    }
-  }
-
-  &.excluded {
-    opacity: var(--opacity-excluded);
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: -0.125rem;
-  }
-}
+@use "nav-item";
 
 .item-thumb {
   width: 2.25rem;
@@ -196,7 +149,6 @@ defineEmits<{
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-item,
   .step-toggle {
     transition: none;
   }
