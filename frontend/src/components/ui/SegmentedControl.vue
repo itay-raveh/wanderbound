@@ -3,6 +3,7 @@ defineProps<{
   modelValue: T;
   options: { label: string; value: T; icon?: string }[];
   compact?: boolean;
+  ariaLabel?: string;
 }>();
 
 defineEmits<{
@@ -11,14 +12,14 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="seg-track" :class="{ compact }" role="group">
+  <div class="seg-track" :class="{ compact }" role="group" :aria-label="ariaLabel">
     <button
       v-for="option in options"
       :key="String(option.value)"
       class="seg-btn"
       :class="{ active: option.value === modelValue }"
       :aria-pressed="option.value === modelValue"
-      @click="$emit('update:modelValue', option.value)"
+      @click="option.value !== modelValue && $emit('update:modelValue', option.value)"
     >
       <q-icon v-if="option.icon" :name="option.icon" size="0.875rem" />
       {{ option.label }}

@@ -113,6 +113,7 @@ async function handleDelete() {
                 { label: t('settings.light'), value: false, icon: matLightMode },
                 { label: t('settings.dark'), value: true, icon: matDarkMode },
               ]"
+              :aria-label="t('settings.appearance')"
               @update:model-value="$q.dark.set($event)"
             />
           </section>
@@ -145,6 +146,7 @@ async function handleDelete() {
                   { label: t('overview.km'), value: true },
                   { label: t('overview.mi'), value: false },
                 ]"
+                :aria-label="t('settings.distance')"
                 compact
                 @update:model-value="patch({ unit_is_km: $event })"
               />
@@ -157,6 +159,7 @@ async function handleDelete() {
                   { label: '°C', value: true },
                   { label: '°F', value: false },
                 ]"
+                :aria-label="t('settings.temperature')"
                 compact
                 @update:model-value="patch({ temperature_is_celsius: $event })"
               />
