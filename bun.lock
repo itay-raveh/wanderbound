@@ -16,6 +16,7 @@
         "@sentry/vue": "^10.45.0",
         "@tanstack/vue-virtual": "^3.13.23",
         "@turf/along": "^7.3.4",
+        "@turf/bezier-spline": "^7.3.4",
         "@turf/distance": "^7.3.4",
         "@turf/helpers": "^7.3.4",
         "@turf/length": "^7.3.4",
@@ -446,6 +447,8 @@
     "@turf/along": ["@turf/along@7.3.4", "", { "dependencies": { "@turf/bearing": "7.3.4", "@turf/destination": "7.3.4", "@turf/distance": "7.3.4", "@turf/helpers": "7.3.4", "@turf/invariant": "7.3.4", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, "sha512-PvIoXin0I1t3nRwJz7uqR6fsxDMqdGwJq90qGOeqkNwlZqlF+5o2wKHPwYwi0RXZhLvxRP5qlbNIvV8ADdbWxw=="],
 
     "@turf/bearing": ["@turf/bearing@7.3.4", "", { "dependencies": { "@turf/helpers": "7.3.4", "@turf/invariant": "7.3.4", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, "sha512-zvFjapyFaOrM8nBtAND7f4yb0BJV0jyj6cyoXyTYqLY+3Hn0eHgL0M8lwxDLbTom5KfqYDHDVDQC3+VSfypoEA=="],
+
+    "@turf/bezier-spline": ["@turf/bezier-spline@7.3.4", "", { "dependencies": { "@turf/helpers": "7.3.4", "@turf/invariant": "7.3.4", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, "sha512-+iDUeiBKByIs/6K5WW8pG6IDxrRLJHFLM80zSpzk2xBtgy3mq36NZwwt67Pu7EJAkc9GUXKIm9SkspoKue9aYQ=="],
 
     "@turf/destination": ["@turf/destination@7.3.4", "", { "dependencies": { "@turf/helpers": "7.3.4", "@turf/invariant": "7.3.4", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, "sha512-YxoUJwkKmTHiRFQxMQOP0tz8Vy+ga5EXl+C+F/WubjDLwT1AJu5y8CNIjLvWyjPWckj/vZG4u/1js5bx6MLADA=="],
 

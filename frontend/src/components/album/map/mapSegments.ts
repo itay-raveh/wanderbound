@@ -3,6 +3,8 @@ import { DEFAULT_COUNTRY_COLOR } from "../colors";
 import { mediaThumbUrl, posterPath } from "@/utils/media";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
+import bezierSpline from "@turf/bezier-spline";
+import { lineString } from "@turf/helpers";
 
 const LAYER_PREFIX = "seg-";
 const MARKER_CLASS = "map-step-marker";
@@ -71,31 +73,18 @@ function buildFlightArc(
   startLat: number,
   endLon: number,
   endLat: number,
-  steps = 64,
 ): [number, number][] {
-  const midLon = (startLon + endLon) / 2;
-  const midLat = (startLat + endLat) / 2;
-
-  // Perpendicular offset for curvature (proportional to distance)
   const dx = endLon - startLon;
   const dy = endLat - startLat;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const offset = dist * 0.2; // 20% of distance = exaggerated curve
+  const offset = dist * 0.2;
+  const controlLon = (startLon + endLon) / 2 + (dy / dist) * offset;
+  const controlLat = (startLat + endLat) / 2 - (dx / dist) * offset;
 
-  // Offset perpendicular to the line (always curve left/up for consistency)
-  const controlLon = midLon + (dy / dist) * offset;
-  const controlLat = midLat - (dx / dist) * offset;
-
-  const arc: [number, number][] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    // Quadratic Bézier
-    const lon = u * u * startLon + 2 * u * t * controlLon + t * t * endLon;
-    const lat = u * u * startLat + 2 * u * t * controlLat + t * t * endLat;
-    arc.push([lon, lat]);
-  }
-  return arc;
+  const curved = bezierSpline(
+    lineString([[startLon, startLat], [controlLon, controlLat], [endLon, endLat]]),
+  );
+  return curved.geometry.coordinates as [number, number][];
 }
 
 function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
