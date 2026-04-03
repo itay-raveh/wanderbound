@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import { BASE, defaultAlbum, defaultSteps } from "../mocks/handlers";
 import { withSetup } from "../helpers";
-import { useStepsQuery } from "@/queries/useStepsQuery";
+import { useStepsQuery } from "@/queries/queries";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
 

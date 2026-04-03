@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import { BASE, defaultAlbum } from "../mocks/handlers";
 import { withSetup } from "../helpers";
-import { useAlbumQuery } from "@/queries/useAlbumQuery";
+import { useAlbumQuery } from "@/queries/queries";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
 

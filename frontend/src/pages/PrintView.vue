@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import AlbumViewer from "@/components/AlbumViewer.vue";
-import { usePrintBundleQuery } from "@/queries/usePrintBundleQuery";
+import { usePrintBundleQuery } from "@/queries/queries";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
 import { ALLOWED_FONTS } from "@/utils/fonts";
