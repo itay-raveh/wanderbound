@@ -41,6 +41,8 @@ dev = [
     "pytest-asyncio~=1.0",
     "pytest-randomly~=3.16",
     "aiosqlite~=0.22",
+    "syrupy~=5.0",
+    "pytest-httpx~=0.35",
 ]
 
 [build-system]

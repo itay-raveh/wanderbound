@@ -132,8 +132,10 @@ dev = [
     { name = "deptry" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-httpx" },
     { name = "pytest-randomly" },
     { name = "ruff" },
+    { name = "syrupy" },
     { name = "ty" },
     { name = "vulture" },
 ]
@@ -173,8 +175,10 @@ dev = [
     { name = "deptry", specifier = "<1" },
     { name = "pytest", specifier = "~=9.0" },
     { name = "pytest-asyncio", specifier = "~=1.0" },
+    { name = "pytest-httpx", specifier = "~=0.35" },
     { name = "pytest-randomly", specifier = "~=3.16" },
     { name = "ruff", specifier = "<1" },
+    { name = "syrupy", specifier = "~=5.0" },
     { name = "ty", specifier = "<1" },
     { name = "vulture", specifier = ">=2.16" },
 ]
@@ -1023,6 +1027,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-httpx"
+version = "0.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ca/bc/5574834da9499066fa1a5ea9c336f94dba2eae02298d36dab192fcf95c86/pytest_httpx-0.36.0.tar.gz", hash = "sha256:9edb66a5fd4388ce3c343189bc67e7e1cb50b07c2e3fc83b97d511975e8a831b", size = 56793, upload-time = "2025-12-02T16:34:57.414Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/d2/1eb1ea9c84f0d2033eb0b49675afdc71aa4ea801b74615f00f3c33b725e3/pytest_httpx-0.36.0-py3-none-any.whl", hash = "sha256:bd4c120bb80e142df856e825ec9f17981effb84d159f9fa29ed97e2357c3a9c8", size = 20229, upload-time = "2025-12-02T16:34:56.45Z" },
+]
+
+[[package]]
 name = "pytest-randomly"
 version = "3.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1272,6 +1289,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/81/69/17425771797c36cded50b7fe44e850315d039f28b15901ab44839e70b593/starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149", size = 2655289, upload-time = "2026-03-22T18:29:46.779Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b", size = 72651, upload-time = "2026-03-22T18:29:45.111Z" },
+]
+
+[[package]]
+name = "syrupy"
+version = "5.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2e/b0/24bca682d6a6337854be37f242d116cceeda9942571d5804c44bc1bdd427/syrupy-5.1.0.tar.gz", hash = "sha256:df543c7aa50d3cf1246e83d58fe490afe5f7dab7b41e74ecc0d8d23ae19bd4b8", size = 50495, upload-time = "2026-01-25T14:53:06.2Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/70/cf880c3b95a6034ef673e74b369941b42315c01f1554a5637a4f8b911009/syrupy-5.1.0-py3-none-any.whl", hash = "sha256:95162d2b05e61ed3e13f117b88dfab7c58bd6f90e66ebbf918e8a77114ad51c5", size = 51658, upload-time = "2026-01-25T14:53:05.105Z" },
 ]
 
 [[package]]
