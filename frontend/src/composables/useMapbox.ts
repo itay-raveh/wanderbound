@@ -75,13 +75,7 @@ export function useMapbox(options: UseMapboxOptions) {
       });
 
       // Signal readiness after all tiles from the initial render are loaded.
-      // fitBounds() re-arms this listener when the viewport changes.
-      const idleHandler = () => {
-        el.dataset.mapReady = "";
-        pendingIdle = null;
-      };
-      pendingIdle = idleHandler;
-      m.once("idle", idleHandler);
+      armIdleReady(el, m);
     } catch (e) {
       console.warn("[mapbox] failed to initialise map:", e);
       // Mark ready on error so PrintView doesn't wait forever.
@@ -100,11 +94,26 @@ export function useMapbox(options: UseMapboxOptions) {
     );
   }
 
-  function destroy() {
-    if (pendingIdle && map.value) {
-      map.value.off("idle", pendingIdle);
+  function armIdleReady(el: HTMLElement, m: mapboxgl.Map) {
+    disarmIdleReady(m);
+    delete el.dataset.mapReady;
+    const handler = () => {
+      el.dataset.mapReady = "";
+      pendingIdle = null;
+    };
+    pendingIdle = handler;
+    m.once("idle", handler);
+  }
+
+  function disarmIdleReady(m: mapboxgl.Map) {
+    if (pendingIdle) {
+      m.off("idle", pendingIdle);
       pendingIdle = null;
     }
+  }
+
+  function destroy() {
+    if (map.value) disarmIdleReady(map.value);
     map.value?.remove();
     map.value = null;
   }
@@ -115,29 +124,15 @@ export function useMapbox(options: UseMapboxOptions) {
   ) {
     if (!map.value || coords.length === 0) return;
 
-    // Reset print-readiness: the new viewport requires new tiles.
-    const el = options.container.value;
-    if (pendingIdle) {
-      map.value.off("idle", pendingIdle);
-      pendingIdle = null;
-    }
-    if (el) delete el.dataset.mapReady;
-
     const bounds = new mapboxgl.LngLatBounds();
     for (const [lng, lat] of coords) {
       bounds.extend([lng, lat]);
     }
     map.value.fitBounds(bounds, { padding, duration: 0 });
 
-    // Re-arm readiness after tiles finish loading for the new viewport.
-    if (el) {
-      const handler = () => {
-        el.dataset.mapReady = "";
-        pendingIdle = null;
-      };
-      pendingIdle = handler;
-      map.value.once("idle", handler);
-    }
+    // Re-arm readiness: the new viewport requires new tiles.
+    const el = options.container.value;
+    if (el) armIdleReady(el, map.value);
   }
 
   // Auto-resize map when container dimensions change (CSS zoom settling, etc.)
