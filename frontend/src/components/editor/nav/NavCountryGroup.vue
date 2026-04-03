@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { DateRange, Step } from "@/client";
-import type { CountryVisit, GroupEntry } from "./types";
+import type { CountryVisit } from "./types";
 import { flagUrl } from "@/utils/media";
 import { SHORT_DATE } from "@/utils/date";
 import { sectionKeyMatchesRange } from "../../album/albumSections";
@@ -38,14 +38,8 @@ const emit = defineEmits<{
   mapDateChange: [rangeIdx: number, range: DateRange];
 }>();
 
-const countryStepIds = computed(() =>
-  props.group.entries
-    .filter((e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step")
-    .map((e) => e.item.id),
-);
-
 const allExcluded = computed(() =>
-  countryStepIds.value.every((id) => props.excludedSet.has(id)),
+  props.group.stepIds.every((id) => props.excludedSet.has(id)),
 );
 </script>
 
@@ -83,7 +77,6 @@ const allExcluded = computed(() =>
         :data-nav-section="entry.key"
         :date-range="entry.dateRange"
         :range-idx="entry.rangeIdx"
-        :entry-key="entry.key"
         :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
         :steps="steps"
         :colors="colors"

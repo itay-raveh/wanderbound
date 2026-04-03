@@ -32,11 +32,16 @@ const emit = defineEmits<{
 
 const excludedSet = computed(() => new Set(props.excludedSteps));
 
-const dateRangeModel = computed(() => {
+const includedSteps = computed(() => {
   if (!excludedSet.value.size) return null;
-  const included = props.steps.filter((s) => !excludedSet.value.has(s.id));
-  if (!included.length || included.length === props.steps.length) return null;
-  return datesToRanges(included.map((s) => isoDate(s.datetime)))
+  const filtered = props.steps.filter((s) => !excludedSet.value.has(s.id));
+  return filtered.length && filtered.length < props.steps.length ? filtered : null;
+});
+
+const dateRangeModel = computed(() => {
+  const steps = includedSteps.value;
+  if (!steps) return null;
+  return datesToRanges(steps.map((s) => isoDate(s.datetime)))
     .map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
 });
 
@@ -58,10 +63,9 @@ function onPickerClose() {
 }
 
 const rangeDisplay = computed(() => {
-  if (!excludedSet.value.size) return "";
-  const included = props.steps.filter((s) => !excludedSet.value.has(s.id));
-  if (!included.length || included.length === props.steps.length) return "";
-  const dates = included.map((s) => parseLocalDate(s.datetime)).sort((a, b) => a.getTime() - b.getTime());
+  const steps = includedSteps.value;
+  if (!steps) return "";
+  const dates = steps.map((s) => parseLocalDate(s.datetime)).sort((a, b) => a.getTime() - b.getTime());
   return formatDateRange(dates[0]!, dates.at(-1)!, SHORT_DATE);
 });
 

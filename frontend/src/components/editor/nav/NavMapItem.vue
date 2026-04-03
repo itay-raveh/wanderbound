@@ -1,10 +1,9 @@
 <script lang="ts" setup>
 import type { DateRange, Step } from "@/client";
 import { toQDate, parseYMD, ymdToIso } from "@/utils/date";
-import { makeRefCache } from "@/utils/refCache";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import { useI18n } from "vue-i18n";
-import { nextTick } from "vue";
+import { ref, computed, nextTick } from "vue";
 import {
   symOutlinedMap,
   symOutlinedClose,
@@ -20,7 +19,6 @@ type PopupExpose = { hide: () => void };
 const props = defineProps<{
   dateRange: DateRange;
   rangeIdx: number;
-  entryKey: string;
   active: boolean;
   steps: Step[];
   colors: Record<string, string>;
@@ -33,22 +31,22 @@ const emit = defineEmits<{
   dateChange: [rangeIdx: number, range: DateRange];
 }>();
 
-const { refs: datePickerRefs, setter: setDatePickerRef } = makeRefCache<DatePickerExpose>();
-const { refs: popupProxyRefs, setter: setPopupRef } = makeRefCache<PopupExpose>();
+const datePickerRef = ref<DatePickerExpose | null>(null);
+const popupRef = ref<PopupExpose | null>(null);
 
-function endDateOptions(dr: DateRange) {
-  const min = toQDate(dr[0]);
+const endDateOption = computed(() => {
+  const min = toQDate(props.dateRange[0]);
   return (qdate: string) => qdate >= min;
-}
+});
 
 async function onDateShow() {
   await nextTick();
-  datePickerRefs.get(props.entryKey)?.setEditingRange(parseYMD(props.dateRange[0]));
+  datePickerRef.value?.setEditingRange(parseYMD(props.dateRange[0]));
 }
 
 function onDateEnd(range: { from: YMD; to: YMD }) {
   emit("dateChange", props.rangeIdx, [props.dateRange[0], ymdToIso(range.to)]);
-  popupProxyRefs.get(props.entryKey)?.hide();
+  popupRef.value?.hide();
 }
 </script>
 
@@ -70,18 +68,18 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
         <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
         {{ formatMapRange(dateRange) }}
         <q-popup-proxy
-          :ref="setPopupRef(entryKey)"
+          ref="popupRef"
           transition-show="scale"
           transition-hide="scale"
           @before-show="onDateShow"
         >
           <StepDatePicker
-            :ref="setDatePickerRef(entryKey)"
+            ref="datePickerRef"
             :model-value="{ from: toQDate(dateRange[0]), to: toQDate(dateRange[1]) }"
             :steps="steps"
             :colors="colors"
             range
-            :options="endDateOptions(dateRange)"
+            :options="endDateOption"
             @range-end="(range: { from: YMD; to: YMD }) => onDateEnd(range)"
           />
         </q-popup-proxy>
@@ -106,37 +104,12 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   color: var(--q-primary);
 }
 
-.item-thumb {
-  width: 2.25rem;
-  height: 1.75rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-xs);
-  overflow: hidden;
-}
-
 .map-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--q-primary) 12%, transparent);
   color: var(--q-primary);
-}
-
-.item-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.item-name {
-  font-size: var(--type-xs);
-  font-weight: 600;
-  color: var(--text-bright);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .map-dates {

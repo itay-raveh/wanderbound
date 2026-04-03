@@ -97,6 +97,7 @@ const groups = computed<CountryVisit[]>(() => {
     const prev = visits.at(-1);
     if (prev && prev.code === item.country) {
       prev.entries.push(...mapEntries, { type: "step", item });
+      prev.stepIds.push(item.id);
     } else {
       visits.push({
         key: `${item.country}-${visits.length}`,
@@ -104,6 +105,7 @@ const groups = computed<CountryVisit[]>(() => {
         name: countryName(item.country, item.detail),
         color: item.color,
         entries: [...mapEntries, { type: "step", item }],
+        stepIds: [item.id],
         dateRange: "",
       });
     }
@@ -134,14 +136,8 @@ function toggleStep(stepId: number) {
   albumMutation.mutate({ excluded_steps: excluded });
 }
 
-function countryStepIds(group: CountryVisit): number[] {
-  return group.entries
-    .filter((e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step")
-    .map((e) => e.item.id);
-}
-
 function toggleCountry(group: CountryVisit) {
-  const stepIds = countryStepIds(group);
+  const { stepIds } = group;
   const allExcluded = stepIds.every((id) => excludedSet.value.has(id));
   if (allExcluded) {
     const toRemove = new Set(stepIds);
@@ -364,7 +360,6 @@ watch(activeSectionKey, (key) => {
   margin-bottom: var(--gap-sm);
 }
 
-// Extends .nav-item (from _nav-item.scss partial) with compact header overrides.
 .header-item {
   gap: var(--gap-sm);
   padding: var(--gap-sm) var(--gap-md-lg);

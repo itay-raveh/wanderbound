@@ -20,5 +20,6 @@ export interface CountryVisit {
   name: string;
   color: string;
   entries: GroupEntry[];
+  stepIds: number[];
   dateRange: string;
 }

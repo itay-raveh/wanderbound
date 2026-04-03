@@ -54,14 +54,6 @@ defineEmits<{
 <style lang="scss" scoped>
 @use "nav-item";
 
-.item-thumb {
-  width: 2.25rem;
-  height: 1.75rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-xs);
-  overflow: hidden;
-}
-
 .thumb-img {
   width: 100%;
   height: 100%;
@@ -72,23 +64,6 @@ defineEmits<{
   width: 100%;
   height: 100%;
   opacity: var(--opacity-thumb-empty);
-}
-
-.item-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.item-name {
-  font-size: var(--type-xs);
-  font-weight: 600;
-  color: var(--text-bright);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .item-date {

@@ -21,7 +21,7 @@ defineEmits<{
       :aria-pressed="option.value === modelValue"
       @click="option.value !== modelValue && $emit('update:modelValue', option.value)"
     >
-      <q-icon v-if="option.icon" :name="option.icon" size="0.875rem" />
+      <q-icon v-if="option.icon" :name="option.icon" size="var(--type-sm)" />
       {{ option.label }}
     </button>
   </div>
