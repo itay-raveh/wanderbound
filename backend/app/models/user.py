@@ -48,14 +48,14 @@ class PSUser(UserBase):
     living_location: Location | None = None
 
 
-Provider = Literal["google", "microsoft"]
+AuthProvider = Literal["google", "microsoft"]
 
 
 class OAuthIdentity(BaseModel):
     sub: str
     first_name: str
     picture: HttpUrl | None = None
-    provider: Provider
+    provider: AuthProvider
 
 
 class User(UserBase, table=True):

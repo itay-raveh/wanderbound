@@ -32,7 +32,7 @@ from app.logic.export import (
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
 from app.logic.upload import UploadResult, extract_and_scan
-from app.models.user import OAuthIdentity, Provider, User, UserUpdate
+from app.models.user import AuthProvider, OAuthIdentity, User, UserUpdate
 
 from ..deps import SessionDep, UserDep
 from .auth import verify_credential
@@ -45,7 +45,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @dataclass
 class _AuthForm:
     credential: Annotated[str | None, Form()] = None
-    provider: Annotated[Provider | None, Form()] = None
+    provider: Annotated[AuthProvider | None, Form()] = None
 
 
 def _check_upload_size(file: UploadFile) -> int:
@@ -70,7 +70,7 @@ def _check_upload_size(file: UploadFile) -> int:
 async def _resolve_auth(
     uid: int | None,
     credential: str | None,
-    provider: Provider | None,
+    provider: AuthProvider | None,
     session: SessionDep,
     request: Request,
 ) -> tuple[User | None, OAuthIdentity | None]:

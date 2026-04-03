@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.core.config import get_settings
-from app.models.user import OAuthIdentity, Provider, User
+from app.models.user import AuthProvider, OAuthIdentity, User
 
 from ..deps import SessionDep
 
@@ -95,7 +95,7 @@ async def _verify_microsoft(credential: str) -> OAuthIdentity:
 _VERIFIERS = {"google": _verify_google, "microsoft": _verify_microsoft}
 
 
-async def verify_credential(credential: str, provider: Provider) -> OAuthIdentity:
+async def verify_credential(credential: str, provider: AuthProvider) -> OAuthIdentity:
     return await _VERIFIERS[provider](credential)
 
 
@@ -108,7 +108,7 @@ async def _lookup_user(identity: OAuthIdentity, session: SessionDep) -> User | N
 
 
 async def _authenticate(
-    credential: str, provider: Provider, request: Request, session: SessionDep
+    credential: str, provider: AuthProvider, request: Request, session: SessionDep
 ) -> User | None:
     identity = await verify_credential(credential, provider)
     row = await _lookup_user(identity, session)
@@ -121,20 +121,13 @@ async def _authenticate(
     return row
 
 
-@router.post("/google")
-async def auth_google(
-    body: Credential, request: Request, session: SessionDep
-) -> User | None:
-    return await _authenticate(body.credential, "google", request, session)
-
-
-@router.post("/microsoft")
-async def auth_microsoft(
-    body: Credential, request: Request, session: SessionDep
-) -> User | None:
-    return await _authenticate(body.credential, "microsoft", request, session)
-
-
 @router.post("/logout")
 async def logout(request: Request) -> None:
     request.session.clear()
+
+
+@router.post("/{provider}")
+async def authenticate(
+    provider: AuthProvider, body: Credential, request: Request, session: SessionDep
+) -> User | None:
+    return await _authenticate(body.credential, provider, request, session)

@@ -19,7 +19,7 @@ from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.models.album import Album
 from app.models.segment import Segment
 from app.models.step import Step
-from app.models.user import Provider, User
+from app.models.user import AuthProvider, User
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,7 +32,7 @@ EXPORT_FILENAME = f"{_EXPORT_NAME}.zip"
 _EXPORT_TIMEOUT = 600
 _PROGRESS_EVERY_N_FILES = 10
 _JSON_FILES_PER_ALBUM = 3
-_EXCLUDED_USER_FIELDS = {f"{p}_sub" for p in Provider.__args__} | {"has_data"}
+_EXCLUDED_USER_FIELDS = {f"{p}_sub" for p in AuthProvider.__args__} | {"has_data"}
 
 
 class ExportProgress(BaseModel):
