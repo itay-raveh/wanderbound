@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect } from "../fixtures";
 
 test.describe("Editor", () => {
   test("loads editor page with album content", async ({
@@ -22,7 +22,7 @@ test.describe("Editor", () => {
   test("shows step name in the viewer", async ({ authedPage: page }) => {
     await page.goto("/editor");
     await page.waitForURL("/editor");
-    // The step name "Amsterdam" should be visible
-    await expect(page.getByText("Amsterdam").first()).toBeVisible({ timeout: 10_000 });
+    // The step name "Amsterdam" should be visible in the main viewer
+    await expect(page.getByRole("main")).toContainText("Amsterdam", { timeout: 10_000 });
   });
 });

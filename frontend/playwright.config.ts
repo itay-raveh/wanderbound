@@ -1,7 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./e2e",
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   use: {
@@ -9,7 +8,18 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+  projects: [
+    {
+      name: "fast",
+      testDir: "./e2e/fast",
+      use: { browserName: "chromium" },
+    },
+    {
+      name: "full",
+      testDir: "./e2e/full",
+      use: { browserName: "chromium" },
+    },
+  ],
   webServer: {
     command: "bun run dev",
     url: "http://localhost:5173",
