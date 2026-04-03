@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthGoogleData, AuthGoogleErrors, AuthGoogleResponses, AuthMicrosoftData, AuthMicrosoftErrors, AuthMicrosoftResponses, DeleteUserData, DeleteUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, ProcessUserData, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
+import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, DeleteUserData, DeleteUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, ProcessUserData, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -24,33 +24,21 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 export const healthCheck = <ThrowOnError extends boolean = true>(options?: Options<HealthCheckData, ThrowOnError>) => (options?.client ?? client).get<HealthCheckResponses, unknown, ThrowOnError>({ url: '/api/v1/health', ...options });
 
 /**
- * Auth Google
- */
-export const authGoogle = <ThrowOnError extends boolean = true>(options: Options<AuthGoogleData, ThrowOnError>) => (options.client ?? client).post<AuthGoogleResponses, AuthGoogleErrors, ThrowOnError>({
-    url: '/api/v1/auth/google',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Auth Microsoft
- */
-export const authMicrosoft = <ThrowOnError extends boolean = true>(options: Options<AuthMicrosoftData, ThrowOnError>) => (options.client ?? client).post<AuthMicrosoftResponses, AuthMicrosoftErrors, ThrowOnError>({
-    url: '/api/v1/auth/microsoft',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Logout
  */
 export const logout = <ThrowOnError extends boolean = true>(options?: Options<LogoutData, ThrowOnError>) => (options?.client ?? client).post<LogoutResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/logout', ...options });
+
+/**
+ * Authenticate
+ */
+export const authenticate = <ThrowOnError extends boolean = true>(options: Options<AuthenticateData, ThrowOnError>) => (options.client ?? client).post<AuthenticateResponses, AuthenticateErrors, ThrowOnError>({
+    url: '/api/v1/auth/{provider}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Upload Data

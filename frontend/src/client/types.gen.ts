@@ -934,60 +934,6 @@ export type HealthCheckResponses = {
 
 export type HealthCheckResponse = HealthCheckResponses[keyof HealthCheckResponses];
 
-export type AuthGoogleData = {
-    body: Credential;
-    path?: never;
-    query?: never;
-    url: '/api/v1/auth/google';
-};
-
-export type AuthGoogleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AuthGoogleError = AuthGoogleErrors[keyof AuthGoogleErrors];
-
-export type AuthGoogleResponses = {
-    /**
-     * Response Auth Google
-     *
-     * Successful Response
-     */
-    200: User | null;
-};
-
-export type AuthGoogleResponse = AuthGoogleResponses[keyof AuthGoogleResponses];
-
-export type AuthMicrosoftData = {
-    body: Credential;
-    path?: never;
-    query?: never;
-    url: '/api/v1/auth/microsoft';
-};
-
-export type AuthMicrosoftErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AuthMicrosoftError = AuthMicrosoftErrors[keyof AuthMicrosoftErrors];
-
-export type AuthMicrosoftResponses = {
-    /**
-     * Response Auth Microsoft
-     *
-     * Successful Response
-     */
-    200: User | null;
-};
-
-export type AuthMicrosoftResponse = AuthMicrosoftResponses[keyof AuthMicrosoftResponses];
-
 export type LogoutData = {
     body?: never;
     path?: never;
@@ -1001,6 +947,38 @@ export type LogoutResponses = {
      */
     200: unknown;
 };
+
+export type AuthenticateData = {
+    body: Credential;
+    path: {
+        /**
+         * Provider
+         */
+        provider: 'google' | 'microsoft';
+    };
+    query?: never;
+    url: '/api/v1/auth/{provider}';
+};
+
+export type AuthenticateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthenticateError = AuthenticateErrors[keyof AuthenticateErrors];
+
+export type AuthenticateResponses = {
+    /**
+     * Response Authenticate
+     *
+     * Successful Response
+     */
+    200: User | null;
+};
+
+export type AuthenticateResponse = AuthenticateResponses[keyof AuthenticateResponses];
 
 export type UploadDataData = {
     body: BodyUploadData;

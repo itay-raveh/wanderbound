@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { authGoogle, authMicrosoft, readUser } from "@/client";
+import { authenticate, readUser } from "@/client";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
 import LandingImage from "@/components/landing/LandingImage.vue";
 import LoginButtons from "@/components/register/LoginButtons.vue";
@@ -27,10 +27,8 @@ onMounted(async () => {
 
 const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
 
-const AUTH_FNS = { google: authGoogle, microsoft: authMicrosoft } as const satisfies Record<Provider, unknown>;
-
 async function handleLogin(credential: string, provider: Provider) {
-  const { data: user } = await AUTH_FNS[provider]({ body: { credential } });
+  const { data: user } = await authenticate({ body: { credential }, path: { provider } });
   if (user) {
     await router.push({ name: "editor" });
   } else {
