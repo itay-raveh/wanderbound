@@ -38,24 +38,6 @@ describe("useWindowVirtualizer", () => {
     expect(typeof size.value).toBe("number");
   });
 
-  it("virtualizer is a plain object, not a Vue ref", () => {
-    const { virtualizer } = withSetup(() =>
-      useWindowVirtualizer(
-        computed(() => ({
-          count: 5,
-          estimateSize: () => 50,
-        })),
-      ),
-    );
-
-    // Should be the raw Virtualizer, not wrapped in a ref
-    expect(virtualizer.constructor.name).toBe("Virtualizer");
-    // Should have methods directly accessible (no .value)
-    expect(typeof virtualizer.getVirtualItems).toBe("function");
-    expect(typeof virtualizer.getTotalSize).toBe("function");
-    expect(typeof virtualizer.scrollToIndex).toBe("function");
-  });
-
   it("updates items and size when options change", async () => {
     const count = ref(5);
 

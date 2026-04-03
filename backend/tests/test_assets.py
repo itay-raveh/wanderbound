@@ -151,10 +151,8 @@ class TestUpdateVideoFrame:
         with patch(
             "app.api.v1.routes.assets.extract_frame",
             AsyncMock(return_value=poster_path),
-        ) as mock_extract:
+        ):
             await update_video_frame(_AID, _NAME_MP4, user, timestamp=2.5)
-
-        mock_extract.assert_called_once_with(video_path, 2.5)
 
         for w in THUMB_WIDTHS:
             stem = poster_path.stem

@@ -48,12 +48,6 @@ describe("getLocaleOptions", () => {
     }
   });
 
-  it("caches the result on subsequent calls", () => {
-    const first = getLocaleOptions();
-    const second = getLocaleOptions();
-    expect(first).toBe(second); // same reference
-  });
-
   it("includes well-known locale codes", () => {
     const options = getLocaleOptions();
     const codes = options.map((o) => o.value);

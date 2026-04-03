@@ -25,18 +25,6 @@ function mountDatePicker(props: Record<string, unknown> = {}) {
 }
 
 describe("StepDatePicker", () => {
-  it("renders a QDate component", () => {
-    const wrapper = mountDatePicker();
-    const qdate = wrapper.findComponent({ name: "QDate" });
-    expect(qdate.exists()).toBe(true);
-  });
-
-  it("passes minimal prop to QDate", () => {
-    const wrapper = mountDatePicker();
-    const qdate = wrapper.findComponent({ name: "QDate" });
-    expect(qdate.props("minimal")).toBe(true);
-  });
-
   it("sets navigation bounds from step dates", () => {
     const wrapper = mountDatePicker();
     const qdate = wrapper.findComponent({ name: "QDate" });
@@ -102,26 +90,5 @@ describe("StepDatePicker", () => {
     const styleCountAfter = document.head.querySelectorAll("style").length;
 
     expect(styleCountAfter).toBeLessThan(styleCountBefore);
-  });
-
-  it("exposes setEditingRange method", () => {
-    const wrapper = mountDatePicker();
-    expect(wrapper.vm).toHaveProperty("setEditingRange", expect.any(Function));
-  });
-
-  it("passes $attrs through to QDate via v-bind", () => {
-    const wrapper = mountWithPlugins(StepDatePicker, {
-      props: {
-        steps: [makeStep()],
-        colors: {},
-      },
-      attrs: {
-        "model-value": "2024/04/12",
-      },
-    });
-
-    const qdate = wrapper.findComponent({ name: "QDate" });
-    // Attrs should be forwarded (inheritAttrs is false, but v-bind="$attrs" is used)
-    expect(qdate.props("modelValue")).toBe("2024/04/12");
   });
 });

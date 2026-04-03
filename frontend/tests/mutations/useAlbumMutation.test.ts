@@ -29,7 +29,7 @@ describe("useAlbumMutation", () => {
 
       // Wait for initial query to load
       await flushPromises();
-      expect(result.query.data.value?.title).toBe("Test Album");
+      expect(result.query.data.value?.title).toBe("South America");
 
       server.use(
         http.patch(`${BASE}/albums/:aid`, async () => {
@@ -73,7 +73,7 @@ describe("useAlbumMutation", () => {
       result.mutation.mutate({ subtitle: "New Subtitle" });
       await flushPromises();
 
-      expect(result.query.data.value?.title).toBe("Test Album");
+      expect(result.query.data.value?.title).toBe("South America");
       expect(result.query.data.value?.subtitle).toBe("New Subtitle");
     });
   });
@@ -120,7 +120,7 @@ describe("useAlbumMutation", () => {
       await flushPromises();
 
       undoStack.undo();
-      expect(albumMutator).toHaveBeenCalledWith({ title: "Test Album" });
+      expect(albumMutator).toHaveBeenCalledWith({ title: "South America" });
     });
   });
 
@@ -145,12 +145,12 @@ describe("useAlbumMutation", () => {
       });
 
       await flushPromises();
-      expect(result.query.data.value?.title).toBe("Test Album");
+      expect(result.query.data.value?.title).toBe("South America");
 
       result.mutation.mutate({ title: "Will Fail" });
       await flushPromises();
 
-      expect(result.query.data.value?.title).toBe("Test Album");
+      expect(result.query.data.value?.title).toBe("South America");
     });
   });
 

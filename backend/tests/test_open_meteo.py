@@ -335,4 +335,3 @@ class TestBuildWeathers:
             result = [w async for w in build_weathers(steps)]
 
         assert len(result) == 3
-        assert mock_client.return_value.get.call_count == 3

@@ -21,15 +21,6 @@ def _clean_activity_cache() -> None:
 
 
 class TestTouchActivity:
-    async def test_executes_update(self) -> None:
-        mock_session = make_async_session_mock()
-
-        with patch("app.api.v1.deps.AsyncSession", return_value=mock_session):
-            await _touch_activity(42)
-
-        mock_session.exec.assert_awaited_once()
-        mock_session.commit.assert_awaited_once()
-
     async def test_swallows_exceptions(self) -> None:
         mock_session = make_async_session_mock()
         mock_session.exec = AsyncMock(

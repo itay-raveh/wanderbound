@@ -899,3 +899,25 @@ class TestMultiDayHikeRangesIntegration:
         """Fewer ranges than the old naive date-crossing check."""
         # Old naive check produced 40 ranges; new should be ~22
         assert len(real_ranges) < 30, f"Too many ranges: {len(real_ranges)}"
+
+
+class TestSegmentPipelineSnapshot:
+    """Snapshot test: captures full build_segments() output shape.
+
+    Run with --snapshot-update to regenerate after intentional changes.
+    """
+
+    def test_basic_trip_snapshot(self, snapshot: object) -> None:
+        """A simple trip produces a stable segment list."""
+        steps = [
+            _step(52.37, 4.89, 8.0),  # Amsterdam morning
+            _step(51.44, 5.47, 12.0),  # Eindhoven midday
+            _step(50.85, 4.35, 18.0),  # Brussels evening
+        ]
+        gps = _track(52.37, 4.89, 51.44, 5.47, h0=8.0, h1=11.5, n=30) + _track(
+            51.44, 5.47, 50.85, 4.35, h0=12.5, h1=17.5, n=30
+        )
+        segments = build_segments(steps, gps)
+        # Snapshot kinds and point counts (not exact coords)
+        result = [{"kind": s.kind.value, "num_points": len(s.points)} for s in segments]
+        assert result == snapshot

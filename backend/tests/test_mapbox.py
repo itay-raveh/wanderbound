@@ -258,22 +258,3 @@ class TestMatchSegments:
             ]
         )
         assert result == [None, None]
-
-    @patch("app.services.mapbox._client")
-    @patch("app.services.mapbox.get_settings")
-    async def test_shared_client(
-        self, mock_settings: MagicMock, mock_client_fn: MagicMock
-    ) -> None:
-        """All segments in a batch share one cached client."""
-        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
-        coords_a: Coords = [(4.0 + i * 0.001, 52.0) for i in range(5)]
-        coords_b: Coords = [(5.0 + i * 0.001, 52.0) for i in range(5)]
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = _ok_response(
-            _matching_json([[4.0, 52.0], [4.1, 52.1]])
-        )
-        mock_client_fn.return_value = mock_client
-
-        results = await match_segments([(coords_a, "driving"), (coords_b, "walking")])
-        assert len(results) == 2

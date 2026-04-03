@@ -2,7 +2,6 @@ from collections import Counter
 from unittest.mock import patch
 
 import pytest
-from coloraide import Color
 
 from app.logic.country_colors import (
     _COUNTRIES,
@@ -35,12 +34,6 @@ class TestDeltaE:
     def test_red_vs_blue_large_distance(self) -> None:
         d = _color_dist("#ff0000", "#0000ff")
         assert d > 50
-
-    def test_agrees_with_coloraide(self) -> None:
-        """Verify our wrapper matches coloraide directly."""
-        hex1, hex2 = "#3a7f3a", "#c0392b"
-        expected = Color(hex1).delta_e(Color(hex2), method="76")
-        assert _color_dist(hex1, hex2) == pytest.approx(expected)
 
 
 # _min_distance

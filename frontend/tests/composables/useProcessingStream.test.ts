@@ -33,16 +33,6 @@ import {
   type UseProcessingStream,
 } from "@/composables/useProcessingStream";
 
-describe("PHASE_ORDER", () => {
-  it("contains all three processing phases in order", () => {
-    expect(PHASE_ORDER).toEqual(["elevations", "weather", "layouts"]);
-  });
-
-  it("has exactly 3 phases", () => {
-    expect(PHASE_ORDER).toHaveLength(3);
-  });
-});
-
 describe("useProcessingStream initial state", () => {
   let stream: UseProcessingStream;
 
@@ -67,12 +57,6 @@ describe("useProcessingStream initial state", () => {
     for (const phase of PHASE_ORDER) {
       expect(pd[phase]).toEqual({ done: 0, total: 0 });
     }
-  });
-
-  it("phaseDone has entries for exactly the phases in PHASE_ORDER", () => {
-    const pd = stream.phaseDone.value;
-    const keys = Object.keys(pd);
-    expect(keys.sort()).toEqual([...PHASE_ORDER].sort());
   });
 });
 

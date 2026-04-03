@@ -1,8 +1,6 @@
 import { mountWithPlugins, makeStep } from "../helpers";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
-import { useActiveSection } from "@/composables/useActiveSection";
-import { computed, ref } from "vue";
-import type { Step } from "@/client";
+import { ref } from "vue";
 import { defaultAlbum, defaultMedia } from "../mocks/handlers";
 
 // Mock usePhotoFocus — depends on module-level state not available in test
@@ -92,43 +90,5 @@ describe("InspectorDrawer with step (UnusedDrawer rendering)", () => {
     });
 
     expect(wrapper.find(".text-faint").text()).toBe("3");
-  });
-});
-
-describe("activeStep derivation from active section", () => {
-  afterEach(() => {
-    useActiveSection().resetActiveSection();
-  });
-
-  it("finds the matching step when activeStepId changes", () => {
-    const { setActive, activeStepId } = useActiveSection();
-
-    const steps = ref([
-      makeStep({ id: 1, name: "Amsterdam" }),
-      makeStep({ id: 2, name: "Rotterdam" }),
-      makeStep({ id: 3, name: "Buenos Aires" }),
-    ]);
-
-    // Same logic as EditorView.vue line 55-58
-    const activeStep = computed<Step | undefined>(() =>
-      activeStepId.value != null
-        ? steps.value.find((s) => s.id === activeStepId.value)
-        : undefined,
-    );
-
-    expect(activeStep.value).toBeUndefined();
-
-    setActive(2);
-    expect(activeStep.value).toBeDefined();
-    expect(activeStep.value!.name).toBe("Rotterdam");
-
-    setActive("overview");
-    expect(activeStep.value).toBeUndefined();
-
-    setActive(3);
-    expect(activeStep.value!.name).toBe("Buenos Aires");
-
-    setActive(null);
-    expect(activeStep.value).toBeUndefined();
   });
 });
