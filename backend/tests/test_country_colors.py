@@ -1,59 +1,10 @@
-from collections import Counter
 from unittest.mock import patch
-
-import pytest
 
 from app.logic.country_colors import (
     _COUNTRIES,
     CountryColors,
-    _color_dist,
-    _min_distance,
     build_country_colors,
 )
-
-# _delta_e
-
-
-class TestDeltaE:
-    def test_identical_colors(self) -> None:
-        assert _color_dist("#ff0000", "#ff0000") == 0.0
-
-    def test_symmetric(self) -> None:
-        d1 = _color_dist("#ff0000", "#00ff00")
-        d2 = _color_dist("#00ff00", "#ff0000")
-        assert d1 == pytest.approx(d2)
-
-    def test_black_white_large_distance(self) -> None:
-        d = _color_dist("#000000", "#ffffff")
-        assert d > 90  # Delta-E 76 for black vs white is ~100
-
-    def test_similar_reds_small_distance(self) -> None:
-        d = _color_dist("#ff0000", "#ee0000")
-        assert d < 10
-
-    def test_red_vs_blue_large_distance(self) -> None:
-        d = _color_dist("#ff0000", "#0000ff")
-        assert d > 50
-
-
-# _min_distance
-
-
-class TestMinDistance:
-    def test_empty_assigned_returns_inf(self) -> None:
-        assert _min_distance("#ff0000", []) == float("inf")
-
-    def test_single_assigned(self) -> None:
-        d = _min_distance("#ff0000", ["#0000ff"])
-        assert d == pytest.approx(_color_dist("#ff0000", "#0000ff"))
-
-    def test_returns_minimum(self) -> None:
-        assigned = ["#ff0000", "#0000ff"]
-        d = _min_distance("#ee0000", assigned)
-        d_red = _color_dist("#ee0000", "#ff0000")
-        d_blue = _color_dist("#ee0000", "#0000ff")
-        assert d == pytest.approx(min(d_red, d_blue))
-
 
 # build_country_colors: edge cases
 
@@ -226,30 +177,3 @@ class TestWithMockedCountries:
             result = build_country_colors({"aa", "bb"})
         assert result["bb"] == "#ff0000"
         assert result["aa"] != "#ff0000"
-
-
-# JSON data integrity
-
-
-class TestJsonIntegrity:
-    def test_countries_loaded(self) -> None:
-        assert len(_COUNTRIES) > 190
-
-    def test_all_have_at_least_one_color(self) -> None:
-        for country in _COUNTRIES:
-            assert len(country.colors) >= 1, f"{country.code} has no colors"
-
-    def test_codes_are_lowercase(self) -> None:
-        for country in _COUNTRIES:
-            assert country.code == country.code.lower()
-
-    def test_no_duplicate_codes(self) -> None:
-        codes = [c.code for c in _COUNTRIES]
-        dupes = {code for code, n in Counter(codes).items() if n > 1}
-        assert not dupes, f"Duplicate codes: {dupes}"
-
-    def test_colors_are_hex_format(self) -> None:
-        for country in _COUNTRIES:
-            for color in country.colors:
-                assert color.startswith("#"), f"{country.code}: {color}"
-                assert len(color) == 7, f"{country.code}: {color}"

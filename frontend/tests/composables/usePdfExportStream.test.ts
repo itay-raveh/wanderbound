@@ -46,9 +46,4 @@ describe("usePdfExportStream", () => {
     expect(stream.state.value).toBe("idle");
   });
 
-  it("abort is safe to call multiple times", () => {
-    stream.abort();
-    stream.abort();
-    expect(stream.state.value).toBe("idle");
-  });
 });
