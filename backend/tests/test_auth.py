@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
+
 from app.core.config import get_settings
 from app.logic.upload import TripMeta
 
@@ -18,66 +20,61 @@ from .conftest import (
 )
 
 if TYPE_CHECKING:
-    import pytest
     from httpx import AsyncClient
 
 
-class TestAuthGoogle:
-    async def test_invalid_jwt(self, client: AsyncClient) -> None:
-        with mock_jwt(decode_error=True):
-            resp = await client.post("/api/v1/auth/google", json={"credential": "bad"})
-        assert resp.status_code == 401
-
-    async def test_new_user_returns_null(self, client: AsyncClient) -> None:
-        with mock_jwt():
-            resp = await client.post("/api/v1/auth/google", json={"credential": "fake"})
-        assert resp.status_code == 200
-        assert resp.json() is None
-
-    async def test_existing_user_returns_user(
-        self, client: AsyncClient, tmp_path: Path
+@pytest.mark.parametrize(
+    ("provider", "sub_field", "sub_value"),
+    [
+        ("google", "google_sub", "google-123"),
+        ("microsoft", "microsoft_sub", "microsoft-456"),
+    ],
+)
+class TestAuthProvider:
+    async def test_invalid_jwt(
+        self, client: AsyncClient, provider: str, sub_field: str, sub_value: str
     ) -> None:
-        await sign_in_and_upload(client, tmp_path / "users")
-        await client.post("/api/v1/auth/logout")
-
-        with mock_jwt():
-            resp = await client.post("/api/v1/auth/google", json={"credential": "fake"})
-        assert resp.status_code == 200
-        user = resp.json()
-        assert user is not None
-        assert user["google_sub"] == "google-123"
-
-
-class TestAuthMicrosoft:
-    async def test_invalid_jwt(self, client: AsyncClient) -> None:
-        with mock_jwt("microsoft", decode_error=True):
+        _ = sub_field, sub_value
+        with mock_jwt(provider, decode_error=True):
             resp = await client.post(
-                "/api/v1/auth/microsoft", json={"credential": "bad"}
+                f"/api/v1/auth/{provider}", json={"credential": "bad"}
             )
         assert resp.status_code == 401
 
-    async def test_new_user_returns_null(self, client: AsyncClient) -> None:
-        with mock_jwt("microsoft"):
+    async def test_new_user_returns_null(
+        self, client: AsyncClient, provider: str, sub_field: str, sub_value: str
+    ) -> None:
+        _ = sub_field, sub_value
+        with mock_jwt(provider):
             resp = await client.post(
-                "/api/v1/auth/microsoft", json={"credential": "fake"}
+                f"/api/v1/auth/{provider}", json={"credential": "fake"}
             )
         assert resp.status_code == 200
         assert resp.json() is None
 
     async def test_existing_user_returns_user(
-        self, client: AsyncClient, tmp_path: Path
+        self,
+        client: AsyncClient,
+        tmp_path: Path,
+        provider: str,
+        sub_field: str,
+        sub_value: str,
     ) -> None:
-        await sign_in_and_upload(client, tmp_path / "users", provider="microsoft")
+        await sign_in_and_upload(client, tmp_path / "users", provider=provider)
         await client.post("/api/v1/auth/logout")
 
-        with mock_jwt("microsoft"):
+        with mock_jwt(provider):
             resp = await client.post(
-                "/api/v1/auth/microsoft", json={"credential": "fake"}
+                f"/api/v1/auth/{provider}", json={"credential": "fake"}
             )
         assert resp.status_code == 200
         user = resp.json()
         assert user is not None
-        assert user["microsoft_sub"] == "microsoft-456"
+        assert user[sub_field] == sub_value
+
+
+class TestAuthMicrosoftSpecific:
+    """Tests specific to Microsoft auth."""
 
     async def test_bad_issuer_returns_401(self, client: AsyncClient) -> None:
         bad_iss = {**MICROSOFT_PAYLOAD, "iss": "https://evil.example.com/v2.0"}
