@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { authGoogle, authMicrosoft, readUser } from "@/client";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
+import LandingImage from "@/components/landing/LandingImage.vue";
 import LoginButtons from "@/components/register/LoginButtons.vue";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
@@ -25,14 +26,6 @@ onMounted(async () => {
 });
 
 const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
-
-const WIDTHS = [640, 1024, 1536];
-
-function srcset(stem: string) {
-  const set = WIDTHS.map((w) => `/landing/${stem}-${mode.value}-${w}w.webp ${w}w`);
-  set.push(`/landing/${stem}-${mode.value}.webp 2400w`);
-  return set.join(", ");
-}
 
 const AUTH_FNS = { google: authGoogle, microsoft: authMicrosoft } as const satisfies Record<Provider, unknown>;
 
@@ -135,26 +128,11 @@ onUnmounted(() => {
       <!-- Hero showcase: fanned spread of different album page types -->
       <div class="hero-showcase fade-up">
         <div class="hero-fan" aria-hidden="true">
-          <picture class="hero-card">
-            <source :srcset="srcset('cover')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/cover-${mode}.jpg`" alt="" class="hero-card-img" />
-          </picture>
-          <picture class="hero-card">
-            <source :srcset="srcset('hike-map')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/hike-map-${mode}.jpg`" alt="" class="hero-card-img" />
-          </picture>
-          <picture class="hero-card">
-            <source :srcset="srcset('step-page')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/step-page-${mode}.jpg`" alt="" class="hero-card-img" fetchpriority="high" />
-          </picture>
-          <picture class="hero-card">
-            <source :srcset="srcset('overview')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/overview-${mode}.jpg`" alt="" class="hero-card-img" />
-          </picture>
-          <picture class="hero-card">
-            <source :srcset="srcset('auto-album')" sizes="320px" type="image/webp" />
-            <img :src="`/landing/auto-album-${mode}.jpg`" alt="" class="hero-card-img" />
-          </picture>
+          <LandingImage name="cover" :mode="mode" class="hero-card" />
+          <LandingImage name="hike-map" :mode="mode" class="hero-card" />
+          <LandingImage name="step-page" :mode="mode" class="hero-card" fetchpriority="high" />
+          <LandingImage name="overview" :mode="mode" class="hero-card" />
+          <LandingImage name="auto-album" :mode="mode" class="hero-card" />
         </div>
       </div>
 
@@ -176,10 +154,14 @@ onUnmounted(() => {
     <!-- Feature: autoAlbum — core product showcase, standard 50/50 -->
     <section class="band band--default" aria-labelledby="auto-album-heading">
       <div class="feature feature--standard scroll-reveal">
-        <picture class="feature-picture">
-          <source :srcset="srcset('auto-album')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
-          <img :src="`/landing/auto-album-${mode}.jpg`" :alt="t('landing.autoAlbumTitle')" class="feature-img" loading="lazy" />
-        </picture>
+        <LandingImage
+          name="auto-album"
+          :mode="mode"
+          sizes="(min-width: 1024px) 480px, 100vw"
+          :alt="t('landing.autoAlbumTitle')"
+          loading="lazy"
+          class="feature-picture"
+        />
         <div class="feature-text">
           <h2 id="auto-album-heading" class="feature-title">{{ t("landing.autoAlbumTitle") }}</h2>
           <i18n-t keypath="landing.autoAlbumBody" tag="p" class="feature-body">
@@ -196,10 +178,14 @@ onUnmounted(() => {
           <h2 id="hike-map-heading" class="feature-title feature-title--lg">{{ t("landing.hikeMapTitle") }}</h2>
           <p class="feature-body">{{ t("landing.hikeMapBody") }}</p>
         </div>
-        <picture class="feature-picture feature-picture--wide">
-          <source :srcset="srcset('hike-map')" sizes="(min-width: 1024px) 960px, 100vw" type="image/webp" />
-          <img :src="`/landing/hike-map-${mode}.jpg`" :alt="t('landing.hikeMapTitle')" class="feature-img" loading="lazy" />
-        </picture>
+        <LandingImage
+          name="hike-map"
+          :mode="mode"
+          sizes="(min-width: 1024px) 960px, 100vw"
+          :alt="t('landing.hikeMapTitle')"
+          loading="lazy"
+          class="feature-picture feature-picture--wide"
+        />
       </div>
     </section>
 
@@ -207,20 +193,28 @@ onUnmounted(() => {
     <section class="band band--default" aria-labelledby="localization-heading overview-heading">
       <div class="feature-pair">
         <div class="feature-pair-item scroll-reveal">
-          <picture class="feature-picture">
-            <source :srcset="srcset('localization')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
-            <img :src="`/landing/localization-${mode}.jpg`" :alt="t('landing.localizationTitle')" class="feature-img" loading="lazy" />
-          </picture>
+          <LandingImage
+            name="localization"
+            :mode="mode"
+            sizes="(min-width: 1024px) 480px, 100vw"
+            :alt="t('landing.localizationTitle')"
+            loading="lazy"
+            class="feature-picture"
+          />
           <h2 id="localization-heading" class="feature-title">{{ t("landing.localizationTitle") }}</h2>
           <i18n-t keypath="landing.localizationBody" tag="p" class="feature-body">
             <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
           </i18n-t>
         </div>
         <div class="feature-pair-item scroll-reveal">
-          <picture class="feature-picture">
-            <source :srcset="srcset('overview')" sizes="(min-width: 1024px) 480px, 100vw" type="image/webp" />
-            <img :src="`/landing/overview-${mode}.jpg`" :alt="t('landing.overviewTitle')" class="feature-img" loading="lazy" />
-          </picture>
+          <LandingImage
+            name="overview"
+            :mode="mode"
+            sizes="(min-width: 1024px) 480px, 100vw"
+            :alt="t('landing.overviewTitle')"
+            loading="lazy"
+            class="feature-picture"
+          />
           <h2 id="overview-heading" class="feature-title">{{ t("landing.overviewTitle") }}</h2>
           <p class="feature-body">{{ t("landing.overviewBody") }}</p>
         </div>
@@ -366,13 +360,6 @@ onUnmounted(() => {
   --s: 0.8;
 }
 
-.hero-card-img {
-  display: block;
-  width: 100%;
-  aspect-ratio: var(--page-aspect);
-  object-fit: cover;
-}
-
 @keyframes fan-in {
   from {
     opacity: 0;
@@ -435,7 +422,7 @@ onUnmounted(() => {
   margin-inline: auto;
 }
 
-.feature-picture--wide .feature-img {
+.feature-picture--wide :deep(.landing-img) {
   width: auto;
   max-width: 100%;
   height: auto;
@@ -476,13 +463,6 @@ onUnmounted(() => {
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-md);
-}
-
-.feature-img {
-  display: block;
-  width: 100%;
-  aspect-ratio: var(--page-aspect);
-  object-fit: cover;
 }
 
 .feature-title {
@@ -633,7 +613,6 @@ onUnmounted(() => {
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
   }
-
 
   .cta {
     padding: 6rem 2rem;
