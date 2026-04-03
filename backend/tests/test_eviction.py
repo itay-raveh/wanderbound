@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.logic.eviction import _sizes_by_user, run_eviction
 from app.models.user import User
 
-from .conftest import make_async_session_mock
+from .factories import make_async_session_mock
 
 if TYPE_CHECKING:
     import pytest

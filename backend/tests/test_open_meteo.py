@@ -18,7 +18,7 @@ from app.services.open_meteo import (
     build_weathers,
     elevations,
 )
-from tests.conftest import collect_async
+from tests.factories import collect_async
 
 # ---------------------------------------------------------------------------
 # Shared helpers

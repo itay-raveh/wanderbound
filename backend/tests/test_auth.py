@@ -10,7 +10,7 @@ import pytest
 from app.core.config import get_settings
 from app.logic.upload import TripMeta
 
-from .conftest import (
+from .factories import (
     GOOGLE_PAYLOAD,
     MICROSOFT_PAYLOAD,
     PS_USER,

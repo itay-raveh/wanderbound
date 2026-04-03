@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.v1.routes.assets import _gen_lock, get_media, update_video_frame
 from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
-from tests.conftest import create_test_jpeg
+from tests.factories import create_test_jpeg
 
 _AID = "test-album-id"
 _NAME = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.jpg"

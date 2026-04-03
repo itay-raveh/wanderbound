@@ -12,7 +12,7 @@ from app.logic.layout.media import (
     extract_frame,
     generate_thumbnail,
 )
-from tests.conftest import create_test_jpeg
+from tests.factories import create_test_jpeg
 
 
 def _ffprobe_output(

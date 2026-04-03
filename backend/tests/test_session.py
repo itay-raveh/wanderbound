@@ -16,7 +16,7 @@ from app.logic.session import (
     process_stream,
 )
 from app.models.user import User
-from tests.conftest import collect_async
+from tests.factories import collect_async
 
 
 def _mock_user(uid: int = 1) -> User:

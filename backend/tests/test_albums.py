@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from app.models.segment import Segment, SegmentKind
 
-from .conftest import (
+from .factories import (
     AID,
     insert_album,
     insert_segment,

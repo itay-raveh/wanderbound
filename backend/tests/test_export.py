@@ -31,7 +31,7 @@ from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
-from tests.conftest import collect_async
+from tests.factories import collect_async
 
 
 def _make_user(uid: int, tmp_path: Path, *, album_ids: list[str] | None = None) -> User:

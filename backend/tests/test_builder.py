@@ -10,7 +10,7 @@ from app.logic.layout.builder import _load_photos, _step_media, build_step_layou
 from app.logic.layout.media import Media
 from app.models.polarsteps import Location, PSStep
 from app.models.user import User
-from tests.conftest import collect_async, create_test_jpeg
+from tests.factories import collect_async, create_test_jpeg
 
 if TYPE_CHECKING:
     import pytest

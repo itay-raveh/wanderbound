@@ -12,7 +12,7 @@ from app.api.v1.deps import (
     _touch_activity,
 )
 
-from .conftest import make_async_session_mock
+from .factories import make_async_session_mock
 
 
 @pytest.fixture(autouse=True)

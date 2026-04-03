@@ -15,7 +15,7 @@ from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
-from tests.conftest import collect_async
+from tests.factories import collect_async
 
 _UID = 1
 
