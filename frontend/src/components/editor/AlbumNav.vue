@@ -4,7 +4,7 @@ import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
-import { HEADER_KEYS, mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
+import { HEADER_KEYS, type HeaderKey, mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -18,6 +18,8 @@ import {
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
   symOutlinedBarChart,
+  symOutlinedVisibility,
+  symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
@@ -27,11 +29,12 @@ const props = withDefaults(
   defineProps<{
     steps: Step[];
     albumIds?: string[];
-    excludedSteps?: number[];
+    hiddenSteps?: number[];
+    hiddenHeaders?: HeaderKey[];
     colors?: Record<string, unknown>;
     mapsRanges?: DateRange[];
   }>(),
-  { albumIds: () => [], excludedSteps: () => [], colors: () => ({}), mapsRanges: () => [] },
+  { albumIds: () => [], hiddenSteps: () => [], hiddenHeaders: () => [], colors: () => ({}), mapsRanges: () => [] },
 );
 
 const selectedAlbumId = defineModel<string | null>("albumId");
@@ -58,7 +61,8 @@ const albumOptions = computed(() =>
 
 // ── Derived state ─────────────────────────────────────────────────────
 
-const excludedSet = computed(() => new Set(props.excludedSteps));
+const hiddenSet = computed(() => new Set(props.hiddenSteps));
+const hiddenHeaderSet = computed(() => new Set(props.hiddenHeaders));
 const albumColors = computed(() => (props.colors ?? {}) as Record<string, string>);
 
 const stepItems = computed<StepItem[]>(() =>
@@ -120,30 +124,38 @@ function formatMapRange(dr: DateRange): string {
 
 // ── Mutations ─────────────────────────────────────────────────────────
 
-function onExcludedStepsChange(ids: number[]) {
-  albumMutation.mutate({ excluded_steps: ids });
+function onHiddenStepsChange(ids: number[]) {
+  albumMutation.mutate({ hidden_steps: ids });
 }
 
 function onMapsRangesChange(ranges: DateRange[]) {
   albumMutation.mutate({ maps_ranges: ranges });
 }
 
+function toggleInList<T>(list: readonly T[], item: T): T[] {
+  const copy = [...list];
+  const idx = copy.indexOf(item);
+  if (idx >= 0) copy.splice(idx, 1);
+  else copy.push(item);
+  return copy;
+}
+
 function toggleStep(stepId: number) {
-  const excluded = [...props.excludedSteps];
-  const idx = excluded.indexOf(stepId);
-  if (idx >= 0) excluded.splice(idx, 1);
-  else excluded.push(stepId);
-  albumMutation.mutate({ excluded_steps: excluded });
+  albumMutation.mutate({ hidden_steps: toggleInList(props.hiddenSteps, stepId) });
+}
+
+function toggleHeader(key: HeaderKey) {
+  albumMutation.mutate({ hidden_headers: toggleInList(props.hiddenHeaders, key) });
 }
 
 function toggleCountry(group: CountryVisit) {
   const { stepIds } = group;
-  const allExcluded = stepIds.every((id) => excludedSet.value.has(id));
-  if (allExcluded) {
+  const allHidden = stepIds.every((id) => hiddenSet.value.has(id));
+  if (allHidden) {
     const toRemove = new Set(stepIds);
-    albumMutation.mutate({ excluded_steps: props.excludedSteps.filter((id) => !toRemove.has(id)) });
+    albumMutation.mutate({ hidden_steps: props.hiddenSteps.filter((id) => !toRemove.has(id)) });
   } else {
-    albumMutation.mutate({ excluded_steps: [...new Set([...props.excludedSteps, ...stepIds])] });
+    albumMutation.mutate({ hidden_steps: [...new Set([...props.hiddenSteps, ...stepIds])] });
   }
 }
 
@@ -170,25 +182,25 @@ function scrollToMap(dateRange: DateRange) {
 
 // ── Header nav items ──────────────────────────────────────────────────
 
-const HEADER_ICONS: Record<string, string> = {
+const HEADER_ICONS: Record<HeaderKey, string> = {
   "cover-front": symOutlinedMenuBook,
   "cover-back": symOutlinedMenuBook,
   "overview": symOutlinedBarChart,
   "full-map": symOutlinedMap,
 };
-const HEADER_LABELS: Record<string, string> = {
+const HEADER_LABELS: Record<HeaderKey, string> = {
   "cover-front": "nav.cover",
   "cover-back": "album.backCover",
   "overview": "inspector.overview",
   "full-map": "album.tripRouteMap",
 };
 const headerNavItems = computed(() =>
-  HEADER_KEYS.map((key) => ({ key, icon: HEADER_ICONS[key]!, label: t(HEADER_LABELS[key]!) })),
+  HEADER_KEYS.map((key) => ({ key, icon: HEADER_ICONS[key], label: t(HEADER_LABELS[key]) })),
 );
 
 // ── Scroll sync ───────────────────────────────────────────────────────
 
-const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
+const HEADER_KEY_SET: ReadonlySet<HeaderKey> = new Set(HEADER_KEYS);
 
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
@@ -253,9 +265,9 @@ watch(activeSectionKey, (key) => {
     <div v-if="steps.length" class="nav-controls">
       <NavDateFilter
         :steps="steps"
-        :excluded-steps="excludedSteps"
+        :hidden-steps="hiddenSteps"
         :colors="albumColors"
-        @update:excluded-steps="onExcludedStepsChange"
+        @update:hidden-steps="onHiddenStepsChange"
       />
       <NavMapRanges
         :steps="steps"
@@ -267,17 +279,27 @@ watch(activeSectionKey, (key) => {
 
     <div ref="listRef" class="nav-list">
       <div class="header-items">
-        <button
+        <div
           v-for="item in headerNavItems"
           :key="item.key"
-          type="button"
+          role="button"
+          tabindex="0"
           :data-nav-section="item.key"
-          :class="['nav-item', 'header-item', { visible: activeSectionKey === item.key }]"
+          :class="['nav-item', 'header-item', { visible: activeSectionKey === item.key, 'nav-hidden': hiddenHeaderSet.has(item.key) }]"
           @click="scrollToSection(item.key)"
+          @keydown.enter="scrollToSection(item.key)"
         >
           <q-icon :name="item.icon" size="var(--type-sm)" />
           <span>{{ item.label }}</span>
-        </button>
+          <button
+            type="button"
+            class="header-toggle"
+            :aria-label="hiddenHeaderSet.has(item.key) ? t('nav.showStep') : t('nav.hideStep')"
+            @click.stop="toggleHeader(item.key)"
+          >
+            <q-icon :name="hiddenHeaderSet.has(item.key) ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+          </button>
+        </div>
       </div>
 
       <NavCountryGroup
@@ -287,7 +309,7 @@ watch(activeSectionKey, (key) => {
         :open="openGroupKey === group.key"
         :active-step-id="activeStepId"
         :active-section-key="activeSectionKey"
-        :excluded-set="excludedSet"
+        :hidden-set="hiddenSet"
         :steps="steps"
         :colors="albumColors"
         :format-map-range="formatMapRange"
@@ -305,9 +327,10 @@ watch(activeSectionKey, (key) => {
 
 <style lang="scss" scoped>
 @use "nav/nav-item";
+@use "nav/nav-toggle" as *;
 
 .album-nav {
-  --opacity-excluded: 0.45;
+  --opacity-hidden: 0.45;
   --opacity-toggle-idle: 0.5;
   --opacity-thumb-empty: 0.25;
 
@@ -367,6 +390,10 @@ watch(activeSectionKey, (key) => {
   font-weight: 600;
   color: var(--text-muted);
 
+  > span {
+    flex: 1;
+  }
+
   &:hover {
     color: var(--text-bright);
   }
@@ -383,6 +410,18 @@ watch(activeSectionKey, (key) => {
     &:active {
       background: color-mix(in srgb, var(--q-primary) 24%, transparent);
     }
+  }
+}
+
+.header-toggle {
+  @include nav-toggle;
+
+  .header-item:hover & {
+    opacity: 1;
+  }
+
+  .header-item.nav-hidden & {
+    opacity: 1;
   }
 }
 

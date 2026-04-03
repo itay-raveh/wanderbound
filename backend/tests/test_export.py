@@ -58,7 +58,7 @@ async def _insert_album(session: AsyncSession, uid: int, aid: str) -> Album:
         id=aid,
         title="Test Album",
         subtitle="Test Subtitle",
-        excluded_steps=[],
+        hidden_steps=[],
         front_cover_photo="cover.jpg",
         back_cover_photo="back.jpg",
         colors={"NL": "#FF6B35"},

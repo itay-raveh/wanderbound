@@ -5,7 +5,6 @@ import {
   buildSections,
   sectionPageCount,
   activeSectionId,
-  HEADER_KEYS,
   type Section,
 } from "@/components/album/albumSections";
 import type { DateRange } from "@/client";
@@ -389,31 +388,22 @@ describe("activeSectionId", () => {
     dateRange,
   });
 
-  it("returns header keys for header indices", () => {
-    const sections: Section[] = [];
-    expect(activeSectionId(sections, 0)).toBe("cover-front");
-    expect(activeSectionId(sections, 1)).toBe("cover-back");
-    expect(activeSectionId(sections, 2)).toBe("overview");
-    expect(activeSectionId(sections, 3)).toBe("full-map");
-  });
-
   it("returns step ID (number) for step sections", () => {
     const sections = [stepSection(42), stepSection(99)];
-    // Header count = 4, so section index 0 = virtualizer index 4
-    expect(activeSectionId(sections, HEADER_KEYS.length)).toBe(42);
-    expect(activeSectionId(sections, HEADER_KEYS.length + 1)).toBe(99);
+    expect(activeSectionId(sections, 0)).toBe(42);
+    expect(activeSectionId(sections, 1)).toBe(99);
   });
 
   it("returns section key (string) for map sections", () => {
     const range: DateRange = ["2024-01-01", "2024-01-31"];
     const sections = [mapSection(range), stepSection(1)];
-    const result = activeSectionId(sections, HEADER_KEYS.length);
+    const result = activeSectionId(sections, 0);
     expect(typeof result).toBe("string");
     expect(result).toBe(sectionKey(sections[0]!));
   });
 
   it("returns undefined for out-of-bounds index", () => {
-    expect(activeSectionId([], HEADER_KEYS.length)).toBeUndefined();
-    expect(activeSectionId([stepSection(1)], HEADER_KEYS.length + 5)).toBeUndefined();
+    expect(activeSectionId([], 0)).toBeUndefined();
+    expect(activeSectionId([stepSection(1)], 5)).toBeUndefined();
   });
 });

@@ -1,0 +1,44 @@
+@mixin nav-toggle($idle-opacity: var(--opacity-toggle-idle)) {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: var(--gap-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  opacity: #{$idle-opacity};
+  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+
+  &:hover {
+    color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.0625rem;
+  }
+
+  @media (hover: none) {
+    opacity: 1;
+  }
+
+  @media (pointer: coarse) {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--gap-md-lg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}

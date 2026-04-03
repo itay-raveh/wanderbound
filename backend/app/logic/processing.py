@@ -225,7 +225,7 @@ def build_trip_objects(
         colors=build_country_colors(
             {s.location.country_code for s in trip.all_steps},
         ),
-        excluded_steps=[],
+        hidden_steps=[],
         maps_ranges=multi_day_hike_ranges(segments),
         title=trip.title,
         subtitle=trip.subtitle,

@@ -1,9 +1,19 @@
-import type { DateRange, SegmentOutline, Step } from "@/client";
+import type { Album, DateRange, SegmentOutline, Step } from "@/client";
 import { layoutDescription } from "@/composables/useTextLayout";
 import { inDateRange, isoDate } from "@/utils/date";
 
-/** Keys for fixed album pages that precede the data-driven sections. */
-export const HEADER_KEYS = ["cover-front", "cover-back", "overview", "full-map"] as const;
+/** Keys for fixed album pages that precede the data-driven sections. Validated against the API schema. */
+export const HEADER_KEYS = ["cover-front", "cover-back", "overview", "full-map"] as const satisfies
+  readonly NonNullable<Album["hidden_headers"]>[number][];
+
+export type HeaderKey = typeof HEADER_KEYS[number];
+
+/** Return only the header keys not present in the hidden list. */
+export function visibleHeaderKeys(hiddenHeaders: readonly HeaderKey[]): HeaderKey[] {
+  if (!hiddenHeaders.length) return [...HEADER_KEYS];
+  const hidden = new Set(hiddenHeaders);
+  return HEADER_KEYS.filter(k => !hidden.has(k));
+}
 
 interface IndexedPage {
   originalIdx: number;
@@ -49,15 +59,9 @@ export function sectionKey(section: Section): string {
   }
 }
 
-/**
- * Map a virtualizer index to its active-section identifier.
- * Header indices (< HEADER_KEYS.length) return the header key string.
- * Section indices return the step ID (number) or section key (string).
- */
-export function activeSectionId(sections: readonly Section[], vIndex: number): number | string | undefined {
-  const headerCount = HEADER_KEYS.length;
-  if (vIndex < headerCount) return HEADER_KEYS[vIndex];
-  const sec = sections[vIndex - headerCount];
+/** Return the nav ID for a section at the given index (header-offset already removed). */
+export function activeSectionId(sections: readonly Section[], sectionIdx: number): number | string | undefined {
+  const sec = sections[sectionIdx];
   if (!sec) return undefined;
   return sec.type === "step" ? sec.step.id : sectionKey(sec);
 }

@@ -13,7 +13,7 @@ defineProps<{
   thumb: string | null;
   color: string;
   active: boolean;
-  excluded: boolean;
+  hidden: boolean;
 }>();
 
 defineEmits<{
@@ -26,7 +26,7 @@ defineEmits<{
   <div
     role="button"
     tabindex="0"
-    :class="['nav-item', { visible: active, excluded }]"
+    :class="['nav-item', { visible: active, 'nav-hidden': hidden }]"
     :aria-current="active ? 'step' : undefined"
     @click="$emit('click')"
     @keydown.enter="$emit('click')"
@@ -42,17 +42,17 @@ defineEmits<{
     <button
       type="button"
       class="step-toggle"
-      :aria-label="excluded ? t('nav.showStep') : t('nav.hideStep')"
+      :aria-label="hidden ? t('nav.showStep') : t('nav.hideStep')"
       @click.stop="$emit('toggle')"
     >
-      <q-icon :name="excluded ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
-      <q-tooltip>{{ excluded ? t("nav.showStep") : t("nav.hideStep") }}</q-tooltip>
+      <q-icon :name="hidden ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
     </button>
   </div>
 </template>
 
 <style lang="scss" scoped>
 @use "nav-item";
+@use "nav-toggle" as *;
 
 .thumb-img {
   width: 100%;
@@ -71,61 +71,14 @@ defineEmits<{
 }
 
 .step-toggle {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: var(--gap-sm);
-  border-radius: var(--radius-sm);
-  color: var(--text-faint);
-  opacity: var(--opacity-toggle-idle);
-  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+  @include nav-toggle;
 
   .nav-item:hover & {
     opacity: 1;
   }
 
-  .nav-item &:hover {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  }
-
-  .nav-item &:active {
-    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
-  }
-
-  .nav-item.excluded & {
+  .nav-item.nav-hidden & {
     opacity: 1;
-  }
-
-  &:focus-visible {
-    opacity: 1;
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
-  }
-}
-
-@media (hover: none) {
-  .step-toggle {
-    opacity: 1;
-  }
-}
-
-@media (pointer: coarse) {
-  .step-toggle {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--gap-md-lg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .step-toggle {
-    transition: none;
   }
 }
 </style>

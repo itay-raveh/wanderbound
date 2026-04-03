@@ -19,9 +19,13 @@ export type Album = {
      */
     subtitle: string;
     /**
-     * Excluded Steps
+     * Hidden Steps
      */
-    excluded_steps?: Array<number>;
+    hidden_steps?: Array<number>;
+    /**
+     * Hidden Headers
+     */
+    hidden_headers?: Array<'cover-front' | 'cover-back' | 'overview' | 'full-map'>;
     /**
      * Maps Ranges
      */
@@ -37,11 +41,11 @@ export type Album = {
     /**
      * Font
      */
-    font?: string;
+    font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
      * Body Font
      */
-    body_font?: string;
+    body_font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
      * Uid
      */
@@ -77,9 +81,13 @@ export type AlbumMeta = {
      */
     subtitle: string;
     /**
-     * Excluded Steps
+     * Hidden Steps
      */
-    excluded_steps?: Array<number>;
+    hidden_steps?: Array<number>;
+    /**
+     * Hidden Headers
+     */
+    hidden_headers?: Array<'cover-front' | 'cover-back' | 'overview' | 'full-map'>;
     /**
      * Maps Ranges
      */
@@ -95,11 +103,11 @@ export type AlbumMeta = {
     /**
      * Font
      */
-    font?: string;
+    font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
      * Body Font
      */
-    body_font?: string;
+    body_font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
      * Uid
      */
@@ -129,9 +137,13 @@ export type AlbumUpdate = {
      */
     subtitle?: string | null;
     /**
-     * Excluded Steps
+     * Hidden Steps
      */
-    excluded_steps?: Array<number> | null;
+    hidden_steps?: Array<number> | null;
+    /**
+     * Hidden Headers
+     */
+    hidden_headers?: Array<'cover-front' | 'cover-back' | 'overview' | 'full-map'> | null;
     /**
      * Maps Ranges
      */
@@ -147,11 +159,11 @@ export type AlbumUpdate = {
     /**
      * Font
      */
-    font?: string | null;
+    font?: 'Frank Ruhl Libre' | 'Assistant' | null;
     /**
      * Body Font
      */
-    body_font?: string | null;
+    body_font?: 'Frank Ruhl Libre' | 'Assistant' | null;
 };
 
 /**

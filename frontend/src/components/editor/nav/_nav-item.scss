@@ -37,8 +37,8 @@
     }
   }
 
-  &.excluded {
-    opacity: var(--opacity-excluded);
+  &.nav-hidden {
+    opacity: var(--opacity-hidden);
   }
 
   &:focus-visible {

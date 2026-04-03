@@ -43,7 +43,7 @@ describe("AlbumNav active section integration", () => {
       props: {
         steps,
         albumIds: [],
-        excludedSteps: [],
+        hiddenSteps: [],
         colors: { nl: "#e77c31", ar: "#3b82f6" },
         mapsRanges: [],
       },
@@ -133,7 +133,7 @@ describe("AlbumNav active section integration", () => {
       props: {
         steps,
         albumIds: [],
-        excludedSteps: [],
+        hiddenSteps: [],
         colors: { nl: "#e77c31" },
         mapsRanges: [dateRange],
       },
@@ -163,7 +163,7 @@ describe("AlbumNav active section integration", () => {
       props: {
         steps,
         albumIds: [],
-        excludedSteps: [],
+        hiddenSteps: [],
         colors: { nl: "#e77c31", ar: "#3b82f6" },
         mapsRanges: [nlRange, arRange],
       },

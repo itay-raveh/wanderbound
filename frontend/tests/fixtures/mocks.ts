@@ -17,7 +17,7 @@ export const mockAlbum = {
   uid: 1,
   title: "South America",
   subtitle: "A great adventure",
-  excluded_steps: [],
+  hidden_steps: [],
   maps_ranges: [],
   front_cover_photo: "cover.jpg",
   back_cover_photo: "back.jpg",

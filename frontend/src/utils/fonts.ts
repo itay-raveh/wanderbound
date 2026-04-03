@@ -1,6 +1,10 @@
-/** Canonical font configuration — single source of truth for the frontend. */
+/** Canonical font configuration — validated against the API schema. */
 
-export const ALLOWED_FONTS = ["Frank Ruhl Libre", "Assistant"] as const;
+import type { Album } from "@/client";
+
+export const ALLOWED_FONTS = ["Frank Ruhl Libre", "Assistant"] as const satisfies
+  readonly NonNullable<Album["font"]>[];
+
 type FontName = (typeof ALLOWED_FONTS)[number];
 
 export const DEFAULT_FONT: FontName = "Assistant";
@@ -13,6 +17,6 @@ const FONT_FALLBACKS: Record<FontName, string> = {
 };
 
 /** Build a complete CSS font-family string with fallbacks. */
-export function fontStack(name: string): string {
-  return `"${name}", ${FONT_FALLBACKS[name as FontName] ?? "sans-serif"}`;
+export function fontStack(name: FontName): string {
+  return `"${name}", ${FONT_FALLBACKS[name]}`;
 }

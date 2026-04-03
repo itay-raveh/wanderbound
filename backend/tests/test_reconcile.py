@@ -79,7 +79,7 @@ def _album(
         back_cover_photo=back_cover_photo,
         media=media or [],
         colors={},
-        excluded_steps=[],
+        hidden_steps=[],
         maps_ranges=[],
         font="Assistant",
         body_font="Frank Ruhl Libre",

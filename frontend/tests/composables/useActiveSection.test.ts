@@ -1,6 +1,6 @@
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import type { VirtualItem } from "@tanstack/vue-virtual";
-import { activeSectionId, type Section } from "@/components/album/albumSections";
+import { activeSectionId, HEADER_KEYS, type Section } from "@/components/album/albumSections";
 import { makeStep } from "../helpers";
 import type { DateRange } from "@/client";
 
@@ -140,6 +140,8 @@ describe("active section highlighting", () => {
     dateRange,
   });
 
+  const HEADER_COUNT = HEADER_KEYS.length;
+
   /** Run the same logic as the AlbumViewer watchEffect. */
   function activeAt(
     vItems: VirtualItem[],
@@ -149,7 +151,12 @@ describe("active section highlighting", () => {
   ) {
     const { setActive, activeStepId, activeSectionKey, resetActiveSection } = useActiveSection();
     const best = pickBestItem(vItems, scrollY, 0, viewportHeight / 2);
-    setActive(best ? activeSectionId(sections, best.index) ?? null : null);
+    let id: number | string | null = null;
+    if (best) {
+      if (best.index < HEADER_COUNT) id = HEADER_KEYS[best.index] ?? null;
+      else id = activeSectionId(sections, best.index - HEADER_COUNT) ?? null;
+    }
+    setActive(id);
     const result = { stepId: activeStepId.value, sectionKey: activeSectionKey.value };
     resetActiveSection();
     return result;

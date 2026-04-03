@@ -22,7 +22,7 @@ const props = defineProps<{
   open: boolean;
   activeStepId: number | null;
   activeSectionKey: string | null;
-  excludedSet: Set<number>;
+  hiddenSet: Set<number>;
   steps: Step[];
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
@@ -38,8 +38,8 @@ const emit = defineEmits<{
   mapDateChange: [rangeIdx: number, range: DateRange];
 }>();
 
-const allExcluded = computed(() =>
-  props.group.stepIds.every((id) => props.excludedSet.has(id)),
+const allHidden = computed(() =>
+  props.group.stepIds.every((id) => props.hiddenSet.has(id)),
 );
 </script>
 
@@ -47,7 +47,7 @@ const allExcluded = computed(() =>
   <q-expansion-item
     :model-value="open"
     dense
-    :header-class="['group-header', { 'group-excluded': allExcluded }]"
+    :header-class="['group-header', { 'group-hidden': allHidden }]"
     expand-icon-class="text-faint"
     :style="{ '--country-color': group.color }"
     @update:model-value="emit('toggleOpen')"
@@ -57,16 +57,15 @@ const allExcluded = computed(() =>
         <img :src="flagUrl(group.code)" alt="" width="14" height="10" class="group-flag" />
       </q-item-section>
       <q-item-section class="group-name" dir="auto">{{ group.name }}</q-item-section>
-      <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-excluded': allExcluded }]">
+      <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-hidden': allHidden }]">
         <span class="group-dates-text">{{ group.dateRange }}</span>
         <button
           type="button"
           class="country-toggle"
-          :aria-label="allExcluded ? t('nav.showAll') : t('nav.hideAll')"
+          :aria-label="allHidden ? t('nav.showAll') : t('nav.hideAll')"
           @click.stop="emit('toggleCountry')"
         >
-          <q-icon :name="allExcluded ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
-          <q-tooltip>{{ allExcluded ? t("nav.showAll") : t("nav.hideAll") }}</q-tooltip>
+          <q-icon :name="allHidden ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
         </button>
       </q-item-section>
     </template>
@@ -93,7 +92,7 @@ const allExcluded = computed(() =>
         :thumb="entry.item.thumb"
         :color="entry.item.color"
         :active="activeStepId === entry.item.id"
-        :excluded="excludedSet.has(entry.item.id)"
+        :hidden="hiddenSet.has(entry.item.id)"
         @click="emit('scrollToStep', entry.item.id)"
         @toggle="emit('toggleStep', entry.item.id)"
       />
@@ -102,6 +101,8 @@ const allExcluded = computed(() =>
 </template>
 
 <style lang="scss" scoped>
+@use "nav-toggle" as *;
+
 .group-header {
   min-height: 2.75rem;
   padding: var(--gap-sm) var(--gap-md-lg);
@@ -141,13 +142,13 @@ const allExcluded = computed(() =>
   text-overflow: ellipsis;
   transition: opacity var(--duration-fast);
 
-  .group-excluded & {
-    opacity: var(--opacity-excluded);
+  .group-hidden & {
+    opacity: var(--opacity-hidden);
   }
 }
 
-.group-excluded .group-flag {
-  opacity: var(--opacity-excluded);
+.group-hidden .group-flag {
+  opacity: var(--opacity-hidden);
 }
 
 .group-header .group-dates {
@@ -170,57 +171,17 @@ const allExcluded = computed(() =>
   transition: opacity var(--duration-fast);
 
   .group-header:hover &,
-  .group-dates-excluded & {
+  .group-dates-hidden & {
     opacity: 0;
   }
 }
 
 .country-toggle {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--gap-sm);
-  border-radius: var(--radius-sm);
-  color: var(--text-faint);
-  opacity: 0;
-  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+  @include nav-toggle(0);
 
   .group-header:hover &,
-  .group-dates-excluded & {
+  .group-dates-hidden & {
     opacity: 1;
-  }
-
-  &:hover {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  }
-
-  &:active {
-    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
-  }
-
-  &:focus-visible {
-    opacity: 1;
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
-  }
-}
-
-@media (hover: none) {
-  .country-toggle {
-    opacity: 1;
-  }
-}
-
-@media (pointer: coarse) {
-  .country-toggle {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--gap-md-lg);
   }
 }
 
@@ -228,8 +189,7 @@ const allExcluded = computed(() =>
   .group-header,
   .group-flag,
   .group-name,
-  .group-dates-text,
-  .country-toggle {
+  .group-dates-text {
     transition: none;
   }
 }

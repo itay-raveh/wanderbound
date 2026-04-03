@@ -22,19 +22,19 @@ type PopupExpose = { hide: () => void };
 
 const props = defineProps<{
   steps: Step[];
-  excludedSteps: number[];
+  hiddenSteps: number[];
   colors: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
-  "update:excludedSteps": [ids: number[]];
+  "update:hiddenSteps": [ids: number[]];
 }>();
 
-const excludedSet = computed(() => new Set(props.excludedSteps));
+const hiddenSet = computed(() => new Set(props.hiddenSteps));
 
 const includedSteps = computed(() => {
-  if (!excludedSet.value.size) return null;
-  const filtered = props.steps.filter((s) => !excludedSet.value.has(s.id));
+  if (!hiddenSet.value.size) return null;
+  const filtered = props.steps.filter((s) => !hiddenSet.value.has(s.id));
   return filtered.length && filtered.length < props.steps.length ? filtered : null;
 });
 
@@ -53,13 +53,13 @@ function onPickerClose() {
   const val = close();
   const ranges = parseDraftRanges(val);
   if (!ranges.length) {
-    emit("update:excludedSteps", []);
+    emit("update:hiddenSteps", []);
     return;
   }
-  const excluded = props.steps
+  const hidden = props.steps
     .filter((s) => !ranges.some((r) => inDateRange(isoDate(s.datetime), r)))
     .map((s) => s.id);
-  emit("update:excludedSteps", excluded);
+  emit("update:hiddenSteps", hidden);
 }
 
 const rangeDisplay = computed(() => {
@@ -98,7 +98,7 @@ function clearFilter() {
           range
           multiple
         />
-        <div v-if="excludedSet.size" class="picker-footer">
+        <div v-if="hiddenSet.size" class="picker-footer">
           <button type="button" class="picker-clear-btn" @click="clearFilter">
             {{ t("nav.clearFilter") }}
           </button>

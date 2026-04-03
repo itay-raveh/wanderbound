@@ -74,7 +74,8 @@ const activeStep = computed(() =>
       v-model:album-id="selectedAlbumId"
       :album-ids="albumIds ?? undefined"
       :steps="steps"
-      :excluded-steps="album.excluded_steps ?? undefined"
+      :hidden-steps="album.hidden_steps ?? undefined"
+      :hidden-headers="album.hidden_headers ?? undefined"
       :colors="album.colors ?? undefined"
       :maps-ranges="album.maps_ranges ?? undefined"
     />

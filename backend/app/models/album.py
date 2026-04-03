@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
@@ -13,16 +14,11 @@ from app.models.step import Step
 
 type DateRange = tuple[date, date]
 
-ALLOWED_FONTS = {"Frank Ruhl Libre", "Assistant"}
-DEFAULT_FONT = "Assistant"
-DEFAULT_BODY_FONT = "Frank Ruhl Libre"
+HeaderKey = Literal["cover-front", "cover-back", "overview", "full-map"]
+FontName = Literal["Frank Ruhl Libre", "Assistant"]
 
-
-def _validate_font(v: str, field_name: str) -> str:
-    if v not in ALLOWED_FONTS:
-        msg = f"{field_name} must be one of {ALLOWED_FONTS}"
-        raise ValueError(msg)
-    return v
+DEFAULT_FONT: FontName = "Assistant"
+DEFAULT_BODY_FONT: FontName = "Frank Ruhl Libre"
 
 
 class AlbumBase(SQLModel):
@@ -30,8 +26,12 @@ class AlbumBase(SQLModel):
 
     title: str = Field(max_length=255)
     subtitle: str = Field(max_length=255)
-    excluded_steps: list[int] = Field(
+    hidden_steps: list[int] = Field(
         sa_column=Column(PydanticJSON(list[int]), nullable=False),
+        default_factory=list,
+    )
+    hidden_headers: list[HeaderKey] = Field(
+        sa_column=Column(PydanticJSON(list[HeaderKey]), nullable=False),
         default_factory=list,
     )
     maps_ranges: list[DateRange] = Field(
@@ -40,18 +40,8 @@ class AlbumBase(SQLModel):
     )
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
-    font: str = Field(default=DEFAULT_FONT, max_length=100)
-    body_font: str = Field(default=DEFAULT_BODY_FONT, max_length=100)
-
-    @field_validator("font")
-    @classmethod
-    def _validate_font(cls, v: str) -> str:
-        return _validate_font(v, "font")
-
-    @field_validator("body_font")
-    @classmethod
-    def _validate_body_font(cls, v: str) -> str:
-        return _validate_font(v, "body_font")
+    font: FontName = Field(default=DEFAULT_FONT, max_length=100)
+    body_font: FontName = Field(default=DEFAULT_BODY_FONT, max_length=100)
 
 
 @all_optional
