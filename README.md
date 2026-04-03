@@ -87,12 +87,8 @@ runs only tests matching `test_auth`.
 ## Roadmap
 
 - [ ] Fix photo focus.
-- [ ] Critique overview page.
-- [ ] Critique step main pages.
-- [ ] Critique step photo pages.
 - [ ] Allow hiding covers, overview.
 - [ ] Add controls for zoom, page padding.
-- [ ] HDR → SDR tone-mapping for video poster extraction
 - [ ] Add "Try with demo data" feature.
 - [ ] Add onboarding flow.
 - [ ] Add double page photos.
