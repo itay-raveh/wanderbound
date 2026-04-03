@@ -224,6 +224,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
 const { map, fitBounds } = useMapbox({
   container,
   locale,
+  preserveDrawingBuffer: printMode,
   onReady: (m) => {
     m.resize();
     try {
@@ -360,6 +361,6 @@ watch(fullHikeSegment, () => {
 }
 
 .stat-sep {
-  opacity: 0.4;
+  color: var(--text-muted);
 }
 </style>

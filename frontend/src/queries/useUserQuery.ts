@@ -44,7 +44,7 @@ export function useUserQuery() {
   }
 
   function formatElevation(meters: number): string {
-    return `${formatElevationValue(meters)}${elevationUnit.value}`;
+    return `${formatElevationValue(meters)} ${elevationUnit.value}`;
   }
 
   function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {

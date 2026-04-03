@@ -5,14 +5,11 @@ import { rangeSectionKey } from "@/components/album/albumSections";
 import { flushPromises } from "@vue/test-utils";
 import type { DateRange } from "@/client";
 
-// Mock useTextMeasure to avoid document.fonts in happy-dom
-vi.mock("@/composables/useTextMeasure", () => ({
-  measureDescription: (text: string) => {
-    if (!text || text.length < 100)
-      return { type: "short", mainLines: null, continuationLines: [] };
-    if (text.length < 500)
-      return { type: "long", mainLines: null, continuationLines: [] };
-    return { type: "extra-long", mainLines: null, continuationLines: [[]] };
+// Mock useTextLayout to avoid document.fonts in happy-dom
+vi.mock("@/composables/useTextLayout", () => ({
+  layoutDescription: (text: string) => {
+    if (!text || text.length < 100) return { pages: [] };
+    return { pages: [[], []] };
   },
 }));
 

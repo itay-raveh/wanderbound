@@ -2,10 +2,12 @@
 import type { Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
-import StepTextPage from "./step/StepTextPage.vue";
+import StepDescriptionPage from "./step/StepDescriptionPage.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
-import { useTextMeasure } from "@/composables/useTextMeasure";
+import { useTextLayout } from "@/composables/useTextLayout";
+import { useAlbum } from "@/composables/useAlbum";
+import { isPortrait } from "@/utils/media";
 import { filterCoverFromPages } from "./albumSections";
 import { useI18n } from "vue-i18n";
 import { computed, onUnmounted, provide, ref, toRef } from "vue";
@@ -35,11 +37,42 @@ if (!printMode) {
   onUnmounted(() => photoFocus.unregister(props.step.id));
 }
 
-const desc = useTextMeasure(computed(() => props.step.description ?? ""));
+const desc = useTextLayout(computed(() => props.step.description ?? ""));
+const continuationPages = computed(() => desc.value.pages.slice(1));
 
-const photoPages = computed(() =>
-  filterCoverFromPages(props.step.pages, props.step.cover, desc.value.type === "short"),
+// Portraits from photo pages fill the right column of continuation description pages,
+// keeping text and photos together instead of leaving text-only pages.
+const { mediaByName } = useAlbum();
+
+const rawPhotoPages = computed(() =>
+  filterCoverFromPages(props.step.pages, props.step.cover),
 );
+
+const continuationPhotos = computed(() => {
+  const needed = continuationPages.value.length;
+  if (needed === 0) return [];
+  const result: string[] = [];
+  for (const { page } of rawPhotoPages.value) {
+    for (const name of page) {
+      const m = mediaByName.value.get(name);
+      if (m && isPortrait(m)) result.push(name);
+      if (result.length >= needed) return result;
+    }
+  }
+  return result;
+});
+
+const photoPages = computed(() => {
+  const raw = rawPhotoPages.value;
+  const used = new Set(continuationPhotos.value);
+  if (used.size === 0) return raw;
+  return raw
+    .map(({ originalIdx, page }) => ({
+      originalIdx,
+      page: page.filter((p) => !used.has(p)),
+    }))
+    .filter(({ page }) => page.length > 0);
+});
 
 // Steps with 0-1 photos have nothing to drag into a new page, so the drop zone is hidden.
 const totalPhotos = computed(() =>
@@ -53,19 +86,19 @@ const totalPhotos = computed(() =>
       <div class="cover-drop-wrapper relative-position">
         <StepMainPage
           :step="step"
-          :description-type="desc.type"
-          :main-lines="desc.mainLines"
+          :sidebar-lines="desc.pages[0]"
           @update:name="saveField({ name: $event })"
           @update:description="saveField({ description: $event })"
         />
         <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
       </div>
 
-      <StepTextPage
-        v-for="(pageLines, i) in desc.continuationLines"
-        :key="`text-${i}`"
+      <StepDescriptionPage
+        v-for="(pageLines, i) in continuationPages"
+        :key="`desc-${i}`"
         :lines="pageLines"
         :description="step.description ?? ''"
+        :photo="continuationPhotos[i] ?? null"
         @update:description="saveField({ description: $event })"
       />
 
@@ -121,7 +154,7 @@ const totalPhotos = computed(() =>
     content: "";
     position: absolute;
     inset: 0;
-    border: 2px solid var(--q-primary);
+    border: 0.125rem solid var(--q-primary);
     background: color-mix(in srgb, var(--q-primary) 10%, transparent);
     pointer-events: none;
   }
@@ -148,7 +181,7 @@ const totalPhotos = computed(() =>
   gap: var(--gap-sm);
   width: 100%;
   padding: var(--gap-lg);
-  border: 2px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  border: 0.125rem dashed color-mix(in srgb, var(--text) 20%, transparent);
   border-radius: var(--radius-lg);
   font-size: var(--type-sm);
   transition:

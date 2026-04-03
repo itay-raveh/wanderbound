@@ -38,25 +38,25 @@ const termsHtml = marked.parse(termsRaw) as string;
 }
 
 .prose :deep(h1) {
-  font-size: 1.75rem;
+  font-size: var(--type-2xl);
   font-weight: 700;
   color: var(--text-bright);
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--gap-md);
   letter-spacing: var(--tracking-tight);
 }
 
 .prose :deep(h2) {
-  font-size: 1.25rem;
+  font-size: var(--type-lg);
   font-weight: 600;
   color: var(--text-bright);
-  margin: 2rem 0 0.75rem;
+  margin: 2rem 0 var(--gap-md-lg);
 }
 
 .prose :deep(h3) {
-  font-size: 1.1rem;
+  font-size: var(--type-subtitle);
   font-weight: 600;
   color: var(--text);
-  margin: 1.5rem 0 0.5rem;
+  margin: 1.5rem 0 var(--gap-md);
 }
 
 .prose :deep(p) {

@@ -1,4 +1,5 @@
 import type { Step, SegmentOutline } from "@/client";
+import { haversineKm } from "@/utils/geo";
 
 const CIRCUITY: Record<string, number> = {
   driving: 1.3,
@@ -7,21 +8,13 @@ const CIRCUITY: Record<string, number> = {
   flight: 1.0,
 };
 
-function haversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+interface StepExtreme {
+  value: number;
+  step: Step;
+}
+
+interface ColdExtreme extends StepExtreme {
+  isNight: boolean;
 }
 
 interface Overview {
@@ -29,13 +22,13 @@ interface Overview {
   estimatedDistanceKm: number;
   distanceKm: number;
   countries: { code: string; detail: string }[];
-  coldest: { value: number; stepName: string } | null;
-  hottest: { value: number; stepName: string } | null;
-  highestElevation: { value: number; stepName: string } | null;
-  furthestFromHome: { distanceKm: number; stepName: string } | null;
+  coldest: ColdExtreme | null;
+  hottest: StepExtreme | null;
+  highestElevation: StepExtreme | null;
+  furthestFromHome: StepExtreme | null;
 }
 
-export function useOverview(
+export function computeOverview(
   steps: Step[],
   segmentOutlines: SegmentOutline[],
   exactDistanceKm: number | null,
@@ -65,31 +58,32 @@ export function useOverview(
   }
   const countries = [...seen].map(([code, detail]) => ({ code, detail }));
 
-  // Extremes
-  let coldest: Overview["coldest"] = null;
-  let hottest: Overview["hottest"] = null;
-  let highestElevation: Overview["highestElevation"] = null;
-  let furthestFromHome: Overview["furthestFromHome"] = null;
+  // Extremes — single pass over all steps
+  let coldest: ColdExtreme | null = null;
+  let hottest: StepExtreme | null = null;
+  let highestElevation: StepExtreme | null = null;
+  let furthestFromHome: StepExtreme | null = null;
 
   for (const s of steps) {
-    const dayFeelsLike = s.weather.day.feels_like;
-    const nightFeelsLike = s.weather.night?.feels_like;
+    const dayFeels = s.weather.day.feels_like;
 
-    const candidates = [dayFeelsLike, nightFeelsLike].filter(
-      (v): v is number => v != null,
-    );
-    const minFeel = candidates.length ? Math.min(...candidates) : undefined;
-    const maxFeel = dayFeelsLike;
+    // Hot: day feels-like only
+    if (!hottest || dayFeels > hottest.value) {
+      hottest = { value: dayFeels, step: s };
+    }
 
-    if (minFeel != null && (!coldest || minFeel < coldest.value)) {
-      coldest = { value: minFeel, stepName: s.name };
+    // Cold: check both day and night feels-like
+    if (!coldest || dayFeels < coldest.value) {
+      coldest = { value: dayFeels, step: s, isNight: false };
     }
-    if (maxFeel != null && (!hottest || maxFeel > hottest.value)) {
-      hottest = { value: maxFeel, stepName: s.name };
+    if (s.weather.night && s.weather.night.feels_like < (coldest?.value ?? Infinity)) {
+      coldest = { value: s.weather.night.feels_like, step: s, isNight: true };
     }
+
     if (!highestElevation || s.elevation > highestElevation.value) {
-      highestElevation = { value: s.elevation, stepName: s.name };
+      highestElevation = { value: s.elevation, step: s };
     }
+
     if (homeLocation) {
       const dist = haversineKm(
         homeLocation.lat,
@@ -97,8 +91,8 @@ export function useOverview(
         s.location.lat,
         s.location.lon,
       );
-      if (!furthestFromHome || dist > furthestFromHome.distanceKm) {
-        furthestFromHome = { distanceKm: dist, stepName: s.name };
+      if (!furthestFromHome || dist > furthestFromHome.value) {
+        furthestFromHome = { value: dist, step: s };
       }
     }
   }

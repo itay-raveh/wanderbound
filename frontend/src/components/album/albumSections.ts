@@ -1,5 +1,5 @@
 import type { DateRange, SegmentOutline, Step } from "@/client";
-import { measureDescription } from "@/composables/useTextMeasure";
+import { layoutDescription } from "@/composables/useTextLayout";
 import { inDateRange, isoDate } from "@/utils/date";
 
 /** Keys for fixed album pages that precede the data-driven sections. */
@@ -10,13 +10,12 @@ interface IndexedPage {
   page: string[];
 }
 
-/** Filter out the cover photo from pages when it's already shown on the main page (short description). */
+/** Filter out the cover photo from photo pages (cover is always shown on the main page). */
 export function filterCoverFromPages(
   pages: string[][],
   cover: string | null | undefined,
-  isShort: boolean,
 ): IndexedPage[] {
-  if (!isShort || !cover) {
+  if (!cover) {
     return pages.map((page, i) => ({ originalIdx: i, page }));
   }
   return pages
@@ -66,9 +65,10 @@ export function activeSectionId(sections: readonly Section[], vIndex: number): n
 export function sectionPageCount(section: Section): number {
   if (section.type === "map" || section.type === "hike") return 1;
   const step = section.step;
-  const layout = measureDescription(step.description || "");
-  const pages = filterCoverFromPages(step.pages, step.cover, layout.type === "short");
-  return 1 + pages.length + layout.continuationLines.length;
+  const layout = layoutDescription(step.description || "");
+  const photoPages = filterCoverFromPages(step.pages, step.cover);
+  const continuationPages = Math.max(0, layout.pages.length - 1);
+  return 1 + continuationPages + photoPages.length;
 }
 
 /** Group map ranges by the ID of their first overlapping step. */

@@ -4,9 +4,9 @@ import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
-import type { Media } from "@/client";
+import { isPortrait as isPortraitMedia } from "@/utils/media";
 
-const { media } = useAlbum();
+const { mediaByName } = useAlbum();
 const printMode = usePrintMode();
 
 const props = defineProps<{
@@ -16,15 +16,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
-
-const mediaByName = computed(() => {
-  const map = new Map<string, Media>();
-  for (const m of media.value) map.set(m.name, m);
-  return map;
-});
 const isPortrait = (name: string) => {
   const m = mediaByName.value.get(name);
-  return m ? m.width / m.height <= 4 / 5 : false;
+  return m ? isPortraitMedia(m) : false;
 };
 
 /**

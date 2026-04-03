@@ -346,7 +346,7 @@ onUnmounted(() => {
     transform var(--duration-normal) ease,
     box-shadow var(--duration-normal) ease,
     opacity var(--duration-normal) ease;
-  animation: fan-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation: fan-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .hero-card:hover {

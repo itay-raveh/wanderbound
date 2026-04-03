@@ -11,14 +11,11 @@ import {
 import type { DateRange } from "@/client";
 import { makeStep, makeSegment } from "../helpers";
 
-// Mock measureDescription to avoid DOM measurement in tests
-vi.mock("@/composables/useTextMeasure", () => ({
-  measureDescription: (text: string) => {
-    if (!text || text.length < 100)
-      return { type: "short", mainLines: null, continuationLines: [] };
-    if (text.length < 500)
-      return { type: "long", mainLines: null, continuationLines: [] };
-    return { type: "extra-long", mainLines: null, continuationLines: [[]] };
+// Mock layoutDescription to avoid DOM measurement in tests
+vi.mock("@/composables/useTextLayout", () => ({
+  layoutDescription: (text: string) => {
+    if (!text || text.length < 100) return { pages: [] };
+    return { pages: [[], []] }; // 1 sidebar + 1 continuation page
   },
 }));
 
@@ -27,18 +24,9 @@ vi.mock("@/composables/useTextMeasure", () => ({
 // ---------------------------------------------------------------------------
 
 describe("filterCoverFromPages", () => {
-  it("returns all pages with original indices when not short", () => {
-    const pages = [["p1", "p2"], ["p3"]];
-    const result = filterCoverFromPages(pages, "p1", false);
-    expect(result).toEqual([
-      { originalIdx: 0, page: ["p1", "p2"] },
-      { originalIdx: 1, page: ["p3"] },
-    ]);
-  });
-
   it("returns all pages when cover is null", () => {
     const pages = [["p1"], ["p2"]];
-    const result = filterCoverFromPages(pages, null, true);
+    const result = filterCoverFromPages(pages, null);
     expect(result).toEqual([
       { originalIdx: 0, page: ["p1"] },
       { originalIdx: 1, page: ["p2"] },
@@ -47,13 +35,13 @@ describe("filterCoverFromPages", () => {
 
   it("returns all pages when cover is undefined", () => {
     const pages = [["p1"]];
-    const result = filterCoverFromPages(pages, undefined, true);
+    const result = filterCoverFromPages(pages, undefined);
     expect(result).toEqual([{ originalIdx: 0, page: ["p1"] }]);
   });
 
-  it("filters cover from pages when short", () => {
+  it("filters cover from pages", () => {
     const pages = [["cover", "p1"], ["p2"]];
-    const result = filterCoverFromPages(pages, "cover", true);
+    const result = filterCoverFromPages(pages, "cover");
     expect(result).toEqual([
       { originalIdx: 0, page: ["p1"] },
       { originalIdx: 1, page: ["p2"] },
@@ -62,13 +50,13 @@ describe("filterCoverFromPages", () => {
 
   it("removes pages that become empty after cover filtering", () => {
     const pages = [["cover"], ["p1", "p2"]];
-    const result = filterCoverFromPages(pages, "cover", true);
+    const result = filterCoverFromPages(pages, "cover");
     expect(result).toEqual([{ originalIdx: 1, page: ["p1", "p2"] }]);
   });
 
   it("handles cover appearing in multiple pages", () => {
     const pages = [["cover", "p1"], ["cover", "p2"], ["p3"]];
-    const result = filterCoverFromPages(pages, "cover", true);
+    const result = filterCoverFromPages(pages, "cover");
     expect(result).toEqual([
       { originalIdx: 0, page: ["p1"] },
       { originalIdx: 1, page: ["p2"] },
@@ -77,8 +65,8 @@ describe("filterCoverFromPages", () => {
   });
 
   it("handles empty pages array", () => {
-    expect(filterCoverFromPages([], "cover", true)).toEqual([]);
-    expect(filterCoverFromPages([], null, false)).toEqual([]);
+    expect(filterCoverFromPages([], "cover")).toEqual([]);
+    expect(filterCoverFromPages([], null)).toEqual([]);
   });
 });
 
@@ -187,9 +175,9 @@ describe("sectionPageCount", () => {
     expect(sectionPageCount(section)).toBe(1);
   });
 
-  it("returns 1 + pages for step with short description and no cover", () => {
-    // Short description (mocked: < 100 chars), no cover
-    // pages: 2 pages => 1 (main) + 2 (photo pages) + 0 (no continuation) = 3
+  it("returns 1 + photo pages for step with short description and no cover", () => {
+    // Short description (mocked: < 100 chars) → pages: []
+    // photo pages: 2 => 1 (main) + 0 (continuation) + 2 (photo pages) = 3
     const section: Section = {
       type: "step",
       step: makeStep({
@@ -201,11 +189,11 @@ describe("sectionPageCount", () => {
     expect(sectionPageCount(section)).toBe(3);
   });
 
-  it("accounts for cover removal from pages in short layout", () => {
-    // Short description, cover = "p1" which is in pages
+  it("always filters cover from photo pages", () => {
+    // Cover = "p1" in pages → filtered out regardless of description length
     // Pages before filter: [["p1"], ["p2"]]
-    // After filter (short + cover): [["p1"]] filtered to [] (removed), [["p2"]] stays
-    // So 1 remaining page => 1 (main) + 1 (filtered pages) + 0 (continuations) = 2
+    // After filter: [["p1"]] → empty (removed), [["p2"]] stays = 1 photo page
+    // 1 (main) + 0 (continuation) + 1 (photo pages) = 2
     const section: Section = {
       type: "step",
       step: makeStep({
@@ -217,9 +205,9 @@ describe("sectionPageCount", () => {
     expect(sectionPageCount(section)).toBe(2);
   });
 
-  it("counts continuation texts in page count", () => {
-    // Extra-long description (mocked: > 500 chars) => 1 continuation text
-    const longText = "x".repeat(600);
+  it("counts continuation pages for long descriptions", () => {
+    // Long description (mocked: >= 100 chars) → pages: [[], []] = 1 continuation page
+    const longText = "x".repeat(200);
     const section: Section = {
       type: "step",
       step: makeStep({
@@ -227,7 +215,7 @@ describe("sectionPageCount", () => {
         pages: [["p1"]],
       }),
     };
-    // 1 (main) + 1 (pages) + 1 (continuation) = 3
+    // 1 (main) + 1 (continuation) + 1 (photo page) = 3
     expect(sectionPageCount(section)).toBe(3);
   });
 });

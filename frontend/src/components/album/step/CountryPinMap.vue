@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { countryBounds } from "@/utils/countryBounds";
+import { toSvgMercator } from "@/utils/geo";
 import { colors as qColors, Dark } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "../CountrySilhouette.vue";
@@ -11,36 +12,17 @@ const props = defineProps<{
   color?: string;
 }>();
 
-const bounds = countryBounds;
-
-/** Web Mercator (EPSG:3857) half-circumference in metres: π × 6 378 137 */
-const WEB_MERCATOR_EXTENT = 20037508.34;
-
 const fillColor = computed(() => props.color ?? "currentColor");
 const dotColor = computed(() => {
   if (!props.color) return "currentColor";
   return qColors.lighten(props.color, Dark.isActive ? 40 : -40);
 });
 
-const rawViewBox = computed(() => {
-  const b = bounds[props.countryCode.toLowerCase()];
-  return b ? `${b[0]} ${b[1]} ${b[2]} ${b[3]}` : null;
-});
-
-// Convert lat/lon -> Web Mercator (EPSG:3857), then flip Y (matching the SVG generation script)
-function toSvgCoords(lat: number, lon: number): [number, number] {
-  const x = (lon * WEB_MERCATOR_EXTENT) / 180;
-  const latRad = (lat * Math.PI) / 180;
-  const y =
-    (Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * WEB_MERCATOR_EXTENT) / Math.PI;
-  return [x, -y];
-}
-
 const pin = computed(() => {
   const code = props.countryCode.toLowerCase();
-  const b = bounds[code];
+  const b = countryBounds[code];
   if (!b) return null;
-  const [x, y] = toSvgCoords(props.lat, props.lon);
+  const [x, y] = toSvgMercator(props.lon, props.lat);
   const w = b[2];
   const h = b[3];
   const diag = Math.sqrt(w * w + h * h);
@@ -50,9 +32,9 @@ const pin = computed(() => {
 
 // Expand viewBox so the pin is never clipped at edges
 const viewBox = computed(() => {
-  if (!rawViewBox.value || !pin.value) return rawViewBox.value;
   const code = props.countryCode.toLowerCase();
-  const b = bounds[code]!;
+  const b = countryBounds[code];
+  if (!b || !pin.value) return b ? `${b[0]} ${b[1]} ${b[2]} ${b[3]}` : null;
   let [minX, minY, w, h] = b;
   const { x, y, r } = pin.value;
   const pad = r * 3;
@@ -73,22 +55,12 @@ const viewBox = computed(() => {
     :view-box="viewBox"
     :color="fillColor"
   >
-    <template #defs>
-      <filter :id="`glow-${countryCode}`" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur in="SourceGraphic" :stdDeviation="pin ? pin.r * 0.8 : 2" result="blur" />
-        <feMerge>
-          <feMergeNode in="blur" />
-          <feMergeNode in="SourceGraphic" />
-        </feMerge>
-      </filter>
-    </template>
     <circle
       v-if="pin"
       :cx="pin.x"
       :cy="pin.y"
       :r="pin.r"
       :fill="dotColor"
-      :filter="`url(#glow-${countryCode})`"
     />
   </CountrySilhouette>
 </template>

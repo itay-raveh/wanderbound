@@ -4,13 +4,10 @@ import { activeSectionId, type Section } from "@/components/album/albumSections"
 import { makeStep } from "../helpers";
 import type { DateRange } from "@/client";
 
-vi.mock("@/composables/useTextMeasure", () => ({
-  measureDescription: (text: string) => {
-    if (!text || text.length < 100)
-      return { type: "short", mainLines: null, continuationLines: [] };
-    if (text.length < 500)
-      return { type: "long", mainLines: null, continuationLines: [] };
-    return { type: "extra-long", mainLines: null, continuationLines: [[]] };
+vi.mock("@/composables/useTextLayout", () => ({
+  layoutDescription: (text: string) => {
+    if (!text || text.length < 100) return { pages: [] };
+    return { pages: [[], []] };
   },
 }));
 

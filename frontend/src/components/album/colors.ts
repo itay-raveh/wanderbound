@@ -93,3 +93,16 @@ export function ensureSatelliteContrast(hex: string): string {
   const l = Math.max(rawL, MIN_SATELLITE_LIGHTNESS);
   return hslToHex(h, s, l);
 }
+
+/**
+ * Mute a hex color for the overview page's dark background.
+ * Caps saturation and clamps lightness into a narrow pastel range,
+ * producing a hand-illustrated atlas feel while preserving hue.
+ */
+export function toOverviewTone(hex: string): string {
+  const [r, g, b] = parseHex(hex);
+  const [h, rawS, rawL] = rgbToHsl(r, g, b);
+  const s = Math.min(rawS, 0.35);
+  const l = Math.max(Math.min(rawL, 0.65), 0.55);
+  return hslToHex(h, s, l);
+}

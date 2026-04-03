@@ -2,6 +2,7 @@
 import type { SegmentOutline, Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
+import { usePrintMode } from "@/composables/usePrintReady";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
@@ -32,8 +33,9 @@ const toTime = computed(() =>
 
 const { data: segments } = useSegmentPointsQuery(fromTime, toTime);
 
+const printMode = usePrintMode();
 const container = useTemplateRef("map");
-const { map, fitBounds } = useMapbox({ container, locale, onReady: draw });
+const { map, fitBounds } = useMapbox({ container, locale, onReady: draw, preserveDrawingBuffer: printMode });
 
 function draw(m: Map) {
   if (!segments.value) return;

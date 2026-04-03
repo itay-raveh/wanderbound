@@ -45,7 +45,6 @@ const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
 
 useLocale(locale);
 useEditorKeyboard();
-
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetActiveSection(); });
@@ -115,6 +114,7 @@ const activeStep = computed(() =>
       :segment-outlines="segmentOutlines"
     />
   </q-page>
+
 </template>
 
 <style lang="scss" scoped>

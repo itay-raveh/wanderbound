@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { useOverview } from "@/composables/useOverview";
+import { computeOverview } from "@/composables/useOverview";
 import { makeStep } from "../helpers";
 import type { SegmentOutline } from "@/client";
 
-describe("useOverview", () => {
+describe("computeOverview", () => {
   it("computes total photos from step pages", () => {
     const steps = [
       makeStep({ pages: [["a.jpg", "b.jpg"], ["c.jpg"]] }),
       makeStep({ id: 2, pages: [["d.jpg"]] }),
     ];
-    const overview = useOverview(steps, [], null, null);
+    const overview = computeOverview(steps, [], null, null);
     expect(overview.totalPhotos).toBe(4);
   });
 
@@ -24,12 +24,12 @@ describe("useOverview", () => {
         end_coord: [52.1, 4.1],
       },
     ];
-    const overview = useOverview([], outlines, null, null);
+    const overview = computeOverview([], outlines, null, null);
     expect(overview.estimatedDistanceKm).toBeGreaterThan(0);
   });
 
   it("uses exact distance when provided", () => {
-    const overview = useOverview([], [], 1234.5, null);
+    const overview = computeOverview([], [], 1234.5, null);
     expect(overview.distanceKm).toBe(1234.5);
   });
 
@@ -65,7 +65,7 @@ describe("useOverview", () => {
         },
       }),
     ];
-    const overview = useOverview(steps, [], null, null);
+    const overview = computeOverview(steps, [], null, null);
     expect(overview.countries).toEqual([
       { code: "nl", detail: "NL" },
       { code: "be", detail: "BE" },
@@ -77,7 +77,7 @@ describe("useOverview", () => {
       makeStep({ location: { lat: 0, lon: 0, name: "Unknown", detail: "Unknown", country_code: "00" } }),
       makeStep({ id: 2, location: { lat: 52.52, lon: 13.4, name: "Berlin", detail: "Germany", country_code: "DE" } }),
     ];
-    const overview = useOverview(steps, [], null, null);
+    const overview = computeOverview(steps, [], null, null);
     expect(overview.countries).toEqual([{ code: "DE", detail: "Germany" }]);
   });
 
@@ -99,9 +99,25 @@ describe("useOverview", () => {
         },
       }),
     ];
-    const overview = useOverview(steps, [], null, null);
-    expect(overview.coldest).toEqual({ value: -8, stepName: "Cold Place" });
-    expect(overview.hottest).toEqual({ value: 38, stepName: "Hot Place" });
+    const overview = computeOverview(steps, [], null, null);
+    expect(overview.coldest).toMatchObject({ value: -8, isNight: true });
+    expect(overview.coldest!.step.name).toBe("Cold Place");
+    expect(overview.hottest).toMatchObject({ value: 38 });
+    expect(overview.hottest!.step.name).toBe("Hot Place");
+  });
+
+  it("detects cold night on first step", () => {
+    const steps = [
+      makeStep({
+        name: "Only Step",
+        weather: {
+          day: { temp: 10, feels_like: 8, icon: "cloudy" },
+          night: { temp: -2, feels_like: -5, icon: "snow" },
+        },
+      }),
+    ];
+    const overview = computeOverview(steps, [], null, null);
+    expect(overview.coldest).toMatchObject({ value: -5, isNight: true });
   });
 
   it("finds furthest from home", () => {
@@ -129,15 +145,15 @@ describe("useOverview", () => {
       }),
     ];
     const home = { lat: 52.37, lon: 4.9 };
-    const overview = useOverview(steps, [], null, home);
+    const overview = computeOverview(steps, [], null, home);
     expect(overview.furthestFromHome).not.toBeNull();
-    expect(overview.furthestFromHome!.stepName).toBe("Far");
-    expect(overview.furthestFromHome!.distanceKm).toBeGreaterThan(10000);
+    expect(overview.furthestFromHome!.step.name).toBe("Far");
+    expect(overview.furthestFromHome!.value).toBeGreaterThan(10000);
   });
 
   it("returns null furthestFromHome when no home location", () => {
     const steps = [makeStep()];
-    const overview = useOverview(steps, [], null, null);
+    const overview = computeOverview(steps, [], null, null);
     expect(overview.furthestFromHome).toBeNull();
   });
 });

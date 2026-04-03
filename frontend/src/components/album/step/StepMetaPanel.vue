@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import type { DescriptionType, JustifiedLine } from "@/composables/useTextMeasure";
+import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";
 import { getCountryColor } from "../colors";
@@ -14,9 +14,7 @@ import { useAlbum } from "@/composables/useAlbum";
 
 const props = defineProps<{
   step: Step;
-  descriptionType: DescriptionType;
-  lines?: JustifiedLine[] | null;
-  compact?: boolean;
+  sidebarLines?: JustifiedLine[];
 }>();
 
 const emit = defineEmits<{
@@ -79,7 +77,7 @@ const dateStr = computed(() => {
 </script>
 
 <template>
-  <div :class="{ compact }" class="meta-panel">
+  <div class="meta-panel">
     <!-- Country silhouette + coordinates -->
     <div class="silhouette-row">
       <div class="silhouette-box">
@@ -110,15 +108,14 @@ const dateStr = computed(() => {
       />
     </div>
 
-    <!-- Short description (normal layout only) -->
+    <!-- Description text (clipped by overflow: hidden when it exceeds sidebar height) -->
     <EditableText
-      v-if="!compact"
       :model-value="step.description ?? ''"
       multiline
       :placeholder="t('album.descriptionPlaceholder')"
       dir="auto"
       class="description"
-      :lines="lines"
+      :lines="sidebarLines"
       @update:model-value="emit('update:description', $event)"
     />
 
@@ -191,6 +188,7 @@ const dateStr = computed(() => {
   display: flex;
   flex-direction: column;
   padding: var(--page-inset-y) var(--page-inset-y) 0 var(--page-inset-x);
+  box-sizing: border-box;
 }
 
 .silhouette-row {
@@ -214,7 +212,7 @@ const dateStr = computed(() => {
   font-family: var(--font-mono);
   font-size: var(--type-xs);
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-mono);
   padding-top: var(--gap-sm);
   white-space: pre;
 }
@@ -237,10 +235,11 @@ const dateStr = computed(() => {
 }
 
 .flag {
-  width: 1.15rem;
-  height: 0.8rem;
+  width: 1rem;
+  height: calc(1rem * 2 / 3); /* 3:2 flag aspect ratio */
   flex-shrink: 0;
   border-radius: var(--radius-xs);
+  object-fit: cover;
 }
 
 .step-name {
@@ -316,7 +315,7 @@ const dateStr = computed(() => {
 }
 
 .weather-night {
-  opacity: 0.7;
+  color: var(--text-muted);
 }
 
 .weather-icon-sm {
@@ -326,8 +325,8 @@ const dateStr = computed(() => {
 }
 
 .weather-icon-lg {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.375rem;
+  height: 1.375rem;
   flex-shrink: 0;
 }
 
@@ -380,48 +379,5 @@ const dateStr = computed(() => {
   white-space: nowrap;
   letter-spacing: var(--tracking-wide);
   background: v-bind(countryColor);
-}
-
-.meta-panel.compact {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "sil   stats"
-    "name  stats";
-  column-gap: 1.5rem;
-  padding: 2rem var(--page-inset-x) 1.25rem;
-
-  .silhouette-row {
-    grid-area: sil;
-    margin-bottom: var(--gap-md);
-  }
-
-  .silhouette-box {
-    width: 4.5rem;
-    height: 4.5rem;
-  }
-
-  .name-block {
-    grid-area: name;
-    align-self: end;
-    margin-bottom: 0;
-  }
-
-  .step-name {
-    font-size: var(--type-lg);
-  }
-
-  .description {
-    display: none;
-  }
-
-  .bottom-section {
-    grid-area: stats;
-    align-self: center;
-    margin-top: 0;
-    padding-bottom: 0;
-    gap: var(--gap-md);
-  }
 }
 </style>

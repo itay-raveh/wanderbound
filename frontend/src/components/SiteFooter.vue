@@ -110,6 +110,12 @@ const hasMeta = !!(authorName || version);
   color: var(--border-color);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .site-footer-link {
+    transition: none;
+  }
+}
+
 .site-footer-disclaimer {
   margin: var(--gap-sm) 0 0;
   max-width: 52rem;

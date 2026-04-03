@@ -35,6 +35,7 @@ function langFromLocale(locale: string | undefined): string {
 
 export function useMapbox(options: UseMapboxOptions) {
   const map = shallowRef<mapboxgl.Map | null>(null);
+  let pendingIdle: (() => void) | null = null;
 
   function init() {
     if (!options.container.value || map.value) return;
@@ -74,9 +75,13 @@ export function useMapbox(options: UseMapboxOptions) {
       });
 
       // Signal readiness after all tiles from the initial render are loaded.
-      m.once("idle", () => {
+      // fitBounds() re-arms this listener when the viewport changes.
+      const idleHandler = () => {
         el.dataset.mapReady = "";
-      });
+        pendingIdle = null;
+      };
+      pendingIdle = idleHandler;
+      m.once("idle", idleHandler);
     } catch (e) {
       console.warn("[mapbox] failed to initialise map:", e);
       // Mark ready on error so PrintView doesn't wait forever.
@@ -96,6 +101,10 @@ export function useMapbox(options: UseMapboxOptions) {
   }
 
   function destroy() {
+    if (pendingIdle && map.value) {
+      map.value.off("idle", pendingIdle);
+      pendingIdle = null;
+    }
     map.value?.remove();
     map.value = null;
   }
@@ -105,11 +114,30 @@ export function useMapbox(options: UseMapboxOptions) {
     padding: number | { top: number; bottom: number; left: number; right: number } = 80,
   ) {
     if (!map.value || coords.length === 0) return;
+
+    // Reset print-readiness: the new viewport requires new tiles.
+    const el = options.container.value;
+    if (pendingIdle) {
+      map.value.off("idle", pendingIdle);
+      pendingIdle = null;
+    }
+    if (el) delete el.dataset.mapReady;
+
     const bounds = new mapboxgl.LngLatBounds();
     for (const [lng, lat] of coords) {
       bounds.extend([lng, lat]);
     }
     map.value.fitBounds(bounds, { padding, duration: 0 });
+
+    // Re-arm readiness after tiles finish loading for the new viewport.
+    if (el) {
+      const handler = () => {
+        el.dataset.mapReady = "";
+        pendingIdle = null;
+      };
+      pendingIdle = handler;
+      map.value.once("idle", handler);
+    }
   }
 
   // Auto-resize map when container dimensions change (CSS zoom settling, etc.)

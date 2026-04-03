@@ -46,7 +46,7 @@ body,
   --page-aspect: 297 / 210;
 
   /* Step page layout: meta-panel occupies this fraction of the page width. */
-  --meta-ratio: 0.42;
+  --meta-ratio: 0.45;
 
   /* Border radius scale */
   --radius-xs: 0.125rem;
@@ -70,6 +70,7 @@ body,
 
   /* Letter-spacing */
   --tracking-tight: -0.02em;
+  --tracking-mono: 0.02em; /* slight positive tracking for monospace readability */
   --tracking-wide: 0.06em;
   --tracking-wider: 0.2em;
 
@@ -93,40 +94,6 @@ body,
   --duration-fast: 0.15s;
   --duration-normal: 0.3s;
   --duration-slow: 0.5s;
-}
-
-/* Accent card - overview record/furthest panels.
-   Set --accent on the element to control the accent color. */
-.accent-card {
-  padding: 0.625rem var(--gap-md-lg);
-  border-inline-start: 0.1875rem solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, var(--page-bg, var(--bg)));
-  border-radius: var(--radius-sm);
-}
-
-.accent-card-tag {
-  font-size: var(--type-3xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  color: var(--accent);
-}
-
-/* Two-column text body - single source of truth for step descriptions and
-   text continuation pages.  useTextMeasure.ts measurement containers also
-   reference this class so changing a value here automatically keeps layout
-   measurement in sync with rendering. */
-.text-body-columns {
-  padding: var(--page-inset-y) var(--page-inset-x);
-  font-family: var(--font-album-body);
-  font-size: var(--type-sm);
-  line-height: 1.65;
-  white-space: pre-wrap;
-  text-align: justify;
-  column-count: 2;
-  column-gap: var(--page-inset-y);
-  overflow: hidden;
-  box-sizing: border-box;
 }
 
 /* Theme colors */

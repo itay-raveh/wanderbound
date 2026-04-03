@@ -3,7 +3,7 @@ import type { Album, Step, Media } from "@/client";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
-import { mediaThumbUrl, isVideo } from "@/utils/media";
+import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 import { matImage, matMap, matBarChart } from "@quasar/extras/material-icons";
@@ -48,7 +48,7 @@ const coverField = computed(() =>
 const activeCoverPhoto = computed(() => props.album[coverField.value]);
 
 const landscapePhotos = computed(() =>
-  props.media.filter((m) => m.width / m.height > 4 / 5 && !isVideo(m.name)).map((m) => m.name),
+  props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)).map((m) => m.name),
 );
 
 function selectCoverPhoto(name: string) {
@@ -146,7 +146,7 @@ const panelLabel = computed(() => {
 
 .panel-hint {
   font-size: var(--type-xs);
-  color: var(--text-faint);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 

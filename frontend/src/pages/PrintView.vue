@@ -125,6 +125,11 @@ function waitForPrintReady() {
 
   function setReady() {
     clearTimeout(pollTimer);
+    // Remove trailing page break to prevent an empty last page in PDF output.
+    const pages = document.querySelectorAll(".page-container");
+    if (pages.length) {
+      (pages[pages.length - 1] as HTMLElement).style.breakAfter = "auto";
+    }
     (window as unknown as Record<string, boolean>).__PRINT_READY__ = true;
   }
 
@@ -168,7 +173,6 @@ body,
   print-color-adjust: exact !important;
   -webkit-print-color-adjust: exact !important;
 }
-
 
 .status-message {
   height: 100vh;

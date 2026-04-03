@@ -1,25 +1,39 @@
 <script lang="ts" setup>
-import type { JustifiedLine } from "@/composables/useTextMeasure";
+import { computed } from "vue";
+import type { JustifiedLine } from "@/composables/useTextLayout";
 
-defineProps<{
+const props = defineProps<{
   lines: JustifiedLine[];
 }>();
+
+/** Group flat lines into paragraphs (split on empty-text entries). */
+const paragraphs = computed(() => {
+  const result: string[][] = [[]];
+  for (const line of props.lines) {
+    if (!line.text) result.push([]);
+    else result.at(-1)!.push(line.text);
+  }
+  return result;
+});
 </script>
 
 <template>
   <div class="justified-text">
-    <span
-      v-for="(line, i) in lines"
-      :key="i"
-      class="jt-line"
-      :style="line.wordSpacing ? { wordSpacing: line.wordSpacing + 'px' } : undefined"
-    >{{ line.text }}</span>
+    <p v-for="(para, i) in paragraphs" :key="i" class="jt-para">
+      <template v-for="(text, j) in para" :key="j"><br v-if="j > 0">{{ text }}</template>
+    </p>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.jt-line {
-  display: block;
-  white-space: pre; // prevent re-wrapping — lines are pre-broken by Knuth-Plass
+.jt-para {
+  margin: 0;
+  text-align: justify;
+  overflow-wrap: break-word;
+
+  &:empty {
+    min-height: 1.65em; /* fallback for browsers without lh support */
+    min-height: 1lh;
+  }
 }
 </style>

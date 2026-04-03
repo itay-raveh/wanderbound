@@ -1,11 +1,8 @@
 <script lang="ts" setup>
-import type { JustifiedLine } from "@/composables/useTextMeasure";
+import type { JustifiedLine } from "@/composables/useTextLayout";
 import { usePrintMode } from "@/composables/usePrintReady";
 import JustifiedText from "./JustifiedText.vue";
-import { useI18n } from "vue-i18n";
-import { ref } from "vue";
-
-const { t } = useI18n();
+import { ref, nextTick } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -22,92 +19,79 @@ const emit = defineEmits<{
 }>();
 
 const printMode = usePrintMode();
-
-// --- Inline mode (single-line contenteditable) ---
-const el = ref<HTMLElement | null>(null);
 const editing = ref(false);
+const editEl = ref<HTMLTextAreaElement | HTMLElement | null>(null);
+
+function startEdit() {
+  editing.value = true;
+  void nextTick(() => (editEl.value as HTMLElement)?.focus());
+}
 
 function commit() {
+  if (!editing.value) return;
   editing.value = false;
-  const text = (el.value?.innerText ?? "").trim();
-  if (el.value) el.value.textContent = text;
-  if (text !== props.modelValue) {
-    emit("update:modelValue", text);
-  }
+  const raw = editEl.value instanceof HTMLTextAreaElement
+    ? editEl.value.value
+    : editEl.value?.innerText ?? "";
+  const text = props.multiline
+    ? raw.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "")
+    : raw.trim();
+  if (text !== props.modelValue) emit("update:modelValue", text);
 }
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
-    if (el.value) el.value.textContent = props.modelValue;
+    if (!props.multiline && editEl.value) {
+      (editEl.value as HTMLElement).textContent = props.modelValue;
+    }
     editing.value = false;
     (e.target as HTMLElement).blur();
-  } else if (e.key === "Enter") {
+  } else if (!props.multiline && e.key === "Enter") {
     e.preventDefault();
     (e.target as HTMLElement).blur();
   }
 }
-
-// --- Modal mode (multiline dialog) ---
-const dialogOpen = ref(false);
-const draft = ref("");
-
-function saveDialog() {
-  const text = draft.value.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
-  if (text !== props.modelValue) {
-    emit("update:modelValue", text);
-  }
-  dialogOpen.value = false;
-}
 </script>
 
 <template>
-  <!-- Print mode: plain text, no editing affordances -->
+  <!-- Print mode -->
   <JustifiedText v-if="printMode && lines" :lines="lines" />
   <div v-else-if="printMode">{{ modelValue }}</div>
 
-  <!-- Multiline: styled div that opens a modal -->
+  <!-- Multiline edit: plain textarea, no DOM conflicts with Vue -->
+  <textarea
+    v-else-if="multiline && editing"
+    ref="editEl"
+    class="edit-textarea"
+    :value="modelValue"
+    :placeholder="placeholder"
+    :aria-label="placeholder || undefined"
+    @blur="commit"
+    @keydown="onKeydown"
+  />
+
+  <!-- Multiline display: justified text, click to edit -->
   <div
     v-else-if="multiline"
     role="button"
     tabindex="0"
-    class="editable-text"
+    class="editable-display"
     :data-placeholder="placeholder"
-    :aria-label="placeholder || t('album.editDescription')"
-    @click="dialogOpen = true"
-    @keydown.enter="dialogOpen = true"
-    @keydown.space.prevent="dialogOpen = true"
+    @click="startEdit"
+    @keydown.enter.prevent="startEdit"
+    @keydown.space.prevent="startEdit"
   >
     <JustifiedText v-if="lines" :lines="lines" />
     <template v-else>{{ modelValue }}</template>
-
-    <q-dialog v-model="dialogOpen" @before-show="draft = modelValue">
-      <q-card class="desc-dialog column no-wrap">
-        <q-card-section class="text-h6">{{ t("album.editDescription") }}</q-card-section>
-        <q-card-section class="col scroll">
-          <q-input
-            v-model="draft"
-            type="textarea"
-            outlined
-            dir="auto"
-            class="fit"
-            input-class="desc-textarea"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('album.cancel')" @click="dialogOpen = false" />
-          <q-btn flat :label="t('album.save')" color="primary" @click="saveDialog" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </div>
 
-  <!-- Single-line: inline contenteditable -->
+  <!-- Single-line: inline contenteditable (no justification needed) -->
   <div
     v-else
-    ref="el"
+    ref="editEl"
     role="textbox"
     :aria-label="placeholder || undefined"
-    class="editable-text"
+    class="editable-display"
     contenteditable="plaintext-only"
     :data-placeholder="placeholder"
     :spellcheck="editing"
@@ -118,15 +102,15 @@ function saveDialog() {
 </template>
 
 <style lang="scss" scoped>
-.editable-text {
+$outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
+
+.editable-display {
   cursor: text;
   border-radius: var(--radius-xs);
   box-decoration-break: clone;
-  outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
+  outline: $outline;
   outline-offset: var(--gap-sm);
-  transition:
-    outline-color var(--duration-fast) ease,
-    background-color var(--duration-fast) ease;
+  transition: outline-color var(--duration-fast) ease;
 
   &:hover {
     outline-color: color-mix(in srgb, currentColor 55%, transparent);
@@ -143,20 +127,22 @@ function saveDialog() {
   }
 }
 
-.desc-dialog {
-  width: 40rem;
-  max-width: 90vw;
-  height: 70vh;
-  max-height: 70vh;
-}
-
-:deep(.desc-textarea) {
-  height: 100% !important;
+.edit-textarea {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
   resize: none;
-}
-
-:deep(.q-field__inner),
-:deep(.q-field__control) {
+  // Textareas ignore flex stretch by default
+  width: 100%;
   height: 100%;
+  font: inherit;
+  color: inherit;
+  border-radius: var(--radius-xs);
+  outline: $outline;
+  outline-offset: var(--gap-sm);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 </style>

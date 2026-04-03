@@ -34,6 +34,11 @@ export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 }
 
+/** Portrait: aspect ratio ≤ 4:5 (taller than wide). */
+export function isPortrait(media: { width: number; height: number }): boolean {
+  return media.width / media.height <= 4 / 5;
+}
+
 /** Build Basmilius weather icon URL for a WMO icon name. */
 export function weatherIconUrl(iconName: string): string {
   return `https://basmilius.github.io/weather-icons/production/fill/all/${iconName}.svg`;

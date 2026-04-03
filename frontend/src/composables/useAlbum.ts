@@ -1,4 +1,5 @@
 import {
+  computed,
   inject,
   provide,
   type ComputedRef,
@@ -7,7 +8,7 @@ import {
 } from "vue";
 import type { Media } from "@/client";
 
-interface AlbumContext {
+interface AlbumProvide {
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
   media: ComputedRef<Media[]>;
@@ -15,10 +16,19 @@ interface AlbumContext {
   totalDays: ComputedRef<number>;
 }
 
+interface AlbumContext extends AlbumProvide {
+  mediaByName: ComputedRef<Map<string, Media>>;
+}
+
 const KEY: InjectionKey<AlbumContext> = Symbol("album");
 
-export function provideAlbum(ctx: AlbumContext): void {
-  provide(KEY, ctx);
+export function provideAlbum(ctx: AlbumProvide): void {
+  const mediaByName = computed(() => {
+    const map = new Map<string, Media>();
+    for (const m of ctx.media.value) map.set(m.name, m);
+    return map;
+  });
+  provide(KEY, { ...ctx, mediaByName });
 }
 
 export function useAlbum(): AlbumContext {

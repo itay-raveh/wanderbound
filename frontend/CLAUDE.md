@@ -7,13 +7,13 @@ To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
 
 - `useWindowVirtualizer`: custom virtualizer replacing @tanstack/vue-virtual due to Vue 3.4 computed dedup bug.
 - `useAlbum()`: provides album context via inject — must be called inside AlbumViewer hierarchy.
-- `useTextMeasure()`: tex-linebreak (Knuth-Plass) + Canvas measureText classifies descriptions as short/long/extra-long and produces pre-broken justified lines.
+- `useTextLayout()`: `@chenglou/pretext` breaks descriptions into justified lines (CSS `text-align: justify` handles spacing) distributed across pages (`TextLayout.pages[0]` = sidebar, `[1..N]` = continuation pages).
 - Pinia Colada mutations: optimistic cache update → push undo stack → revert on error → invalidate on settle.
 - Map matching moved to backend (`logic/matching.py`). Frontend map pages fetch segment points lazily via `useSegmentPointsQuery`.
 - `markRaw()`: query composables wrap immutable responses (media, steps, segments) with `markRaw()` to prevent Vue deep-proxying. Never remove this.
 - `stripPhotos()`: atomically removes photos from all page lists to prevent duplicates during drag-and-drop.
 - Font constants (`ALLOWED_FONTS`, defaults, fallback stacks) live in `src/utils/fonts.ts` — single source of truth.
-- `useTextMeasure()` resolves zone geometry from `:root` CSS vars via `getComputedStyle` — no DOM containers.
+- `useTextLayout()` resolves zone geometry from `:root` CSS vars via `getComputedStyle` — no DOM containers.
 - Quasar q-select `#option` slots: use `v-bind="itemProps"` for click handling, never `toggleOption`.
 
 ## CSS Rules
