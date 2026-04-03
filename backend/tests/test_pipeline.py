@@ -10,19 +10,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.pipeline import _save_reupload
 from app.models.album import Album
-from app.models.polarsteps import Point
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
-
-
-def _make_points(times: list[float]) -> list[Point]:
-    return [
-        Point(lat=52.0 + i * 0.01, lon=4.0 + i * 0.01, time=t)
-        for i, t in enumerate(times)
-    ]
-
+from tests.factories import make_points
 
 AID = "test-trip"
 UID = 1
@@ -97,7 +89,7 @@ class TestSaveReuploadDeletesSegments:
                 end_time=500.0,
                 kind=SegmentKind.driving,
                 timezone_id="UTC",
-                points=_make_points([100.0, 300.0, 500.0]),
+                points=make_points([100.0, 300.0, 500.0]),
             )
             session.add(segment)
             await session.commit()
