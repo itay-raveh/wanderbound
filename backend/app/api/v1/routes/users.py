@@ -34,7 +34,7 @@ from app.logic.session import cancel_session, process_stream
 from app.logic.upload import UploadResult, extract_and_scan
 from app.models.user import AuthProvider, OAuthIdentity, User, UserUpdate
 
-from ..deps import SessionDep, UserDep
+from ..deps import SessionDep, UserDep, apply_update
 from .auth import verify_credential
 
 logger = logging.getLogger(__name__)
@@ -207,10 +207,7 @@ async def read_user(user: UserDep) -> User:
 
 @router.patch("")
 async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> User:
-    user.sqlmodel_update(update.model_dump(exclude_unset=True))
-    session.add(user)
-    await session.commit()
-    return user
+    return await apply_update(session, user, update, refresh=False)
 
 
 @router.delete("")

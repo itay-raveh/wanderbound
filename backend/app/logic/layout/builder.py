@@ -6,6 +6,7 @@ from math import ceil
 from pathlib import Path
 from typing import NamedTuple
 
+from app.core.async_helpers import yield_completed
 from app.models.polarsteps import PSStep
 from app.models.user import User
 
@@ -129,10 +130,10 @@ async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
             async with _ffprobe_sem:
                 return await Media.probe(p)
 
-        for coro in asyncio.as_completed(
-            [_probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"]
+        async for result in yield_completed(
+            _probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"
         ):
-            yield await coro
+            yield result
 
 
 async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None:

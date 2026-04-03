@@ -4,7 +4,6 @@ Both endpoints share an IP-based rate limit (480/min). Rate limiting
 sits between the cache and network layers so cache hits bypass it.
 """
 
-import asyncio
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
 from functools import cache
@@ -16,6 +15,7 @@ from aiolimiter import AsyncLimiter
 from httpx import Request
 from pydantic import BaseModel
 
+from app.core.async_helpers import yield_completed
 from app.core.http import RateLimitedTransport, cached_client
 from app.models.polarsteps import HasLatLon
 from app.models.weather import Weather, WeatherData
@@ -196,5 +196,5 @@ async def build_weathers(
     async def _one(idx: int, step: _StepLike) -> tuple[int, Weather]:
         return idx, await _fetch_one(step)
 
-    for coro in asyncio.as_completed([_one(i, s) for i, s in enumerate(steps)]):
-        yield await coro
+    async for result in yield_completed(_one(i, s) for i, s in enumerate(steps)):
+        yield result

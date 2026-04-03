@@ -3,17 +3,21 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import sentry_sdk
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
 from app.models.user import User
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,18 @@ async def _get_user(
 
 
 UserDep = Annotated[User, Depends(_get_user)]
+
+
+async def apply_update[M: SQLModel](
+    session: AsyncSession, obj: M, update: BaseModel, *, refresh: bool = True
+) -> M:
+    """Apply a partial update, commit, and optionally refresh."""
+    obj.sqlmodel_update(update.model_dump(exclude_unset=True))
+    session.add(obj)
+    await session.commit()
+    if refresh:
+        await session.refresh(obj)
+    return obj
 
 
 def _get_browser(request: Request) -> Browser:

@@ -30,7 +30,7 @@ from app.models.segment import (
 from app.models.step import Step, StepUpdate
 from app.services.mapbox import match_segments
 
-from ..deps import BrowserDep, SessionDep, UserDep
+from ..deps import BrowserDep, SessionDep, UserDep, apply_update
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +139,7 @@ async def update_album(
     album: AlbumDep,
     session: SessionDep,
 ) -> AlbumMeta:
-    album.sqlmodel_update(update.model_dump(exclude_unset=True))
-    session.add(album)
-    await session.commit()
-    await session.refresh(album)
+    await apply_update(session, album, update)
     return AlbumMeta.model_validate(album)
 
 
@@ -155,11 +152,7 @@ async def update_step(
     session: SessionDep,
 ) -> Step:
     step: Step = await session.get_one(Step, (user.id, aid, sid))
-    step.sqlmodel_update(update.model_dump(exclude_unset=True))
-    session.add(step)
-    await session.commit()
-    await session.refresh(step)
-    return step
+    return await apply_update(session, step, update)
 
 
 @router.patch("/{aid}/segments/adjust-boundary")

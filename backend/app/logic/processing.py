@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 
+from app.core.async_helpers import yield_completed
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -83,8 +84,8 @@ async def fetch_layouts(
     ) -> tuple[int, Layout | None]:
         return idx, await build_step_layout(user, aid, step)
 
-    for coro in asyncio.as_completed([_one(i, s) for i, s in enumerate(steps)]):
-        yield await coro
+    async for result in yield_completed(_one(i, s) for i, s in enumerate(steps)):
+        yield result
 
 
 def flatten_media(album_dir: Path) -> None:
