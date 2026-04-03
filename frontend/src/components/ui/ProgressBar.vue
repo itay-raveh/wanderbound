@@ -13,9 +13,11 @@ defineProps<{ progress: number }>();
   height: 0.25rem;
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+  overflow: hidden;
 }
 
 .progress-fill {
+  position: relative;
   width: 100%;
   height: 100%;
   border-radius: var(--radius-xs);
@@ -24,7 +26,26 @@ defineProps<{ progress: number }>();
   transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-:global([dir="rtl"]) .progress-fill {
+.progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text-bright) 20%, transparent),
+    transparent
+  );
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+:dir(rtl) .progress-fill {
   transform-origin: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill::after {
+    animation: none;
+  }
 }
 </style>
