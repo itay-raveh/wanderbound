@@ -28,7 +28,6 @@ const emit = defineEmits<{
       v-if="photo"
       :media="photo"
       fit-cover
-      :focusable="false"
       class="description-photo"
     />
     <div v-else class="topo-filler" />

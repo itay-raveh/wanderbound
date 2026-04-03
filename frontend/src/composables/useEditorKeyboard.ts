@@ -29,7 +29,10 @@ export function useEditorKeyboard() {
       return;
     }
 
-    if (isTextInput(e) || (e.target as HTMLElement).tagName === "VIDEO") return;
+    if (isTextInput(e)) return;
+    // Playing video: let arrow keys seek; paused/poster: navigate photos
+    const el = e.target as HTMLElement;
+    if (el.tagName === "VIDEO" && !(el as HTMLVideoElement).paused) return;
     if (mod) return;
 
     const rtl = document.documentElement.dir === "rtl";

@@ -1,67 +1,24 @@
-import { usePhotoFocus, type StepFocusContext } from "@/composables/usePhotoFocus";
-import type { Step } from "@/client";
-import { ref, type Ref } from "vue";
+import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { makeStep } from "../helpers";
+import { unusedUpdatePayload, coverUpdatePayload } from "@/composables/useStepLayout";
 
-// usePhotoFocus is a singleton — get the API once and reset between tests.
 let pf: ReturnType<typeof usePhotoFocus>;
+let scrollSpy: ReturnType<typeof vi.fn>;
+let mutateSpy: ReturnType<typeof vi.fn>;
 
-function makeContext(step: Step, onCover = vi.fn(), onUnused = vi.fn()): StepFocusContext {
-  return {
-    step: ref(step) as Ref<Step>,
-    onCoverUpdate: onCover,
-    onUnusedUpdate: onUnused,
-  };
+function initWith(steps: ReturnType<typeof makeStep>[]) {
+  scrollSpy = vi.fn();
+  mutateSpy = vi.fn();
+  pf.init({
+    steps: () => steps,
+    mutate: mutateSpy,
+    scrollToStep: scrollSpy,
+  });
 }
 
 beforeEach(() => {
   pf = usePhotoFocus();
-  pf.blur();
-  // Unregister all known step IDs by blurring — but we also need to clear registry.
-  // Since there's no public "clearAll", we unregister specific IDs used in tests.
-  for (const id of [1, 2, 3, 10, 20, 30]) {
-    pf.unregister(id);
-  }
-  pf.setStepOrder(() => []);
-});
-
-// ---------------------------------------------------------------------------
-// Registry
-// ---------------------------------------------------------------------------
-
-describe("registry management", () => {
-  it("starts with no focus", () => {
-    expect(pf.focusedStepId.value).toBeNull();
-    expect(pf.focusedPhotoId.value).toBeNull();
-  });
-
-  it("register and unregister a step context", () => {
-    const step = makeStep({ id: 1, pages: [["p1"]] });
-    const ctx = makeContext(step);
-    pf.register(1, ctx);
-
-    pf.focus(1, "p1");
-    expect(pf.focusedStepId.value).toBe(1);
-    expect(pf.focusedPhotoId.value).toBe("p1");
-
-    pf.unregister(1);
-    // Unregistering the focused step clears focus
-    expect(pf.focusedStepId.value).toBeNull();
-    expect(pf.focusedPhotoId.value).toBeNull();
-  });
-
-  it("unregistering a non-focused step does not clear focus", () => {
-    const step1 = makeStep({ id: 1, pages: [["p1"]] });
-    const step2 = makeStep({ id: 2, pages: [["p2"]] });
-    pf.register(1, makeContext(step1));
-    pf.register(2, makeContext(step2));
-
-    pf.focus(1, "p1");
-    pf.unregister(2);
-
-    expect(pf.focusedStepId.value).toBe(1);
-    expect(pf.focusedPhotoId.value).toBe("p1");
-  });
+  pf.dispose();
 });
 
 // ---------------------------------------------------------------------------
@@ -69,19 +26,33 @@ describe("registry management", () => {
 // ---------------------------------------------------------------------------
 
 describe("focus / blur", () => {
+  it("starts with no focus", () => {
+    expect(pf.focusedStepId.value).toBeNull();
+    expect(pf.focusedPhotoId.value).toBeNull();
+  });
+
   it("sets focused step and photo", () => {
-    pf.register(1, makeContext(makeStep({ id: 1, pages: [["p1", "p2"]] })));
     pf.focus(1, "p2");
     expect(pf.focusedStepId.value).toBe(1);
     expect(pf.focusedPhotoId.value).toBe("p2");
   });
 
   it("blur clears both", () => {
-    pf.register(1, makeContext(makeStep({ id: 1, pages: [["p1"]] })));
     pf.focus(1, "p1");
     pf.blur();
     expect(pf.focusedStepId.value).toBeNull();
     expect(pf.focusedPhotoId.value).toBeNull();
+  });
+
+  it("dispose clears focus and config", () => {
+    initWith([makeStep({ id: 1, pages: [["p1", "p2"]] })]);
+    pf.focus(1, "p1");
+    pf.dispose();
+    expect(pf.focusedStepId.value).toBeNull();
+    // After dispose, move should be a no-op
+    pf.focus(1, "p1");
+    pf.move("next");
+    expect(pf.focusedPhotoId.value).toBe("p1");
   });
 });
 
@@ -91,37 +62,24 @@ describe("focus / blur", () => {
 
 describe("pagedPhotos (via move)", () => {
   it("excludes cover from paged photos", () => {
-    // Step with cover "p1" and pages [["p1", "p2", "p3"]]
-    // pagedPhotos should return ["p2", "p3"]
-    const step = makeStep({ id: 1, cover: "p1", pages: [["p1", "p2", "p3"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
-    // Focus on p2, move next should go to p3 (not p1)
+    initWith([makeStep({ id: 1, cover: "p1", pages: [["p1", "p2", "p3"]] })]);
     pf.focus(1, "p2");
     pf.move("next");
     expect(pf.focusedPhotoId.value).toBe("p3");
   });
 
   it("includes all photos when there is no cover", () => {
-    const step = makeStep({ id: 1, cover: null, pages: [["p1", "p2"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, cover: null, pages: [["p1", "p2"]] })]);
     pf.focus(1, "p1");
     pf.move("next");
     expect(pf.focusedPhotoId.value).toBe("p2");
   });
 
   it("flattens multi-page arrays", () => {
-    const step = makeStep({ id: 1, pages: [["p1", "p2"], ["p3"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [["p1", "p2"], ["p3"]] })]);
     pf.focus(1, "p1");
     pf.move("next");
     expect(pf.focusedPhotoId.value).toBe("p2");
-
     pf.move("next");
     expect(pf.focusedPhotoId.value).toBe("p3");
   });
@@ -133,9 +91,7 @@ describe("pagedPhotos (via move)", () => {
 
 describe("move within step", () => {
   beforeEach(() => {
-    const step = makeStep({ id: 1, pages: [["a", "b", "c"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
+    initWith([makeStep({ id: 1, pages: [["a", "b", "c"]] })]);
   });
 
   it("move next advances to next photo", () => {
@@ -174,14 +130,11 @@ describe("move within step", () => {
 
 describe("move across steps", () => {
   beforeEach(() => {
-    const step1 = makeStep({ id: 10, pages: [["s1a", "s1b"]] });
-    const step2 = makeStep({ id: 20, pages: [["s2a", "s2b", "s2c"]] });
-    const step3 = makeStep({ id: 30, pages: [["s3a"]] });
-
-    pf.register(10, makeContext(step1));
-    pf.register(20, makeContext(step2));
-    pf.register(30, makeContext(step3));
-    pf.setStepOrder(() => [10, 20, 30]);
+    initWith([
+      makeStep({ id: 10, pages: [["s1a", "s1b"]] }),
+      makeStep({ id: 20, pages: [["s2a", "s2b", "s2c"]] }),
+      makeStep({ id: 30, pages: [["s3a"]] }),
+    ]);
   });
 
   it("moves to first photo of next step at end of current step", () => {
@@ -201,7 +154,6 @@ describe("move across steps", () => {
   it("stays at first step if no previous step exists", () => {
     pf.focus(10, "s1a");
     pf.move("prev");
-    // Should not change because there's no step before 10
     expect(pf.focusedStepId.value).toBe(10);
     expect(pf.focusedPhotoId.value).toBe("s1a");
   });
@@ -209,21 +161,38 @@ describe("move across steps", () => {
   it("stays at last step if no next step exists", () => {
     pf.focus(30, "s3a");
     pf.move("next");
-    // Should not change because there's no step after 30
     expect(pf.focusedStepId.value).toBe(30);
     expect(pf.focusedPhotoId.value).toBe("s3a");
   });
 
   it("skips steps with no paged photos", () => {
-    // Register a step in the middle with no photos
-    const emptyStep = makeStep({ id: 20, pages: [] });
-    pf.register(20, makeContext(emptyStep)); // override step 20 with empty pages
-
+    initWith([
+      makeStep({ id: 10, pages: [["s1a", "s1b"]] }),
+      makeStep({ id: 20, pages: [] }),
+      makeStep({ id: 30, pages: [["s3a"]] }),
+    ]);
     pf.focus(10, "s1b");
     pf.move("next");
-    // Should skip step 20 and go to step 30
     expect(pf.focusedStepId.value).toBe(30);
     expect(pf.focusedPhotoId.value).toBe("s3a");
+  });
+
+  it("skips steps where all photos are the cover", () => {
+    initWith([
+      makeStep({ id: 10, pages: [["s1a"]] }),
+      makeStep({ id: 20, cover: "c2", pages: [["c2"]] }),
+      makeStep({ id: 30, pages: [["s3a"]] }),
+    ]);
+    pf.focus(10, "s1a");
+    pf.move("next");
+    expect(pf.focusedStepId.value).toBe(30);
+    expect(pf.focusedPhotoId.value).toBe("s3a");
+  });
+
+  it("calls scrollToStep on cross-step navigation", () => {
+    pf.focus(10, "s1b");
+    pf.move("next");
+    expect(scrollSpy).toHaveBeenCalledWith(20);
   });
 });
 
@@ -233,49 +202,40 @@ describe("move across steps", () => {
 
 describe("sendToUnused", () => {
   it("returns false when no focus", () => {
+    initWith([makeStep({ id: 1, pages: [["p1"]] })]);
     expect(pf.sendToUnused()).toBe(false);
   });
 
-  it("calls onUnusedUpdate with photo added to unused list", () => {
-    const onUnused = vi.fn();
+  it("calls mutate with unusedUpdatePayload", () => {
     const step = makeStep({ id: 1, pages: [["p1", "p2", "p3"]], unused: ["u1"] });
-    pf.register(1, makeContext(step, vi.fn(), onUnused));
-    pf.setStepOrder(() => [1]);
-
+    initWith([step]);
     pf.focus(1, "p2");
+
     const result = pf.sendToUnused();
 
     expect(result).toBe(true);
-    expect(onUnused).toHaveBeenCalledWith(["u1", "p2"]);
+    expect(mutateSpy).toHaveBeenCalledWith(
+      1,
+      unusedUpdatePayload(step, ["u1", "p2"]),
+    );
   });
 
   it("advances focus to next photo after sending", () => {
-    const step = makeStep({ id: 1, pages: [["p1", "p2", "p3"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [["p1", "p2", "p3"]] })]);
     pf.focus(1, "p1");
     pf.sendToUnused();
-    // p1 was at index 0, next photo is at index 1 = p2
     expect(pf.focusedPhotoId.value).toBe("p2");
   });
 
   it("advances focus to previous photo when at end", () => {
-    const step = makeStep({ id: 1, pages: [["p1", "p2", "p3"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [["p1", "p2", "p3"]] })]);
     pf.focus(1, "p3");
     pf.sendToUnused();
-    // p3 was at last index, so advance goes to previous = p2
     expect(pf.focusedPhotoId.value).toBe("p2");
   });
 
   it("clears focus when sending the only photo", () => {
-    const step = makeStep({ id: 1, pages: [["p1"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [["p1"]] })]);
     pf.focus(1, "p1");
     pf.sendToUnused();
     expect(pf.focusedStepId.value).toBeNull();
@@ -289,47 +249,41 @@ describe("sendToUnused", () => {
 
 describe("setAsCover", () => {
   it("returns false when no focus", () => {
+    initWith([makeStep({ id: 1, pages: [["p1"]] })]);
     expect(pf.setAsCover()).toBe(false);
   });
 
-  it("calls onCoverUpdate with the focused photo", () => {
-    const onCover = vi.fn();
+  it("calls mutate with coverUpdatePayload", () => {
     const step = makeStep({ id: 1, pages: [["p1", "p2", "p3"]] });
-    pf.register(1, makeContext(step, onCover));
-    pf.setStepOrder(() => [1]);
-
+    initWith([step]);
     pf.focus(1, "p2");
+
     const result = pf.setAsCover();
 
     expect(result).toBe(true);
-    expect(onCover).toHaveBeenCalledWith("p2");
+    expect(mutateSpy).toHaveBeenCalledWith(
+      1,
+      coverUpdatePayload(step, "p2"),
+    );
   });
 
   it("advances focus after setting cover", () => {
-    const step = makeStep({ id: 1, pages: [["p1", "p2", "p3"]] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [["p1", "p2", "p3"]] })]);
     pf.focus(1, "p1");
     pf.setAsCover();
-    // p1 was at index 0, next photo = p2
     expect(pf.focusedPhotoId.value).toBe("p2");
   });
 });
 
 // ---------------------------------------------------------------------------
-// advanceFocus edge cases (tested indirectly)
+// advanceFocus edge cases
 // ---------------------------------------------------------------------------
 
 describe("advanceFocus edge cases", () => {
   it("clears focus when removing from empty list", () => {
-    const step = makeStep({ id: 1, pages: [] });
-    pf.register(1, makeContext(step));
-    pf.setStepOrder(() => [1]);
-
+    initWith([makeStep({ id: 1, pages: [] })]);
     pf.focus(1, "nonexistent");
     pf.sendToUnused();
-    // advanceFocus called with removedIdx = -1 => clears focus
     expect(pf.focusedStepId.value).toBeNull();
   });
 });

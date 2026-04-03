@@ -16,8 +16,7 @@ beforeEach(() => {
   undoStack.clear();
   photoFocus = usePhotoFocus();
   photoFocus.blur();
-  // Clean up registered steps
-  for (const id of [1, 2, 3]) photoFocus.unregister(id);
+  photoFocus.dispose();
 
   // Mount the composable (attaches keydown listener)
   withSetup(() => {
@@ -195,9 +194,23 @@ describe("arrow keys", () => {
     moveSpy.mockRestore();
   });
 
-  it("does not fire arrow navigation when target is VIDEO", () => {
+  it("navigates when target is a paused VIDEO (poster state)", () => {
     const moveSpy = vi.spyOn(photoFocus, "move");
     const video = document.createElement("video");
+    document.body.appendChild(video);
+    // video.paused is true by default
+
+    keydownOnElement(video, "ArrowLeft");
+    expect(moveSpy).toHaveBeenCalledWith("prev");
+
+    document.body.removeChild(video);
+    moveSpy.mockRestore();
+  });
+
+  it("does not navigate when target is a playing VIDEO", () => {
+    const moveSpy = vi.spyOn(photoFocus, "move");
+    const video = document.createElement("video");
+    Object.defineProperty(video, "paused", { value: false });
     document.body.appendChild(video);
 
     keydownOnElement(video, "ArrowLeft");

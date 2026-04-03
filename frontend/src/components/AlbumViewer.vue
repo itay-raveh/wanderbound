@@ -139,9 +139,6 @@ if (props.printMode) {
     (update) => albumMutation.mutate(update),
   );
 
-  const photoFocus = usePhotoFocus();
-  photoFocus.setStepOrder(() => visibleSteps.value.map((s) => s.id));
-
   const { setScrollOverride, setActive, scrollBehavior: getScrollBehavior } = useActiveSection();
 
   const stepIdToVIdx = computed(() => {
@@ -158,18 +155,20 @@ if (props.printMode) {
     return map;
   });
 
-  function scrollToVIdx(idx: number) {
+  function scrollToVIdx(idx: number, behavior?: ScrollBehavior) {
     virtualizer.scrollToIndex(idx, {
       align: "start",
-      behavior: getScrollBehavior() === "smooth" ? "smooth" : "auto",
+      behavior: behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto"),
     });
   }
 
+  function scrollToStep(id: number, behavior?: ScrollBehavior) {
+    const idx = stepIdToVIdx.value.get(id);
+    if (idx != null) scrollToVIdx(idx, behavior);
+  }
+
   setScrollOverride({
-    scrollTo(id: number) {
-      const idx = stepIdToVIdx.value.get(id);
-      if (idx != null) scrollToVIdx(idx);
-    },
+    scrollTo: scrollToStep,
     scrollToSection(key: string): boolean {
       const idx = secKeyToVIdx.value.get(key);
       if (idx == null) return false;
@@ -177,6 +176,14 @@ if (props.printMode) {
       return true;
     },
   });
+
+  const photoFocus = usePhotoFocus();
+  photoFocus.init({
+    steps: () => visibleSteps.value,
+    mutate: (sid, update) => stepMut.mutate({ sid, update }),
+    scrollToStep: (id) => scrollToStep(id, "smooth"),
+  });
+  onUnmounted(() => photoFocus.dispose());
 
   watchEffect(() => {
     void version.value; // subscribe to every scroll tick

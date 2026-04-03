@@ -1,18 +1,16 @@
-import type { Step } from "@/client";
-import { nextTick, ref, type InjectionKey, type Ref, readonly } from "vue";
+import type { Step, StepUpdate } from "@/client";
+import { ref, type InjectionKey, readonly } from "vue";
+import { coverUpdatePayload, unusedUpdatePayload } from "./useStepLayout";
 
 export const STEP_ID_KEY: InjectionKey<number> = Symbol("step-id");
 
-export interface StepFocusContext {
-  step: Ref<Step>;
-  onCoverUpdate: (cover: string) => void;
-  onUnusedUpdate: (unused: string[]) => void;
-}
-
 const focusedStepId = ref<number | null>(null);
 const focusedPhotoId = ref<string | null>(null);
-const registry = new Map<number, StepFocusContext>();
-let getStepOrder: () => number[] = () => [];
+
+let getSteps: () => Step[] = () => [];
+let mutateFn: ((sid: number, update: Partial<StepUpdate>) => void) | null = null;
+let scrollToStepFn: ((stepId: number) => void) | null = null;
+let scrollRafId = 0;
 
 /** Cover is shown on StepMainPage (not focusable) — skip it in navigation. */
 function pagedPhotos(step: Step): string[] {
@@ -20,9 +18,8 @@ function pagedPhotos(step: Step): string[] {
   return step.cover ? all.filter((p) => p !== step.cover) : all;
 }
 
-function getContext() {
-  if (focusedStepId.value == null) return null;
-  return registry.get(focusedStepId.value) ?? null;
+function getStep(stepId: number): Step | undefined {
+  return getSteps().find((s) => s.id === stepId);
 }
 
 function advanceFocus(photos: string[], removedIdx: number) {
@@ -36,30 +33,46 @@ function advanceFocus(photos: string[], removedIdx: number) {
   scrollFocusedIntoView();
 }
 
-function register(stepId: number, context: StepFocusContext) {
-  registry.set(stepId, context);
+function init(config: {
+  steps: () => Step[];
+  mutate: (sid: number, update: Partial<StepUpdate>) => void;
+  scrollToStep: (stepId: number) => void;
+}) {
+  getSteps = config.steps;
+  mutateFn = config.mutate;
+  scrollToStepFn = config.scrollToStep;
 }
 
-function unregister(stepId: number) {
-  registry.delete(stepId);
-  if (focusedStepId.value === stepId) {
-    focusedStepId.value = null;
-    focusedPhotoId.value = null;
-  }
+function dispose() {
+  cancelAnimationFrame(scrollRafId);
+  focusedStepId.value = null;
+  focusedPhotoId.value = null;
+  getSteps = () => [];
+  mutateFn = null;
+  scrollToStepFn = null;
 }
 
-function setStepOrder(getter: () => number[]) {
-  getStepOrder = getter;
-}
-
-/** Scroll the focused media element into view after Vue flushes the DOM. */
+/**
+ * Scroll the focused media element into view.
+ * After cross-step navigation the target may not be mounted yet
+ * (the virtualizer smooth-scrolls, then mounts new items). We poll
+ * with requestAnimationFrame for up to ~1s waiting for the element.
+ */
 function scrollFocusedIntoView() {
-  void nextTick(() => {
-    const photoId = focusedPhotoId.value;
-    if (!photoId) return;
-    const el = document.querySelector<HTMLElement>(`.media-item.focused`);
-    el?.closest(".page-container")?.scrollIntoView({ block: "center" });
-  });
+  cancelAnimationFrame(scrollRafId);
+  const photoId = focusedPhotoId.value;
+  if (!photoId) return;
+
+  let attempts = 0;
+  function tryScroll() {
+    const el = document.querySelector<HTMLElement>(".media-item.focused");
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    if (++attempts < 60) scrollRafId = requestAnimationFrame(tryScroll);
+  }
+  scrollRafId = requestAnimationFrame(tryScroll);
 }
 
 function focus(stepId: number, photoId: string) {
@@ -77,21 +90,19 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
   const currentStepId = focusedStepId.value;
   if (currentStepId == null) return false;
 
-  const order = getStepOrder();
-  const orderIdx = order.indexOf(currentStepId);
+  const steps = getSteps();
+  const orderIdx = steps.findIndex((s) => s.id === currentStepId);
   if (orderIdx < 0) return false;
 
   const delta = direction === "next" ? 1 : -1;
-  for (let i = orderIdx + delta; i >= 0 && i < order.length; i += delta) {
-    const nextStepId = order[i]!;
-    const nextCtx = registry.get(nextStepId);
-    if (!nextCtx) continue;
-
-    const photos = pagedPhotos(nextCtx.step.value);
+  for (let i = orderIdx + delta; i >= 0 && i < steps.length; i += delta) {
+    const nextStep = steps[i]!;
+    const photos = pagedPhotos(nextStep);
     if (photos.length === 0) continue;
 
-    focusedStepId.value = nextStepId;
+    focusedStepId.value = nextStep.id;
     focusedPhotoId.value = direction === "next" ? photos[0]! : photos[photos.length - 1]!;
+    scrollToStepFn?.(nextStep.id);
     scrollFocusedIntoView();
     return true;
   }
@@ -100,10 +111,13 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 }
 
 function move(direction: "prev" | "next") {
-  const ctx = getContext();
-  if (!ctx) return;
+  const currentStepId = focusedStepId.value;
+  if (currentStepId == null) return;
 
-  const photos = pagedPhotos(ctx.step.value);
+  const step = getStep(currentStepId);
+  if (!step) return;
+
+  const photos = pagedPhotos(step);
   if (photos.length === 0) return;
 
   const currentIdx = focusedPhotoId.value
@@ -130,34 +144,32 @@ function move(direction: "prev" | "next") {
 }
 
 function sendToUnused(): boolean {
-  const ctx = getContext();
+  const step = focusedStepId.value != null ? getStep(focusedStepId.value) : null;
   const photoId = focusedPhotoId.value;
-  if (!ctx || !photoId) return false;
+  if (!step || !photoId) return false;
 
-  const s = ctx.step.value;
-  const photos = pagedPhotos(s);
+  const photos = pagedPhotos(step);
   advanceFocus(photos, photos.indexOf(photoId));
-  ctx.onUnusedUpdate([...s.unused, photoId]);
+  mutateFn?.(step.id, unusedUpdatePayload(step, [...step.unused, photoId]));
   return true;
 }
 
 function setAsCover(): boolean {
-  const ctx = getContext();
+  const step = focusedStepId.value != null ? getStep(focusedStepId.value) : null;
   const photoId = focusedPhotoId.value;
-  if (!ctx || !photoId) return false;
+  if (!step || !photoId) return false;
 
-  const photos = pagedPhotos(ctx.step.value);
+  const photos = pagedPhotos(step);
   advanceFocus(photos, photos.indexOf(photoId));
-  ctx.onCoverUpdate(photoId);
+  mutateFn?.(step.id, coverUpdatePayload(step, photoId));
   return true;
 }
 
 const api = {
   focusedStepId: readonly(focusedStepId),
   focusedPhotoId: readonly(focusedPhotoId),
-  register,
-  unregister,
-  setStepOrder,
+  init,
+  dispose,
   focus,
   blur,
   move,

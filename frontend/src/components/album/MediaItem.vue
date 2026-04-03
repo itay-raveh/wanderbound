@@ -31,7 +31,7 @@ const elRef = ref<HTMLElement | null>(null);
 function handleClick() {
   if (!canFocus.value) return;
   photoFocus.focus(stepId!, props.media);
-  elRef.value?.closest(".page-container")?.scrollIntoView({ block: "center" });
+  elRef.value?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 const isVideo = computed(() => checkVideo(props.media));

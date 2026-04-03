@@ -18,6 +18,16 @@ function stripPhotos(step: Step, photoSet: Set<string>) {
   };
 }
 
+/** Compute the update payload when the cover changes. */
+export function coverUpdatePayload(step: Step, newCover: string): Partial<StepUpdate> {
+  const { pages, unused } = stripPhotos(step, new Set([newCover]));
+  return {
+    cover: newCover,
+    pages,
+    unused: step.cover ? [...unused, step.cover] : unused,
+  };
+}
+
 /** Compute the update payload when the unused list changes (reorder, add from page). */
 export function unusedUpdatePayload(step: Step, nextUnused: string[]): Partial<StepUpdate> {
   const existing = new Set(step.unused);
@@ -58,13 +68,7 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
   }
 
   function onCoverUpdate(cover: string) {
-    const oldCover = step.value.cover;
-    const { pages, unused } = withoutPhotos(new Set([cover]));
-    saveField({
-      cover,
-      pages,
-      unused: oldCover ? [...unused, oldCover] : unused,
-    });
+    saveField(coverUpdatePayload(step.value, cover));
   }
 
   function onPageUpdate(idx: number, page: string[]) {

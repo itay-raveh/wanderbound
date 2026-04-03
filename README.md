@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix photo focus.
 - [ ] Allow hiding covers, overview.
 - [ ] Add controls for zoom, page padding.
 - [ ] Add "Try with demo data" feature.

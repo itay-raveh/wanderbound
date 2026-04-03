@@ -4,13 +4,13 @@ import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepDescriptionPage from "./step/StepDescriptionPage.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
-import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
+import { STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextLayout } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
 import { isPortrait } from "@/utils/media";
 import { filterCoverFromPages } from "./albumSections";
 import { useI18n } from "vue-i18n";
-import { computed, onUnmounted, provide, ref, toRef } from "vue";
+import { computed, provide, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
@@ -22,20 +22,10 @@ const props = defineProps<{
 const dropZoneRef = ref<HTMLElement | null>(null);
 const coverDropRef = ref<HTMLElement | null>(null);
 
-const { printMode, isDragging, saveField, onPageUpdate, onUnusedUpdate, onCoverUpdate } =
+const { printMode, isDragging, saveField, onPageUpdate } =
   useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
 
 provide(STEP_ID_KEY, props.step.id);
-
-if (!printMode) {
-  const photoFocus = usePhotoFocus();
-  photoFocus.register(props.step.id, {
-    step: toRef(props, "step"),
-    onCoverUpdate,
-    onUnusedUpdate,
-  });
-  onUnmounted(() => photoFocus.unregister(props.step.id));
-}
 
 const desc = useTextLayout(computed(() => props.step.description ?? ""));
 const continuationPages = computed(() => desc.value.pages.slice(1));
