@@ -12,6 +12,7 @@ import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import DeleteDialog from "./DeleteDialog.vue";
+import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 
 import {
   matPerson,
@@ -106,26 +107,14 @@ async function handleDelete() {
         <div class="settings-card">
           <!-- Appearance -->
           <section class="card-section">
-            <div class="seg-track" role="group" :aria-label="t('settings.appearance')">
-              <button
-                :class="{ active: !$q.dark.isActive }"
-                :aria-pressed="!$q.dark.isActive"
-                class="seg-btn"
-                @click="$q.dark.isActive && $q.dark.set(false)"
-              >
-                <q-icon :name="matLightMode" size="0.875rem" />
-                {{ t("settings.light") }}
-              </button>
-              <button
-                :class="{ active: $q.dark.isActive }"
-                :aria-pressed="$q.dark.isActive"
-                class="seg-btn"
-                @click="$q.dark.isActive || $q.dark.set(true)"
-              >
-                <q-icon :name="matDarkMode" size="0.875rem" />
-                {{ t("settings.dark") }}
-              </button>
-            </div>
+            <SegmentedControl
+              :model-value="$q.dark.isActive"
+              :options="[
+                { label: t('settings.light'), value: false, icon: matLightMode },
+                { label: t('settings.dark'), value: true, icon: matDarkMode },
+              ]"
+              @update:model-value="$q.dark.set($event)"
+            />
           </section>
 
           <!-- Locale -->
@@ -150,37 +139,27 @@ async function handleDelete() {
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
               <span class="unit-label text-body2">{{ t("settings.distance") }}</span>
-              <div class="seg-track compact" role="group" :aria-label="t('settings.distance')">
-                <button
-                  :class="{ active: isKm }"
-                  :aria-pressed="isKm"
-                  class="seg-btn"
-                  @click="isKm || patch({ unit_is_km: true })"
-                >{{ t("overview.km") }}</button>
-                <button
-                  :class="{ active: !isKm }"
-                  :aria-pressed="!isKm"
-                  class="seg-btn"
-                  @click="isKm && patch({ unit_is_km: false })"
-                >{{ t("overview.mi") }}</button>
-              </div>
+              <SegmentedControl
+                :model-value="isKm"
+                :options="[
+                  { label: t('overview.km'), value: true },
+                  { label: t('overview.mi'), value: false },
+                ]"
+                compact
+                @update:model-value="patch({ unit_is_km: $event })"
+              />
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
               <span class="unit-label text-body2">{{ t("settings.temperature") }}</span>
-              <div class="seg-track compact" role="group" :aria-label="t('settings.temperature')">
-                <button
-                  :class="{ active: isCelsius }"
-                  :aria-pressed="isCelsius"
-                  class="seg-btn"
-                  @click="isCelsius || patch({ temperature_is_celsius: true })"
-                >°C</button>
-                <button
-                  :class="{ active: !isCelsius }"
-                  :aria-pressed="!isCelsius"
-                  class="seg-btn"
-                  @click="isCelsius && patch({ temperature_is_celsius: false })"
-                >°F</button>
-              </div>
+              <SegmentedControl
+                :model-value="isCelsius"
+                :options="[
+                  { label: '°C', value: true },
+                  { label: '°F', value: false },
+                ]"
+                compact
+                @update:model-value="patch({ temperature_is_celsius: $event })"
+              />
             </div>
           </section>
 
@@ -331,55 +310,6 @@ async function handleDelete() {
   }
 }
 
-.seg-track {
-  display: flex;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--text) 8%, var(--bg-secondary));
-}
-
-.seg-btn {
-  all: unset;
-  cursor: pointer;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--gap-sm);
-  padding: var(--gap-sm-md) var(--gap-md-lg);
-  border-radius: var(--radius-sm);
-  font-size: var(--type-sm);
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
-
-  &:hover:not(.active) {
-    color: var(--text);
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
-  }
-
-  &.active {
-    background: var(--bg-secondary);
-    color: var(--text-bright);
-    box-shadow: var(--shadow-sm);
-  }
-}
-
-.seg-track.compact {
-  width: 6rem;
-  flex-shrink: 0;
-
-  .seg-btn {
-    padding: var(--gap-sm-md) var(--gap-md);
-    font-weight: 600;
-  }
-}
-
 .unit-row {
   &:not(:last-child) {
     margin-bottom: var(--gap-sm-md);
@@ -438,7 +368,6 @@ async function handleDelete() {
 @media (prefers-reduced-motion: reduce) {
   .settings-trigger,
   .trigger-gear,
-  .seg-btn,
   .action-btn,
   .danger-btn,
   .account-details > summary::after {
