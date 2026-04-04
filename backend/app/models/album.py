@@ -48,7 +48,7 @@ class AlbumBase(SQLModel):
         default=DEFAULT_BODY_FONT,
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
-    safe_margin_mm: int = Field(default=0)
+    safe_margin_mm: int = Field(default=5)
 
 
 @all_optional

@@ -117,7 +117,7 @@ class Media(BaseModel):
 
     @property
     def is_portrait(self) -> bool:
-        return self.aspect_ratio <= 4 / 5
+        return self.aspect_ratio < 9 / 10
 
     @property
     def orientation(self) -> str:

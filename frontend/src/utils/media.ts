@@ -34,9 +34,9 @@ export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 }
 
-/** Portrait: aspect ratio ≤ 4:5 (taller than wide). */
+/** Portrait: aspect ratio < 9:10 (taller than wide). Must match backend layout/media.py. */
 export function isPortrait(media: { width: number; height: number }): boolean {
-  return media.width / media.height <= 4 / 5;
+  return media.width / media.height < 9 / 10;
 }
 
 /** Build Basmilius weather icon URL for a WMO icon name. */

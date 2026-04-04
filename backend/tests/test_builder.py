@@ -145,7 +145,9 @@ class TestBuildStepLayout:
         for name in landscape_names:
             assert not media_by_name[name].is_portrait
         flat = [name for page in layout.pages for name in page]
-        assert sorted(flat) == sorted(portrait_names + landscape_names)
+        # Cover portrait is excluded from pages.
+        non_cover = [n for n in portrait_names if n != layout.cover]
+        assert sorted(flat) == sorted(non_cover + landscape_names)
 
     async def test_photos_and_videos_mixed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -174,4 +176,5 @@ class TestBuildStepLayout:
         assert media_by_name[jpg_name].is_portrait
         assert not media_by_name[vid_name].is_portrait
         flat = [name for page in layout.pages for name in page]
-        assert sorted(flat) == sorted([jpg_name, vid_name])
+        # Cover portrait is excluded from pages — only the video remains.
+        assert flat == [vid_name]

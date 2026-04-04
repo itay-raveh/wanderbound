@@ -65,11 +65,10 @@ def _optimal_mixed_count(p: int, l: int) -> int:
         rp, rl = p - b, l - 2 * b
         total = b + _portrait_page_count(rp) + _landscape_page_count(rl)
 
-        if total < best_total or (
-            total == best_total and _bad_page_count(rp, rl) < best_bad
-        ):
+        bad = _bad_page_count(rp, rl)
+        if total < best_total or (total == best_total and bad < best_bad):
             best_total = total
-            best_bad = _bad_page_count(rp, rl)
+            best_bad = bad
             best_b = b
 
     return best_b
@@ -101,10 +100,14 @@ def _build_pages(
 ) -> Iterable[list[str]]:
     mixed = _optimal_mixed_count(len(portraits), len(landscapes))
 
+    # Portrait-only pages first: continuation text pages pull the first
+    # portrait they find, so placing standalone portraits before mixed pages
+    # prevents continuation from breaking 1P+2L layouts.
+    yield from _pages_of(portraits[mixed:], 3)
+
     for i in range(mixed):
         yield [portraits[i], landscapes[2 * i], landscapes[2 * i + 1]]
 
-    yield from _pages_of(portraits[mixed:], 3)
     yield from _landscape_pages(landscapes[2 * mixed :])
 
 
@@ -141,7 +144,7 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
 
     media: list[Media] = [m async for m in _step_media(step_dir)]
 
-    # Split and sort portraits (closest to 4/5 first)
+    # Split and sort portraits (widest first — closest to portrait threshold)
     portraits = [
         p.name
         for p in sorted(
@@ -150,7 +153,14 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
             reverse=True,
         )
     ]
-    landscapes = [m.name for m in media if not m.is_portrait]
+    # Sort landscapes narrowest-first so the widest end up on standalone pages.
+    landscapes = [
+        m.name
+        for m in sorted(
+            (m for m in media if not m.is_portrait),
+            key=lambda m: m.aspect_ratio,
+        )
+    ]
 
     if not portraits and not landscapes:
         logger.debug("Step '%s' has no media files, skipping layout", step.name)
@@ -158,4 +168,4 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
 
     cover = portraits[0] if portraits else landscapes[0]
 
-    return Layout(cover, list(_build_pages(portraits, landscapes)), list(media))
+    return Layout(cover, list(_build_pages(portraits[1:], landscapes)), list(media))
