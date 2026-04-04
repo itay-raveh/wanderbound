@@ -1,6 +1,6 @@
 /** Canonical font configuration — derived from fonts.json registry. */
 
-import fontRegistry from "../../fonts.json";
+import fontRegistry from "@fonts";
 
 /** All available font family names, ordered as declared in fonts.json. */
 export const ALLOWED_FONTS = fontRegistry.fonts.map((f) => f.family);
