@@ -1,0 +1,20 @@
+{
+  "defaults": {
+    "heading": "Assistant",
+    "body": "Frank Ruhl Libre"
+  },
+  "fonts": [
+    { "family": "Assistant", "category": "sans-serif", "weights": "200..800" },
+    { "family": "Frank Ruhl Libre", "category": "serif", "weights": "300..900" },
+    { "family": "Rubik", "category": "sans-serif", "weights": "300..900" },
+    { "family": "Heebo", "category": "sans-serif", "weights": "100..900" },
+    { "family": "Secular One", "category": "sans-serif", "weights": "400" },
+    { "family": "Varela Round", "category": "sans-serif", "weights": "400" },
+    { "family": "Open Sans", "category": "sans-serif", "weights": "300..800" },
+    { "family": "Noto Sans Hebrew", "category": "sans-serif", "weights": "100..900" },
+    { "family": "David Libre", "category": "serif", "weights": "400..700" },
+    { "family": "Suez One", "category": "serif", "weights": "400" },
+    { "family": "Karantina", "category": "display", "weights": "300..700" },
+    { "family": "Amatic SC", "category": "display", "weights": "400..700" }
+  ]
+}
