@@ -238,7 +238,7 @@ const factColumns = computed(() => {
   grid-template:
     "start  map  end"     1fr
     "labels labels labels" auto
-    / 1fr   3fr  1fr;
+    / 3fr   5fr  3fr;
   flex: 1;
   padding: var(--page-inset-y) var(--page-inset-x);
   column-gap: var(--gap-md);
@@ -316,6 +316,14 @@ const factColumns = computed(() => {
   margin-top: var(--gap-md);
   font-size: var(--type-xs);
   color: var(--text-muted);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.fact-place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fact-date {
@@ -386,6 +394,6 @@ const factColumns = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem;
+  max-width: 18rem;
 }
 </style>
