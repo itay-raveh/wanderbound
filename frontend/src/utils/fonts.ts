@@ -5,7 +5,7 @@ import type { Album } from "@/client";
 export const ALLOWED_FONTS = ["Frank Ruhl Libre", "Assistant"] as const satisfies
   readonly NonNullable<Album["font"]>[];
 
-type FontName = (typeof ALLOWED_FONTS)[number];
+export type FontName = (typeof ALLOWED_FONTS)[number];
 
 export const DEFAULT_FONT: FontName = "Assistant";
 export const DEFAULT_BODY_FONT: FontName = "Frank Ruhl Libre";

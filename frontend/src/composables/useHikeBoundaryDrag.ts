@@ -7,21 +7,34 @@ import mapboxgl from "mapbox-gl";
 
 const HANDLE_CLASS = "hike-handle";
 
+/** Concatenate adj + hike arrays in the correct direction. */
+function ordered<T>(adj: T[], hike: T[], isStart: boolean): T[] {
+  return isStart ? [...adj, ...hike] : [...hike, ...adj];
+}
+
+interface SegmentLike {
+  start_time: number;
+  end_time: number;
+  kind: string;
+}
+
 interface DragContext {
   map: mapboxgl.Map;
   hikeSegment: Segment;
+  /** Full segments fetched for the expanded time range (includes adjacent). */
+  fetchedSegments: Segment[];
   allSegments: SegmentOutline[];
   hikeColor: string;
   onCommit: (adjust: BoundaryAdjust) => void;
 }
 
 /** Mirror of the adjacency query in albums.py adjust_segment_boundary - keep in sync. */
-function findAdjacentSegment(
-  segments: SegmentOutline[],
+export function findAdjacentSegment<T extends SegmentLike>(
+  segments: T[],
   hike: { start_time: number; end_time: number },
   handle: "start" | "end",
-): SegmentOutline | null {
-  let best: SegmentOutline | null = null;
+): T | null {
+  let best: T | null = null;
   for (const seg of segments) {
     if ((seg.start_time === hike.start_time && seg.end_time === hike.end_time) || seg.kind === "flight") continue;
     if (handle === "start") {
@@ -46,36 +59,46 @@ export function setupBoundaryHandles(
   const markers: mapboxgl.Marker[] = [];
   const cleanups: (() => void)[] = [];
 
+  // Hike coords/times are constant across endpoints — compute once.
+  const hikeCoords: [number, number][] = ctx.hikeSegment.points.map((p) => [p.lon, p.lat]);
+  const hikeTimes = ctx.hikeSegment.points.map((p) => p.time);
+
   for (const ep of endpoints) {
-    const adjacent = findAdjacentSegment(ctx.allSegments, ctx.hikeSegment, ep.handle);
+    const adjacentOutline = findAdjacentSegment(ctx.allSegments, ctx.hikeSegment, ep.handle);
 
     const el = document.createElement("div");
     el.className = HANDLE_CLASS;
-    if (!adjacent) el.classList.add("static");
+    if (!adjacentOutline) el.classList.add("static");
 
-    const marker = new mapboxgl.Marker({ element: el, draggable: adjacent !== null })
+    const marker = new mapboxgl.Marker({ element: el, draggable: adjacentOutline !== null })
       .setLngLat(ep.coord)
       .addTo(ctx.map);
     markers.push(marker);
 
-    if (!adjacent) continue;
+    if (!adjacentOutline) continue;
+
+    const adjacentFull = ctx.fetchedSegments.find(
+      (s) => s.start_time === adjacentOutline.start_time && s.end_time === adjacentOutline.end_time,
+    );
 
     const isStart = ep.handle === "start";
     const ghostId = `boundary-ghost-${ep.handle}`;
 
-    // Build extended line: adjacent outline (start→end coords) + hike GPS points
-    const adjCoords: [number, number][] = [adjacent.start_coord, adjacent.end_coord];
-    const hikeCoordsFull: [number, number][] = ctx.hikeSegment.points.map((p) => [p.lon, p.lat]);
-    const extendedCoords: [number, number][] = isStart
-      ? [...adjCoords, ...hikeCoordsFull]
-      : [...hikeCoordsFull, ...adjCoords];
+    const adjCoords: [number, number][] = adjacentFull
+      ? adjacentFull.points.map((p) => [p.lon, p.lat])
+      : [[adjacentOutline.start_coord[1], adjacentOutline.start_coord[0]],
+         [adjacentOutline.end_coord[1], adjacentOutline.end_coord[0]]];
+    const extendedCoords = ordered(adjCoords, hikeCoords, isStart);
 
-    // Build combined time array matching extendedCoords for boundary interpolation
-    const adjTimes = [adjacent.start_time, adjacent.end_time];
-    const hikeTimes = ctx.hikeSegment.points.map((p) => p.time);
-    const combinedTimes = isStart
-      ? [...adjTimes, ...hikeTimes]
-      : [...hikeTimes, ...adjTimes];
+    // Visual ghost: use map-matched route for adjacent when available
+    const ghostVisualCoords = adjacentFull?.route
+      ? ordered(adjacentFull.route, hikeCoords, isStart)
+      : extendedCoords;
+
+    const adjTimes = adjacentFull
+      ? adjacentFull.points.map((p) => p.time)
+      : [adjacentOutline.start_time, adjacentOutline.end_time];
+    const combinedTimes = ordered(adjTimes, hikeTimes, isStart);
 
     const extendedLine = lineFeature(extendedCoords);
 
@@ -88,7 +111,7 @@ export function setupBoundaryHandles(
     const originalLngLat = marker.getLngLat();
 
     const adjLen = adjCoords.length;
-    const hikeLen = hikeCoordsFull.length;
+    const hikeLen = hikeCoords.length;
     const originalHikeCoords = isStart
       ? extendedCoords.slice(adjLen)
       : extendedCoords.slice(0, hikeLen);
@@ -162,7 +185,7 @@ export function setupBoundaryHandles(
       document.removeEventListener("keydown", onKeyDown);
       document.addEventListener("keydown", onKeyDown);
       removeMapLayer(ctx.map, ghostId);
-      addLine(ctx.map, ghostId, extendedLine, {
+      addLine(ctx.map, ghostId, lineFeature(ghostVisualCoords), {
         "line-color": ctx.hikeColor,
         "line-width": 3,
         "line-dasharray": [3, 3],

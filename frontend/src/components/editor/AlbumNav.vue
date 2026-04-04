@@ -200,7 +200,7 @@ const headerNavItems = computed(() =>
 
 // ── Scroll sync ───────────────────────────────────────────────────────
 
-const HEADER_KEY_SET: ReadonlySet<HeaderKey> = new Set(HEADER_KEYS);
+const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
 
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {

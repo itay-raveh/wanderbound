@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Album } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
+import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack, type FontName } from "@/utils/fonts";
 import { symOutlinedCropFree, symOutlinedTune } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
@@ -19,11 +19,11 @@ const currentBodyFont = computed(() => props.album.body_font ?? DEFAULT_BODY_FON
 const safeMargin = computed(() => props.album.safe_margin_mm ?? 0);
 
 function updateFont(font: string) {
-  albumMutation.mutate({ font });
+  albumMutation.mutate({ font: font as FontName });
 }
 
 function updateBodyFont(font: string) {
-  albumMutation.mutate({ body_font: font });
+  albumMutation.mutate({ body_font: font as FontName });
 }
 
 function updateSafeMargin(mm: number) {

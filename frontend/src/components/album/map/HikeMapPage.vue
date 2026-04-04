@@ -4,7 +4,7 @@ import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { setupBoundaryHandles } from "@/composables/useHikeBoundaryDrag";
+import { setupBoundaryHandles, findAdjacentSegment } from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
@@ -34,9 +34,12 @@ const { isKm, locale, distanceUnit, elevationUnit } = useUserQuery();
 const printMode = usePrintMode();
 const boundaryMutation = useSegmentBoundaryMutation();
 
-// Fetch full segment points for the hike segment's time range
-const fromTime = computed(() => props.hikeSegment.start_time);
-const toTime = computed(() => props.hikeSegment.end_time);
+// In editor mode, expand the fetch range to include adjacent segments
+// so drag handles have full GPS points (not just outline start/end coords).
+const adjBefore = computed(() => !printMode && findAdjacentSegment(props.allSegments, props.hikeSegment, "start"));
+const adjAfter = computed(() => !printMode && findAdjacentSegment(props.allSegments, props.hikeSegment, "end"));
+const fromTime = computed(() => (adjBefore.value || null)?.start_time ?? props.hikeSegment.start_time);
+const toTime = computed(() => (adjAfter.value || null)?.end_time ?? props.hikeSegment.end_time);
 
 const { data: fetchedSegments } = useSegmentPointsQuery(fromTime, toTime);
 
@@ -204,6 +207,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
       cleanupHandles = setupBoundaryHandles(hikeEndpoints, {
         map: m,
         hikeSegment: hikeSeg,
+        fetchedSegments: fetchedSegments.value ?? [],
         allSegments: props.allSegments,
         hikeColor: countryColor.value,
         onCommit: (adjust) => boundaryMutation.mutate(adjust),
