@@ -1,150 +1,120 @@
 /**
- * Generate landing page screenshots from the running frontend.
+ * Generate landing page screenshots from a live backend with demo data.
  *
  * Prerequisites:
- *   - Frontend dev server running (bun run dev)
- *   - No backend needed — API responses are mocked with fixture data,
- *     and photos are served from backend/tests/test_data/
+ *   - Backend running (mise run dev:backend)
+ *   - Frontend running (mise run dev:frontend)
+ *   - Database migrated (mise run migrate)
  *
  * Usage:
  *   bun run screenshots
- *
- * Captures each screenshot in both dark and light mode variants.
- * Each is saved as both .jpg and .webp in public/landing/.
  */
 
-import { chromium, type Browser, type Locator, type Page, type Route } from "@playwright/test";
-import { mkdir, readFile, readdir, writeFile } from "fs/promises";
+import { chromium, type Browser, type Locator, type Page } from "@playwright/test";
+import { mkdir, readdir, writeFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { fileURLToPath } from "url";
-import fixtures from "./landing-fixtures.json";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT = path.resolve(__dirname, "../public/landing");
-const BASE = process.env.BASE_URL ?? "http://localhost:5173";
+const FRONTEND = process.env.BASE_URL ?? "http://localhost:5173";
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
+const API = `${BACKEND}/api/v1`;
 const JPEG_QUALITY = 90;
 const WEBP_QUALITY = 80;
-const WEBP_WIDTHS = [640, 1024, 1536];
+const WEBP_WIDTHS = [640, 1536];
 const EDGE_TRIM = 4; // device pixels to crop from each edge (2 CSS px at 2× scale)
 const MODES = ["dark", "light"] as const;
 
-const TRIP_DIR = path.resolve(
-  __dirname,
-  "../../backend/tests/test_data/trip/south-america-2024-2025_14232450",
-);
-const ALBUM_ID = fixtures.albumId;
+/** Album customization applied after processing. */
+const ALBUM_OVERRIDES = {
+  title: "South America",
+  subtitle: "Adventure of a lifetime!",
+};
 
 // ---------------------------------------------------------------------------
-// Main
+// Demo lifecycle — create, process, customize, clean up
 // ---------------------------------------------------------------------------
 
-async function main() {
-  await mkdir(OUTPUT, { recursive: true });
-  const browser = await chromium.launch({ headless: true });
-
-  try {
-    for (const mode of MODES) {
-      console.log(`\n=== ${mode} mode ===`);
-      await withContext(browser, mode, async (page) => {
-        await setupMocks(page);
-        await navigateToPrint(page, mode);
-        await captureCover(page, mode);
-        await captureAutoAlbum(page, mode);
-        await captureHikeMap(page, mode);
-        await captureStepPage(page, mode);
-        await captureOverview(page, mode);
-      });
-      // Separate context with Hebrew locale for the localization screenshot
-      await withContext(browser, mode, async (page) => {
-        await setupMocks(page, {
-          userOverrides: { locale: "he-IL" },
-          album: fixtures.hebrewAlbum,
-          albumData: fixtures.hebrewAlbumData,
-        });
-        await navigateToPrint(page, mode);
-        await captureLocalization(page, mode);
-      });
-    }
-  } finally {
-    await browser.close();
-  }
-
-  await convertToWebP();
-  console.log("\nDone! Screenshots saved to public/landing/");
+interface DemoSession {
+  cookie: string;
+  albumId: string;
+  userId: number;
 }
 
-// ---------------------------------------------------------------------------
-// Mocks — intercept all backend API calls + serve test media from disk
-// ---------------------------------------------------------------------------
+async function createDemo(lang?: string): Promise<DemoSession> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (lang) headers["Accept-Language"] = lang;
 
-interface MockOptions {
-  userOverrides?: Record<string, unknown>;
-  album?: Record<string, unknown>;
-  albumData?: Record<string, unknown>;
+  const resp = await fetch(`${API}/users/demo`, { method: "POST", headers });
+  if (!resp.ok) throw new Error(`POST /users/demo failed: ${resp.status}`);
+
+  const setCookie = resp.headers.get("set-cookie");
+  if (!setCookie) throw new Error("No session cookie in demo response");
+  const match = setCookie.match(/session=[^;]+/);
+  if (!match) throw new Error("Could not parse session cookie");
+  const cookie = match[0];
+
+  const data = await resp.json();
+  const albumId = data.trips[0].id;
+  const userId = data.user.id;
+  console.log(`  Demo user ${userId} created (album: ${albumId})`);
+  return { cookie, albumId, userId };
 }
 
-async function setupMocks(page: Page, opts: MockOptions = {}) {
-  const user = { ...fixtures.user, ...opts.userOverrides };
-  const album = opts.album ?? fixtures.album;
-  const data = opts.albumData ?? fixtures.albumData;
-
-  await page.route("**/api/v1/users", (route) => route.fulfill({ json: user }));
-
-  await page.route("**/api/v1/albums/**", async (route) => {
-    const url = route.request().url();
-    if (url.includes("/media/")) return handleMedia(route);
-    if (url.includes("/data")) return route.fulfill({ json: data });
-    if (route.request().method() === "GET") return route.fulfill({ json: album });
-    return route.continue();
+async function waitForProcessing(session: DemoSession): Promise<void> {
+  console.log("  Processing demo data...");
+  const resp = await fetch(`${API}/users/process`, {
+    headers: { Cookie: session.cookie, Accept: "text/event-stream" },
   });
+  if (!resp.ok) throw new Error(`GET /users/process failed: ${resp.status}`);
+  if (!resp.body) throw new Error("No body in SSE response");
 
-  await page.addInitScript(() => {
-    localStorage.setItem("last-album-id", "sa-2024");
-    localStorage.setItem("onboarding-editor-dismissed", "1");
-    localStorage.setItem("onboarding-map-dismissed", "1");
-  });
-}
-
-async function handleMedia(route: Route) {
-  const name = route.request().url().split("/media/")[1]?.split("?")[0];
-  if (!name) return route.abort();
-
-  const relPath = (fixtures.mediaMap as Record<string, string>)[name];
-  if (!relPath) return route.abort();
-
-  const body = await readFile(path.join(TRIP_DIR, relPath));
-  const contentType = name.endsWith(".mp4") ? "video/mp4" : "image/jpeg";
-  const total = body.length;
-  const headers: Record<string, string> = {
-    "Accept-Ranges": "bytes",
-    "Content-Type": contentType,
-  };
-
-  // Support range requests so video seeking works in headless Chromium
-  const range = route.request().headers()["range"];
-  if (range) {
-    const match = range.match(/bytes=(\d+)-(\d*)/);
-    if (match) {
-      const start = Number(match[1]);
-      const end = match[2] ? Number(match[2]) : total - 1;
-      headers["Content-Range"] = `bytes ${start}-${end}/${total}`;
-      headers["Content-Length"] = String(end - start + 1);
-      return route.fulfill({ status: 206, headers, body: body.subarray(start, end + 1) });
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    if (text.includes('"type":"error"') || text.includes("event: error")) {
+      throw new Error("Processing failed — error event received");
     }
   }
+  console.log("  Processing complete");
+}
 
-  headers["Content-Length"] = String(total);
-  return route.fulfill({ status: 200, headers, body });
+async function customizeAlbum(
+  session: DemoSession,
+  overrides: Record<string, unknown>,
+): Promise<void> {
+  const resp = await fetch(`${API}/albums/${session.albumId}`, {
+    method: "PATCH",
+    headers: {
+      Cookie: session.cookie,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(overrides),
+  });
+  if (!resp.ok) throw new Error(`PATCH album failed: ${resp.status}`);
+}
+
+async function deleteDemo(session: DemoSession): Promise<void> {
+  await fetch(`${API}/users/demo`, {
+    method: "DELETE",
+    headers: { Cookie: session.cookie },
+  }).catch(() => {}); // Best effort
+  console.log(`  Demo user ${session.userId} cleaned up`);
 }
 
 // ---------------------------------------------------------------------------
-// Context & navigation
+// Playwright context & navigation
 // ---------------------------------------------------------------------------
 
 async function withContext(
   browser: Browser,
   mode: string,
+  session: DemoSession,
   fn: (page: Page) => Promise<void>,
 ) {
   const context = await browser.newContext({
@@ -152,6 +122,14 @@ async function withContext(
     deviceScaleFactor: 2,
     colorScheme: mode as "dark" | "light",
   });
+  await context.addCookies([
+    {
+      name: "session",
+      value: session.cookie.replace("session=", ""),
+      domain: new URL(FRONTEND).hostname,
+      path: "/",
+    },
+  ]);
   context.setDefaultTimeout(60_000);
   try {
     await fn(await context.newPage());
@@ -160,12 +138,10 @@ async function withContext(
   }
 }
 
-async function navigateToPrint(page: Page, mode: string) {
+async function navigateToPrint(page: Page, albumId: string, mode: string) {
   const dark = mode === "dark" ? "?dark=true" : "";
   console.log(`  Navigating to print view (${mode})...`);
 
-  // Headless Chromium without GPU tile rasterisation may never fire Mapbox
-  // "idle" events.  Force data-map-ready on all map elements.
   await page.addInitScript(() => {
     setInterval(() => {
       document.querySelectorAll("[data-map]:not([data-map-ready])").forEach((el) => {
@@ -174,13 +150,13 @@ async function navigateToPrint(page: Page, mode: string) {
     }, 500);
   });
 
-  await page.goto(`${BASE}/print/${ALBUM_ID}${dark}`, { waitUntil: "load", timeout: 30_000 });
+  await page.goto(`${FRONTEND}/print/${albumId}${dark}`, {
+    waitUntil: "load",
+    timeout: 30_000,
+  });
 
-  // Wait for the album container, then give content time to render.
-  // We don't rely on __PRINT_READY__ because the page-count check blocks
-  // when not all pages render in headless Chromium.
   await page.waitForSelector(".album-container", { timeout: 30_000 });
-  console.log(`  Album container found, waiting for content to settle...`);
+  console.log("  Album container found, waiting for content to settle...");
   await page.waitForTimeout(15_000);
 }
 
@@ -194,14 +170,18 @@ async function waitForImages(scope: Locator, timeoutMs = 10_000) {
       Promise.all(
         Array.from(el.querySelectorAll<HTMLImageElement>("img"))
           .filter((img) => !img.complete)
-          .map((img) => new Promise<void>((r) => { img.onload = img.onerror = () => r(); })),
+          .map(
+            (img) =>
+              new Promise<void>((r) => {
+                img.onload = img.onerror = () => r();
+              }),
+          ),
       ),
     ),
     new Promise<void>((r) => setTimeout(r, timeoutMs)),
   ]);
 }
 
-/** Crop edge pixels that leak page background into element screenshots. */
 async function trimEdges(filePath: string) {
   const meta = await sharp(filePath).metadata();
   if (!meta.width || !meta.height) return;
@@ -215,11 +195,6 @@ async function trimEdges(filePath: string) {
   await writeFile(filePath, buf);
 }
 
-/**
- * Scroll an element into view, wait for Chromium to rasterize it, then capture.
- * Chromium skips rasterization for off-screen elements in long pages, so a plain
- * element.screenshot() on a print-mode page below the fold returns a blank image.
- */
 async function captureElement(page: Page, locator: Locator, filePath: string) {
   await locator.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
@@ -235,100 +210,80 @@ function save(name: string, mode: string) {
 // Screenshot captures
 // ---------------------------------------------------------------------------
 
-/** Front cover page — album title over full-bleed photo (print mode). */
 async function captureCover(page: Page, mode: string) {
   const cover = page.locator(".page-container.cover-page").first();
   if ((await cover.count()) === 0) {
     console.warn(`  ⚠ No cover page found — skipping cover-${mode}.jpg`);
     return;
   }
-
   await waitForImages(cover);
   await captureElement(page, cover, save("cover", mode));
   console.log(`  ✓ cover-${mode}.jpg`);
 }
 
-/** Close-up of a 1P+2L photo grid page (print mode — no editor chrome). */
 async function captureAutoAlbum(page: Page, mode: string) {
-  const pages = page.locator(".page-container");
-  const count = await pages.count();
-
-  for (let i = 0; i < count; i++) {
-    const container = pages.nth(i);
-    if ((await container.locator("[data-media]").count()) >= 3) {
-      await waitForImages(container);
-      // Skip pages where images failed to load (dummy fixture photos)
-      const hasLoadedImage = await container.evaluate((el) =>
-        Array.from(el.querySelectorAll<HTMLImageElement>("img"))
-          .some((img) => img.naturalWidth > 0),
-      );
-      if (!hasLoadedImage) continue;
-      await captureElement(page, container, save("auto-album", mode));
+  // Target a 1P+2L mixed page — the most visually interesting layout for the showcase.
+  const mixed = page.locator(".page-container:has(.layout-1p-2l)").first();
+  if ((await mixed.count()) > 0) {
+    await waitForImages(mixed);
+    const hasLoadedImage = await mixed.evaluate((el) =>
+      Array.from(el.querySelectorAll<HTMLImageElement>("img")).some(
+        (img) => img.naturalWidth > 0,
+      ),
+    );
+    if (hasLoadedImage) {
+      await captureElement(page, mixed, save("auto-album", mode));
       console.log(`  ✓ auto-album-${mode}.jpg`);
       return;
     }
   }
-  console.warn(`  ⚠ No page with 3+ loaded photos — skipping auto-album-${mode}.jpg`);
+  console.warn(
+    `  ⚠ No 1P+2L page with loaded photos — skipping auto-album-${mode}.jpg`,
+  );
 }
 
-/** Hike map page with elevation profile (print mode). */
 async function captureHikeMap(page: Page, mode: string) {
   const hike = page.locator(".page-container:has(.elevation-overlay)").first();
   if ((await hike.count()) === 0) {
     console.warn(`  ⚠ No hike map found — skipping hike-map-${mode}.jpg`);
     return;
   }
-
-  // Wait for elevation profile SVG path to render
   await Promise.race([
     page.waitForFunction(
-      () => (document.querySelector(".elevation-overlay svg path")?.getAttribute("d")?.length ?? 0) > 10,
+      () =>
+        (
+          document
+            .querySelector(".elevation-overlay svg path")
+            ?.getAttribute("d")?.length ?? 0
+        ) > 10,
     ),
     page.waitForTimeout(15_000),
   ]).catch(() => console.warn("    Elevation profile may not be loaded"));
   await page.waitForTimeout(1000);
-
   await captureElement(page, hike, save("hike-map", mode));
   console.log(`  ✓ hike-map-${mode}.jpg`);
 }
 
-/** Step main page with metadata panel — weather, elevation, coordinates (print mode). */
-async function captureStepPage(page: Page, mode: string) {
+async function captureStepPage(page: Page, mode: string, name = "step-page") {
   const stepMain = page.locator(".page-container.step-main").first();
   if ((await stepMain.count()) === 0) {
-    console.warn(`  ⚠ No step main page found — skipping step-page-${mode}.jpg`);
+    console.warn(`  ⚠ No step main page found — skipping ${name}-${mode}.jpg`);
     return;
   }
-
   await waitForImages(stepMain);
-  await captureElement(page, stepMain, save("step-page", mode));
-  console.log(`  ✓ step-page-${mode}.jpg`);
+  await captureElement(page, stepMain, save(name, mode));
+  console.log(`  ✓ ${name}-${mode}.jpg`);
 }
 
-/** Overview page with trip stats — days, distance, photos, countries (print mode). */
 async function captureOverview(page: Page, mode: string) {
   const overview = page.locator(".page-container.overview").first();
   if ((await overview.count()) === 0) {
     console.warn(`  ⚠ No overview page found — skipping overview-${mode}.jpg`);
     return;
   }
-
   await waitForImages(overview);
   await captureElement(page, overview, save("overview", mode));
   console.log(`  ✓ overview-${mode}.jpg`);
-}
-
-/** Step page rendered in Hebrew (RTL) to showcase localization support. */
-async function captureLocalization(page: Page, mode: string) {
-  const stepMain = page.locator(".page-container.step-main").first();
-  if ((await stepMain.count()) === 0) {
-    console.warn(`  ⚠ No step main page found — skipping localization-${mode}.jpg`);
-    return;
-  }
-
-  await waitForImages(stepMain);
-  await captureElement(page, stepMain, save("localization", mode));
-  console.log(`  ✓ localization-${mode}.jpg`);
 }
 
 // ---------------------------------------------------------------------------
@@ -343,12 +298,15 @@ async function convertToWebP() {
       const src = path.join(OUTPUT, file);
       const base = file.replace(/\.jpg$/, "");
       return [
-        // Full-size (retina)
-        sharp(src).webp({ quality: WEBP_QUALITY }).toFile(path.join(OUTPUT, `${base}.webp`))
+        sharp(src)
+          .webp({ quality: WEBP_QUALITY })
+          .toFile(path.join(OUTPUT, `${base}.webp`))
           .then(() => console.log(`  ${base}.webp`)),
-        // Responsive sizes
         ...WEBP_WIDTHS.map((w) =>
-          sharp(src).resize(w).webp({ quality: WEBP_QUALITY }).toFile(path.join(OUTPUT, `${base}-${w}w.webp`))
+          sharp(src)
+            .resize(w)
+            .webp({ quality: WEBP_QUALITY })
+            .toFile(path.join(OUTPUT, `${base}-${w}w.webp`))
             .then(() => console.log(`  ${base}-${w}w.webp`)),
         ),
       ];
@@ -357,6 +315,56 @@ async function convertToWebP() {
 }
 
 // ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main() {
+  await mkdir(OUTPUT, { recursive: true });
+  const browser = await chromium.launch({ headless: true });
+
+  // --- English demo ---
+  console.log("\n=== Creating English demo ===");
+  const enSession = await createDemo("en");
+  try {
+    await waitForProcessing(enSession);
+    await customizeAlbum(enSession, ALBUM_OVERRIDES);
+
+    for (const mode of MODES) {
+      console.log(`\n=== ${mode} mode ===`);
+      await withContext(browser, mode, enSession, async (page) => {
+        await navigateToPrint(page, enSession.albumId, mode);
+        await captureCover(page, mode);
+        await captureAutoAlbum(page, mode);
+        await captureHikeMap(page, mode);
+        await captureStepPage(page, mode);
+        await captureOverview(page, mode);
+      });
+    }
+  } finally {
+    await deleteDemo(enSession);
+  }
+
+  // --- Hebrew demo (localization screenshot) ---
+  console.log("\n=== Creating Hebrew demo ===");
+  const heSession = await createDemo("he");
+  try {
+    await waitForProcessing(heSession);
+
+    for (const mode of MODES) {
+      console.log(`\n=== ${mode} mode (Hebrew) ===`);
+      await withContext(browser, mode, heSession, async (page) => {
+        await navigateToPrint(page, heSession.albumId, mode);
+        await captureStepPage(page, mode, "localization");
+      });
+    }
+  } finally {
+    await deleteDemo(heSession);
+  }
+
+  await browser.close();
+  await convertToWebP();
+  console.log("\nDone! Screenshots saved to public/landing/");
+}
 
 main().catch((err) => {
   console.error("Screenshot generation failed:", err);

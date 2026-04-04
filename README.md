@@ -86,8 +86,9 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Add "Try with demo data" feature.
-- [ ] Add onboarding flow.
+- [ ] Fix photo focus - again.
+- [ ] Add media pixelated warning.
+- [ ] Consolidate scripts strategy.
 - [ ] Create deployment strategy.
 - [ ] Add double page photos.
 

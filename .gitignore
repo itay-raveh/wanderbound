@@ -37,4 +37,5 @@ frontend/src/styles/fonts.css
 backend/data/
 backend/tests/test_data/
 backend/.cache/
+backend/*.db
 backups/

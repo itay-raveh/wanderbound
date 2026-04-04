@@ -8,7 +8,8 @@ defineProps<{
   fetchpriority?: "high" | "low" | "auto";
 }>();
 
-const WIDTHS = [640, 1024, 1536];
+// Must match WEBP_WIDTHS in scripts/landing-screenshots.ts
+const WIDTHS = [640, 1536];
 
 function srcset(stem: string, mode: string) {
   const set = WIDTHS.map((w) => `/landing/${stem}-${mode}-${w}w.webp ${w}w`);

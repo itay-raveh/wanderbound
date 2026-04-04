@@ -136,6 +136,6 @@ description = "Download Google Fonts and generate @font-face CSS from fonts.json
 run = "uv run scripts/generate_fonts.py"
 
 [tasks."generate:landing"]
-description = "Screenshot landing page images from running app (requires dev servers + real data)"
+description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
 dir = "frontend"
 run = "bun scripts/landing-screenshots.ts"
