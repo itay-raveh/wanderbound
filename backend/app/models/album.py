@@ -16,10 +16,9 @@ from app.models.step import Step
 type DateRange = tuple[date, date]
 
 HeaderKey = Literal["cover-front", "cover-back", "overview", "full-map"]
-FontName = Literal["Frank Ruhl Libre", "Assistant"]
 
-DEFAULT_FONT: FontName = "Assistant"
-DEFAULT_BODY_FONT: FontName = "Frank Ruhl Libre"
+DEFAULT_FONT = "Assistant"
+DEFAULT_BODY_FONT = "Frank Ruhl Libre"
 
 
 class AlbumBase(SQLModel):
@@ -41,11 +40,11 @@ class AlbumBase(SQLModel):
     )
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
-    font: FontName = Field(
+    font: str = Field(
         default=DEFAULT_FONT,
         sa_column=Column(String(100), nullable=False, default=DEFAULT_FONT),
     )
-    body_font: FontName = Field(
+    body_font: str = Field(
         default=DEFAULT_BODY_FONT,
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
