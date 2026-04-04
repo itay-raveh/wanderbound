@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Album } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack, type FontName } from "@/utils/fonts";
+import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { symOutlinedCropFree, symOutlinedTune } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
@@ -19,11 +19,11 @@ const currentBodyFont = computed(() => props.album.body_font ?? DEFAULT_BODY_FON
 const safeMargin = computed(() => props.album.safe_margin_mm ?? 0);
 
 function updateFont(font: string) {
-  albumMutation.mutate({ font: font as FontName });
+  albumMutation.mutate({ font });
 }
 
 function updateBodyFont(font: string) {
-  albumMutation.mutate({ body_font: font as FontName });
+  albumMutation.mutate({ body_font: font });
 }
 
 function updateSafeMargin(mm: number) {
@@ -51,7 +51,7 @@ function updateSafeMargin(mm: number) {
         <span :style="{ fontFamily: fontStack(currentFont) }">{{ currentFont }}</span>
       </template>
       <template #option="{ itemProps, opt }">
-        <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
+        <q-item v-bind="itemProps" :style="{ fontFamily: fontStack(opt) }">
           <q-item-section>{{ opt }}</q-item-section>
         </q-item>
       </template>
@@ -70,7 +70,7 @@ function updateSafeMargin(mm: number) {
         <span :style="{ fontFamily: fontStack(currentBodyFont) }">{{ currentBodyFont }}</span>
       </template>
       <template #option="{ itemProps, opt }">
-        <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
+        <q-item v-bind="itemProps" :style="{ fontFamily: fontStack(opt) }">
           <q-item-section>{{ opt }}</q-item-section>
         </q-item>
       </template>

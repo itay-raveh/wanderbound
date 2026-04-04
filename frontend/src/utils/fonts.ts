@@ -1,22 +1,23 @@
-/** Canonical font configuration — validated against the API schema. */
+/** Canonical font configuration — derived from fonts.json registry. */
 
-import type { Album } from "@/client";
+import fontRegistry from "../../fonts.json";
 
-export const ALLOWED_FONTS = ["Frank Ruhl Libre", "Assistant"] as const satisfies
-  readonly NonNullable<Album["font"]>[];
+/** All available font family names, ordered as declared in fonts.json. */
+export const ALLOWED_FONTS = fontRegistry.fonts.map((f) => f.family);
 
-export type FontName = (typeof ALLOWED_FONTS)[number];
+export const DEFAULT_FONT = fontRegistry.defaults.heading;
+export const DEFAULT_BODY_FONT = fontRegistry.defaults.body;
 
-export const DEFAULT_FONT: FontName = "Assistant";
-export const DEFAULT_BODY_FONT: FontName = "Frank Ruhl Libre";
-
-/** CSS fallback stacks keyed by font name. Keep in sync with App.vue :root vars. */
-const FONT_FALLBACKS: Record<FontName, string> = {
-  "Frank Ruhl Libre": "Georgia, serif",
-  "Assistant": "system-ui, -apple-system, sans-serif",
+const CATEGORY_FALLBACKS: Record<string, string> = {
+  serif: "Georgia, serif",
+  "sans-serif": "system-ui, -apple-system, sans-serif",
+  display: "cursive, sans-serif",
+  monospace: "ui-monospace, monospace",
 };
 
 /** Build a complete CSS font-family string with fallbacks. */
-export function fontStack(name: FontName): string {
-  return `"${name}", ${FONT_FALLBACKS[name]}`;
+export function fontStack(name: string): string {
+  const entry = fontRegistry.fonts.find((f) => f.family === name);
+  const fallback = CATEGORY_FALLBACKS[entry?.category ?? "sans-serif"];
+  return `"${name}", ${fallback}`;
 }
