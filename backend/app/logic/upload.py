@@ -97,28 +97,34 @@ class UploadResult(BaseModel):
     trips: list[TripMeta]
 
 
+def scan_user_folder(folder: Path) -> tuple[PSUser, list[TripMeta]]:
+    """Parse user.json and enumerate trips from an extracted data folder."""
+    user_json = (folder / "user" / "user.json").read_bytes()
+    ps_user = PSUser.model_validate_json(user_json)
+
+    trip_dir = folder / "trip"
+    trips: list[TripMeta] = []
+    for td in sorted(trip_dir.iterdir()):
+        trip = PSTrip.from_trip_dir(td)
+        trips.append(
+            TripMeta(
+                id=td.name,
+                title=trip.title,
+                step_count=trip.step_count,
+                country_codes=list(
+                    {s.location.country_code for s in trip.all_steps} - {"00"}
+                ),
+            )
+        )
+    return ps_user, trips
+
+
 def extract_and_scan(file: BinaryIO) -> tuple[Path, PSUser, list[TripMeta]]:
     """Extract ZIP to temp folder, parse user and trips (blocking I/O)."""
     folder = Path(tempfile.mkdtemp(dir=get_settings().USERS_FOLDER))
     try:
         _safe_extract(file, folder)
-        user_json = (folder / "user" / "user.json").read_bytes()
-        ps_user = PSUser.model_validate_json(user_json)
-
-        trip_dir = folder / "trip"
-        trips: list[TripMeta] = []
-        for td in sorted(trip_dir.iterdir()):
-            trip = PSTrip.from_trip_dir(td)
-            trips.append(
-                TripMeta(
-                    id=td.name,
-                    title=trip.title,
-                    step_count=trip.step_count,
-                    country_codes=list(
-                        {s.location.country_code for s in trip.all_steps} - {"00"}
-                    ),
-                )
-            )
+        ps_user, trips = scan_user_folder(folder)
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
         raise

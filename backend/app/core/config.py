@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     def USERS_FOLDER(self) -> Path:
         return self.DATA_FOLDER / "users"
 
+    DEMO_FIXTURES: Path = Field(
+        default=Path(__file__).resolve().parents[3] / "fixtures" / "demo"
+    )
+
 
 @cache
 def get_settings() -> Settings:

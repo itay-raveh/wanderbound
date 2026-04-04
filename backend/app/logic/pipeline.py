@@ -11,7 +11,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_engine
+from app.logic.demo_i18n import apply_overlay, load_overlay
 from app.logic.processing import (
     DbRow,
     ErrorData,
@@ -163,6 +165,27 @@ async def _save_reupload(
     logger.info("Saved %d objects for re-upload user %d", len(objects), uid)
 
 
+def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
+    if not user.is_demo:
+        return
+    overlay = load_overlay(user.locale, get_settings().DEMO_FIXTURES)
+    if overlay is None:
+        return
+
+    albums: list[Album] = []
+    steps_by_aid: dict[str, list[Step]] = defaultdict(list)
+    for o in all_objects:
+        if isinstance(o, Album):
+            albums.append(o)
+        elif isinstance(o, Step):
+            steps_by_aid[o.aid].append(o)
+
+    for album in albums:
+        apply_overlay(overlay, album, steps_by_aid.get(album.id, []))
+
+    logger.info("Applied %s i18n overlay for demo user %d", user.locale, user.id)
+
+
 async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
@@ -193,6 +216,8 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
         yield ErrorData()
         return
 
+    _apply_demo_i18n(user, all_objects)
+
     try:
         if existing_albums:
             await _save_reupload(
@@ -204,7 +229,6 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
         logger.exception("DB save failed for user %d", user.id)
         yield ErrorData()
         return
-
     await asyncio.to_thread(_cleanup_metadata, user.folder, trip_dirs)
     logger.info(
         "Processing complete for user %d: %d trips in %.1fs",

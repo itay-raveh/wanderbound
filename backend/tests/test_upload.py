@@ -12,6 +12,7 @@ from app.logic.upload import (
     TripMeta,
     _safe_extract,
     extract_and_scan,
+    scan_user_folder,
 )
 
 
@@ -158,6 +159,27 @@ class TestSafeExtract:
         buf = _make_zip(**{"a.jpg": _DEFAULT_JPEG, "b.jpg": _DEFAULT_JPEG})
         with pytest.raises(zipfile.BadZipFile, match="exceeds limit"):
             _safe_extract(buf, tmp_path)
+
+
+class TestScanUserFolder:
+    def test_parses_user_and_trips(self, tmp_path: Path) -> None:
+        (tmp_path / "user").mkdir()
+        (tmp_path / "user" / "user.json").write_bytes(_user_json())
+        trip_dir = tmp_path / "trip" / "trip-100"
+        trip_dir.mkdir(parents=True)
+        (trip_dir / "trip.json").write_bytes(_trip_json(trip_id=100, step_ids=(1, 2)))
+
+        ps_user, trips = scan_user_folder(tmp_path)
+        assert ps_user.first_name == "Test"
+        assert len(trips) == 1
+        assert trips[0].step_count == 2
+        assert trips[0].country_codes == ["us"]
+
+    def test_missing_user_json_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "trip" / "t1").mkdir(parents=True)
+        (tmp_path / "trip" / "t1" / "trip.json").write_bytes(_trip_json())
+        with pytest.raises(FileNotFoundError):
+            scan_user_folder(tmp_path)
 
 
 class TestExtractAndScan:

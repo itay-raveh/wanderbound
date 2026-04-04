@@ -1,0 +1,43 @@
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+
+
+@pytest.mark.anyio
+class TestCreateDemo:
+    async def test_creates_demo_user(self, client: AsyncClient) -> None:
+        resp = await client.post("/api/v1/users/demo")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["user"]["is_demo"] is True
+        assert len(body["trips"]) >= 1
+
+    async def test_creates_unique_user_ids(self, client: AsyncClient) -> None:
+        r1 = await client.post("/api/v1/users/demo")
+        r2 = await client.post("/api/v1/users/demo")
+        assert r1.json()["user"]["id"] != r2.json()["user"]["id"]
+
+    async def test_sets_session_cookie(self, client: AsyncClient) -> None:
+        resp = await client.post("/api/v1/users/demo")
+        uid = resp.json()["user"]["id"]
+        user_resp = await client.get("/api/v1/users")
+        assert user_resp.status_code == 200
+        assert user_resp.json()["id"] == uid
+
+
+@pytest.mark.anyio
+class TestDeleteDemo:
+    async def test_deletes_demo_user(self, client: AsyncClient) -> None:
+        await client.post("/api/v1/users/demo")
+        resp = await client.delete("/api/v1/users/demo")
+        assert resp.status_code == 204
+        # Session cleared — user endpoint returns 401
+        user_resp = await client.get("/api/v1/users")
+        assert user_resp.status_code == 401
+
+    async def test_rejects_unauthenticated(self, client: AsyncClient) -> None:
+        resp = await client.delete("/api/v1/users/demo")
+        assert resp.status_code == 401

@@ -98,3 +98,9 @@ def _get_browser(request: Request) -> Browser:
 
 
 BrowserDep = Annotated[Browser, Depends(_get_browser)]
+
+
+def login_session(request: Request, uid: int) -> None:
+    """Set session to the given user (clear first to prevent fixation)."""
+    request.session.clear()
+    request.session["uid"] = uid

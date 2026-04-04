@@ -11,7 +11,7 @@ from sqlmodel import select
 from app.core.config import get_settings
 from app.models.user import AuthProvider, OAuthIdentity, User
 
-from ..deps import SessionDep
+from ..deps import SessionDep, login_session
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +115,7 @@ async def _authenticate(
     if row is None:
         logger.info("New %s identity: sub=%s", provider, identity.sub)
         return None
-    request.session.clear()
-    request.session["uid"] = row.id
+    login_session(request, row.id)
     logger.info("Existing user %d signed in via %s", row.id, provider)
     return row
 

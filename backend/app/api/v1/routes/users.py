@@ -4,6 +4,9 @@ import logging
 import shutil
 from collections.abc import AsyncIterable
 from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
+from secrets import randbelow
 from typing import Annotated, cast
 from zipfile import BadZipFile
 
@@ -19,6 +22,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.resources import MiB
@@ -31,10 +35,10 @@ from app.logic.export import (
 )
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
-from app.logic.upload import UploadResult, extract_and_scan
-from app.models.user import AuthProvider, OAuthIdentity, User, UserUpdate
+from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
+from app.models.user import AuthProvider, OAuthIdentity, PSUser, User, UserUpdate
 
-from ..deps import SessionDep, UserDep, apply_update
+from ..deps import SessionDep, UserDep, apply_update, login_session
 from .auth import verify_credential
 
 logger = logging.getLogger(__name__)
@@ -146,8 +150,7 @@ async def upload_data(
             )
             session.add(user)
             await session.commit()
-            request.session.clear()
-            request.session["uid"] = user.id
+            login_session(request, user.id)
             logger.info("New user %d created via upload", user.id)
 
         # Move extracted data to user's permanent folder
@@ -161,6 +164,107 @@ async def upload_data(
 
     background_tasks.add_task(run_eviction, user.id)
     return UploadResult(user=user, trips=trips)
+
+
+@cache
+def _demo_fixtures() -> tuple[Path, PSUser, tuple[TripMeta, ...]]:
+    """Cached — callers must not mutate the returned objects."""
+    fixtures = get_settings().DEMO_FIXTURES
+    ps_user, trips = scan_user_folder(fixtures)
+    return fixtures, ps_user, tuple(trips)
+
+
+def _demo_locale(request: Request, fallback: str) -> str:
+    """Extract primary language from Accept-Language header.
+
+    Returns the raw tag (e.g. ``en-US``); Pydantic's ``Locale`` validator
+    handles normalization and rejects invalid values on model construction.
+    """
+    accept = request.headers.get("accept-language", "")
+    if accept:
+        tag = accept.split(",")[0].split(";")[0].strip()
+        if 2 <= len(tag) <= 5:
+            return tag
+    return fallback
+
+
+@router.post("/demo")
+async def create_demo(
+    request: Request,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+) -> UploadResult:
+    fixtures, ps_user, trips = _demo_fixtures()
+    album_ids = [t.id for t in trips]
+
+    def _link_or_copy(src: str, dst: str) -> None:
+        try:
+            Path(dst).hardlink_to(src)
+        except OSError:
+            shutil.copy2(src, dst)
+
+    for _ in range(5):
+        uid = 2_000_000_000 + randbelow(147_483_648)
+        user = User(
+            id=uid,
+            first_name=ps_user.first_name or "Demo",
+            locale=_demo_locale(request, ps_user.locale),
+            unit_is_km=ps_user.unit_is_km,
+            temperature_is_celsius=ps_user.temperature_is_celsius,
+            living_location=ps_user.living_location,
+            album_ids=album_ids,
+            is_demo=True,
+        )
+
+        session.add(user)
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            continue
+
+        try:
+            await asyncio.to_thread(
+                shutil.copytree,
+                fixtures,
+                user.folder,
+                ignore=shutil.ignore_patterns("i18n"),
+                copy_function=_link_or_copy,
+            )
+        except OSError:
+            logger.exception("Demo copytree failed for user %d", uid)
+            await session.delete(user)
+            await session.commit()
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE) from None
+        break
+    else:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    login_session(request, user.id)
+
+    background_tasks.add_task(run_eviction, user.id)
+    return UploadResult(user=user, trips=list(trips))
+
+
+async def _remove_user(user: User, session: SessionDep, request: Request) -> None:
+    cancel_session(user.id)
+    folder = user.folder
+    await session.delete(user)
+    await session.commit()
+    await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
+    request.session.clear()
+    logger.info("User %d deleted", user.id)
+
+
+@router.delete("/demo", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_demo(
+    user: UserDep,
+    session: SessionDep,
+    request: Request,
+) -> None:
+    if not user.is_demo:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not a demo user")
+    await _remove_user(user, session, request)
 
 
 @router.get(
@@ -212,10 +316,4 @@ async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) ->
 
 @router.delete("")
 async def delete_user(user: UserDep, session: SessionDep, request: Request) -> None:
-    cancel_session(user.id)
-    folder = user.folder
-    await session.delete(user)
-    await session.commit()
-    await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
-    request.session.clear()
-    logger.info("User %d deleted", user.id)
+    await _remove_user(user, session, request)
