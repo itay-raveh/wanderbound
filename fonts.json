@@ -12,9 +12,9 @@
     { "family": "Varela Round", "category": "sans-serif", "weights": "400" },
     { "family": "Open Sans", "category": "sans-serif", "weights": "300..800" },
     { "family": "Noto Sans Hebrew", "category": "sans-serif", "weights": "100..900" },
-    { "family": "David Libre", "category": "serif", "weights": "400..700" },
+    { "family": "David Libre", "category": "serif", "weights": "400;700" },
     { "family": "Suez One", "category": "serif", "weights": "400" },
-    { "family": "Karantina", "category": "display", "weights": "300..700" },
-    { "family": "Amatic SC", "category": "display", "weights": "400..700" }
+    { "family": "Karantina", "category": "display", "weights": "300;400;700" },
+    { "family": "Amatic SC", "category": "display", "weights": "400;700" }
   ]
 }
