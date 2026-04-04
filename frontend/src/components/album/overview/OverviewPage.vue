@@ -39,6 +39,8 @@ const combinedViewBox = computed(() => {
   // Union of all visited countries' mainland bounds — bounds.json already
   // excludes distant overseas territories, so we can safely include them fully.
   let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
+  let totalArea = 0, weightedX = 0, weightedY = 0;
+
   for (const c of overview.value.countries) {
     const b = countryBounds[c.code.toLowerCase()];
     if (!b) continue;
@@ -46,6 +48,11 @@ const combinedViewBox = computed(() => {
     sMinY = Math.min(sMinY, b[1]);
     sMaxX = Math.max(sMaxX, b[0] + b[2]);
     sMaxY = Math.max(sMaxY, b[1] + b[3]);
+
+    const area = b[2] * b[3];
+    totalArea += area;
+    weightedX += (b[0] + b[2] / 2) * area;
+    weightedY += (b[1] + b[3] / 2) * area;
   }
 
   // Fallback to step locations if no country bounds matched
@@ -55,13 +62,21 @@ const combinedViewBox = computed(() => {
       sMinX = Math.min(sMinX, x); sMinY = Math.min(sMinY, y);
       sMaxX = Math.max(sMaxX, x); sMaxY = Math.max(sMaxY, y);
     }
+    const spanX = sMaxX - sMinX || 1;
+    const spanY = sMaxY - sMinY || 1;
+    const padX = spanX * 0.15;
+    const padY = spanY * 0.15;
+    return `${sMinX - padX} ${sMinY - padY} ${spanX + padX * 2} ${spanY + padY * 2}`;
   }
 
-  const spanX = sMaxX - sMinX || 1;
-  const spanY = sMaxY - sMinY || 1;
-  const padX = spanX * 0.15;
-  const padY = spanY * 0.15;
-  return `${sMinX - padX} ${sMinY - padY} ${spanX + padX * 2} ${spanY + padY * 2}`;
+  // Center viewBox on area-weighted centroid so large countries like Brazil
+  // don't pull the visual center away from the geometric center.
+  const cx = weightedX / totalArea;
+  const cy = weightedY / totalArea;
+  const PAD = 1.15;
+  const halfW = Math.max(cx - sMinX, sMaxX - cx) * PAD;
+  const halfH = Math.max(cy - sMinY, sMaxY - cy) * PAD;
+  return `${cx - halfW} ${cy - halfH} ${halfW * 2} ${halfH * 2}`;
 });
 
 // ── Fact items (derived from overview extremes) ──────────────
@@ -155,11 +170,11 @@ const factColumns = computed(() => {
             </div>
             <span class="fact-label">{{ f.label }}</span>
             <span class="fact-value">{{ f.value }}</span>
-            <span class="fact-place">{{ f.place }}</span>
-            <span class="fact-meta">
+            <span class="fact-context">
               <img :src="flagUrl(f.countryCode)" class="fact-flag" loading="eager" :alt="countryName(f.countryCode, '')">
-              <span dir="auto">{{ f.date }}</span>
+              <span class="fact-place">{{ f.place }}</span>
             </span>
+            <span class="fact-date" dir="auto">{{ f.date }}</span>
           </div>
         </div>
 
@@ -221,7 +236,8 @@ const factColumns = computed(() => {
   z-index: 1;
   display: grid;
   grid-template:
-    "start  map  end"  1fr
+    "start  map  end"     1fr
+    "labels labels labels" auto
     / 1fr   3fr  1fr;
   flex: 1;
   padding: var(--page-inset-y) var(--page-inset-x);
@@ -292,22 +308,20 @@ const factColumns = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.fact-place {
-  margin-top: var(--gap-md);
-  font-size: var(--type-xs);
-  font-weight: 400;
-  color: var(--text-muted);
-  line-height: 1.4;
-  overflow-wrap: break-word;
-}
-
-.fact-meta {
+.fact-context {
   display: flex;
   align-items: center;
-  gap: var(--gap-md);
+  justify-content: center;
+  gap: var(--gap-sm);
+  margin-top: var(--gap-md);
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+}
+
+.fact-date {
   margin-top: var(--gap-xs);
-  font-size: var(--type-3xs);
-  color: var(--text-faint);
+  font-size: var(--type-xs);
+  color: var(--text-muted);
 }
 
 .fact-flag {
@@ -332,22 +346,21 @@ const factColumns = computed(() => {
   inset: 0;
 
   :deep(use) {
-    stroke: var(--page-bg);
-    stroke-width: 12000;
+    stroke: currentColor;
+    stroke-width: 3000;
+    stroke-linejoin: round;
     paint-order: stroke fill;
   }
 }
 
-/* ── Country labels (overlaid at bottom of map area) ── */
+/* ── Country labels (full-width row below map) ── */
 
 .country-labels {
-  grid-area: map;
-  align-self: end;
+  grid-area: labels;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--gap-sm) var(--gap-lg);
-  padding-bottom: var(--gap-md);
   z-index: 1;
 }
 
