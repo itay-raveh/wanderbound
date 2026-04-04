@@ -12,7 +12,7 @@ To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
 - Map matching moved to backend (`logic/matching.py`). Frontend map pages fetch segment points lazily via `useSegmentPointsQuery`.
 - `markRaw()`: query composables wrap immutable responses (media, steps, segments) with `markRaw()` to prevent Vue deep-proxying. Never remove this.
 - `stripPhotos()`: atomically removes photos from all page lists to prevent duplicates during drag-and-drop.
-- Font constants (`ALLOWED_FONTS`, defaults, fallback stacks) live in `src/utils/fonts.ts` — single source of truth.
+- Font constants derived from `fonts.json` at project root — `src/utils/fonts.ts` imports the registry via `@fonts` alias. Run `mise run generate:fonts` to download woff2s and generate `fonts.css`.
 - `useTextLayout()` resolves zone geometry from `:root` CSS vars via `getComputedStyle` — no DOM containers.
 - Quasar q-select `#option` slots: use `v-bind="itemProps"` for click handling, never `toggleOption`.
 

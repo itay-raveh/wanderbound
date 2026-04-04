@@ -50,7 +50,7 @@ Use `cymbal` CLI for code navigation — prefer it over Read, Grep, Glob, or Bas
 - Processing sessions replay all past SSE events on reconnect (no restart needed).
 - Use pathlib, never os/os.path. Use rem, never px.
 - Python 3.14: `except A, B:` is valid — no parentheses needed.
-- Font allowlist: backend `ALLOWED_FONTS` in `models/album.py`, frontend in `utils/fonts.ts`. Keep in sync.
+- Font registry: `fonts.json` at project root. Frontend `utils/fonts.ts` imports it via `@fonts` alias. Backend stores font as plain string (no validation). Run `mise run generate:fonts` after adding fonts.
 
 Design context (brand, users, visual direction): read @.impeccable.md.
 
