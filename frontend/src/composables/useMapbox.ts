@@ -94,15 +94,29 @@ export function useMapbox(options: UseMapboxOptions) {
     );
   }
 
+  let idleFallback: ReturnType<typeof setTimeout> | null = null;
+
   function armIdleReady(el: HTMLElement, m: mapboxgl.Map) {
     disarmIdleReady(m);
     delete el.dataset.mapReady;
-    const handler = () => {
+    let attempts = 0;
+    const markReady = () => {
       el.dataset.mapReady = "";
       pendingIdle = null;
+      if (idleFallback !== null) { clearTimeout(idleFallback); idleFallback = null; }
     };
-    pendingIdle = handler;
-    m.once("idle", handler);
+    const check = () => {
+      if (!m.areTilesLoaded() && ++attempts < 20) {
+        m.once("idle", check);
+        return;
+      }
+      markReady();
+    };
+    pendingIdle = check;
+    m.once("idle", check);
+    // Absolute fallback: mark ready after 30s even if idle never fires
+    // (e.g. WebGL context loss). Prevents map staying invisible forever.
+    idleFallback = setTimeout(() => { if (!el.dataset.mapReady) markReady(); }, 30_000);
   }
 
   function disarmIdleReady(m: mapboxgl.Map) {
@@ -110,6 +124,7 @@ export function useMapbox(options: UseMapboxOptions) {
       m.off("idle", pendingIdle);
       pendingIdle = null;
     }
+    if (idleFallback !== null) { clearTimeout(idleFallback); idleFallback = null; }
   }
 
   function destroy() {

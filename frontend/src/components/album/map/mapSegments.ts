@@ -77,7 +77,7 @@ function buildFlightArc(
   const dx = endLon - startLon;
   const dy = endLat - startLat;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const offset = dist * 0.2;
+  const offset = dist * 0.1;
   const controlLon = (startLon + endLon) / 2 + (dy / dist) * offset;
   const controlLat = (startLat + endLat) / 2 - (dx / dist) * offset;
 
@@ -133,18 +133,17 @@ function drawHike(
   const hikeColor = opts.color ?? DEFAULT_COUNTRY_COLOR;
 
   if (!opts.faint) {
-    // Dark soft glow — visible on snow/ice; colored line handles dark terrain
-    addLine(m, `${id}-glow`, lineFeature(coords), {
+    // Visible on both snow/ice and dark terrain
+    addLine(m, `${id}-casing`, lineFeature(coords), {
       "line-color": "#000000",
-      "line-width": 8,
-      "line-blur": 5,
-      "line-opacity": 0.35,
+      "line-width": 7,
+      "line-opacity": 0.6,
     });
   }
 
   addLine(m, id, lineFeature(coords), {
     "line-color": opts.faint ? "rgba(255, 255, 255, 0.6)" : hikeColor,
-    "line-width": opts.faint ? 1 : 3,
+    "line-width": opts.faint ? 1 : 4,
     "line-opacity": opts.faint ? FAINT_OPACITY : 1,
   });
 
@@ -281,7 +280,7 @@ export function drawSegmentsAndMarkers(
             if (c.length < 2) return;
             feature.geometry.coordinates = c;
             setSourceData(m, id, feature);
-            setSourceData(m, `${id}-glow`, feature);
+            setSourceData(m, `${id}-casing`, feature);
           };
           hikeEndpoints.push(
             { coord: coords[0]!, handle: "start", updateLine },

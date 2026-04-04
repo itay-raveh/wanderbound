@@ -328,7 +328,6 @@ watch(safeMarginMm, () => {
   left: 0;
   right: 0;
   z-index: 1;
-  padding-top: 0;
   padding-inline: var(--safe-margin, 0mm);
   padding-bottom: max(var(--gap-md), var(--safe-margin, 0mm));
   /* rtl:ignore */
@@ -358,9 +357,9 @@ watch(safeMarginMm, () => {
   position: absolute;
   z-index: 2;
   /* rtl:ignore */
-  top: max(var(--gap-md), var(--safe-margin, 0mm));
+  top: calc(var(--gap-lg) + var(--safe-margin, 0mm));
   /* rtl:ignore */
-  right: max(var(--gap-md), var(--safe-margin, 0mm));
+  right: calc(var(--gap-lg) + var(--safe-margin, 0mm));
   /* rtl:ignore */
   text-align: right;
   /* rtl:ignore */
