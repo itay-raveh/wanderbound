@@ -1,0 +1,190 @@
+{
+  "id": 14232450,
+  "slug": "south-america-2024-2025",
+  "name": "South America",
+  "summary": "Nine months across seven countries — from Patagonian glaciers to Galápagos reefs.",
+  "cover_photo_path": "https://polarsteps.s3.amazonaws.com/user_images/trip/large_thumb/u_0/8749b255-a181-4307-bd87-fa0a65ae129e_9a1d68f3-74f7-4356-abd0-f1c73bc76b8b.jpg",
+  "step_count": 12,
+  "all_steps": [
+    {
+      "id": 191160695,
+      "display_name": "Beagle Channel",
+      "display_slug": "beagle-channel",
+      "description": "A boat out of Ushuaia through the Beagle Channel — past colonies of sea lions sprawled on the rocks, cormorants drying their wings, and the iconic Les Éclaireurs lighthouse standing alone against the grey Patagonian sky. We spotted Magellanic penguins waddling along the shore of Isla Martillo, completely unbothered by the boat. The wind was brutal, but the light at golden hour made everything worth it.",
+      "start_time": 1731683502.0,
+      "timezone_id": "America/Argentina/Ushuaia",
+      "location": {
+        "name": "Beagle Channel",
+        "detail": "Argentina",
+        "country_code": "AR",
+        "lat": -54.9051124,
+        "lon": -67.3763768
+      }
+    },
+    {
+      "id": 138520834,
+      "display_name": "Futaleufú",
+      "display_slug": "futaleufu",
+      "description": "Class V rapids on one of the most beautiful rivers in the world. The Futaleufú cuts through a valley of temperate rainforest — the water is an impossible turquoise, fed by glacial melt from the Andes. We ran the Terminator and Throne Room sections with a crew of eight, flipping once in the biggest drop. Totally worth the five-hour drive down the Carretera Austral to get here.",
+      "start_time": 1735166300.91,
+      "timezone_id": "America/Santiago",
+      "location": {
+        "name": "Futaleufú",
+        "detail": "Chile",
+        "country_code": "CL",
+        "lat": -43.1863243,
+        "lon": -71.8671441
+      }
+    },
+    {
+      "id": 149050611,
+      "display_name": "Pantanal",
+      "display_slug": "pocone",
+      "description": "Three days deep in the Pantanal along the Transpantaneira, searching for jaguars from a small boat on the Cuiabá River. The road itself is an adventure — 150 kilometres of dirt track crossing 122 wooden bridges, each one creaking under the weight of the truck. On both sides the landscape shifts between flooded grassland and dense gallery forest, with caimans sunning themselves on every bridge railing as if they own the place. We stopped counting them after the first hundred.\n\nWe were based at a floating lodge near Porto Jofre, the end of the road. From there it was boat trips twice a day — early morning and late afternoon, when the cats are most active. Our guide Seu Zé has been running these rivers for thirty years and reads the water like a language. He knew where each territorial male patrols, which females had cubs, and where the giant otters had their den this season. Without him we would have seen a fraction of what we did.\n\nOn the second morning we found what we came for. A massive male jaguar, stalking the riverbank just twenty metres from our boat. Close enough to hear him breathe. He moved through the vegetation without a sound, completely aware of us but utterly indifferent — pausing once to drink from the river before slipping into the undergrowth and vanishing. Our guide said this male, nicknamed Pirata for the scar across his left eye, holds a territory spanning twelve kilometres of riverbank. We followed him for twenty minutes, nobody on the boat daring to speak above a whisper. Later that morning we found a female with two cubs resting on a sandbank downstream. The cubs were playing — rolling over each other, batting at the water — while the mother watched with half-closed eyes. We kept our distance and the engine off, drifting with the current.\n\nThe rest of the time was a parade of wildlife so dense it felt choreographed. Hyacinth macaws — the largest parrots in the world, impossibly blue — cracking palm nuts in the treetops overhead. Capybara families grazing the banks everywhere we looked, unbothered by the boat or the caimans lying a metre away. Giant otters fishing in a coordinated family group, chirping to each other as they worked a pool. At one point a caiman hauled itself onto the bank and swallowed a piranha whole, three metres from where we were eating lunch. One afternoon we counted fourteen species from a single bend in the river — kingfishers diving from overhanging branches, a green iguana draped along a fallen trunk, howler monkeys calling from somewhere deep in the canopy.\n\nThis is what makes the Pantanal different from the Amazon: the vegetation is lower and more open, the terrain flat, and you can actually see the animals instead of hearing them somewhere above you in a hundred-metre canopy. The wet season was just ending when we arrived, concentrating wildlife along the remaining channels and pools. No crowds, no lodges competing for space — just the river, the flooded grassland, and animals going about their lives as though humans are simply part of the scenery. At sunset the sky turns the colour of ripe mango and the only sound is the low hum of insects and the occasional splash of a caiman sliding off the bank. We sat on the roof of the houseboat each evening watching the stars come out, the Southern Cross hanging low over the treeline, and agreed this was the single best wildlife experience of the entire trip.",
+      "start_time": 1742080061.953,
+      "timezone_id": "America/Campo_Grande",
+      "location": {
+        "name": "Poconé",
+        "detail": "Brazil",
+        "country_code": "BR",
+        "lat": -17.3650332,
+        "lon": -56.772665
+      }
+    },
+    {
+      "id": 164194974,
+      "display_name": "Salar de Uyuni",
+      "display_slug": "salar-de-uyuni",
+      "description": "We hit the Salar during rainy season — a thin sheet of water turning the entire salt flat into a mirror that stretches to the horizon. At sunset the sky and ground merge completely; you lose all sense of scale and direction. Stayed until the stars came out and the Milky Way reflected beneath our feet. No photograph does it justice, but we tried anyway.",
+      "start_time": 1749203696.485,
+      "timezone_id": "America/La_Paz",
+      "location": {
+        "name": "Salar de Uyuni",
+        "detail": "Bolivia",
+        "country_code": "BO",
+        "lat": -20.5094781,
+        "lon": -67.5996225
+      }
+    },
+    {
+      "id": 172806048,
+      "display_name": "Paucartambo",
+      "display_slug": "paucartambo",
+      "description": "The Fiesta de la Virgen del Carmen — three days of non-stop dancing, music, and masks in a tiny colonial town perched above the cloud forest. Dozens of dance troupes fill the streets: the Saqras with their devil masks and wild hair, the Negrillos in elaborate gold-fringed hats, the Majeños stumbling through comedic routines. At night the Saqras climb onto the rooftops and the streets erupt in fire — performers running through showers of sparks while the crowd presses in from all sides.\n\nThis is not a tourist festival. It belongs entirely to Paucartambo and the surrounding communities. We were the only foreigners in town.",
+      "start_time": 1752604073.883,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Paucartambo",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.3209757,
+        "lon": -71.5962141
+      }
+    },
+    {
+      "id": 176354615,
+      "display_name": "Ausangate: Upis",
+      "display_slug": "quispicanchi",
+      "description": "Day one of the Ausangate Circuit — a steady climb from the trailhead at Tinki up to the hot springs at Upis. The first glimpse of Ausangate's glaciated south face stopped us in our tracks: 6,384 meters of ice and rock rising straight out of the altiplano. The glacial lakes below it shift between turquoise and deep emerald depending on the light.",
+      "start_time": 1753293976.619,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Quispicanchi",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.7684424,
+        "lon": -71.2636098
+      }
+    },
+    {
+      "id": 176354616,
+      "display_name": "Ausangate: Laguna Puaca",
+      "display_slug": "ocongate",
+      "description": "The hardest day — over Arapa Pass at 4,850 meters with Ausangate's north face towering above. The glacier is retreating fast; you can see moraines from decades ago now exposed as barren rock. Laguna Puaca sat in a cirque below the pass, perfectly still, reflecting the ice walls above it.",
+      "start_time": 1753372143.831,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Ocongate",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.8042484,
+        "lon": -71.280567
+      }
+    },
+    {
+      "id": 176354617,
+      "display_name": "Ausangate: Palomani Pass",
+      "display_slug": "pitumarca",
+      "description": "Crossed Palomani Pass at 5,100 meters — the highest point of the circuit. The mountains here show the rainbow mineral bands that make this region famous: reds, oranges, and greens layered into the rock like geological strata paintings. On the far side, a long descent past more glacial lakes and a landscape that feels completely empty — just rock, ice, and sky.",
+      "start_time": 1753452780.355,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Pitumarca",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.8171082,
+        "lon": -71.2225611
+      }
+    },
+    {
+      "id": 176354620,
+      "display_name": "Ausangate: Jatunhuma",
+      "display_slug": "canchis",
+      "description": "A rest day between passes — we descended 600 metres into a sheltered valley between two ridges and set up camp near a stream. The viewpoint at Mirador Jatunhuma sits on a saddle overlooking the entire Ausangate massif from the east, with three glaciers visible at once.",
+      "start_time": 1753466966.867,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Canchis",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.8035919,
+        "lon": -71.1699239
+      }
+    },
+    {
+      "id": 176354618,
+      "display_name": "Ausangate: Campa Pass",
+      "display_slug": "pitumarca",
+      "description": "Over Campa Pass and down into a valley of braided streams and overcast skies. The weather turned — snow flurries at the top, then clearing as we descended. The glacier above Campa was the most dramatic of the trek: a sheer wall of blue-white ice calving into a milky lake.",
+      "start_time": 1753540998.584,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Pitumarca",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.7670891,
+        "lon": -71.1794178
+      }
+    },
+    {
+      "id": 176354619,
+      "display_name": "Ausangate: 7 Lagunas",
+      "display_slug": "ocongate",
+      "description": "The final day — a long traverse past seven alpine lakes, each a different shade of blue and green. The trail wound through high-altitude wetlands with braided rivers cutting silver channels through the peat. By afternoon we were back in the valley below, looking up at Ausangate one last time before the bus ride back to Cusco.",
+      "start_time": 1753548545.476,
+      "timezone_id": "America/Lima",
+      "location": {
+        "name": "Ocongate",
+        "detail": "Peru",
+        "country_code": "PE",
+        "lat": -13.7595774,
+        "lon": -71.2224714
+      }
+    },
+    {
+      "id": 187686012,
+      "display_name": "Galápagos",
+      "display_slug": "parroquia-santa-rosa",
+      "description": "Los Túneles on Isabela Island — a labyrinth of collapsed lava tunnels filled with clear water where blue-footed boobies nest on the rocks above and sea turtles glide below. Snorkeled with a seahorse clinging to a submerged branch, completely motionless. Back at the harbor, a sea lion had claimed the entire fish market steps and wasn't moving for anyone.",
+      "start_time": 1756482865.279,
+      "timezone_id": "Pacific/Galapagos",
+      "location": {
+        "name": "Galápagos",
+        "detail": "Ecuador",
+        "country_code": "EC",
+        "lat": -0.445877,
+        "lon": -90.2698118
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": 99999999,
+  "first_name": "Molly",
+  "locale": "en_GB",
+  "unit_is_km": true,
+  "temperature_is_celsius": true,
+  "living_location": {
+    "name": "Cheltenham",
+    "detail": "United Kingdom",
+    "country_code": "GB",
+    "lat": 51.9007,
+    "lon": -2.1061
+  }
+}
