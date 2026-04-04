@@ -4,6 +4,7 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel
+from sqlalchemy import String
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
@@ -40,8 +41,15 @@ class AlbumBase(SQLModel):
     )
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
-    font: FontName = Field(default=DEFAULT_FONT, max_length=100)
-    body_font: FontName = Field(default=DEFAULT_BODY_FONT, max_length=100)
+    font: FontName = Field(
+        default=DEFAULT_FONT,
+        sa_column=Column(String(100), nullable=False, default=DEFAULT_FONT),
+    )
+    body_font: FontName = Field(
+        default=DEFAULT_BODY_FONT,
+        sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
+    )
+    safe_margin_mm: int = Field(default=0)
 
 
 @all_optional

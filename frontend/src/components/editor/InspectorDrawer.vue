@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { Album, Step, Media } from "@/client";
+import AlbumProperties from "./AlbumProperties.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
-import { matImage, matMap, matBarChart } from "@quasar/extras/material-icons";
+import { matImage } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
@@ -56,47 +57,26 @@ function selectCoverPhoto(name: string) {
 }
 
 // ── Panel metadata ─────────────────────────────────────────────────────
-const panelIcon = computed(() => {
-  switch (context.value) {
-    case "cover": return matImage;
-    case "map": return matMap;
-    case "overview": return matBarChart;
-    default: return matImage;
-  }
-});
-
-const panelLabel = computed(() => {
-  switch (context.value) {
-    case "cover":
-      return isCoverBack.value ? t("album.backCover") : t("album.frontCover");
-    case "map":
-      if (props.sectionKey === "full-map") return t("album.tripRouteMap");
-      if (props.sectionKey?.startsWith("hike-")) return t("hike.mapLabel");
-      return t("nav.map");
-    case "overview":
-      return t("inspector.overview");
-    default:
-      return "";
-  }
-});
+const panelIcon = matImage;
+const panelLabel = computed(() =>
+  isCoverBack.value ? t("album.backCover") : t("album.frontCover"),
+);
 </script>
 
 <template>
-  <!-- Step: unused photos tray -->
-  <UnusedDrawer v-if="context === 'step'" :step="step!" :album-id="album.id" />
+  <div class="inspector-panel">
+    <AlbumProperties :album="album" />
+    <q-separator class="properties-separator" />
 
-  <!-- Non-step: contextual inspector -->
-  <div v-else class="inspector-panel">
-    <div
-      v-if="context !== 'empty'"
-      class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted"
-    >
-      <q-icon :name="panelIcon" size="var(--type-md)" />
-      <span>{{ panelLabel }}</span>
-    </div>
+    <!-- Step: unused photos tray -->
+    <UnusedDrawer v-if="context === 'step'" :step="step!" :album-id="album.id" class="context-section" />
 
     <!-- Cover: photo picker grid -->
-    <template v-if="context === 'cover'">
+    <div v-else-if="context === 'cover'" class="context-section">
+      <div class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted">
+        <q-icon :name="panelIcon" size="var(--type-md)" />
+        <span>{{ panelLabel }}</span>
+      </div>
       <div v-if="landscapePhotos.length" class="cover-grid">
         <img
           v-for="(photo, index) in landscapePhotos"
@@ -115,16 +95,6 @@ const panelLabel = computed(() => {
         >
       </div>
       <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
-    </template>
-
-    <!-- Map / Hike: informational -->
-    <div v-else-if="context === 'map'" class="panel-hint">
-      {{ t("inspector.mapHint") }}
-    </div>
-
-    <!-- Overview: informational -->
-    <div v-else-if="context === 'overview'" class="panel-hint">
-      {{ t("inspector.overviewHint") }}
     </div>
   </div>
 </template>
@@ -135,6 +105,18 @@ const panelLabel = computed(() => {
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);
+}
+
+.properties-separator {
+  flex-shrink: 0;
+  margin-inline: var(--gap-md);
+}
+
+.context-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: var(--gap-md);
 }
 

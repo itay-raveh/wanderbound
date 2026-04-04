@@ -42,7 +42,7 @@ useDraggable(trackRef, localUnused, {
 <template>
   <div class="unused-drawer">
     <div class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted">
-      <q-icon :name="matPhotoLibrary" size="1rem" />
+      <q-icon :name="matPhotoLibrary" size="var(--type-md)" />
       <span>{{ t("album.unused") }}</span>
       <span class="text-faint">{{ localUnused.length }}</span>
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
@@ -62,10 +62,10 @@ useDraggable(trackRef, localUnused, {
 
 <style lang="scss" scoped>
 .unused-drawer {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-secondary);
+  flex: 1;
+  min-height: 0;
   padding: var(--gap-md);
 }
 

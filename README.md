@@ -86,12 +86,11 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Allow hiding covers, overview.
-- [ ] Add controls for zoom, page padding.
+- [ ] Fix hike bounds bug.
 - [ ] Add "Try with demo data" feature.
 - [ ] Add onboarding flow.
-- [ ] Add double page photos.
 - [ ] Create deployment strategy.
+- [ ] Add double page photos.
 
 ## License
 

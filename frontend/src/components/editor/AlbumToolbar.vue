@@ -1,17 +1,17 @@
 <script lang="ts" setup>
 import type { Album } from "@/client";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
-import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
-import { ALLOWED_FONTS, DEFAULT_BODY_FONT, DEFAULT_FONT } from "@/utils/fonts";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 
+import { editorZoom, setEditorZoom, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "@/composables/useEditorZoom";
 import {
   symOutlinedKeyboard,
   symOutlinedPictureAsPdf,
   symOutlinedRedo,
   symOutlinedUndo,
+  symOutlinedZoomIn,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
@@ -27,24 +27,10 @@ const pdfBusy = computed(
   () => pdf.state.value !== "idle" && pdf.state.value !== "error",
 );
 const undoStack = useUndoStack();
-const albumMutation = useAlbumMutation(() => props.album?.id ?? "");
-
-const currentFont = computed(() => props.album?.font ?? DEFAULT_FONT);
-const currentBodyFont = computed(
-  () => props.album?.body_font ?? DEFAULT_BODY_FONT,
-);
 
 function onExportPdf() {
   if (!props.album) return;
   pdf.start();
-}
-
-function updateFont(font: string) {
-  albumMutation.mutate({ font });
-}
-
-function updateBodyFont(font: string) {
-  albumMutation.mutate({ body_font: font });
 }
 </script>
 
@@ -96,46 +82,28 @@ function updateBodyFont(font: string) {
         /></q-tooltip>
       </q-btn>
       <q-separator vertical class="action-divider" />
-      <div class="font-pickers row no-wrap items-center">
-        <q-select
-          :model-value="currentFont"
-          :options="ALLOWED_FONTS"
-          :label="t('editor.font')"
-          dense
-          borderless
-          options-dense
-          class="font-picker"
-          @update:model-value="updateFont"
-        >
-          <template #option="{ itemProps, opt }">
-            <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
-              <q-item-section>{{ opt }}</q-item-section>
-            </q-item>
-          </template>
-        </q-select>
-        <q-select
-          :model-value="currentBodyFont"
-          :options="ALLOWED_FONTS"
-          :label="t('editor.bodyFont')"
-          dense
-          borderless
-          options-dense
-          class="font-picker"
-          @update:model-value="updateBodyFont"
-        >
-          <template #option="{ itemProps, opt }">
-            <q-item v-bind="itemProps" :style="{ fontFamily: opt }">
-              <q-item-section>{{ opt }}</q-item-section>
-            </q-item>
-          </template>
-        </q-select>
+      <div class="zoom-control row no-wrap items-center">
+        <q-icon :name="symOutlinedZoomIn" size="var(--type-md)" class="text-muted" />
+        <q-slider
+          :model-value="editorZoom"
+          :min="MIN_ZOOM"
+          :max="MAX_ZOOM"
+          :step="ZOOM_STEP"
+          snap
+          class="zoom-slider"
+          :aria-label="t('editor.zoom')"
+          @change="setEditorZoom"
+        />
+        <span class="zoom-label text-muted">{{ Math.round(editorZoom * 100) }}%</span>
       </div>
+      <q-separator vertical class="action-divider" />
       <q-btn
         flat
         no-caps
         dense
         :disable="pdfBusy"
         :aria-busy="pdfBusy"
+        :aria-label="t('editor.exportPdf')"
         class="export-btn"
         @click="onExportPdf"
       >
@@ -225,22 +193,19 @@ function updateBodyFont(font: string) {
   }
 }
 
-.font-pickers {
+.zoom-control {
   gap: var(--gap-md);
 }
 
-.font-picker {
-  width: 11rem;
-  border-bottom: 0.0625rem solid var(--text-faint);
-  transition: border-color var(--duration-fast);
+.zoom-slider {
+  width: 5rem;
+}
 
-  &:hover {
-    border-color: var(--text-muted);
-  }
-
-  &:focus-within {
-    border-color: var(--q-primary);
-  }
+.zoom-label {
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 2.5rem;
 }
 
 .action-divider {
@@ -250,8 +215,7 @@ function updateBodyFont(font: string) {
 
 @media (prefers-reduced-motion: reduce) {
   .keyboard-btn,
-  .export-btn,
-  .font-picker {
+  .export-btn {
     transition: none;
   }
 }

@@ -7,6 +7,7 @@ import { usePrintMode } from "@/composables/usePrintReady";
 import { setupBoundaryHandles } from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
+import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
 import { useUserQuery, KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import { getCountryColor, ensureSatelliteContrast } from "../colors";
 import along from "@turf/along";
@@ -47,6 +48,7 @@ const fullHikeSegment = computed(() =>
 
 let cleanupHandles: (() => void) | null = null;
 let pendingIdleHandler: (() => void) | null = null;
+let lastAllCoords: [number, number][] = [];
 onUnmounted(() => {
   cleanupHandles?.();
   if (pendingIdleHandler && map.value) {
@@ -195,6 +197,7 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
       hikeColor: countryColor.value,
       draggableEndpoints: !printMode,
     });
+    lastAllCoords = allCoords;
 
     // Set up draggable boundary handles in editor mode
     if (!printMode && hikeEndpoints.length > 0) {
@@ -207,18 +210,28 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
       });
     }
 
-    if (shouldFit) {
-      // Pad bottom so the path stays above the elevation overlay.
-      // The chart SVG has a 500:70 aspect ratio; the gradient fade above
-      // it adds roughly another half-chart of hazard zone.
-      const el = container.value;
-      const chartH = el ? el.clientWidth * (70 / 500) : 110;
-      const bottomPad = Math.round(chartH * 1.5);
-      fitBounds(allCoords, { top: 80, right: 80, bottom: bottomPad, left: 80 });
-    }
+    if (shouldFit) refitBounds();
   } catch (e) {
     console.warn("[hike-map] segment drawing failed:", e);
   }
+}
+
+/** Refit map bounds with current safe margin padding (no segment redraw). */
+function refitBounds() {
+  if (!lastAllCoords.length) return;
+  // Pad bottom so the path stays above the elevation overlay.
+  // The chart SVG has a 500:70 aspect ratio; the gradient fade above
+  // it adds roughly another half-chart of hazard zone.
+  const el = container.value;
+  const chartH = el ? el.clientWidth * (70 / 500) : 110;
+  const bottomPad = Math.round(chartH * 1.5);
+  const sm = safeMarginPx();
+  fitBounds(lastAllCoords, {
+    top: 80 + sm,
+    right: 80 + sm,
+    bottom: bottomPad + sm,
+    left: 80 + sm,
+  });
 }
 
 const { map, fitBounds } = useMapbox({
@@ -268,6 +281,12 @@ watch(fullHikeSegment, () => {
   drawMap(map.value);
   scheduleElevationQuery(map.value);
 });
+
+// Refit bounds when safe margin changes so the route stays within the safe zone
+watch(safeMarginMm, () => {
+  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded()) return;
+  refitBounds();
+});
 </script>
 
 <template>
@@ -306,21 +325,24 @@ watch(fullHikeSegment, () => {
   right: 0;
   z-index: 1;
   padding-top: 0;
-  padding-bottom: var(--gap-md);
+  padding-inline: var(--safe-margin, 0mm);
+  padding-bottom: max(var(--gap-md), var(--safe-margin, 0mm));
   /* rtl:ignore */
   background:
     linear-gradient(
       to right,
       color-mix(in srgb, var(--bg) 88%, transparent),
-      color-mix(in srgb, var(--bg) 70%, transparent) 4%,
-      transparent 12%
+      color-mix(in srgb, var(--bg) 88%, transparent) var(--safe-margin, 0mm),
+      color-mix(in srgb, var(--bg) 70%, transparent) calc(var(--safe-margin, 0mm) + 4%),
+      transparent calc(var(--safe-margin, 0mm) + 12%)
     ),
     linear-gradient(
       to top,
       color-mix(in srgb, var(--bg) 97%, transparent),
-      color-mix(in srgb, var(--bg) 95%, transparent) 15%,
-      color-mix(in srgb, var(--bg) 88%, transparent) 35%,
-      color-mix(in srgb, var(--bg) 65%, transparent) 60%,
+      color-mix(in srgb, var(--bg) 97%, transparent) var(--safe-margin, 0mm),
+      color-mix(in srgb, var(--bg) 95%, transparent) calc(var(--safe-margin, 0mm) + 15%),
+      color-mix(in srgb, var(--bg) 88%, transparent) calc(var(--safe-margin, 0mm) + 35%),
+      color-mix(in srgb, var(--bg) 65%, transparent) calc(var(--safe-margin, 0mm) + 60%),
       transparent
     );
   print-color-adjust: exact;
@@ -332,9 +354,9 @@ watch(fullHikeSegment, () => {
   position: absolute;
   z-index: 2;
   /* rtl:ignore */
-  top: var(--gap-md);
+  top: max(var(--gap-md), var(--safe-margin, 0mm));
   /* rtl:ignore */
-  right: var(--gap-md);
+  right: max(var(--gap-md), var(--safe-margin, 0mm));
   /* rtl:ignore */
   text-align: right;
   /* rtl:ignore */

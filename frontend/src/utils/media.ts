@@ -14,11 +14,11 @@ export function posterPath(path: string): string {
 
 // Must match backend logic/layout/media.py THUMB_WIDTHS - backend generates thumbnails at these sizes.
 export const THUMB_WIDTHS = [200, 800] as const;
-export const EDITOR_ZOOM = 0.7;
 // Must match --page-width in App.vue. Can't use CSS vars in img `sizes` attribute.
+// Uses zoom=1 so images are always loaded at full resolution regardless of editor zoom.
 const PAGE_WIDTH = "297mm";
-export const SIZES_FULL = `calc(${PAGE_WIDTH} * ${EDITOR_ZOOM})`;
-export const SIZES_HALF = `calc(${PAGE_WIDTH} * ${EDITOR_ZOOM} * 0.5)`;
+export const SIZES_FULL = PAGE_WIDTH;
+export const SIZES_HALF = `calc(${PAGE_WIDTH} * 0.5)`;
 
 export function mediaThumbUrl(name: string, albumId: string, width: number = THUMB_WIDTHS[0]): string {
   return `${mediaUrl(name, albumId)}?w=${width}`;

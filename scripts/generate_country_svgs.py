@@ -39,15 +39,73 @@ bounds_dict = {}
 
 print(f"Generating individual SVGs in '/{output_dir}' and {json_filename}...")
 
+
+def resolve_code(row: object) -> str | None:
+    """Resolve a 2-letter lowercase ISO code for the country.
+
+    Prefers ISO_A2_EH (most complete 2-letter field in Natural Earth),
+    then ISO_A2, then truncates ADM0_A3 as a last resort.
+    """
+    for field in ("ISO_A2_EH", "ISO_A2"):
+        val = row.get(field, "-99")  # type: ignore[union-attr]
+        if isinstance(val, str) and val != "-99" and len(val) == 2:
+            return val.lower()
+    # Fallback: use ADM0_A3 (always present, 3-letter)
+    val = row.get("ADM0_A3", "-99")  # type: ignore[union-attr]
+    if isinstance(val, str) and val != "-99":
+        return val.lower()
+    return None
+
+
+def mainland_bounds(geom: object) -> tuple[float, float, float, float]:
+    """Return the bounding box of the mainland + major nearby islands.
+
+    For countries with overseas territories (France, Netherlands, US, …),
+    the full MultiPolygon spans half the globe.  We use the shorter side
+    of the mainland's bounding box as the proximity reference — this
+    avoids elongated countries (Chile) being overly permissive.
+
+    Include a polygon if:
+    - **nearby**: centroid within 1.5× the shorter side, OR
+    - **significant**: area ≥ 10 % of mainland AND within 4× shorter side.
+    """
+    if geom.geom_type != "MultiPolygon":  # type: ignore[union-attr]
+        return geom.bounds  # type: ignore[union-attr, return-value]
+
+    polys = list(geom.geoms)  # type: ignore[union-attr]
+    largest = max(polys, key=lambda g: g.area)
+    largest_area = largest.area
+    lx0, ly0, lx1, ly1 = largest.bounds
+    shorter_side = min(lx1 - lx0, ly1 - ly0)
+    nearby_threshold = shorter_side * 1.5
+    significant_threshold = shorter_side * 4
+
+    included = [largest.bounds]
+    lc = largest.centroid
+    for poly in polys:
+        if poly is largest:
+            continue
+        dist = lc.distance(poly.centroid)
+        is_nearby = dist <= nearby_threshold
+        is_significant = (
+            poly.area >= largest_area * 0.10 and dist <= significant_threshold
+        )
+        if is_nearby or is_significant:
+            included.append(poly.bounds)
+
+    minx = min(b[0] for b in included)
+    miny = min(b[1] for b in included)
+    maxx = max(b[2] for b in included)
+    maxy = max(b[3] for b in included)
+    return (minx, miny, maxx, maxy)
+
+
 # 4. Loop through and create individual files
 for idx, row in gdf.iterrows():
-    code = row.get("ISO_A2", "-99")
-    if code == "-99":
-        code = row.get("ADM0_A3", "-99")
-    if code == "-99" or not isinstance(code, str):
+    code = resolve_code(row)
+    if code is None:
         continue
 
-    symbol_id = code.lower()
     geom = row.geometry
 
     if geom is None or geom.is_empty:
@@ -56,13 +114,16 @@ for idx, row in gdf.iterrows():
     # Flip the geometry vertically for standard SVG rendering
     geom_flipped = shapely.affinity.scale(geom, xfact=1.0, yfact=-1.0, origin=(0, 0))
 
-    # Calculate the SVG viewBox
+    # Full bounds for the SVG viewBox (shows all territories)
     minx, miny, maxx, maxy = geom_flipped.bounds
     width = maxx - minx
     height = maxy - miny
 
-    # Save the clean float array to our JSON dictionary
-    bounds_dict[symbol_id] = [minx, miny, width, height]
+    # Mainland bounds for the JSON (excludes distant overseas territories)
+    m_minx, m_miny, m_maxx, m_maxy = mainland_bounds(geom_flipped)
+    m_width = m_maxx - m_minx
+    m_height = m_maxy - m_miny
+    bounds_dict[code] = [m_minx, m_miny, m_width, m_height]
 
     # Generate SVG paths and clean up hardcoded styles
     svg_paths = geom_flipped.svg()
@@ -72,7 +133,7 @@ for idx, row in gdf.iterrows():
     svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
 
     # Write the standalone SVG file with paths in a <g> (no <symbol> viewport issues)
-    svg_filepath = os.path.join(output_dir, f"{symbol_id}.svg")
+    svg_filepath = os.path.join(output_dir, f"{code}.svg")
     with open(svg_filepath, "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write(

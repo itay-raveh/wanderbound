@@ -47,6 +47,10 @@ export type Album = {
      */
     body_font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
+     * Safe Margin Mm
+     */
+    safe_margin_mm?: number;
+    /**
      * Uid
      */
     uid: number;
@@ -109,6 +113,10 @@ export type AlbumMeta = {
      */
     body_font?: 'Frank Ruhl Libre' | 'Assistant';
     /**
+     * Safe Margin Mm
+     */
+    safe_margin_mm?: number;
+    /**
      * Uid
      */
     uid: number;
@@ -164,6 +172,10 @@ export type AlbumUpdate = {
      * Body Font
      */
     body_font?: 'Frank Ruhl Libre' | 'Assistant' | null;
+    /**
+     * Safe Margin Mm
+     */
+    safe_margin_mm?: number | null;
 };
 
 /**

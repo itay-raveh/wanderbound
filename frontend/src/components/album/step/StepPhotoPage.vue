@@ -94,7 +94,7 @@ const layoutClass = computed(() => {
   height: 100%;
   display: grid;
   gap: var(--photo-gap-lg);
-  padding: var(--photo-gap-lg);
+  padding: max(var(--photo-gap-lg), var(--safe-margin, 0mm));
   align-items: stretch;
   justify-items: stretch;
   box-sizing: border-box;

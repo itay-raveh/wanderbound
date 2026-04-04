@@ -71,7 +71,10 @@
     "toolbar": "Album tools",
     "exportPdf": "Export PDF",
     "font": "Heading font",
-    "bodyFont": "Body font"
+    "bodyFont": "Body font",
+    "properties": "Album",
+    "safeMargin": "Safe margin",
+    "zoom": "Zoom"
   },
 
   "settings": {

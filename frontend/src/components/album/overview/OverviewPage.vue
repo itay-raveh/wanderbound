@@ -36,23 +36,25 @@ const tapestryItems = computed(() =>
 const combinedViewBox = computed(() => {
   if (props.steps.length === 0) return undefined;
 
-  // Derive viewBox from actual step locations — avoids overseas territories
-  // (Easter Island, Galápagos) pulling the silhouettes off-center.
+  // Union of all visited countries' mainland bounds — bounds.json already
+  // excludes distant overseas territories, so we can safely include them fully.
   let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
-  for (const step of props.steps) {
-    const [x, y] = toSvgMercator(step.location.lon, step.location.lat);
-    sMinX = Math.min(sMinX, x); sMinY = Math.min(sMinY, y);
-    sMaxX = Math.max(sMaxX, x); sMaxY = Math.max(sMaxY, y);
-  }
-
-  // Also include countryBounds centers so countries extend naturally around steps
   for (const c of overview.value.countries) {
     const b = countryBounds[c.code.toLowerCase()];
     if (!b) continue;
-    const cx = b[0] + b[2] / 2;
-    const cy = b[1] + b[3] / 2;
-    sMinX = Math.min(sMinX, cx); sMinY = Math.min(sMinY, cy);
-    sMaxX = Math.max(sMaxX, cx); sMaxY = Math.max(sMaxY, cy);
+    sMinX = Math.min(sMinX, b[0]);
+    sMinY = Math.min(sMinY, b[1]);
+    sMaxX = Math.max(sMaxX, b[0] + b[2]);
+    sMaxY = Math.max(sMaxY, b[1] + b[3]);
+  }
+
+  // Fallback to step locations if no country bounds matched
+  if (!isFinite(sMinX)) {
+    for (const step of props.steps) {
+      const [x, y] = toSvgMercator(step.location.lon, step.location.lat);
+      sMinX = Math.min(sMinX, x); sMinY = Math.min(sMinY, y);
+      sMaxX = Math.max(sMaxX, x); sMaxY = Math.max(sMaxY, y);
+    }
   }
 
   const spanX = sMaxX - sMinX || 1;
@@ -357,7 +359,7 @@ const factColumns = computed(() => {
 
 .tapestry-flag {
   width: 1.5rem;
-  height: 1rem;
+  height: calc(1.5rem * 2 / 3);
   border-radius: var(--radius-xs);
   flex-shrink: 0;
   object-fit: cover;
@@ -371,6 +373,6 @@ const factColumns = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem; /* truncate long country names in the centered label bar */
+  max-width: 12rem;
 }
 </style>

@@ -185,6 +185,7 @@ async def insert_album(
         title="Test Album",
         subtitle="A subtitle",
         hidden_steps=[],
+        hidden_headers=[],
         maps_ranges=[],
         front_cover_photo="photo1.jpg",
         back_cover_photo="photo2.jpg",

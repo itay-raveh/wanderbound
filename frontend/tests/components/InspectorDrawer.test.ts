@@ -69,9 +69,8 @@ describe("InspectorDrawer with step (UnusedDrawer rendering)", () => {
       },
     });
 
-    // UnusedDrawer should render (not the inspector-panel)
-    expect(wrapper.find(".unused-drawer").exists()).toBe(true);
-    expect(wrapper.find(".inspector-panel").exists()).toBe(false);
+    // UnusedDrawer should render inside the inspector panel
+    expect(wrapper.find(".inspector-panel .unused-drawer").exists()).toBe(true);
   });
 
   it("shows correct unused photo count", () => {

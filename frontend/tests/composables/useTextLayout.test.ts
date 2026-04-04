@@ -1,4 +1,6 @@
-import { distributePages, type JustifiedLine } from "@/composables/useTextLayout";
+import { distributePages, useTextLayout, type JustifiedLine } from "@/composables/useTextLayout";
+import { setSafeMargin } from "@/composables/useSafeMargin";
+import { ref, watchSyncEffect } from "vue";
 
 function line(text: string): JustifiedLine {
   return { text };
@@ -107,5 +109,31 @@ describe("distributePages", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toHaveLength(5);
     expect(result[1]).toHaveLength(10);
+  });
+});
+
+describe("setSafeMargin", () => {
+  afterEach(() => setSafeMargin(0));
+
+  it("triggers recomputation of useTextLayout computed", () => {
+    const text = ref("Hello world");
+    const layout = useTextLayout(text);
+
+    let runCount = 0;
+    watchSyncEffect(() => {
+      void layout.value;
+      runCount++;
+    });
+
+    expect(runCount).toBe(1); // initial run
+
+    setSafeMargin(10);
+    expect(runCount).toBe(2); // re-triggered by margin change
+
+    setSafeMargin(10); // same value — no-op
+    expect(runCount).toBe(2);
+
+    setSafeMargin(5);
+    expect(runCount).toBe(3);
   });
 });

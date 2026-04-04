@@ -1,6 +1,7 @@
-import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { prepareWithSegments, layoutWithLines, clearCache as clearPretextCache } from "@chenglou/pretext";
 import { ALLOWED_FONTS } from "@/utils/fonts";
+import { MM_PX, safeMarginMm } from "./useSafeMargin";
 
 export interface JustifiedLine {
   text: string;
@@ -58,19 +59,26 @@ interface LayoutConfig {
 
 let layoutConfig: LayoutConfig | null = null;
 
+// Invalidate layout config + cache when safe margin changes so text reflows.
+watch(safeMarginMm, () => {
+  layoutConfig = null;
+  cache.clear();
+});
+
 function ensureConfig(): LayoutConfig {
   if (layoutConfig) return layoutConfig;
 
   const rootStyle = getComputedStyle(document.documentElement);
   const remPx = parseFloat(rootStyle.fontSize);
-  const mmPx = 96 / 25.4;
+
   const lineHeight = 1.65;
 
-  const pageWidth = parseFloat(rootStyle.getPropertyValue("--page-width")) * mmPx;
-  const pageHeight = parseFloat(rootStyle.getPropertyValue("--page-height")) * mmPx;
+  const pageWidth = parseFloat(rootStyle.getPropertyValue("--page-width")) * MM_PX;
+  const pageHeight = parseFloat(rootStyle.getPropertyValue("--page-height")) * MM_PX;
   const metaRatio = parseFloat(rootStyle.getPropertyValue("--meta-ratio"));
-  const insetX = parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx;
-  const insetY = parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx;
+  const smPx = safeMarginMm.value * MM_PX;
+  const insetX = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx, smPx);
+  const insetY = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx, smPx);
   const typeXs = parseFloat(rootStyle.getPropertyValue("--type-xs")) * remPx;
   const fontBody = rootStyle.getPropertyValue("--font-album-body").trim();
 
@@ -82,17 +90,16 @@ function ensureConfig(): LayoutConfig {
   const lineHeightPx = typeXs * lineHeight;
 
   // Sidebar: vertical space consumed by StepMetaPanel chrome above/below the
-  // description slot. Derivation (values from App.vue design tokens):
-  //   top padding (--page-inset-y)        2.5rem
+  // description slot. Excludes top padding (insetY) which varies with safe margin.
   //   silhouette row (5rem + gap-lg)      6.0rem
   //   name block (~2 lines + gap-lg)      3.0rem
   //   stats bar + progress + bot padding  7.0rem
   //   rounding headroom                   2.5rem
   //                                      ------
-  //                                      ~21 rem
+  //                                      ~18.5 rem
   // If StepMetaPanel layout changes, re-derive this constant.
-  const META_PANEL_CHROME_REM = 21;
-  const sidebarMaxLines = Math.floor((pageHeight - META_PANEL_CHROME_REM * remPx) / lineHeightPx);
+  const META_PANEL_CHROME_REM = 18.5;
+  const sidebarMaxLines = Math.floor((pageHeight - META_PANEL_CHROME_REM * remPx - insetY) / lineHeightPx);
 
   // Continuation pages: full page height with top + bottom padding.
   const continuationMaxLines = Math.floor((pageHeight - 2 * insetY) / lineHeightPx);
@@ -142,6 +149,8 @@ export function distributePages(
 
 
 export function layoutDescription(text: string): TextLayout {
+  // Subscribe to reactive dependencies so computeds recompute on change
+  void safeMarginMm.value;
   if (fontsRevision.value === 0) return { pages: [] };
 
   const hit = cache.get(text);

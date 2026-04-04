@@ -6,6 +6,7 @@ import { usePrintMode } from "@/composables/usePrintReady";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
+import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
 import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
 import { useTemplateRef, computed, watch } from "vue";
@@ -49,7 +50,7 @@ function draw(m: Map) {
     s.location.lon,
     s.location.lat,
   ]);
-  fitBounds(coords, 60);
+  fitBounds(coords, 60 + safeMarginPx());
 }
 
 watch(segments, () => {
@@ -57,6 +58,13 @@ watch(segments, () => {
   if (!m) return;
   if (m.isStyleLoaded()) draw(m);
   else m.once("load", () => draw(m));
+});
+
+watch(safeMarginMm, () => {
+  const m = map.value;
+  if (!m || !segments.value || !m.isStyleLoaded()) return;
+  const coords: [number, number][] = props.steps.map((s) => [s.location.lon, s.location.lat]);
+  fitBounds(coords, 60 + safeMarginPx());
 });
 </script>
 

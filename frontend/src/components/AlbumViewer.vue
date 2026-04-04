@@ -9,13 +9,14 @@ import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useStepMutation } from "@/queries/useStepMutation";
-import { EDITOR_ZOOM } from "@/utils/media";
+import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
+import { setSafeMargin, MM_PX } from "@/composables/useSafeMargin";
 import { buildSections, visibleHeaderKeys, sectionKey, sectionPageCount, segmentsOverlapping, activeSectionId } from "./album/albumSections";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
-import { computed, defineAsyncComponent, defineComponent, h, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
+import { computed, defineAsyncComponent, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -52,10 +53,21 @@ const albumId = computed(() => props.album.id);
 const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
 const albumMedia = computed(() => props.media);
 
-const albumFontStyle = computed(() => ({
-  '--font-album': fontStack(props.album.font ?? DEFAULT_FONT),
-  '--font-album-body': fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
-}));
+const safeMarginMm = computed(() => props.album.safe_margin_mm ?? 0);
+watchEffect(() => setSafeMargin(safeMarginMm.value));
+
+const albumStyle = computed(() => {
+  const sm = safeMarginMm.value;
+  return {
+    '--font-album': fontStack(props.album.font ?? DEFAULT_FONT),
+    '--font-album-body': fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
+    '--safe-margin': `${sm}mm`,
+    ...(sm > 0 ? {
+      '--page-inset-x': `max(3rem, ${sm}mm)`,
+      '--page-inset-y': `max(2.5rem, ${sm}mm)`,
+    } : {}),
+  };
+});
 const albumMutation = useAlbumMutation(() => props.album.id);
 
 const visibleSteps = computed(() => {
@@ -94,10 +106,10 @@ const expectedPageCount = computed(() =>
 );
 const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
-const measuredEls = new WeakSet<Element>();
+let measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
-const PAGE_H = Math.round(210 * 96 / 25.4 * EDITOR_ZOOM) + 12;
+const pageH = computed(() => Math.round(210 * MM_PX * editorZoom.value) + 12);
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(computed(() => {
   const hc = headerCount.value;
@@ -105,8 +117,8 @@ const { virtualizer, items, size, version } = useWindowVirtualizer(computed(() =
   return {
     count: hc + sections.value.length,
     estimateSize: (index: number) => {
-      if (index < hc) return PAGE_H;
-      return (sectionPageCounts.value[index - hc] ?? 1) * PAGE_H;
+      if (index < hc) return pageH.value;
+      return (sectionPageCounts.value[index - hc] ?? 1) * pageH.value;
     },
     overscan: 3,
     gap: 16,
@@ -132,6 +144,13 @@ function measureNew() {
       virtualizer.measureElement(el);
     }
   }
+}
+
+function onWheel(e: WheelEvent) {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  setEditorZoom(editorZoom.value - px * 0.001);
 }
 
 if (props.printMode) {
@@ -210,6 +229,10 @@ if (props.printMode) {
     measureNew();
   });
   watch(items, measureNew);
+  watch(editorZoom, () => {
+    measuredEls = new WeakSet();
+    void nextTick(measureNew);
+  });
   onUnmounted(() => {
     setScrollOverride(null);
   });
@@ -222,7 +245,7 @@ if (props.printMode) {
     v-if="printMode && visibleSteps.length"
     class="album-container print-mode"
     :data-expected-pages="expectedPageCount"
-    :style="albumFontStyle"
+    :style="albumStyle"
   >
     <CoverPage v-if="activeHeaders.includes('cover-front')" :album="album" :steps="visibleSteps" />
     <CoverPage v-if="activeHeaders.includes('cover-back')" :album="album" :steps="visibleSteps" is-back />
@@ -249,9 +272,10 @@ if (props.printMode) {
   <!-- Editor mode: virtual scrolling — only visible sections are in the DOM -->
   <div
     v-else-if="visibleSteps.length"
-    class="album-container"
+    :class="['album-container', { 'has-safe-margin': safeMarginMm > 0 }]"
     :data-expected-pages="expectedPageCount"
-    :style="[{ '--editor-zoom': String(EDITOR_ZOOM) }, albumFontStyle]"
+    :style="[{ '--editor-zoom': String(editorZoom) }, albumStyle]"
+    @wheel="onWheel"
   >
     <div ref="listRef" :style="{ height: `${size}px`, position: 'relative' }">
       <div
@@ -319,13 +343,14 @@ if (props.printMode) {
   height: var(--page-height);
   background-color: var(--page-bg, var(--bg));
   font-family: var(--font-album);
-  contain: strict;
+  contain: strict; // strict containment creates a positioning context for ::after
 }
 
 // Editor mode: zoom shrinks pages for preview.
 // Map pages use a wrapper + transform: scale (zoom breaks Mapbox canvas sizing).
 .album-container:not(.print-mode) {
   padding: var(--gap-md-lg);
+  overflow-x: auto;
 
   :deep(.page-container) {
     zoom: var(--editor-zoom);
@@ -337,6 +362,16 @@ if (props.printMode) {
     &.drag-over {
       border-color: var(--q-primary);
     }
+  }
+
+  // Safe margin frame — editor-only visual guide
+  &.has-safe-margin :deep(.page-container)::after {
+    content: '';
+    position: absolute;
+    inset: var(--safe-margin);
+    border: 1px dashed color-mix(in srgb, var(--text) 40%, transparent);
+    pointer-events: none;
+    z-index: 50;
   }
 
   // Map wrapper: fixed layout size matching zoomed page dimensions

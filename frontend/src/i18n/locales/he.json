@@ -71,7 +71,10 @@
     "toolbar": "כלי אלבום",
     "exportPdf": "הורדת PDF",
     "font": "גופן כותרות",
-    "bodyFont": "גופן גוף"
+    "bodyFont": "גופן גוף",
+    "properties": "אלבום",
+    "safeMargin": "שוליים בטוחים",
+    "zoom": "זום"
   },
 
   "settings": {
