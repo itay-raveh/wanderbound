@@ -1,8 +1,11 @@
-import { useQuery } from "@pinia/colada";
+import { useQuery, useQueryCache } from "@pinia/colada";
 import * as Sentry from "@sentry/vue";
-import { readUser } from "@/client";
+import { deleteDemo, readUser } from "@/client";
+import { clearMsalCache } from "@/composables/useMicrosoftAuth";
 import { computed } from "vue";
+import { googleLogout } from "vue3-google-login";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { queryKeys } from "./keys";
 
 export const KM_TO_MI = 0.621371;
@@ -10,6 +13,8 @@ export const M_TO_FT = 3.28084;
 
 export function useUserQuery() {
   const { t } = useI18n();
+  const router = useRouter();
+  const cache = useQueryCache();
   const query = useQuery({
     key: queryKeys.user(),
     query: async () => {
@@ -24,6 +29,19 @@ export function useUserQuery() {
   const locale = computed(() => user.value?.locale ?? "en");
   const isKm = computed(() => user.value?.unit_is_km ?? true);
   const isCelsius = computed(() => user.value?.temperature_is_celsius ?? true);
+  const isDemo = computed(() => user.value?.is_demo ?? false);
+
+  async function clearAllAuthState() {
+    Sentry.setUser(null);
+    googleLogout();
+    await Promise.all([cache.invalidateQueries(undefined, false), clearMsalCache()]);
+  }
+
+  async function exitDemo() {
+    try { await deleteDemo(); } catch { /* session may already be gone */ }
+    await clearAllAuthState();
+    await router.push({ name: "landing" });
+  }
 
   const distanceUnit = computed(() => t(isKm.value ? "overview.km" : "overview.mi"));
   const elevationUnit = computed(() => t(isKm.value ? "overview.m" : "overview.ft"));
@@ -79,6 +97,9 @@ export function useUserQuery() {
     locale,
     isKm,
     isCelsius,
+    isDemo,
+    exitDemo,
+    clearAllAuthState,
     distanceUnit,
     elevationUnit,
     formatDistance,

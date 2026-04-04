@@ -79,7 +79,7 @@ app.use(Quasar, {
 });
 
 // Dark mode: restore preference from localStorage, persist changes.
-const DARK_MODE_KEY = "album-dark-mode";
+import { DARK_MODE_KEY } from "@/utils/storage-keys";
 const stored = localStorage.getItem(DARK_MODE_KEY);
 Dark.set(stored === null || stored === "auto" ? "auto" : stored === "true");
 watch(

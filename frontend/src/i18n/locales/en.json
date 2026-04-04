@@ -7,8 +7,8 @@
     "autoAlbumBody": "Upload your {polarsteps} export and every photo finds its place - arranged across pages, balanced and print-ready. You just pick your favorites.",
     "hikeMapTitle": "See the trail the way you remember it",
     "hikeMapBody": "Your hikes appear on satellite imagery with the exact route you walked and an elevation profile showing every climb and descent.",
-    "overviewTitle": "47 days, 4 countries, one page",
-    "overviewBody": "Total distance, photos taken, highest point, coldest morning, furthest you got from home - your entire trip measured and laid out on a single page.",
+    "overviewTitle": "Your whole trip, one page",
+    "overviewBody": "Highest point, coldest night, hottest day, furthest from home — your entire trip distilled onto a single page with every country you visited.",
     "localizationTitle": "Every language. Every direction.",
     "localizationBody": "{polarsteps}' own album only supports English layouts. Wanderbound handles Hebrew, Arabic, Japanese — any language, right-to-left included. Your album reads the way you do.",
     "openEditor": "Open editor",
@@ -230,5 +230,11 @@
   "screen": {
     "title": "Larger screen required",
     "body": "This app is designed for desktops and landscape tablets. Use a laptop or desktop computer, or rotate your tablet to landscape."
+  },
+
+  "demo": {
+    "tryButton": "Try with demo data",
+    "bannerText": "You're exploring a demo album",
+    "bannerCta": "Sign in with your own trip"
   }
 }

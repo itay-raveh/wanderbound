@@ -726,6 +726,10 @@ export type User = {
      */
     album_ids?: Array<string>;
     /**
+     * Is Demo
+     */
+    is_demo?: boolean;
+    /**
      * Last Active At
      */
     last_active_at?: string;
@@ -937,6 +941,10 @@ export type UserWritable = {
      */
     album_ids?: Array<string>;
     /**
+     * Is Demo
+     */
+    is_demo?: boolean;
+    /**
      * Last Active At
      */
     last_active_at?: string;
@@ -1028,6 +1036,38 @@ export type UploadDataResponses = {
 };
 
 export type UploadDataResponse = UploadDataResponses[keyof UploadDataResponses];
+
+export type DeleteDemoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/users/demo';
+};
+
+export type DeleteDemoResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteDemoResponse = DeleteDemoResponses[keyof DeleteDemoResponses];
+
+export type CreateDemoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/users/demo';
+};
+
+export type CreateDemoResponses = {
+    /**
+     * Successful Response
+     */
+    200: UploadResult;
+};
+
+export type CreateDemoResponse = CreateDemoResponses[keyof CreateDemoResponses];
 
 export type ProcessUserData = {
     body?: never;

@@ -17,7 +17,7 @@ import ProcessingProgress from "@/components/register/ProcessingProgress.vue";
 useMeta({ title: "Upload" });
 
 const { t } = useI18n();
-const STORAGE_KEY = "processing_upload_result";
+import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 
 const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
@@ -49,19 +49,19 @@ const heroName = computed(() =>
 
 onMounted(() => {
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const stored = sessionStorage.getItem(UPLOAD_RESULT_KEY);
     if (stored) {
       uploadResult.value = JSON.parse(stored) as UploadResult;
       stream.start();
     }
   } catch {
-    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(UPLOAD_RESULT_KEY);
   }
 });
 
 function onUploaded(data: UploadResult) {
   uploadResult.value = data;
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  sessionStorage.setItem(UPLOAD_RESULT_KEY, JSON.stringify(data));
   clearAuth();
   stream.start();
 }
@@ -69,11 +69,11 @@ function onUploaded(data: UploadResult) {
 function onRetry() {
   stream.abort();
   uploadResult.value = null;
-  sessionStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(UPLOAD_RESULT_KEY);
 }
 
 function onDone() {
-  sessionStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(UPLOAD_RESULT_KEY);
   void router.push({ name: "editor" });
 }
 </script>

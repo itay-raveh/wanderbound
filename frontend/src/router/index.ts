@@ -4,9 +4,9 @@ import { useQueryCache } from "@pinia/colada";
 import { createRouter, createWebHistory } from "vue-router";
 import { queryKeys } from "@/queries/keys";
 
-export type Provider = NonNullable<BodyUploadData["provider"]>;
+import { AUTH_STATE_KEY } from "@/utils/storage-keys";
 
-const AUTH_STATE_KEY = "auth_state";
+export type Provider = NonNullable<BodyUploadData["provider"]>;
 
 export function getAuthState(): { credential: string; provider: Provider } | null {
   try {

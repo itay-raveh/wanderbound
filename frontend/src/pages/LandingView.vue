@@ -1,14 +1,14 @@
 <script lang="ts" setup>
-import { authenticate, readUser } from "@/client";
-import { microsoftLogin } from "@/composables/useMicrosoftAuth";
+import { authenticate, createDemo, readUser } from "@/client";
+import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
+import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
-import LoginButtons from "@/components/register/LoginButtons.vue";
+import { microsoftLogin } from "@/composables/useMicrosoftAuth";
+import { setAuthState, type Provider } from "@/router";
 import { useQuasar } from "quasar";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { type CallbackTypes } from "vue3-google-login";
-import { setAuthState, type Provider } from "@/router";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -28,7 +28,10 @@ onMounted(async () => {
 const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
 
 async function handleLogin(credential: string, provider: Provider) {
-  const { data: user } = await authenticate({ body: { credential }, path: { provider } });
+  const { data: user } = await authenticate({
+    body: { credential },
+    path: { provider },
+  });
   if (user) {
     await router.push({ name: "editor" });
   } else {
@@ -41,8 +44,8 @@ function notifyLoginFailed() {
   $q.notify({ type: "negative", message: t("login.signInFailed") });
 }
 
-function onGoogleSuccess(response: CallbackTypes.CredentialPopupResponse) {
-  void handleLogin(response.credential, "google").catch(notifyLoginFailed);
+function onGoogleLogin(credential: string) {
+  void handleLogin(credential, "google").catch(notifyLoginFailed);
 }
 
 async function onMicrosoftLogin() {
@@ -51,6 +54,21 @@ async function onMicrosoftLogin() {
     await handleLogin(idToken, "microsoft");
   } catch {
     notifyLoginFailed();
+  }
+}
+
+const demoLoading = ref(false);
+
+async function onTryDemo() {
+  demoLoading.value = true;
+  try {
+    const { data } = await createDemo({ throwOnError: true });
+    sessionStorage.setItem(UPLOAD_RESULT_KEY, JSON.stringify(data));
+    await router.push({ name: "upload" });
+  } catch {
+    $q.notify({ type: "negative", message: t("login.signInFailed") });
+  } finally {
+    demoLoading.value = false;
   }
 }
 
@@ -100,7 +118,9 @@ onMounted(() => {
     { threshold: 0.12 },
   );
 
-  mainRef.value?.querySelectorAll(".scroll-reveal").forEach((el) => revealObserver!.observe(el));
+  mainRef.value
+    ?.querySelectorAll(".scroll-reveal")
+    .forEach((el) => revealObserver!.observe(el));
 });
 
 onUnmounted(() => {
@@ -112,14 +132,22 @@ onUnmounted(() => {
 <template>
   <main ref="mainRef">
     <!-- Hero -->
-    <section ref="heroRef" class="hero" aria-labelledby="hero-heading" @mousemove="onHeroMouseMove" @mouseleave="onHeroMouseLeave">
+    <section
+      ref="heroRef"
+      class="hero"
+      aria-labelledby="hero-heading"
+      @mousemove="onHeroMouseMove"
+      @mouseleave="onHeroMouseLeave"
+    >
       <div class="hero-content column no-wrap items-center">
         <div class="hero-brand fade-up">
           <img src="/logo.svg" alt="" class="hero-logo" />
           <h1 id="hero-heading" class="hero-title">{{ t("brand") }}</h1>
         </div>
         <i18n-t keypath="tagline" tag="p" class="hero-tagline fade-up">
-          <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+          <template #polarsteps
+            ><span class="polarsteps">Polarsteps</span></template
+          >
         </i18n-t>
       </div>
 
@@ -128,25 +156,26 @@ onUnmounted(() => {
         <div class="hero-fan" aria-hidden="true">
           <LandingImage name="cover" :mode="mode" class="hero-card" />
           <LandingImage name="hike-map" :mode="mode" class="hero-card" />
-          <LandingImage name="step-page" :mode="mode" class="hero-card" fetchpriority="high" />
+          <LandingImage
+            name="step-page"
+            :mode="mode"
+            class="hero-card"
+            fetchpriority="high"
+          />
           <LandingImage name="overview" :mode="mode" class="hero-card" />
           <LandingImage name="auto-album" :mode="mode" class="hero-card" />
         </div>
       </div>
 
       <div class="hero-cta fade-up">
-        <q-btn
-          v-if="authenticated"
-          :label="t('landing.openEditor')"
-          color="primary"
-          unelevated
-          no-caps
-          size="lg"
-          :to="{ name: 'editor' }"
+        <AuthActions
+          :authenticated="authenticated"
+          :demo-loading="demoLoading"
+          @google="onGoogleLogin"
+          @microsoft="onMicrosoftLogin"
+          @demo="onTryDemo"
         />
-        <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
       </div>
-
     </section>
 
     <!-- Feature: autoAlbum — core product showcase, standard 50/50 -->
@@ -161,9 +190,13 @@ onUnmounted(() => {
           class="feature-picture"
         />
         <div class="feature-text">
-          <h2 id="auto-album-heading" class="feature-title">{{ t("landing.autoAlbumTitle") }}</h2>
+          <h2 id="auto-album-heading" class="feature-title">
+            {{ t("landing.autoAlbumTitle") }}
+          </h2>
           <i18n-t keypath="landing.autoAlbumBody" tag="p" class="feature-body">
-            <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+            <template #polarsteps
+              ><span class="polarsteps">Polarsteps</span></template
+            >
           </i18n-t>
         </div>
       </div>
@@ -173,7 +206,9 @@ onUnmounted(() => {
     <section class="band band--showstopper" aria-labelledby="hike-map-heading">
       <div class="feature feature--hero scroll-reveal">
         <div class="feature-text">
-          <h2 id="hike-map-heading" class="feature-title feature-title--lg">{{ t("landing.hikeMapTitle") }}</h2>
+          <h2 id="hike-map-heading" class="feature-title feature-title--lg">
+            {{ t("landing.hikeMapTitle") }}
+          </h2>
           <p class="feature-body">{{ t("landing.hikeMapBody") }}</p>
         </div>
         <LandingImage
@@ -188,9 +223,9 @@ onUnmounted(() => {
     </section>
 
     <!-- Features: localization + overview — paired features -->
-    <section class="band band--default" aria-labelledby="localization-heading overview-heading">
+    <div class="band band--default">
       <div class="feature-pair">
-        <div class="feature-pair-item scroll-reveal">
+        <section class="feature-pair-item scroll-reveal" aria-labelledby="localization-heading">
           <LandingImage
             name="localization"
             :mode="mode"
@@ -199,12 +234,20 @@ onUnmounted(() => {
             loading="lazy"
             class="feature-picture"
           />
-          <h2 id="localization-heading" class="feature-title">{{ t("landing.localizationTitle") }}</h2>
-          <i18n-t keypath="landing.localizationBody" tag="p" class="feature-body">
-            <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+          <h2 id="localization-heading" class="feature-title">
+            {{ t("landing.localizationTitle") }}
+          </h2>
+          <i18n-t
+            keypath="landing.localizationBody"
+            tag="p"
+            class="feature-body"
+          >
+            <template #polarsteps
+              ><span class="polarsteps">Polarsteps</span></template
+            >
           </i18n-t>
-        </div>
-        <div class="feature-pair-item scroll-reveal">
+        </section>
+        <section class="feature-pair-item scroll-reveal" aria-labelledby="overview-heading">
           <LandingImage
             name="overview"
             :mode="mode"
@@ -213,37 +256,49 @@ onUnmounted(() => {
             loading="lazy"
             class="feature-picture"
           />
-          <h2 id="overview-heading" class="feature-title">{{ t("landing.overviewTitle") }}</h2>
+          <h2 id="overview-heading" class="feature-title">
+            {{ t("landing.overviewTitle") }}
+          </h2>
           <p class="feature-body">{{ t("landing.overviewBody") }}</p>
-        </div>
+        </section>
       </div>
-    </section>
+    </div>
 
     <!-- Bottom CTA -->
-    <section class="cta column no-wrap flex-center" aria-labelledby="cta-heading">
-      <h2 id="cta-heading" class="feature-title feature-title--lg scroll-reveal">{{ t("landing.ctaTitle") }}</h2>
-      <i18n-t keypath="landing.ctaBody" tag="p" class="cta-subtitle scroll-reveal">
-        <template #polarsteps><span class="ps-brand">Polarsteps</span></template>
+    <section
+      class="cta column no-wrap flex-center"
+      aria-labelledby="cta-heading"
+    >
+      <h2
+        id="cta-heading"
+        class="feature-title feature-title--lg scroll-reveal"
+      >
+        {{ t("landing.ctaTitle") }}
+      </h2>
+      <i18n-t
+        keypath="landing.ctaBody"
+        tag="p"
+        class="cta-subtitle scroll-reveal"
+      >
+        <template #polarsteps
+          ><span class="polarsteps">Polarsteps</span></template
+        >
       </i18n-t>
       <div class="cta-button scroll-reveal">
-        <q-btn
-          v-if="authenticated"
-          :label="t('landing.openEditor')"
-          color="primary"
-          unelevated
-          no-caps
-          size="lg"
-          :to="{ name: 'editor' }"
+        <AuthActions
+          :authenticated="authenticated"
+          :demo-loading="demoLoading"
+          @google="onGoogleLogin"
+          @microsoft="onMicrosoftLogin"
+          @demo="onTryDemo"
         />
-        <LoginButtons v-else @google="onGoogleSuccess" @microsoft="onMicrosoftLogin" />
       </div>
     </section>
   </main>
 </template>
 
 <style scoped>
-/* Polarsteps brand reference — stands out from surrounding muted text */
-.ps-brand {
+.polarsteps {
   font-weight: 700;
   color: var(--text-bright);
 }
@@ -297,18 +352,22 @@ onUnmounted(() => {
 .hero-cta {
   margin-top: var(--gap-lg);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   animation-delay: 0.55s;
 }
 
 /* Cascading hero reveal — each element unfolds with deliberate pacing */
-.hero-content > .fade-up:nth-child(1) { animation-delay: 0s; }
-.hero-content > .fade-up:nth-child(2) { animation-delay: 0.15s; }
+.hero-content > .fade-up:nth-child(1) {
+  animation-delay: 0s;
+}
+.hero-content > .fade-up:nth-child(2) {
+  animation-delay: 0.15s;
+}
 
 /* Product preview in hero — fanned spread of album pages */
 .hero-showcase {
-  margin-top: 1.25rem;
-  padding: 0 var(--gap-md);
+  padding: 0 var(--gap-sm);
   animation-delay: 0.35s;
   perspective: 800px;
 }
@@ -333,7 +392,9 @@ onUnmounted(() => {
   box-shadow: var(--shadow-md);
   --spread: 0rem;
   --s: 1;
-  transform: translate(-50%, -50%) translateX(calc(var(--x, 0rem) + var(--spread))) rotate(var(--r, 0deg)) scale(var(--s));
+  transform: translate(-50%, -50%)
+    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(var(--r, 0deg))
+    scale(var(--s));
   transition:
     transform var(--duration-normal) ease,
     box-shadow var(--duration-normal) ease,
@@ -342,7 +403,8 @@ onUnmounted(() => {
 }
 
 .hero-card:hover {
-  transform: translate(-50%, -50%) translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15);
+  transform: translate(-50%, -50%)
+    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15);
   z-index: 10 !important;
   box-shadow: var(--shadow-lg);
 }
@@ -366,11 +428,41 @@ onUnmounted(() => {
 }
 
 /* Mobile: 3 cards (hide outer two) */
-.hero-card:nth-child(1) { --x: -8rem; --r: -6deg; z-index: 1; width: 11rem; display: none; animation-delay: 0.9s; }
-.hero-card:nth-child(2) { --x: -5.5rem; --r: -3deg; z-index: 3; width: 12rem; animation-delay: 0.8s; }
-.hero-card:nth-child(3) { z-index: 5; width: 14rem; animation-delay: 0.7s; }
-.hero-card:nth-child(4) { --x: 5.5rem; --r: 3deg; z-index: 3; width: 12rem; animation-delay: 0.8s; }
-.hero-card:nth-child(5) { --x: 8rem; --r: 6deg; z-index: 1; width: 11rem; display: none; animation-delay: 0.9s; }
+.hero-card:nth-child(1) {
+  --x: -8rem;
+  --r: -6deg;
+  z-index: 1;
+  width: 11rem;
+  display: none;
+  animation-delay: 0.9s;
+}
+.hero-card:nth-child(2) {
+  --x: -5.5rem;
+  --r: -3deg;
+  z-index: 3;
+  width: 12rem;
+  animation-delay: 0.8s;
+}
+.hero-card:nth-child(3) {
+  z-index: 5;
+  width: 14rem;
+  animation-delay: 0.7s;
+}
+.hero-card:nth-child(4) {
+  --x: 5.5rem;
+  --r: 3deg;
+  z-index: 3;
+  width: 12rem;
+  animation-delay: 0.8s;
+}
+.hero-card:nth-child(5) {
+  --x: 8rem;
+  --r: 6deg;
+  z-index: 1;
+  width: 11rem;
+  display: none;
+  animation-delay: 0.9s;
+}
 
 /* Feature bands — varied vertical rhythm creates narrative arc */
 .band {
@@ -488,7 +580,11 @@ onUnmounted(() => {
 /* Bottom CTA */
 .cta {
   background:
-    radial-gradient(ellipse at center 60%, color-mix(in srgb, var(--q-primary) 6%, transparent) 0%, transparent 70%),
+    radial-gradient(
+      ellipse at center 60%,
+      color-mix(in srgb, var(--q-primary) 6%, transparent) 0%,
+      transparent 70%
+    ),
     var(--bg-deep);
   padding: 3rem 1.5rem;
   text-align: center;
@@ -527,7 +623,6 @@ onUnmounted(() => {
   }
 
   .hero-showcase {
-    margin-top: 1.25rem;
     padding: 0 2rem;
   }
 
@@ -537,11 +632,31 @@ onUnmounted(() => {
     height: 22rem;
   }
 
-  .hero-card:nth-child(1) { display: block; --x: -14rem; --r: -8deg; width: 10rem; }
-  .hero-card:nth-child(2) { --x: -7.5rem; --r: -4deg; width: 12.5rem; }
-  .hero-card:nth-child(3) { width: 15rem; }
-  .hero-card:nth-child(4) { --x: 7.5rem; --r: 4deg; width: 12.5rem; }
-  .hero-card:nth-child(5) { display: block; --x: 14rem; --r: 8deg; width: 10rem; }
+  .hero-card:nth-child(1) {
+    display: block;
+    --x: -14rem;
+    --r: -8deg;
+    width: 10rem;
+  }
+  .hero-card:nth-child(2) {
+    --x: -7.5rem;
+    --r: -4deg;
+    width: 12.5rem;
+  }
+  .hero-card:nth-child(3) {
+    width: 15rem;
+  }
+  .hero-card:nth-child(4) {
+    --x: 7.5rem;
+    --r: 4deg;
+    width: 12.5rem;
+  }
+  .hero-card:nth-child(5) {
+    display: block;
+    --x: 14rem;
+    --r: 8deg;
+    width: 10rem;
+  }
 
   .band {
     padding: 3.5rem 1.5rem;
@@ -585,14 +700,32 @@ onUnmounted(() => {
     height: 22rem;
   }
 
-  .hero-card:nth-child(1) { --x: -20rem; width: 13rem; }
-  .hero-card:nth-child(2) { --x: -10.5rem; width: 16rem; }
-  .hero-card:nth-child(3) { width: 20rem; }
-  .hero-card:nth-child(4) { --x: 10.5rem; width: 16rem; }
-  .hero-card:nth-child(5) { --x: 20rem; width: 13rem; }
+  .hero-card:nth-child(1) {
+    --x: -20rem;
+    width: 13rem;
+  }
+  .hero-card:nth-child(2) {
+    --x: -10.5rem;
+    width: 16rem;
+  }
+  .hero-card:nth-child(3) {
+    width: 20rem;
+  }
+  .hero-card:nth-child(4) {
+    --x: 10.5rem;
+    width: 16rem;
+  }
+  .hero-card:nth-child(5) {
+    --x: 20rem;
+    width: 13rem;
+  }
 
-  .hero-card:has(~ .hero-card:hover) { --spread: -9rem; }
-  .hero-card:hover ~ .hero-card { --spread: 9rem; }
+  .hero-card:has(~ .hero-card:hover) {
+    --spread: -9rem;
+  }
+  .hero-card:hover ~ .hero-card {
+    --spread: 9rem;
+  }
 
   .band {
     padding: 4.5rem 2rem;

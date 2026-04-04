@@ -1,9 +1,5 @@
 <script lang="ts" setup>
 import { deleteUser, logout } from "@/client";
-import * as Sentry from "@sentry/vue";
-import { clearMsalCache } from "@/composables/useMicrosoftAuth";
-import { googleLogout } from "vue3-google-login";
-import { useQueryCache } from "@pinia/colada";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
 import { getLocaleOptions, resolveLocale } from "@/composables/useLocale";
@@ -27,8 +23,7 @@ import {
 import { useDataExport } from "@/composables/useDataExport";
 
 const router = useRouter();
-const cache = useQueryCache();
-const { user, isKm, isCelsius } = useUserQuery();
+const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } = useUserQuery();
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
 const { t } = useI18n();
@@ -52,12 +47,6 @@ function onLocaleFilter(val: string, update: (fn: () => void) => void) {
   update(() => {
     localeFilter.value = val;
   });
-}
-
-async function clearAllAuthState() {
-  Sentry.setUser(null);
-  googleLogout();
-  await Promise.all([cache.invalidateQueries(undefined, false), clearMsalCache()]);
 }
 
 async function handleSignOut() {
@@ -87,12 +76,14 @@ async function handleDelete() {
 <template>
   <template v-if="user">
     <button type="button" class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen" aria-haspopup="menu">
-      <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
-        <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
-      </q-avatar>
-      <div v-else class="trigger-avatar-fallback flex flex-center">
-        <q-icon :name="matPerson" size="1.125rem" />
-      </div>
+      <template v-if="!isDemo">
+        <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
+          <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
+        </q-avatar>
+        <div v-else class="trigger-avatar-fallback flex flex-center">
+          <q-icon :name="matPerson" size="1.125rem" />
+        </div>
+      </template>
       <span class="trigger-name text-weight-semibold text-body2">{{ user.first_name }}</span>
 
       <div class="trigger-divider" />
@@ -170,7 +161,7 @@ async function handleDelete() {
           <details class="card-section account-details">
             <summary class="section-title">{{ t("settings.account") }}</summary>
 
-            <button class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
+            <button v-if="!isDemo" class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
               <q-icon :name="matUploadFile" size="1rem" />
               {{ t("settings.reuploadData") }}
             </button>
@@ -188,7 +179,11 @@ async function handleDelete() {
 
           <q-separator class="q-my-sm" />
 
-          <button class="action-btn" @click="handleSignOut">
+          <button v-if="isDemo" class="action-btn" @click="exitDemo">
+            <q-icon :name="matLogout" size="1rem" />
+            {{ t("demo.bannerCta") }}
+          </button>
+          <button v-else class="action-btn" @click="handleSignOut">
             <q-icon :name="matLogout" size="1rem" />
             {{ t("settings.signOut") }}
           </button>
@@ -279,7 +274,7 @@ async function handleDelete() {
   padding: 0 var(--gap-xs);
   font-size: var(--type-xs);
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: none;
   letter-spacing: normal;
 }

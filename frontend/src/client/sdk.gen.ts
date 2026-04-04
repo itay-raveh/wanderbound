@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, DeleteUserData, DeleteUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, ProcessUserData, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
+import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, CreateDemoData, CreateDemoResponses, DeleteDemoData, DeleteDemoResponses, DeleteUserData, DeleteUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, ProcessUserData, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -52,6 +52,16 @@ export const uploadData = <ThrowOnError extends boolean = true>(options: Options
         ...options.headers
     }
 });
+
+/**
+ * Delete Demo
+ */
+export const deleteDemo = <ThrowOnError extends boolean = true>(options?: Options<DeleteDemoData, ThrowOnError>) => (options?.client ?? client).delete<DeleteDemoResponses, unknown, ThrowOnError>({ url: '/api/v1/users/demo', ...options });
+
+/**
+ * Create Demo
+ */
+export const createDemo = <ThrowOnError extends boolean = true>(options?: Options<CreateDemoData, ThrowOnError>) => (options?.client ?? client).post<CreateDemoResponses, unknown, ThrowOnError>({ url: '/api/v1/users/demo', ...options });
 
 /**
  * Process User

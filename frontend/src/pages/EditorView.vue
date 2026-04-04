@@ -19,8 +19,8 @@ const { t } = useI18n();
 
 useMeta({ title: "Editor" });
 
+import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
 const DRAWER_WIDTH = 280;
-const LAST_ALBUM_KEY = "last-album-id";
 
 let savedAlbumId: string | null = null;
 try { savedAlbumId = localStorage.getItem(LAST_ALBUM_KEY); } catch {}
@@ -33,7 +33,7 @@ watch(selectedAlbumId, (id) => {
   } catch {}
 });
 
-const { data: userData, locale } = useUserQuery();
+const { data: userData, locale, isDemo, exitDemo } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
@@ -41,6 +41,7 @@ const { data: steps } = useStepsQuery(selectedAlbumId);
 const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
 
 useLocale(locale);
+
 useEditorKeyboard();
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
@@ -56,6 +57,19 @@ const activeStep = computed(() =>
 </script>
 
 <template>
+  <div v-if="isDemo" class="demo-banner print-hide">
+    <span>{{ t("demo.bannerText") }}</span>
+    <q-btn
+      :label="t('demo.bannerCta')"
+      flat
+      dense
+      no-caps
+      color="white"
+      class="demo-banner-cta"
+      @click="exitDemo"
+    />
+  </div>
+
   <EditorHeader class="print-hide">
     <AlbumToolbar v-if="album" :album="album" />
   </EditorHeader>
@@ -112,10 +126,24 @@ const activeStep = computed(() =>
       :segment-outlines="segmentOutlines"
     />
   </q-page>
-
 </template>
 
 <style lang="scss" scoped>
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-md);
+  padding: var(--gap-sm) var(--gap-lg);
+  background: var(--q-primary);
+  color: white;
+  font-size: var(--type-sm);
+}
+
+.demo-banner-cta {
+  text-decoration: underline;
+}
+
 .editor-page {
   background: var(--bg);
 }
@@ -131,6 +159,5 @@ const activeStep = computed(() =>
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-
 }
 </style>
