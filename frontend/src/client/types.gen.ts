@@ -41,11 +41,11 @@ export type Album = {
     /**
      * Font
      */
-    font?: 'Frank Ruhl Libre' | 'Assistant';
+    font?: string;
     /**
      * Body Font
      */
-    body_font?: 'Frank Ruhl Libre' | 'Assistant';
+    body_font?: string;
     /**
      * Safe Margin Mm
      */
@@ -107,11 +107,11 @@ export type AlbumMeta = {
     /**
      * Font
      */
-    font?: 'Frank Ruhl Libre' | 'Assistant';
+    font?: string;
     /**
      * Body Font
      */
-    body_font?: 'Frank Ruhl Libre' | 'Assistant';
+    body_font?: string;
     /**
      * Safe Margin Mm
      */
@@ -167,11 +167,11 @@ export type AlbumUpdate = {
     /**
      * Font
      */
-    font?: 'Frank Ruhl Libre' | 'Assistant' | null;
+    font?: string | null;
     /**
      * Body Font
      */
-    body_font?: 'Frank Ruhl Libre' | 'Assistant' | null;
+    body_font?: string | null;
     /**
      * Safe Margin Mm
      */

@@ -271,9 +271,11 @@ const dateStr = computed(() => {
   font-size: var(--type-xs);
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   text-align: justify;
   hyphens: auto;
   overflow: hidden;
+  min-width: 0;
   flex: 1;
   margin-bottom: var(--gap-lg);
 }

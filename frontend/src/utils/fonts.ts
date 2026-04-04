@@ -15,9 +15,15 @@ const CATEGORY_FALLBACKS: Record<string, string> = {
   monospace: "ui-monospace, monospace",
 };
 
+/** Precomputed font-family strings keyed by family name. */
+const FONT_STACKS = new Map(
+  fontRegistry.fonts.map((f) => [
+    f.family,
+    `"${f.family}", ${CATEGORY_FALLBACKS[f.category]}`,
+  ]),
+);
+
 /** Build a complete CSS font-family string with fallbacks. */
 export function fontStack(name: string): string {
-  const entry = fontRegistry.fonts.find((f) => f.family === name);
-  const fallback = CATEGORY_FALLBACKS[entry?.category ?? "sans-serif"];
-  return `"${name}", ${fallback}`;
+  return FONT_STACKS.get(name) ?? `"${name}", ${CATEGORY_FALLBACKS["sans-serif"]}`;
 }

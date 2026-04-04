@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix hike bounds bug.
 - [ ] Add "Try with demo data" feature.
 - [ ] Add onboarding flow.
 - [ ] Create deployment strategy.

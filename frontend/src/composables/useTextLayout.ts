@@ -111,10 +111,16 @@ function ensureConfig(): LayoutConfig {
   return layoutConfig;
 }
 
+/** Insert zero-width spaces into long unbreakable runs so pretext can wrap them. */
+const LONG_RUN = /(\S{20})(?=\S)/g;
+function addBreakOpportunities(text: string): string {
+  return text.replace(LONG_RUN, "$1\u200B");
+}
+
 function breakParagraph(para: string, columnWidth: number, font: string, lineHeightPx: number): JustifiedLine[] {
-  const prepared = prepareWithSegments(para, font);
+  const prepared = prepareWithSegments(addBreakOpportunities(para), font);
   const { lines } = layoutWithLines(prepared, columnWidth, lineHeightPx);
-  return lines.map((line) => ({ text: line.text }));
+  return lines.map((line) => ({ text: line.text.replaceAll("\u200B", "") }));
 }
 
 function breakText(text: string, columnWidth: number, font: string, lineHeightPx: number): JustifiedLine[] {

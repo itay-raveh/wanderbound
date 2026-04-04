@@ -44,16 +44,11 @@ def slugify(family: str) -> str:
     return family.lower().replace(" ", "-")
 
 
-def weight_spec(weights: str) -> str:
-    """'300..900' -> 'wght@300..900', '400' -> 'wght@400'"""
-    return f"wght@{weights}"
-
-
 def fetch_css(client: httpx.Client, family: str, weights: str) -> str:
     """Fetch the CSS2 stylesheet for a font family."""
     url = (
         f"https://fonts.googleapis.com/css2"
-        f"?family={family.replace(' ', '+')}:{weight_spec(weights)}"
+        f"?family={family.replace(' ', '+')}:wght@{weights}"
     )
     resp = client.get(url, headers={"User-Agent": USER_AGENT})
     resp.raise_for_status()
@@ -157,59 +152,43 @@ def main() -> None:
 
     all_faces: list[dict] = []
 
-    with httpx.Client(timeout=30, follow_redirects=True) as client:
-        # Process registry fonts (all require hebrew + latin-ext + latin)
-        for font in fonts:
-            family = font["family"]
-            slug = slugify(family)
-            weights = font["weights"]
+    def process_font(
+        client: httpx.Client,
+        font: dict,
+        required_subsets: tuple[str, ...],
+        *,
+        warn_missing: bool,
+    ) -> None:
+        family = font["family"]
+        slug = slugify(family)
+        weights = font["weights"]
 
-            print(f"  {family}...", end=" ", flush=True)
-            css = fetch_css(client, family, weights)
-            blocks = parse_font_faces(css)
+        print(f"  {family}...", end=" ", flush=True)
+        css = fetch_css(client, family, weights)
+        blocks = parse_font_faces(css)
 
-            # Filter to required subsets only
-            subset_blocks = [b for b in blocks if b["subset"] in REQUIRED_SUBSETS]
-            found_subsets = {b["subset"] for b in subset_blocks}
-            missing = set(REQUIRED_SUBSETS) - found_subsets
-            if missing:
-                print(f"WARNING: missing subsets {missing}")
-            else:
-                print(f"ok ({len(subset_blocks)} subsets)")
-
-            # Static fonts (semicolon-separated weights) need per-weight filenames
-            is_static = ";" in weights
-
-            for block in subset_blocks:
-                weight_suffix = f"-{block['weight']}" if is_static else ""
-                filename = f"{slug}-{block['subset']}{weight_suffix}.woff2"
-                dest = FONTS_DIR / filename
-                download_font(client, block["url"], dest, clean=clean)
-                all_faces.append({**block, "filename": filename})
-
-        # Process extra fonts (JetBrains Mono — latin only)
-        for font in EXTRA_FONTS:
-            family = font["family"]
-            slug = slugify(family)
-            weights = font["weights"]
-            required = font.get("subsets", REQUIRED_SUBSETS)
-            is_static = ";" in weights
-
-            print(f"  {family}...", end=" ", flush=True)
-            css = fetch_css(client, family, weights)
-            blocks = parse_font_faces(css)
-
-            subset_blocks = [b for b in blocks if b["subset"] in required]
+        subset_blocks = [b for b in blocks if b["subset"] in required_subsets]
+        missing = set(required_subsets) - {b["subset"] for b in subset_blocks}
+        if warn_missing and missing:
+            print(f"WARNING: missing subsets {missing}")
+        else:
             print(f"ok ({len(subset_blocks)} subsets)")
 
-            for block in subset_blocks:
-                weight_suffix = f"-{block['weight']}" if is_static else ""
-                filename = f"{slug}-{block['subset']}{weight_suffix}.woff2"
-                dest = FONTS_DIR / filename
-                download_font(client, block["url"], dest, clean=clean)
-                all_faces.append({**block, "filename": filename})
+        is_static = ";" in weights
+        for block in subset_blocks:
+            weight_suffix = f"-{block['weight']}" if is_static else ""
+            filename = f"{slug}-{block['subset']}{weight_suffix}.woff2"
+            dest = FONTS_DIR / filename
+            download_font(client, block["url"], dest, clean=clean)
+            all_faces.append({**block, "filename": filename})
 
-    # Generate CSS
+    with httpx.Client(timeout=30, follow_redirects=True) as client:
+        for font in fonts:
+            process_font(client, font, REQUIRED_SUBSETS, warn_missing=True)
+        for font in EXTRA_FONTS:
+            subsets = font.get("subsets", REQUIRED_SUBSETS)
+            process_font(client, font, subsets, warn_missing=False)
+
     css_content = generate_css(all_faces)
     CSS_OUT.write_text(css_content)
     print(f"\n  Generated {CSS_OUT.relative_to(ROOT)}")
