@@ -186,8 +186,9 @@ function onVideoKey(e: KeyboardEvent) {
   }
 
   &.focused {
-    outline: 3px solid var(--q-primary);
-    outline-offset: -3px;
+    outline: 4px solid var(--q-primary);
+    outline-offset: -4px;
+    box-shadow: 0 0 0 2px rgba(0, 99, 209, 0.35);
   }
 
   &:focus-visible {
