@@ -236,5 +236,16 @@
     "tryButton": "Try with demo data",
     "bannerText": "You're exploring a demo album",
     "bannerCta": "Sign in with your own trip"
+  },
+
+  "quality": {
+    "cautionTooltip": "May appear slightly soft in print (~{dpi} DPI, 100+ recommended)",
+    "warningTooltip": "Will likely look blurry in print (~{dpi} DPI, 100+ recommended)",
+    "exportTitle": "Some photos may print poorly",
+    "exportBody": "Your album has {warning} low-quality and {caution} medium-quality photos that may not look sharp in print.",
+    "exportBodyWarningOnly": "Your album has {warning} low-quality photos that may not look sharp in print.",
+    "exportBodyCautionOnly": "Your album has {caution} medium-quality photos that may not look perfectly sharp in print.",
+    "exportCancel": "Go back",
+    "exportConfirm": "Export anyway"
   }
 }

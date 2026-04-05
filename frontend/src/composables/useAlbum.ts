@@ -22,13 +22,15 @@ interface AlbumContext extends AlbumProvide {
 
 const KEY: InjectionKey<AlbumContext> = Symbol("album");
 
-export function provideAlbum(ctx: AlbumProvide): void {
+export function provideAlbum(ctx: AlbumProvide): AlbumContext {
   const mediaByName = computed(() => {
     const map = new Map<string, Media>();
     for (const m of ctx.media.value) map.set(m.name, m);
     return map;
   });
-  provide(KEY, { ...ctx, mediaByName });
+  const albumCtx = { ...ctx, mediaByName };
+  provide(KEY, albumCtx);
+  return albumCtx;
 }
 
 export function useAlbum(): AlbumContext {

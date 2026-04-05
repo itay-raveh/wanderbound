@@ -40,6 +40,12 @@ export function isPortrait(media: { width: number; height: number }): boolean {
   return media.width / media.height < 9 / 10;
 }
 
+/** Name-based portrait check via a media lookup map. */
+export function isPortraitByName(name: string, mediaByName: ReadonlyMap<string, { width: number; height: number }>): boolean {
+  const m = mediaByName.get(name);
+  return m ? isPortrait(m) : false;
+}
+
 /** Build Basmilius weather icon URL for a WMO icon name. */
 export function weatherIconUrl(iconName: string): string {
   return `https://basmilius.github.io/weather-icons/production/fill/all/${iconName}.svg`;

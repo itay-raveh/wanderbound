@@ -2,8 +2,10 @@
 import type { Album } from "@/client";
 import { usePdfExportStream } from "@/composables/usePdfExportStream";
 import { useUndoStack } from "@/composables/useUndoStack";
+import { qualitySummary } from "@/composables/usePhotoQuality";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
+import QualityWarningDialog from "./QualityWarningDialog.vue";
 
 import { editorZoom, setEditorZoom, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "@/composables/useEditorZoom";
 import {
@@ -14,7 +16,7 @@ import {
   symOutlinedZoomIn,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
@@ -28,8 +30,20 @@ const pdfBusy = computed(
 );
 const undoStack = useUndoStack();
 
+const showQualityDialog = ref(false);
+
 function onExportPdf() {
   if (!props.album) return;
+  const q = qualitySummary.value;
+  if (q.caution > 0 || q.warning > 0) {
+    showQualityDialog.value = true;
+    return;
+  }
+  pdf.start();
+}
+
+function onConfirmExport() {
+  showQualityDialog.value = false;
   pdf.start();
 }
 </script>
@@ -115,6 +129,13 @@ function onExportPdf() {
         {{ t("editor.exportPdf") }}
       </q-btn>
     </div>
+
+    <QualityWarningDialog
+      v-model="showQualityDialog"
+      :caution="qualitySummary.caution"
+      :warning="qualitySummary.warning"
+      @confirm="onConfirmExport"
+    />
   </div>
 </template>
 

@@ -3,11 +3,14 @@ import { parseLocalDate } from "@/utils/date";
 import type { Album, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { useAlbum } from "@/composables/useAlbum";
+import { mediaQuality, COVER_FRACTION } from "@/utils/photoQuality";
 import EditableText from "./EditableText.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
 
 const { formatDateRange } = useUserQuery();
+const { mediaByName } = useAlbum();
 
 const props = defineProps<{
   album: Album;
@@ -19,6 +22,10 @@ const albumMutation = useAlbumMutation(() => props.album.id);
 
 const coverMedia = computed(() =>
   props.isBack ? props.album.back_cover_photo : props.album.front_cover_photo,
+);
+
+const coverQuality = computed(() =>
+  coverMedia.value ? mediaQuality(coverMedia.value, COVER_FRACTION, mediaByName.value) : null,
 );
 
 const dates = computed(() => {
@@ -43,6 +50,7 @@ function saveText(field: "title" | "subtitle", value: string) {
       v-if="coverMedia"
       :media="coverMedia"
       fit-cover
+      :quality="coverQuality"
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />
 

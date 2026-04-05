@@ -2,7 +2,7 @@
 export const PAGE_WIDTH_MM = 297;
 export const PAGE_HEIGHT_MM = 210;
 
-const MM_PER_INCH = 25.4;
+export const MM_PER_INCH = 25.4;
 
 /** mm → CSS px conversion factor (96 DPI). */
 export const MM_PX = 96 / MM_PER_INCH;

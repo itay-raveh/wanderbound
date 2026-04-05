@@ -4,7 +4,9 @@ import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { isPortrait as isPortraitMedia } from "@/utils/media";
+import { isPortraitByName } from "@/utils/media";
+import { enforceOrientationOrder, photoPageFraction, resolveLayoutClass } from "@/utils/photoLayout";
+import { mediaQuality } from "@/utils/photoQuality";
 
 const { mediaByName } = useAlbum();
 const printMode = usePrintMode();
@@ -16,29 +18,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:page": [page: string[]];
 }>();
-const isPortrait = (name: string) => {
-  const m = mediaByName.value.get(name);
-  return m ? isPortraitMedia(m) : false;
-};
-
-/**
- * Mixed layouts depend on orientation ordering:
- * - 1P+2L / 1P+3L: portrait must be first (spans all rows on the left).
- * - 2P+1L: landscape must be last (spans full bottom row).
- */
-function enforceOrientationOrder(page: string[]): string[] {
-  if (page.length !== 3 && page.length !== 4) return page;
-  const portraits = page.filter(isPortrait);
-  const landscapes = page.filter((m) => !isPortrait(m));
-  if (portraits.length === 1) return [portraits[0]!, ...landscapes];
-  if (portraits.length === 2 && page.length === 3) return [...portraits, landscapes[0]!];
-  return page;
-}
+const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
-const localPage = ref(enforceOrientationOrder([...props.page]));
+const localPage = ref(enforceOrientationOrder([...props.page], isPortrait));
 watch(() => props.page, (val) => {
-  const enforced = enforceOrientationOrder(val);
+  const enforced = enforceOrientationOrder(val, isPortrait);
   if (enforced.length === localPage.value.length &&
       enforced.every((v, i) => v === localPage.value[i])) return;
   localPage.value = [...enforced];
@@ -47,7 +32,7 @@ watch(() => props.page, (val) => {
 const containerRef = ref<HTMLElement | null>(null);
 
 function syncPage() {
-  localPage.value = enforceOrientationOrder(localPage.value);
+  localPage.value = enforceOrientationOrder(localPage.value, isPortrait);
   emit("update:page", [...localPage.value]);
 }
 
@@ -60,22 +45,23 @@ if (!printMode) {
   });
 }
 
-const layoutClass = computed(() => {
-  const page = localPage.value;
-  if (page.length >= 5) return `layout-${page.length}`;
-  const p = page.filter(isPortrait).length;
-  const l = page.length - p;
-  return `layout-${p}p-${l}l`;
-});
+const layoutClass = computed(() => resolveLayoutClass(localPage.value, isPortrait));
+
+const photoQualities = computed(() =>
+  localPage.value.map((name, i) =>
+    mediaQuality(name, photoPageFraction(layoutClass.value, i), mediaByName.value),
+  ),
+);
 </script>
 
 <template>
   <div class="page page-container">
     <div ref="containerRef" :class="['container', layoutClass]">
       <MediaItem
-        v-for="photo in localPage"
+        v-for="(photo, i) in localPage"
         :key="photo"
         :media="photo"
+        :quality="photoQualities[i]"
         class="item"
       />
     </div>

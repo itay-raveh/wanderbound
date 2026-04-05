@@ -1,9 +1,14 @@
 <script lang="ts" setup>
 import type { JustifiedLine } from "@/composables/useTextLayout";
+import { useAlbum } from "@/composables/useAlbum";
+import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";
 import EditableText from "../EditableText.vue";
 import MediaItem from "../MediaItem.vue";
+import { computed } from "vue";
 
-defineProps<{
+const { mediaByName } = useAlbum();
+
+const props = defineProps<{
   lines: JustifiedLine[];
   description: string;
   photo: string | null;
@@ -12,6 +17,10 @@ defineProps<{
 const emit = defineEmits<{
   "update:description": [description: string];
 }>();
+
+const photoQuality = computed(() =>
+  props.photo ? mediaQuality(props.photo, PHOTO_PANEL_FRACTION, mediaByName.value) : null,
+);
 </script>
 
 <template>
@@ -28,6 +37,7 @@ const emit = defineEmits<{
       v-if="photo"
       :media="photo"
       fit-cover
+      :quality="photoQuality"
       class="description-photo"
     />
     <div v-else class="topo-filler" />

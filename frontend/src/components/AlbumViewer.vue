@@ -12,7 +12,10 @@ import { useStepMutation } from "@/queries/useStepMutation";
 import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
-import { setSafeMargin, MM_PX } from "@/composables/useSafeMargin";
+import { PAGE_HEIGHT_MM, MM_PX } from "@/utils/pageSize";
+import { summarizeQuality } from "@/utils/photoQuality";
+import { setSafeMargin } from "@/composables/useSafeMargin";
+import { setQualitySummary } from "@/composables/usePhotoQuality";
 import { buildSections, visibleHeaderKeys, sectionKey, sectionPageCount, segmentsOverlapping, activeSectionId } from "./album/albumSections";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
@@ -90,7 +93,20 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1]!.datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-provideAlbum({ albumId, colors: albumColors, media: albumMedia, tripStart, totalDays });
+const { mediaByName } = provideAlbum({ albumId, colors: albumColors, media: albumMedia, tripStart, totalDays });
+
+if (!props.printMode) {
+  watchEffect(() => {
+    setQualitySummary(
+      summarizeQuality(
+        visibleSteps.value,
+        props.album.front_cover_photo,
+        props.album.back_cover_photo,
+        mediaByName.value,
+      ),
+    );
+  });
+}
 
 const sections = computed(() =>
   buildSections(visibleSteps.value, segments.value, props.album.maps_ranges ?? []),
@@ -109,7 +125,7 @@ const itemEls = ref<HTMLElement[]>([]);
 let measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
-const pageH = computed(() => Math.round(210 * MM_PX * editorZoom.value) + 12);
+const pageH = computed(() => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12);
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(computed(() => {
   const hc = headerCount.value;

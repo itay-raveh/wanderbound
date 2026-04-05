@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
@@ -6,7 +7,7 @@ import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
 import { computed, inject, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { matPlayArrow, matCheck, matChevronLeft, matChevronRight } from "@quasar/extras/material-icons";
+import { matPlayArrow, matCheck, matChevronLeft, matChevronRight, matWarning } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   cols?: 1 | 2;
   focusable?: boolean;
   alt?: string;
+  quality?: PhotoQuality | null;
 }>(), { focusable: true, alt: "" });
 
 const { albumId } = useAlbum();
@@ -162,6 +164,12 @@ function onVideoKey(e: KeyboardEvent) {
         decoding="async"
       >
     </template>
+    <div v-if="!printMode && quality && quality.tier !== 'ok'" :class="['quality-overlay', quality.tier]">
+      <div class="quality-badge flex flex-center">
+        <q-icon :name="matWarning" />
+        <q-tooltip>{{ t(quality.tier === 'warning' ? 'quality.warningTooltip' : 'quality.cautionTooltip', { dpi: quality.dpi }) }}</q-tooltip>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -302,9 +310,50 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
+// Quality warning overlay — editor-only tint + badge
+.quality-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+
+  &.caution {
+    background: color-mix(in srgb, var(--q-warning) 12%, transparent);
+  }
+
+  &.warning {
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+  }
+}
+
+.quality-badge {
+  --size: min(2rem, 30cqmin);
+  position: absolute;
+  bottom: var(--gap-sm);
+  right: var(--gap-sm);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  pointer-events: auto;
+
+  .caution & {
+    background: color-mix(in srgb, var(--q-warning) 80%, black);
+  }
+
+  .warning & {
+    background: color-mix(in srgb, var(--danger) 80%, black);
+  }
+
+  :deep(.q-icon) {
+    font-size: calc(var(--size) * 0.55);
+    color: white;
+  }
+}
+
 @media print {
   .play-overlay,
-  .frame-bar {
+  .frame-bar,
+  .quality-overlay {
     display: none !important;
   }
 }

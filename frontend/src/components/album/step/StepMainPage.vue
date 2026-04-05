@@ -1,10 +1,15 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
+import { useAlbum } from "@/composables/useAlbum";
+import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";
 import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
+import { computed } from "vue";
 
-defineProps<{
+const { mediaByName } = useAlbum();
+
+const props = defineProps<{
   step: Step;
   sidebarLines?: JustifiedLine[];
 }>();
@@ -13,6 +18,10 @@ const emit = defineEmits<{
   "update:name": [name: string];
   "update:description": [description: string];
 }>();
+
+const coverQuality = computed(() =>
+  props.step.cover ? mediaQuality(props.step.cover, PHOTO_PANEL_FRACTION, mediaByName.value) : null,
+);
 </script>
 
 <template>
@@ -31,6 +40,7 @@ const emit = defineEmits<{
         :media="step.cover"
         fit-cover
         :focusable="false"
+        :quality="coverQuality"
         class="cover-media"
       />
       <div v-else class="topo-filler" />
