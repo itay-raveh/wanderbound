@@ -5,39 +5,39 @@
 # ///
 
 import json
-import os
 import re
 import urllib.request
+from pathlib import Path
 
 import geopandas as gpd
 import shapely.affinity
 
 # 1. Download medium-resolution GeoJSON (50m) — clean silhouettes for print
 url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
-ne_filename = "ne_50m_admin_0_countries.geojson"
+ne_path = Path("ne_50m_admin_0_countries.geojson")
 
-if not os.path.exists(ne_filename):
-    print(f"Downloading {ne_filename} (this may take a moment)...")
-    urllib.request.urlretrieve(url, ne_filename)
+if not ne_path.exists():
+    print(f"Downloading {ne_path.name} (this may take a moment)...")
+    urllib.request.urlretrieve(url, str(ne_path))
 
 # 2. Load the data
 print("Loading GeoJSON data...")
-gdf = gpd.read_file(ne_filename)
+gdf = gpd.read_file(str(ne_path))
 
 # 3. CRITICAL: Reproject to Web Mercator (EPSG:3857)
 print("Reprojecting to Web Mercator...")
 gdf = gdf.to_crs(epsg=3857)
 
 # Create an output directory for the hundreds of SVG files
-output_dir = "frontend/public/countries"
-os.makedirs(output_dir, exist_ok=True)
+output_dir = Path("frontend/public/countries")
+output_dir.mkdir(parents=True, exist_ok=True)
 
-bounds_dir = "frontend/src/countries"
-os.makedirs(bounds_dir, exist_ok=True)
-json_filename = bounds_dir + "/bounds.json"
+bounds_dir = Path("frontend/src/countries")
+bounds_dir.mkdir(parents=True, exist_ok=True)
+json_path = bounds_dir / "bounds.json"
 bounds_dict = {}
 
-print(f"Generating individual SVGs in '/{output_dir}' and {json_filename}...")
+print(f"Generating individual SVGs in '/{output_dir}' and {json_path}...")
 
 
 def resolve_code(row: object) -> str | None:
@@ -133,8 +133,8 @@ for idx, row in gdf.iterrows():
     svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
 
     # Write the standalone SVG file with paths in a <g> (no <symbol> viewport issues)
-    svg_filepath = os.path.join(output_dir, f"{code}.svg")
-    with open(svg_filepath, "w", encoding="utf-8") as f:
+    svg_path = output_dir / f"{code}.svg"
+    with svg_path.open("w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{minx} {miny} {width} {height}">\n'
@@ -143,9 +143,8 @@ for idx, row in gdf.iterrows():
         f.write("</svg>\n")
 
 # 5. Export the master dictionary
-with open(json_filename, "w", encoding="utf-8") as jf:
-    json.dump(bounds_dict, jf, indent=2)
+json_path.write_text(json.dumps(bounds_dict, indent=2), encoding="utf-8")
 
-os.unlink(ne_filename)
+ne_path.unlink()
 
 print("Success! Your frontend assets are fully generated.")
