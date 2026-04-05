@@ -18,6 +18,16 @@ When the user says "maybe" or suggests an idea, that is brainstorming — not an
 
 Read @mise.toml for all available tasks. Always use `mise run <task>` to run them.
 
+## Scripts
+
+All scripts live in `scripts/`. Run via `mise run <task>`, never directly.
+- `mise run generate` regenerates all derived assets (countries, fonts, topo, og-image).
+- `mise run generate:landing` also exists but requires running backend + frontend + migrated DB.
+- `mise run generate` must be run before `docker compose build` on a fresh clone.
+- After changing `fonts.json`: run `mise run generate:fonts`.
+- After changing logo or tagline: run `mise run generate:og-image`.
+- After visual changes to album pages: run `mise run generate:landing`.
+
 ## Code Exploration Policy
 
 Use `cymbal` CLI for code navigation — prefer it over Read, Grep, Glob, or Bash for code exploration.
