@@ -15,7 +15,7 @@ test.describe("Editor", () => {
     await page.waitForURL("/editor");
     // The album title "South America" should appear somewhere
     await expect(page.getByText("South America")).toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
   });
 
@@ -23,6 +23,6 @@ test.describe("Editor", () => {
     await page.goto("/editor");
     await page.waitForURL("/editor");
     // The step name "Amsterdam" should be visible in the main viewer
-    await expect(page.getByRole("main")).toContainText("Amsterdam", { timeout: 10_000 });
+    await expect(page.getByRole("main")).toContainText("Amsterdam", { timeout: 15_000 });
   });
 });

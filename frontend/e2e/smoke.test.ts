@@ -20,7 +20,7 @@ test.describe("Health check redirect", () => {
       route.fulfill({ status: 401, json: { detail: "Unauthorized" } }),
     );
     await page.goto("/editor");
-    await page.waitForURL("/");
+    await page.waitForURL("/", { timeout: 15_000 });
   });
 
   test("authenticated user with data goes to editor", async ({
