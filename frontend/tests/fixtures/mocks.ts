@@ -69,6 +69,67 @@ export const mockSegmentOutlines = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Rich mock data for photo-focus E2E tests (3 steps, 2 countries)
+// ---------------------------------------------------------------------------
+
+function makePhoto(idx: number): string {
+  return `focus-photo-${idx}.jpg`;
+}
+
+const focusPhotos = Array.from({ length: 12 }, (_, i) => makePhoto(i + 1));
+
+export const mockFocusMedia = focusPhotos.map((name) => ({
+  name,
+  width: 1920,
+  height: 1080,
+}));
+
+export const mockFocusSteps = [
+  {
+    id: 101,
+    name: "Buenos Aires",
+    description: "Tango and steak.",
+    timestamp: 1704067200,
+    timezone_id: "America/Argentina/Buenos_Aires",
+    location: { name: "Buenos Aires", detail: "CABA", country_code: "ar", lat: -34.6, lon: -58.4 },
+    elevation: 25,
+    weather: { day: { temp: 28, feels_like: 30, icon: "clear-day" }, night: null },
+    cover: focusPhotos[0],
+    pages: [[focusPhotos[0], focusPhotos[1], focusPhotos[2], focusPhotos[3]]],
+    unused: [],
+    datetime: "2024-01-01T12:00:00-03:00",
+  },
+  {
+    id: 102,
+    name: "Ushuaia",
+    description: "End of the world.",
+    timestamp: 1704240000,
+    timezone_id: "America/Argentina/Ushuaia",
+    location: { name: "Ushuaia", detail: "Tierra del Fuego", country_code: "ar", lat: -54.8, lon: -68.3 },
+    elevation: 15,
+    weather: { day: { temp: 10, feels_like: 7, icon: "cloudy" }, night: null },
+    cover: focusPhotos[4],
+    pages: [[focusPhotos[4], focusPhotos[5], focusPhotos[6]], [focusPhotos[7]]],
+    unused: [],
+    datetime: "2024-01-03T10:00:00-03:00",
+  },
+  {
+    id: 103,
+    name: "Santiago",
+    description: "Wine country.",
+    timestamp: 1704500000,
+    timezone_id: "America/Santiago",
+    location: { name: "Santiago", detail: "RM", country_code: "cl", lat: -33.4, lon: -70.6 },
+    elevation: 520,
+    weather: { day: { temp: 32, feels_like: 34, icon: "clear-day" }, night: null },
+    cover: focusPhotos[8],
+    pages: [[focusPhotos[8], focusPhotos[9], focusPhotos[10], focusPhotos[11]]],
+    unused: [],
+    datetime: "2024-01-06T14:00:00-03:00",
+  },
+];
+
 /** 1x1 transparent JPEG as base64 for media route stubs. */
 export const TINY_JPEG_BASE64 =
   "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAFBABAAAAAAAAAAAAAAAAAAAACf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKgA/9k=";

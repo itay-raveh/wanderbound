@@ -5,9 +5,8 @@ export const PHOTO_SHORTCUTS = {
   setAsCover: "c",
 } as const;
 
-const mac = Platform.is.mac;
-
+/** Deferred so the module can be imported in non-browser environments (e.g. Playwright). */
 export const KEY_LABELS = {
-  undo: mac ? "\u2318Z" : "Ctrl+Z",
-  redo: mac ? "\u2318\u21e7Z" : "Ctrl+\u21e7Z",
-} as const;
+  get undo() { return Platform.is.mac ? "\u2318Z" : "Ctrl+Z"; },
+  get redo() { return Platform.is.mac ? "\u2318\u21e7Z" : "Ctrl+\u21e7Z"; },
+};
