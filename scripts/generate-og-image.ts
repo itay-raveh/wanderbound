@@ -11,7 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC = path.resolve(__dirname, "../public");
+const PUBLIC = path.resolve(__dirname, "../frontend/public");
 const LOGO_SVG = readFileSync(path.join(PUBLIC, "logo.svg"), "utf-8");
 const FONT_DIR = path.join(PUBLIC, "fonts");
 const OUTPUT = path.join(PUBLIC, "og-image.png");
