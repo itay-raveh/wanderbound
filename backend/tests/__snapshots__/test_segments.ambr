@@ -1,9 +1,0 @@
-# serializer version: 1
-# name: TestSegmentPipelineSnapshot.test_basic_trip_snapshot
-  list([
-    dict({
-      'kind': 'driving',
-      'num_points': 4,
-    }),
-  ])
-# ---

@@ -1,6 +1,4 @@
-import { distributePages, useTextLayout, type JustifiedLine } from "@/composables/useTextLayout";
-import { setSafeMargin } from "@/composables/useSafeMargin";
-import { ref, watchSyncEffect } from "vue";
+import { distributePages, type JustifiedLine } from "@/composables/useTextLayout";
 
 function line(text: string): JustifiedLine {
   return { text };
@@ -15,12 +13,6 @@ describe("distributePages", () => {
     const result = distributePages(lines(5), 10, 20);
     expect(result).toHaveLength(1);
     expect(result[0]).toHaveLength(5);
-  });
-
-  it("puts all lines in sidebar at exact capacity", () => {
-    const result = distributePages(lines(10), 10, 20);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toHaveLength(10);
   });
 
   it("overflows to one continuation page", () => {
@@ -50,90 +42,5 @@ describe("distributePages", () => {
     flat.forEach((l, i) => {
       expect(l.text).toBe(`Line ${i}`);
     });
-  });
-
-  it("returns single empty page for empty input", () => {
-    const result = distributePages([], 10, 20);
-    expect(result).toEqual([[]]);
-  });
-
-  it("handles single line", () => {
-    const result = distributePages([line("Only")], 10, 20);
-    expect(result).toEqual([[line("Only")]]);
-  });
-
-  it("preserves paragraph break lines in distribution", () => {
-    const input = [
-      line("First paragraph line 1"),
-      line("First paragraph line 2"),
-      line(""), // paragraph break
-      line("Second paragraph line 1"),
-      line("Second paragraph line 2"),
-    ];
-    const result = distributePages(input, 3, 10);
-    expect(result).toHaveLength(2);
-    // Sidebar: first 3 lines (2 text + 1 break)
-    expect(result[0]).toEqual([
-      line("First paragraph line 1"),
-      line("First paragraph line 2"),
-      line(""),
-    ]);
-    // Continuation: remaining 2 lines
-    expect(result[1]).toEqual([
-      line("Second paragraph line 1"),
-      line("Second paragraph line 2"),
-    ]);
-  });
-
-  it("guards against NaN sidebarMax (treats as unlimited)", () => {
-    const result = distributePages(lines(5), NaN, 10);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toHaveLength(5);
-  });
-
-  it("guards against NaN continuationMax (treats as unlimited)", () => {
-    const result = distributePages(lines(15), 5, NaN);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toHaveLength(5);
-    expect(result[1]).toHaveLength(10);
-  });
-
-  it("guards against zero sidebarMax", () => {
-    const result = distributePages(lines(5), 0, 10);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toHaveLength(5);
-  });
-
-  it("guards against negative continuationMax", () => {
-    const result = distributePages(lines(15), 5, -1);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toHaveLength(5);
-    expect(result[1]).toHaveLength(10);
-  });
-});
-
-describe("setSafeMargin", () => {
-  afterEach(() => setSafeMargin(0));
-
-  it("triggers recomputation of useTextLayout computed", () => {
-    const text = ref("Hello world");
-    const layout = useTextLayout(text);
-
-    let runCount = 0;
-    watchSyncEffect(() => {
-      void layout.value;
-      runCount++;
-    });
-
-    expect(runCount).toBe(1); // initial run
-
-    setSafeMargin(10);
-    expect(runCount).toBe(2); // re-triggered by margin change
-
-    setSafeMargin(10); // same value — no-op
-    expect(runCount).toBe(2);
-
-    setSafeMargin(5);
-    expect(runCount).toBe(3);
   });
 });

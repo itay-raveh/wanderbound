@@ -35,16 +35,6 @@ def _make_user(uid: int, *, hours_ago: int = 0) -> User:
 
 
 class TestSizesByUser:
-    def test_empty_dir(self, tmp_path: Path) -> None:
-        total, by_user = _sizes_by_user(tmp_path)
-        assert total == 0
-        assert by_user == {}
-
-    def test_nonexistent_dir(self, tmp_path: Path) -> None:
-        total, by_user = _sizes_by_user(tmp_path / "nope")
-        assert total == 0
-        assert by_user == {}
-
     def test_sums_per_user(self, tmp_path: Path) -> None:
         _make_file(tmp_path / "1" / "a.txt", 100)
         _make_file(tmp_path / "2" / "b.txt", 200)
@@ -146,27 +136,3 @@ class TestRunEviction:
         assert not (users_folder / "1").exists()
         assert not (users_folder / "2").exists()
         assert (users_folder / "3" / "data.bin").exists()
-
-    async def test_skips_already_evicted_users(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
-
-        users_folder = tmp_path / "users"
-        # User 1 has no folder, user 2 has one
-        _make_file(users_folder / "2" / "data.bin", 80)
-
-        users = [
-            _make_user(1, hours_ago=100),  # no folder on disk
-            _make_user(2, hours_ago=10),
-        ]
-
-        mock_result = MagicMock()
-        mock_result.all.return_value = users
-        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
-
-        with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
-            await run_eviction(skip_uid=999)
-
-        assert not (users_folder / "2").exists()

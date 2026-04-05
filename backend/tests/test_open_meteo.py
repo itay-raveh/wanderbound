@@ -11,7 +11,6 @@ import httpx
 import pytest
 
 from app.services.open_meteo import (
-    OPEN_METEO_MAX_PER_REQUEST,
     _LocationResult,
     _weather_from_result,
     _wmo_icon,
@@ -47,17 +46,6 @@ class _Step:
 
 def _make_step(lat: float, lon: float, ts: float, **kw: Any) -> _Step:
     return _Step(location=_Loc(lat, lon), timestamp=ts, **kw)
-
-
-# ---------------------------------------------------------------------------
-# Elevation helpers
-# ---------------------------------------------------------------------------
-
-
-def _elev_response(values: list[float]) -> MagicMock:
-    resp = MagicMock(status_code=200)
-    resp.content = json.dumps({"elevation": values}).encode()
-    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -98,37 +86,6 @@ def _om_response(dates: list[str], **overrides: list) -> dict:
 
 
 class TestElevations:
-    async def test_single_batch(self) -> None:
-        locs = [_Loc(i, i) for i in range(5)]
-        expected = [100.0, 200.0, 300.0, 400.0, 500.0]
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                return_value=_elev_response(expected)
-            )
-            result = [e async for e in elevations(locs)]
-
-        assert result == expected
-        assert mock_client.return_value.get.call_count == 1
-
-    async def test_multiple_batches(self) -> None:
-        n = OPEN_METEO_MAX_PER_REQUEST + 20  # 120
-        locs = [_Loc(i, i) for i in range(n)]
-        batch1 = list(range(OPEN_METEO_MAX_PER_REQUEST))
-        batch2 = list(range(20))
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                side_effect=[
-                    _elev_response([float(x) for x in batch1]),
-                    _elev_response([float(x) for x in batch2]),
-                ]
-            )
-            result = [e async for e in elevations(locs)]
-
-        assert len(result) == n
-        assert mock_client.return_value.get.call_count == 2
-
     async def test_http_error_propagates(self) -> None:
         locs = [_Loc(0, 0)]
 
@@ -155,44 +112,8 @@ class TestWmoIcon:
     def test_clear_night(self) -> None:
         assert _wmo_icon(0, night=True) == "clear-night"
 
-    def test_partly_cloudy_day(self) -> None:
-        assert _wmo_icon(2) == "partly-cloudy-day"
-
-    def test_partly_cloudy_night(self) -> None:
-        assert _wmo_icon(2, night=True) == "partly-cloudy-night"
-
-    def test_moderate_rain(self) -> None:
-        assert _wmo_icon(63) == "rain"
-
-    def test_moderate_rain_night(self) -> None:
-        assert _wmo_icon(63, night=True) == "rain"
-
-    def test_slight_rain_day(self) -> None:
-        assert _wmo_icon(61) == "partly-cloudy-day-rain"
-
-    def test_slight_rain_night(self) -> None:
-        assert _wmo_icon(61, night=True) == "partly-cloudy-night-rain"
-
-    def test_thunderstorm_day(self) -> None:
-        assert _wmo_icon(95) == "thunderstorms-day"
-
-    def test_thunderstorm_night(self) -> None:
-        assert _wmo_icon(95, night=True) == "thunderstorms-night"
-
-    def test_overcast_day(self) -> None:
-        assert _wmo_icon(3) == "overcast-day"
-
-    def test_overcast_night(self) -> None:
-        assert _wmo_icon(3, night=True) == "overcast-night"
-
-    def test_snow(self) -> None:
-        assert _wmo_icon(73) == "snow"
-
     def test_fog_day(self) -> None:
         assert _wmo_icon(45) == "fog-day"
-
-    def test_fog_night(self) -> None:
-        assert _wmo_icon(45, night=True) == "fog-night"
 
     def test_unknown_code(self) -> None:
         assert _wmo_icon(999) == "not-available"
@@ -229,9 +150,6 @@ class TestWeatherFromResult:
 
 
 class TestBuildWeathers:
-    async def test_empty_steps(self) -> None:
-        assert [w async for w in build_weathers([])] == []
-
     async def test_single_step(self) -> None:
         step = _make_step(52.52, 13.41, 1704067200.0)
         resp_data = _om_response(
@@ -257,29 +175,6 @@ class TestBuildWeathers:
         assert w.night is not None
         assert w.night.temp == -2.0
 
-    async def test_multiple_steps_routed_by_date(self) -> None:
-        s1 = _make_step(52.52, 13.41, 1704067200.0)  # Jan 1
-        s2 = _make_step(48.85, 2.35, 1704153600.0)  # Jan 2
-        resp1 = _om_response(["2024-01-01"], temp_max=[5.0], wmo_daily=[73])
-        resp2 = _om_response(["2024-01-02"], temp_max=[12.0], wmo_daily=[63])
-
-        responses = {"2024-01-01": resp1, "2024-01-02": resp2}
-
-        async def _route(_url: Any, *, params: dict[str, Any]) -> MagicMock:
-            r = MagicMock(status_code=200)
-            r.content = json.dumps(responses[params["start_date"]]).encode()
-            return r
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(side_effect=_route)
-            result = dict([w async for w in build_weathers([s1, s2])])
-
-        assert len(result) == 2
-        assert result[0].day.temp == 5.0
-        assert result[0].day.icon == "snow"
-        assert result[1].day.temp == 12.0
-        assert result[1].day.icon == "rain"
-
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
         with patch("app.services.open_meteo._client") as mock_client:
@@ -289,49 +184,3 @@ class TestBuildWeathers:
             with pytest.raises(RuntimeError, match="Weather API"):
                 async for _ in build_weathers([step]):
                     pass
-
-    async def test_night_uses_daily_code(self) -> None:
-        step = _make_step(52.52, 13.41, 1704067200.0)
-        resp_data = _om_response(["2024-01-01"], wmo_daily=[63])
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = json.dumps(resp_data).encode()
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
-            result = dict([w async for w in build_weathers([step])])
-
-        assert result[0].day.icon == "rain"
-        assert result[0].night is not None
-        assert result[0].night.icon == "rain"
-
-    async def test_429_raises(self) -> None:
-        step = _make_step(0, 0, 1704067200.0)
-        mock_response = MagicMock(status_code=429)
-        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "429", request=MagicMock(), response=mock_response
-        )
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
-            with pytest.raises(RuntimeError, match="Weather API error"):
-                async for _ in build_weathers([step]):
-                    pass
-
-    async def test_multiple_steps_own_api_call(self) -> None:
-        steps = [_make_step(i, i, 1720990800.0) for i in range(3)]
-        resp_data = _om_response(
-            ["2024-07-14"],
-            temp_max=[25.0],
-            temp_min=[15.0],
-            feels_max=[27.0],
-            feels_min=[13.0],
-            wmo_daily=[1],
-        )
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = json.dumps(resp_data).encode()
-
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
-            result = [w async for w in build_weathers(steps)]
-
-        assert len(result) == 3

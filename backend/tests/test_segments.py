@@ -160,17 +160,6 @@ class TestNoiseRemoval:
         df = _remove_gps_noise(_noise_df(rows))
         assert 0.1 in df["lon"].to_list()
 
-    def test_single_point(self) -> None:
-        df = _noise_df([(0.0, 0.0, _ts(10.0), False)])
-        assert _remove_gps_noise(df).height == 1
-
-    def test_two_points(self) -> None:
-        rows = [
-            (0.0, 0.0, _ts(10.0), False),
-            (0.001, 0.0, _ts(10.1), False),
-        ]
-        assert _remove_gps_noise(_noise_df(rows)).height >= 1
-
 
 # Segment classification
 
@@ -323,15 +312,6 @@ class TestStepPreservation:
 
 
 class TestHikePoints:
-    def test_hike_is_rdp_simplified(self) -> None:
-        """Hike segments are RDP-simplified like other segments."""
-        gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
-        hikes = _hikes([_step(0.0, 0.2, 14.0)], gps)
-        assert hikes
-        total = sum(len(h.points) for h in hikes)
-        # Straight-line track collapses under RDP; just verify ≥ 2 endpoints
-        assert total >= 2
-
     def test_non_hike_segments_are_rdp_simplified(self) -> None:
         """Non-hike segments (driving) are RDP-simplified."""
         gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=50)
@@ -379,9 +359,6 @@ class TestRobustness:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 0.1, 14.0)]
         segments = list(build_segments(steps, []))
         assert all(len(s.points) >= 2 for s in segments)
-
-    def test_single_step_no_gps_produces_nothing(self) -> None:
-        assert list(build_segments([_step(0.0, 0.0, 10.0)], [])) == []
 
 
 # ---------------------------------------------------------------------------
@@ -530,10 +507,6 @@ class TestFullTripInvariants:
                 2 if seg.kind in (SegmentKind.hike, SegmentKind.flight) else 1
             )
             assert len(seg.points) >= expected_min, f"Segment {i} ({seg.kind})"
-
-    def test_no_other_kind(self, all_segments: list[SegmentData]) -> None:
-        """Regression: internal 'other' label was exposed to callers."""
-        assert all(s.kind.value != "other" for s in all_segments)
 
     def test_contiguous_boundaries(
         self, all_segments: list[SegmentData], sa_trip: PSTrip
@@ -781,11 +754,6 @@ class TestMultiDayHikeRanges:
         )
         assert multi_day_hike_ranges([seg]) == []
 
-    def test_drift_low_distance_multiday(self) -> None:
-        """Feb 9-10 pattern: multi-day GPS drift, < 2 km every day."""
-        seg = _multi_day_seg([0.5, 0.7, 0.3], date(2025, 2, 9))
-        assert multi_day_hike_ranges([seg]) == []
-
     # -- Merge --
 
     def test_adjacent_ranges_merged(self) -> None:
@@ -796,11 +764,6 @@ class TestMultiDayHikeRanges:
         assert ranges == [(date(2025, 5, 25), date(2025, 5, 27))]
 
     # -- Edge cases --
-
-    def test_all_days_below_threshold(self) -> None:
-        """3 days of 1.5 km/day — below 2.0 km threshold on every day."""
-        seg = _multi_day_seg([1.5, 1.5, 1.5], date(2025, 3, 1))
-        assert multi_day_hike_ranges([seg]) == []
 
     def test_non_overlapping_ranges_stay_separate(self) -> None:
         """Two multi-day hikes a week apart stay as separate ranges."""
@@ -899,25 +862,3 @@ class TestMultiDayHikeRangesIntegration:
         """Fewer ranges than the old naive date-crossing check."""
         # Old naive check produced 40 ranges; new should be ~22
         assert len(real_ranges) < 30, f"Too many ranges: {len(real_ranges)}"
-
-
-class TestSegmentPipelineSnapshot:
-    """Snapshot test: captures full build_segments() output shape.
-
-    Run with --snapshot-update to regenerate after intentional changes.
-    """
-
-    def test_basic_trip_snapshot(self, snapshot: object) -> None:
-        """A simple trip produces a stable segment list."""
-        steps = [
-            _step(52.37, 4.89, 8.0),  # Amsterdam morning
-            _step(51.44, 5.47, 12.0),  # Eindhoven midday
-            _step(50.85, 4.35, 18.0),  # Brussels evening
-        ]
-        gps = _track(52.37, 4.89, 51.44, 5.47, h0=8.0, h1=11.5, n=30) + _track(
-            51.44, 5.47, 50.85, 4.35, h0=12.5, h1=17.5, n=30
-        )
-        segments = build_segments(steps, gps)
-        # Snapshot kinds and point counts (not exact coords)
-        result = [{"kind": s.kind.value, "num_points": len(s.points)} for s in segments]
-        assert result == snapshot

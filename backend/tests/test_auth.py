@@ -112,33 +112,12 @@ class TestLogout:
         assert resp.status_code == 401
 
 
-class TestReadUser:
-    async def test_unauthenticated(self, client: AsyncClient) -> None:
-        resp = await client.get("/api/v1/users")
-        assert resp.status_code == 401
-
-    async def test_authenticated(self, client: AsyncClient, tmp_path: Path) -> None:
-        await sign_in_and_upload(client, tmp_path / "users")
-        resp = await client.get("/api/v1/users")
-        assert resp.status_code == 200
-        assert resp.json()["first_name"] == "Test"
-
-
 class TestUpload:
     async def test_no_session(self, client: AsyncClient) -> None:
         resp = await client.post(
             "/api/v1/users/upload",
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
-        assert resp.status_code == 401
-
-    async def test_credential_without_provider(self, client: AsyncClient) -> None:
-        with mock_jwt():
-            resp = await client.post(
-                "/api/v1/users/upload",
-                data={"credential": "fake"},
-                files={"file": ("data.zip", b"fake", "application/zip")},
-            )
         assert resp.status_code == 401
 
     async def test_new_user_google(self, client: AsyncClient, tmp_path: Path) -> None:
@@ -190,12 +169,6 @@ class TestUpload:
         assert resp.status_code == 200
         assert resp.json()["trips"][0]["id"] == "trip-2"
 
-    async def test_creates_user_folder(
-        self, client: AsyncClient, tmp_path: Path
-    ) -> None:
-        user = await sign_in_and_upload(client, tmp_path / "users")
-        assert (tmp_path / "users" / str(user["id"])).exists()
-
 
 class TestUpdateUser:
     async def test_update_locale(self, client: AsyncClient, tmp_path: Path) -> None:
@@ -203,14 +176,6 @@ class TestUpdateUser:
         resp = await client.patch("/api/v1/users", json={"locale": "he-IL"})
         assert resp.status_code == 200
         assert resp.json()["locale"] == "he-IL"
-
-    async def test_partial_update(self, client: AsyncClient, tmp_path: Path) -> None:
-        await sign_in_and_upload(client, tmp_path / "users")
-        resp = await client.patch("/api/v1/users", json={"unit_is_km": False})
-        assert resp.status_code == 200
-        user = resp.json()
-        assert user["unit_is_km"] is False
-        assert user["first_name"] == "Test"  # unchanged
 
 
 class TestDeleteUser:

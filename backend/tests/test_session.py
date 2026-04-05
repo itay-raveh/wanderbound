@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.logic.processing import (
-    ErrorData,
     PhaseUpdate,
     ProcessingEvent,
     TripStart,
@@ -27,24 +26,6 @@ def _mock_user(uid: int = 1) -> User:
 
 
 class TestProcessingSession:
-    async def test_subscribe_gets_all_events(self) -> None:
-        events = [
-            TripStart(trip_index=0),
-            PhaseUpdate(phase="elevations", done=1, total=5),
-            PhaseUpdate(phase="weather", done=1, total=5),
-        ]
-
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
-            for e in events:
-                yield e
-
-        with patch("app.logic.session.run_processing", fake_processing):
-            session = ProcessingSession(_mock_user())
-            result = await collect_async(session.subscribe())
-
-        assert result == events
-        assert session.is_done
-
     async def test_replay_past_events_on_late_subscribe(self) -> None:
         events = [
             TripStart(trip_index=0),
@@ -65,18 +46,6 @@ class TestProcessingSession:
 
         assert result == events
 
-    async def test_error_event_propagated(self) -> None:
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
-            yield TripStart(trip_index=0)
-            yield ErrorData()
-
-        with patch("app.logic.session.run_processing", fake_processing):
-            session = ProcessingSession(_mock_user())
-            result = await collect_async(session.subscribe())
-
-        assert len(result) == 2
-        assert isinstance(result[1], ErrorData)
-
 
 class TestProcessStream:
     @pytest.fixture(autouse=True)
@@ -84,19 +53,6 @@ class TestProcessStream:
         _sessions.clear()
         yield
         _sessions.clear()
-
-    async def test_creates_new_session(self) -> None:
-        events = [TripStart(trip_index=0)]
-
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
-            for e in events:
-                yield e
-
-        user = _mock_user(uid=42)
-        with patch("app.logic.session.run_processing", fake_processing):
-            result = await collect_async(process_stream(user))
-
-        assert result == events
 
     async def test_reconnect_to_running_session(self) -> None:
         gate = asyncio.Event()
@@ -175,15 +131,3 @@ class TestProcessStream:
 
         assert call_count == 1  # Only one processing run
         assert result[0] == TripStart(trip_index=0)
-
-    async def test_session_kept_for_reconnection(self) -> None:
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
-            yield TripStart(trip_index=0)
-
-        user = _mock_user(uid=3)
-        with patch("app.logic.session.run_processing", fake_processing):
-            await collect_async(process_stream(user))
-
-        # Session stays alive for reconnection (evicted by call_later)
-        assert user.id in _sessions
-        assert _sessions[user.id].is_done

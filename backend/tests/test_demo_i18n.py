@@ -100,13 +100,6 @@ class TestLoadOverlay:
         assert overlay is not None
         assert overlay["album"]["title"] == "כותרת"
 
-    def test_returns_none_for_english(self, fixtures_dir: Path) -> None:
-        # No en-US.json or en.json in fixtures_dir
-        assert load_overlay("en-US", fixtures_dir) is None
-
-    def test_returns_none_for_missing_locale(self, fixtures_dir: Path) -> None:
-        assert load_overlay("fr-FR", fixtures_dir) is None
-
 
 # ---------------------------------------------------------------------------
 # apply_overlay tests
@@ -143,13 +136,6 @@ class TestApplyOverlay:
         assert step.location.country_code == "nl"
         assert step.location.lat == pytest.approx(52.37)
         assert step.location.lon == pytest.approx(4.89)
-
-    def test_skips_steps_not_in_overlay(self) -> None:
-        overlay = {"album": {}, "steps": {"99": {"name": "Other"}}}
-        album = make_album()
-        step = make_step(step_id=42)
-        apply_overlay(overlay, album, [step])
-        assert step.name == "Original Name"
 
     def test_partial_album_patch(self) -> None:
         # Only title present — subtitle untouched

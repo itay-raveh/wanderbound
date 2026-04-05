@@ -24,7 +24,7 @@ export const PHASE_ORDER: ProcessingPhase[] = [
   "layouts",
 ];
 
-export interface UseProcessingStream {
+interface UseProcessingStream {
   start(): void;
   abort(): void;
   state: Ref<StreamState>;

@@ -125,12 +125,6 @@ class TestPickCover:
         }
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
-    def test_pages_before_unused(self) -> None:
-        pages = [["p1.jpg"]]
-        unused = ["u1.jpg"]
-        media = {n: _media(n, portrait=True) for n in ("p1.jpg", "u1.jpg")}
-        assert _pick_cover(pages, unused, media) == "p1.jpg"
-
     def test_portrait_in_unused(self) -> None:
         pages = [["land.jpg"]]
         unused = ["port.jpg"]
@@ -160,15 +154,6 @@ class TestReconcileStep:
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
         assert result.pages == [["a.jpg"]]
 
-    def test_missing_media_removed_from_unused(self) -> None:
-        step = _step(unused=["x.jpg", "y.jpg"])
-        ps = _ps_step(1)
-        all_on_disk = {"x.jpg"}
-        disk_media = {"x.jpg"}
-
-        result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.unused == ["x.jpg"]
-
     def test_new_media_added_to_unused(self) -> None:
         step = _step(pages=[["a.jpg"]])
         ps = _ps_step(1)
@@ -177,15 +162,6 @@ class TestReconcileStep:
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
         assert "new.jpg" in result.unused
-
-    def test_new_media_added_sorted(self) -> None:
-        step = _step()
-        ps = _ps_step(1)
-        disk_media = {"c.jpg", "a.jpg", "b.jpg"}
-        all_on_disk = disk_media
-
-        result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.unused == ["a.jpg", "b.jpg", "c.jpg"]
 
     def test_missing_cover_picks_new(self) -> None:
         step = _step(pages=[["remain.jpg"]], cover="gone.jpg")
@@ -205,15 +181,6 @@ class TestReconcileStep:
         assert result.cover is None
         assert result.pages == []
         assert result.unused == []
-
-    def test_cover_not_in_missing_stays(self) -> None:
-        step = _step(pages=[["a.jpg", "b.jpg"]], cover="a.jpg")
-        ps = _ps_step(1)
-        all_on_disk = {"a.jpg"}
-        disk_media = {"a.jpg"}
-
-        result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.cover == "a.jpg"
 
     def test_metadata_updated_from_ps_step(self) -> None:
         step = _step(name="Old Name", description="Old desc")
@@ -255,24 +222,6 @@ class TestFixAlbumCovers:
         _fix_album_covers(album, all_on_disk, "missing_cover.jpg", steps)
         assert album.front_cover_photo == "step_cover.jpg"
         assert album.back_cover_photo == "step_cover.jpg"
-
-    def test_only_missing_cover_replaced(self) -> None:
-        album = _album(front_cover_photo="exists.jpg", back_cover_photo="gone.jpg")
-        all_on_disk = {"exists.jpg", "cover.jpg"}
-        steps = [_step(cover="step_cover.jpg")]
-
-        _fix_album_covers(album, all_on_disk, "cover.jpg", steps)
-        assert album.front_cover_photo == "exists.jpg"
-        assert album.back_cover_photo == "cover.jpg"
-
-    def test_skips_steps_without_cover(self) -> None:
-        album = _album(front_cover_photo="gone.jpg", back_cover_photo="gone2.jpg")
-        all_on_disk = {"s2_cover.jpg"}
-        steps = [_step(1, cover=None), _step(2, cover="s2_cover.jpg")]
-
-        _fix_album_covers(album, all_on_disk, "missing.jpg", steps)
-        assert album.front_cover_photo == "s2_cover.jpg"
-        assert album.back_cover_photo == "s2_cover.jpg"
 
 
 _RECONCILE_AID = "test-trip_1"

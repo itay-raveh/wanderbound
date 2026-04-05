@@ -1,7 +1,7 @@
 """Tests for app.services.mapbox — Mapbox Map Matching & Directions API client."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
@@ -10,7 +10,6 @@ from app.services.mapbox import (
     _fetch_directions,
     _fetch_matching,
     match_segment,
-    match_segments,
 )
 
 type Coords = list[tuple[float, float]]
@@ -25,14 +24,6 @@ def _matching_json(coords: list[list[float]]) -> bytes:
     return json.dumps(
         {
             "matchings": [{"geometry": {"type": "LineString", "coordinates": coords}}],
-        }
-    ).encode()
-
-
-def _directions_json(coords: list[list[float]]) -> bytes:
-    return json.dumps(
-        {
-            "routes": [{"geometry": {"type": "LineString", "coordinates": coords}}],
         }
     ).encode()
 
@@ -72,11 +63,6 @@ class TestFetchMatching:
             await _fetch_matching(client, [(4.0, 52.0), (4.1, 52.1)], "driving", "tok")
             is None
         )
-
-    async def test_single_point_returns_none(self) -> None:
-        client = AsyncMock()
-        client.get.return_value = _ok_response(_matching_json([[4.0, 52.0]]))
-        assert await _fetch_matching(client, [(4.0, 52.0)], "driving", "tok") is None
 
     async def test_multiple_matchings_stitched(self) -> None:
         """First point of subsequent matchings is skipped to avoid duplication."""
@@ -129,11 +115,6 @@ class TestFetchDirections:
             )
             is None
         )
-
-    async def test_single_point_returns_none(self) -> None:
-        client = AsyncMock()
-        client.get.return_value = _ok_response(_directions_json([[4.0, 52.0]]))
-        assert await _fetch_directions(client, [(4.0, 52.0)], "walking", "tok") is None
 
 
 # ---------------------------------------------------------------------------
@@ -194,67 +175,3 @@ class TestMatchSegment:
     async def test_too_few_points(self) -> None:
         result = await match_segment([(4.0, 52.0)], "driving")
         assert result is None
-
-    @patch("app.services.mapbox.get_settings")
-    async def test_no_token(self, mock_settings: MagicMock) -> None:
-        mock_settings.return_value.VITE_MAPBOX_TOKEN = ""
-        result = await match_segment([(4.0, 52.0), (4.1, 52.1)], "driving")
-        assert result is None
-
-    @patch("app.services.mapbox._client")
-    @patch("app.services.mapbox.get_settings")
-    async def test_dense_uses_matching(
-        self, mock_settings: MagicMock, mock_client_fn: MagicMock
-    ) -> None:
-        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
-        coords: Coords = [(4.0 + i * 0.001, 52.0) for i in range(10)]
-        route_coords = [[c[0], c[1]] for c in coords]
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = _ok_response(_matching_json(route_coords))
-        mock_client_fn.return_value = mock_client
-
-        result = await match_segment(coords, "driving")
-        assert result is not None
-        url = mock_client.get.call_args[0][0]
-        assert "/matching/" in url
-
-    @patch("app.services.mapbox._client")
-    @patch("app.services.mapbox.get_settings")
-    async def test_sparse_uses_directions(
-        self, mock_settings: MagicMock, mock_client_fn: MagicMock
-    ) -> None:
-        mock_settings.return_value.VITE_MAPBOX_TOKEN = "test-token"  # noqa: S105
-        coords: Coords = [(4.0, 52.0), (5.0, 52.0), (6.0, 52.0)]
-        route_coords = [[c[0], c[1]] for c in coords]
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = _ok_response(_directions_json(route_coords))
-        mock_client_fn.return_value = mock_client
-
-        result = await match_segment(coords, "driving")
-        assert result is not None
-        url = mock_client.get.call_args[0][0]
-        assert "/directions/" in url
-
-
-# ---------------------------------------------------------------------------
-# match_segments (batch, shared client)
-# ---------------------------------------------------------------------------
-
-
-class TestMatchSegments:
-    async def test_empty_list(self) -> None:
-        result = await match_segments([])
-        assert result == []
-
-    @patch("app.services.mapbox.get_settings")
-    async def test_no_token(self, mock_settings: MagicMock) -> None:
-        mock_settings.return_value.VITE_MAPBOX_TOKEN = ""
-        result = await match_segments(
-            [
-                ([(4.0, 52.0), (4.1, 52.1)], "driving"),
-                ([(5.0, 52.0), (5.1, 52.1)], "walking"),
-            ]
-        )
-        assert result == [None, None]

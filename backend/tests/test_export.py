@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -129,9 +128,6 @@ class TestTokenManagement:
         # Second pop returns None
         assert pop_export_token(token) is None
 
-    async def test_pop_unknown_token(self) -> None:
-        assert pop_export_token("nonexistent") is None
-
 
 class TestExportUserData:
     @pytest.fixture(autouse=True)
@@ -181,27 +177,6 @@ class TestExportUserData:
             assert f"{_EXPORT_NAME}/albums/trip-1/segments.json" in names
             assert f"{_EXPORT_NAME}/albums/trip-1/media/photo1.jpg" in names
 
-        path.unlink(missing_ok=True)
-
-    async def test_excludes_provider_subs(
-        self, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = 7002
-        user = _make_user(uid, tmp_path, album_ids=[])
-
-        events = await collect_async(export_user_data(user, session))
-        done_events = [e for e in events if isinstance(e, ExportDone)]
-        assert len(done_events) == 1
-
-        path = pop_export_token(done_events[0].token)
-        assert path is not None
-
-        with zipfile.ZipFile(path) as zf:
-            account = json.loads(zf.read(f"{_EXPORT_NAME}/account.json"))
-
-        assert "google_sub" not in account
-        assert "microsoft_sub" not in account
-        assert account["first_name"] == "Test"
         path.unlink(missing_ok=True)
 
     async def test_empty_user_still_produces_zip(

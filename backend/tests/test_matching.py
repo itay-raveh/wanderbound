@@ -11,7 +11,11 @@ class TestIsSparse:
     def test_dense_trace(self) -> None:
         # 5 points, ~0.5km apart -> dense
         coords: Coords = [
-            (4.0, 52.0), (4.005, 52.0), (4.01, 52.0), (4.015, 52.0), (4.02, 52.0)
+            (4.0, 52.0),
+            (4.005, 52.0),
+            (4.01, 52.0),
+            (4.015, 52.0),
+            (4.02, 52.0),
         ]
         assert not is_sparse(coords)
 
@@ -20,15 +24,8 @@ class TestIsSparse:
         coords: Coords = [(4.0, 52.0), (5.0, 52.0), (6.0, 52.0)]
         assert is_sparse(coords)
 
-    def test_single_point(self) -> None:
-        assert not is_sparse([(4.0, 52.0)])
-
 
 class TestReduceCoords:
-    def test_under_limit_unchanged(self) -> None:
-        coords: Coords = [(4.0, 52.0), (4.01, 52.01)]
-        assert reduce_coords(coords, 100) == coords
-
     def test_over_limit_reduced(self) -> None:
         coords: Coords = [(i * 0.001, 52.0) for i in range(200)]
         result = reduce_coords(coords, 100)

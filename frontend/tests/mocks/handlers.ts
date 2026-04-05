@@ -14,7 +14,6 @@ export const BASE = "http://localhost:8000/api/v1";
 export {
   mockUser as defaultUser,
   mockAlbum as defaultAlbum,
-  mockMedia as defaultMedia,
   mockSteps as defaultSteps,
 } from "../fixtures/mocks";
 

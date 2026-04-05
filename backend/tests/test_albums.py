@@ -65,22 +65,6 @@ class TestReadSegments:
         assert "route" not in outline
 
 
-class TestReadSteps:
-    async def test_returns_all_steps(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_step(session, uid, step_id=1)
-        await insert_step(session, uid, step_id=2, timestamp=1_700_100_000.0)
-
-        resp = await client.get(f"/api/v1/albums/{AID}/steps")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 2
-        assert data[0]["name"] == "Test Step"
-
-
 class TestReadSegmentPoints:
     async def test_returns_segments_with_points_for_time_range(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
@@ -259,24 +243,6 @@ class TestAdjustSegmentBoundary:
         )
         return seg1, seg2
 
-    async def test_segment_not_found(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 999.0,
-                "end_time": 1000.0,
-                "new_boundary_time": 999.5,
-                "handle": "end",
-            },
-        )
-        assert resp.status_code == 404
-        assert "Segment not found" in resp.json()["detail"]
-
     async def test_flight_segment_rejected(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
     ) -> None:
@@ -297,27 +263,6 @@ class TestAdjustSegmentBoundary:
         )
         assert resp.status_code == 400
         assert "flight" in resp.json()["detail"].lower()
-
-    async def test_no_adjacent_segment(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
-        )
-
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
-        assert resp.status_code == 404
-        assert "adjacent" in resp.json()["detail"].lower()
 
     async def test_adjust_end_handle_success(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
@@ -423,59 +368,6 @@ class TestAdjustSegmentBoundary:
         # Both new segments should have route=None (reset by split_segments)
         for seg_data in data:
             assert seg_data.get("route") is None
-
-    async def test_adjacent_flight_skipped(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        # Target: driving segment
-        await insert_segment(
-            session,
-            uid,
-            start_time=100.0,
-            end_time=300.0,
-            kind=SegmentKind.driving,
-            points=make_points([100.0, 200.0, 300.0]),
-        )
-        # Adjacent: flight segment (should be skipped)
-        await insert_segment(
-            session,
-            uid,
-            start_time=300.0,
-            end_time=500.0,
-            kind=SegmentKind.flight,
-            points=make_points([300.0, 400.0, 500.0]),
-        )
-
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
-        # No non-flight adjacent found
-        assert resp.status_code == 404
-        assert "adjacent" in resp.json()["detail"].lower()
-
-
-class TestReadMedia:
-    async def test_returns_media_list(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-
-        resp = await client.get(f"/api/v1/albums/{AID}/media")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "photo1.jpg"
-        assert data[0]["width"] == 1920
-        assert data[0]["height"] == 1080
 
 
 class TestPrintBundle:

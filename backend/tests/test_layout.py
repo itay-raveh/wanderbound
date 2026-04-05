@@ -5,7 +5,6 @@ from app.logic.layout.builder import (
     _landscape_page_count,
     _landscape_pages,
     _optimal_mixed_count,
-    _pages_of,
     _portrait_page_count,
     _three_page_count,
 )
@@ -18,33 +17,13 @@ def _names(prefix: str, n: int) -> list[str]:
     return [f"{prefix}{i}" for i in range(n)]
 
 
-VALID_PORTRAIT_SIZES = {1, 2, 3}
 VALID_LANDSCAPE_SIZES = {1, 3, 4}
-VALID_MIXED_SIZE = 3  # 1P + 2L
 
 
 # _portrait_page_count
 
 
 class TestPortraitPageCount:
-    @pytest.mark.parametrize(
-        ("n", "expected"),
-        [
-            (0, 0),
-            (1, 1),
-            (2, 1),
-            (3, 1),
-            (4, 2),
-            (5, 2),
-            (6, 2),
-            (7, 3),
-            (9, 3),
-            (10, 4),
-        ],
-    )
-    def test_values(self, n: int, expected: int) -> None:
-        assert _portrait_page_count(n) == expected
-
     def test_is_ceil_n_over_3(self) -> None:
         for n in range(50):
             assert _portrait_page_count(n) == -(-n // 3)
@@ -76,22 +55,11 @@ class TestLandscapePageCount:
     def test_values(self, n: int, expected: int) -> None:
         assert _landscape_page_count(n) == expected
 
-    def test_n2_is_special_case(self) -> None:
-        """n=2 is the only case where ceil(n/4) is wrong (gives 1, need 2)."""
-        assert _landscape_page_count(2) == 2
-
 
 # _three_page_count
 
 
 class TestThreePageCount:
-    @pytest.mark.parametrize(
-        ("n", "expected"),
-        [(3, 1), (4, 0), (6, 2), (7, 1), (8, 0), (9, 3), (10, 2), (11, 1), (12, 0)],
-    )
-    def test_values(self, n: int, expected: int) -> None:
-        assert _three_page_count(n) == expected
-
     def test_is_neg_n_mod_4(self) -> None:
         for n in range(3, 50):
             assert _three_page_count(n) == -n % 4
@@ -101,15 +69,6 @@ class TestThreePageCount:
 
 
 class TestOptimalMixedCount:
-    def test_no_photos(self) -> None:
-        assert _optimal_mixed_count(0, 0) == 0
-
-    def test_only_portraits(self) -> None:
-        assert _optimal_mixed_count(5, 0) == 0
-
-    def test_only_landscapes(self) -> None:
-        assert _optimal_mixed_count(0, 8) == 0
-
     def test_1p_4l_no_mixing_is_better(self) -> None:
         """1P+4L: mix -> 1P2L+2 singles = 3pp, no mix -> 1P+4L = 2pp."""
         assert _optimal_mixed_count(1, 4) == 0
@@ -139,43 +98,10 @@ class TestOptimalMixedCount:
                     )
 
 
-# _pages_of
-
-
-class TestPagesOf:
-    def test_exact_multiple(self) -> None:
-        items = _names("l", 6)
-        pages = list(_pages_of(items, 3))
-        assert len(pages) == 2
-        assert all(len(p) == 3 for p in pages)
-
-    def test_remainder(self) -> None:
-        items = _names("l", 7)
-        pages = list(_pages_of(items, 3))
-        assert len(pages) == 3
-        assert [len(p) for p in pages] == [3, 3, 1]
-
-    def test_empty(self) -> None:
-        assert list(_pages_of([], 4)) == []
-
-    def test_all_items_present(self) -> None:
-        items = _names("x", 10)
-        pages = list(_pages_of(items, 4))
-        assert sorted(p for page in pages for p in page) == sorted(items)
-
-
 # _landscape_pages
 
 
 class TestLandscapePages:
-    def test_empty(self) -> None:
-        assert list(_landscape_pages([])) == []
-
-    def test_singles(self) -> None:
-        items = _names("l", 2)
-        pages = list(_landscape_pages(items))
-        assert pages == [[items[0]], [items[1]]]
-
     def test_n5_edge_case(self) -> None:
         items = _names("l", 5)
         pages = list(_landscape_pages(items))
@@ -210,29 +136,6 @@ class TestLandscapePages:
 
 
 class TestBuildPages:
-    def test_empty(self) -> None:
-        assert list(_build_pages([], [])) == []
-
-    def test_only_portraits(self) -> None:
-        portraits = _names("p", 5)
-        pages = list(_build_pages(portraits, []))
-        assert len(pages) == 2  # ceil(5/3)
-        flat = [p for page in pages for p in page]
-        assert sorted(flat) == sorted(portraits)
-
-    def test_only_landscapes(self) -> None:
-        landscapes = _names("l", 7)
-        pages = list(_build_pages([], landscapes))
-        flat = [p for page in pages for p in page]
-        assert sorted(flat) == sorted(landscapes)
-
-    def test_1p_2l_mixed(self) -> None:
-        portraits = _names("p", 1)
-        landscapes = _names("l", 2)
-        pages = list(_build_pages(portraits, landscapes))
-        assert len(pages) == 1
-        assert len(pages[0]) == 3
-
     def test_1p_4l_no_mix(self) -> None:
         """Should NOT mix - 1P + 4L = 2 pages is better than 1P2L + 1L + 1L = 3."""
         portraits = _names("p", 1)

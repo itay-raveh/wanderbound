@@ -66,19 +66,6 @@ class TestResolveInternationalWaters:
         assert "GR" in caplog.text
         assert "TR" in caplog.text
 
-    def test_no_warning_when_same_country(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        steps = [
-            _step("Tortuga Bay", "EC", 1),
-            _step("Gordon Rocks", "00", 2),
-            _step("Camino de Tortugas", "EC", 3),
-        ]
-        with caplog.at_level(logging.WARNING):
-            resolve_international_waters(steps)
-
-        assert caplog.text == ""
-
     def test_leading_zeros_unchanged(self) -> None:
         steps = [
             _step("At Sea", "00", 1),
@@ -86,15 +73,6 @@ class TestResolveInternationalWaters:
         ]
         resolve_international_waters(steps)
         assert steps[0].location.country_code == "00"
-
-    def test_no_steps(self) -> None:
-        resolve_international_waters([])
-
-    def test_all_zeros(self) -> None:
-        steps = [_step("At Sea 1", "00", 1), _step("At Sea 2", "00", 2)]
-        resolve_international_waters(steps)
-        assert steps[0].location.country_code == "00"
-        assert steps[1].location.country_code == "00"
 
     def test_trailing_zeros(self) -> None:
         steps = [

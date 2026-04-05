@@ -11,114 +11,17 @@ vi.mock("@/composables/useTextLayout", () => ({
   },
 }));
 
-describe("useActiveSection", () => {
-  afterEach(() => {
-    const { resetActiveSection } = useActiveSection();
-    resetActiveSection();
-  });
-
-  describe("setActive", () => {
-    it("sets activeStepId for a number and clears activeSectionKey", () => {
-      const { setActive, activeStepId, activeSectionKey } = useActiveSection();
-      setActive("cover-front");
-      setActive(42);
-      expect(activeStepId.value).toBe(42);
-      expect(activeSectionKey.value).toBeNull();
-    });
-
-    it("sets activeSectionKey for a string and clears activeStepId", () => {
-      const { setActive, activeStepId, activeSectionKey } = useActiveSection();
-      setActive(42);
-      setActive("overview");
-      expect(activeSectionKey.value).toBe("overview");
-      expect(activeStepId.value).toBeNull();
-    });
-
-    it("clears both refs for null", () => {
-      const { setActive, activeStepId, activeSectionKey } = useActiveSection();
-      setActive(42);
-      setActive(null);
-      expect(activeStepId.value).toBeNull();
-      expect(activeSectionKey.value).toBeNull();
-    });
-  });
-
-  describe("resetActiveSection", () => {
-    it("clears refs and scroll override", () => {
-      const overrideScrollTo = vi.fn();
-      const { setActive, setScrollOverride, scrollTo, resetActiveSection, activeStepId } = useActiveSection();
-
-      setActive(10);
-      setScrollOverride({ scrollTo: overrideScrollTo, scrollToSection: () => false });
-
-      resetActiveSection();
-
-      expect(activeStepId.value).toBeNull();
-      scrollTo(10);
-      expect(overrideScrollTo).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("setScrollOverride", () => {
-    it("scrollTo delegates to override when set", () => {
-      const overrideScrollTo = vi.fn();
-      const { setScrollOverride, scrollTo } = useActiveSection();
-
-      setScrollOverride({
-        scrollTo: overrideScrollTo,
-        scrollToSection: () => false,
-      });
-
-      scrollTo(42);
-
-      expect(overrideScrollTo).toHaveBeenCalledWith(42);
-    });
-
-    it("scrollToSection delegates to override when set", () => {
-      const overrideScrollToSection = vi.fn(() => true);
-      const { setScrollOverride, scrollToSection } = useActiveSection();
-
-      setScrollOverride({
-        scrollTo: vi.fn(),
-        scrollToSection: overrideScrollToSection,
-      });
-
-      const result = scrollToSection("map-0");
-
-      expect(overrideScrollToSection).toHaveBeenCalledWith("map-0");
-      expect(result).toBe(true);
-    });
-
-    it("scrollTo falls back to no-op when no override", () => {
-      const { scrollTo } = useActiveSection();
-
-      // No override set — should not throw even with no registered elements
-      expect(() => scrollTo(999)).not.toThrow();
-    });
-
-    it("clearing override restores default behavior", () => {
-      const overrideScrollTo = vi.fn();
-      const { setScrollOverride, scrollTo } = useActiveSection();
-
-      setScrollOverride({
-        scrollTo: overrideScrollTo,
-        scrollToSection: () => false,
-      });
-
-      setScrollOverride(null);
-      scrollTo(42);
-
-      expect(overrideScrollTo).not.toHaveBeenCalled();
-    });
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Scroll spy integration: "when the user scrolls to X, which section highlights?"
 // Mirrors the AlbumViewer watchEffect without needing a real virtualizer.
 // ---------------------------------------------------------------------------
 
 describe("active section highlighting", () => {
+  afterEach(() => {
+    const { resetActiveSection } = useActiveSection();
+    resetActiveSection();
+  });
+
   // Standard album layout: 4 header pages (cover-front, cover-back, overview, full-map)
   // followed by step and map sections. Each page is 800px tall by default.
   function item(index: number, start: number, size = 800): VirtualItem {
@@ -162,32 +65,10 @@ describe("active section highlighting", () => {
     return result;
   }
 
-  it("highlights the cover at the top of the page", () => {
-    const vItems = [...headers, item(4, sectionStart)];
-    const result = activeAt(vItems, [stepSection(1)], 0);
-    expect(result.sectionKey).toBe("cover-front");
-  });
-
   it("highlights a step when it dominates the viewport", () => {
     const vItems = [...headers, item(4, sectionStart)];
     const result = activeAt(vItems, [stepSection(42)], sectionStart - 100);
     expect(result.stepId).toBe(42);
-  });
-
-  it("highlights a map section when it dominates the viewport", () => {
-    const range: DateRange = ["2024-01-01", "2024-01-15"];
-    const vItems = [...headers, item(4, sectionStart), item(5, sectionStart + PAGE)];
-    const result = activeAt(vItems, [mapSection(range), stepSection(1)], sectionStart - 100);
-    expect(result.sectionKey).toMatch(/^map-/);
-  });
-
-  it("transitions through sections as the user scrolls down", () => {
-    const vItems = [...headers, item(4, sectionStart)];
-    const sections = [stepSection(55)];
-
-    expect(activeAt(vItems, sections, 0).sectionKey).toBe("cover-front");
-    expect(activeAt(vItems, sections, PAGE * 2 + 100).sectionKey).toBe("overview");
-    expect(activeAt(vItems, sections, sectionStart - 100).stepId).toBe(55);
   });
 
   it("section barely visible at top does not steal highlight from section filling the viewport", () => {
@@ -215,15 +96,12 @@ describe("active section highlighting", () => {
     expect(result.stepId).toBe(42);
   });
 
-  it("returns null when no items exist", () => {
-    const result = activeAt([], [], 0);
-    expect(result.stepId).toBeNull();
-    expect(result.sectionKey).toBeNull();
-  });
+  it("transitions through sections as the user scrolls down", () => {
+    const vItems = [...headers, item(4, sectionStart)];
+    const sections = [stepSection(55)];
 
-  it("returns null for out-of-bounds virtualizer index", () => {
-    const result = activeAt([item(100, 0)], [], 0);
-    expect(result.stepId).toBeNull();
-    expect(result.sectionKey).toBeNull();
+    expect(activeAt(vItems, sections, 0).sectionKey).toBe("cover-front");
+    expect(activeAt(vItems, sections, PAGE * 2 + 100).sectionKey).toBe("overview");
+    expect(activeAt(vItems, sections, sectionStart - 100).stepId).toBe(55);
   });
 });

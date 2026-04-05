@@ -86,7 +86,6 @@ runs only tests matching `test_auth`.
 
 ## Roadmap
 
-- [ ] Fix photo focus - again.
 - [ ] Consolidate scripts strategy.
 - [ ] Create deployment strategy.
 - [ ] Research google photos feature.

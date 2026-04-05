@@ -1,7 +1,7 @@
 import type { AlbumUpdate, StepUpdate } from "@/client";
 import { ref } from "vue";
 
-export type UndoEntry =
+type UndoEntry =
   | { type: "step"; sid: number; before: StepUpdate; after: StepUpdate }
   | { type: "album"; before: AlbumUpdate; after: AlbumUpdate };
 

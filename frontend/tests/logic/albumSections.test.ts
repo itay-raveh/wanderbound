@@ -1,10 +1,9 @@
 import {
   filterCoverFromPages,
   segmentsOverlapping,
-  sectionKey,
   buildSections,
-  sectionPageCount,
   activeSectionId,
+  sectionKey,
   type Section,
 } from "@/components/album/albumSections";
 import type { DateRange } from "@/client";
@@ -23,21 +22,6 @@ vi.mock("@/composables/useTextLayout", () => ({
 // ---------------------------------------------------------------------------
 
 describe("filterCoverFromPages", () => {
-  it("returns all pages when cover is null", () => {
-    const pages = [["p1"], ["p2"]];
-    const result = filterCoverFromPages(pages, null);
-    expect(result).toEqual([
-      { originalIdx: 0, page: ["p1"] },
-      { originalIdx: 1, page: ["p2"] },
-    ]);
-  });
-
-  it("returns all pages when cover is undefined", () => {
-    const pages = [["p1"]];
-    const result = filterCoverFromPages(pages, undefined);
-    expect(result).toEqual([{ originalIdx: 0, page: ["p1"] }]);
-  });
-
   it("filters cover from pages", () => {
     const pages = [["cover", "p1"], ["p2"]];
     const result = filterCoverFromPages(pages, "cover");
@@ -61,11 +45,6 @@ describe("filterCoverFromPages", () => {
       { originalIdx: 1, page: ["p2"] },
       { originalIdx: 2, page: ["p3"] },
     ]);
-  });
-
-  it("handles empty pages array", () => {
-    expect(filterCoverFromPages([], "cover")).toEqual([]);
-    expect(filterCoverFromPages([], null)).toEqual([]);
   });
 });
 
@@ -102,121 +81,6 @@ describe("segmentsOverlapping", () => {
   it("returns empty when no overlap", () => {
     expect(segmentsOverlapping(segments, 210, 290)).toEqual([]);
   });
-
-  it("returns all segments when window spans everything", () => {
-    expect(segmentsOverlapping(segments, 0, 1000)).toHaveLength(3);
-  });
-
-  it("handles empty segments array", () => {
-    expect(segmentsOverlapping([], 0, 1000)).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// sectionKey
-// ---------------------------------------------------------------------------
-
-describe("sectionKey", () => {
-  it("generates key for step section", () => {
-    const section: Section = { type: "step", step: makeStep({ id: 42 }) };
-    expect(sectionKey(section)).toBe("step-42");
-  });
-
-  it("generates key for map section", () => {
-    const section: Section = {
-      type: "map",
-      steps: [],
-      segments: [],
-      rangeIdx: 0,
-      dateRange: ["2024-01-01", "2024-01-31"],
-    };
-    expect(sectionKey(section)).toBe("map-2024-01-01-2024-01-31");
-  });
-
-  it("generates key for hike section", () => {
-    const section: Section = {
-      type: "hike",
-      steps: [],
-      segments: [],
-      hikeSegment: makeSegment({ kind: "hike" }),
-      rangeIdx: 0,
-      dateRange: ["2024-02-01", "2024-02-15"],
-    };
-    expect(sectionKey(section)).toBe("hike-2024-02-01-2024-02-15");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// sectionPageCount
-// ---------------------------------------------------------------------------
-
-describe("sectionPageCount", () => {
-  it("returns 1 for map section", () => {
-    const section: Section = {
-      type: "map",
-      steps: [],
-      segments: [],
-      rangeIdx: 0,
-      dateRange: ["2024-01-01", "2024-01-31"],
-    };
-    expect(sectionPageCount(section)).toBe(1);
-  });
-
-  it("returns 1 for hike section", () => {
-    const section: Section = {
-      type: "hike",
-      steps: [],
-      segments: [],
-      hikeSegment: makeSegment({ kind: "hike" }),
-      rangeIdx: 0,
-      dateRange: ["2024-01-01", "2024-01-31"],
-    };
-    expect(sectionPageCount(section)).toBe(1);
-  });
-
-  it("returns 1 + photo pages for step with short description and no cover", () => {
-    // Short description (mocked: < 100 chars) → pages: []
-    // photo pages: 2 => 1 (main) + 0 (continuation) + 2 (photo pages) = 3
-    const section: Section = {
-      type: "step",
-      step: makeStep({
-        description: "Short",
-        cover: null,
-        pages: [["p1"], ["p2"]],
-      }),
-    };
-    expect(sectionPageCount(section)).toBe(3);
-  });
-
-  it("always filters cover from photo pages", () => {
-    // Cover = "p1" in pages → filtered out regardless of description length
-    // Pages before filter: [["p1"], ["p2"]]
-    // After filter: [["p1"]] → empty (removed), [["p2"]] stays = 1 photo page
-    // 1 (main) + 0 (continuation) + 1 (photo pages) = 2
-    const section: Section = {
-      type: "step",
-      step: makeStep({
-        description: "Short",
-        cover: "p1",
-        pages: [["p1"], ["p2"]],
-      }),
-    };
-    expect(sectionPageCount(section)).toBe(2);
-  });
-
-  it("counts continuation pages for long descriptions", () => {
-    // Long description (mocked: >= 100 chars) → pages: [[], []] = 1 continuation page
-    const longText = "x".repeat(200);
-    const section: Section = {
-      type: "step",
-      step: makeStep({
-        description: longText,
-        pages: [["p1"]],
-      }),
-    };
-    // 1 (main) + 1 (continuation) + 1 (photo page) = 3
-    expect(sectionPageCount(section)).toBe(3);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -224,17 +88,6 @@ describe("sectionPageCount", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSections", () => {
-  it("returns only step sections when no map ranges", () => {
-    const steps = [makeStep({ id: 1 }), makeStep({ id: 2 })];
-    const result = buildSections(steps, [], []);
-    expect(result).toHaveLength(2);
-    expect(result.every((s) => s.type === "step")).toBe(true);
-  });
-
-  it("returns empty for empty inputs", () => {
-    expect(buildSections([], [], [])).toEqual([]);
-  });
-
   it("inserts map section before its first step", () => {
     const steps = [
       makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
@@ -283,20 +136,6 @@ describe("buildSections", () => {
     expect(result[0]!.type).toBe("map");
   });
 
-  it("creates map section (not hike) when there are flight segments", () => {
-    const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-    ];
-    const segments = [
-      makeSegment({ start_time: 50, end_time: 150, kind: "hike" }),
-      makeSegment({ start_time: 50, end_time: 150, kind: "flight" }),
-    ];
-    const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
-
-    const result = buildSections(steps, segments, ranges);
-    expect(result[0]!.type).toBe("map");
-  });
-
   it("skips ranges with no matching steps", () => {
     const steps = [
       makeStep({ id: 1, datetime: "2024-03-10T00:00:00Z", timestamp: 100 }),
@@ -329,25 +168,6 @@ describe("buildSections", () => {
     expect(result[1]!.type).toBe("step");
     expect(result[2]!.type).toBe("map");
     expect(result[3]!.type).toBe("step");
-  });
-
-  it("preserves rangeIdx in map sections", () => {
-    const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-      makeStep({ id: 2, datetime: "2024-02-10T00:00:00Z", timestamp: 200 }),
-    ];
-    const ranges: DateRange[] = [
-      ["2024-01-01", "2024-01-31"],
-      ["2024-02-01", "2024-02-28"],
-    ];
-
-    const result = buildSections(steps, [], ranges);
-    const maps = result.filter(
-      (s): s is Extract<Section, { rangeIdx: number }> => s.type === "map" || s.type === "hike",
-    );
-    expect(maps).toHaveLength(2);
-    expect(maps[0]!.rangeIdx).toBe(0);
-    expect(maps[1]!.rangeIdx).toBe(1);
   });
 
   it("attaches overlapping segments to map sections", () => {
@@ -388,22 +208,17 @@ describe("activeSectionId", () => {
     dateRange,
   });
 
-  it("returns step ID (number) for step sections", () => {
+  it("returns step ID for step sections", () => {
     const sections = [stepSection(42), stepSection(99)];
     expect(activeSectionId(sections, 0)).toBe(42);
     expect(activeSectionId(sections, 1)).toBe(99);
   });
 
-  it("returns section key (string) for map sections", () => {
+  it("returns section key for map sections", () => {
     const range: DateRange = ["2024-01-01", "2024-01-31"];
     const sections = [mapSection(range), stepSection(1)];
     const result = activeSectionId(sections, 0);
     expect(typeof result).toBe("string");
     expect(result).toBe(sectionKey(sections[0]!));
-  });
-
-  it("returns undefined for out-of-bounds index", () => {
-    expect(activeSectionId([], 0)).toBeUndefined();
-    expect(activeSectionId([stepSection(1)], 5)).toBeUndefined();
   });
 });

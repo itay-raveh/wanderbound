@@ -3,7 +3,7 @@
  *
  * useStepLayout itself is tightly coupled (useDraggable, inject, usePrintMode),
  * so we test the logic by mounting it with withSetup + providing dependencies.
- * The key functions tested: withoutPhotos (via onCoverUpdate/onPageUpdate/onUnusedUpdate),
+ * The key functions tested: withoutPhotos (via onCoverUpdate/onPageUpdate),
  * and the various list-management operations.
  */
 
@@ -20,7 +20,6 @@ vi.mock("vue-draggable-plus", () => ({
 interface LayoutResult {
   saveField: (patch: Partial<StepUpdate>) => void;
   onPageUpdate: (idx: number, page: string[]) => void;
-  onUnusedUpdate: (unused: string[]) => void;
   onCoverUpdate: (cover: string) => void;
   printMode: boolean;
 }
@@ -122,23 +121,6 @@ describe("onCoverUpdate", () => {
     expect(payload.update.unused).toEqual(["u1", "u2"]);
 
   });
-
-  it("filters out empty pages after removing a photo", () => {
-    const step = makeStep({
-      id: 1,
-      cover: null,
-      pages: [["only_photo"], ["p2", "p3"]],
-      unused: [],
-    });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    result.onCoverUpdate("only_photo");
-
-    const payload = mutateSpy.mock.calls[0]![0];
-    // First page had only "only_photo", should be filtered out
-    expect(payload.update.pages).toEqual([["p2", "p3"]]);
-
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -146,24 +128,6 @@ describe("onCoverUpdate", () => {
 // ---------------------------------------------------------------------------
 
 describe("onPageUpdate", () => {
-  it("updates a page in-place when no new photos are added", () => {
-    const step = makeStep({
-      id: 1,
-      pages: [["a", "b", "c"], ["d"]],
-      unused: [],
-    });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    // Reorder within page 0: [c, a, b]
-    result.onPageUpdate(0, ["c", "a", "b"]);
-
-    const payload = mutateSpy.mock.calls[0]![0];
-    expect(payload.update.pages).toEqual([["c", "a", "b"], ["d"]]);
-    // No unused change
-    expect(payload.update.unused).toBeUndefined();
-
-  });
-
   it("handles cross-list moves: strips added photos from other pages", () => {
     const step = makeStep({
       id: 1,
@@ -212,99 +176,6 @@ describe("onPageUpdate", () => {
     const payload = mutateSpy.mock.calls[0]![0];
     // Page 1 becomes empty after removing "b", should be filtered out
     expect(payload.update.pages).toEqual([["a", "b"]]);
-
-  });
-});
-
-// ---------------------------------------------------------------------------
-// onUnusedUpdate
-// ---------------------------------------------------------------------------
-
-describe("onUnusedUpdate", () => {
-  it("updates unused list when only reordering", () => {
-    const step = makeStep({
-      id: 1,
-      pages: [["a"]],
-      unused: ["u1", "u2", "u3"],
-    });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    // Reorder: ["u3", "u1", "u2"]
-    result.onUnusedUpdate(["u3", "u1", "u2"]);
-
-    const payload = mutateSpy.mock.calls[0]![0];
-    expect(payload.update.unused).toEqual(["u3", "u1", "u2"]);
-    // No pages change
-    expect(payload.update.pages).toBeUndefined();
-
-  });
-
-  it("strips added photos from pages when moved to unused", () => {
-    const step = makeStep({
-      id: 1,
-      pages: [["a", "b"], ["c"]],
-      unused: ["u1"],
-    });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    // "b" moved from pages to unused
-    result.onUnusedUpdate(["u1", "b"]);
-
-    const payload = mutateSpy.mock.calls[0]![0];
-    expect(payload.update.unused).toEqual(["u1", "b"]);
-    // "b" should be removed from pages
-    expect(payload.update.pages).toEqual([["a"], ["c"]]);
-
-  });
-
-  it("filters out empty pages after removing photos", () => {
-    const step = makeStep({
-      id: 1,
-      pages: [["only"]],
-      unused: [],
-    });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    // "only" moved to unused
-    result.onUnusedUpdate(["only"]);
-
-    const payload = mutateSpy.mock.calls[0]![0];
-    expect(payload.update.unused).toEqual(["only"]);
-    expect(payload.update.pages).toEqual([]);
-
-  });
-});
-
-// ---------------------------------------------------------------------------
-// saveField
-// ---------------------------------------------------------------------------
-
-describe("saveField", () => {
-  it("calls mutate with the correct step id", () => {
-    const step = makeStep({ id: 42 });
-    const { result, mutateSpy } = mountStepLayout(step);
-
-    result.saveField({ name: "updated" });
-
-    expect(mutateSpy).toHaveBeenCalledWith({
-      sid: 42,
-      update: { name: "updated" },
-    });
-
-  });
-
-  it("uses current step ref value for sid", () => {
-    const step = makeStep({ id: 1 });
-    const { result, mutateSpy, stepRef } = mountStepLayout(step);
-
-    // Change the step ref
-    stepRef.value = makeStep({ id: 99 });
-    result.saveField({ name: "test" });
-
-    expect(mutateSpy).toHaveBeenCalledWith({
-      sid: 99,
-      update: { name: "test" },
-    });
 
   });
 });

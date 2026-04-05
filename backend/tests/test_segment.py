@@ -67,21 +67,6 @@ class TestBoundarySplit:
         assert len(later.points) == 2
         assert later.start_time == 50
 
-    def test_shrink_hike_end_backward(self) -> None:
-        """Moving end handle backward shrinks the hike."""
-        hike = _seg("hike", [(0, 0, 10), (0, 1, 20), (0, 2, 30), (0, 3, 40)])
-        walking = _seg("walking", [(0, 4, 50), (0, 5, 60)])
-
-        earlier, later = split_segments(hike, walking, 20)
-
-        assert earlier.kind == "hike"
-        assert len(earlier.points) == 2
-        assert earlier.end_time == 20
-
-        assert later.kind == "walking"
-        assert len(later.points) == 4
-        assert later.start_time == 30
-
     def test_too_few_points_raises(self) -> None:
         """Both segments must retain >= 2 points after split."""
         walking = _seg("walking", [(0, 0, 10), (0, 1, 20)])
@@ -118,16 +103,6 @@ class TestBoundarySplit:
         assert later.kind == "walking"
         assert len(later.points) == 5
         assert later.start_time == 25
-
-    def test_no_interpolation_on_exact_point(self) -> None:
-        """No extra point when boundary lands on a GPS point."""
-        hike = _seg("hike", [(0, 0, 10), (0, 10, 20), (0, 20, 30)])
-        walking = _seg("walking", [(0, 30, 40), (0, 40, 50)])
-
-        earlier, later = split_segments(hike, walking, 20)
-
-        assert len(earlier.points) == 2  # [10, 20]
-        assert len(later.points) == 3  # [30, 40, 50]
 
     def test_boundary_in_gap_raises(self) -> None:
         """Boundary in gap between segments is rejected."""

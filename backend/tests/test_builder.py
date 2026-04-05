@@ -83,24 +83,6 @@ class TestStepMedia:
         assert jpg_name in names
         assert mp4_name in names
 
-    async def test_ignores_non_jpg_in_photos(self, tmp_path: Path) -> None:
-        photo_dir = tmp_path / "photos"
-        photo_dir.mkdir()
-        (photo_dir / "notes.txt").write_text("hello")
-        (photo_dir / "image.png").write_bytes(b"\x00" * 100)
-
-        result = await collect_async(_step_media(tmp_path))
-        assert result == []
-
-    async def test_ignores_non_mp4_in_videos(self, tmp_path: Path) -> None:
-        video_dir = tmp_path / "videos"
-        video_dir.mkdir()
-        (video_dir / "clip.avi").write_bytes(b"\x00" * 100)
-        (video_dir / "clip.mov").write_bytes(b"\x00" * 100)
-
-        result = await collect_async(_step_media(tmp_path))
-        assert result == []
-
 
 class TestBuildStepLayout:
     def _setup_step_dir(

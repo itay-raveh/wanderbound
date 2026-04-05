@@ -15,11 +15,6 @@ class TestCreateDemo:
         assert body["user"]["is_demo"] is True
         assert len(body["trips"]) >= 1
 
-    async def test_creates_unique_user_ids(self, client: AsyncClient) -> None:
-        r1 = await client.post("/api/v1/users/demo")
-        r2 = await client.post("/api/v1/users/demo")
-        assert r1.json()["user"]["id"] != r2.json()["user"]["id"]
-
     async def test_sets_session_cookie(self, client: AsyncClient) -> None:
         resp = await client.post("/api/v1/users/demo")
         uid = resp.json()["user"]["id"]

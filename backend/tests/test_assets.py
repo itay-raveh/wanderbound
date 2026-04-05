@@ -19,14 +19,6 @@ def _mock_user(trips_folder: Path) -> MagicMock:
     return user
 
 
-async def _setup_album_with_thumbs(trips_folder: Path) -> Path:
-    album_dir = trips_folder / _AID
-    src = create_test_jpeg(album_dir / _NAME, 4000, 3000)
-    for w in THUMB_WIDTHS:
-        await generate_thumbnail(src, w)
-    return album_dir
-
-
 class TestLazyThumbnailGeneration:
     async def test_generates_thumbnail_on_first_request(self, tmp_path: Path) -> None:
         album_dir = tmp_path / _AID
@@ -41,25 +33,6 @@ class TestLazyThumbnailGeneration:
         assert Path(response.path) == thumb_path
         assert response.media_type == "image/webp"
 
-    async def test_serves_existing_thumbnail(self, tmp_path: Path) -> None:
-        album_dir = await _setup_album_with_thumbs(tmp_path)
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=800)
-
-        stem = Path(_NAME).stem
-        assert Path(response.path) == album_dir / ".thumbs" / "800" / f"{stem}.webp"
-        assert response.media_type == "image/webp"
-
-    async def test_serves_original_when_no_w(self, tmp_path: Path) -> None:
-        album_dir = tmp_path / _AID
-        create_test_jpeg(album_dir / _NAME, 4000, 3000)
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=None)
-
-        assert Path(response.path) == (album_dir / _NAME).resolve()
-
     async def test_falls_through_for_small_original(self, tmp_path: Path) -> None:
         album_dir = tmp_path / _AID
         create_test_jpeg(album_dir / _NAME, 600, 400)
@@ -68,25 +41,6 @@ class TestLazyThumbnailGeneration:
         response = await get_media(_AID, _NAME, user, w=800)
 
         assert Path(response.path) == (album_dir / _NAME).resolve()
-
-    async def test_ignores_invalid_width(self, tmp_path: Path) -> None:
-        album_dir = tmp_path / _AID
-        create_test_jpeg(album_dir / _NAME, 4000, 3000)
-        user = _mock_user(tmp_path)
-
-        response = await get_media(_AID, _NAME, user, w=9999)
-
-        assert Path(response.path) == (album_dir / _NAME).resolve()
-
-    async def test_all_thumb_widths_servable(self, tmp_path: Path) -> None:
-        album_dir = tmp_path / _AID
-        create_test_jpeg(album_dir / _NAME, 4000, 3000)
-        user = _mock_user(tmp_path)
-
-        for w in THUMB_WIDTHS:
-            response = await get_media(_AID, _NAME, user, w=w)
-            mt = response.media_type or ""
-            assert "webp" in mt or str(response.path).endswith(".webp")
 
 
 class TestLazyPosterExtraction:

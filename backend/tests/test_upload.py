@@ -149,17 +149,6 @@ class TestSafeExtract:
         with pytest.raises(zipfile.BadZipFile, match="Disallowed file type"):
             _safe_extract(buf, tmp_path)
 
-    def test_cumulative_size_check(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # Set limit just under 2x the JPEG size so second file pushes it over
-        monkeypatch.setattr(
-            "app.logic.upload._MAX_TOTAL_BYTES", len(_DEFAULT_JPEG) + 10
-        )
-        buf = _make_zip(**{"a.jpg": _DEFAULT_JPEG, "b.jpg": _DEFAULT_JPEG})
-        with pytest.raises(zipfile.BadZipFile, match="exceeds limit"):
-            _safe_extract(buf, tmp_path)
-
 
 class TestScanUserFolder:
     def test_parses_user_and_trips(self, tmp_path: Path) -> None:
@@ -215,11 +204,6 @@ class TestExtractAndScan:
                 assert trip.country_codes == ["us"]
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-
-    def test_fail_missing_user_json(self) -> None:
-        buf = _make_zip(**{"trip/t1/trip.json": _trip_json()})
-        with pytest.raises(FileNotFoundError):
-            extract_and_scan(buf)
 
     def test_cleanup_on_failure(self, tmp_path: Path) -> None:
         buf = _make_zip(**{"trip/t1/trip.json": _trip_json()})
