@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
-FONTS_JSON = ROOT / "fonts.json"
+FONTS_JSON = ROOT / "frontend" / "fonts.json"
 FONTS_DIR = ROOT / "frontend" / "public" / "fonts"
 CSS_OUT = ROOT / "frontend" / "src" / "styles" / "fonts.css"
 

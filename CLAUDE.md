@@ -24,7 +24,7 @@ All scripts live in `scripts/`. Run via `mise run <task>`, never directly.
 - `mise run generate` regenerates all derived assets (countries, fonts, topo, og-image).
 - `mise run generate:landing` also exists but requires running backend + frontend + migrated DB.
 - `mise run generate` must be run before `docker compose build` on a fresh clone.
-- After changing `fonts.json`: run `mise run generate:fonts`.
+- After changing `frontend/fonts.json`: run `mise run generate:fonts`.
 - After changing logo or tagline: run `mise run generate:og-image`.
 - After visual changes to album pages: run `mise run generate:landing`.
 
@@ -60,7 +60,7 @@ Use `cymbal` CLI for code navigation — prefer it over Read, Grep, Glob, or Bas
 - Processing sessions replay all past SSE events on reconnect (no restart needed).
 - Use pathlib, never os/os.path. Use rem, never px.
 - Python 3.14: `except A, B:` is valid — no parentheses needed.
-- Font registry: `fonts.json` at project root. Frontend `utils/fonts.ts` imports it via `@fonts` alias. Backend stores font as plain string (no validation). Run `mise run generate:fonts` after adding fonts.
+- Font registry: `frontend/fonts.json`. Frontend `utils/fonts.ts` imports it via `@fonts` alias. Backend stores font as plain string (no validation). Run `mise run generate:fonts` after adding fonts.
 
 Design context (brand, users, visual direction): read @.impeccable.md.
 

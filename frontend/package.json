@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "ensure:countries": "ls public/countries/*.svg >/dev/null 2>&1 || (cd .. && uv run scripts/generate_countries.py)",
-    "ensure:fonts": "ls public/fonts/*.woff2 >/dev/null 2>&1 && [ ! ../fonts.json -nt src/styles/fonts.css ] || (cd .. && uv run scripts/generate_fonts.py)",
+    "ensure:fonts": "ls public/fonts/*.woff2 >/dev/null 2>&1 && [ ! fonts.json -nt src/styles/fonts.css ] || (cd .. && uv run scripts/generate_fonts.py)",
     "ensure:topo": "ls public/topo-contours.svg >/dev/null 2>&1 || (cd .. && uv run scripts/generate_topo.py)",
     "ensure:og-image": "ls public/og-image.png >/dev/null 2>&1 || (cd .. && bun scripts/generate-og-image.ts)",
     "ensure": "bun run ensure:countries; bun run ensure:fonts; bun run ensure:topo; bun run ensure:og-image",

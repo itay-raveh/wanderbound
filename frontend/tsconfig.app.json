@@ -12,7 +12,7 @@
         "./src/*"
       ],
       "@fonts": [
-        "../fonts.json"
+        "./fonts.json"
       ]
     },
     "strict": true,
