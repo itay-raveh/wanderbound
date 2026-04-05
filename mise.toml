@@ -77,10 +77,7 @@ depends = ["deadcode:*"]
 [tasks."format:backend"]
 description = "Format backend code"
 dir = "backend"
-run = [
-    "uv run ruff check app --fix",
-    "uv run ruff format app",
-]
+run = ["uv run ruff check app --fix", "uv run ruff format app"]
 
 [tasks."format:frontend"]
 description = "Format frontend code"
@@ -120,12 +117,12 @@ description = "Run database migrations (alembic upgrade head)"
 dir = "backend"
 run = "uv run alembic upgrade head"
 
-# -- Utilities ----------------------------------------------------
-
 [tasks.restore]
 description = "Restore database or data from backups (list|db|data)"
 run = "bash scripts/restore.sh"
 raw = true
+
+# -- Generated -----------------------------------------------------
 
 [tasks."generate:countries"]
 description = "Regenerate country SVGs and bounds.json from Natural Earth data"
@@ -155,4 +152,9 @@ run = "bun scripts/generate-landing.ts"
 
 [tasks.generate]
 description = "Regenerate all derived assets (except landing — needs live servers)"
-depends = ["generate:countries", "generate:fonts", "generate:topo", "generate:og-image"]
+depends = [
+    "generate:countries",
+    "generate:fonts",
+    "generate:topo",
+    "generate:og-image",
+]

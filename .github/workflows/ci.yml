@@ -74,6 +74,21 @@ jobs:
           path: frontend/e2e/test-results/
           retention-days: 7
 
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
+      - uses: oven-sh/setup-bun@v2
+      - uses: jdx/mise-action@v2
+      - run: uv sync --all-packages
+      - run: bun install --frozen-lockfile
+        working-directory: frontend
+      - run: mise run generate
+
   docker:
     runs-on: ubuntu-latest
     env:
