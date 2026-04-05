@@ -1,4 +1,5 @@
 import { client } from "@/client/client.gen";
+import { PAGE_WIDTH_MM } from "@/utils/pageSize";
 
 export function mediaUrl(name: string, albumId: string): string {
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
@@ -14,9 +15,9 @@ export function posterPath(path: string): string {
 
 // Must match backend logic/layout/media.py THUMB_WIDTHS - backend generates thumbnails at these sizes.
 export const THUMB_WIDTHS = [200, 800] as const;
-// Must match --page-width in App.vue. Can't use CSS vars in img `sizes` attribute.
+// Can't use CSS vars in img `sizes` attribute.
 // Uses zoom=1 so images are always loaded at full resolution regardless of editor zoom.
-const PAGE_WIDTH = "297mm";
+const PAGE_WIDTH = `${PAGE_WIDTH_MM}mm`;
 export const SIZES_FULL = PAGE_WIDTH;
 export const SIZES_HALF = `calc(${PAGE_WIDTH} * 0.5)`;
 

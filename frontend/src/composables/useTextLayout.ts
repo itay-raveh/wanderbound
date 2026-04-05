@@ -1,7 +1,8 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { prepareWithSegments, layoutWithLines, clearCache as clearPretextCache } from "@chenglou/pretext";
 import { ALLOWED_FONTS } from "@/utils/fonts";
-import { MM_PX, safeMarginMm } from "./useSafeMargin";
+import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PX, META_RATIO } from "@/utils/pageSize";
+import { safeMarginMm } from "./useSafeMargin";
 
 export interface JustifiedLine {
   text: string;
@@ -73,9 +74,8 @@ function ensureConfig(): LayoutConfig {
 
   const lineHeight = 1.65;
 
-  const pageWidth = parseFloat(rootStyle.getPropertyValue("--page-width")) * MM_PX;
-  const pageHeight = parseFloat(rootStyle.getPropertyValue("--page-height")) * MM_PX;
-  const metaRatio = parseFloat(rootStyle.getPropertyValue("--meta-ratio"));
+  const pageWidth = PAGE_WIDTH_MM * MM_PX;
+  const pageHeight = PAGE_HEIGHT_MM * MM_PX;
   const smPx = safeMarginMm.value * MM_PX;
   const insetX = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx, smPx);
   const insetY = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx, smPx);
@@ -85,7 +85,7 @@ function ensureConfig(): LayoutConfig {
   // Both sidebar and continuation pages use the same column width and font.
   // Right padding is insetY (not insetX) — matches StepMetaPanel/StepDescriptionPage
   // padding shorthand: `insetY insetY insetY insetX` (vertical value reused as inner gap).
-  const columnWidth = pageWidth * metaRatio - insetX - insetY;
+  const columnWidth = pageWidth * META_RATIO - insetX - insetY;
   const font = `${typeXs}px ${fontBody}`;
   const lineHeightPx = typeXs * lineHeight;
 

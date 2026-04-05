@@ -1,12 +1,19 @@
 <script lang="ts" setup>
 import { RouterView } from "vue-router";
 import { useMeta } from "quasar";
+import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, META_RATIO } from "@/utils/pageSize";
 import ScreenGuard from "@/components/ScreenGuard.vue";
 import SiteFooter from "@/components/SiteFooter.vue";
 
 useMeta({
   titleTemplate: (title) => (title ? `${title} | Wanderbound` : "Wanderbound"),
 });
+
+const root = document.documentElement.style;
+root.setProperty("--page-width", `${PAGE_WIDTH_MM}mm`);
+root.setProperty("--page-height", `${PAGE_HEIGHT_MM}mm`);
+root.setProperty("--page-aspect", `${PAGE_WIDTH_MM} / ${PAGE_HEIGHT_MM}`);
+root.setProperty("--meta-ratio", String(META_RATIO));
 </script>
 
 <template>
@@ -40,13 +47,8 @@ body,
   --font-album-body: "Frank Ruhl Libre", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* A4 landscape page dimensions (single source of truth for album pages). */
-  --page-width: 297mm;
-  --page-height: 210mm;
-  --page-aspect: 297 / 210;
-
-  /* Step page layout: meta-panel occupies this fraction of the page width. */
-  --meta-ratio: 0.45;
+  /* --page-width, --page-height, --page-aspect, --meta-ratio:
+     set dynamically from pageSize.ts in this component's <script setup>. */
 
   /* Border radius scale */
   --radius-xs: 0.125rem;

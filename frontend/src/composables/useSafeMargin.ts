@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { MM_PX } from "@/utils/pageSize";
 
 /**
  * Album-level safe margin (mm) — the print trim danger zone.
@@ -6,9 +7,6 @@ import { ref } from "vue";
  * components (fitBounds padding) and useTextLayout (column reflow).
  */
 export const safeMarginMm = ref(0);
-
-/** mm → CSS px conversion factor (96 DPI). */
-export const MM_PX = 96 / 25.4;
 
 /** Current safe margin in CSS pixels (for map fitBounds padding). */
 export function safeMarginPx(): number {
