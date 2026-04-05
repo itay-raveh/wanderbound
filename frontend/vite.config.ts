@@ -11,6 +11,11 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(version),
   },
   envDir: path.resolve(__dirname, ".."),
+  server: {
+    proxy: {
+      "/api": "http://localhost:8000",
+    },
+  },
   plugins: [
     vue({
       template: { transformAssetUrls },

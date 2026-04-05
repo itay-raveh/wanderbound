@@ -66,6 +66,7 @@ services:
       VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Variable not set}
       VITE_MICROSOFT_CLIENT_ID: ${VITE_MICROSOFT_CLIENT_ID:-}
       MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:?Variable not set}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
       ENVIRONMENT: ${ENVIRONMENT:-local}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
@@ -163,7 +164,6 @@ services:
         - openapi=service:backend
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
-        - VITE_BACKEND_URL=https://api.${DOMAIN:?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:?Variable not set}
         - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:?Variable not set}
         - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}

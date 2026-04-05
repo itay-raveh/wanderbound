@@ -27,7 +27,7 @@ import router from "./router";
 import { client } from "@/client/client.gen";
 
 client.setConfig({
-  baseUrl: import.meta.env.VITE_BACKEND_URL,
+  baseUrl: "",
   credentials: "include",
 });
 

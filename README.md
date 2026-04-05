@@ -67,34 +67,15 @@ mise run dev:backend         # FastAPI dev server
 mise run dev:frontend        # Vite dev server
 ```
 
-Run `mise tasks` to see everything available:
+Run `mise tasks` to see all available commands. Extra arguments pass
+through — e.g., `mise run test:backend -k test_auth`.
 
-| Command                  | What it does                         |
-|--------------------------|--------------------------------------|
-| `mise run test`          | Run all tests (backend + frontend)   |
-| `mise run test:backend`  | Backend tests (pytest)               |
-| `mise run test:frontend` | Frontend unit tests (vitest)         |
-| `mise run test:e2e`      | Frontend E2E tests (playwright)      |
-| `mise run lint`          | Lint everything                      |
-| `mise run format`        | Auto-format everything               |
-| `mise run build`         | Production frontend build            |
-| `mise run logs`          | Tail Docker Compose logs             |
-| `mise run restore list`  | Show available backups               |
-
-Extra arguments pass through — e.g., `mise run test:backend -k test_auth`
-runs only tests matching `test_auth`.
-
-## Production Notes
+## Scaling Notes
 
 **Single-worker requirement** — The backend uses in-memory state for processing
 sessions, PDF render concurrency, and activity debouncing. Running multiple
 uvicorn workers or multiple backend containers would break these. To scale
 horizontally, move session/semaphore state to Redis first.
-
-**Sentry source maps** — To get readable stack traces in Sentry, set
-`SENTRY_ORG`, `SENTRY_FRONTEND_PROJECT`, and `SENTRY_AUTH_TOKEN` at build time.
-The Vite plugin uploads source maps during `bun run build` and deletes them from
-the dist output.
 
 **Structured logging** — The backend currently uses Python stdlib logging.
 For log aggregation (CloudWatch, Loki, Datadog), switch to JSON-structured
