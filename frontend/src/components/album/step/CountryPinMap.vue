@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import { countryBounds } from "@/utils/countryBounds";
 import { toSvgMercator } from "@/utils/geo";
-import { colors as qColors, Dark } from "quasar";
+import { colors as qColors } from "quasar";
 import { computed } from "vue";
 import CountrySilhouette from "../CountrySilhouette.vue";
-import { CONTRAST_TEXT_DARK, CONTRAST_TEXT_LIGHT } from "../colors";
+import { CONTRAST_TEXT_LIGHT } from "../colors";
 
 const props = defineProps<{
   countryCode: string;
@@ -16,9 +16,9 @@ const props = defineProps<{
 const fillColor = computed(() => props.color ?? "currentColor");
 const dotColor = computed(() => {
   if (!props.color) return "currentColor";
-  return qColors.lighten(props.color, Dark.isActive ? 40 : -40);
+  return qColors.lighten(props.color, 40);
 });
-const strokeColor = computed(() => Dark.isActive ? CONTRAST_TEXT_LIGHT : CONTRAST_TEXT_DARK);
+const strokeColor = CONTRAST_TEXT_LIGHT;
 
 const pin = computed(() => {
   const code = props.countryCode.toLowerCase();
