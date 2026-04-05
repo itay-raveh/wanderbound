@@ -87,9 +87,9 @@ runs only tests matching `test_auth`.
 ## Roadmap
 
 - [ ] Fix photo focus - again.
-- [ ] Add media pixelated warning.
 - [ ] Consolidate scripts strategy.
 - [ ] Create deployment strategy.
+- [ ] Research google photos feature.
 - [ ] Add double page photos.
 
 ## License
