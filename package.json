@@ -2,5 +2,9 @@
   "private": true,
   "workspaces": [
     "frontend"
-  ]
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "sharp": "^0.34.5"
+  }
 }
