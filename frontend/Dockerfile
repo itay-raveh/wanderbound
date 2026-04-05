@@ -37,6 +37,12 @@ COPY ./frontend/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY ./frontend/nginx/proxy-params.conf /etc/nginx/proxy-params.conf
 COPY ./frontend/nginx/security-headers.conf /etc/nginx/security-headers.conf
 
+# Plain-text placeholders (not $VAR) to avoid clashing with nginx variables.
+ARG VITE_BACKEND_URL
+ARG VITE_MAX_UPLOAD_GB
+RUN sed -i "s|BACKEND_URL|${VITE_BACKEND_URL}|g" /etc/nginx/security-headers.conf \
+    && sed -i "s|MAX_UPLOAD_SIZE|${VITE_MAX_UPLOAD_GB:-4}|g" /etc/nginx/conf.d/default.conf
+
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run
 
 USER nginx

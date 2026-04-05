@@ -79,6 +79,12 @@ def _evict_session(uid: int, session: ProcessingSession) -> None:
         del _sessions[uid]
 
 
+def cancel_all_sessions() -> None:
+    """Cancel and remove all active processing sessions."""
+    for uid in list(_sessions):
+        cancel_session(uid)
+
+
 def cancel_session(uid: int) -> None:
     """Cancel and remove any active processing session for a user."""
     session = _sessions.pop(uid, None)

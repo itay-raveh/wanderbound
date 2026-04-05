@@ -64,6 +64,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Variable not set}
       VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:?Variable not set}
       VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Variable not set}
+      VITE_MICROSOFT_CLIENT_ID: ${VITE_MICROSOFT_CLIENT_ID:-}
       MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:?Variable not set}
       ENVIRONMENT: ${ENVIRONMENT:-local}
       SENTRY_DSN: ${SENTRY_DSN:-}

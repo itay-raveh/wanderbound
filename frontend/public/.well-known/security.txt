@@ -1,0 +1,3 @@
+Contact: mailto:wanderbound@raveh.dev
+Preferred-Languages: en
+Expires: 2027-04-06T00:00:00.000Z

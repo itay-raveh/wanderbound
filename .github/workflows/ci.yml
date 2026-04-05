@@ -74,6 +74,46 @@ jobs:
           path: frontend/e2e/test-results/
           retention-days: 7
 
+  test-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: ci
+      SECRET_KEY: ci
+      VITE_FRONTEND_URL: http://localhost
+      VITE_GOOGLE_CLIENT_ID: ci
+      MAX_STORAGE_BYTES: "1000000"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --all-packages
+      - run: uv run alembic upgrade head
+        working-directory: backend
+      - run: uv run alembic downgrade base
+        working-directory: backend
+      - run: uv run alembic upgrade head
+        working-directory: backend
+
   generate:
     runs-on: ubuntu-latest
     steps:

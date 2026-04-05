@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.logging import SENTRY_IGNORED, setup_logging
 from app.logic.export import lifespan as export_lifespan
 from app.logic.pdf import lifespan as pdf_lifespan
+from app.logic.session import cancel_all_sessions
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
@@ -53,7 +54,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     async with pdf_lifespan() as browser, export_lifespan():
         app.state.browser = browser
-        yield
+        try:
+            yield
+        finally:
+            cancel_all_sessions()
 
 
 app = FastAPI(
@@ -77,7 +81,7 @@ app.add_middleware(
     secret_key=settings.SECRET_KEY,
     session_cookie="session",
     max_age=30 * 86400,  # 30 days
-    same_site="lax",
+    same_site="strict",
     https_only=settings.ENVIRONMENT != "local",
 )
 

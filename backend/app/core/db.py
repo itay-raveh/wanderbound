@@ -45,4 +45,9 @@ def all_optional[T: SQLModel](cls: type[T]) -> type[T]:
 
 @cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(str(get_settings().SQLALCHEMY_DATABASE_URI))
+    return create_async_engine(
+        str(get_settings().SQLALCHEMY_DATABASE_URI),
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=10,
+    )
