@@ -1,4 +1,14 @@
+# /// script
+# dependencies = [
+#   "numpy",
+#   "scipy",
+#   "matplotlib",
+# ]
+# ///
+
 """Generate a topographic contour SVG from a noise heightfield."""
+
+from pathlib import Path
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
@@ -73,8 +83,9 @@ svg = (
     + "\n</svg>\n"
 )
 
-out = "public/topo-contours.svg"
-with open(out, "w") as f:
-    f.write(svg)
+out = (
+    Path(__file__).resolve().parent.parent / "frontend" / "public" / "topo-contours.svg"
+)
+out.write_text(svg)
 
 print(f"Wrote {len(paths)} contour paths to {out}")
