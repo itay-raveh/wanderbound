@@ -135,6 +135,24 @@ run = "uv run scripts/generate_countries.py"
 description = "Download Google Fonts and generate @font-face CSS from fonts.json"
 run = "uv run scripts/generate_fonts.py"
 
+[tasks."generate:topo"]
+description = "Generate topographic contour SVG"
+run = "uv run scripts/generate_topo.py"
+
+[tasks."generate:og-image"]
+description = "Generate OG social preview image"
+depends = ["generate:fonts"]
+run = "bun scripts/generate-og-image.ts"
+
+[tasks."generate:openapi"]
+description = "Export OpenAPI spec to stdout"
+dir = "backend"
+run = "uv run python ../scripts/generate_openapi.py"
+
 [tasks."generate:landing"]
 description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
 run = "bun scripts/generate-landing.ts"
+
+[tasks.generate]
+description = "Regenerate all derived assets (except landing — needs live servers)"
+depends = ["generate:countries", "generate:fonts", "generate:topo", "generate:og-image"]
