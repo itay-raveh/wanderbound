@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
 RUN playwright install chromium --with-deps
 
-COPY ./backend/pyproject.toml ./backend/alembic.ini ./backend/scripts/export_openapi.py /app/backend/
+COPY ./backend/pyproject.toml ./backend/alembic.ini ./scripts/generate_openapi.py /app/backend/
 
 COPY ./backend/app /app/backend/app
 
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-RUN python export_openapi.py > openapi.json
+RUN python generate_openapi.py > openapi.json
 
 RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser \
     && mkdir -p /app/backend/data \

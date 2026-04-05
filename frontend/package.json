@@ -4,8 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "ensure:countries": "ls public/countries/*.svg >/dev/null 2>&1 || (cd .. && uv run scripts/generate_country_svgs.py)",
-    "dev": "bun run ensure:countries; openapi-ts; vite",
+    "ensure:countries": "ls public/countries/*.svg >/dev/null 2>&1 || (cd .. && uv run scripts/generate_countries.py)",
+    "ensure:fonts": "ls public/fonts/*.woff2 >/dev/null 2>&1 || (cd .. && uv run scripts/generate_fonts.py)",
+    "ensure:topo": "ls public/topo-contours.svg >/dev/null 2>&1 || (cd .. && uv run scripts/generate_topo.py)",
+    "ensure:og-image": "ls public/og-image.png >/dev/null 2>&1 || (cd .. && bun ../scripts/generate-og-image.ts)",
+    "dev": "bun run ensure:countries; bun run ensure:fonts; bun run ensure:topo; bun run ensure:og-image; openapi-ts; vite",
     "build": "openapi-ts && vue-tsc -b tsconfig.app.json tsconfig.node.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -13,8 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/",
-    "screenshots": "bun scripts/landing-screenshots.ts"
+    "format": "prettier --write src/"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.6.1",

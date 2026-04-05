@@ -129,7 +129,7 @@ raw = true
 
 [tasks."generate:countries"]
 description = "Regenerate country SVGs and bounds.json from Natural Earth data"
-run = "uv run scripts/generate_country_svgs.py"
+run = "uv run scripts/generate_countries.py"
 
 [tasks."generate:fonts"]
 description = "Download Google Fonts and generate @font-face CSS from fonts.json"
@@ -137,5 +137,4 @@ run = "uv run scripts/generate_fonts.py"
 
 [tasks."generate:landing"]
 description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
-dir = "frontend"
-run = "bun scripts/landing-screenshots.ts"
+run = "bun scripts/generate-landing.ts"

@@ -5,7 +5,7 @@
 !backend/app/
 !backend/pyproject.toml
 !backend/alembic.ini
-!backend/scripts/export_openapi.py
+!scripts/generate_openapi.py
 
 # Frontend
 !frontend/src/
