@@ -17,7 +17,7 @@ import sharp from "sharp";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT = path.resolve(__dirname, "../public/landing");
+const OUTPUT = path.resolve(__dirname, "../frontend/public/landing");
 const FRONTEND = process.env.BASE_URL ?? "http://localhost:5173";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API = `${BACKEND}/api/v1`;
