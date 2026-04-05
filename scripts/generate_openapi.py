@@ -12,14 +12,14 @@ if TYPE_CHECKING:
 API_V1_STR = "/api/v1"
 
 
-def _unique_id(route: APIRoute) -> str:
+def custom_generate_unique_id(route: APIRoute) -> str:
     return route.name
 
 
 app = FastAPI(
     title="Wanderbound",
     openapi_url=f"{API_V1_STR}/openapi.json",
-    generate_unique_id_function=_unique_id,
+    generate_unique_id_function=custom_generate_unique_id,
 )
 app.include_router(router, prefix=API_V1_STR)
 

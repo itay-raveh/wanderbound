@@ -7,11 +7,11 @@
  *   - Database migrated (mise run migrate)
  *
  * Usage:
- *   bun run screenshots
+ *   mise run generate:landing
  */
 
 import { chromium, type Browser, type Locator, type Page } from "@playwright/test";
-import { mkdir, readdir, writeFile } from "fs/promises";
+import { mkdir, readdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { fileURLToPath } from "url";
@@ -320,6 +320,10 @@ async function convertToWebP() {
 
 async function main() {
   await mkdir(OUTPUT, { recursive: true });
+  // Clean previous outputs so stale files don't persist
+  for (const file of await readdir(OUTPUT)) {
+    await unlink(path.join(OUTPUT, file));
+  }
   const browser = await chromium.launch({ headless: true });
 
   // --- English demo ---

@@ -6,38 +6,22 @@
 
 import json
 import re
+import tempfile
 import urllib.request
 from pathlib import Path
 
 import geopandas as gpd
 import shapely.affinity
 
+ROOT = Path(__file__).resolve().parent.parent
+
 # 1. Download medium-resolution GeoJSON (50m) — clean silhouettes for print
 url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
-ne_path = Path("ne_50m_admin_0_countries.geojson")
-
-if not ne_path.exists():
-    print(f"Downloading {ne_path.name} (this may take a moment)...")
-    urllib.request.urlretrieve(url, str(ne_path))
-
-# 2. Load the data
-print("Loading GeoJSON data...")
-gdf = gpd.read_file(str(ne_path))
-
-# 3. CRITICAL: Reproject to Web Mercator (EPSG:3857)
-print("Reprojecting to Web Mercator...")
-gdf = gdf.to_crs(epsg=3857)
-
-# Create an output directory for the hundreds of SVG files
-output_dir = Path("frontend/public/countries")
-output_dir.mkdir(parents=True, exist_ok=True)
-
-bounds_dir = Path("frontend/src/countries")
-bounds_dir.mkdir(parents=True, exist_ok=True)
-json_path = bounds_dir / "bounds.json"
-bounds_dict = {}
-
-print(f"Generating individual SVGs in '/{output_dir}' and {json_path}...")
+tmp = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+ne_path = Path(tmp.name)
+tmp.close()
+print("Downloading Natural Earth data (this may take a moment)...")
+urllib.request.urlretrieve(url, str(ne_path))
 
 
 def resolve_code(row: object) -> str | None:
@@ -100,51 +84,73 @@ def mainland_bounds(geom: object) -> tuple[float, float, float, float]:
     return (minx, miny, maxx, maxy)
 
 
-# 4. Loop through and create individual files
-for idx, row in gdf.iterrows():
-    code = resolve_code(row)
-    if code is None:
-        continue
+try:
+    # 2. Load the data
+    print("Loading GeoJSON data...")
+    gdf = gpd.read_file(str(ne_path))
 
-    geom = row.geometry
+    # 3. CRITICAL: Reproject to Web Mercator (EPSG:3857)
+    print("Reprojecting to Web Mercator...")
+    gdf = gdf.to_crs(epsg=3857)
 
-    if geom is None or geom.is_empty:
-        continue
+    # Create an output directory for the hundreds of SVG files
+    output_dir = ROOT / "frontend" / "public" / "countries"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Flip the geometry vertically for standard SVG rendering
-    geom_flipped = shapely.affinity.scale(geom, xfact=1.0, yfact=-1.0, origin=(0, 0))
+    bounds_dir = ROOT / "frontend" / "src" / "countries"
+    bounds_dir.mkdir(parents=True, exist_ok=True)
+    json_path = bounds_dir / "bounds.json"
+    bounds_dict = {}
 
-    # Full bounds for the SVG viewBox (shows all territories)
-    minx, miny, maxx, maxy = geom_flipped.bounds
-    width = maxx - minx
-    height = maxy - miny
+    print(f"Generating individual SVGs in '/{output_dir}' and {json_path}...")
 
-    # Mainland bounds for the JSON (excludes distant overseas territories)
-    m_minx, m_miny, m_maxx, m_maxy = mainland_bounds(geom_flipped)
-    m_width = m_maxx - m_minx
-    m_height = m_maxy - m_miny
-    bounds_dict[code] = [m_minx, m_miny, m_width, m_height]
+    # 4. Loop through and create individual files
+    for idx, row in gdf.iterrows():
+        code = resolve_code(row)
+        if code is None:
+            continue
 
-    # Generate SVG paths and clean up hardcoded styles
-    svg_paths = geom_flipped.svg()
-    svg_paths = re.sub(r'fill="[^"]+"', 'fill="currentColor"', svg_paths)
-    svg_paths = re.sub(r'stroke="[^"]+"', "", svg_paths)
-    svg_paths = re.sub(r'stroke-width="[^"]+"', "", svg_paths)
-    svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
+        geom = row.geometry
 
-    # Write the standalone SVG file with paths in a <g> (no <symbol> viewport issues)
-    svg_path = output_dir / f"{code}.svg"
-    with svg_path.open("w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write(
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{minx} {miny} {width} {height}">\n'
+        if geom is None or geom.is_empty:
+            continue
+
+        # Flip the geometry vertically for standard SVG rendering
+        geom_flipped = shapely.affinity.scale(
+            geom, xfact=1.0, yfact=-1.0, origin=(0, 0)
         )
-        f.write(f'  <g id="map">{svg_paths}</g>\n')
-        f.write("</svg>\n")
 
-# 5. Export the master dictionary
-json_path.write_text(json.dumps(bounds_dict, indent=2), encoding="utf-8")
+        # Full bounds for the SVG viewBox (shows all territories)
+        minx, miny, maxx, maxy = geom_flipped.bounds
+        width = maxx - minx
+        height = maxy - miny
 
-ne_path.unlink()
+        # Mainland bounds for the JSON (excludes distant overseas territories)
+        m_minx, m_miny, m_maxx, m_maxy = mainland_bounds(geom_flipped)
+        m_width = m_maxx - m_minx
+        m_height = m_maxy - m_miny
+        bounds_dict[code] = [m_minx, m_miny, m_width, m_height]
 
-print("Success! Your frontend assets are fully generated.")
+        # Generate SVG paths and clean up hardcoded styles
+        svg_paths = geom_flipped.svg()
+        svg_paths = re.sub(r'fill="[^"]+"', 'fill="currentColor"', svg_paths)
+        svg_paths = re.sub(r'stroke="[^"]+"', "", svg_paths)
+        svg_paths = re.sub(r'stroke-width="[^"]+"', "", svg_paths)
+        svg_paths = re.sub(r'opacity="[^"]+"', "", svg_paths)
+
+        # Write the standalone SVG file with paths in a <g> (no <symbol> viewport issues)
+        svg_path = output_dir / f"{code}.svg"
+        with svg_path.open("w", encoding="utf-8") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            f.write(
+                f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{minx} {miny} {width} {height}">\n'
+            )
+            f.write(f'  <g id="map">{svg_paths}</g>\n')
+            f.write("</svg>\n")
+
+    # 5. Export the master dictionary
+    json_path.write_text(json.dumps(bounds_dict, indent=2), encoding="utf-8")
+
+    print("Success! Your frontend assets are fully generated.")
+finally:
+    ne_path.unlink(missing_ok=True)
