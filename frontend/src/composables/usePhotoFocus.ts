@@ -11,6 +11,7 @@ let getSteps: () => Step[] = () => [];
 let mutateFn: ((sid: number, update: Partial<StepUpdate>) => void) | null = null;
 let scrollToStepFn: ((stepId: number) => void) | null = null;
 let scrollRafId = 0;
+let awaitingStepTransition = false;
 
 /** Cover is shown on StepMainPage (not focusable) — skip it in navigation. */
 function pagedPhotos(step: Step): string[] {
@@ -45,6 +46,8 @@ function init(config: {
 
 function dispose() {
   cancelAnimationFrame(scrollRafId);
+  scrollRafId = 0;
+  awaitingStepTransition = false;
   focusedStepId.value = null;
   focusedPhotoId.value = null;
   getSteps = () => [];
@@ -61,16 +64,26 @@ function dispose() {
 function scrollFocusedIntoView() {
   cancelAnimationFrame(scrollRafId);
   const photoId = focusedPhotoId.value;
-  if (!photoId) return;
+  if (!photoId) {
+    awaitingStepTransition = false;
+    return;
+  }
 
   let attempts = 0;
   function tryScroll() {
     const el = document.querySelector<HTMLElement>(".media-item.focused");
     if (el) {
+      scrollRafId = 0;
+      awaitingStepTransition = false;
       el.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
-    if (++attempts < 60) scrollRafId = requestAnimationFrame(tryScroll);
+    if (++attempts < 60) {
+      scrollRafId = requestAnimationFrame(tryScroll);
+    } else {
+      scrollRafId = 0;
+      awaitingStepTransition = false;
+    }
   }
   scrollRafId = requestAnimationFrame(tryScroll);
 }
@@ -102,6 +115,7 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 
     focusedStepId.value = nextStep.id;
     focusedPhotoId.value = direction === "next" ? photos[0]! : photos[photos.length - 1]!;
+    awaitingStepTransition = true;
     scrollToStepFn?.(nextStep.id);
     scrollFocusedIntoView();
     return true;
@@ -111,6 +125,11 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 }
 
 function move(direction: "prev" | "next") {
+  // Block navigation while a cross-step scroll is still settling —
+  // the target step's DOM isn't mounted yet, so advancing would
+  // silently skip photos the user can't see.
+  if (awaitingStepTransition) return;
+
   const currentStepId = focusedStepId.value;
   if (currentStepId == null) return;
 
