@@ -27,6 +27,7 @@ RUN playwright install chromium --with-deps
 COPY ./backend/pyproject.toml ./backend/alembic.ini ./scripts/generate_openapi.py /app/backend/
 
 COPY ./backend/app /app/backend/app
+COPY --chmod=755 ./fixtures/demo /app/fixtures/demo
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \

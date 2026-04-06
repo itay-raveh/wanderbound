@@ -6,19 +6,21 @@
 !backend/pyproject.toml
 !backend/alembic.ini
 !scripts/generate_openapi.py
+!fixtures/demo/
 
 # Frontend
 !frontend/src/
 !frontend/public/
 !frontend/index.html
+!frontend/redirect.html
 !frontend/package.json
 !frontend/tsconfig*.json
 !frontend/vite.config.ts
 !frontend/postcss.config.js
 !frontend/openapi-ts.config.ts
 !frontend/openapi.json
+!frontend/fonts.json
 !frontend/nginx/
-!frontend/env.d.ts
 
 # Root content used by frontend
 !PRIVACY.md

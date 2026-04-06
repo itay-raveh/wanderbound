@@ -136,11 +136,33 @@ jobs:
       POSTGRES_USER: ci
       POSTGRES_DB: ci
       SECRET_KEY: ci
-      VITE_FRONTEND_URL: http://localhost
+      VITE_FRONTEND_URL: http://localhost:5173
       VITE_GOOGLE_CLIENT_ID: ci
       MAX_STORAGE_BYTES: "1000000"
       DOMAIN: localhost
       VITE_MAPBOX_TOKEN: ci
     steps:
       - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: frontend
+      - run: bunx playwright install --with-deps chromium
+        working-directory: frontend
       - run: docker compose build
+      - run: docker compose up -d
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173/api/v1/health; then
+              echo " Backend healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend did not become healthy"
+          docker compose logs
+          exit 1
+      - run: bun run test:smoke
+        working-directory: frontend
+      - if: always()
+        run: docker compose down

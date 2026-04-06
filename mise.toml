@@ -32,6 +32,11 @@ description = "Run frontend E2E tests"
 dir = "frontend"
 run = "bun run test:e2e"
 
+[tasks."test:smoke"]
+description = "Smoke tests against running Docker stack"
+dir = "frontend"
+run = "bun run test:smoke"
+
 [tasks.test]
 description = "Run all tests"
 depends = ["test:backend", "test:frontend", "test:e2e"]

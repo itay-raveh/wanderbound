@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "test:smoke": "playwright test --config playwright.smoke.config.ts",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },

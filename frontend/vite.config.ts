@@ -60,7 +60,6 @@ export default defineConfig({
             "@turf/helpers",
             "@turf/length",
             "@turf/nearest-point-on-line",
-            "@turf/simplify",
           ],
         },
       },
