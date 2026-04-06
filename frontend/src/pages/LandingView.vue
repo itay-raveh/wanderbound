@@ -385,7 +385,7 @@ onUnmounted(() => {
 .hero-card {
   position: absolute;
   top: 50%;
-  left: 50%;
+  left: 50% /* rtl:ignore */;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface);
@@ -394,7 +394,7 @@ onUnmounted(() => {
   --s: 1;
   transform: translate(-50%, -50%)
     translateX(calc(var(--x, 0rem) + var(--spread))) rotate(var(--r, 0deg))
-    scale(var(--s));
+    scale(var(--s)) /* rtl:ignore */;
   transition:
     transform var(--duration-normal) ease,
     box-shadow var(--duration-normal) ease,
@@ -404,7 +404,7 @@ onUnmounted(() => {
 
 .hero-card:hover {
   transform: translate(-50%, -50%)
-    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15);
+    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15) /* rtl:ignore */;
   z-index: 10 !important;
   box-shadow: var(--shadow-lg);
 }
