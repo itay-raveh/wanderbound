@@ -68,7 +68,7 @@
     "msw": "^2.12.14",
     "prettier": "^3.8.1",
     "sass": "^1.98.0",
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.2",
     "vite": "^7.3.1",
     "vitest": "^4.1.0",
     "vue-tsc": "^3.2.6"
