@@ -2,13 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pytest
-
 if TYPE_CHECKING:
     from httpx import AsyncClient
 
 
-@pytest.mark.anyio
 class TestDemoLocale:
     async def test_demo_respects_accept_language(self, client: AsyncClient) -> None:
         resp = await client.post(

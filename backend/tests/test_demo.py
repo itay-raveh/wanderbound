@@ -1,12 +1,9 @@
 from typing import TYPE_CHECKING
 
-import pytest
-
 if TYPE_CHECKING:
     from httpx import AsyncClient
 
 
-@pytest.mark.anyio
 class TestCreateDemo:
     async def test_creates_demo_user(self, client: AsyncClient) -> None:
         resp = await client.post("/api/v1/users/demo")
@@ -23,7 +20,6 @@ class TestCreateDemo:
         assert user_resp.json()["id"] == uid
 
 
-@pytest.mark.anyio
 class TestDeleteDemo:
     async def test_deletes_demo_user(self, client: AsyncClient) -> None:
         await client.post("/api/v1/users/demo")
