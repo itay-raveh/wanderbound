@@ -88,7 +88,7 @@ class TestAuthMicrosoftSpecific:
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(get_settings(), "VITE_MICROSOFT_CLIENT_ID", "")
-        with mock_jwt("microsoft"):
+        with mock_jwt("microsoft", ensure_configured=False):
             resp = await client.post(
                 "/api/v1/auth/microsoft", json={"credential": "fake"}
             )

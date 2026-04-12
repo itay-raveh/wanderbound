@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import jwt as jwt_module
 from PIL import Image
 
+from app.core.config import get_settings
 from app.logic.layout.media import Media
 from app.logic.upload import TripMeta
 from app.models.album import Album
@@ -111,6 +112,7 @@ def mock_jwt(
     payload: dict | None = None,
     *,
     decode_error: bool = False,
+    ensure_configured: bool = True,
 ) -> Generator[None]:
     mock_key = MagicMock()
     mock_key.key = "fake-key"
@@ -119,14 +121,23 @@ def mock_jwt(
         if decode_error
         else {"return_value": payload or _DEFAULT_PAYLOADS[provider]}
     )
-    with (
-        patch(
-            f"app.api.v1.routes.auth._{provider}_jwks.get_signing_key_from_jwt",
-            return_value=mock_key,
-        ),
-        patch("jwt.decode", **decode_kwargs),
-    ):
-        yield
+    # Ensure the client-ID gate in _verify_microsoft passes even when
+    # VITE_MICROSOFT_CLIENT_ID is absent from the environment.
+    settings = get_settings()
+    prev = settings.VITE_MICROSOFT_CLIENT_ID
+    if ensure_configured and provider == "microsoft" and not prev:
+        settings.VITE_MICROSOFT_CLIENT_ID = "test"
+    try:
+        with (
+            patch(
+                f"app.api.v1.routes.auth._{provider}_jwks.get_signing_key_from_jwt",
+                return_value=mock_key,
+            ),
+            patch("jwt.decode", **decode_kwargs),
+        ):
+            yield
+    finally:
+        settings.VITE_MICROSOFT_CLIENT_ID = prev
 
 
 def mock_extract(users_dir: Path) -> patch:

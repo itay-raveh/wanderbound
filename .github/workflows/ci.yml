@@ -53,7 +53,6 @@ jobs:
       SECRET_KEY: ci
       VITE_FRONTEND_URL: http://localhost
       VITE_GOOGLE_CLIENT_ID: ci
-      VITE_MICROSOFT_CLIENT_ID: ci
       POSTGRES_SERVER: localhost
       POSTGRES_USER: ci
       POSTGRES_PASSWORD: ci
