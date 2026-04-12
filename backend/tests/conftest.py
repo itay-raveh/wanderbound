@@ -1,5 +1,7 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import ExitStack
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -11,10 +13,21 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.deps import _get_session
 from app.core.config import get_settings
+from app.core.db import get_engine
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 
 from .factories import TRIPS_DIR
+
+# Modules that import get_engine directly and may call it outside DI
+# (background tasks, health checks). Patched so tests never hit PostgreSQL.
+_GET_ENGINE_TARGETS = [
+    "app.core.db.get_engine",
+    "app.api.v1.deps.get_engine",
+    "app.api.v1.routes.health.get_engine",
+    "app.logic.eviction.get_engine",
+    "app.logic.pipeline.get_engine",
+]
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -26,7 +39,18 @@ async def engine() -> AsyncEngine:
     )
     async with eng.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    # Clear the @cache so no stale PostgreSQL engine leaks into tests.
+    get_engine.cache_clear()
     return eng
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _patch_get_engine(engine: AsyncEngine) -> Iterator[None]:
+    """Redirect get_engine() everywhere so background tasks use SQLite."""
+    with ExitStack() as stack:
+        for target in _GET_ENGINE_TARGETS:
+            stack.enter_context(patch(target, return_value=engine))
+        yield
 
 
 @pytest_asyncio.fixture
