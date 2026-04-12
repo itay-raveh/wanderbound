@@ -5,19 +5,22 @@
 <h1 align="center">Wanderbound</h1>
 
 <p align="center">
-  Converts a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into a print-ready photo album.
+  Turn a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into a print-ready photo album.
+</p>
+
+<p align="center">
+  <img src=".github/screenshot.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
 Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
-maps, photo pages - that you can edit and export to PDF.
+maps, photo pages - that you can edit in the browser and export to PDF.
 
-- Photo layout algorithm packs images into grids
-- Videos in albums - scrub frame-by-frame to pick a poster
-- Drag-and-drop editor
-- GPS tracks classified into flights, hikes, driving, walking. Add map pages
+- Photo layout algorithm packs images into grids, with drag-and-drop reordering
+- GPS tracks classified into flights, hikes, drives, and walks - add map pages
   with satellite imagery and elevation profiles
-- Album supports any locale (UI in English and Hebrew).
-- PDF export
+- Videos in albums - scrub frame-by-frame to pick a poster image
+- Full RTL and localization support (English and Hebrew)
+- PDF export via headless Chromium
 
 ## Tech Stack
 
@@ -33,8 +36,8 @@ maps, photo pages - that you can edit and export to PDF.
 Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
 
 ```bash
-git clone https://github.com/itayraveh/polarsteps-album-generator.git
-cd polarsteps-album-generator
+git clone https://github.com/itay-raveh/wanderbound.git
+cd wanderbound
 
 cp .env.example .env
 # Fill in the required values
@@ -68,24 +71,18 @@ mise run dev:frontend        # Vite dev server
 ```
 
 Run `mise tasks` to see all available commands. Extra arguments pass
-through — e.g., `mise run test:backend -k test_auth`.
+through - e.g., `mise run test:backend -k test_auth`.
 
 ## Scaling Notes
 
-**Single-worker requirement** — The backend uses in-memory state for processing
+**Single-worker requirement** - The backend uses in-memory state for processing
 sessions, PDF render concurrency, and activity debouncing. Running multiple
 uvicorn workers or multiple backend containers would break these. To scale
 horizontally, move session/semaphore state to Redis first.
 
-**Structured logging** — The backend currently uses Python stdlib logging.
+**Structured logging** - The backend currently uses Python stdlib logging.
 For log aggregation (CloudWatch, Loki, Datadog), switch to JSON-structured
 logging (e.g., `python-json-logger`) and add a correlation ID middleware.
-
-## Roadmap
-
-- [ ] Create deployment strategy.
-- [ ] Research google photos feature.
-- [ ] Add double page photos.
 
 ## License
 

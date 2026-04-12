@@ -14,12 +14,35 @@ const API = "**/api/v1";
 
 const mediaBody = Buffer.from(TINY_JPEG_BASE64, "base64");
 
+// Strict mock guard: register first so it matches last (Playwright is LIFO).
+// Any /api/v1/** request not handled by a later, more specific route lands
+// here and is recorded. Tests fail in teardown if anything was recorded —
+// preventing silent fall-through to the dev-server proxy and a non-existent
+// backend, which would otherwise mask missing mocks behind passing tests.
+async function installStrictMockGuard(page: Page) {
+  const unmocked: string[] = [];
+  await page.route(`${API}/**`, (route) => {
+    unmocked.push(route.request().url());
+    return route.abort();
+  });
+  return () => {
+    if (unmocked.length) {
+      throw new Error(
+        `Unmocked API calls detected in test:\n  ${unmocked.join("\n  ")}`,
+      );
+    }
+  };
+}
+
 async function mockCommonApi(page: Page) {
   await page.route(`${API}/users`, (route) =>
     route.fulfill({ json: mockUser }),
   );
   await page.route(`${API}/albums/*/segments`, (route) =>
     route.fulfill({ json: mockSegmentOutlines }),
+  );
+  await page.route(`${API}/albums/*/segments/points*`, (route) =>
+    route.fulfill({ json: [] }),
   );
   await page.route(`${API}/albums/*`, (route) =>
     route.fulfill({ json: mockAlbum }),
@@ -64,6 +87,11 @@ async function initPage(page: Page) {
 }
 
 export const test = base.extend<{ authedPage: Page; focusPage: Page }>({
+  page: async ({ page }, use) => {
+    const assertAllMocked = await installStrictMockGuard(page);
+    await use(page);
+    assertAllMocked();
+  },
   authedPage: async ({ page }, use) => {
     await mockCommonApi(page);
     await mockDefaultSteps(page);

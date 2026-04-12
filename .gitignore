@@ -35,6 +35,9 @@ frontend/src/styles/fonts.css
 # Claude Code
 .superpowers
 
+# Personal
+.todo
+
 # App data
 backend/data/
 backend/tests/test_data/
