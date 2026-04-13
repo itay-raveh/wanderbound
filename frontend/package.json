@@ -40,7 +40,7 @@
     "mapbox-gl": "^3.20.0",
     "marked": "^17.0.5",
     "pinia": "^3.0.4",
-    "postcss-rtlcss": "^5.7.1",
+    "postcss-rtlcss": "^6.0.0",
     "quasar": "^2.18.7",
     "vue": "^3.5.30",
     "vue-draggable-plus": "^0.6.1",
