@@ -38,7 +38,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}-backend
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -86,7 +86,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}-frontend
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/frontend
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -101,7 +101,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-contexts: |
-            openapi=docker-image://${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ needs.build-backend.outputs.digest }}
+            openapi=docker-image://${{ env.REGISTRY }}/${{ github.repository }}/backend@${{ needs.build-backend.outputs.digest }}
           build-args: |
             VITE_MAX_UPLOAD_GB=${{ vars.VITE_MAX_UPLOAD_GB }}
             VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
