@@ -28,6 +28,10 @@
       "groupName": "github actions"
     }
   ],
-  "pip_requirements": { "fileMatch": ["requirements.*\\.txt$"] },
+  "pip_requirements": {
+    "managerFilePatterns": [
+      "/requirements.*\\.txt$/"
+    ]
+  },
   "commitMessagePrefix": "build(deps):"
 }
