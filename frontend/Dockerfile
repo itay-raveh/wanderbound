@@ -24,6 +24,7 @@ ARG VITE_AUTHOR_NAME
 ARG VITE_AUTHOR_URL
 ARG VITE_SENTRY_DSN
 ARG VITE_FRONTEND_URL
+ARG VITE_MICROSOFT_CLIENT_ID
 
 RUN bun run build
 
@@ -36,13 +37,14 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 COPY --from=build-stage /app/frontend/dist/ /usr/share/nginx/html
 
-COPY ./frontend/nginx/nginx.conf /etc/nginx/conf.d/default.conf
+COPY ./frontend/nginx/nginx.conf /etc/nginx/templates/default.conf.template
 COPY ./frontend/nginx/proxy-params.conf /etc/nginx/proxy-params.conf
 COPY ./frontend/nginx/security-headers.conf /etc/nginx/security-headers.conf
 
-# Plain-text placeholders (not $VAR) to avoid clashing with nginx variables.
-ARG VITE_MAX_UPLOAD_GB
-RUN sed -i "s|MAX_UPLOAD_SIZE|${VITE_MAX_UPLOAD_GB:-4}|g" /etc/nginx/conf.d/default.conf
+ENV NGINX_ENVSUBST_FILTER="BACKEND_HOST|BACKEND_PORT|MAX_UPLOAD_SIZE"
+ENV BACKEND_HOST=backend
+ENV BACKEND_PORT=8000
+ENV MAX_UPLOAD_SIZE=4
 
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run
 

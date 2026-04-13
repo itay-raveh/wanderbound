@@ -1,14 +1,15 @@
+import os
+
 from alembic.autogenerate.api import AutogenContext
 from logging.config import fileConfig
 from typing import Any, Literal
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import URL, engine_from_config, pool
 from sqlmodel import SQLModel
 
 import alembic_postgresql_enum  # noqa: F401 - auto-handle enum types in migrations
 import app.models  # noqa: F401 - register all table models
-from app.core.config import get_settings
 from app.core.db import PydanticJSON
 
 config = context.config
@@ -31,7 +32,14 @@ def render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | 
 
 
 def get_url() -> str:
-    return str(get_settings().SQLALCHEMY_DATABASE_URI)
+    return URL.create(
+        "postgresql+psycopg",
+        username=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+        host=os.environ["POSTGRES_SERVER"],
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
+        database=os.environ["POSTGRES_DB"],
+    ).render_as_string(hide_password=False)
 
 
 def run_migrations_offline() -> None:
