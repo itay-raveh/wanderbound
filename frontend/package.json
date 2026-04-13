@@ -38,7 +38,7 @@
     "canvas-confetti": "^1.9.4",
     "d3-scale": "^4.0.2",
     "mapbox-gl": "^3.20.0",
-    "marked": "^17.0.5",
+    "marked": "^18.0.0",
     "pinia": "^3.0.4",
     "postcss-rtlcss": "^5.7.1",
     "quasar": "^2.18.7",
