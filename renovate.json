@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["after 9am and before 5pm on saturday"],
+  "timezone": "Europe/Amsterdam",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["pip_requirements", "pep621"],
+      "groupName": "python dependencies"
+    },
+    {
+      "matchManagers": ["npm"],
+      "groupName": "frontend dependencies"
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker base images"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ],
+  "pip_requirements": { "fileMatch": ["requirements.*\\.txt$"] },
+  "commitMessagePrefix": "build(deps):"
+}
