@@ -30,6 +30,10 @@ RUN bun run build
 
 FROM nginx:1
 
+LABEL org.opencontainers.image.source="https://github.com/itay-raveh/wanderbound"
+LABEL org.opencontainers.image.description="Wanderbound frontend"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
+
 COPY --from=build-stage /app/frontend/dist/ /usr/share/nginx/html
 
 COPY ./frontend/nginx/nginx.conf /etc/nginx/conf.d/default.conf

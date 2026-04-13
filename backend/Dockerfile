@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+LABEL org.opencontainers.image.source="https://github.com/itay-raveh/wanderbound"
+LABEL org.opencontainers.image.description="Wanderbound backend"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libzimg2 \
     && rm -rf /var/lib/apt/lists/*
