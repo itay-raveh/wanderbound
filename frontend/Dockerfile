@@ -46,7 +46,7 @@ ENV BACKEND_HOST=backend
 ENV BACKEND_PORT=8000
 ENV MAX_UPLOAD_SIZE=4
 
-RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run /etc/nginx/conf.d
 
 USER nginx
 
