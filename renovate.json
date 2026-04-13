@@ -4,10 +4,12 @@
   "schedule": ["after 9am and before 5pm on saturday"],
   "timezone": "Europe/Amsterdam",
   "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],
-      "automerge": true
+      "automerge": true,
+      "automergeType": "branch"
     },
     {
       "matchManagers": ["pip_requirements", "pep621"],
