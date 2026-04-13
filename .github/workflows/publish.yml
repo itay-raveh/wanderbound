@@ -112,5 +112,9 @@ jobs:
             VITE_AUTHOR_URL=${{ vars.VITE_AUTHOR_URL }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_FRONTEND_URL=${{ vars.VITE_FRONTEND_URL }}
+            VITE_MICROSOFT_CLIENT_ID=${{ vars.VITE_MICROSOFT_CLIENT_ID }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_FRONTEND_PROJECT=${{ vars.SENTRY_FRONTEND_PROJECT }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
