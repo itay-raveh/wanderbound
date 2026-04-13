@@ -141,6 +141,7 @@ services:
     restart: always
     <<: *security
     tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101
       - /var/cache/nginx:uid=101,gid=101
       - /var/run:uid=101,gid=101
       - /tmp
