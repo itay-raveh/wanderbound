@@ -61,6 +61,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - uses: oven-sh/setup-bun@v2
       - run: uv sync --all-packages
+      - run: bun install --frozen-lockfile
+        working-directory: frontend
+      - run: bunx playwright install --with-deps chromium
+        working-directory: frontend
       - name: Generate assets
         run: |
           uv run scripts/generate_countries.py
