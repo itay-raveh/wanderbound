@@ -9,7 +9,8 @@
     {
       "matchUpdateTypes": ["patch"],
       "automerge": true,
-      "automergeType": "branch"
+      "automergeType": "branch",
+      "minimumReleaseAge": "14 days"
     },
     {
       "matchManagers": ["pip_requirements", "pep621"],
