@@ -1,8 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "schedule": ["after 9am and before 5pm on saturday"],
-  "timezone": "Europe/Amsterdam",
+  "schedule": ["every weekend"],
   "labels": ["dependencies"],
   "minimumReleaseAge": "3 days",
   "packageRules": [
