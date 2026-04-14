@@ -31,7 +31,7 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 <p align="center">
   <img src="frontend/public/landing/hike-map-dark.jpg" width="240" alt="Map page with satellite imagery and elevation profile">&nbsp;
   <img src="frontend/public/landing/overview-dark.jpg" width="240" alt="Trip overview page">&nbsp;
-  <img src="frontend/public/landing/localization-dark.jpg" width="240" alt="Hebrew RTL layout">
+  <img src="frontend/public/landing/auto-album-dark.jpg" width="240" alt="Auto-generated photo grid layout">
 </p>
 
 ## Tech Stack
