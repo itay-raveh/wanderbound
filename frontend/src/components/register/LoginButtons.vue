@@ -55,7 +55,7 @@ const emit = defineEmits<{
   background: var(--surface);
   border: none;
   box-shadow:
-    inset 0 0 0 1px var(--border-color),
+    inset 0 0 0 2px var(--border-color),
     var(--shadow-sm);
   transition:
     background var(--duration-fast),
@@ -82,7 +82,7 @@ const emit = defineEmits<{
 .auth-btn-wrapper:hover > .auth-btn {
   background: color-mix(in srgb, var(--q-primary) 8%, var(--surface));
   box-shadow:
-    inset 0 0 0 1px var(--q-primary),
+    inset 0 0 0 2px var(--q-primary),
     var(--shadow-md);
 }
 

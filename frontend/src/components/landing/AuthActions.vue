@@ -55,7 +55,7 @@ const emit = defineEmits<{
   cursor: pointer;
   color: var(--q-primary);
   background: transparent;
-  border: 1px dashed color-mix(in srgb, var(--q-primary) 40%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--q-primary) 40%, transparent);
   transition:
     background var(--duration-fast),
     border-color var(--duration-fast);
