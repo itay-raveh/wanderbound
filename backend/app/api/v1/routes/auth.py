@@ -60,6 +60,10 @@ async def _verify_oidc_token(
 
 async def _verify_google(credential: str) -> OAuthIdentity:
     settings = get_settings()
+    if not settings.VITE_GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED, "Google auth not configured"
+        )
     payload = await _verify_oidc_token(
         credential, _google_jwks, settings.VITE_GOOGLE_CLIENT_ID, GOOGLE_ISSUERS
     )

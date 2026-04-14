@@ -1,6 +1,6 @@
 from functools import cache
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -8,8 +8,14 @@ from pydantic import (
     Field,
     PostgresDsn,
     computed_field,
+    model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.resources import detect_storage_bytes
+
+# Reserve 10% of detected storage for DB WAL, logs, temp files, uploads
+_STORAGE_HEADROOM = 0.9
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -30,14 +36,14 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    VITE_FRONTEND_URL: str
+    VITE_FRONTEND_URL: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     SENTRY_DSN: str | None = None
     SENTRY_RELEASE: str | None = None
 
-    VITE_GOOGLE_CLIENT_ID: str
+    VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
     VITE_MAX_UPLOAD_GB: int = 4
 
@@ -73,7 +79,30 @@ class Settings(BaseSettings):
     VITE_MAPBOX_TOKEN: str | None = None
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
-    MAX_STORAGE_BYTES: int
+    MAX_STORAGE_BYTES: int = 0
+
+    @model_validator(mode="after")
+    def _detect_storage_cap(self) -> Self:
+        if not self.MAX_STORAGE_BYTES:
+            self.MAX_STORAGE_BYTES = int(
+                detect_storage_bytes(self.DATA_FOLDER) * _STORAGE_HEADROOM
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _require_in_production(self) -> Self:
+        if self.ENVIRONMENT != "production":
+            return self
+        missing: list[str] = []
+        if not self.VITE_MAPBOX_TOKEN:
+            missing.append("VITE_MAPBOX_TOKEN")
+        if "localhost" in self.VITE_FRONTEND_URL:
+            missing.append("VITE_FRONTEND_URL")
+        if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:
+            missing.append("VITE_GOOGLE_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID")
+        if missing:
+            raise ValueError(f"required in production: {', '.join(missing)}")
+        return self
 
     @property
     def USERS_FOLDER(self) -> Path:

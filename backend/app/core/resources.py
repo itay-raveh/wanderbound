@@ -1,10 +1,20 @@
 """Detect container resource limits from cgroup v2/v1, with system fallback."""
 
 import os
+import shutil
 from functools import cache
 from pathlib import Path
 
 MiB = 1024 * 1024
+
+
+def detect_storage_bytes(path: Path) -> int:
+    """Filesystem capacity in bytes for the given path.
+
+    On k8s with a PVC mount this returns the PVC size.
+    On Docker/local it returns the host disk size.
+    """
+    return shutil.disk_usage(path).total
 
 
 @cache
