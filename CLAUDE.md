@@ -58,7 +58,7 @@ Use `cymbal` CLI for code navigation — prefer it over Read, Grep, Glob, or Bas
 - Segments have composite PKs: `(uid, aid, start_time, end_time)`.
 - PydanticJSON TypeDecorator round-trips JSON columns through Pydantic validation.
 - Processing sessions replay all past SSE events on reconnect (no restart needed).
-- Use pathlib, never os/os.path. Use rem, never px.
+- Use pathlib, never os/os.path. Use rem, never px (exception: 1px for hairline borders, outlines, and optical nudges).
 - Python 3.14: `except A, B:` is valid — no parentheses needed.
 - Font registry: `frontend/fonts.json`. Frontend `utils/fonts.ts` imports it via `@fonts` alias. Backend stores font as plain string (no validation). Run `mise run generate:fonts` after adding fonts.
 
