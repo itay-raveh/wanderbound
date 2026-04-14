@@ -48,5 +48,5 @@ export function isPortraitByName(name: string, mediaByName: ReadonlyMap<string, 
 
 /** Build Basmilius weather icon URL for a WMO icon name. */
 export function weatherIconUrl(iconName: string): string {
-  return `https://basmilius.github.io/weather-icons/production/fill/all/${iconName}.svg`;
+  return `https://basmilius.github.io/meteocons/production/fill/svg/${iconName}.svg`;
 }
