@@ -4,7 +4,7 @@
  * Prerequisites:
  *   - Backend running (mise run dev:backend)
  *   - Frontend running (mise run dev:frontend)
- *   - Database migrated (mise run migrate)
+ *   - Database migrated (mise run db:migrate)
  *
  * Usage:
  *   mise run generate:landing

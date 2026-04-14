@@ -1,6 +1,6 @@
 # Backend
 
-See @mise.toml — relevant tasks: `test:backend`, `lint:backend`, `format:backend`, `migrate`.
+See @mise.toml - relevant tasks: `test:backend`, `lint:backend`, `format:backend`, `db:migrate`.
 
 ## Architecture
 

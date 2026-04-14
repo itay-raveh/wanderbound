@@ -3,6 +3,34 @@ python = "3.14"
 bun = "1"
 uv = "latest"
 
+# -- Setup --------------------------------------------------------
+
+[tasks.setup]
+description = "Bootstrap dev environment from fresh clone"
+run = [
+    "cp -n .env.example .env || true",
+    "uv sync",
+    "bun install",
+    "mise run generate",
+    "mise run db:migrate",
+]
+
+[tasks.doctor]
+description = "Check that all required tools and services are available"
+run = """
+set -euo pipefail
+err=0
+for cmd in docker uv bun mise; do
+  if command -v "$cmd" &>/dev/null; then
+    printf 'OK  %-10s %s\\n' "$cmd" "$(command -v "$cmd")"
+  else
+    printf 'MISSING  %s\\n' "$cmd"; err=1
+  fi
+done
+docker info &>/dev/null && echo "OK  docker daemon" || { echo "MISSING  docker daemon"; err=1; }
+exit $err
+"""
+
 # -- Dev servers --------------------------------------------------
 
 [tasks."dev:backend"]
@@ -93,6 +121,12 @@ run = "bun run format"
 description = "Format all code"
 depends = ["format:*"]
 
+# -- Fix ----------------------------------------------------------
+
+[tasks.fix]
+description = "Auto-fix all fixable format issues"
+depends = ["format"]
+
 # -- Build --------------------------------------------------------
 
 [tasks.build]
@@ -117,12 +151,30 @@ raw = true
 
 # -- Database -----------------------------------------------------
 
-[tasks.migrate]
+[tasks."db:migrate"]
 description = "Run database migrations (alembic upgrade head)"
 dir = "backend"
 run = "uv run alembic upgrade head"
 
-[tasks.restore]
+[tasks."db:migration"]
+description = "Create a new alembic migration (pass name as argument)"
+dir = "backend"
+run = "uv run alembic revision --autogenerate -m \"$*\""
+
+[tasks."db:shell"]
+description = "Open interactive psql session"
+run = "docker compose exec db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}"
+raw = true
+
+[tasks."db:reset"]
+description = "Drop and recreate database, then run migrations"
+run = [
+    "docker compose exec db dropdb -U ${POSTGRES_USER:-postgres} --if-exists ${POSTGRES_DB:-app}",
+    "docker compose exec db createdb -U ${POSTGRES_USER:-postgres} ${POSTGRES_DB:-app}",
+    "mise run db:migrate",
+]
+
+[tasks."db:restore"]
 description = "Restore database or data from backups (list|db|data)"
 run = "bash scripts/restore.sh"
 raw = true
@@ -156,10 +208,31 @@ description = "Screenshot landing page images (requires running dev:backend + de
 run = "bun scripts/generate-landing.ts"
 
 [tasks.generate]
-description = "Regenerate all derived assets (except landing — needs live servers)"
+description = "Regenerate all derived assets (except landing - needs live servers)"
 depends = [
     "generate:countries",
     "generate:fonts",
     "generate:topo",
     "generate:og-image",
 ]
+
+# -- CI -----------------------------------------------------------
+
+[tasks.ci]
+description = "Run the full CI pipeline locally"
+depends = ["lint", "test", "build"]
+
+# -- Clean --------------------------------------------------------
+
+[tasks.clean]
+description = "Remove caches and build artifacts"
+run = [
+    "rm -rf .pytest_cache .ruff_cache",
+    "find . -type d -name __pycache__ -not -path './.venv/*' -not -path './node_modules/*' -exec rm -rf {} + 2>/dev/null || true",
+    "rm -rf frontend/dist",
+]
+
+[tasks.nuke]
+description = "Full reset to fresh-clone state (keeps .env)"
+depends = ["down", "clean"]
+run = "rm -rf node_modules frontend/node_modules .venv"
