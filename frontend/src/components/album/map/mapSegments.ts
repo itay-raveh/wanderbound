@@ -9,7 +9,8 @@ import { lineString } from "@turf/helpers";
 const LAYER_PREFIX = "seg-";
 const MARKER_CLASS = "map-step-marker";
 const FLIGHT_ICON_CLASS = "map-flight-icon";
-const FAINT_OPACITY = 0.75;
+const FAINT_OPACITY = 0.9;
+const FAINT_COLOR = "rgba(255, 255, 255, 0.8)";
 
 function cleanup(m: mapboxgl.Map) {
   for (const layer of m.getStyle()?.layers ?? []) {
@@ -94,7 +95,7 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
 
   addLine(m, id, lineFeature(arcCoords), {
     "line-color": "rgba(255, 255, 255, 0.85)",
-    "line-width": faint ? 0.8 : 1.2,
+    "line-width": faint ? 1.5 : 1.2,
     "line-dasharray": [2, 3],
     "line-opacity": faint ? FAINT_OPACITY : 0.7,
   });
@@ -142,8 +143,8 @@ function drawHike(
   }
 
   addLine(m, id, lineFeature(coords), {
-    "line-color": opts.faint ? "rgba(255, 255, 255, 0.6)" : hikeColor,
-    "line-width": opts.faint ? 1 : 4,
+    "line-color": opts.faint ? FAINT_COLOR : hikeColor,
+    "line-width": opts.faint ? 2 : 4,
     "line-opacity": opts.faint ? FAINT_OPACITY : 1,
   });
 
@@ -212,7 +213,7 @@ function drawRouteLayers(
     }
     addLine(m, style.sourceId, data, {
       "line-color": "rgba(255, 255, 255, 0.85)",
-      "line-width": faint ? 1 : style.width,
+      "line-width": faint ? 2 : style.width,
       "line-opacity": faint ? FAINT_OPACITY : 1,
       ...(style.dasharray ? { "line-dasharray": style.dasharray } : {}),
     });

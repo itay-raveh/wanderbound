@@ -210,7 +210,13 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
         fetchedSegments: fetchedSegments.value ?? [],
         allSegments: props.allSegments,
         hikeColor: countryColor.value,
-        onCommit: (adjust) => boundaryMutation.mutate(adjust),
+        onCommit: (adjust) => {
+          // Tear down handles immediately so stale times can't be reused
+          // before the segment-points refetch triggers drawMap() with fresh data.
+          cleanupHandles?.();
+          cleanupHandles = null;
+          boundaryMutation.mutate(adjust);
+        },
       });
     }
 
