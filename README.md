@@ -29,9 +29,9 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 - PDF export via headless Chromium
 
 <p align="center">
-  <img src="frontend/public/landing/hike-map-dark.jpg" width="320" alt="Map page with satellite imagery and elevation profile">&nbsp;
-  <img src="frontend/public/landing/overview-dark.jpg" width="320" alt="Trip overview page">&nbsp;
-  <img src="frontend/public/landing/localization-dark.jpg" width="320" alt="Hebrew RTL layout">
+  <img src="frontend/public/landing/hike-map-dark.jpg" width="240" alt="Map page with satellite imagery and elevation profile">&nbsp;
+  <img src="frontend/public/landing/overview-dark.jpg" width="240" alt="Trip overview page">&nbsp;
+  <img src="frontend/public/landing/localization-dark.jpg" width="240" alt="Hebrew RTL layout">
 </p>
 
 ## Tech Stack
@@ -62,6 +62,10 @@ Open `http://localhost:5173`.
 For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
 `docker compose -f compose.yml up -d`.
 
+> [!WARNING]
+> The backend uses in-memory state and must run as a single worker process.
+> Do not run multiple backend containers or uvicorn workers.
+
 ## Development
 
 [mise](https://mise.jdx.dev/) manages tool versions and all project
@@ -76,14 +80,3 @@ mise run dev:frontend        # Vite dev server
 
 Run `mise tasks` to see all available commands. Extra arguments pass
 through - e.g., `mise run test:backend -- -k test_auth`.
-
-## Scaling Notes
-
-**Single-worker requirement** - The backend uses in-memory state for processing
-sessions, PDF render concurrency, and activity debouncing. Running multiple
-uvicorn workers or multiple backend containers would break these. To scale
-horizontally, move session/semaphore state to Redis first.
-
-**Structured logging** - The backend currently uses Python stdlib logging.
-For log aggregation (CloudWatch, Loki, Datadog), switch to JSON-structured
-logging (e.g., `python-json-logger`) and add a correlation ID middleware.
