@@ -121,12 +121,12 @@ def mock_jwt(
         if decode_error
         else {"return_value": payload or _DEFAULT_PAYLOADS[provider]}
     )
-    # Ensure the client-ID gate in _verify_microsoft passes even when
-    # VITE_MICROSOFT_CLIENT_ID is absent from the environment.
+    # Ensure the client-ID gate passes even when the env var is absent.
     settings = get_settings()
-    prev = settings.VITE_MICROSOFT_CLIENT_ID
-    if ensure_configured and provider == "microsoft" and not prev:
-        settings.VITE_MICROSOFT_CLIENT_ID = "test"
+    attr = f"VITE_{provider.upper()}_CLIENT_ID"
+    prev = getattr(settings, attr)
+    if ensure_configured and not prev:
+        setattr(settings, attr, "test")
     try:
         with (
             patch(
@@ -137,7 +137,7 @@ def mock_jwt(
         ):
             yield
     finally:
-        settings.VITE_MICROSOFT_CLIENT_ID = prev
+        setattr(settings, attr, prev)
 
 
 def mock_extract(users_dir: Path) -> patch:
