@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(__dirname, "../frontend/public");
 const LOGO_SVG = readFileSync(path.join(PUBLIC, "logo.svg"), "utf-8");
+const TOPO_SVG = readFileSync(path.join(PUBLIC, "topo-contours.svg"), "utf-8");
 const FONT_DIR = path.join(PUBLIC, "fonts");
 const OUTPUT = path.join(PUBLIC, "og-image.png");
 
@@ -46,9 +47,33 @@ body {
   overflow: hidden;
 }
 
+.topo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.25;
+  z-index: 0;
+}
+
+.topo svg {
+  width: 220%;
+  height: 220%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.topo svg path {
+  stroke-width: 1.5px;
+}
+
 .logo {
   width: 110px;
   height: 110px;
+  position: relative;
+  z-index: 1;
 }
 
 .logo svg {
@@ -57,6 +82,8 @@ body {
 }
 
 .title {
+  position: relative;
+  z-index: 1;
   color: #f0f0f0;
   font-size: 72px;
   font-weight: 800;
@@ -64,6 +91,8 @@ body {
 }
 
 .tagline {
+  position: relative;
+  z-index: 1;
   color: rgba(255, 255, 255, 0.55);
   font-size: 40px;
   font-weight: 400;
@@ -72,6 +101,7 @@ body {
 </style>
 </head>
 <body>
+  <div class="topo">${TOPO_SVG}</div>
   <div class="logo">${LOGO_SVG}</div>
   <div class="title">Wanderbound</div>
   <div class="tagline">Turn your Polarsteps trips into photo albums</div>
