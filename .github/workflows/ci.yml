@@ -166,6 +166,7 @@ jobs:
       POSTGRES_DB: ci
       SECRET_KEY: ci
       DOMAIN: localhost
+      VITE_FRONTEND_URL: http://localhost  # Vite build-html resolves %VITE_FRONTEND_URL% in index.html
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
