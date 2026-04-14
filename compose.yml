@@ -172,7 +172,7 @@ services:
         - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME:-}
         - VITE_AUTHOR_URL=${VITE_AUTHOR_URL:-}
         - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
-        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-}
+        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-http://localhost}
 
 networks:
   backend:
