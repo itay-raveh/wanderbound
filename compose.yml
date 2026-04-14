@@ -62,10 +62,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
       POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
       SECRET_KEY: ${SECRET_KEY:?Variable not set}
-      VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:?Variable not set}
-      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Variable not set}
+      VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:-}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
       VITE_MICROSOFT_CLIENT_ID: ${VITE_MICROSOFT_CLIENT_ID:-}
-      MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:?Variable not set}
+      MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:-}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
       ENVIRONMENT: ${ENVIRONMENT:-local}
       SENTRY_DSN: ${SENTRY_DSN:-}
@@ -165,14 +165,14 @@ services:
         - openapi=service:backend
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
-        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:?Variable not set}
-        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:?Variable not set}
+        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
         - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}
         - VITE_GITHUB_URL=${VITE_GITHUB_URL:-}
         - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME:-}
         - VITE_AUTHOR_URL=${VITE_AUTHOR_URL:-}
         - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
-        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:?Variable not set}
+        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-}
 
 networks:
   backend:
