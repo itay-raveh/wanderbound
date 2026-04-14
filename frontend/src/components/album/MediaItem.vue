@@ -36,6 +36,11 @@ function handleClick() {
   elRef.value?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+function handleSpace() {
+  if (isVideo.value && (playing.value || isFocused.value)) togglePlay();
+  else handleClick();
+}
+
 const isVideo = computed(() => checkVideo(props.media));
 const src = computed(() => mediaUrl(props.media, albumId.value));
 const posterCacheBust = ref<number>();
@@ -112,7 +117,7 @@ function onVideoKey(e: KeyboardEvent) {
     :aria-pressed="canFocus ? isFocused : undefined"
     @click="handleClick"
     @keydown.enter="handleClick"
-    @keydown.space.prevent="handleClick"
+    @keydown.space.prevent="handleSpace"
   >
     <template v-if="isVideo && !printMode">
       <img

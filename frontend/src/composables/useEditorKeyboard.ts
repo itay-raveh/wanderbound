@@ -30,9 +30,9 @@ export function useEditorKeyboard() {
     }
 
     if (isTextInput(e)) return;
-    // Playing video: let arrow keys seek; paused/poster: navigate photos
+    // Video has focus (playing or paused): let native controls handle keys
     const el = e.target as HTMLElement;
-    if (el.tagName === "VIDEO" && !(el as HTMLVideoElement).paused) return;
+    if (el.tagName === "VIDEO") return;
     if (mod) return;
 
     const rtl = document.documentElement.dir === "rtl";
