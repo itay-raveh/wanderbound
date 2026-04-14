@@ -13,7 +13,10 @@ def detect_storage_bytes(path: Path) -> int:
 
     On k8s with a PVC mount this returns the PVC size.
     On Docker/local it returns the host disk size.
+    Falls back to the first existing ancestor if the path doesn't exist yet.
     """
+    while not path.exists():
+        path = path.parent
     return shutil.disk_usage(path).total
 
 
