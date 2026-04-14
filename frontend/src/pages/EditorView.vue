@@ -40,7 +40,7 @@ const albumIds = computed(() => userData.value?.album_ids ?? null);
 if (!selectedAlbumId.value) {
   const stop = watch(albumIds, (ids) => {
     if (ids?.length) {
-      selectedAlbumId.value = ids[0];
+      selectedAlbumId.value = ids[0]!;
       void nextTick(() => stop());
     }
   }, { immediate: true });

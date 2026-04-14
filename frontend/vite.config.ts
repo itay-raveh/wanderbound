@@ -14,6 +14,8 @@ export default defineConfig({
   },
   envDir: path.resolve(__dirname, ".."),
   server: {
+    host: true,
+    allowedHosts: true,
     proxy: {
       "/api": "http://localhost:8000",
     },

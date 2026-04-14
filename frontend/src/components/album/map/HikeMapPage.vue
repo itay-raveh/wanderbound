@@ -13,12 +13,14 @@ import { getCountryColor, ensureSatelliteContrast } from "../colors";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
-import { useTemplateRef, computed, ref, watch, onUnmounted } from "vue";
+import { useId, useTemplateRef, computed, ref, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
 
 const { t } = useI18n();
+const uid = useId();
+const fadeGradId = `hike-fade-${uid}`;
 
 const props = defineProps<{
   steps: Step[];
@@ -313,7 +315,23 @@ watch(safeMarginMm, () => {
         </template>
       </div>
     </div>
-    <div class="elevation-overlay">
+    <!-- Fade overlay: SVG gradient with stop-opacity instead of CSS alpha
+         stops — Skia's PDF backend renders CSS alpha in gradients as pink.
+         Uses currentColor so the resolved --bg hex reaches Skia directly. -->
+    <svg class="elevation-fade" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient :id="fadeGradId" x1="0" x2="0" y1="1" y2="0">
+          <stop offset="0%"   stop-color="currentColor" stop-opacity="1" />
+          <stop offset="50%"  stop-color="currentColor" stop-opacity="0.92" />
+          <stop offset="65%"  stop-color="currentColor" stop-opacity="0.6" />
+          <stop offset="80%"  stop-color="currentColor" stop-opacity="0.25" />
+          <stop offset="90%"  stop-color="currentColor" stop-opacity="0.06" />
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <rect width="1" height="1" :fill="`url(#${fadeGradId})`" />
+    </svg>
+    <div class="elevation-chart">
       <ElevationProfile
         :points="elevationSamples"
         :accent="countryColor"
@@ -325,36 +343,31 @@ watch(safeMarginMm, () => {
 </template>
 
 <style lang="scss" scoped>
-// Chart panel pinned to bottom. Gradient starts well above the chart
-// content so all ticks/labels sit in the fully-dark zone, and extends
-// past the SVG bottom to eliminate any satellite sliver at the page edge.
-.elevation-overlay {
+// SVG gradient overlay pinned to the bottom of the page, extending past
+// the page edge to eliminate satellite slivers. Uses SVG stop-opacity
+// instead of CSS alpha functions — Skia's PDF backend renders CSS alpha
+// in gradients as pink. currentColor inherits --bg via the `color` prop.
+.elevation-fade {
   position: absolute;
-  bottom: -0.25rem;
+  bottom: -2mm;
+  left: 0;
+  width: 100%;
+  // Bottom 40% of this element is the opaque zone (chart area);
+  // the rest fades to zero so the top edge is imperceptible.
+  height: 35%;
+  z-index: 1;
+  color: var(--bg);
+  print-color-adjust: exact;
+}
+
+.elevation-chart {
+  position: absolute;
+  bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1;
+  z-index: 2;
   padding-inline: var(--safe-margin, 0mm);
   padding-bottom: max(var(--gap-md), var(--safe-margin, 0mm));
-  /* rtl:ignore */
-  background:
-    linear-gradient(
-      to right,
-      color-mix(in srgb, var(--bg) 88%, transparent),
-      color-mix(in srgb, var(--bg) 88%, transparent) var(--safe-margin, 0mm),
-      color-mix(in srgb, var(--bg) 70%, transparent) calc(var(--safe-margin, 0mm) + 4%),
-      transparent calc(var(--safe-margin, 0mm) + 12%)
-    ),
-    linear-gradient(
-      to top,
-      color-mix(in srgb, var(--bg) 97%, transparent),
-      color-mix(in srgb, var(--bg) 97%, transparent) var(--safe-margin, 0mm),
-      color-mix(in srgb, var(--bg) 95%, transparent) calc(var(--safe-margin, 0mm) + 15%),
-      color-mix(in srgb, var(--bg) 88%, transparent) calc(var(--safe-margin, 0mm) + 35%),
-      color-mix(in srgb, var(--bg) 65%, transparent) calc(var(--safe-margin, 0mm) + 60%),
-      transparent
-    );
-  print-color-adjust: exact;
 }
 
 // Floating stats pill in the top-right corner of the map page.
@@ -370,7 +383,7 @@ watch(safeMarginMm, () => {
   text-align: right;
   /* rtl:ignore */
   padding: var(--gap-sm) var(--gap-md);
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  background: rgb(var(--bg-rgb) / 0.80);
   border-radius: var(--radius-sm);
   print-color-adjust: exact;
 }
