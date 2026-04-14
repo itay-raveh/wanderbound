@@ -13,7 +13,7 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
-import { ref, computed, watch, onBeforeUnmount } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 
 const { t } = useI18n();
 
@@ -35,6 +35,17 @@ watch(selectedAlbumId, (id) => {
 
 const { data: userData, locale, isDemo, exitDemo } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
+
+// Auto-select first album when none saved (VueUse `whenever` pattern)
+if (!selectedAlbumId.value) {
+  const stop = watch(albumIds, (ids) => {
+    if (ids?.length) {
+      selectedAlbumId.value = ids[0];
+      void nextTick(() => stop());
+    }
+  }, { immediate: true });
+}
+
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
 const { data: steps } = useStepsQuery(selectedAlbumId);
