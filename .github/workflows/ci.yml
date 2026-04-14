@@ -53,13 +53,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci
-      VITE_FRONTEND_URL: http://localhost
-      VITE_GOOGLE_CLIENT_ID: ci
       POSTGRES_SERVER: localhost
       POSTGRES_USER: ci
       POSTGRES_PASSWORD: ci
       POSTGRES_DB: ci
-      MAX_STORAGE_BYTES: "1000000"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -130,9 +127,6 @@ jobs:
       POSTGRES_PASSWORD: ci
       POSTGRES_DB: ci
       SECRET_KEY: ci
-      VITE_FRONTEND_URL: http://localhost
-      VITE_GOOGLE_CLIENT_ID: ci
-      MAX_STORAGE_BYTES: "1000000"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -171,11 +165,7 @@ jobs:
       POSTGRES_USER: ci
       POSTGRES_DB: ci
       SECRET_KEY: ci
-      VITE_FRONTEND_URL: http://localhost:5173
-      VITE_GOOGLE_CLIENT_ID: ci
-      MAX_STORAGE_BYTES: "1000000"
       DOMAIN: localhost
-      VITE_MAPBOX_TOKEN: ci
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

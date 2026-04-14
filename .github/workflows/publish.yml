@@ -59,6 +59,27 @@ jobs:
   build-frontend:
     runs-on: ubuntu-latest
     needs: build-backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: ci
+      SECRET_KEY: ci
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -71,12 +92,21 @@ jobs:
         working-directory: frontend
       - run: bunx playwright install --with-deps chromium
         working-directory: frontend
-      - name: Generate assets
+      - name: Generate offline assets
         run: |
           uv run scripts/generate_countries.py
           uv run scripts/generate_fonts.py
           uv run scripts/generate_topo.py
           bun scripts/generate-og-image.ts
+      - name: Generate landing screenshots
+        run: |
+          uv run python scripts/generate_openapi.py > frontend/openapi.json
+          (cd backend && uv run alembic upgrade head)
+          (cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000) &
+          timeout 60 bash -c 'until curl -sf http://localhost:8000/api/v1/health; do sleep 1; done'
+          (cd frontend && bun run dev) &
+          timeout 60 bash -c 'until curl -sf http://localhost:5173; do sleep 1; done'
+          bun scripts/generate-landing.ts
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
