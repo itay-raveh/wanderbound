@@ -181,6 +181,7 @@
   "pdf": {
     "queued": "Waiting to start...",
     "loading": "Loading album...",
+    "loadingProgress": "Loading album... ({done}/{total})",
     "renderingSingle": "Generating PDF...",
     "renderingBytes": "Generating PDF... {size}"
   },

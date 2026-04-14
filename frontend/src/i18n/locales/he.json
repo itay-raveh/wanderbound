@@ -181,6 +181,7 @@
   "pdf": {
     "queued": "ממתין להתחלה...",
     "loading": "טוען אלבום...",
+    "loadingProgress": "טוען אלבום... ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
     "renderingBytes": "מייצר PDF... {size}"
   },

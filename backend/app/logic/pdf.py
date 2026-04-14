@@ -36,6 +36,7 @@ class PdfProgress(BaseModel):
     type: Literal["progress"] = "progress"
     phase: Literal["loading", "rendering"]
     done: int
+    total: int | None = None
 
 
 class PdfDone(BaseModel):
@@ -155,13 +156,33 @@ async def _render_pdf(
             "pageerror",
             lambda err: logger.warning("Browser page error during PDF render: %s", err),
         )
+        started, finished = [0], [0]
+        page.on("request", lambda _: started.__setitem__(0, started[0] + 1))
+        page.on("requestfinished", lambda _: finished.__setitem__(0, finished[0] + 1))
+        page.on("requestfailed", lambda _: finished.__setitem__(0, finished[0] + 1))
         await page.emulate_media(media="print")
         dark_param = "true" if dark else "false"
         url = f"{settings.VITE_FRONTEND_URL}/print/{aid}?dark={dark_param}"
         await page.goto(url, wait_until="domcontentloaded")
         logger.info("DOM loaded for album %s", aid)
-        await page.wait_for_function("window.__PRINT_READY__ === true", timeout=60_000)
-        yield PdfProgress(phase="loading", done=1)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 60
+        last_counts = (-1, -1)
+        while True:
+            ready = await page.evaluate("window.__PRINT_READY__ === true")
+            counts = (finished[0], started[0])
+            if counts != last_counts or ready:
+                last_counts = counts
+                yield PdfProgress(
+                    phase="loading",
+                    done=finished[0],
+                    total=started[0],
+                )
+            if ready:
+                break
+            if loop.time() > deadline:
+                raise TimeoutError("Timed out waiting for album to load")
+            await asyncio.sleep(0.5)
 
         yield PdfProgress(phase="rendering", done=0)
         size = 0

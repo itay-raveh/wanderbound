@@ -19,10 +19,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function loadingMessage(phase: Phase, done: number): string {
+function loadingMessage(phase: Phase, done: number, total: number | null): string {
   switch (phase) {
     case "loading":
-      return t("pdf.loading");
+      return total != null
+        ? t("pdf.loadingProgress", { done, total })
+        : t("pdf.loading");
     case "rendering":
       return done > 0
         ? t("pdf.renderingBytes", { size: formatBytes(done) })
@@ -46,7 +48,7 @@ export function usePdfExportStream(aid: () => string): SseDownloadHandle {
         case "queued":
           return { loading: t("pdf.queued") };
         case "progress":
-          return { loading: loadingMessage(event.phase, event.done) };
+          return { loading: loadingMessage(event.phase, event.done, event.total ?? null) };
         case "done":
           return { done: event.token };
         case "error":
