@@ -45,8 +45,8 @@ const hasMeta = !!(authorName || version);
         </a>
       </template>
     </nav>
-    <div v-if="hasMeta" class="site-footer-group">
-      <span v-if="authorName" dir="ltr">
+    <div v-if="hasMeta" class="site-footer-meta" dir="ltr">
+      <span v-if="authorName">
         &copy; {{ year }}
         <a
           v-if="authorUrl"
@@ -104,6 +104,13 @@ const hasMeta = !!(authorName || version);
   &:hover {
     color: var(--q-primary);
   }
+}
+
+.site-footer-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  white-space: nowrap;
 }
 
 .site-footer-sep {

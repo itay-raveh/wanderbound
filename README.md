@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/itay-raveh/wanderbound/actions/workflows/ci.yml"><img src="https://github.com/itay-raveh/wanderbound/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/itay-raveh/wanderbound/releases"><img src="https://img.shields.io/github/v/release/itay-raveh/wanderbound" alt="Release"></a>
+  <a href="https://github.com/itay-raveh/wanderbound/blob/main/LICENSE"><img src="https://img.shields.io/github/license/itay-raveh/wanderbound" alt="License"></a>
+</p>
+
+<p align="center">
   <img src="frontend/public/landing/step-page-dark.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
