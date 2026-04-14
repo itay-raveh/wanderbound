@@ -388,7 +388,7 @@ const dateStr = computed(() => {
 }
 
 .step-badge {
-  margin-top: -0.0625rem;
+  margin-top: -1px;
   font-size: var(--type-xs);
   font-weight: 700;
   padding: var(--gap-xs) var(--gap-md);

@@ -125,7 +125,7 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   cursor: pointer;
   padding: var(--gap-xs);
   border-radius: var(--radius-xs);
-  border-bottom: 0.0625rem dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
   transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
 
   &:hover {
@@ -141,7 +141,7 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
 
   &:focus-visible {
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
+    outline-offset: 1px;
   }
 }
 
@@ -173,7 +173,7 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   &:focus-visible {
     opacity: 1;
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
+    outline-offset: 1px;
   }
 }
 

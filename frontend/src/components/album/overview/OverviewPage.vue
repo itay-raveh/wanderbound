@@ -338,7 +338,7 @@ const factColumns = computed(() => {
   border-radius: var(--radius-xs);
   flex-shrink: 0;
   object-fit: cover;
-  border: 0.0625rem solid color-mix(in srgb, var(--text-bright) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-bright) 22%, transparent);
 }
 
 /* ── Silhouette tapestry (center hero) ────────────── */
@@ -384,7 +384,7 @@ const factColumns = computed(() => {
   border-radius: var(--radius-xs);
   flex-shrink: 0;
   object-fit: cover;
-  border: 0.0625rem solid color-mix(in srgb, var(--text-bright) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-bright) 22%, transparent);
 }
 
 .tapestry-name {

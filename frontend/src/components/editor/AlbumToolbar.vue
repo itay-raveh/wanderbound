@@ -187,7 +187,7 @@ function onConfirmExport() {
 
 .export-btn {
   color: var(--q-primary);
-  border: 0.0625rem solid var(--q-primary);
+  border: 1px solid var(--q-primary);
   padding: var(--gap-sm) var(--gap-md-lg);
   transition:
     background var(--duration-fast),

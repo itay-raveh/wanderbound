@@ -29,7 +29,7 @@ const { t } = useI18n();
 .banner {
   padding: var(--gap-lg);
   border-radius: var(--radius-md);
-  border: 0.0625rem solid var(--danger);
+  border: 1px solid var(--danger);
   background: color-mix(in srgb, var(--danger) 6%, var(--bg-secondary));
 }
 

@@ -26,7 +26,7 @@
 
   &:focus-visible {
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
+    outline-offset: 1px;
   }
 }
 
@@ -44,7 +44,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--gap-sm) var(--gap-md);
-  border-top: 0.0625rem solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   gap: var(--gap-sm);
 }
 
@@ -72,7 +72,7 @@
 
   &:focus-visible {
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
+    outline-offset: 1px;
   }
 }
 

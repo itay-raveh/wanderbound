@@ -106,7 +106,7 @@ const allHidden = computed(() =>
 .group-header {
   min-height: 2.75rem;
   padding: var(--gap-sm) var(--gap-md-lg);
-  border-top: 0.0625rem solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   transition: background var(--duration-fast);
 
   .q-expansion-item:first-child & {

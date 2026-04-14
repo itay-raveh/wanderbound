@@ -57,7 +57,7 @@ defineEmits<{
 
   &:focus-visible {
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.0625rem;
+    outline-offset: 1px;
   }
 
   &.active {

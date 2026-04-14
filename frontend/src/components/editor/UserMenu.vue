@@ -203,7 +203,7 @@ async function handleDelete() {
   gap: var(--gap-md);
   padding: var(--gap-sm-md) var(--gap-md) var(--gap-sm-md) var(--gap-sm-md);
   border-radius: var(--radius-full);
-  border: 0.0625rem solid color-mix(in srgb, var(--text) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
   background: var(--surface);
   cursor: pointer;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
@@ -239,7 +239,7 @@ async function handleDelete() {
 }
 
 .trigger-divider {
-  width: 0.0625rem;
+  width: 1px;
   height: 1.25rem;
   background: var(--border-color);
   flex-shrink: 0;
@@ -342,7 +342,7 @@ async function handleDelete() {
 
   &:focus-visible {
     outline: 0.125rem solid var(--q-primary);
-    outline-offset: -0.0625rem;
+    outline-offset: -1px;
   }
 }
 

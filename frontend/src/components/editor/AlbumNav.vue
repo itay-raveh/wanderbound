@@ -378,7 +378,7 @@ watch(activeSectionKey, (key) => {
 .header-items {
   display: flex;
   flex-direction: column;
-  border-bottom: 0.0625rem solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: var(--gap-sm);
   margin-bottom: var(--gap-sm);
 }

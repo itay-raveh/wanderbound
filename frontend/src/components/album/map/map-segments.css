@@ -31,7 +31,7 @@
   background-color: #333;
   background-size: cover;
   background-position: center;
-  outline: 0.0625rem solid rgba(0, 0, 0, 0.2);
+  outline: 1px solid rgba(0, 0, 0, 0.2);
   cursor: default;
 }
 
@@ -39,7 +39,7 @@
   pointer-events: none;
   line-height: 1;
   color: rgba(255, 255, 255, 0.95);
-  filter: drop-shadow(0 0.0625rem 0.125rem rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 1px 0.125rem rgba(0, 0, 0, 0.5));
 }
 
 .hike-handle {
@@ -94,10 +94,10 @@
   height: 0.875rem;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.5);
-  border: 0.0625rem solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   cursor: default;
   animation: none;
-  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 0.25rem rgba(0, 0, 0, 0.3);
 }
 
 .hike-handle.static::after {

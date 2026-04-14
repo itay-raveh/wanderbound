@@ -53,8 +53,10 @@ const emit = defineEmits<{
   cursor: pointer;
   color: var(--text-bright);
   background: var(--surface);
-  border: 0.0625rem solid var(--border-color);
-  box-shadow: var(--shadow-sm);
+  border: none;
+  box-shadow:
+    inset 0 0 0 1px var(--border-color),
+    var(--shadow-sm);
   transition:
     background var(--duration-fast),
     box-shadow var(--duration-fast),
@@ -79,8 +81,9 @@ const emit = defineEmits<{
 .auth-btn:hover,
 .auth-btn-wrapper:hover > .auth-btn {
   background: color-mix(in srgb, var(--q-primary) 8%, var(--surface));
-  border-color: var(--q-primary);
-  box-shadow: var(--shadow-md);
+  box-shadow:
+    inset 0 0 0 1px var(--q-primary),
+    var(--shadow-md);
 }
 
 .auth-btn-text {

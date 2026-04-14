@@ -7,7 +7,7 @@
   &::before { border-color: var(--border-color); transition: border-color var(--duration-fast) ease; }
 }
 .q-field--outlined .q-field__control:hover::before { border-color: var(--text-faint); }
-.q-field--outlined.q-field--focused .q-field__control::after { border-color: var(--q-primary); border-width: 0.0625rem; }
+.q-field--outlined.q-field--focused .q-field__control::after { border-color: var(--q-primary); border-width: 1px; }
 .q-field--outlined.q-field--error .q-field__control::before { border-color: var(--danger) !important; }
 .q-field__native, .q-field__input { color: var(--text); }
 .q-field__label { color: var(--text-muted); }
@@ -54,7 +54,7 @@
 // QCard - themed surface
 .q-card {
   background: var(--bg-secondary);
-  border: 0.0625rem solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   box-shadow: none;
 }
@@ -62,7 +62,7 @@
 // QMenu dark-mode aware styling
 .q-menu {
   background: var(--bg-secondary);
-  border: 0.0625rem solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
 }
