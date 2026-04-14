@@ -102,6 +102,7 @@ jobs:
           bun scripts/generate-og-image.ts
       - name: Generate landing screenshots
         run: |
+          sudo apt-get install -yq ffmpeg
           uv run python scripts/generate_openapi.py > frontend/openapi.json
           (cd backend && uv run alembic upgrade head)
           (cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000) &
