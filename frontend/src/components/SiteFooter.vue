@@ -65,7 +65,7 @@ const hasMeta = !!(authorName || version);
         aria-hidden="true"
         >&middot;</span
       >
-      <span v-if="version">v{{ version }}</span>
+      <span v-if="version">{{ version }}</span>
     </div>
     <p class="site-footer-disclaimer">
       {{ t("footer.disclaimerIndependent") }}<br />

@@ -4,7 +4,9 @@ import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 import { defineConfig } from "vite";
-import { version } from "./package.json";
+import { version as packageVersion } from "./package.json";
+
+const version = process.env.APP_VERSION || packageVersion;
 
 export default defineConfig({
   define: {
