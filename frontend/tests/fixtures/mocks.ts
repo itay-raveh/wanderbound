@@ -73,17 +73,19 @@ export const mockSegmentOutlines = [
 // Rich mock data for photo-focus E2E tests (3 steps, 2 countries)
 // ---------------------------------------------------------------------------
 
+export const FOCUS_VIDEO = "focus-video.mp4";
+
 function makePhoto(idx: number): string {
   return `focus-photo-${idx}.jpg`;
 }
 
 const focusPhotos = Array.from({ length: 12 }, (_, i) => makePhoto(i + 1));
 
-export const mockFocusMedia = focusPhotos.map((name) => ({
-  name,
-  width: 1920,
-  height: 1080,
-}));
+export const mockFocusMedia = [
+  ...focusPhotos.map((name) => ({ name, width: 1920, height: 1080 })),
+  { name: FOCUS_VIDEO, width: 1920, height: 1080 },
+  { name: "focus-video.jpg", width: 1920, height: 1080 },
+];
 
 export const mockFocusSteps = [
   {
@@ -124,7 +126,7 @@ export const mockFocusSteps = [
     elevation: 520,
     weather: { day: { temp: 32, feels_like: 34, icon: "clear-day" }, night: null },
     cover: focusPhotos[8],
-    pages: [[focusPhotos[8], focusPhotos[9], focusPhotos[10], focusPhotos[11]]],
+    pages: [[focusPhotos[8], focusPhotos[9], FOCUS_VIDEO, focusPhotos[10], focusPhotos[11]]],
     unused: [],
     datetime: "2024-01-06T14:00:00-03:00",
   },
