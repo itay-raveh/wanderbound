@@ -24,13 +24,7 @@ playwright/.auth/
 
 # Generated
 frontend/src/client/
-frontend/public/countries/
-frontend/public/fonts/
-frontend/public/landing/
-frontend/public/topo-contours.svg
-frontend/public/og-image.png
 frontend/openapi.json
-frontend/src/styles/fonts.css
 
 # Claude Code
 .superpowers

@@ -10,6 +10,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  staleness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - run: scripts/check-staleness.sh
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
@@ -168,22 +176,13 @@ jobs:
       DOMAIN: localhost
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
-      - uses: astral-sh/setup-uv@v7
+          lfs: true
       - uses: oven-sh/setup-bun@v2
-      - run: uv sync --all-packages
       - run: bun install --frozen-lockfile
         working-directory: frontend
       - run: bunx playwright install --with-deps chromium
         working-directory: frontend
-      - name: Generate assets
-        run: |
-          uv run scripts/generate_countries.py
-          uv run scripts/generate_fonts.py
-          uv run scripts/generate_topo.py
-          bun scripts/generate-og-image.ts
       - run: docker compose build
       - run: docker compose up -d
       - name: Wait for backend health

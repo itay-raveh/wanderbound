@@ -68,3 +68,11 @@ repos:
         language: system
         files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
         pass_filenames: false
+
+      - id: check-staleness
+        name: check generated asset freshness
+        entry: scripts/check-staleness.sh
+        language: script
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/screenshot.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
+  <img src="frontend/public/landing/step-page-dark.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
 Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
