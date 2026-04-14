@@ -50,7 +50,7 @@ export function usePdfExportStream(aid: () => string): SseDownloadHandle {
         case "done":
           return { done: event.token };
         case "error":
-          return { error: event.detail ?? t("error.pdfExport") };
+          return { error: t("error.pdfExport") };
         default:
           return { error: t("error.pdfExport") };
       }
@@ -58,8 +58,8 @@ export function usePdfExportStream(aid: () => string): SseDownloadHandle {
     downloadUrl: (token) =>
       `${client.getConfig().baseUrl}/api/v1/albums/pdf/download/${encodeURIComponent(token)}`,
     filename: () => `${aid()}.pdf`,
-    errorMessage: t("error.pdfExport"),
-    initialMessage: t("pdf.queued"),
+    errorMessage: () => t("error.pdfExport"),
+    initialMessage: () => t("pdf.queued"),
     loadingClass: "pdf-loading-overlay",
   });
 }

@@ -137,6 +137,7 @@ async def _render_pdf(
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         device_scale_factor=2,
+        bypass_csp=True,
     )
     try:
         await context.add_cookies(

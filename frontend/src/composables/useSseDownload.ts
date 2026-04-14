@@ -11,13 +11,16 @@ export interface SseDownloadHandle {
 
 type EventAction = { loading: string } | { done: string } | { error: string };
 
+type StringOrGetter = string | (() => string);
+function resolve(v: StringOrGetter): string { return typeof v === "function" ? v() : v; }
+
 interface SseDownloadConfig<T = unknown> {
   connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
   onEvent(event: T): EventAction;
   downloadUrl(token: string): string;
-  filename: string | (() => string);
-  errorMessage: string;
-  initialMessage: string;
+  filename: StringOrGetter;
+  errorMessage: StringOrGetter;
+  initialMessage: StringOrGetter;
   loadingClass?: string;
 }
 
@@ -47,7 +50,7 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
     }
     controller = new AbortController();
     state.value = "running";
-    showLoading(config.initialMessage);
+    showLoading(resolve(config.initialMessage));
 
     try {
       const stream = await config.connect(controller.signal);
@@ -74,13 +77,13 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
 
       const a = document.createElement("a");
       a.href = config.downloadUrl(downloadToken);
-      a.download = typeof config.filename === "function" ? config.filename() : config.filename;
+      a.download = resolve(config.filename);
       a.click();
       state.value = "done";
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
-      Notify.create({ type: "negative", message: config.errorMessage });
+      Notify.create({ type: "negative", message: resolve(config.errorMessage) });
     } finally {
       Loading.hide();
       lastMsg = "";
