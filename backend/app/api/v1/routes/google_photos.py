@@ -25,7 +25,6 @@ from app.logic.photo_upgrade import (
 from app.models.album import Album
 from app.models.step import Step
 from app.services.google_photos import (
-    PickedMediaItem,
     create_picker_session,
     delete_picker_session,
     get_media_items,
@@ -135,7 +134,6 @@ async def create_session(user: UserDep) -> PickerSessionResponse:
 
 class SessionStatusResponse(BaseModel):
     ready: bool
-    items: list[PickedMediaItem] | None = None
 
 
 @router.get("/sessions/{session_id}")
@@ -147,9 +145,7 @@ async def poll_session(session_id: str, user: UserDep) -> SessionStatusResponse:
     if not data.get("mediaItemsSet"):
         return SessionStatusResponse(ready=False)
 
-    items = await get_media_items(session_id, access_token)
-    await delete_picker_session(session_id, access_token)
-    return SessionStatusResponse(ready=True, items=items)
+    return SessionStatusResponse(ready=True)
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +171,7 @@ async def match_photos(
     album_dir = user.trips_folder / aid
 
     items = await get_media_items(session_id, access_token)
+    await delete_picker_session(session_id, access_token)
     photo_names = [m.name for m in album.media if m.name.endswith(".jpg")]
 
     step_rows = (

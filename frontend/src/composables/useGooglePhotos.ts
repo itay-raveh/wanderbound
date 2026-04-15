@@ -43,15 +43,16 @@ export function useGooglePhotos() {
         try {
           if (popup.closed) {
             clearInterval(interval);
+            clearTimeout(timeout);
             resolve();
           }
         } catch {
           // Cross-origin - popup still open
         }
       }, 500);
-      // Safety timeout after 5 minutes
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         clearInterval(interval);
+        if (!popup.closed) popup.close();
         reject(new Error("Authorization timed out"));
       }, 5 * 60 * 1000);
     });

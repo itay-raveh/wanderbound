@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, type Ref } from "vue";
+import { onScopeDispose, ref } from "vue";
 import {
   matchPhotos,
   upgradePhotos,
@@ -264,7 +264,6 @@ export function usePhotoUpgrade() {
           progress.value = { done: replaced, total: replaced + failed };
           break;
         }
-          break;
         case "error":
           throw new Error(event.detail);
       }
@@ -282,10 +281,10 @@ export function usePhotoUpgrade() {
   onScopeDispose(() => cancel());
 
   return {
-    phase: phase,
-    progress: progress as Ref<UpgradeProgress>,
-    matchSummary: matchSummary as Ref<MatchSummary | null>,
-    errorDetail: errorDetail,
+    phase,
+    progress,
+    matchSummary,
+    errorDetail,
     googlePhotosState: gp.state,
     start: (albumId: string) => void start(albumId),
     confirmUpgrade,
