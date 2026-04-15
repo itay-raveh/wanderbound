@@ -31,11 +31,11 @@ const DPI_WARNING_DEFAULT = 75;
 const DPI_CAUTION_UPGRADED = 150;
 const DPI_WARNING_UPGRADED = 100;
 
-export function dpiCautionThreshold(photosConnected: boolean): number {
+function dpiCautionThreshold(photosConnected: boolean): number {
   return photosConnected ? DPI_CAUTION_UPGRADED : DPI_CAUTION_DEFAULT;
 }
 
-export function dpiWarningThreshold(photosConnected: boolean): number {
+function dpiWarningThreshold(photosConnected: boolean): number {
   return photosConnected ? DPI_WARNING_UPGRADED : DPI_WARNING_DEFAULT;
 }
 

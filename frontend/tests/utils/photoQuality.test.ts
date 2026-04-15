@@ -3,8 +3,6 @@ import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   computeDpi,
   dpiTier,
-  dpiCautionThreshold,
-  dpiWarningThreshold,
   summarizeQuality,
 } from "@/utils/photoQuality";
 import {
@@ -26,28 +24,6 @@ describe("computeDpi", () => {
     expect(dpi).toBeCloseTo(heightDpi, 1);
   });
 
-});
-
-// -- threshold helpers --
-
-describe("dpiCautionThreshold", () => {
-  it("returns 100 when photos not connected", () => {
-    expect(dpiCautionThreshold(false)).toBe(100);
-  });
-
-  it("returns 150 when photos connected", () => {
-    expect(dpiCautionThreshold(true)).toBe(150);
-  });
-});
-
-describe("dpiWarningThreshold", () => {
-  it("returns 75 when photos not connected", () => {
-    expect(dpiWarningThreshold(false)).toBe(75);
-  });
-
-  it("returns 100 when photos connected", () => {
-    expect(dpiWarningThreshold(true)).toBe(100);
-  });
 });
 
 // -- dpiTier --

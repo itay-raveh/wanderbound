@@ -27,7 +27,8 @@ _DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
 
 @cache
-def _oauth() -> OAuth:
+def get_oauth() -> OAuth:
+    """Return the Authlib OAuth registry for Google Photos (cached)."""
     settings = get_settings()
     oauth = OAuth()
     oauth.register(
@@ -38,11 +39,6 @@ def _oauth() -> OAuth:
         client_kwargs={"scope": _SCOPE},
     )
     return oauth
-
-
-def get_oauth() -> OAuth:
-    """Public accessor for the OAuth registry."""
-    return _oauth()
 
 
 # ---------------------------------------------------------------------------

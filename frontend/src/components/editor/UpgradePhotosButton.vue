@@ -64,13 +64,7 @@ const showSummary = computed({
   },
 });
 
-function onConfirmOnboarding() {
-  upgrade.confirmUpgrade();
-}
-
-function onConfirmUpgrade() {
-  upgrade.confirmUpgrade();
-}
+const { confirmUpgrade } = upgrade;
 </script>
 
 <template>
@@ -121,7 +115,7 @@ function onConfirmUpgrade() {
 
     <UpgradeOnboardingDialog
       v-model="showOnboarding"
-      @confirm="onConfirmOnboarding"
+      @confirm="confirmUpgrade"
     />
 
     <UpgradeMatchSummary
@@ -129,7 +123,7 @@ function onConfirmUpgrade() {
       :matched="upgrade.matchSummary.value?.matched ?? 0"
       :total="upgrade.matchSummary.value?.totalPhotos ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
-      @confirm="onConfirmUpgrade"
+      @confirm="confirmUpgrade"
     />
   </template>
 </template>

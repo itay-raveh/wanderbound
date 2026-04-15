@@ -227,13 +227,7 @@ def _deduplicate_items(
     items: list[PickedMediaItem],
 ) -> list[PickedMediaItem]:
     """Remove duplicate items by ID, preserving order."""
-    seen: set[str] = set()
-    unique: list[PickedMediaItem] = []
-    for item in items:
-        if item.id not in seen:
-            seen.add(item.id)
-            unique.append(item)
-    return unique
+    return list({item.id: item for item in items}.values())
 
 
 async def _hash_local_photos(
@@ -303,15 +297,12 @@ async def run_matching(  # noqa: PLR0913
     """
     total = len(photo_names)
 
-    # Phase 1: hash local photos
     local_hashes = await _hash_local_photos(album_dir, photo_names)
     yield UpgradeMatching(phase="hashing_local", done=total, total=total)
 
-    # Phase 2: build time windows and bucket candidates
     windows = build_step_windows(step_timestamps, step_ids)
     google_by_window = _bucket_by_window(google_items, windows)
 
-    # Phase 3: download thumbnails and hash
     all_window_items = [item for items in google_by_window.values() for item in items]
     unique_items = _deduplicate_items(all_window_items)
     candidate_hashes = await _hash_candidates(unique_items, access_token)
@@ -319,12 +310,10 @@ async def run_matching(  # noqa: PLR0913
         phase="hashing_candidates", done=len(unique_items), total=len(unique_items)
     )
 
-    # Phase 4: match within each window
     all_matches, matched_locals, matched_candidates = _match_across_windows(
         windows, google_by_window, photo_names, local_hashes, candidate_hashes
     )
 
-    # Phase 5: cross-step fallback
     _cross_step_fallback(
         all_matches,
         matched_locals,
@@ -335,7 +324,6 @@ async def run_matching(  # noqa: PLR0913
         candidate_hashes,
     )
 
-    # Phase 6: yield summary
     yield UpgradeMatchSummary(
         total_photos=total,
         matched=len(all_matches),
@@ -426,7 +414,7 @@ def _cross_step_fallback(  # noqa: PLR0913
 
 def _needs_jpeg_conversion(mime_type: str) -> bool:
     """Check if a MIME type needs conversion to JPEG."""
-    return mime_type.lower() not in ("image/jpeg", "image/jpg")
+    return mime_type.lower() != "image/jpeg"
 
 
 def _convert_to_jpeg_sync(data: bytes) -> bytes:
@@ -470,19 +458,21 @@ async def _download_and_replace(
     width, height = await asyncio.to_thread(_validate_image, tmp_path)
 
     target = album_dir / match.local_name
-    if target.exists():
+    try:
         existing = Media.load(target)
-        if width * height <= existing.width * existing.height:
-            logger.info(
-                "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
-                match.local_name,
-                width,
-                height,
-                existing.width,
-                existing.height,
-            )
-            tmp_path.unlink(missing_ok=True)
-            return False
+    except OSError:
+        existing = None
+    if existing and width * height <= existing.width * existing.height:
+        logger.info(
+            "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
+            match.local_name,
+            width,
+            height,
+            existing.width,
+            existing.height,
+        )
+        tmp_path.unlink(missing_ok=True)
+        return False
 
     tmp_path.rename(target)
     delete_thumbnails(target)

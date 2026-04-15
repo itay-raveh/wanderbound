@@ -120,7 +120,7 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1].datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-const photosConnected = computed(() => !!props.photosConnected);
+const photosConnected = computed(() => props.photosConnected ?? false);
 const { mediaByName } = provideAlbum({
   albumId,
   colors: albumColors,

@@ -171,7 +171,6 @@ async def match_photos(
     album_dir = user.trips_folder / aid
 
     items = await get_media_items(session_id, access_token)
-    await delete_picker_session(session_id, access_token)
     photo_names = [m.name for m in album.media if m.name.endswith(".jpg")]
 
     step_rows = (
@@ -218,6 +217,7 @@ async def upgrade_photos(
     album_dir = user.trips_folder / aid
 
     items = await get_media_items(body.session_id, access_token)
+    await delete_picker_session(body.session_id, access_token)
     items_by_id = {item.id: item for item in items}
 
     async for event in execute_upgrade(
@@ -234,13 +234,12 @@ async def upgrade_photos(
     media_by_name = {m.name: m for m in album.media}
     for match in body.matches:
         target = album_dir / match.local_name
-        if target.exists():
-            try:
-                updated = Media.load(target)
-                if match.local_name in media_by_name:
-                    media_by_name[match.local_name] = updated
-            except OSError, SyntaxError:
-                logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
+        try:
+            updated = Media.load(target)
+            if match.local_name in media_by_name:
+                media_by_name[match.local_name] = updated
+        except OSError, SyntaxError:
+            logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
         album.upgraded_photos[match.local_name] = match.google_id
 
     album.media = list(media_by_name.values())
