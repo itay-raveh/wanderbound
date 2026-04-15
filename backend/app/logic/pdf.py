@@ -161,7 +161,7 @@ async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
             await cdp.detach()
 
 
-async def _render_pdf(
+async def _render_pdf(  # noqa: C901
     browser: Browser,
     aid: str,
     dest: Path,
@@ -193,10 +193,19 @@ async def _render_pdf(
             "pageerror",
             lambda err: logger.warning("Browser page error during PDF render: %s", err),
         )
-        started, finished = [0], [0]
-        page.on("request", lambda _: started.__setitem__(0, started[0] + 1))
-        page.on("requestfinished", lambda _: finished.__setitem__(0, finished[0] + 1))
-        page.on("requestfailed", lambda _: finished.__setitem__(0, finished[0] + 1))
+        started, finished = 0, 0
+
+        def _on_request(_: object) -> None:
+            nonlocal started
+            started += 1
+
+        def _on_finished(_: object) -> None:
+            nonlocal finished
+            finished += 1
+
+        page.on("request", _on_request)
+        page.on("requestfinished", _on_finished)
+        page.on("requestfailed", _on_finished)
         await page.emulate_media(media="print")
         dark_param = "true" if dark else "false"
         url = f"{settings.VITE_FRONTEND_URL}/print/{aid}?dark={dark_param}"
@@ -207,13 +216,13 @@ async def _render_pdf(
         last_counts = (-1, -1)
         while True:
             ready = await page.evaluate("window.__PRINT_READY__ === true")
-            counts = (finished[0], started[0])
+            counts = (finished, started)
             if counts != last_counts or ready:
                 last_counts = counts
                 yield PdfProgress(
                     phase="loading",
-                    done=finished[0],
-                    total=started[0],
+                    done=finished,
+                    total=started,
                 )
             if ready:
                 break

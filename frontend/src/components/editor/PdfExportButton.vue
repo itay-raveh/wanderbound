@@ -41,7 +41,6 @@ function onConfirmExport() {
 </script>
 
 <template>
-  <!-- Done: brief success flash -->
   <button
     v-if="pdf.state.value === 'done'"
     class="export-btn done"
@@ -52,7 +51,6 @@ function onConfirmExport() {
     {{ t("pdf.ready") }}
   </button>
 
-  <!-- Running: progress + cancel -->
   <button
     v-else-if="pdf.state.value === 'running'"
     class="export-btn running"
@@ -67,7 +65,6 @@ function onConfirmExport() {
     <ProgressBar :progress="progressFraction" />
   </button>
 
-  <!-- Idle / Error: normal export button -->
   <button
     v-else
     class="export-btn"

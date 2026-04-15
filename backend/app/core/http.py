@@ -21,7 +21,14 @@ from hishel import (
     Response as HishelResponse,
 )
 from hishel.httpx import AsyncCacheTransport
-from httpx import AsyncBaseTransport, AsyncClient, AsyncHTTPTransport, Request, Response
+from httpx import (
+    AsyncBaseTransport,
+    AsyncClient,
+    AsyncHTTPTransport,
+    ReadTimeout,
+    Request,
+    Response,
+)
 from httpx_retries import Retry, RetryTransport
 
 if TYPE_CHECKING:
@@ -31,6 +38,7 @@ from app.core.config import get_settings
 
 _CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 _NETWORK_TIMEOUT = 30  # seconds per individual request
+_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class _CacheOnlySuccess(BaseFilter[HishelResponse]):
@@ -42,14 +50,24 @@ class _CacheOnlySuccess(BaseFilter[HishelResponse]):
 
 
 class _TimeoutTransport(AsyncBaseTransport):
-    """Wraps AsyncHTTPTransport with an explicit asyncio.timeout."""
+    """Wraps AsyncHTTPTransport with an explicit asyncio.timeout.
+
+    Re-raises asyncio.TimeoutError as httpx.ReadTimeout so that
+    RetryTransport (which only retries httpx.TimeoutException subclasses)
+    can retry the request.
+    """
 
     def __init__(self) -> None:
         self._transport = AsyncHTTPTransport()
 
     async def handle_async_request(self, request: Request) -> Response:
-        async with asyncio.timeout(_NETWORK_TIMEOUT):
-            return await self._transport.handle_async_request(request)
+        try:
+            async with asyncio.timeout(_NETWORK_TIMEOUT):
+                return await self._transport.handle_async_request(request)
+        except TimeoutError as exc:
+            raise ReadTimeout(
+                f"Request to {request.url.host} timed out after {_NETWORK_TIMEOUT}s"
+            ) from exc
 
 
 class RateLimitedTransport(AsyncBaseTransport):
@@ -66,7 +84,7 @@ class RateLimitedTransport(AsyncBaseTransport):
         max_concurrent: int = 10,
         weight_fn: Callable[[Request], int] = lambda _: 1,
     ) -> None:
-        self._transport = AsyncHTTPTransport()
+        self._transport = _TimeoutTransport()
         self._limiter = limiter
         self._sem = asyncio.Semaphore(max_concurrent)
         self._weight_fn = weight_fn
@@ -74,8 +92,7 @@ class RateLimitedTransport(AsyncBaseTransport):
     async def handle_async_request(self, request: Request) -> Response:
         async with self._sem:
             await self._limiter.acquire(self._weight_fn(request))
-            async with asyncio.timeout(_NETWORK_TIMEOUT):
-                return await self._transport.handle_async_request(request)
+            return await self._transport.handle_async_request(request)
 
 
 def cached_client(
@@ -102,7 +119,11 @@ def cached_client(
         transport=AsyncCacheTransport(
             RetryTransport(
                 transport=transport or _TimeoutTransport(),
-                retry=Retry(total=3, backoff_factor=0.5),
+                retry=Retry(
+                    total=3,
+                    backoff_factor=0.5,
+                    status_forcelist=_RETRY_STATUS_CODES,
+                ),
             ),
             storage=AsyncSqliteStorage(
                 default_ttl=_CACHE_TTL,
