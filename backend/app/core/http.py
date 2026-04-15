@@ -3,6 +3,11 @@
 hishel's FilterPolicy caches ALL responses by default (including 429s/500s).
 This module provides a factory that builds cached httpx clients which only
 cache successful (2xx) responses.
+
+Timeout enforcement: hishel converts httpx requests to an internal format,
+stripping the timeout extensions. The underlying network transport never
+sees the client-level timeout and can block indefinitely. All transports
+in this module enforce an explicit ``asyncio.timeout`` to compensate.
 """
 
 import asyncio
@@ -25,6 +30,7 @@ if TYPE_CHECKING:
 from app.core.config import get_settings
 
 _CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
+_NETWORK_TIMEOUT = 30  # seconds per individual request
 
 
 class _CacheOnlySuccess(BaseFilter[HishelResponse]):
@@ -33,6 +39,17 @@ class _CacheOnlySuccess(BaseFilter[HishelResponse]):
 
     def apply(self, item: HishelResponse, body: bytes | None) -> bool:  # noqa: ARG002
         return 200 <= item.status_code < 300
+
+
+class _TimeoutTransport(AsyncBaseTransport):
+    """Wraps AsyncHTTPTransport with an explicit asyncio.timeout."""
+
+    def __init__(self) -> None:
+        self._transport = AsyncHTTPTransport()
+
+    async def handle_async_request(self, request: Request) -> Response:
+        async with asyncio.timeout(_NETWORK_TIMEOUT):
+            return await self._transport.handle_async_request(request)
 
 
 class RateLimitedTransport(AsyncBaseTransport):
@@ -57,7 +74,8 @@ class RateLimitedTransport(AsyncBaseTransport):
     async def handle_async_request(self, request: Request) -> Response:
         async with self._sem:
             await self._limiter.acquire(self._weight_fn(request))
-            return await self._transport.handle_async_request(request)
+            async with asyncio.timeout(_NETWORK_TIMEOUT):
+                return await self._transport.handle_async_request(request)
 
 
 def cached_client(
@@ -83,7 +101,8 @@ def cached_client(
     return AsyncClient(
         transport=AsyncCacheTransport(
             RetryTransport(
-                transport=transport, retry=Retry(total=3, backoff_factor=0.5)
+                transport=transport or _TimeoutTransport(),
+                retry=Retry(total=3, backoff_factor=0.5),
             ),
             storage=AsyncSqliteStorage(
                 default_ttl=_CACHE_TTL,

@@ -93,8 +93,8 @@ async def apply_update[M: SQLModel](
     return obj
 
 
-def _get_browser(request: Request) -> Browser:
-    return request.app.state.browser
+async def _get_browser(request: Request) -> Browser:
+    return await request.app.state.browser_manager.get()
 
 
 BrowserDep = Annotated[Browser, Depends(_get_browser)]

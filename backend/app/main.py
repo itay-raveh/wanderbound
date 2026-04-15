@@ -52,8 +52,8 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
 
-    async with pdf_lifespan() as browser, export_lifespan():
-        app.state.browser = browser
+    async with pdf_lifespan() as browser_manager, export_lifespan():
+        app.state.browser_manager = browser_manager
         try:
             yield
         finally:

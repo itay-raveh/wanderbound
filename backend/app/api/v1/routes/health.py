@@ -63,5 +63,5 @@ def _check_disk() -> tuple[bool, int]:
 
 
 def _check_playwright(request: Request) -> bool:
-    browser = getattr(request.app.state, "browser", None)
-    return browser is not None and browser.is_connected()
+    manager = getattr(request.app.state, "browser_manager", None)
+    return manager is not None and manager.connected

@@ -4,9 +4,9 @@ import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing, asynccontextmanager, suppress
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
-from playwright.async_api import Browser, Page, async_playwright
+from playwright.async_api import Browser, Page, Playwright, async_playwright
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
@@ -62,17 +62,54 @@ _tokens: TokenStore[tuple[Path, str]] = TokenStore(
 )
 
 
+class BrowserManager:
+    """Lazy-reconnecting wrapper around a Playwright Chromium browser.
+
+    If Chromium crashes (OOM, segfault), the next call to `get()` relaunches it.
+    An asyncio.Lock ensures only one coroutine launches at a time.
+    """
+
+    _LAUNCH_ARGS: ClassVar[list[str]] = ["--use-gl=angle", "--no-sandbox"]
+
+    def __init__(self, pw: Playwright) -> None:
+        self._pw = pw
+        self._browser: Browser | None = None
+        self._lock = asyncio.Lock()
+
+    async def launch(self) -> None:
+        self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
+        logger.info("Playwright browser launched")
+
+    async def get(self) -> Browser:
+        if self._browser is not None and self._browser.is_connected():
+            return self._browser
+        async with self._lock:
+            if self._browser is None or not self._browser.is_connected():
+                logger.warning("Playwright browser disconnected, relaunching")
+                self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
+                logger.info("Playwright browser relaunched")
+        return self._browser
+
+    @property
+    def connected(self) -> bool:
+        return self._browser is not None and self._browser.is_connected()
+
+    async def close(self) -> None:
+        if self._browser:
+            await self._browser.close()
+
+
 @asynccontextmanager
-async def lifespan() -> AsyncGenerator[Browser]:
+async def lifespan() -> AsyncGenerator[BrowserManager]:
     """Setup/teardown for PDF rendering: tmp dir cleanup + Playwright browser."""
     async with _tokens.lifespan():
         pw = await async_playwright().start()
-        browser = await pw.chromium.launch(args=["--use-gl=angle", "--no-sandbox"])
-        logger.info("Playwright browser launched")
+        manager = BrowserManager(pw)
+        await manager.launch()
         try:
-            yield browser
+            yield manager
         finally:
-            await browser.close()
+            await manager.close()
             await pw.stop()
             logger.info("Playwright browser closed")
 
