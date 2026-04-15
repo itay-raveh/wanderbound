@@ -1,39 +1,41 @@
-import { Dark } from "quasar";
+import { Dark, format } from "quasar";
 import {
   generatePdf,
   type PdfDone,
   type PdfError,
-  type PdfProgress,
+  type PdfProgress as PdfProgressEvent,
   type PdfQueued,
 } from "@/client";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
 import { useSseDownload, type SseDownloadHandle } from "./useSseDownload";
+import { ref, watch, type Ref } from "vue";
 
-type PdfEvent = PdfQueued | PdfProgress | PdfDone | PdfError;
+type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError;
 
-type Phase = "loading" | "rendering";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+interface PdfProgress {
+  phase: "queued" | "loading" | "rendering" | "done";
+  done: number;
+  total: number | null;
+  message: string;
 }
 
-function loadingMessage(phase: Phase, done: number, total: number | null): string {
-  switch (phase) {
-    case "loading":
-      return total != null
-        ? t("pdf.loadingProgress", { done, total })
-        : t("pdf.loading");
-    case "rendering":
-      return done > 0
-        ? t("pdf.renderingBytes", { size: formatBytes(done) })
-        : t("pdf.renderingSingle");
-  }
+interface PdfExportHandle extends SseDownloadHandle {
+  progress: Ref<PdfProgress>;
 }
 
-export function usePdfExportStream(aid: () => string): SseDownloadHandle {
-  return useSseDownload<PdfEvent>({
+const { humanStorageSize } = format;
+
+export function usePdfExportStream(aid: () => string): PdfExportHandle {
+  const progress = ref<PdfProgress>({
+    phase: "queued",
+    done: 0,
+    total: null,
+    message: "",
+  });
+
+  const handle = useSseDownload<PdfEvent>({
+    headless: true,
     async connect(signal) {
       const { stream } = await generatePdf({
         path: { aid: aid() },
@@ -45,11 +47,25 @@ export function usePdfExportStream(aid: () => string): SseDownloadHandle {
     },
     onEvent(event) {
       switch (event.type) {
-        case "queued":
-          return { loading: t("pdf.queued") };
-        case "progress":
-          return { loading: loadingMessage(event.phase, event.done, event.total ?? null) };
+        case "queued": {
+          const msg = t("pdf.queued");
+          progress.value = { phase: "queued", done: 0, total: null, message: msg };
+          return { loading: msg };
+        }
+        case "progress": {
+          const total = event.total ?? null;
+          const msg = event.phase === "loading"
+            ? (total != null
+              ? t("pdf.loadingProgress", { done: event.done, total })
+              : t("pdf.loading"))
+            : (event.done > 0
+              ? t("pdf.renderingBytes", { size: humanStorageSize(event.done) })
+              : t("pdf.renderingSingle"));
+          progress.value = { phase: event.phase, done: event.done, total, message: msg };
+          return { loading: msg };
+        }
         case "done":
+          progress.value = { phase: "done", done: 0, total: null, message: t("pdf.ready") };
           return { done: event.token };
         case "error":
           return { error: t("error.pdfExport") };
@@ -62,6 +78,14 @@ export function usePdfExportStream(aid: () => string): SseDownloadHandle {
     filename: () => `${aid()}.pdf`,
     errorMessage: () => t("error.pdfExport"),
     initialMessage: () => t("pdf.queued"),
-    loadingClass: "pdf-loading-overlay",
   });
+
+  // Reset progress when stream returns to idle (after done timer or abort).
+  watch(handle.state, (s) => {
+    if (s === "idle") {
+      progress.value = { phase: "queued", done: 0, total: null, message: "" };
+    }
+  });
+
+  return { ...handle, progress };
 }

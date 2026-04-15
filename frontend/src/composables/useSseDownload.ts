@@ -21,7 +21,8 @@ interface SseDownloadConfig<T = unknown> {
   filename: StringOrGetter;
   errorMessage: StringOrGetter;
   initialMessage: StringOrGetter;
-  loadingClass?: string;
+  /** Skip Quasar Loading overlay - caller renders its own progress UI. */
+  headless?: boolean;
 }
 
 const DONE_RESET_MS = 1500;
@@ -35,10 +36,10 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
   function showLoading(message: string) {
     if (message === lastMsg) return;
     lastMsg = message;
+    if (config.headless) return;
     Loading.show({
       message,
       spinnerColor: "primary",
-      ...(config.loadingClass && { customClass: config.loadingClass }),
     });
   }
 
@@ -85,7 +86,7 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
       state.value = "error";
       Notify.create({ type: "negative", message: resolve(config.errorMessage) });
     } finally {
-      Loading.hide();
+      if (!config.headless) Loading.hide();
       lastMsg = "";
       if (state.value === "done") {
         resetTimer = setTimeout(() => {
@@ -102,8 +103,8 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
       clearTimeout(resetTimer);
       resetTimer = null;
     }
-    if (state.value === "running") state.value = "idle";
-    Loading.hide();
+    if (state.value === "running" || state.value === "done") state.value = "idle";
+    if (!config.headless) Loading.hide();
     lastMsg = "";
   }
 

@@ -1,51 +1,26 @@
 <script lang="ts" setup>
 import type { Album } from "@/client";
-import { usePdfExportStream } from "@/composables/usePdfExportStream";
 import { useUndoStack } from "@/composables/useUndoStack";
-import { qualitySummary } from "@/composables/usePhotoQuality";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
-import QualityWarningDialog from "./QualityWarningDialog.vue";
+import PdfExportButton from "./PdfExportButton.vue";
 
 import { editorZoom, setEditorZoom, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "@/composables/useEditorZoom";
 import {
   symOutlinedKeyboard,
-  symOutlinedPictureAsPdf,
   symOutlinedRedo,
   symOutlinedUndo,
   symOutlinedZoomIn,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{
+defineProps<{
   album?: Album;
 }>();
 
-const pdf = usePdfExportStream(() => props.album?.id ?? "");
-const pdfBusy = computed(
-  () => pdf.state.value !== "idle" && pdf.state.value !== "error",
-);
 const undoStack = useUndoStack();
-
-const showQualityDialog = ref(false);
-
-function onExportPdf() {
-  if (!props.album) return;
-  const q = qualitySummary.value;
-  if (q.caution > 0 || q.warning > 0) {
-    showQualityDialog.value = true;
-    return;
-  }
-  pdf.start();
-}
-
-function onConfirmExport() {
-  showQualityDialog.value = false;
-  pdf.start();
-}
 </script>
 
 <template>
@@ -111,31 +86,8 @@ function onConfirmExport() {
         <span class="zoom-label text-muted">{{ Math.round(editorZoom * 100) }}%</span>
       </div>
       <q-separator vertical class="action-divider" />
-      <q-btn
-        flat
-        no-caps
-        dense
-        :disable="pdfBusy"
-        :aria-busy="pdfBusy"
-        :aria-label="t('editor.exportPdf')"
-        class="export-btn"
-        @click="onExportPdf"
-      >
-        <q-icon
-          :name="symOutlinedPictureAsPdf"
-          size="var(--type-lg)"
-          class="q-mr-xs"
-        />
-        {{ t("editor.exportPdf") }}
-      </q-btn>
+      <PdfExportButton v-if="album" :album-id="album.id" />
     </div>
-
-    <QualityWarningDialog
-      v-model="showQualityDialog"
-      :caution="qualitySummary.caution"
-      :warning="qualitySummary.warning"
-      @confirm="onConfirmExport"
-    />
   </div>
 </template>
 
@@ -185,35 +137,6 @@ function onConfirmExport() {
   }
 }
 
-.export-btn {
-  color: var(--q-primary);
-  border: 1px solid var(--q-primary);
-  padding: var(--gap-sm) var(--gap-md-lg);
-  transition:
-    background var(--duration-fast),
-    color var(--duration-fast);
-
-  :deep(.q-focus-helper) {
-    display: none;
-  }
-
-  &:hover:not(.disabled) {
-    background: var(--q-primary);
-    color: #fff; // white-on-primary — standard Quasar convention
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.125rem;
-  }
-
-  &.disabled {
-    opacity: 0.4;
-    border-color: var(--text-faint);
-    color: var(--text-faint);
-  }
-}
-
 .zoom-control {
   gap: var(--gap-md);
 }
@@ -235,8 +158,7 @@ function onConfirmExport() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .keyboard-btn,
-  .export-btn {
+  .keyboard-btn {
     transition: none;
   }
 }

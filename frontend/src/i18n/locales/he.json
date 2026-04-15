@@ -183,7 +183,9 @@
     "loading": "טוען אלבום...",
     "loadingProgress": "טוען אלבום... ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
-    "renderingBytes": "מייצר PDF... {size}"
+    "renderingBytes": "מייצר PDF... {size}",
+    "ready": "מוכן",
+    "cancel": "ביטול ייצוא"
   },
 
   "footer": {

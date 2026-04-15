@@ -183,7 +183,9 @@
     "loading": "Loading album...",
     "loadingProgress": "Loading album... ({done}/{total})",
     "renderingSingle": "Generating PDF...",
-    "renderingBytes": "Generating PDF... {size}"
+    "renderingBytes": "Generating PDF... {size}",
+    "ready": "Ready",
+    "cancel": "Cancel export"
   },
 
   "footer": {

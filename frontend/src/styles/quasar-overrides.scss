@@ -67,12 +67,6 @@
   box-shadow: var(--shadow-lg);
 }
 
-// PDF export loading overlay
-.pdf-loading-overlay {
-  backdrop-filter: blur(0.5rem);
-  background: color-mix(in srgb, var(--text) 40%, transparent) !important;
-}
-
 // Mapbox injects its own font stack on .mapboxgl-map — override to use ours
 .mapboxgl-map { font-family: var(--font-ui); }
 
