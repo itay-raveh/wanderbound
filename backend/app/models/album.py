@@ -73,6 +73,14 @@ class Album(AlbumMeta, table=True):
         default_factory=list,
         sa_column=Column(PydanticJSON(list[Media]), nullable=False),
     )
+    upgraded_photos: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(
+            PydanticJSON(dict[str, str]),
+            nullable=False,
+            server_default="{}",
+        ),
+    )
 
 
 class PrintBundle(BaseModel):

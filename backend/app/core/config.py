@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
+    GOOGLE_PHOTOS_CLIENT_SECRET: str = ""
     VITE_MAX_UPLOAD_GB: int = 4
 
     BACKEND_CORS_ORIGINS: Annotated[

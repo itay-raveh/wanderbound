@@ -86,6 +86,15 @@ class User(UserBase, table=True):
             server_default=sa.func.now(),
         ),
     )
+    google_photos_refresh_token: str | None = Field(default=None)
+    google_photos_connected_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(
+            "google_photos_connected_at",
+            type_=sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+    )
 
     @computed_field
     @property
