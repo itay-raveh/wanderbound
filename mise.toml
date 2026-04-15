@@ -226,8 +226,8 @@ depends = ["lint", "test", "build"]
 # -- Changelog ----------------------------------------------------
 
 [tasks.changelog]
-description = "Regenerate CHANGELOG.md from all tags"
-run = "git cliff --output CHANGELOG.md"
+description = "Regenerate CHANGELOG.md (post-v1.0.0 only)"
+run = "git cliff v1.0.0.. --output CHANGELOG.md"
 
 [tasks."changelog:next"]
 description = "Preview release notes for unreleased commits"
