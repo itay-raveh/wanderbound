@@ -54,8 +54,17 @@ const chart = computed(() => {
   // Hide the zero tick on y-axis (it's the implicit axis baseline)
   const allYTicks = y.ticks(4);
   const yTicks = allYTicks[0] === 0 ? allYTicks.slice(1) : allYTicks;
-  // Skip the 0-tick on x-axis (y-axis already anchors the origin)
+  // Skip the 0-tick on x-axis (y-axis already anchors the origin).
+  // If the chart extends well past the last nice tick, append a rounded
+  // end tick so the axis doesn't leave a big unlabeled tail.
   const xTicks = x.ticks(5).filter((v) => v > 0);
+  const domainEnd = lastDist * distFactor;
+  const lastXTick = xTicks.at(-1) ?? 0;
+  const xTickStep = xTicks.length >= 2 ? xTicks[1]! - xTicks[0]! : domainEnd;
+  const endTick = Math.round(domainEnd);
+  if (domainEnd - lastXTick > xTickStep * 0.4 && endTick !== lastXTick) {
+    xTicks.push(endTick);
+  }
 
   const toX = (dist: number) => x(dist * distFactor);
   const toY = (elev: number) => y(elev * elevFactor);
