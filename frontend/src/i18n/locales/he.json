@@ -249,5 +249,30 @@
     "exportBodyCautionOnly": "באלבום {caution} תמונות באיכות בינונית. יכול להיות שלא ייראו חדות לגמרי בדפוס.",
     "exportCancel": "חזרה",
     "exportConfirm": "ייצוא בכל זאת"
+  },
+
+  "upgrade": {
+    "button": "שדרוג תמונות",
+    "onboarding": {
+      "title": "שדרוג לאיכות מקורית",
+      "step1": "התמונות מהטיול יוצאו מ-Polarsteps באיכות מופחתת. המקוריות כנראה עדיין ב-Google Photos שלך.",
+      "step2": "נפתח את Google Photos בלשונית חדשה. חפשו לפי תאריכי הטיול או מיקום, ובחרו את כל תמונות הטיול.",
+      "step3": "לאחר אישור, נתאים כל תמונה ונחליף את הגרסאות הדחוסות במקוריות.",
+      "tip": "טיפ: ב-Google Photos, השתמשו ב-Shift+לחיצה כדי לבחור טווח תמונות במהירות.",
+      "continue": "חיבור Google Photos"
+    },
+    "picking": "ממתין לבחירת תמונות...",
+    "matching": "מתאים תמונות {done}/{total}",
+    "summary": {
+      "title": "תוצאות התאמה",
+      "matched": "הותאמו {matched} מתוך {total} תמונות",
+      "unmatched": "לא ניתן היה להתאים {count} תמונות",
+      "confirm": "החלף במקוריות",
+      "cancel": "ביטול"
+    },
+    "downloading": "מוריד {done}/{total}",
+    "done": "שודרגו {count} תמונות לאיכות מקורית",
+    "error": "שדרוג התמונות נכשל. נסו שוב.",
+    "disconnect": "ניתוק Google Photos"
   }
 }

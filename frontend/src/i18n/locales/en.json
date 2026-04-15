@@ -249,5 +249,30 @@
     "exportBodyCautionOnly": "Your album has {caution} medium-quality photos that may not look perfectly sharp in print.",
     "exportCancel": "Go back",
     "exportConfirm": "Export anyway"
+  },
+
+  "upgrade": {
+    "button": "Upgrade Photos",
+    "onboarding": {
+      "title": "Upgrade to Original Quality",
+      "step1": "Your trip photos were exported from Polarsteps at reduced quality. The originals are likely still in your Google Photos.",
+      "step2": "We'll open Google Photos in a new tab. Search for your trip dates or location, then select all your trip photos.",
+      "step3": "Once you confirm, we'll match each photo and replace the compressed versions with your originals.",
+      "tip": "Tip: In Google Photos, use Shift+click to select a range of photos quickly.",
+      "continue": "Connect Google Photos"
+    },
+    "picking": "Waiting for photo selection...",
+    "matching": "Matching photos {done}/{total}",
+    "summary": {
+      "title": "Match Results",
+      "matched": "Matched {matched} of {total} photos",
+      "unmatched": "{count} photos could not be matched",
+      "confirm": "Replace with Originals",
+      "cancel": "Cancel"
+    },
+    "downloading": "Downloading {done}/{total}",
+    "done": "Upgraded {count} photos to original quality",
+    "error": "Photo upgrade failed. Please try again.",
+    "disconnect": "Disconnect Google Photos"
   }
 }

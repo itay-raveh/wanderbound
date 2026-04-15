@@ -4,6 +4,7 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 import PdfExportButton from "./PdfExportButton.vue";
+import UpgradePhotosButton from "./UpgradePhotosButton.vue";
 
 import {
   editorZoom,
@@ -98,6 +99,7 @@ const undoStack = useUndoStack();
         >
       </div>
       <q-separator vertical class="action-divider" />
+      <UpgradePhotosButton v-if="album" :album-id="album.id" />
       <PdfExportButton v-if="album" :album-id="album.id" />
     </div>
   </div>
