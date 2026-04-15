@@ -40,11 +40,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     release: __APP_VERSION__,
-    integrations: [
-      Sentry.browserTracingIntegration({ router }),
-      Sentry.replayIntegration(),
-    ],
-    tracesSampleRate: 1.0,
+    integrations: [Sentry.replayIntegration()],
+    tracesSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
   });
   pinia.use(Sentry.createSentryPiniaPlugin());

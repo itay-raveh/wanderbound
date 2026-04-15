@@ -35,7 +35,7 @@ if settings.SENTRY_DSN:
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
         release=settings.SENTRY_RELEASE,
-        traces_sample_rate=1.0,
+        traces_sample_rate=0,
         enable_logs=True,
         integrations=[LoggingIntegration(event_level=logging.ERROR)],
         before_breadcrumb=_before_breadcrumb,
