@@ -12,14 +12,21 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="seg-track" :class="{ compact }" role="group" :aria-label="ariaLabel">
+  <div
+    class="seg-track"
+    :class="{ compact }"
+    role="group"
+    :aria-label="ariaLabel"
+  >
     <button
       v-for="option in options"
       :key="String(option.value)"
       class="seg-btn"
       :class="{ active: option.value === modelValue }"
       :aria-pressed="option.value === modelValue"
-      @click="option.value !== modelValue && $emit('update:modelValue', option.value)"
+      @click="
+        option.value !== modelValue && $emit('update:modelValue', option.value)
+      "
     >
       <q-icon v-if="option.icon" :name="option.icon" size="var(--type-sm)" />
       {{ option.label }}
@@ -49,7 +56,10 @@ defineEmits<{
   font-size: var(--type-sm);
   font-weight: 500;
   color: var(--text-muted);
-  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
 
   &:hover:not(.active) {
     color: var(--text);

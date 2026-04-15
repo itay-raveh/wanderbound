@@ -36,7 +36,12 @@ const { data: segments } = useSegmentPointsQuery(fromTime, toTime);
 
 const printMode = usePrintMode();
 const container = useTemplateRef("map");
-const { map, fitBounds } = useMapbox({ container, locale, onReady: draw, preserveDrawingBuffer: printMode });
+const { map, fitBounds } = useMapbox({
+  container,
+  locale,
+  onReady: draw,
+  preserveDrawingBuffer: printMode,
+});
 
 function draw(m: Map) {
   if (!segments.value) return;
@@ -63,11 +68,19 @@ watch(segments, () => {
 watch(safeMarginMm, () => {
   const m = map.value;
   if (!m || !segments.value || !m.isStyleLoaded()) return;
-  const coords: [number, number][] = props.steps.map((s) => [s.location.lon, s.location.lat]);
+  const coords: [number, number][] = props.steps.map((s) => [
+    s.location.lon,
+    s.location.lat,
+  ]);
   fitBounds(coords, 60 + safeMarginPx());
 });
 </script>
 
 <template>
-  <div ref="map" role="img" :aria-label="t('album.tripRouteMap')" class="page-container map-page relative-position overflow-hidden" />
+  <div
+    ref="map"
+    role="img"
+    :aria-label="t('album.tripRouteMap')"
+    class="page-container map-page relative-position overflow-hidden"
+  />
 </template>

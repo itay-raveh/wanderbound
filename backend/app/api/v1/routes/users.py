@@ -101,7 +101,7 @@ async def upload_data(
 ) -> UploadResult:
     uid: int | None = request.session.get("uid")
 
-    # Auth first — reject unauthorized users before processing the ZIP.
+    # Auth first - reject unauthorized users before processing the ZIP.
     existing, identity = await _resolve_auth(
         uid, auth.credential, auth.provider, session, request
     )
@@ -168,7 +168,7 @@ async def upload_data(
 
 @cache
 def _demo_fixtures() -> tuple[Path, PSUser, tuple[TripMeta, ...]]:
-    """Cached — callers must not mutate the returned objects."""
+    """Cached - callers must not mutate the returned objects."""
     fixtures = get_settings().DEMO_FIXTURES
     ps_user, trips = scan_user_folder(fixtures)
     return fixtures, ps_user, tuple(trips)

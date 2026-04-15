@@ -21,7 +21,11 @@ const PAGE_WIDTH = `${PAGE_WIDTH_MM}mm`;
 export const SIZES_FULL = PAGE_WIDTH;
 export const SIZES_HALF = `calc(${PAGE_WIDTH} * 0.5)`;
 
-export function mediaThumbUrl(name: string, albumId: string, width: number = THUMB_WIDTHS[0]): string {
+export function mediaThumbUrl(
+  name: string,
+  albumId: string,
+  width: number = THUMB_WIDTHS[0],
+): string {
   return `${mediaUrl(name, albumId)}?w=${width}`;
 }
 
@@ -41,7 +45,10 @@ export function isPortrait(media: { width: number; height: number }): boolean {
 }
 
 /** Name-based portrait check via a media lookup map. */
-export function isPortraitByName(name: string, mediaByName: ReadonlyMap<string, { width: number; height: number }>): boolean {
+export function isPortraitByName(
+  name: string,
+  mediaByName: ReadonlyMap<string, { width: number; height: number }>,
+): boolean {
   const m = mediaByName.get(name);
   return m ? isPortrait(m) : false;
 }

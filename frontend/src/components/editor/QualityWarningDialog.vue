@@ -19,7 +19,10 @@ const { t } = useI18n();
 
 const bodyText = computed(() => {
   if (props.warning > 0 && props.caution > 0)
-    return t("quality.exportBody", { warning: props.warning, caution: props.caution });
+    return t("quality.exportBody", {
+      warning: props.warning,
+      caution: props.caution,
+    });
   if (props.warning > 0)
     return t("quality.exportBodyWarningOnly", { warning: props.warning });
   return t("quality.exportBodyCautionOnly", { caution: props.caution });

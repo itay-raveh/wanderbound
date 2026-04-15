@@ -12,7 +12,9 @@ export interface SseDownloadHandle {
 type EventAction = { loading: string } | { done: string } | { error: string };
 
 type StringOrGetter = string | (() => string);
-function resolve(v: StringOrGetter): string { return typeof v === "function" ? v() : v; }
+function resolve(v: StringOrGetter): string {
+  return typeof v === "function" ? v() : v;
+}
 
 interface SseDownloadConfig<T = unknown> {
   connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
@@ -27,7 +29,9 @@ interface SseDownloadConfig<T = unknown> {
 
 const DONE_RESET_MS = 1500;
 
-export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHandle {
+export function useSseDownload<T>(
+  config: SseDownloadConfig<T>,
+): SseDownloadHandle {
   const state = ref<SseStreamState>("idle");
   let controller: AbortController | null = null;
   let lastMsg = "";
@@ -84,7 +88,10 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       state.value = "error";
-      Notify.create({ type: "negative", message: resolve(config.errorMessage) });
+      Notify.create({
+        type: "negative",
+        message: resolve(config.errorMessage),
+      });
     } finally {
       if (!config.headless) Loading.hide();
       lastMsg = "";
@@ -103,7 +110,8 @@ export function useSseDownload<T>(config: SseDownloadConfig<T>): SseDownloadHand
       clearTimeout(resetTimer);
       resetTimer = null;
     }
-    if (state.value === "running" || state.value === "done") state.value = "idle";
+    if (state.value === "running" || state.value === "done")
+      state.value = "idle";
     if (!config.headless) Loading.hide();
     lastMsg = "";
   }

@@ -27,7 +27,9 @@ const lastLine = computed(() => props.lines.at(-1)?.text ?? null);
 <template>
   <div class="justified-text">
     <p v-for="(para, i) in paragraphs" :key="i" class="jt-para">
-      <template v-for="(text, j) in para" :key="j"><br v-if="j > 0">{{ text }}</template>
+      <template v-for="(text, j) in para" :key="j"
+        ><br v-if="j > 0" />{{ text }}</template
+      >
     </p>
     <p v-if="lastLine" class="jt-last">{{ lastLine }}</p>
   </div>

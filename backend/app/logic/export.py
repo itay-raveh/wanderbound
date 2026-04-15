@@ -218,7 +218,7 @@ async def export_user_data(
     ).all():
         segments_by_album[segment.aid].append(segment)
 
-    # Serialize on the event loop — model_dump touches SQLAlchemy descriptors
+    # Serialize on the event loop - model_dump touches SQLAlchemy descriptors
     # which are not thread-safe, and there's no I/O here (data is pre-loaded).
     albums_data: list[dict[str, Any]] = [
         {

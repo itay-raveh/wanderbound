@@ -1,7 +1,7 @@
 ---
 name: design-critique
 description: Run a design critique, discuss questions with the user, apply suggestions via sub-agents, then run a full audit. Scope defaults to changed frontend files.
-argument-hint: "[scope — files, component, or area to critique. Default: changed frontend files]"
+argument-hint: "[scope - files, component, or area to critique. Default: changed frontend files]"
 user-invocable: true
 allowed-tools: Agent, Skill, Bash, Read, Edit, Write, Glob, Grep, AskUserQuestion
 ---
@@ -28,8 +28,8 @@ Use the Skill tool to invoke `impeccable:critique` with the scope as the argumen
 ## Step 3: Develop questions
 
 The critique will raise questions about design intent, audience, and tradeoffs. For each question or ambiguity:
-1. Consider the question in context of this project (Wanderbound — a photo album generator with print-ready output, satellite maps, dark/light mode, RTL support)
-2. Develop the question further — add your own observations about what you see in the code
+1. Consider the question in context of this project (Wanderbound - a photo album generator with print-ready output, satellite maps, dark/light mode, RTL support)
+2. Develop the question further - add your own observations about what you see in the code
 3. Formulate clear, specific questions for the user
 
 ## Step 4: Ask the user

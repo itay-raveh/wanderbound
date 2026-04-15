@@ -14,7 +14,9 @@ const POLARSTEPS_GUIDE =
       <li>
         <i18n-t keypath="register.getDataStep1">
           <template #link>
-            <a href="https://www.polarsteps.com" target="_blank" rel="noopener">polarsteps.com</a>
+            <a href="https://www.polarsteps.com" target="_blank" rel="noopener"
+              >polarsteps.com</a
+            >
           </template>
         </i18n-t>
       </li>
@@ -31,8 +33,15 @@ const POLARSTEPS_GUIDE =
       </li>
       <li>{{ t("register.getDataStep4") }}</li>
     </ol>
-    <p class="wait-note text-caption text-faint">{{ t("register.getDataWait") }}</p>
-    <a :href="POLARSTEPS_GUIDE" target="_blank" rel="noopener" class="guide-link text-body2">
+    <p class="wait-note text-caption text-faint">
+      {{ t("register.getDataWait") }}
+    </p>
+    <a
+      :href="POLARSTEPS_GUIDE"
+      target="_blank"
+      rel="noopener"
+      class="guide-link text-body2"
+    >
       {{ t("register.getDataGuide") }}
       <q-icon :name="matOpenInNew" size="0.75rem" />
     </a>

@@ -23,6 +23,8 @@ const WEB_MERCATOR_EXTENT = 20037508.34;
 export function toSvgMercator(lon: number, lat: number): [number, number] {
   const x = (lon * WEB_MERCATOR_EXTENT) / 180;
   const latRad = (lat * Math.PI) / 180;
-  const y = -(Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * WEB_MERCATOR_EXTENT) / Math.PI;
+  const y =
+    -(Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * WEB_MERCATOR_EXTENT) /
+    Math.PI;
   return [x, y];
 }

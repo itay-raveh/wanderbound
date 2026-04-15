@@ -38,8 +38,14 @@ export function addLine(
   });
 }
 
-export function lineFeature(coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
-  return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
+export function lineFeature(
+  coords: [number, number][],
+): GeoJSON.Feature<GeoJSON.LineString> {
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "LineString", coordinates: coords },
+  };
 }
 
 function setSourceData(map: mapboxgl.Map, id: string, data: GeoJSON.GeoJSON) {
@@ -83,14 +89,18 @@ function buildFlightArc(
   const controlLat = (startLat + endLat) / 2 - (dx / dist) * offset;
 
   const curved = bezierSpline(
-    lineString([[startLon, startLat], [controlLon, controlLat], [endLon, endLat]]),
+    lineString([
+      [startLon, startLat],
+      [controlLon, controlLat],
+      [endLon, endLat],
+    ]),
   );
   return curved.geometry.coordinates as [number, number][];
 }
 
 function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
-  const start = seg.points[0]!;
-  const end = seg.points[seg.points.length - 1]!;
+  const start = seg.points[0];
+  const end = seg.points[seg.points.length - 1];
   const arcCoords = buildFlightArc(start.lon, start.lat, end.lon, end.lat);
 
   addLine(m, id, lineFeature(arcCoords), {
@@ -103,8 +113,8 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
   if (!faint) {
     // Slightly past midpoint (55%) so the icon sits on the descending side of the arc
     const midIdx = Math.floor(arcCoords.length * 0.55);
-    const midCoord = arcCoords[midIdx]!;
-    const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)]!;
+    const midCoord = arcCoords[midIdx];
+    const nextCoord = arcCoords[Math.min(midIdx + 1, arcCoords.length - 1)];
     const angle =
       (Math.atan2(nextCoord[1] - midCoord[1], nextCoord[0] - midCoord[0]) *
         180) /
@@ -113,7 +123,11 @@ function drawFlight(m: mapboxgl.Map, id: string, seg: Segment, faint: boolean) {
     const el = document.createElement("div");
     el.className = FLIGHT_ICON_CLASS;
     el.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg>`;
-    new mapboxgl.Marker({ element: el, rotation: 90 - angle, rotationAlignment: "map" })
+    new mapboxgl.Marker({
+      element: el,
+      rotation: 90 - angle,
+      rotationAlignment: "map",
+    })
       .setLngLat(midCoord)
       .addTo(m);
   }
@@ -155,8 +169,8 @@ function drawHike(
       "circle-stroke-color": "rgba(0,0,0,0.25)",
       "circle-stroke-width": 1,
     };
-    addCircle(m, `${id}-start-pt`, coords[0]!, endpointPaint);
-    addCircle(m, `${id}-end-pt`, coords[coords.length - 1]!, endpointPaint);
+    addCircle(m, `${id}-start-pt`, coords[0], endpointPaint);
+    addCircle(m, `${id}-end-pt`, coords[coords.length - 1], endpointPaint);
   }
 }
 
@@ -174,12 +188,16 @@ const ROUTE_STYLES: Record<"driving" | "walking", RouteStyle> = {
   driving: {
     sourceId: `${LAYER_PREFIX}drive`,
     shadowId: `${LAYER_PREFIX}drive-shadow`,
-    width: 3.5, shadowWidth: 8, shadowOpacity: 0.35,
+    width: 3.5,
+    shadowWidth: 8,
+    shadowOpacity: 0.35,
   },
   walking: {
     sourceId: `${LAYER_PREFIX}walk`,
     shadowId: `${LAYER_PREFIX}walk-shadow`,
-    width: 2.5, shadowWidth: 6, shadowOpacity: 0.3,
+    width: 2.5,
+    shadowWidth: 6,
+    shadowOpacity: 0.3,
     dasharray: [1, 2],
   },
 };
@@ -199,7 +217,10 @@ function drawRouteLayers(
   coordsByKind: Record<"driving" | "walking", [number, number][][]>,
   faint: boolean,
 ) {
-  for (const [kind, style] of Object.entries(ROUTE_STYLES) as [keyof typeof ROUTE_STYLES, RouteStyle][]) {
+  for (const [kind, style] of Object.entries(ROUTE_STYLES) as [
+    keyof typeof ROUTE_STYLES,
+    RouteStyle,
+  ][]) {
     const coords = coordsByKind[kind];
     if (!coords.length) continue;
     const data = multiLine(coords);
@@ -273,7 +294,11 @@ export function drawSegmentsAndMarkers(
         drawFlight(m, id, seg, faint);
         break;
       case "hike":
-        drawHike(m, id, coords, { faint, color: options.hikeColor, draggableEndpoints: options.draggableEndpoints });
+        drawHike(m, id, coords, {
+          faint,
+          color: options.hikeColor,
+          draggableEndpoints: options.draggableEndpoints,
+        });
         allCoords.push(...coords);
         if (!faint && coords.length >= 2 && options.draggableEndpoints) {
           const feature = lineFeature(coords);
@@ -284,8 +309,8 @@ export function drawSegmentsAndMarkers(
             setSourceData(m, `${id}-casing`, feature);
           };
           hikeEndpoints.push(
-            { coord: coords[0]!, handle: "start", updateLine },
-            { coord: coords[coords.length - 1]!, handle: "end", updateLine },
+            { coord: coords[0], handle: "start", updateLine },
+            { coord: coords[coords.length - 1], handle: "end", updateLine },
           );
         }
         break;

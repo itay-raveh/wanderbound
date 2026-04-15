@@ -3,7 +3,7 @@ import type { Page, Locator } from "@playwright/test";
 import { PHOTO_SHORTCUTS } from "../src/composables/shortcutKeys";
 
 // ---------------------------------------------------------------------------
-// Helpers — purely user-facing selectors
+// Helpers - purely user-facing selectors
 // ---------------------------------------------------------------------------
 
 /** All focusable photos (role="button" with aria-pressed). */
@@ -26,7 +26,7 @@ async function openEditor(page: Page) {
 
 /**
  * Navigate to a step by clicking its country group, then its name
- * in the sidebar — the same way a real user would.
+ * in the sidebar - the same way a real user would.
  */
 async function scrollToStep(page: Page, country: string, stepName: string) {
   const nav = page.getByRole("navigation");
@@ -80,7 +80,7 @@ test.describe("Photo focus & arrow navigation", () => {
 
     // The first photo should no longer be selected.
     await expect(first).toHaveAttribute("aria-pressed", "false");
-    // Exactly one photo should be selected — a different one.
+    // Exactly one photo should be selected - a different one.
     await expect(selected(page)).toHaveCount(1);
   });
 
@@ -166,7 +166,7 @@ test.describe("Photo focus & arrow navigation", () => {
       indices.push(await selectedIndex());
     }
 
-    // Every arrow press should land on a different photo — no revisits.
+    // Every arrow press should land on a different photo - no revisits.
     const unique = new Set(indices);
     expect(unique.size).toBe(indices.length);
   });
@@ -209,7 +209,7 @@ test.describe("Photo focus & arrow navigation", () => {
     await photos(page).first().click();
     await expect(selected(page)).toHaveCount(1);
 
-    // Fire several rapid arrow presses — enough to cross at least one step boundary.
+    // Fire several rapid arrow presses - enough to cross at least one step boundary.
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press("ArrowRight");
     }
@@ -263,7 +263,7 @@ test.describe("Send to unused & set as cover", () => {
     const indexBefore = await selectedIndex();
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
 
-    // Focus should move backward — the selected index should decrease.
+    // Focus should move backward - the selected index should decrease.
     await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
     const indexAfter = await selectedIndex();
     expect(indexAfter).toBeLessThan(indexBefore);
@@ -281,7 +281,7 @@ test.describe("Send to unused & set as cover", () => {
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
 
-    // Now only one navigable photo remains — removing it should clear focus.
+    // Now only one navigable photo remains - removing it should clear focus.
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(selected(page)).toHaveCount(0, { timeout: 3_000 });
   });
@@ -294,7 +294,7 @@ test.describe("Send to unused & set as cover", () => {
 
     await page.keyboard.press(PHOTO_SHORTCUTS.setAsCover);
 
-    // Focus should advance — the photo became cover, so it's no longer navigable.
+    // Focus should advance - the photo became cover, so it's no longer navigable.
     await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
     await expect(first).not.toHaveAttribute("aria-pressed", "true");
   });

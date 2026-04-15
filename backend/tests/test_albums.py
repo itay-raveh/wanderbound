@@ -39,7 +39,7 @@ class TestReadAlbum:
         resp = await client.get(f"/api/v1/albums/{AID}")
         assert resp.status_code == 200
         data = resp.json()
-        # AlbumMeta excludes heavy fields — only meta returned
+        # AlbumMeta excludes heavy fields - only meta returned
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data

@@ -16,10 +16,28 @@ import { PAGE_HEIGHT_MM, MM_PX } from "@/utils/pageSize";
 import { summarizeQuality } from "@/utils/photoQuality";
 import { setSafeMargin } from "@/composables/useSafeMargin";
 import { setQualitySummary } from "@/composables/usePhotoQuality";
-import { buildSections, visibleHeaderKeys, sectionKey, sectionPageCount, segmentsOverlapping, activeSectionId } from "./album/albumSections";
+import {
+  buildSections,
+  visibleHeaderKeys,
+  sectionKey,
+  sectionPageCount,
+  segmentsOverlapping,
+  activeSectionId,
+} from "./album/albumSections";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
-import { computed, defineAsyncComponent, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  defineComponent,
+  h,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+  watchEffect,
+} from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -53,7 +71,9 @@ const props = defineProps<{
 }>();
 
 const albumId = computed(() => props.album.id);
-const albumColors = computed(() => (props.album.colors ?? {}) as Record<string, string>);
+const albumColors = computed(
+  () => (props.album.colors ?? {}) as Record<string, string>,
+);
 const albumMedia = computed(() => props.media);
 
 const safeMarginMm = computed(() => props.album.safe_margin_mm ?? 0);
@@ -62,13 +82,15 @@ watchEffect(() => setSafeMargin(safeMarginMm.value));
 const albumStyle = computed(() => {
   const sm = safeMarginMm.value;
   return {
-    '--font-album': fontStack(props.album.font ?? DEFAULT_FONT),
-    '--font-album-body': fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
-    '--safe-margin': `${sm}mm`,
-    ...(sm > 0 ? {
-      '--page-inset-x': `max(3rem, ${sm}mm)`,
-      '--page-inset-y': `max(2.5rem, ${sm}mm)`,
-    } : {}),
+    "--font-album": fontStack(props.album.font ?? DEFAULT_FONT),
+    "--font-album-body": fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
+    "--safe-margin": `${sm}mm`,
+    ...(sm > 0
+      ? {
+          "--page-inset-x": `max(3rem, ${sm}mm)`,
+          "--page-inset-y": `max(2.5rem, ${sm}mm)`,
+        }
+      : {}),
   };
 });
 const albumMutation = useAlbumMutation(() => props.album.id);
@@ -82,18 +104,28 @@ const visibleSteps = computed(() => {
 const segments = computed(() => {
   const s = visibleSteps.value;
   if (s.length === 0) return [];
-  return segmentsOverlapping(props.segmentOutlines, s[0]!.timestamp, s[s.length - 1]!.timestamp);
+  return segmentsOverlapping(
+    props.segmentOutlines,
+    s[0].timestamp,
+    s[s.length - 1].timestamp,
+  );
 });
 
 const tripStart = computed(() => visibleSteps.value[0]?.datetime ?? "");
 const totalDays = computed(() => {
   const s = visibleSteps.value;
   if (s.length < 2) return 1;
-  const first = parseLocalDate(s[0]!.datetime);
-  const last = parseLocalDate(s[s.length - 1]!.datetime);
+  const first = parseLocalDate(s[0].datetime);
+  const last = parseLocalDate(s[s.length - 1].datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-const { mediaByName } = provideAlbum({ albumId, colors: albumColors, media: albumMedia, tripStart, totalDays });
+const { mediaByName } = provideAlbum({
+  albumId,
+  colors: albumColors,
+  media: albumMedia,
+  tripStart,
+  totalDays,
+});
 
 if (!props.printMode) {
   watchEffect(() => {
@@ -109,43 +141,53 @@ if (!props.printMode) {
 }
 
 const sections = computed(() =>
-  buildSections(visibleSteps.value, segments.value, props.album.maps_ranges ?? []),
+  buildSections(
+    visibleSteps.value,
+    segments.value,
+    props.album.maps_ranges ?? [],
+  ),
 );
 
 const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 
-const activeHeaders = computed(() => visibleHeaderKeys(props.album.hidden_headers ?? []));
+const activeHeaders = computed(() =>
+  visibleHeaderKeys(props.album.hidden_headers ?? []),
+);
 const headerCount = computed(() => activeHeaders.value.length);
 
-const expectedPageCount = computed(() =>
-  headerCount.value + sectionPageCounts.value.reduce((n, c) => n + c, 0),
+const expectedPageCount = computed(
+  () => headerCount.value + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 const listRef = ref<HTMLElement | null>(null);
 const itemEls = ref<HTMLElement[]>([]);
 let measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
-const pageH = computed(() => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12);
+const pageH = computed(
+  () => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12,
+);
 
-const { virtualizer, items, size, version } = useWindowVirtualizer(computed(() => {
-  const hc = headerCount.value;
-  const headers = activeHeaders.value;
-  return {
-    count: hc + sections.value.length,
-    estimateSize: (index: number) => {
-      if (index < hc) return pageH.value;
-      return (sectionPageCounts.value[index - hc] ?? 1) * pageH.value;
-    },
-    overscan: 3,
-    gap: 16,
-    scrollMargin: scrollMargin.value,
-    getItemKey: (index: number) => {
-      if (index < hc) return headers[index]!;
-      const sec = sections.value[index - hc];
-      return sec ? sectionKey(sec) : index;
-    },
-  };
-}));
+const { virtualizer, items, size, version } = useWindowVirtualizer(
+  computed(() => {
+    const hc = headerCount.value;
+    const headers = activeHeaders.value;
+    return {
+      count: hc + sections.value.length,
+      estimateSize: (index: number) => {
+        if (index < hc) return pageH.value;
+        return (sectionPageCounts.value[index - hc] ?? 1) * pageH.value;
+      },
+      overscan: 3,
+      gap: 16,
+      scrollMargin: scrollMargin.value,
+      getItemKey: (index: number) => {
+        if (index < hc) return headers[index];
+        const sec = sections.value[index - hc];
+        return sec ? sectionKey(sec) : index;
+      },
+    };
+  }),
+);
 
 function sectionIdAt(vIndex: number) {
   const hc = headerCount.value;
@@ -181,7 +223,11 @@ if (props.printMode) {
     (update) => albumMutation.mutate(update),
   );
 
-  const { setScrollOverride, setActive, scrollBehavior: getScrollBehavior } = useActiveSection();
+  const {
+    setScrollOverride,
+    setActive,
+    scrollBehavior: getScrollBehavior,
+  } = useActiveSection();
 
   const stepIdToVIdx = computed(() => {
     const hc = headerCount.value;
@@ -202,7 +248,8 @@ if (props.printMode) {
   function scrollToVIdx(idx: number, behavior?: ScrollBehavior) {
     virtualizer.scrollToIndex(idx, {
       align: "start",
-      behavior: behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto"),
+      behavior:
+        behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto"),
     });
   }
 
@@ -232,15 +279,25 @@ if (props.printMode) {
   watchEffect(() => {
     void version.value; // subscribe to every scroll tick
     const vItems = items.value;
-    if (!vItems.length) { setActive(null); return; }
+    if (!vItems.length) {
+      setActive(null);
+      return;
+    }
 
-    const best = pickBestItem(vItems, window.scrollY, scrollMargin.value, window.innerHeight / 2);
-    setActive(best ? sectionIdAt(best.index) ?? null : null);
+    const best = pickBestItem(
+      vItems,
+      window.scrollY,
+      scrollMargin.value,
+      window.innerHeight / 2,
+    );
+    setActive(best ? (sectionIdAt(best.index) ?? null) : null);
   });
 
   onMounted(() => {
     if (listRef.value) {
-      scrollMargin.value = Math.round(listRef.value.getBoundingClientRect().top + window.scrollY);
+      scrollMargin.value = Math.round(
+        listRef.value.getBoundingClientRect().top + window.scrollY,
+      );
     }
     measureNew();
   });
@@ -263,15 +320,35 @@ if (props.printMode) {
     :data-expected-pages="expectedPageCount"
     :style="albumStyle"
   >
-    <CoverPage v-if="activeHeaders.includes('cover-front')" :album="album" :steps="visibleSteps" />
-    <CoverPage v-if="activeHeaders.includes('cover-back')" :album="album" :steps="visibleSteps" is-back />
-    <OverviewPage v-if="activeHeaders.includes('overview')" :album="album" :segments="segments" :steps="visibleSteps" />
-    <div v-if="activeHeaders.includes('full-map')" class="map-wrapper"><MapPage :segment-outlines="segments" :steps="visibleSteps" /></div>
+    <CoverPage
+      v-if="activeHeaders.includes('cover-front')"
+      :album="album"
+      :steps="visibleSteps"
+    />
+    <CoverPage
+      v-if="activeHeaders.includes('cover-back')"
+      :album="album"
+      :steps="visibleSteps"
+      is-back
+    />
+    <OverviewPage
+      v-if="activeHeaders.includes('overview')"
+      :album="album"
+      :segments="segments"
+      :steps="visibleSteps"
+    />
+    <div v-if="activeHeaders.includes('full-map')" class="map-wrapper">
+      <MapPage :segment-outlines="segments" :steps="visibleSteps" />
+    </div>
 
     <template v-for="section in sections" :key="sectionKey(section)">
       <template v-if="section.type === 'map' || section.type === 'hike'">
         <div class="map-wrapper">
-          <MapPage v-if="section.type === 'map'" :segment-outlines="section.segments" :steps="section.steps" />
+          <MapPage
+            v-if="section.type === 'map'"
+            :segment-outlines="section.segments"
+            :steps="section.steps"
+          />
           <HikeMapPage
             v-else
             :segments="section.segments"
@@ -285,7 +362,7 @@ if (props.printMode) {
     </template>
   </div>
 
-  <!-- Editor mode: virtual scrolling — only visible sections are in the DOM -->
+  <!-- Editor mode: virtual scrolling - only visible sections are in the DOM -->
   <div
     v-else-if="visibleSteps.length"
     :class="['album-container', { 'has-safe-margin': safeMarginMm > 0 }]"
@@ -293,7 +370,14 @@ if (props.printMode) {
     :style="[{ '--editor-zoom': String(editorZoom) }, albumStyle]"
     @wheel="onWheel"
   >
-    <div ref="listRef" :style="{ height: `${size}px`, position: 'relative', overflowAnchor: 'none' }">
+    <div
+      ref="listRef"
+      :style="{
+        height: `${size}px`,
+        position: 'relative',
+        overflowAnchor: 'none',
+      }"
+    >
       <div
         :style="{
           position: 'absolute',
@@ -311,17 +395,37 @@ if (props.printMode) {
         >
           <!-- Header items -->
           <template v-if="vItem.index < headerCount">
-            <CoverPage v-if="activeHeaders[vItem.index] === 'cover-front'" :album="album" :steps="visibleSteps" />
-            <CoverPage v-else-if="activeHeaders[vItem.index] === 'cover-back'" :album="album" :steps="visibleSteps" is-back />
-            <OverviewPage v-else-if="activeHeaders[vItem.index] === 'overview'" :album="album" :segments="segments" :steps="visibleSteps" />
-            <div v-else-if="activeHeaders[vItem.index] === 'full-map'" class="map-wrapper">
+            <CoverPage
+              v-if="activeHeaders[vItem.index] === 'cover-front'"
+              :album="album"
+              :steps="visibleSteps"
+            />
+            <CoverPage
+              v-else-if="activeHeaders[vItem.index] === 'cover-back'"
+              :album="album"
+              :steps="visibleSteps"
+              is-back
+            />
+            <OverviewPage
+              v-else-if="activeHeaders[vItem.index] === 'overview'"
+              :album="album"
+              :segments="segments"
+              :steps="visibleSteps"
+            />
+            <div
+              v-else-if="activeHeaders[vItem.index] === 'full-map'"
+              class="map-wrapper"
+            >
               <MapPage :segment-outlines="segments" :steps="visibleSteps" />
             </div>
           </template>
 
           <!-- Section items -->
           <template v-else>
-            <template v-for="(sec, i) in [sections[vItem.index - headerCount]!]" :key="i">
+            <template
+              v-for="(sec, i) in [sections[vItem.index - headerCount]!]"
+              :key="i"
+            >
               <div v-if="sec.type !== 'step'" class="map-wrapper">
                 <MapPage
                   v-if="sec.type === 'map'"
@@ -380,9 +484,9 @@ if (props.printMode) {
     }
   }
 
-  // Safe margin frame — editor-only visual guide
+  // Safe margin frame - editor-only visual guide
   &.has-safe-margin :deep(.page-container)::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: var(--safe-margin);
     border: 1px dashed color-mix(in srgb, var(--text) 40%, transparent);
@@ -464,6 +568,5 @@ if (props.printMode) {
       transform: none !important;
     }
   }
-
 }
 </style>

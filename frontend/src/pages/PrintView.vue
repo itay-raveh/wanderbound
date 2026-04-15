@@ -31,8 +31,15 @@ const segmentOutlines = computed<SegmentOutline[]>(() => {
     end_time: s.end_time,
     kind: s.kind,
     timezone_id: s.timezone_id,
-    start_coord: s.points.length ? [s.points[0]!.lat, s.points[0]!.lon] as [number, number] : [0, 0] as [number, number],
-    end_coord: s.points.length ? [s.points[s.points.length - 1]!.lat, s.points[s.points.length - 1]!.lon] as [number, number] : [0, 0] as [number, number],
+    start_coord: s.points.length
+      ? ([s.points[0].lat, s.points[0].lon] as [number, number])
+      : ([0, 0] as [number, number]),
+    end_coord: s.points.length
+      ? ([
+          s.points[s.points.length - 1].lat,
+          s.points[s.points.length - 1].lon,
+        ] as [number, number])
+      : ([0, 0] as [number, number]),
   }));
 });
 
@@ -52,7 +59,9 @@ async function loadFonts(): Promise<void> {
     await Promise.all(faces);
     console.log("[print] loaded", faces.length, "font faces");
   } else {
-    console.warn("[print] no self-hosted font faces found - falling back to document.fonts.ready");
+    console.warn(
+      "[print] no self-hosted font faces found - falling back to document.fonts.ready",
+    );
     await document.fonts.ready;
   }
 }
@@ -88,7 +97,10 @@ function waitForPrintReady() {
     }
 
     const container = document.querySelector<HTMLElement>(".album-container");
-    if (!container) { schedulePoll(100); return; }
+    if (!container) {
+      schedulePoll(100);
+      return;
+    }
 
     const expected = parseInt(container.dataset.expectedPages || "0", 10);
     const actual = container.querySelectorAll(".page-container").length;
@@ -108,7 +120,9 @@ function waitForPrintReady() {
     }
 
     // Wait for all Mapbox maps to finish rendering tiles.
-    const unreadyMaps = document.querySelectorAll("[data-map]:not([data-map-ready])");
+    const unreadyMaps = document.querySelectorAll(
+      "[data-map]:not([data-map-ready])",
+    );
     if (unreadyMaps.length > 0) {
       console.log("[print]", unreadyMaps.length, "maps still rendering");
       schedulePoll(300);
@@ -119,8 +133,14 @@ function waitForPrintReady() {
     waiting = true;
     console.log("[print] content ready,", actual, "pages - waiting for fonts");
     fontsReady
-      .then(() => { console.log("[print] fonts confirmed"); setReady(); })
-      .catch(() => { console.warn("[print] font load failed, proceeding"); setReady(); });
+      .then(() => {
+        console.log("[print] fonts confirmed");
+        setReady();
+      })
+      .catch(() => {
+        console.warn("[print] font load failed, proceeding");
+        setReady();
+      });
   }
 
   function setReady() {
@@ -153,7 +173,9 @@ onUnmounted(() => clearTimeout(pollTimer));
       :segment-outlines="segmentOutlines"
       print-mode
     />
-    <div v-else class="status-message flex flex-center text-muted">{{ t("common.loadingAlbum") }}</div>
+    <div v-else class="status-message flex flex-center text-muted">
+      {{ t("common.loadingAlbum") }}
+    </div>
   </div>
 </template>
 

@@ -4,20 +4,43 @@
 // Outlined form fields
 .q-field--outlined .q-field__control {
   border-radius: var(--radius-sm);
-  &::before { border-color: var(--border-color); transition: border-color var(--duration-fast) ease; }
+  &::before {
+    border-color: var(--border-color);
+    transition: border-color var(--duration-fast) ease;
+  }
 }
-.q-field--outlined .q-field__control:hover::before { border-color: var(--text-faint); }
-.q-field--outlined.q-field--focused .q-field__control::after { border-color: var(--q-primary); border-width: 1px; }
-.q-field--outlined.q-field--error .q-field__control::before { border-color: var(--danger) !important; }
-.q-field__native, .q-field__input { color: var(--text); }
-.q-field__label { color: var(--text-muted); }
-.q-field__native::placeholder, .q-field__input::placeholder { color: var(--text-faint); }
+.q-field--outlined .q-field__control:hover::before {
+  border-color: var(--text-faint);
+}
+.q-field--outlined.q-field--focused .q-field__control::after {
+  border-color: var(--q-primary);
+  border-width: 1px;
+}
+.q-field--outlined.q-field--error .q-field__control::before {
+  border-color: var(--danger) !important;
+}
+.q-field__native,
+.q-field__input {
+  color: var(--text);
+}
+.q-field__label {
+  color: var(--text-muted);
+}
+.q-field__native::placeholder,
+.q-field__input::placeholder {
+  color: var(--text-faint);
+}
 
 // QBtn content gap (icon + label spacing)
-.q-btn__content { gap: var(--gap-md); }
+.q-btn__content {
+  gap: var(--gap-md);
+}
 
 // Field prepend/append icons
-.q-field__prepend, .q-field__append { color: var(--text-faint); }
+.q-field__prepend,
+.q-field__append {
+  color: var(--text-faint);
+}
 
 // Compact sidebar-style fields
 .compact-field {
@@ -67,18 +90,37 @@
   box-shadow: var(--shadow-lg);
 }
 
-// Mapbox injects its own font stack on .mapboxgl-map — override to use ours
-.mapboxgl-map { font-family: var(--font-ui); }
+// Mapbox injects its own font stack on .mapboxgl-map - override to use ours
+.mapboxgl-map {
+  font-family: var(--font-ui);
+}
 
 // Directional icons that should mirror in RTL (arrows, planes, etc.)
-[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
 
 // QUploader
-.q-uploader__header { background: transparent; color: var(--text-faint); border-bottom: none; padding: var(--gap-md-lg) var(--gap-lg); }
-.q-uploader__subtitle { color: var(--text-faint); }
-.q-uploader__title { font-size: var(--type-sm); font-weight: 500; }
-.q-uploader__list { padding: var(--gap-md) var(--gap-lg); }
-.q-uploader:focus-visible { outline: 0.125rem solid var(--q-primary); outline-offset: 0.125rem; }
+.q-uploader__header {
+  background: transparent;
+  color: var(--text-faint);
+  border-bottom: none;
+  padding: var(--gap-md-lg) var(--gap-lg);
+}
+.q-uploader__subtitle {
+  color: var(--text-faint);
+}
+.q-uploader__title {
+  font-size: var(--type-sm);
+  font-weight: 500;
+}
+.q-uploader__list {
+  padding: var(--gap-md) var(--gap-lg);
+}
+.q-uploader:focus-visible {
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .q-field--outlined .q-field__control::before {

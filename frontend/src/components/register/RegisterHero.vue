@@ -12,8 +12,12 @@ const { t } = useI18n();
   <header class="hero fade-up column no-wrap items-center">
     <img src="/logo.svg" alt="Wanderbound" class="hero-logo" />
     <div class="hero-text column no-wrap items-center">
-      <h1 v-if="userName" class="text-h6 text-bright no-margin">{{ t("register.greeting", { name: userName }) }}</h1>
-      <h1 v-else class="text-h6 text-bright no-margin">{{ t("register.welcomeNew") }}</h1>
+      <h1 v-if="userName" class="text-h6 text-bright no-margin">
+        {{ t("register.greeting", { name: userName }) }}
+      </h1>
+      <h1 v-else class="text-h6 text-bright no-margin">
+        {{ t("register.welcomeNew") }}
+      </h1>
       <span class="text-subtitle2 text-faint">
         {{ userName ? t("register.welcomeBack") : t("tagline") }}
       </span>

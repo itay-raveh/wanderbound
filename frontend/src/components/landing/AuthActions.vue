@@ -27,8 +27,16 @@ const emit = defineEmits<{
     :to="{ name: 'editor' }"
   />
   <div v-else class="auth-actions column no-wrap items-center">
-    <LoginButtons @google="(r) => emit('google', r.credential)" @microsoft="emit('microsoft')" />
-    <button type="button" class="demo-btn" :disabled="demoLoading" @click="emit('demo')">
+    <LoginButtons
+      @google="(r) => emit('google', r.credential)"
+      @microsoft="emit('microsoft')"
+    />
+    <button
+      type="button"
+      class="demo-btn"
+      :disabled="demoLoading"
+      @click="emit('demo')"
+    >
       <q-spinner-dots v-if="demoLoading" size="1em" color="primary" />
       <template v-else>{{ t("demo.tryButton") }}</template>
     </button>
@@ -70,11 +78,18 @@ const emit = defineEmits<{
     outline-offset: 0.125rem;
   }
 
-  &:active:not(:disabled) { transform: scale(0.98); }
-  &:disabled { opacity: 0.6; cursor: default; }
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .demo-btn { transition: none; }
+  .demo-btn {
+    transition: none;
+  }
 }
 </style>

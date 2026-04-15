@@ -32,7 +32,15 @@ defineEmits<{
     @keydown.enter="$emit('click')"
   >
     <div class="item-thumb">
-      <img v-if="thumb" :src="thumb" alt="" width="36" height="28" class="thumb-img" loading="lazy" />
+      <img
+        v-if="thumb"
+        :src="thumb"
+        alt=""
+        width="36"
+        height="28"
+        class="thumb-img"
+        loading="lazy"
+      />
       <div v-else class="thumb-empty" :style="{ background: color }" />
     </div>
     <div class="item-info">
@@ -45,7 +53,10 @@ defineEmits<{
       :aria-label="hidden ? t('nav.showStep') : t('nav.hideStep')"
       @click.stop="$emit('toggle')"
     >
-      <q-icon :name="hidden ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+      <q-icon
+        :name="hidden ? symOutlinedVisibilityOff : symOutlinedVisibility"
+        size="var(--type-xs)"
+      />
     </button>
   </div>
 </template>

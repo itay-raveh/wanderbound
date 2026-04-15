@@ -11,7 +11,8 @@ export function useSegmentPointsQuery(
   const { albumId } = useAlbum();
 
   return useQuery({
-    key: () => queryKeys.segmentPoints(albumId.value, fromTime.value, toTime.value),
+    key: () =>
+      queryKeys.segmentPoints(albumId.value, fromTime.value, toTime.value),
     query: async () => {
       const { data } = await readSegmentPoints({
         path: { aid: albumId.value },

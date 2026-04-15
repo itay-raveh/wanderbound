@@ -23,7 +23,8 @@ import {
 import { useDataExport } from "@/composables/useDataExport";
 
 const router = useRouter();
-const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } = useUserQuery();
+const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } =
+  useUserQuery();
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
 const { t } = useI18n();
@@ -39,7 +40,8 @@ const filteredLocaleOptions = computed(() => {
   const q = localeFilter.value.toLowerCase();
   if (!q) return options;
   return options.filter(
-    (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+    (o) =>
+      o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
   );
 });
 
@@ -75,16 +77,33 @@ async function handleDelete() {
 
 <template>
   <template v-if="user">
-    <button type="button" class="settings-trigger" :class="{ open: menuOpen }" :aria-label="t('settings.menu')" :aria-expanded="menuOpen" aria-haspopup="menu">
+    <button
+      type="button"
+      class="settings-trigger"
+      :class="{ open: menuOpen }"
+      :aria-label="t('settings.menu')"
+      :aria-expanded="menuOpen"
+      aria-haspopup="menu"
+    >
       <template v-if="!isDemo">
-        <q-avatar v-if="user.profile_image_url" size="2rem" class="trigger-avatar">
-          <img :src="user.profile_image_url" :alt="user.first_name" referrerpolicy="no-referrer" />
+        <q-avatar
+          v-if="user.profile_image_url"
+          size="2rem"
+          class="trigger-avatar"
+        >
+          <img
+            :src="user.profile_image_url"
+            :alt="user.first_name"
+            referrerpolicy="no-referrer"
+          />
         </q-avatar>
         <div v-else class="trigger-avatar-fallback flex flex-center">
           <q-icon :name="matPerson" size="1.125rem" />
         </div>
       </template>
-      <span class="trigger-name text-weight-semibold text-body2">{{ user.first_name }}</span>
+      <span class="trigger-name text-weight-semibold text-body2">{{
+        user.first_name
+      }}</span>
 
       <div class="trigger-divider" />
       <q-icon :name="matSettings" size="1.125rem" class="trigger-gear" />
@@ -101,7 +120,11 @@ async function handleDelete() {
             <SegmentedControl
               :model-value="$q.dark.isActive"
               :options="[
-                { label: t('settings.light'), value: false, icon: matLightMode },
+                {
+                  label: t('settings.light'),
+                  value: false,
+                  icon: matLightMode,
+                },
                 { label: t('settings.dark'), value: true, icon: matDarkMode },
               ]"
               :aria-label="t('settings.appearance')"
@@ -126,11 +149,15 @@ async function handleDelete() {
                 menu-anchor="bottom start"
                 menu-self="top start"
                 @filter="onLocaleFilter"
-                @update:model-value="$event !== user.locale && patch({ locale: $event })"
+                @update:model-value="
+                  $event !== user.locale && patch({ locale: $event })
+                "
               />
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
-              <span class="unit-label text-body2">{{ t("settings.distance") }}</span>
+              <span class="unit-label text-body2">{{
+                t("settings.distance")
+              }}</span>
               <SegmentedControl
                 :model-value="isKm"
                 :options="[
@@ -143,7 +170,9 @@ async function handleDelete() {
               />
             </div>
             <div class="unit-row row no-wrap items-center justify-between">
-              <span class="unit-label text-body2">{{ t("settings.temperature") }}</span>
+              <span class="unit-label text-body2">{{
+                t("settings.temperature")
+              }}</span>
               <SegmentedControl
                 :model-value="isCelsius"
                 :options="[
@@ -161,12 +190,25 @@ async function handleDelete() {
           <details class="card-section account-details">
             <summary class="section-title">{{ t("settings.account") }}</summary>
 
-            <button v-if="!isDemo" class="action-btn" @click="menuOpen = false; router.push({ name: 'upload' })">
+            <button
+              v-if="!isDemo"
+              class="action-btn"
+              @click="
+                menuOpen = false;
+                router.push({ name: 'upload' });
+              "
+            >
               <q-icon :name="matUploadFile" size="1rem" />
               {{ t("settings.reuploadData") }}
             </button>
 
-            <button class="action-btn" @click="menuOpen = false; exportStream.start()">
+            <button
+              class="action-btn"
+              @click="
+                menuOpen = false;
+                exportStream.start();
+              "
+            >
               <q-icon :name="matDownload" size="1rem" />
               {{ t("settings.exportData") }}
             </button>
@@ -191,7 +233,11 @@ async function handleDelete() {
       </q-menu>
     </button>
 
-    <DeleteDialog v-model="showDeleteConfirm" :deleting="deleting" @confirm="handleDelete" />
+    <DeleteDialog
+      v-model="showDeleteConfirm"
+      :deleting="deleting"
+      @confirm="handleDelete"
+    />
   </template>
 </template>
 
@@ -206,7 +252,9 @@ async function handleDelete() {
   border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
   background: var(--surface);
   cursor: pointer;
-  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+  transition:
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
   color: var(--text-muted);
 
   &:hover,
@@ -247,7 +295,9 @@ async function handleDelete() {
 
 .trigger-gear {
   color: var(--text-faint);
-  transition: color var(--duration-normal) ease, transform var(--duration-normal) ease;
+  transition:
+    color var(--duration-normal) ease,
+    transform var(--duration-normal) ease;
 
   .settings-trigger:hover &,
   .settings-trigger.open & {

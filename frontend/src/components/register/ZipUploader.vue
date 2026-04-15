@@ -20,7 +20,8 @@ const uploadUrl = `${client.getConfig().baseUrl}/api/v1/users/upload`;
 
 const formFields = computed(() => {
   const fields: { name: string; value: string }[] = [];
-  if (props.credential) fields.push({ name: "credential", value: props.credential });
+  if (props.credential)
+    fields.push({ name: "credential", value: props.credential });
   if (props.provider) fields.push({ name: "provider", value: props.provider });
   return fields;
 });
@@ -61,7 +62,9 @@ function onFailed() {
   <div>
     <h3 class="upload-title text-h6 text-weight-semibold text-bright">
       <i18n-t keypath="register.uploadTitle">
-        <template #file><strong class="file-name">user_data.zip</strong></template>
+        <template #file
+          ><strong class="file-name">user_data.zip</strong></template
+        >
       </i18n-t>
     </h3>
     <q-uploader
@@ -81,10 +84,21 @@ function onFailed() {
       @uploaded="onUploaded"
     >
       <template #header="scope">
-        <div v-if="scope.files.length > 0" class="uploader-header row no-wrap items-center q-gutter-x-sm">
-          <span class="text-body2 text-bright ellipsis">{{ scope.files[0].name }}</span>
-          <span v-if="scope.isUploading" class="text-caption text-faint">{{ scope.uploadProgressLabel }}</span>
-          <q-spinner v-if="scope.isUploading" size="1rem" class="text-primary" />
+        <div
+          v-if="scope.files.length > 0"
+          class="uploader-header row no-wrap items-center q-gutter-x-sm"
+        >
+          <span class="text-body2 text-bright ellipsis">{{
+            scope.files[0].name
+          }}</span>
+          <span v-if="scope.isUploading" class="text-caption text-faint">{{
+            scope.uploadProgressLabel
+          }}</span>
+          <q-spinner
+            v-if="scope.isUploading"
+            size="1rem"
+            class="text-primary"
+          />
         </div>
       </template>
       <template #list="scope">
@@ -99,11 +113,26 @@ function onFailed() {
           @keydown.space.prevent="scope.pickFiles"
         >
           <q-uploader-add-trigger />
-          <q-icon :name="symOutlinedLuggage" size="3rem" class="drop-zone-icon" />
-          <span class="text-body2 text-muted">{{ t("register.dropZone") }}</span>
+          <q-icon
+            :name="symOutlinedLuggage"
+            size="3rem"
+            class="drop-zone-icon"
+          />
+          <span class="text-body2 text-muted">{{
+            t("register.dropZone")
+          }}</span>
         </div>
         <div v-else-if="scope.isUploading" class="upload-progress">
-          <q-linear-progress :value="scope.files[0].__progress" color="primary" class="upload-bar" role="progressbar" :aria-valuenow="Math.round(scope.files[0].__progress * 100)" aria-valuemin="0" aria-valuemax="100" :aria-label="t('register.uploadProgress')" />
+          <q-linear-progress
+            :value="scope.files[0].__progress"
+            color="primary"
+            class="upload-bar"
+            role="progressbar"
+            :aria-valuenow="Math.round(scope.files[0].__progress * 100)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-label="t('register.uploadProgress')"
+          />
         </div>
       </template>
     </q-uploader>

@@ -57,7 +57,7 @@
   justify-content: center;
 }
 
-/* Grip icon — two thick horizontal bars */
+/* Grip icon - two thick horizontal bars */
 .hike-handle::after {
   content: "";
   display: block;
@@ -68,9 +68,19 @@
 }
 
 @keyframes handle-pulse {
-  0% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5), 0 0 0 0 color-mix(in srgb, var(--q-primary) 50%, transparent); }
-  50% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5), 0 0 0 0.75rem color-mix(in srgb, var(--q-primary) 0%, transparent); }
-  100% { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5); }
+  0% {
+    box-shadow:
+      0 0.125rem 0.5rem rgba(0, 0, 0, 0.5),
+      0 0 0 0 color-mix(in srgb, var(--q-primary) 50%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0.125rem 0.5rem rgba(0, 0, 0, 0.5),
+      0 0 0 0.75rem color-mix(in srgb, var(--q-primary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.5);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

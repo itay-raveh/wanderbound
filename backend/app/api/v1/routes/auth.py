@@ -84,7 +84,7 @@ async def _verify_microsoft(credential: str) -> OAuthIdentity:
     payload = await _verify_oidc_token(
         credential, _microsoft_jwks, settings.VITE_MICROSOFT_CLIENT_ID, issuer=None
     )
-    # /common issues tenant-specific issuers — pattern-match manually.
+    # /common issues tenant-specific issuers - pattern-match manually.
     iss = payload.get("iss", "")
     if not _MS_ISSUER_RE.match(iss):
         logger.warning("Microsoft token has unexpected issuer: %s", iss)

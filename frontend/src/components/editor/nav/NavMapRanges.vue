@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 import type { DateRange, Step } from "@/client";
 import { toQDate } from "@/utils/date";
-import { useDateRangePicker, parseDraftRanges } from "@/composables/useDateRangePicker";
+import {
+  useDateRangePicker,
+  parseDraftRanges,
+} from "@/composables/useDateRangePicker";
 import { useUndoStack } from "@/composables/useUndoStack";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import { useI18n } from "vue-i18n";
@@ -32,7 +35,10 @@ const confirmingClear = ref(false);
 
 const mapRangesModel = computed(() => {
   if (!props.mapsRanges.length) return null;
-  return props.mapsRanges.map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
+  return props.mapsRanges.map(([from, to]) => ({
+    from: toQDate(from),
+    to: toQDate(to),
+  }));
 });
 
 const { draft, open, close } = useDateRangePicker(() => mapRangesModel.value);
@@ -57,18 +63,40 @@ function clearAllMaps() {
     $q.notify({
       message: t("nav.mapsCleared"),
       timeout: 4000,
-      actions: [{ label: t("shortcuts.undo"), color: "primary", handler: () => undoStack.undo() }],
+      actions: [
+        {
+          label: t("shortcuts.undo"),
+          color: "primary",
+          handler: () => undoStack.undo(),
+        },
+      ],
     });
   });
 }
 </script>
 
 <template>
-  <button type="button" class="nav-chip" :aria-label="t('nav.mapRanges')" aria-haspopup="dialog" @click.stop>
+  <button
+    type="button"
+    class="nav-chip"
+    :aria-label="t('nav.mapRanges')"
+    aria-haspopup="dialog"
+    @click.stop
+  >
     <q-icon :name="symOutlinedMap" size="var(--type-xs)" />
     <span>{{ t("nav.maps") }}</span>
-    <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" class="chip-chevron" />
-    <q-popup-proxy ref="popupRef" transition-show="scale" transition-hide="scale" @before-show="onPickerOpen" @before-hide="onPickerClose">
+    <q-icon
+      :name="symOutlinedKeyboardArrowDown"
+      size="var(--type-xs)"
+      class="chip-chevron"
+    />
+    <q-popup-proxy
+      ref="popupRef"
+      transition-show="scale"
+      transition-hide="scale"
+      @before-show="onPickerOpen"
+      @before-hide="onPickerClose"
+    >
       <div class="picker-panel">
         <StepDatePicker
           v-model="draft"
@@ -79,17 +107,31 @@ function clearAllMaps() {
         />
         <div v-if="mapsRanges.length" class="picker-footer">
           <template v-if="!confirmingClear">
-            <button type="button" class="picker-clear-btn" @click="confirmingClear = true">
+            <button
+              type="button"
+              class="picker-clear-btn"
+              @click="confirmingClear = true"
+            >
               {{ t("nav.clear") }}
             </button>
           </template>
           <template v-else>
-            <span class="picker-confirm-text">{{ t("nav.removeAllMaps") }}</span>
+            <span class="picker-confirm-text">{{
+              t("nav.removeAllMaps")
+            }}</span>
             <div class="picker-confirm-actions">
-              <button type="button" class="picker-cancel-btn" @click="confirmingClear = false">
+              <button
+                type="button"
+                class="picker-cancel-btn"
+                @click="confirmingClear = false"
+              >
                 {{ t("delete.cancel") }}
               </button>
-              <button type="button" class="picker-remove-btn" @click="clearAllMaps">
+              <button
+                type="button"
+                class="picker-remove-btn"
+                @click="clearAllMaps"
+              >
                 {{ t("nav.remove") }}
               </button>
             </div>
@@ -146,7 +188,7 @@ function clearAllMaps() {
 
 .picker-remove-btn {
   background: var(--danger);
-  color: #fff; // white-on-danger — standard for filled destructive buttons
+  color: #fff; // white-on-danger - standard for filled destructive buttons
 
   &:hover {
     background: color-mix(in srgb, var(--danger) 85%, black);

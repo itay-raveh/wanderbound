@@ -74,7 +74,7 @@ async function onTryDemo() {
 
 const mainRef = ref<HTMLElement>();
 
-/* 3D tilt on hero card fan — tracks cursor across the entire hero section */
+/* 3D tilt on hero card fan - tracks cursor across the entire hero section */
 const heroRef = ref<HTMLElement>();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let tiltFrame = 0;
@@ -178,7 +178,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Feature: autoAlbum — core product showcase, standard 50/50 -->
+    <!-- Feature: autoAlbum - core product showcase, standard 50/50 -->
     <section class="band band--default" aria-labelledby="auto-album-heading">
       <div class="feature feature--standard scroll-reveal">
         <LandingImage
@@ -202,7 +202,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Feature: hikeMap — visually stunning, full-width breakout -->
+    <!-- Feature: hikeMap - visually stunning, full-width breakout -->
     <section class="band band--showstopper" aria-labelledby="hike-map-heading">
       <div class="feature feature--hero scroll-reveal">
         <div class="feature-text">
@@ -222,10 +222,13 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Features: localization + overview — paired features -->
+    <!-- Features: localization + overview - paired features -->
     <div class="band band--default">
       <div class="feature-pair">
-        <section class="feature-pair-item scroll-reveal" aria-labelledby="localization-heading">
+        <section
+          class="feature-pair-item scroll-reveal"
+          aria-labelledby="localization-heading"
+        >
           <LandingImage
             name="localization"
             :mode="mode"
@@ -247,7 +250,10 @@ onUnmounted(() => {
             >
           </i18n-t>
         </section>
-        <section class="feature-pair-item scroll-reveal" aria-labelledby="overview-heading">
+        <section
+          class="feature-pair-item scroll-reveal"
+          aria-labelledby="overview-heading"
+        >
           <LandingImage
             name="overview"
             :mode="mode"
@@ -303,7 +309,7 @@ onUnmounted(() => {
   color: var(--text-bright);
 }
 
-/* Hero — tight vertical stack so everything fits above the fold */
+/* Hero - tight vertical stack so everything fits above the fold */
 .hero {
   background: var(--page-gradient);
   text-align: center;
@@ -357,7 +363,7 @@ onUnmounted(() => {
   animation-delay: 0.55s;
 }
 
-/* Cascading hero reveal — each element unfolds with deliberate pacing */
+/* Cascading hero reveal - each element unfolds with deliberate pacing */
 .hero-content > .fade-up:nth-child(1) {
   animation-delay: 0s;
 }
@@ -365,7 +371,7 @@ onUnmounted(() => {
   animation-delay: 0.15s;
 }
 
-/* Product preview in hero — fanned spread of album pages */
+/* Product preview in hero - fanned spread of album pages */
 .hero-showcase {
   padding: 0 var(--gap-sm);
   animation-delay: 0.35s;
@@ -404,7 +410,8 @@ onUnmounted(() => {
 
 .hero-card:hover {
   transform: translate(-50%, -50%)
-    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15) /* rtl:ignore */;
+    translateX(calc(var(--x, 0rem) + var(--spread))) rotate(0deg) scale(1.15)
+    /* rtl:ignore */;
   z-index: 10 !important;
   box-shadow: var(--shadow-lg);
 }
@@ -464,7 +471,7 @@ onUnmounted(() => {
   animation-delay: 0.9s;
 }
 
-/* Feature bands — varied vertical rhythm creates narrative arc */
+/* Feature bands - varied vertical rhythm creates narrative arc */
 .band {
   padding: 2.5rem 1.25rem;
 }
@@ -473,7 +480,7 @@ onUnmounted(() => {
   background: var(--bg);
 }
 
-/* Showstopper band (hike map) — extra vertical breathing room + stronger bg */
+/* Showstopper band (hike map) - extra vertical breathing room + stronger bg */
 .band--showstopper {
   background: var(--bg-deep);
   padding: 3.5rem 1.25rem;
@@ -490,7 +497,7 @@ onUnmounted(() => {
   align-items: center;
 }
 
-/* Hero breakout feature (hikeMap) — text above, wide image below */
+/* Hero breakout feature (hikeMap) - text above, wide image below */
 .feature--hero {
   max-width: 56rem;
   margin: 0 auto;
@@ -519,7 +526,7 @@ onUnmounted(() => {
   max-height: clamp(14rem, 45vh, 28rem);
 }
 
-/* Paired features (stepPage + overview) — compact supporting detail */
+/* Paired features (stepPage + overview) - compact supporting detail */
 .feature-pair {
   display: grid;
   grid-template-columns: 1fr;
@@ -603,7 +610,7 @@ onUnmounted(() => {
   margin-top: 2.5rem;
 }
 
-/* Tablet — hero scales up, features stay single-column */
+/* Tablet - hero scales up, features stay single-column */
 @media (min-width: 768px) {
   .hero-content {
     padding: 2.5rem 2rem 0;
@@ -680,7 +687,7 @@ onUnmounted(() => {
   }
 }
 
-/* Desktop — multi-column features, full-size hero fan */
+/* Desktop - multi-column features, full-size hero fan */
 @media (min-width: 1024px) {
   .hero-brand {
     flex-direction: row;

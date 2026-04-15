@@ -4,7 +4,7 @@
   <!-- Right page -->
   <path d="M232 56 Q180 40, 128 56 L128 220 Q180 204, 232 220Z" fill="#0558B8"/>
 
-  <!-- Compass needle — rotated ~25° off vertical -->
+  <!-- Compass needle - rotated ~25° off vertical -->
   <g transform="rotate(-25, 128, 138)">
     <!-- North half -->
     <polygon points="128,68 158,138 98,138" fill="white"/>

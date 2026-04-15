@@ -1,15 +1,18 @@
 <script lang="ts" setup>
 const show = defineModel<boolean>({ required: true });
 
-withDefaults(defineProps<{
-  icon: string;
-  variant?: "danger" | "warning";
-  title: string;
-  body: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  confirmDisabled?: boolean;
-}>(), { variant: "danger" });
+withDefaults(
+  defineProps<{
+    icon: string;
+    variant?: "danger" | "warning";
+    title: string;
+    body: string;
+    confirmLabel: string;
+    cancelLabel: string;
+    confirmDisabled?: boolean;
+  }>(),
+  { variant: "danger" },
+);
 
 defineEmits<{
   confirm: [];
@@ -22,10 +25,14 @@ defineEmits<{
       <div :class="['confirm-icon flex flex-center', variant]">
         <q-icon :name="icon" size="1.5rem" />
       </div>
-      <h3 class="confirm-title text-weight-semibold text-bright">{{ title }}</h3>
+      <h3 class="confirm-title text-weight-semibold text-bright">
+        {{ title }}
+      </h3>
       <p class="confirm-text text-body2 text-muted">{{ body }}</p>
       <div class="confirm-actions row no-wrap q-gutter-x-sm">
-        <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{ cancelLabel }}</q-btn>
+        <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
+          cancelLabel
+        }}</q-btn>
         <q-btn
           flat
           no-caps

@@ -9,11 +9,11 @@
  * This adapter avoids shallowRef+triggerRef entirely. It holds the Virtualizer
  * in a plain variable and exposes pre-computed reactive refs for the two values
  * templates actually need: virtualItems and totalSize. A regular ref<number>
- * version counter drives reactivity — the most fundamental primitive that
+ * version counter drives reactivity - the most fundamental primitive that
  * Vue's scheduler cannot skip.
  *
  * When @tanstack/vue-virtual fixes its shallowRef+triggerRef pattern
- * (tracked in TanStack/virtual — no issue filed yet as of March 2026),
+ * (tracked in TanStack/virtual - no issue filed yet as of March 2026),
  * delete this file and switch back to the upstream useWindowVirtualizer.
  */
 import {
@@ -25,11 +25,21 @@ import {
   type VirtualizerOptions,
   type VirtualItem,
 } from "@tanstack/vue-virtual";
-import { computed, onScopeDispose, ref, unref, watch, type MaybeRef } from "vue";
+import {
+  computed,
+  onScopeDispose,
+  ref,
+  unref,
+  watch,
+  type MaybeRef,
+} from "vue";
 
 type WindowVirtualizerOpts = PartialKeys<
   VirtualizerOptions<Window, Element>,
-  "observeElementRect" | "observeElementOffset" | "scrollToFn" | "getScrollElement"
+  | "observeElementRect"
+  | "observeElementOffset"
+  | "scrollToFn"
+  | "getScrollElement"
 >;
 
 /**
@@ -63,7 +73,8 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
       observeElementRect: observeWindowRect,
       observeElementOffset: observeWindowOffset,
       scrollToFn: windowScroll,
-      initialOffset: () => (typeof document !== "undefined" ? window.scrollY : 0),
+      initialOffset: () =>
+        typeof document !== "undefined" ? window.scrollY : 0,
       ...opts,
       onChange: (instance: Virtualizer<Window, Element>, sync: boolean) => {
         bump();

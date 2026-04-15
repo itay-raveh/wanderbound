@@ -22,8 +22,10 @@ const props = defineProps<{
 const dropZoneRef = ref<HTMLElement | null>(null);
 const coverDropRef = ref<HTMLElement | null>(null);
 
-const { printMode, isDragging, saveField, onPageUpdate } =
-  useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
+const { printMode, isDragging, saveField, onPageUpdate } = useStepLayout(
+  toRef(props, "step"),
+  { dropZoneRef, coverDropRef },
+);
 
 provide(STEP_ID_KEY, props.step.id);
 
@@ -65,8 +67,10 @@ const photoPages = computed(() => {
 });
 
 // Steps with 0-1 photos have nothing to drag into a new page, so the drop zone is hidden.
-const totalPhotos = computed(() =>
-  props.step.pages.reduce((n, p) => n + p.length, 0) + props.step.unused.length,
+const totalPhotos = computed(
+  () =>
+    props.step.pages.reduce((n, p) => n + p.length, 0) +
+    props.step.unused.length,
 );
 </script>
 
@@ -80,7 +84,12 @@ const totalPhotos = computed(() =>
           @update:name="saveField({ name: $event })"
           @update:description="saveField({ description: $event })"
         />
-        <div v-if="!printMode" ref="coverDropRef" class="cover-drop-overlay" :class="{ 'drag-active': isDragging }" />
+        <div
+          v-if="!printMode"
+          ref="coverDropRef"
+          class="cover-drop-overlay"
+          :class="{ 'drag-active': isDragging }"
+        />
       </div>
 
       <StepDescriptionPage
@@ -99,12 +108,20 @@ const totalPhotos = computed(() =>
         @update:page="onPageUpdate(originalIdx, $event)"
       />
 
-      <div v-if="!printMode && totalPhotos >= 2" class="add-zone relative-position">
-        <div class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted">
+      <div
+        v-if="!printMode && totalPhotos >= 2"
+        class="add-zone relative-position"
+      >
+        <div
+          class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted"
+        >
           <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
           <span>{{ t("album.dropPhotoToAdd") }}</span>
         </div>
-        <div ref="dropZoneRef" class="drop-overlay absolute-full overflow-hidden" />
+        <div
+          ref="dropZoneRef"
+          class="drop-overlay absolute-full overflow-hidden"
+        />
       </div>
     </div>
   </div>
@@ -139,7 +156,8 @@ const totalPhotos = computed(() =>
 }
 
 // Highlight cover area when dragging over
-.cover-drop-wrapper:has(.cover-drop-overlay .sortable-ghost) .cover-drop-overlay {
+.cover-drop-wrapper:has(.cover-drop-overlay .sortable-ghost)
+  .cover-drop-overlay {
   &::after {
     content: "";
     position: absolute;

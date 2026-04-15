@@ -8,11 +8,11 @@ paths:
 
 Album components render in Chromium's PDF backend (Skia) via Playwright `page.pdf()`.
 
-## WYSIWYG — preview and print must be identical
+## WYSIWYG - preview and print must be identical
 
 Never conditionally alter album page visuals between editor preview and print mode. No `usePrintMode()` guards to strip effects, no `.print-mode` overrides that change design. If an effect can't render in PDF, don't use it in the editor either. The only acceptable print-mode differences are editor UI chrome (handles, dashed borders, interactive overlays).
 
-## Genuinely broken — avoid entirely
+## Genuinely broken - avoid entirely
 
 - backdrop-filter → not supported (Skia can't composite backdrop)
 - mix-blend-mode / background-blend-mode → unreliable, use solid colors
@@ -27,7 +27,7 @@ Never conditionally alter album page visuals between editor preview and print mo
 - Any CSS alpha in gradients → Skia's PDF paint path breaks alpha in gradient
   color stops. Use SVG `stop-opacity` instead (see below)
 
-## Work but get rasterized — use sparingly
+## Work but get rasterized - use sparingly
 
 Skia's PDF backend expands these to bitmaps. Visually correct, but text inside
 loses selectability and file size increases. Acceptable for small decorative
@@ -37,7 +37,7 @@ elements; avoid on large areas or text-heavy containers.
 - filter (blur, drop-shadow, brightness, etc.) → rasterized
 - SVG filters (feGaussianBlur, etc.) → rasterized
 
-## Work natively — safe to use
+## Work natively - safe to use
 
 - opacity (any value, any size) → native PDF graphics state
 - CSS gradients (solid color stops only, no alpha) → native PDF shading objects
@@ -97,7 +97,7 @@ Only use when the color is constant across themes.
 
 Canvas content from WebGL is blank in headless PDF by default. Our pipeline
 captures map tiles via CDP and composites them as static images before print.
-Any new map rendering must go through this pipeline — never rely on live WebGL
+Any new map rendering must go through this pipeline - never rely on live WebGL
 canvas for PDF output.
 
 Test PDF output after any visual changes to album components.

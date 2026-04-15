@@ -3,7 +3,7 @@ import { ref } from "vue";
 
 /**
  * Pick the virtualizer item whose center is closest to the viewport center.
- * Whichever section dominates the viewport wins — simple and intuitive.
+ * Whichever section dominates the viewport wins - simple and intuitive.
  */
 export function pickBestItem<T extends VirtualItem>(
   items: readonly T[],
@@ -76,5 +76,14 @@ function resetActiveSection() {
 }
 
 export function useActiveSection() {
-  return { activeStepId, activeSectionKey, setActive, scrollTo, scrollToSection, scrollBehavior, setScrollOverride, resetActiveSection };
+  return {
+    activeStepId,
+    activeSectionKey,
+    setActive,
+    scrollTo,
+    scrollToSection,
+    scrollBehavior,
+    setScrollOverride,
+    resetActiveSection,
+  };
 }

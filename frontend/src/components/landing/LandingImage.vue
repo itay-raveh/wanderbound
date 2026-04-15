@@ -20,7 +20,11 @@ function srcset(stem: string, mode: string) {
 
 <template>
   <picture>
-    <source :srcset="srcset(name, mode)" :sizes="sizes ?? '320px'" type="image/webp" />
+    <source
+      :srcset="srcset(name, mode)"
+      :sizes="sizes ?? '320px'"
+      type="image/webp"
+    />
     <img
       :src="`/landing/${name}-${mode}.jpg`"
       :alt="alt ?? ''"

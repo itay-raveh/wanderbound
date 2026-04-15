@@ -8,7 +8,8 @@ const DEFAULT_ZOOM = 0.7;
 export const editorZoom = ref(DEFAULT_ZOOM);
 
 export function setEditorZoom(value: number) {
-  const clamped = Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)) * 100) / 100;
+  const clamped =
+    Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)) * 100) / 100;
   if (editorZoom.value === clamped) return;
   editorZoom.value = clamped;
 }

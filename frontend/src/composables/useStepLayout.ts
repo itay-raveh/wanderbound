@@ -19,7 +19,10 @@ function stripPhotos(step: Step, photoSet: Set<string>) {
 }
 
 /** Compute the update payload when the cover changes. */
-export function coverUpdatePayload(step: Step, newCover: string): Partial<StepUpdate> {
+export function coverUpdatePayload(
+  step: Step,
+  newCover: string,
+): Partial<StepUpdate> {
   const { pages, unused } = stripPhotos(step, new Set([newCover]));
   return {
     cover: newCover,
@@ -29,7 +32,10 @@ export function coverUpdatePayload(step: Step, newCover: string): Partial<StepUp
 }
 
 /** Compute the update payload when the unused list changes (reorder, add from page). */
-export function unusedUpdatePayload(step: Step, nextUnused: string[]): Partial<StepUpdate> {
+export function unusedUpdatePayload(
+  step: Step,
+  nextUnused: string[],
+): Partial<StepUpdate> {
   const existing = new Set(step.unused);
   const added = nextUnused.filter((p) => !existing.has(p));
   if (added.length > 0) {
@@ -51,7 +57,10 @@ interface DropRefs {
  * Manages step photo layout: drag-and-drop between pages, cover, and unused tray.
  * Caller provides template refs for the drop zones so vue-tsc tracks their usage.
  */
-export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: DropRefs) {
+export function useStepLayout(
+  step: Ref<Step>,
+  { dropZoneRef, coverDropRef }: DropRefs,
+) {
   const printMode = usePrintMode();
   const isDragging = useDragState();
   const mutate = inject(STEP_MUTATE_KEY, null);
@@ -114,14 +123,16 @@ export function useStepLayout(step: Ref<Step>, { dropZoneRef, coverDropRef }: Dr
         saveField({ ...cleaned, pages: [...cleaned.pages, photos] });
       },
     });
-    watch(dropZoneRef, (el) => { if (el) dropDraggable.start(el); });
+    watch(dropZoneRef, (el) => {
+      if (el) dropDraggable.start(el);
+    });
 
     useDraggable(coverDropRef, coverDropList, {
       group: "photos",
       animation: 200,
       onAdd: () => {
         if (coverDropList.value.length === 0) return;
-        const photo = coverDropList.value[0]!;
+        const photo = coverDropList.value[0];
         coverDropList.value = [];
         onCoverUpdate(photo);
       },

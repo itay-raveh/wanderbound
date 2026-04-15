@@ -56,7 +56,7 @@ test.describe("Text editing", () => {
     await page.keyboard.type("Discarded");
     await page.keyboard.press("Escape");
 
-    // Escape restores modelValue via textContent assignment — original case preserved
+    // Escape restores modelValue via textContent assignment - original case preserved
     await expect(textbox).toContainText("Buenos Aires", { timeout: 3_000 });
   });
 
@@ -73,10 +73,10 @@ test.describe("Text editing", () => {
     await page.keyboard.press("Enter");
     await expect(textbox).toContainText("RENAMED", { timeout: 3_000 });
 
-    // Undo — focus is off the contenteditable, so Ctrl+Z hits the undo stack
+    // Undo - focus is off the contenteditable, so Ctrl+Z hits the undo stack
     await page.keyboard.press("Control+z");
 
-    // Vue re-renders with original modelValue — original case restored
+    // Vue re-renders with original modelValue - original case restored
     await expect(textbox).toContainText("Buenos Aires", { timeout: 5_000 });
   });
 });

@@ -1,6 +1,10 @@
 import type { Segment, SegmentOutline, BoundaryAdjust } from "@/client";
 import type { HikeEndpoint } from "@/components/album/map/mapSegments";
-import { addLine, lineFeature, removeMapLayer } from "@/components/album/map/mapSegments";
+import {
+  addLine,
+  lineFeature,
+  removeMapLayer,
+} from "@/components/album/map/mapSegments";
 import distance from "@turf/distance";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
 import mapboxgl from "mapbox-gl";
@@ -36,12 +40,22 @@ export function findAdjacentSegment<T extends SegmentLike>(
 ): T | null {
   let best: T | null = null;
   for (const seg of segments) {
-    if ((seg.start_time === hike.start_time && seg.end_time === hike.end_time) || seg.kind === "flight") continue;
+    if (
+      (seg.start_time === hike.start_time && seg.end_time === hike.end_time) ||
+      seg.kind === "flight"
+    )
+      continue;
     if (handle === "start") {
-      if (seg.end_time <= hike.start_time && (!best || seg.end_time > best.end_time))
+      if (
+        seg.end_time <= hike.start_time &&
+        (!best || seg.end_time > best.end_time)
+      )
         best = seg;
     } else {
-      if (seg.start_time >= hike.end_time && (!best || seg.start_time < best.start_time))
+      if (
+        seg.start_time >= hike.end_time &&
+        (!best || seg.start_time < best.start_time)
+      )
         best = seg;
     }
   }
@@ -59,18 +73,28 @@ export function setupBoundaryHandles(
   const markers: mapboxgl.Marker[] = [];
   const cleanups: (() => void)[] = [];
 
-  // Hike coords/times are constant across endpoints — compute once.
-  const hikeCoords: [number, number][] = ctx.hikeSegment.points.map((p) => [p.lon, p.lat]);
+  // Hike coords/times are constant across endpoints - compute once.
+  const hikeCoords: [number, number][] = ctx.hikeSegment.points.map((p) => [
+    p.lon,
+    p.lat,
+  ]);
   const hikeTimes = ctx.hikeSegment.points.map((p) => p.time);
 
   for (const ep of endpoints) {
-    const adjacentOutline = findAdjacentSegment(ctx.allSegments, ctx.hikeSegment, ep.handle);
+    const adjacentOutline = findAdjacentSegment(
+      ctx.allSegments,
+      ctx.hikeSegment,
+      ep.handle,
+    );
 
     const el = document.createElement("div");
     el.className = HANDLE_CLASS;
     if (!adjacentOutline) el.classList.add("static");
 
-    const marker = new mapboxgl.Marker({ element: el, draggable: adjacentOutline !== null })
+    const marker = new mapboxgl.Marker({
+      element: el,
+      draggable: adjacentOutline !== null,
+    })
       .setLngLat(ep.coord)
       .addTo(ctx.map);
     markers.push(marker);
@@ -78,7 +102,9 @@ export function setupBoundaryHandles(
     if (!adjacentOutline) continue;
 
     const adjacentFull = ctx.fetchedSegments.find(
-      (s) => s.start_time === adjacentOutline.start_time && s.end_time === adjacentOutline.end_time,
+      (s) =>
+        s.start_time === adjacentOutline.start_time &&
+        s.end_time === adjacentOutline.end_time,
     );
 
     const isStart = ep.handle === "start";
@@ -86,8 +112,10 @@ export function setupBoundaryHandles(
 
     const adjCoords: [number, number][] = adjacentFull
       ? adjacentFull.points.map((p) => [p.lon, p.lat])
-      : [[adjacentOutline.start_coord[1], adjacentOutline.start_coord[0]],
-         [adjacentOutline.end_coord[1], adjacentOutline.end_coord[0]]];
+      : [
+          [adjacentOutline.start_coord[1], adjacentOutline.start_coord[0]],
+          [adjacentOutline.end_coord[1], adjacentOutline.end_coord[0]],
+        ];
     const extendedCoords = ordered(adjCoords, hikeCoords, isStart);
 
     // Visual ghost: use map-matched route for adjacent when available
@@ -105,7 +133,9 @@ export function setupBoundaryHandles(
     // Precompute cumulative geodesic distances along the extended line (km).
     const cumDist = [0];
     for (let i = 1; i < extendedCoords.length; i++) {
-      cumDist.push(cumDist[i - 1]! + distance(extendedCoords[i - 1]!, extendedCoords[i]!));
+      cumDist.push(
+        cumDist[i - 1] + distance(extendedCoords[i - 1], extendedCoords[i]),
+      );
     }
 
     const originalLngLat = marker.getLngLat();
@@ -121,12 +151,12 @@ export function setupBoundaryHandles(
 
     /** Interpolate boundary time using geodesic distance along the line. */
     function computeBoundaryTime(location: number, edgeIdx: number): number {
-      const t0 = combinedTimes[edgeIdx]!;
+      const t0 = combinedTimes[edgeIdx];
       if (edgeIdx + 1 >= combinedTimes.length) return t0;
-      const t1 = combinedTimes[edgeIdx + 1]!;
-      const edgeDist = cumDist[edgeIdx + 1]! - cumDist[edgeIdx]!;
+      const t1 = combinedTimes[edgeIdx + 1];
+      const edgeDist = cumDist[edgeIdx + 1] - cumDist[edgeIdx];
       if (edgeDist < 1e-10) return t0;
-      const frac = Math.min(1, (location - cumDist[edgeIdx]!) / edgeDist);
+      const frac = Math.min(1, (location - cumDist[edgeIdx]) / edgeDist);
       return t0 + frac * (t1 - t0);
     }
 
@@ -143,9 +173,12 @@ export function setupBoundaryHandles(
 
     /** Snap marker to nearest point on the extended line and update state. */
     function applySnap(lngLat: mapboxgl.LngLat): boolean {
-      const snapped = nearestPointOnLine(extendedLine, [lngLat.lng, lngLat.lat]);
+      const snapped = nearestPointOnLine(extendedLine, [
+        lngLat.lng,
+        lngLat.lat,
+      ]);
       const [sLng, sLat] = snapped.geometry.coordinates;
-      const snapCoord: [number, number] = [sLng!, sLat!];
+      const snapCoord: [number, number] = [sLng, sLat];
 
       const snapIdx = snapped.properties.index ?? 0;
       const location = snapped.properties.location ?? 0;

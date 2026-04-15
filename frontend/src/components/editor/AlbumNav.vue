@@ -4,7 +4,13 @@ import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
-import { HEADER_KEYS, type HeaderKey, mapInsertionsByStep, rangeSectionKey, sectionKeyMatchesRange } from "../album/albumSections";
+import {
+  HEADER_KEYS,
+  type HeaderKey,
+  mapInsertionsByStep,
+  rangeSectionKey,
+  sectionKeyMatchesRange,
+} from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -34,12 +40,24 @@ const props = withDefaults(
     colors?: Record<string, unknown>;
     mapsRanges?: DateRange[];
   }>(),
-  { albumIds: () => [], hiddenSteps: () => [], hiddenHeaders: () => [], colors: () => ({}), mapsRanges: () => [] },
+  {
+    albumIds: () => [],
+    hiddenSteps: () => [],
+    hiddenHeaders: () => [],
+    colors: () => ({}),
+    mapsRanges: () => [],
+  },
 );
 
 const selectedAlbumId = defineModel<string | null>("albumId");
 
-const { activeStepId, activeSectionKey, scrollTo, scrollToSection, scrollBehavior } = useActiveSection();
+const {
+  activeStepId,
+  activeSectionKey,
+  scrollTo,
+  scrollToSection,
+  scrollBehavior,
+} = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
 const openGroupKey = ref<string | null>(null);
@@ -63,31 +81,47 @@ const albumOptions = computed(() =>
 
 const hiddenSet = computed(() => new Set(props.hiddenSteps));
 const hiddenHeaderSet = computed(() => new Set(props.hiddenHeaders));
-const albumColors = computed(() => (props.colors ?? {}) as Record<string, string>);
+const albumColors = computed(
+  () => (props.colors ?? {}) as Record<string, string>,
+);
 
 const stepItems = computed<StepItem[]>(() =>
   props.steps.map((s) => ({
     id: s.id,
     name: s.name,
     country: s.location.country_code,
-    color: getCountryColor(props.colors as Record<string, string>, s.location.country_code),
+    color: getCountryColor(
+      props.colors as Record<string, string>,
+      s.location.country_code,
+    ),
     date: parseLocalDate(s.datetime),
-    thumb: s.cover && selectedAlbumId.value ? mediaThumbUrl(s.cover, selectedAlbumId.value) : null,
+    thumb:
+      s.cover && selectedAlbumId.value
+        ? mediaThumbUrl(s.cover, selectedAlbumId.value)
+        : null,
     detail: s.location.detail,
   })),
 );
 
 const mapInsertions = computed(() => {
-  const entries = props.mapsRanges.map((dateRange, rangeIdx) => ({ rangeIdx, dateRange }));
+  const entries = props.mapsRanges.map((dateRange, rangeIdx) => ({
+    rangeIdx,
+    dateRange,
+  }));
   return mapInsertionsByStep(props.steps, entries);
 });
 
-function toMapEntry(m: { rangeIdx: number; dateRange: DateRange }): Extract<GroupEntry, { type: "map" }> {
+function toMapEntry(m: {
+  rangeIdx: number;
+  dateRange: DateRange;
+}): Extract<GroupEntry, { type: "map" }> {
   return { type: "map", ...m, key: rangeSectionKey("map", m.dateRange) };
 }
 
 function computeGroupDateRange(entries: GroupEntry[]): string {
-  const steps = entries.filter((e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step");
+  const steps = entries.filter(
+    (e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step",
+  );
   const first = steps[0]?.item.date;
   const last = steps.at(-1)?.item.date;
   if (!first || !last) return "";
@@ -119,7 +153,11 @@ const groups = computed<CountryVisit[]>(() => {
 });
 
 function formatMapRange(dr: DateRange): string {
-  return formatDateRange(parseLocalDate(dr[0]), parseLocalDate(dr[1]), SHORT_DATE);
+  return formatDateRange(
+    parseLocalDate(dr[0]),
+    parseLocalDate(dr[1]),
+    SHORT_DATE,
+  );
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────
@@ -141,11 +179,15 @@ function toggleInList<T>(list: readonly T[], item: T): T[] {
 }
 
 function toggleStep(stepId: number) {
-  albumMutation.mutate({ hidden_steps: toggleInList(props.hiddenSteps, stepId) });
+  albumMutation.mutate({
+    hidden_steps: toggleInList(props.hiddenSteps, stepId),
+  });
 }
 
 function toggleHeader(key: HeaderKey) {
-  albumMutation.mutate({ hidden_headers: toggleInList(props.hiddenHeaders, key) });
+  albumMutation.mutate({
+    hidden_headers: toggleInList(props.hiddenHeaders, key),
+  });
 }
 
 function toggleCountry(group: CountryVisit) {
@@ -153,9 +195,13 @@ function toggleCountry(group: CountryVisit) {
   const allHidden = stepIds.every((id) => hiddenSet.value.has(id));
   if (allHidden) {
     const toRemove = new Set(stepIds);
-    albumMutation.mutate({ hidden_steps: props.hiddenSteps.filter((id) => !toRemove.has(id)) });
+    albumMutation.mutate({
+      hidden_steps: props.hiddenSteps.filter((id) => !toRemove.has(id)),
+    });
   } else {
-    albumMutation.mutate({ hidden_steps: [...new Set([...props.hiddenSteps, ...stepIds])] });
+    albumMutation.mutate({
+      hidden_steps: [...new Set([...props.hiddenSteps, ...stepIds])],
+    });
   }
 }
 
@@ -185,17 +231,21 @@ function scrollToMap(dateRange: DateRange) {
 const HEADER_ICONS: Record<HeaderKey, string> = {
   "cover-front": symOutlinedMenuBook,
   "cover-back": symOutlinedMenuBook,
-  "overview": symOutlinedBarChart,
+  overview: symOutlinedBarChart,
   "full-map": symOutlinedMap,
 };
 const HEADER_LABELS: Record<HeaderKey, string> = {
   "cover-front": "nav.cover",
   "cover-back": "album.backCover",
-  "overview": "inspector.overview",
+  overview: "inspector.overview",
   "full-map": "album.tripRouteMap",
 };
 const headerNavItems = computed(() =>
-  HEADER_KEYS.map((key) => ({ key, icon: HEADER_ICONS[key], label: t(HEADER_LABELS[key]) })),
+  HEADER_KEYS.map((key) => ({
+    key,
+    icon: HEADER_ICONS[key],
+    label: t(HEADER_LABELS[key]),
+  })),
 );
 
 // ── Scroll sync ───────────────────────────────────────────────────────
@@ -205,7 +255,10 @@ const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
     const el = listRef.value?.querySelector(selector);
-    (el as HTMLElement | null)?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
+    (el as HTMLElement | null)?.scrollIntoView({
+      block: "nearest",
+      behavior: scrollBehavior(),
+    });
   });
 }
 
@@ -255,7 +308,11 @@ watch(activeSectionKey, (key) => {
       map-options
     >
       <template #prepend>
-        <q-icon :name="symOutlinedFlightTakeoff" size="var(--type-md)" class="rtl-flip" />
+        <q-icon
+          :name="symOutlinedFlightTakeoff"
+          size="var(--type-md)"
+          class="rtl-flip"
+        />
       </template>
       <template #selected-item="{ opt }">
         <span dir="ltr" class="album-select-label">{{ opt.label }}</span>
@@ -285,7 +342,14 @@ watch(activeSectionKey, (key) => {
           role="button"
           tabindex="0"
           :data-nav-section="item.key"
-          :class="['nav-item', 'header-item', { visible: activeSectionKey === item.key, 'nav-hidden': hiddenHeaderSet.has(item.key) }]"
+          :class="[
+            'nav-item',
+            'header-item',
+            {
+              visible: activeSectionKey === item.key,
+              'nav-hidden': hiddenHeaderSet.has(item.key),
+            },
+          ]"
           @click="scrollToSection(item.key)"
           @keydown.enter="scrollToSection(item.key)"
         >
@@ -294,10 +358,21 @@ watch(activeSectionKey, (key) => {
           <button
             type="button"
             class="header-toggle"
-            :aria-label="hiddenHeaderSet.has(item.key) ? t('nav.showStep') : t('nav.hideStep')"
+            :aria-label="
+              hiddenHeaderSet.has(item.key)
+                ? t('nav.showStep')
+                : t('nav.hideStep')
+            "
             @click.stop="toggleHeader(item.key)"
           >
-            <q-icon :name="hiddenHeaderSet.has(item.key) ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+            <q-icon
+              :name="
+                hiddenHeaderSet.has(item.key)
+                  ? symOutlinedVisibilityOff
+                  : symOutlinedVisibility
+              "
+              size="var(--type-xs)"
+            />
           </button>
         </div>
       </div>
@@ -313,7 +388,9 @@ watch(activeSectionKey, (key) => {
         :steps="steps"
         :colors="albumColors"
         :format-map-range="formatMapRange"
-        @toggle-open="openGroupKey = openGroupKey === group.key ? null : group.key"
+        @toggle-open="
+          openGroupKey = openGroupKey === group.key ? null : group.key
+        "
         @scroll-to-step="scrollTo"
         @scroll-to-map="scrollToMap"
         @toggle-step="toggleStep"

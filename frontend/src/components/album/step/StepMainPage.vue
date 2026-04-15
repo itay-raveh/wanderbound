@@ -20,7 +20,9 @@ const emit = defineEmits<{
 }>();
 
 const coverQuality = computed(() =>
-  props.step.cover ? mediaQuality(props.step.cover, PHOTO_PANEL_FRACTION, mediaByName.value) : null,
+  props.step.cover
+    ? mediaQuality(props.step.cover, PHOTO_PANEL_FRACTION, mediaByName.value)
+    : null,
 );
 </script>
 
@@ -73,7 +75,7 @@ const coverQuality = computed(() =>
 .topo-filler {
   flex: 1;
   min-height: 0;
-  background: url('/topo-contours.svg') center / cover no-repeat;
+  background: url("/topo-contours.svg") center / cover no-repeat;
   print-color-adjust: exact;
 }
 </style>

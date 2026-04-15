@@ -23,7 +23,7 @@ export function getCountryColor(
 }
 
 /**
- * Parse a hex color string (#RGB or #RRGGBB) into [r, g, b] in 0–255.
+ * Parse a hex color string (#RGB or #RRGGBB) into [r, g, b] in 0-255.
  */
 function parseHex(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -94,7 +94,8 @@ export function ensureSatelliteContrast(hex: string): string {
   const [r, g, b] = parseHex(hex);
   const [h, rawS, rawL] = rgbToHsl(r, g, b);
 
-  if (rawL >= MIN_SATELLITE_LIGHTNESS && rawS >= MIN_SATELLITE_SATURATION) return hex;
+  if (rawL >= MIN_SATELLITE_LIGHTNESS && rawS >= MIN_SATELLITE_SATURATION)
+    return hex;
 
   const s = Math.max(rawS, MIN_SATELLITE_SATURATION);
   const l = Math.max(rawL, MIN_SATELLITE_LIGHTNESS);

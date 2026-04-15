@@ -1,4 +1,4 @@
-"""Tests for app.services.mapbox — Mapbox Map Matching & Directions API client."""
+"""Tests for app.services.mapbox - Mapbox Map Matching & Directions API client."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock
@@ -43,7 +43,7 @@ def _ok_response(content: bytes) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# _fetch_matching — coordinate extraction + stitching logic
+# _fetch_matching - coordinate extraction + stitching logic
 # ---------------------------------------------------------------------------
 
 

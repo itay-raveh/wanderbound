@@ -24,7 +24,7 @@ Memory-aware concurrency: 512MB baseline + 768MB per render.
 - `TokenStore[T]`: temporary download URLs with TTL + eviction callbacks (PDF, exports).
 - SSE reconnect: `ProcessingSession` replays all past events to reconnecting clients.
 - Activity debouncing: writes to DB every 1h/user via bounded `OrderedDict` (1024 entries).
-- Session opened only for DB writes — reads use the session cookie but don't start a DB transaction.
+- Session opened only for DB writes - reads use the session cookie but don't start a DB transaction.
 - Upload security: magic-byte MIME checks, path traversal detection, symlink rejection, decompression bomb limits.
 - External API services: `@cache` def `_client()` wrapping `cached_client()` from `core/http.py` (SQLite cache + retries). Lazy to avoid import-time settings access. Rate limiting via `RateLimitedTransport(limiter, weight_fn=...)` from `core/http.py`.
 - Mapbox matching: `services/mapbox.py` (API client) + `logic/matching.py` (RDP, haversine). Density-based API selection, auto-match on first segment-points request. Results stored in `segment.route`.

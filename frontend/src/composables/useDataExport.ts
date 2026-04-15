@@ -27,7 +27,9 @@ export function useDataExport(): SseDownloadHandle {
     onEvent(event) {
       switch (event.type) {
         case "progress":
-          return { loading: progressMessage(event.files_done, event.files_total) };
+          return {
+            loading: progressMessage(event.files_done, event.files_total),
+          };
         case "done":
           return { done: event.token };
         case "error":

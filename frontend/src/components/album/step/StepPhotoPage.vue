@@ -5,7 +5,11 @@ import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { isPortraitByName } from "@/utils/media";
-import { enforceOrientationOrder, photoPageFraction, resolveLayoutClass } from "@/utils/photoLayout";
+import {
+  enforceOrientationOrder,
+  photoPageFraction,
+  resolveLayoutClass,
+} from "@/utils/photoLayout";
 import { mediaQuality } from "@/utils/photoQuality";
 
 const { mediaByName } = useAlbum();
@@ -22,12 +26,18 @@ const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
 const localPage = ref(enforceOrientationOrder([...props.page], isPortrait));
-watch(() => props.page, (val) => {
-  const enforced = enforceOrientationOrder(val, isPortrait);
-  if (enforced.length === localPage.value.length &&
-      enforced.every((v, i) => v === localPage.value[i])) return;
-  localPage.value = [...enforced];
-});
+watch(
+  () => props.page,
+  (val) => {
+    const enforced = enforceOrientationOrder(val, isPortrait);
+    if (
+      enforced.length === localPage.value.length &&
+      enforced.every((v, i) => v === localPage.value[i])
+    )
+      return;
+    localPage.value = [...enforced];
+  },
+);
 
 const containerRef = ref<HTMLElement | null>(null);
 
@@ -45,11 +55,17 @@ if (!printMode) {
   });
 }
 
-const layoutClass = computed(() => resolveLayoutClass(localPage.value, isPortrait));
+const layoutClass = computed(() =>
+  resolveLayoutClass(localPage.value, isPortrait),
+);
 
 const photoQualities = computed(() =>
   localPage.value.map((name, i) =>
-    mediaQuality(name, photoPageFraction(layoutClass.value, i), mediaByName.value),
+    mediaQuality(
+      name,
+      photoPageFraction(layoutClass.value, i),
+      mediaByName.value,
+    ),
   ),
 );
 </script>

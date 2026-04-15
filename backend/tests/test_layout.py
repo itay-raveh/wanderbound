@@ -162,7 +162,7 @@ class TestBuildPages:
         assert sizes == [3, 4]
 
     def test_6p_5l_avoids_3l_page(self) -> None:
-        """6P+5L should NOT mix — [P,P,P]*2 + [L,L,L,L] + [L] avoids a 0p-3l page."""
+        """6P+5L should NOT mix - [P,P,P]*2 + [L,L,L,L] + [L] avoids a 0p-3l page."""
         portraits = _names("p", 6)
         landscapes = _names("l", 5)
         pages = list(_build_pages(portraits, landscapes))

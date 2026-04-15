@@ -8,7 +8,10 @@
   border-radius: var(--radius-sm);
   color: var(--text-faint);
   opacity: #{$idle-opacity};
-  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+  transition:
+    opacity var(--duration-fast),
+    color var(--duration-fast),
+    background var(--duration-fast);
 
   &:hover {
     color: var(--q-primary);

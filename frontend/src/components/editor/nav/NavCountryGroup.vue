@@ -54,10 +54,25 @@ const allHidden = computed(() =>
   >
     <template #header>
       <q-item-section avatar class="group-avatar">
-        <img :src="flagUrl(group.code)" alt="" width="14" height="10" class="group-flag" />
+        <img
+          :src="flagUrl(group.code)"
+          alt=""
+          width="14"
+          height="10"
+          class="group-flag"
+        />
       </q-item-section>
-      <q-item-section class="group-name" dir="auto">{{ group.name }}</q-item-section>
-      <q-item-section side :class="['group-dates', 'text-muted', { 'group-dates-hidden': allHidden }]">
+      <q-item-section class="group-name" dir="auto">{{
+        group.name
+      }}</q-item-section>
+      <q-item-section
+        side
+        :class="[
+          'group-dates',
+          'text-muted',
+          { 'group-dates-hidden': allHidden },
+        ]"
+      >
         <span class="group-dates-text">{{ group.dateRange }}</span>
         <button
           type="button"
@@ -65,12 +80,18 @@ const allHidden = computed(() =>
           :aria-label="allHidden ? t('nav.showAll') : t('nav.hideAll')"
           @click.stop="emit('toggleCountry')"
         >
-          <q-icon :name="allHidden ? symOutlinedVisibilityOff : symOutlinedVisibility" size="var(--type-xs)" />
+          <q-icon
+            :name="allHidden ? symOutlinedVisibilityOff : symOutlinedVisibility"
+            size="var(--type-xs)"
+          />
         </button>
       </q-item-section>
     </template>
 
-    <template v-for="entry in group.entries" :key="entry.type === 'step' ? entry.item.id : entry.key">
+    <template
+      v-for="entry in group.entries"
+      :key="entry.type === 'step' ? entry.item.id : entry.key"
+    >
       <NavMapItem
         v-if="entry.type === 'map'"
         :data-nav-section="entry.key"

@@ -255,7 +255,7 @@ class TestReconcileTripRebuildsSegments:
     """Regression: reconcile_trip must rebuild segments from GPS data.
 
     Previously, reconcile_trip never called build_segments, so after
-    _save_reupload deleted old segments the table stayed empty — route
+    _save_reupload deleted old segments the table stayed empty - route
     lines disappeared from trip maps.
     """
 

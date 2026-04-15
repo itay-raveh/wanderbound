@@ -8,7 +8,10 @@ import { AUTH_STATE_KEY } from "@/utils/storage-keys";
 
 export type Provider = NonNullable<BodyUploadData["provider"]>;
 
-export function getAuthState(): { credential: string; provider: Provider } | null {
+export function getAuthState(): {
+  credential: string;
+  provider: Provider;
+} | null {
   try {
     const raw = sessionStorage.getItem(AUTH_STATE_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -18,7 +21,10 @@ export function getAuthState(): { credential: string; provider: Provider } | nul
 }
 
 export function setAuthState(credential: string, provider: Provider): void {
-  sessionStorage.setItem(AUTH_STATE_KEY, JSON.stringify({ credential, provider }));
+  sessionStorage.setItem(
+    AUTH_STATE_KEY,
+    JSON.stringify({ credential, provider }),
+  );
 }
 
 export function clearAuthState(): void {

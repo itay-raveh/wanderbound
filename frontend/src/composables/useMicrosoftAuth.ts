@@ -7,7 +7,8 @@ let msalPromise: Promise<PublicClientApplication> | null = null;
 function getInstance(): Promise<PublicClientApplication> {
   if (!msalPromise) {
     msalPromise = (async () => {
-      const { PublicClientApplication: MsalClient } = await import("@azure/msal-browser");
+      const { PublicClientApplication: MsalClient } =
+        await import("@azure/msal-browser");
       const instance = new MsalClient({
         auth: {
           clientId,

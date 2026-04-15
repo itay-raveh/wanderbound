@@ -1,7 +1,7 @@
 ---
 name: design-audit
 description: Run a comprehensive design audit, apply all fixes via sub-agents, then polish. Scope defaults to changed frontend files.
-argument-hint: "[scope — files, component, or area to audit. Default: changed frontend files]"
+argument-hint: "[scope - files, component, or area to audit. Default: changed frontend files]"
 user-invocable: true
 allowed-tools: Agent, Skill, Bash, Read, Edit, Write, Glob, Grep
 ---
@@ -34,7 +34,7 @@ From the audit output, identify:
 
 ## Step 4: Apply direct fixes
 
-Fix any issues that don't require a specialized skill — straightforward CSS corrections, spacing fixes, missing attributes, accessibility issues, etc. Apply these edits directly.
+Fix any issues that don't require a specialized skill - straightforward CSS corrections, spacing fixes, missing attributes, accessibility issues, etc. Apply these edits directly.
 
 ## Step 5: Dispatch skill sub-agents
 

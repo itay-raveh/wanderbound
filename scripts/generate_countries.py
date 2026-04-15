@@ -15,7 +15,7 @@ import shapely.affinity
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 1. Download medium-resolution GeoJSON (50m) — clean silhouettes for print
+# 1. Download medium-resolution GeoJSON (50m) - clean silhouettes for print
 url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
 tmp = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
 ne_path = Path(tmp.name)
@@ -46,7 +46,7 @@ def mainland_bounds(geom: object) -> tuple[float, float, float, float]:
 
     For countries with overseas territories (France, Netherlands, US, …),
     the full MultiPolygon spans half the globe.  We use the shorter side
-    of the mainland's bounding box as the proximity reference — this
+    of the mainland's bounding box as the proximity reference - this
     avoids elongated countries (Chile) being overly permissive.
 
     Include a polygon if:

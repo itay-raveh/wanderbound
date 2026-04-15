@@ -41,8 +41,16 @@ const viewBox = computed(() => {
   const { x, y, r } = pin.value;
   const pad = r * 3;
 
-  if (x - pad < minX) { const d = minX - (x - pad); minX -= d; w += d; }
-  if (y - pad < minY) { const d = minY - (y - pad); minY -= d; h += d; }
+  if (x - pad < minX) {
+    const d = minX - (x - pad);
+    minX -= d;
+    w += d;
+  }
+  if (y - pad < minY) {
+    const d = minY - (y - pad);
+    minY -= d;
+    h += d;
+  }
   if (x + pad > minX + w) w = x + pad - minX;
   if (y + pad > minY + h) h = y + pad - minY;
 

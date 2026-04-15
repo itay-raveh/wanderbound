@@ -30,9 +30,10 @@ function startEdit() {
 function commit() {
   if (!editing.value) return;
   editing.value = false;
-  const raw = editEl.value instanceof HTMLTextAreaElement
-    ? editEl.value.value
-    : editEl.value?.innerText ?? "";
+  const raw =
+    editEl.value instanceof HTMLTextAreaElement
+      ? editEl.value.value
+      : (editEl.value?.innerText ?? "");
   const text = props.multiline
     ? raw.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "")
     : raw.trim();
@@ -98,7 +99,9 @@ function onKeydown(e: KeyboardEvent) {
     @focus="editing = true"
     @blur="commit"
     @keydown="onKeydown"
-  >{{ modelValue }}</div>
+  >
+    {{ modelValue }}
+  </div>
 </template>
 
 <style lang="scss" scoped>

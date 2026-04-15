@@ -124,7 +124,7 @@ describe("summarizeQuality", () => {
     // 800×700: front cover min(68,85)=68 → warning; side panel min(124,85)=85 → caution
     const mediaMap = new Map([["lo.jpg", media("lo.jpg", 800, 700)]]);
     const steps = [step({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] })];
-    // Front cover (full bleed) + step cover (side panel) — the page entry is
+    // Front cover (full bleed) + step cover (side panel) - the page entry is
     // filtered out because it matches step.cover
     const result = summarizeQuality(steps, "lo.jpg", undefined, mediaMap);
     expect(result.warning).toBe(1);
@@ -136,12 +136,12 @@ describe("summarizeQuality", () => {
     // A low-res landscape in the raw data at index 0 should be evaluated in its
     // actual (half-height) cell after orientation reordering, not the portrait cell.
     const portrait = media("portrait.jpg", 600, 900); // portrait
-    const landscape = media("landscape.jpg", 800, 500); // landscape — low res
+    const landscape = media("landscape.jpg", 800, 500); // landscape - low res
     const mediaMap = new Map([
       [portrait.name, portrait],
       [landscape.name, landscape],
     ]);
-    // Raw order: landscape first — without enforceOrientationOrder this assigns
+    // Raw order: landscape first - without enforceOrientationOrder this assigns
     // the landscape the portrait's full-height cell (inflating its DPI).
     const steps = [step({ id: 1, pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]] })];
     const result = summarizeQuality(steps, undefined, undefined, mediaMap);

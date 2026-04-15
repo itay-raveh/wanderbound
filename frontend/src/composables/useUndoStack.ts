@@ -5,7 +5,10 @@ type UndoEntry =
   | { type: "step"; sid: number; before: StepUpdate; after: StepUpdate }
   | { type: "album"; before: AlbumUpdate; after: AlbumUpdate };
 
-export function pickSnapshot<T extends object>(source: T, keys: (keyof T)[]): Partial<T> {
+export function pickSnapshot<T extends object>(
+  source: T,
+  keys: (keyof T)[],
+): Partial<T> {
   const snap: Partial<T> = {};
   for (const k of keys) snap[k] = source[k];
   return snap;

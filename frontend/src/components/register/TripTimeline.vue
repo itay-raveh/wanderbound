@@ -4,7 +4,13 @@ import type { ProcessingPhase, TripMeta } from "@/client";
 import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { useI18n } from "vue-i18n";
-import { matCheck, matCheckCircle, matTerrain, matThermostat, matPhotoLibrary } from "@quasar/extras/material-icons";
+import {
+  matCheck,
+  matCheckCircle,
+  matTerrain,
+  matThermostat,
+  matPhotoLibrary,
+} from "@quasar/extras/material-icons";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 
 const props = defineProps<{
@@ -31,9 +37,7 @@ function tripStatus(index: number): ItemStatus {
   return "pending";
 }
 
-const tripStatuses = computed(() =>
-  props.trips.map((_, i) => tripStatus(i)),
-);
+const tripStatuses = computed(() => props.trips.map((_, i) => tripStatus(i)));
 
 function phaseStatus(phase: ProcessingPhase): ItemStatus {
   const { done, total } = props.phaseDone[phase];
@@ -42,8 +46,12 @@ function phaseStatus(phase: ProcessingPhase): ItemStatus {
   return "pending";
 }
 
-const phaseStatuses = computed(() =>
-  Object.fromEntries(PHASE_ORDER.map((p) => [p, phaseStatus(p)])) as Record<ProcessingPhase, ItemStatus>,
+const phaseStatuses = computed(
+  () =>
+    Object.fromEntries(PHASE_ORDER.map((p) => [p, phaseStatus(p)])) as Record<
+      ProcessingPhase,
+      ItemStatus
+    >,
 );
 
 function phasePercent(phase: ProcessingPhase): number {
@@ -98,26 +106,31 @@ const overallPercent = computed(() => {
       <!-- Trip content -->
       <div class="trip-content">
         <div class="row no-wrap items-baseline justify-between q-gutter-x-sm">
-          <span class="trip-title text-subtitle1 ellipsis text-bright" :title="trip.title">{{ trip.title }}</span>
+          <span
+            class="trip-title text-subtitle1 ellipsis text-bright"
+            :title="trip.title"
+            >{{ trip.title }}</span
+          >
           <span class="trip-meta text-overline text-faint">
             {{ t("register.steps", trip.step_count) }}
           </span>
         </div>
 
         <!-- Phase progress (only for active trip) -->
-        <div v-if="tripStatuses[i] === 'active' && anyPhaseStarted" class="column no-wrap q-mt-sm q-gutter-y-xs">
+        <div
+          v-if="tripStatuses[i] === 'active' && anyPhaseStarted"
+          class="column no-wrap q-mt-sm q-gutter-y-xs"
+        >
           <div
             v-for="p in PHASE_ORDER"
             :key="p"
             class="phase row no-wrap items-center text-caption"
             :class="phaseStatuses[p]"
           >
-            <q-icon
-              :name="PHASE_ICONS[p]"
-              size="0.75rem"
-              class="phase-icon"
-            />
-            <span class="phase-label text-no-wrap ellipsis">{{ t(`phase.label.${p}`) }}</span>
+            <q-icon :name="PHASE_ICONS[p]" size="0.75rem" class="phase-icon" />
+            <span class="phase-label text-no-wrap ellipsis">{{
+              t(`phase.label.${p}`)
+            }}</span>
 
             <q-icon
               v-if="phaseStatuses[p] === 'done'"
@@ -125,12 +138,21 @@ const overallPercent = computed(() => {
               size="0.75rem"
               class="phase-check text-primary"
             />
-            <span v-else-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-count text-overline text-faint">
+            <span
+              v-else-if="
+                phaseStatuses[p] === 'active' && phaseDone[p].total > 0
+              "
+              class="phase-count text-overline text-faint"
+            >
               {{ phaseDone[p].done }}/{{ phaseDone[p].total }}
             </span>
 
             <!-- Per-phase mini progress bar (only for multi-item phases) -->
-            <div v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0" class="phase-track overflow-hidden" aria-hidden="true">
+            <div
+              v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0"
+              class="phase-track overflow-hidden"
+              aria-hidden="true"
+            >
               <div
                 class="phase-fill"
                 :style="{ transform: `scaleX(${phasePercent(p) / 100})` }"

@@ -1,6 +1,6 @@
 import { useUndoStack } from "@/composables/useUndoStack";
 
-// useUndoStack is a singleton — clear between tests to avoid cross-contamination.
+// useUndoStack is a singleton - clear between tests to avoid cross-contamination.
 let stack: ReturnType<typeof useUndoStack>;
 
 beforeEach(() => {

@@ -5,9 +5,7 @@ export interface PageFraction {
 
 export const FULL_PAGE_FRACTION: PageFraction = { widthFrac: 1, heightFrac: 1 };
 
-type FractionSpec =
-  | { uniform: PageFraction }
-  | { byCellIndex: PageFraction[] };
+type FractionSpec = { uniform: PageFraction } | { byCellIndex: PageFraction[] };
 
 /** Hero-left + stacked-right: 1 cell spans full height, remaining cells share the right half. */
 const HERO_LEFT_STACKED: PageFraction[] = [
@@ -26,11 +24,11 @@ const LAYOUT_FRACTIONS: Record<string, FractionSpec> = {
   "layout-1p-1l": { uniform: { widthFrac: 0.5, heightFrac: 1 } },
   "layout-2p-0l": { uniform: { widthFrac: 0.5, heightFrac: 1 } },
 
-  // 3 photos — same orientation
+  // 3 photos - same orientation
   "layout-3p-0l": { uniform: { widthFrac: 1 / 3, heightFrac: 1 } },
   "layout-0p-3l": { byCellIndex: HERO_LEFT_STACKED },
 
-  // 3 photos — mixed
+  // 3 photos - mixed
   "layout-1p-2l": { byCellIndex: HERO_LEFT_STACKED },
   "layout-2p-1l": {
     byCellIndex: [
@@ -76,11 +74,16 @@ const LAYOUT_FRACTIONS: Record<string, FractionSpec> = {
   },
 };
 
-export function photoPageFraction(layoutClass: string, cellIndex: number): PageFraction {
+export function photoPageFraction(
+  layoutClass: string,
+  cellIndex: number,
+): PageFraction {
   const spec = LAYOUT_FRACTIONS[layoutClass];
   if (!spec) return FULL_PAGE_FRACTION;
   if ("uniform" in spec) return spec.uniform;
-  return spec.byCellIndex[cellIndex] ?? spec.byCellIndex[spec.byCellIndex.length - 1]!;
+  return (
+    spec.byCellIndex[cellIndex] ?? spec.byCellIndex[spec.byCellIndex.length - 1]
+  );
 }
 
 /**
@@ -95,8 +98,9 @@ export function enforceOrientationOrder(
   if (page.length !== 3 && page.length !== 4) return [...page];
   const portraits = page.filter(isPortraitByName);
   const landscapes = page.filter((m) => !isPortraitByName(m));
-  if (portraits.length === 1) return [portraits[0]!, ...landscapes];
-  if (portraits.length === 2 && page.length === 3) return [...portraits, landscapes[0]!];
+  if (portraits.length === 1) return [portraits[0], ...landscapes];
+  if (portraits.length === 2 && page.length === 3)
+    return [...portraits, landscapes[0]];
   return [...page];
 }
 

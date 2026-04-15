@@ -59,8 +59,14 @@ function onConfirmExport() {
     @click="pdf.abort()"
   >
     <div class="progress-content">
-      <q-icon :name="symOutlinedClose" size="var(--type-md)" class="cancel-icon" />
-      <span class="progress-text" aria-live="polite">{{ pdf.progress.value.message }}</span>
+      <q-icon
+        :name="symOutlinedClose"
+        size="var(--type-md)"
+        class="cancel-icon"
+      />
+      <span class="progress-text" aria-live="polite">{{
+        pdf.progress.value.message
+      }}</span>
     </div>
     <ProgressBar :progress="progressFraction" />
   </button>

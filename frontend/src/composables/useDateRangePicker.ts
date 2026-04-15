@@ -11,7 +11,8 @@ export function parseDraftRanges(val: DraftValue): DateRange[] {
   const entries = Array.isArray(val) ? val : [val];
   const ranges = entries.map((e): DateRange => {
     if (typeof e === "string") return [toIso(e), toIso(e)];
-    const a = toIso(e.from), b = toIso(e.to);
+    const a = toIso(e.from),
+      b = toIso(e.to);
     return a <= b ? [a, b] : [b, a];
   });
   ranges.sort(([a], [b]) => a.localeCompare(b));

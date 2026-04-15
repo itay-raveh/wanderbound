@@ -138,7 +138,7 @@ class TestApplyOverlay:
         assert step.location.lon == pytest.approx(4.89)
 
     def test_partial_album_patch(self) -> None:
-        # Only title present — subtitle untouched
+        # Only title present - subtitle untouched
         overlay = {"album": {"title": "Only Title"}, "steps": {}}
         album = make_album()
         apply_overlay(overlay, album, [])

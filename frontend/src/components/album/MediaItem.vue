@@ -4,30 +4,50 @@ import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { isVideo as checkVideo, mediaUrl, mediaSrcset, posterPath, SIZES_FULL, SIZES_HALF, THUMB_WIDTHS } from "@/utils/media";
+import {
+  isVideo as checkVideo,
+  mediaUrl,
+  mediaSrcset,
+  posterPath,
+  SIZES_FULL,
+  SIZES_HALF,
+  THUMB_WIDTHS,
+} from "@/utils/media";
 import { computed, inject, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { matPlayArrow, matCheck, matChevronLeft, matChevronRight, matWarning } from "@quasar/extras/material-icons";
+import {
+  matPlayArrow,
+  matCheck,
+  matChevronLeft,
+  matChevronRight,
+  matWarning,
+} from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
-const props = withDefaults(defineProps<{
-  media: string;
-  fitCover?: boolean;
-  cols?: 1 | 2;
-  focusable?: boolean;
-  alt?: string;
-  quality?: PhotoQuality | null;
-}>(), { focusable: true, alt: "" });
+const props = withDefaults(
+  defineProps<{
+    media: string;
+    fitCover?: boolean;
+    cols?: 1 | 2;
+    focusable?: boolean;
+    alt?: string;
+    quality?: PhotoQuality | null;
+  }>(),
+  { focusable: true, alt: "" },
+);
 
 const { albumId } = useAlbum();
 const printMode = usePrintMode();
 
 const stepId = inject(STEP_ID_KEY, null);
 const photoFocus = usePhotoFocus();
-const canFocus = computed(() => props.focusable && !printMode && stepId != null);
-const isFocused = computed(() => canFocus.value && photoFocus.focusedPhotoId.value === props.media);
-
+const canFocus = computed(
+  () => props.focusable && !printMode && stepId != null,
+);
+const isFocused = computed(
+  () => canFocus.value && photoFocus.focusedPhotoId.value === props.media,
+);
 
 function handleClick() {
   if (!canFocus.value) return;
@@ -45,7 +65,9 @@ const posterCacheBust = ref<number>();
 const posterSrc = computed(() => {
   if (!isVideo.value) return "";
   const base = mediaUrl(posterPath(props.media), albumId.value);
-  return posterCacheBust.value != null ? `${base}?v=${posterCacheBust.value}` : base;
+  return posterCacheBust.value != null
+    ? `${base}?v=${posterCacheBust.value}`
+    : base;
 });
 
 const imgSrcset = computed(() => {
@@ -82,7 +104,10 @@ function togglePlay() {
 
 async function setFrame() {
   if (!videoRef.value) return;
-  await frameMutation.mutateAsync({ name: props.media, timestamp: videoRef.value.currentTime });
+  await frameMutation.mutateAsync({
+    name: props.media,
+    timestamp: videoRef.value.currentTime,
+  });
   posterCacheBust.value = Date.now();
   videoRef.value.pause();
   playing.value = false;
@@ -97,9 +122,16 @@ function scrub(delta: number) {
 }
 
 function onVideoKey(e: KeyboardEvent) {
-  if (e.key === "Enter") { e.preventDefault(); void setFrame(); }
-  else if (e.key === "," || e.key === "<") { e.preventDefault(); scrub(-FRAME_STEP); }
-  else if (e.key === "." || e.key === ">") { e.preventDefault(); scrub(FRAME_STEP); }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void setFrame();
+  } else if (e.key === "," || e.key === "<") {
+    e.preventDefault();
+    scrub(-FRAME_STEP);
+  } else if (e.key === "." || e.key === ">") {
+    e.preventDefault();
+    scrub(FRAME_STEP);
+  }
 }
 </script>
 
@@ -110,7 +142,7 @@ function onVideoKey(e: KeyboardEvent) {
     :data-media="media"
     :tabindex="canFocus ? 0 : undefined"
     :role="canFocus ? 'button' : undefined"
-    :aria-label="canFocus ? (alt || t('album.selectPhoto')) : undefined"
+    :aria-label="canFocus ? alt || t('album.selectPhoto') : undefined"
     :aria-pressed="canFocus ? isFocused : undefined"
     @click="handleClick"
     @keydown.enter="handleClick"
@@ -126,7 +158,7 @@ function onVideoKey(e: KeyboardEvent) {
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         loading="eager"
         decoding="async"
-      >
+      />
       <video
         v-show="playing"
         ref="videoRef"
@@ -137,20 +169,36 @@ function onVideoKey(e: KeyboardEvent) {
         @ended="playing = false"
         @keydown="onVideoKey"
       />
-      <button v-if="!playing" class="play-overlay absolute-full cursor-pointer flex flex-center" :aria-label="t('album.playVideo')" @click="togglePlay">
+      <button
+        v-if="!playing"
+        class="play-overlay absolute-full cursor-pointer flex flex-center"
+        :aria-label="t('album.playVideo')"
+        @click="togglePlay"
+      >
         <div class="play-icon flex flex-center">
           <q-icon :name="matPlayArrow" />
         </div>
       </button>
       <div v-if="playing" class="frame-bar row no-wrap items-center">
-        <button class="frame-step-btn rtl-flip flex flex-center" :aria-label="t('album.prevFrame')" @click="scrub(-FRAME_STEP)">
+        <button
+          class="frame-step-btn rtl-flip flex flex-center"
+          :aria-label="t('album.prevFrame')"
+          @click="scrub(-FRAME_STEP)"
+        >
           <q-icon :name="matChevronLeft" />
         </button>
-        <button class="set-frame-btn row no-wrap items-center" @click="setFrame">
+        <button
+          class="set-frame-btn row no-wrap items-center"
+          @click="setFrame"
+        >
           <span>{{ t("album.useAsPoster") }}</span>
           <q-icon :name="matCheck" size="1.1rem" />
         </button>
-        <button class="frame-step-btn rtl-flip flex flex-center" :aria-label="t('album.nextFrame')" @click="scrub(FRAME_STEP)">
+        <button
+          class="frame-step-btn rtl-flip flex flex-center"
+          :aria-label="t('album.nextFrame')"
+          @click="scrub(FRAME_STEP)"
+        >
           <q-icon :name="matChevronRight" />
         </button>
       </div>
@@ -164,12 +212,22 @@ function onVideoKey(e: KeyboardEvent) {
         loading="eager"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
-      >
+      />
     </template>
-    <div v-if="!printMode && quality && quality.tier !== 'ok'" :class="['quality-overlay', quality.tier]">
+    <div
+      v-if="!printMode && quality && quality.tier !== 'ok'"
+      :class="['quality-overlay', quality.tier]"
+    >
       <div class="quality-badge flex flex-center">
         <q-icon :name="matWarning" />
-        <q-tooltip>{{ t(quality.tier === 'warning' ? 'quality.warningTooltip' : 'quality.cautionTooltip', { dpi: quality.dpi }) }}</q-tooltip>
+        <q-tooltip>{{
+          t(
+            quality.tier === "warning"
+              ? "quality.warningTooltip"
+              : "quality.cautionTooltip",
+            { dpi: quality.dpi },
+          )
+        }}</q-tooltip>
       </div>
     </div>
   </div>
@@ -209,10 +267,10 @@ function onVideoKey(e: KeyboardEvent) {
 
 .video-playing {
   object-fit: contain;
-  background: black; /* letterbox — intentionally pure black, not theme-adaptive */
+  background: black; /* letterbox - intentionally pure black, not theme-adaptive */
 }
 
-// Button reset — <button> replaces <div> for a11y but needs native chrome stripped.
+// Button reset - <button> replaces <div> for a11y but needs native chrome stripped.
 // Don't use all:unset (it kills Quasar utility classes on the same element).
 .play-overlay {
   background: none;
@@ -287,7 +345,7 @@ function onVideoKey(e: KeyboardEvent) {
   gap: var(--gap-sm-md);
   border: none;
   border-radius: var(--radius-full);
-  /* always on dark video backdrop — not theme-adaptive */
+  /* always on dark video backdrop - not theme-adaptive */
   background: white;
   color: #111;
   font-size: var(--type-sm);
@@ -298,7 +356,7 @@ function onVideoKey(e: KeyboardEvent) {
     background var(--duration-fast),
     transform var(--duration-fast);
 
-  /* always on dark backdrop — light-mode-only button */
+  /* always on dark backdrop - light-mode-only button */
   &:hover {
     background: color-mix(in srgb, white 85%, black);
   }
@@ -313,7 +371,7 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
-// Quality warning overlay — editor-only tint + badge
+// Quality warning overlay - editor-only tint + badge
 .quality-overlay {
   position: absolute;
   inset: 0;

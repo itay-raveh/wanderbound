@@ -14,7 +14,9 @@
   padding-inline: 2rem var(--gap-md-lg);
   border: none;
   border-inline-start: 0.1875rem solid transparent;
-  transition: background var(--duration-fast), border-color var(--duration-fast);
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast);
 
   &:hover {
     background: color-mix(in srgb, var(--text) 6%, transparent);

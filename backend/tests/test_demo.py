@@ -25,7 +25,7 @@ class TestDeleteDemo:
         await client.post("/api/v1/users/demo")
         resp = await client.delete("/api/v1/users/demo")
         assert resp.status_code == 204
-        # Session cleared — user endpoint returns 401
+        # Session cleared - user endpoint returns 401
         user_resp = await client.get("/api/v1/users")
         assert user_resp.status_code == 401
 

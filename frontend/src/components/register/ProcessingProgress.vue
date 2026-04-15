@@ -5,8 +5,17 @@ import { PHASE_ORDER } from "@/composables/useProcessingStream";
 import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
 import { useI18n } from "vue-i18n";
 import TripTimeline from "./TripTimeline.vue";
-import { symOutlinedLuggage, symOutlinedPinDrop, symOutlinedPublic } from "@quasar/extras/material-symbols-outlined";
-import { matCheckCircle, matErrorOutline, matRefresh, matArrowForward } from "@quasar/extras/material-icons";
+import {
+  symOutlinedLuggage,
+  symOutlinedPinDrop,
+  symOutlinedPublic,
+} from "@quasar/extras/material-symbols-outlined";
+import {
+  matCheckCircle,
+  matErrorOutline,
+  matRefresh,
+  matArrowForward,
+} from "@quasar/extras/material-icons";
 
 const props = defineProps<{
   trips: TripMeta[];
@@ -40,25 +49,33 @@ const statusMessage = computed(() => {
   return t("register.statusBuilding");
 });
 
-watch(() => props.state, async (s) => {
-  if (s !== "done") return;
-  const { default: confetti } = await import("canvas-confetti");
-  const primary = getComputedStyle(document.documentElement).getPropertyValue("--q-primary").trim();
-  void confetti({
-    particleCount: 80,
-    spread: 70,
-    origin: { y: 0.7 },
-    colors: [primary, "#fbbf24", "#a78bfa"],
-    disableForReducedMotion: true,
-  });
-});
+watch(
+  () => props.state,
+  async (s) => {
+    if (s !== "done") return;
+    const { default: confetti } = await import("canvas-confetti");
+    const primary = getComputedStyle(document.documentElement)
+      .getPropertyValue("--q-primary")
+      .trim();
+    void confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.7 },
+      colors: [primary, "#fbbf24", "#a78bfa"],
+      disableForReducedMotion: true,
+    });
+  },
+);
 </script>
 
 <template>
   <q-card class="fade-up">
     <!-- Status + stats -->
     <div class="column no-wrap q-gutter-y-sm" aria-live="polite">
-      <span v-if="state === 'done'" class="status-done row inline no-wrap items-center q-gutter-x-xs text-subtitle2 text-positive">
+      <span
+        v-if="state === 'done'"
+        class="status-done row inline no-wrap items-center q-gutter-x-xs text-subtitle2 text-positive"
+      >
         <q-icon :name="matCheckCircle" size="1rem" class="done-check" />
         {{ t("register.statusReady") }}
       </span>
@@ -73,22 +90,33 @@ watch(() => props.state, async (s) => {
       </span>
 
       <div class="stats row items-center wrap q-gutter-x-xs">
-        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
+        <span
+          class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint"
+        >
           <q-icon :name="symOutlinedLuggage" size="0.875rem" />
           <template v-if="state === 'running' && trips.length > 1">
-            {{ t("register.tripsProgress", { current: tripIndex + 1, total: trips.length }) }}
+            {{
+              t("register.tripsProgress", {
+                current: tripIndex + 1,
+                total: trips.length,
+              })
+            }}
           </template>
           <template v-else>
             {{ t("register.trips", trips.length) }}
           </template>
         </span>
         <span class="text-faint" aria-hidden="true">&middot;</span>
-        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
+        <span
+          class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint"
+        >
           <q-icon :name="symOutlinedPinDrop" size="0.875rem" />
           {{ t("register.steps", totalSteps) }}
         </span>
         <span class="text-faint" aria-hidden="true">&middot;</span>
-        <span class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint">
+        <span
+          class="stat row inline no-wrap items-center q-gutter-x-sm text-overline text-faint"
+        >
           <q-icon :name="symOutlinedPublic" size="0.875rem" />
           {{ t("register.countries", totalCountries) }}
         </span>
@@ -109,10 +137,22 @@ watch(() => props.state, async (s) => {
     <div v-if="state === 'error'" class="fade-up">
       <q-separator class="q-my-lg" />
       <div class="error-banner row no-wrap q-gutter-x-sm">
-        <q-icon :name="matErrorOutline" size="1.25rem" class="error-icon text-danger" />
+        <q-icon
+          :name="matErrorOutline"
+          size="1.25rem"
+          class="error-icon text-danger"
+        />
         <div class="error-body column no-wrap q-gutter-y-sm">
           <span class="text-body2 error-msg text-muted">{{ errorDetail }}</span>
-          <q-btn outline no-caps dense :icon="matRefresh" :label="t('register.tryAgain')" class="retry-btn bg-surface" @click="$emit('retry')" />
+          <q-btn
+            outline
+            no-caps
+            dense
+            :icon="matRefresh"
+            :label="t('register.tryAgain')"
+            class="retry-btn bg-surface"
+            @click="$emit('retry')"
+          />
         </div>
       </div>
     </div>
@@ -175,8 +215,14 @@ watch(() => props.state, async (s) => {
 }
 
 @keyframes scaleIn {
-  from { transform: scale(0); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .done-btn {
@@ -187,13 +233,19 @@ watch(() => props.state, async (s) => {
 }
 
 @keyframes ctaGlow {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-primary) 35%, transparent); }
-  100% { box-shadow: 0 0 0 0.5rem color-mix(in srgb, var(--q-primary) 0%, transparent); }
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-primary) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.5rem
+      color-mix(in srgb, var(--q-primary) 0%, transparent);
+  }
 }
 
 .done-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--q-primary) 30%, transparent);
+  box-shadow: 0 0.25rem 0.75rem
+    color-mix(in srgb, var(--q-primary) 30%, transparent);
 }
 
 .done-btn:active {

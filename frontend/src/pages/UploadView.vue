@@ -43,8 +43,8 @@ const pageState = computed<UploadState>(() => {
 const uploadResult = ref<UploadResult | null>(null);
 const stream = useProcessingStream();
 
-const heroName = computed(() =>
-  uploadResult.value?.user.first_name ?? user.value?.first_name,
+const heroName = computed(
+  () => uploadResult.value?.user.first_name ?? user.value?.first_name,
 );
 
 onMounted(() => {
@@ -87,26 +87,41 @@ function onDone() {
       <q-card v-if="!uploadResult" class="upload-card fade-up">
         <!-- Evicted user message -->
         <template v-if="pageState === 'evicted'">
-          <h2 class="state-title text-h6 text-weight-bold">{{ t("register.evictedTitle") }}</h2>
-          <p class="state-body text-body2 text-muted">{{ t("register.evictedBody") }}</p>
+          <h2 class="state-title text-h6 text-weight-bold">
+            {{ t("register.evictedTitle") }}
+          </h2>
+          <p class="state-body text-body2 text-muted">
+            {{ t("register.evictedBody") }}
+          </p>
           <q-separator class="q-my-md" />
         </template>
 
         <!-- Manual re-upload message -->
         <template v-else-if="pageState === 'reupload'">
-          <h2 class="state-title text-h6 text-weight-bold">{{ t("register.reuploadTitle") }}</h2>
-          <p class="state-body text-body2 text-muted">{{ t("register.reuploadBody") }}</p>
+          <h2 class="state-title text-h6 text-weight-bold">
+            {{ t("register.reuploadTitle") }}
+          </h2>
+          <p class="state-body text-body2 text-muted">
+            {{ t("register.reuploadBody") }}
+          </p>
           <q-separator class="q-my-md" />
         </template>
 
         <!-- New user: instructions -->
         <template v-else>
-          <h2 class="state-title text-h6 text-weight-bold">{{ t('register.getDataTitle') }}</h2>
+          <h2 class="state-title text-h6 text-weight-bold">
+            {{ t("register.getDataTitle") }}
+          </h2>
           <DataInstructions />
           <q-separator class="q-my-md" />
         </template>
 
-        <ZipUploader v-if="mapboxSupported" :credential="credential" :provider="provider" @uploaded="onUploaded" />
+        <ZipUploader
+          v-if="mapboxSupported"
+          :credential="credential"
+          :provider="provider"
+          @uploaded="onUploaded"
+        />
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
 
@@ -141,7 +156,7 @@ function onDone() {
   inset: -10%;
   pointer-events: none;
   opacity: 0.09;
-  background: url('/topo-contours.svg') center / cover no-repeat;
+  background: url("/topo-contours.svg") center / cover no-repeat;
 }
 
 .upload-content {
@@ -168,5 +183,4 @@ function onDone() {
   margin: 0;
   line-height: 1.5;
 }
-
 </style>

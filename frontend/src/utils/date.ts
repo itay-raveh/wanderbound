@@ -2,9 +2,13 @@
 export const isoDate = (datetime: string) => datetime.slice(0, 10);
 
 /** ISO date string -> { year, month, day } components. */
-export function parseYMD(iso: string): { year: number; month: number; day: number } {
+export function parseYMD(iso: string): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const [year, month, day] = isoDate(iso).split("-").map(Number);
-  return { year: year!, month: month!, day: day! };
+  return { year: year, month: month, day: day };
 }
 
 /**
@@ -25,17 +29,29 @@ export function daysBetween(a: Date, b: Date): number {
 }
 
 /** Whether an ISO date falls within a [from, to] range (inclusive, string comparison). */
-export const inDateRange = (d: string, [from, to]: [string, string]) => d >= from && d <= to;
+export const inDateRange = (d: string, [from, to]: [string, string]) =>
+  d >= from && d <= to;
 
 /** ISO "YYYY-MM-DD" -> QDate "YYYY/MM/DD" */
 export const toQDate = (iso: string) => iso.replace(/-/g, "/");
 /** QDate "YYYY/MM/DD" -> ISO "YYYY-MM-DD" */
 export const toIso = (qd: string) => qd.replace(/\//g, "-");
 
-export const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+export const SHORT_DATE: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+};
 
 /** Quasar range-end YMD object -> ISO "YYYY-MM-DD". */
-export function ymdToIso({ year, month, day }: { year: number; month: number; day: number }): string {
+export function ymdToIso({
+  year,
+  month,
+  day,
+}: {
+  year: number;
+  month: number;
+  day: number;
+}): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
@@ -51,10 +67,10 @@ export function datesToRanges(dates: string[]): [string, string][] {
   if (!dates.length) return [];
   const sorted = [...new Set(dates)].sort();
   const ranges: [string, string][] = [];
-  let start = sorted[0]!;
-  let end = sorted[0]!;
+  let start = sorted[0];
+  let end = sorted[0];
   for (let i = 1; i < sorted.length; i++) {
-    const d = sorted[i]!;
+    const d = sorted[i];
     if (d <= nextCalendarDay(end)) {
       end = d;
     } else {
@@ -68,10 +84,13 @@ export function datesToRanges(dates: string[]): [string, string][] {
 }
 
 /** QDate navigation bounds (YYYY/MM) from a sorted step list. */
-export function qDateNavBounds(steps: { datetime: string }[]): { min?: string; max?: string } {
+export function qDateNavBounds(steps: { datetime: string }[]): {
+  min?: string;
+  max?: string;
+} {
   if (!steps.length) return {};
   return {
-    min: toQDate(steps[0]!.datetime.slice(0, 7)),
-    max: toQDate(steps[steps.length - 1]!.datetime.slice(0, 7)),
+    min: toQDate(steps[0].datetime.slice(0, 7)),
+    max: toQDate(steps[steps.length - 1].datetime.slice(0, 7)),
   };
 }

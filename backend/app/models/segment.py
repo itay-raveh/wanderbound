@@ -55,7 +55,7 @@ class BoundaryAdjust(BaseModel):
 
 
 class SegmentOutline(BaseModel):
-    """Lightweight segment projection — no points or route."""
+    """Lightweight segment projection - no points or route."""
 
     start_time: float
     end_time: float

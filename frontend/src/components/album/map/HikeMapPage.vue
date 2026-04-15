@@ -4,7 +4,10 @@ import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { setupBoundaryHandles, findAdjacentSegment } from "@/composables/useHikeBoundaryDrag";
+import {
+  setupBoundaryHandles,
+  findAdjacentSegment,
+} from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
@@ -37,16 +40,30 @@ const boundaryMutation = useSegmentBoundaryMutation();
 
 // In editor mode, expand the fetch range to include adjacent segments
 // so drag handles have full GPS points (not just outline start/end coords).
-const adjBefore = computed(() => !printMode && findAdjacentSegment(props.allSegments, props.hikeSegment, "start"));
-const adjAfter = computed(() => !printMode && findAdjacentSegment(props.allSegments, props.hikeSegment, "end"));
-const fromTime = computed(() => (adjBefore.value || null)?.start_time ?? props.hikeSegment.start_time);
-const toTime = computed(() => (adjAfter.value || null)?.end_time ?? props.hikeSegment.end_time);
+const adjBefore = computed(
+  () =>
+    !printMode &&
+    findAdjacentSegment(props.allSegments, props.hikeSegment, "start"),
+);
+const adjAfter = computed(
+  () =>
+    !printMode &&
+    findAdjacentSegment(props.allSegments, props.hikeSegment, "end"),
+);
+const fromTime = computed(
+  () => (adjBefore.value || null)?.start_time ?? props.hikeSegment.start_time,
+);
+const toTime = computed(
+  () => (adjAfter.value || null)?.end_time ?? props.hikeSegment.end_time,
+);
 
 const { data: fetchedSegments } = useSegmentPointsQuery(fromTime, toTime);
 
 const fullHikeSegment = computed(() =>
   fetchedSegments.value?.find(
-    (s) => s.start_time === props.hikeSegment.start_time && s.end_time === props.hikeSegment.end_time,
+    (s) =>
+      s.start_time === props.hikeSegment.start_time &&
+      s.end_time === props.hikeSegment.end_time,
   ),
 );
 
@@ -63,7 +80,7 @@ onUnmounted(() => {
 
 const countryColor = computed(() => {
   const raw = props.steps.length
-    ? getCountryColor(colors.value, props.steps[0]!.location.country_code)
+    ? getCountryColor(colors.value, props.steps[0].location.country_code)
     : getCountryColor({}, "");
   return ensureSatelliteContrast(raw);
 });
@@ -76,11 +93,15 @@ const elevationSamples = ref<
 const stats = computed(() => {
   const seg = fullHikeSegment.value;
   if (!seg || seg.points.length < 2)
-    return { distance: "0", duration: t("duration.hours", { n: 0 }), elevGain: 0 };
+    return {
+      distance: "0",
+      duration: t("duration.hours", { n: 0 }),
+      elevGain: 0,
+    };
 
   const pts = seg.points;
-  const startTime = pts[0]!.time;
-  const endTime = pts[pts.length - 1]!.time;
+  const startTime = pts[0].time;
+  const endTime = pts[pts.length - 1].time;
   const hours = (endTime - startTime) / 3600;
 
   const samples = elevationSamples.value;
@@ -94,8 +115,8 @@ const stats = computed(() => {
 
   if (hasElev) {
     for (let i = 1; i < samples.length; i++) {
-      const dh = (samples[i]!.dist - samples[i - 1]!.dist) * 1000; // chord (m)
-      const de = samples[i]!.elevation - samples[i - 1]!.elevation;
+      const dh = (samples[i].dist - samples[i - 1].dist) * 1000; // chord (m)
+      const de = samples[i].elevation - samples[i - 1].elevation;
       // Trail can't be shorter than the chord, and can't be steeper than
       // MAX_TRAIL_GRADE - whichever constraint binds gives the longer estimate.
       const horizontalM = Math.max(dh, Math.abs(de) / MAX_TRAIL_GRADE);
@@ -125,7 +146,7 @@ const stats = computed(() => {
 
 const totalDistKm = computed(() =>
   elevationSamples.value.length >= 2
-    ? elevationSamples.value[elevationSamples.value.length - 1]!.dist
+    ? elevationSamples.value[elevationSamples.value.length - 1].dist
     : 0,
 );
 
@@ -156,16 +177,16 @@ function queryElevations(m: mapboxgl.Map) {
     const dist = i * chunkKm;
     const pt = along(line, dist, { units: "kilometers" });
     const [lon, lat] = pt.geometry.coordinates;
-    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon!, lat!)) ?? 0;
-    samples.push({ lat: lat!, lon: lon!, elevation: elev, dist });
+    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon, lat)) ?? 0;
+    samples.push({ lat: lat, lon: lon, elevation: elev, dist });
   }
 
   // Add the final point if not already at the end
   if (numSamples * chunkKm < totalDist) {
     const lastPt = along(line, totalDist, { units: "kilometers" });
     const [lon, lat] = lastPt.geometry.coordinates;
-    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon!, lat!)) ?? 0;
-    samples.push({ lat: lat!, lon: lon!, elevation: elev, dist: totalDist });
+    const elev = m.queryTerrainElevation(new mapboxgl.LngLat(lon, lat)) ?? 0;
+    samples.push({ lat: lat, lon: lon, elevation: elev, dist: totalDist });
   }
 
   elevationSamples.value = samples;
@@ -180,7 +201,8 @@ function drawMap(m: mapboxgl.Map, { fitBounds: shouldFit = true } = {}) {
 
   // Other fetched segments for faint background drawing
   const otherSegments = (fetchedSegments.value ?? []).filter(
-    (s) => s.start_time !== hikeSeg.start_time || s.end_time !== hikeSeg.end_time,
+    (s) =>
+      s.start_time !== hikeSeg.start_time || s.end_time !== hikeSeg.end_time,
   );
 
   try {
@@ -287,7 +309,8 @@ function scheduleElevationQuery(m: mapboxgl.Map) {
 
 // When fetched data arrives or changes, redraw (onReady handles initial draw if data arrives first)
 watch(fullHikeSegment, () => {
-  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded()) return;
+  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded())
+    return;
   elevationSamples.value = [];
   drawMap(map.value);
   scheduleElevationQuery(map.value);
@@ -295,13 +318,19 @@ watch(fullHikeSegment, () => {
 
 // Refit bounds when safe margin changes so the route stays within the safe zone
 watch(safeMarginMm, () => {
-  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded()) return;
+  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded())
+    return;
   refitBounds();
 });
 </script>
 
 <template>
-  <div ref="hike-map" role="img" :aria-label="`${t('hike.mapLabel')} – ${stats.distance} ${distanceUnit}`" class="page-container relative-position overflow-hidden">
+  <div
+    ref="hike-map"
+    role="img"
+    :aria-label="`${t('hike.mapLabel')} - ${stats.distance} ${distanceUnit}`"
+    class="page-container relative-position overflow-hidden"
+  >
     <div class="stats-block">
       <div class="stats-bg" aria-hidden="true" />
       <div class="stat-distance" :style="{ color: countryColor }">
@@ -309,20 +338,27 @@ watch(safeMarginMm, () => {
       </div>
       <div class="stat-meta">
         <span>{{ stats.duration }}</span>
-        <span v-if="stats.elevGain">↑ {{ stats.elevGain }} {{ elevationUnit }}</span>
+        <span v-if="stats.elevGain"
+          >↑ {{ stats.elevGain }} {{ elevationUnit }}</span
+        >
       </div>
     </div>
     <!-- Fade overlay: SVG gradient with stop-opacity instead of CSS alpha
-         stops — Skia's PDF backend renders CSS alpha in gradients as pink.
+         stops - Skia's PDF backend renders CSS alpha in gradients as pink.
          Uses currentColor so the resolved --bg hex reaches Skia directly. -->
-    <svg class="elevation-fade" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+    <svg
+      class="elevation-fade"
+      viewBox="0 0 1 1"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient :id="fadeGradId" x1="0" x2="0" y1="1" y2="0">
-          <stop offset="0%"   stop-color="currentColor" stop-opacity="1" />
-          <stop offset="50%"  stop-color="currentColor" stop-opacity="0.92" />
-          <stop offset="65%"  stop-color="currentColor" stop-opacity="0.6" />
-          <stop offset="80%"  stop-color="currentColor" stop-opacity="0.25" />
-          <stop offset="90%"  stop-color="currentColor" stop-opacity="0.06" />
+          <stop offset="0%" stop-color="currentColor" stop-opacity="1" />
+          <stop offset="50%" stop-color="currentColor" stop-opacity="0.92" />
+          <stop offset="65%" stop-color="currentColor" stop-opacity="0.6" />
+          <stop offset="80%" stop-color="currentColor" stop-opacity="0.25" />
+          <stop offset="90%" stop-color="currentColor" stop-opacity="0.06" />
           <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
         </linearGradient>
       </defs>
@@ -342,7 +378,7 @@ watch(safeMarginMm, () => {
 <style lang="scss" scoped>
 // SVG gradient overlay pinned to the bottom of the page, extending past
 // the page edge to eliminate satellite slivers. Uses SVG stop-opacity
-// instead of CSS alpha functions — Skia's PDF backend renders CSS alpha
+// instead of CSS alpha functions - Skia's PDF backend renders CSS alpha
 // in gradients as pink. currentColor inherits --bg via the `color` prop.
 .elevation-fade {
   position: absolute;
@@ -368,7 +404,7 @@ watch(safeMarginMm, () => {
 }
 
 // Floating stats pill in the top-right corner of the map page.
-// Separate from the chart overlay — readable over any satellite imagery.
+// Separate from the chart overlay - readable over any satellite imagery.
 .stats-block {
   position: absolute;
   z-index: 2;
@@ -393,7 +429,7 @@ watch(safeMarginMm, () => {
   inset: 0;
   z-index: -1;
   background: var(--bg);
-  opacity: 0.80;
+  opacity: 0.8;
   border-radius: inherit;
   print-color-adjust: exact;
 }

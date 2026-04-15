@@ -624,7 +624,7 @@ class TestMultiDayHikeRanges:
         assert ranges == [(date(2024, 12, 8), date(2024, 12, 11))]
 
     def test_single_day_hike_excluded(self) -> None:
-        # 6-hour same-day hike — only 1 point pair, 1 calendar day
+        # 6-hour same-day hike - only 1 point pair, 1 calendar day
         seg = _multi_day_seg([8.0], date(2024, 12, 8))
         assert multi_day_hike_ranges([seg]) == []
 
@@ -637,7 +637,7 @@ class TestMultiDayHikeRanges:
         zone = ZoneInfo("America/Santiago")
         # Dec 8 08:00 Santiago
         t1 = datetime(2024, 12, 8, 8, 0, tzinfo=zone).timestamp()
-        # Dec 8 23:30 Santiago — next day in UTC but same day local
+        # Dec 8 23:30 Santiago - next day in UTC but same day local
         t2 = datetime(2024, 12, 8, 23, 30, tzinfo=zone).timestamp()
         seg = Segment(
             uid=1,
@@ -714,7 +714,7 @@ class TestMultiDayHikeRanges:
     def test_two_separate_day_hikes_included(self) -> None:
         """May 14-15: two separate day hikes absorbed into one segment.
 
-        Each day has significant distance — the per-day check correctly
+        Each day has significant distance - the per-day check correctly
         includes it.  The frontend shows a map covering both, which is useful.
         """
         seg = _multi_day_seg([6.0, 5.0], date(2025, 5, 14))
@@ -781,7 +781,7 @@ class TestMultiDayHikeRangesIntegration:
 
     Builds Segment objects from the full trip's pipeline output, exactly as
     build_trip_objects() does, then checks that the per-day distance analysis
-    produces the expected ranges — eliminating false positives while keeping
+    produces the expected ranges - eliminating false positives while keeping
     all confirmed multi-day hikes.
     """
 

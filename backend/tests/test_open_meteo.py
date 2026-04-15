@@ -1,4 +1,4 @@
-"""Tests for app.services.open_meteo — elevation lookups and weather fetching."""
+"""Tests for app.services.open_meteo - elevation lookups and weather fetching."""
 
 import datetime as _dt_mod
 import json

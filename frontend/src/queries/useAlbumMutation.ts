@@ -25,7 +25,10 @@ export function useAlbumMutation(aid: () => string) {
         cache.setQueryData(key, { ...prev, ...update });
         undoStack.push({
           type: "album",
-          before: pickSnapshot(prev, Object.keys(update) as (keyof AlbumUpdate)[]),
+          before: pickSnapshot(
+            prev,
+            Object.keys(update) as (keyof AlbumUpdate)[],
+          ),
           after: { ...update },
         });
       }

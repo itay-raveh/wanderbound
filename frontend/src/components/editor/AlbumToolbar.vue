@@ -5,7 +5,13 @@ import { KEY_LABELS } from "@/composables/shortcutKeys";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 import PdfExportButton from "./PdfExportButton.vue";
 
-import { editorZoom, setEditorZoom, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "@/composables/useEditorZoom";
+import {
+  editorZoom,
+  setEditorZoom,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  ZOOM_STEP,
+} from "@/composables/useEditorZoom";
 import {
   symOutlinedKeyboard,
   symOutlinedRedo,
@@ -72,7 +78,11 @@ const undoStack = useUndoStack();
       </q-btn>
       <q-separator vertical class="action-divider" />
       <div class="zoom-control row no-wrap items-center">
-        <q-icon :name="symOutlinedZoomIn" size="var(--type-md)" class="text-muted" />
+        <q-icon
+          :name="symOutlinedZoomIn"
+          size="var(--type-md)"
+          class="text-muted"
+        />
         <q-slider
           :model-value="editorZoom"
           :min="MIN_ZOOM"
@@ -83,7 +93,9 @@ const undoStack = useUndoStack();
           :aria-label="t('editor.zoom')"
           @change="setEditorZoom"
         />
-        <span class="zoom-label text-muted">{{ Math.round(editorZoom * 100) }}%</span>
+        <span class="zoom-label text-muted"
+          >{{ Math.round(editorZoom * 100) }}%</span
+        >
       </div>
       <q-separator vertical class="action-divider" />
       <PdfExportButton v-if="album" :album-id="album.id" />

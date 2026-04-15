@@ -25,14 +25,15 @@ const availableSet = new Set(availableCodes);
  */
 export function resolveLocale(bcp47: string): string {
   if (availableSet.has(bcp47)) return bcp47;
-  const base = bcp47.split("-")[0]!;
+  const base = bcp47.split("-")[0];
   if (availableSet.has(base)) return base;
   return bcp47;
 }
 
 async function loadQuasarLang(bcp47: string): Promise<QuasarLanguage> {
   const resolved = resolveLocale(bcp47);
-  const loader = quasarLangs[packPath(resolved)] ?? quasarLangs[packPath("en-US")]!;
+  const loader =
+    quasarLangs[packPath(resolved)] ?? quasarLangs[packPath("en-US")];
   return (await loader()).default;
 }
 
@@ -42,7 +43,7 @@ export function getLocaleOptions(): { label: string; value: string }[] {
   if (!_localeOptions) {
     _localeOptions = availableCodes.map((code) => {
       try {
-        const selfLang = code.split("-")[0]!;
+        const selfLang = code.split("-")[0];
         const dn = new Intl.DisplayNames([selfLang], { type: "language" });
         return { label: dn.of(code) ?? code, value: code };
       } catch {

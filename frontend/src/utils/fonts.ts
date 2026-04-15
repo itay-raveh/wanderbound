@@ -1,4 +1,4 @@
-/** Canonical font configuration — derived from fonts.json registry. */
+/** Canonical font configuration - derived from fonts.json registry. */
 
 import fontRegistry from "@fonts";
 
@@ -25,5 +25,7 @@ const FONT_STACKS = new Map(
 
 /** Build a complete CSS font-family string with fallbacks. */
 export function fontStack(name: string): string {
-  return FONT_STACKS.get(name) ?? `"${name}", ${CATEGORY_FALLBACKS["sans-serif"]}`;
+  return (
+    FONT_STACKS.get(name) ?? `"${name}", ${CATEGORY_FALLBACKS["sans-serif"]}`
+  );
 }

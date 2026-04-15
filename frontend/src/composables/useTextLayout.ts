@@ -1,7 +1,16 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import { prepareWithSegments, layoutWithLines, clearCache as clearPretextCache } from "@chenglou/pretext";
+import {
+  prepareWithSegments,
+  layoutWithLines,
+  clearCache as clearPretextCache,
+} from "@chenglou/pretext";
 import { ALLOWED_FONTS } from "@/utils/fonts";
-import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PX, META_RATIO } from "@/utils/pageSize";
+import {
+  PAGE_WIDTH_MM,
+  PAGE_HEIGHT_MM,
+  MM_PX,
+  META_RATIO,
+} from "@/utils/pageSize";
 import { safeMarginMm } from "./useSafeMargin";
 
 export interface JustifiedLine {
@@ -24,11 +33,15 @@ function cached(text: string, layout: TextLayout): TextLayout {
   return layout;
 }
 
-// Debounced revision counter — bumped when fonts finish loading so reactive
+// Debounced revision counter - bumped when fonts finish loading so reactive
 // consumers (useTextLayout computeds) re-run. The loadingdone listener catches
 // unicode-range fonts (e.g. Hebrew subsets) that load on demand after initial ready.
 const fontsRevision = ref(0);
-if (typeof document !== "undefined" && document.fonts && !(globalThis as Record<string, unknown>).__textLayoutFontsInit) {
+if (
+  typeof document !== "undefined" &&
+  document.fonts &&
+  !(globalThis as Record<string, unknown>).__textLayoutFontsInit
+) {
   (globalThis as Record<string, unknown>).__textLayoutFontsInit = true;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   const bumpRevision = () => {
@@ -42,7 +55,12 @@ if (typeof document !== "undefined" && document.fonts && !(globalThis as Record<
   };
   void document.fonts.ready.then(bumpRevision);
   document.fonts.addEventListener("loadingdone", ((e: FontFaceSetLoadEvent) => {
-    if (e.fontfaces.some((f) => (ALLOWED_FONTS as readonly string[]).includes(f.family))) bumpRevision();
+    if (
+      e.fontfaces.some((f) =>
+        (ALLOWED_FONTS as readonly string[]).includes(f.family),
+      )
+    )
+      bumpRevision();
   }) as EventListener);
 }
 
@@ -77,13 +95,19 @@ function ensureConfig(): LayoutConfig {
   const pageWidth = PAGE_WIDTH_MM * MM_PX;
   const pageHeight = PAGE_HEIGHT_MM * MM_PX;
   const smPx = safeMarginMm.value * MM_PX;
-  const insetX = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx, smPx);
-  const insetY = Math.max(parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx, smPx);
+  const insetX = Math.max(
+    parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx,
+    smPx,
+  );
+  const insetY = Math.max(
+    parseFloat(rootStyle.getPropertyValue("--page-inset-y")) * remPx,
+    smPx,
+  );
   const typeXs = parseFloat(rootStyle.getPropertyValue("--type-xs")) * remPx;
   const fontBody = rootStyle.getPropertyValue("--font-album-body").trim();
 
   // Both sidebar and continuation pages use the same column width and font.
-  // Right padding is insetY (not insetX) — matches StepMetaPanel/StepDescriptionPage
+  // Right padding is insetY (not insetX) - matches StepMetaPanel/StepDescriptionPage
   // padding shorthand: `insetY insetY insetY insetX` (vertical value reused as inner gap).
   const columnWidth = pageWidth * META_RATIO - insetX - insetY;
   const font = `${typeXs}px ${fontBody}`;
@@ -99,14 +123,23 @@ function ensureConfig(): LayoutConfig {
   //                                      ~18.5 rem
   // If StepMetaPanel layout changes, re-derive this constant.
   const META_PANEL_CHROME_REM = 18.5;
-  const sidebarMaxLines = Math.floor((pageHeight - META_PANEL_CHROME_REM * remPx - insetY) / lineHeightPx);
+  const sidebarMaxLines = Math.floor(
+    (pageHeight - META_PANEL_CHROME_REM * remPx - insetY) / lineHeightPx,
+  );
 
   // Continuation pages: full page height with top + bottom padding.
-  const continuationMaxLines = Math.floor((pageHeight - 2 * insetY) / lineHeightPx);
+  const continuationMaxLines = Math.floor(
+    (pageHeight - 2 * insetY) / lineHeightPx,
+  );
 
   layoutConfig = {
     sidebar: { columnWidth, maxLines: sidebarMaxLines, font, lineHeightPx },
-    continuation: { columnWidth, maxLines: continuationMaxLines, font, lineHeightPx },
+    continuation: {
+      columnWidth,
+      maxLines: continuationMaxLines,
+      font,
+      lineHeightPx,
+    },
   };
   return layoutConfig;
 }
@@ -117,13 +150,23 @@ function addBreakOpportunities(text: string): string {
   return text.replace(LONG_RUN, "$1\u200B");
 }
 
-function breakParagraph(para: string, columnWidth: number, font: string, lineHeightPx: number): JustifiedLine[] {
+function breakParagraph(
+  para: string,
+  columnWidth: number,
+  font: string,
+  lineHeightPx: number,
+): JustifiedLine[] {
   const prepared = prepareWithSegments(addBreakOpportunities(para), font);
   const { lines } = layoutWithLines(prepared, columnWidth, lineHeightPx);
   return lines.map((line) => ({ text: line.text.replaceAll("\u200B", "") }));
 }
 
-function breakText(text: string, columnWidth: number, font: string, lineHeightPx: number): JustifiedLine[] {
+function breakText(
+  text: string,
+  columnWidth: number,
+  font: string,
+  lineHeightPx: number,
+): JustifiedLine[] {
   const lines: JustifiedLine[] = [];
 
   for (const para of text.split("\n")) {
@@ -143,8 +186,10 @@ export function distributePages(
   continuationMax: number,
 ): JustifiedLine[][] {
   if (allLines.length === 0) return [[]];
-  if (!Number.isFinite(sidebarMax) || sidebarMax < 1) sidebarMax = allLines.length;
-  if (!Number.isFinite(continuationMax) || continuationMax < 1) continuationMax = allLines.length;
+  if (!Number.isFinite(sidebarMax) || sidebarMax < 1)
+    sidebarMax = allLines.length;
+  if (!Number.isFinite(continuationMax) || continuationMax < 1)
+    continuationMax = allLines.length;
 
   const pages: JustifiedLine[][] = [allLines.slice(0, sidebarMax)];
   for (let i = sidebarMax; i < allLines.length; i += continuationMax) {
@@ -152,7 +197,6 @@ export function distributePages(
   }
   return pages;
 }
-
 
 export function layoutDescription(text: string): TextLayout {
   // Subscribe to reactive dependencies so computeds recompute on change
@@ -163,12 +207,23 @@ export function layoutDescription(text: string): TextLayout {
   if (hit) return hit;
 
   const config = ensureConfig();
-  const allLines = breakText(text, config.sidebar.columnWidth, config.sidebar.font, config.sidebar.lineHeightPx);
-  const pages = distributePages(allLines, config.sidebar.maxLines, config.continuation.maxLines);
+  const allLines = breakText(
+    text,
+    config.sidebar.columnWidth,
+    config.sidebar.font,
+    config.sidebar.lineHeightPx,
+  );
+  const pages = distributePages(
+    allLines,
+    config.sidebar.maxLines,
+    config.continuation.maxLines,
+  );
 
   return cached(text, { pages });
 }
 
-export function useTextLayout(description: Ref<string>): ComputedRef<TextLayout> {
+export function useTextLayout(
+  description: Ref<string>,
+): ComputedRef<TextLayout> {
   return computed(() => layoutDescription(description.value));
 }

@@ -1,7 +1,15 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
+import {
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+  type Ref,
+} from "vue";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -103,7 +111,10 @@ export function useMapbox(options: UseMapboxOptions) {
     const markReady = () => {
       el.dataset.mapReady = "";
       pendingIdle = null;
-      if (idleFallback !== null) { clearTimeout(idleFallback); idleFallback = null; }
+      if (idleFallback !== null) {
+        clearTimeout(idleFallback);
+        idleFallback = null;
+      }
     };
     const check = () => {
       if (!m.areTilesLoaded() && ++attempts < 20) {
@@ -116,7 +127,9 @@ export function useMapbox(options: UseMapboxOptions) {
     m.once("idle", check);
     // Absolute fallback: mark ready after 30s even if idle never fires
     // (e.g. WebGL context loss). Prevents map staying invisible forever.
-    idleFallback = setTimeout(() => { if (!el.dataset.mapReady) markReady(); }, 30_000);
+    idleFallback = setTimeout(() => {
+      if (!el.dataset.mapReady) markReady();
+    }, 30_000);
   }
 
   function disarmIdleReady(m: mapboxgl.Map) {
@@ -124,7 +137,10 @@ export function useMapbox(options: UseMapboxOptions) {
       m.off("idle", pendingIdle);
       pendingIdle = null;
     }
-    if (idleFallback !== null) { clearTimeout(idleFallback); idleFallback = null; }
+    if (idleFallback !== null) {
+      clearTimeout(idleFallback);
+      idleFallback = null;
+    }
   }
 
   function destroy() {
@@ -135,7 +151,9 @@ export function useMapbox(options: UseMapboxOptions) {
 
   function fitBounds(
     coords: [number, number][],
-    padding: number | { top: number; bottom: number; left: number; right: number } = 80,
+    padding:
+      | number
+      | { top: number; bottom: number; left: number; right: number } = 80,
   ) {
     if (!map.value || coords.length === 0) return;
 

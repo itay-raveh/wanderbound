@@ -57,7 +57,7 @@ class AlbumUpdate(AlbumBase):
 
 
 class AlbumMeta(AlbumBase):
-    """GET/PATCH response — everything except media."""
+    """GET/PATCH response - everything except media."""
 
     uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     id: str = Field(primary_key=True)
@@ -67,7 +67,7 @@ class AlbumMeta(AlbumBase):
 
 
 class Album(AlbumMeta, table=True):
-    """Full DB row. Only adds media — no relationships."""
+    """Full DB row. Only adds media - no relationships."""
 
     media: list[Media] = Field(
         default_factory=list,

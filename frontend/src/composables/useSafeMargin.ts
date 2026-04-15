@@ -2,7 +2,7 @@ import { ref } from "vue";
 import { MM_PX } from "@/utils/pageSize";
 
 /**
- * Album-level safe margin (mm) — the print trim danger zone.
+ * Album-level safe margin (mm) - the print trim danger zone.
  * Set by AlbumViewer from `album.safe_margin_mm`, consumed by map
  * components (fitBounds padding) and useTextLayout (column reflow).
  */

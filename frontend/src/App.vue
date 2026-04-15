@@ -68,7 +68,7 @@ body,
   --type-md: 1rem;
   --type-sm: 0.875rem;
   --type-xs: 0.75rem; /* smallest UI size */
-  --type-3xs: 0.5625rem; /* print-only — album pages at A4 scale */
+  --type-3xs: 0.5625rem; /* print-only - album pages at A4 scale */
 
   /* Letter-spacing */
   --tracking-tight: -0.02em;
@@ -176,7 +176,7 @@ body,
   }
 }
 
-/* Skip-to-content link — visible only on keyboard focus */
+/* Skip-to-content link - visible only on keyboard focus */
 .skip-to-content {
   position: absolute;
   width: 1px;

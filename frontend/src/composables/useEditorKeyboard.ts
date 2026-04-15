@@ -25,7 +25,8 @@ export function useEditorKeyboard() {
     if (mod && key === "z") {
       if (isTextInput(e)) return;
       e.preventDefault();
-      if (e.shiftKey) undoStack.redo(); else undoStack.undo();
+      if (e.shiftKey) undoStack.redo();
+      else undoStack.undo();
       return;
     }
 

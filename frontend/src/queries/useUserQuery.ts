@@ -34,11 +34,18 @@ export function useUserQuery() {
   async function clearAllAuthState() {
     Sentry.setUser(null);
     googleLogout();
-    await Promise.all([cache.invalidateQueries(undefined, false), clearMsalCache()]);
+    await Promise.all([
+      cache.invalidateQueries(undefined, false),
+      clearMsalCache(),
+    ]);
   }
 
   async function exitDemo() {
-    try { await deleteDemo(); } catch { /* session may already be gone */ }
+    try {
+      await deleteDemo();
+    } catch {
+      /* session may already be gone */
+    }
     await clearAllAuthState();
     await router.push({ name: "landing" });
   }
@@ -74,7 +81,10 @@ export function useUserQuery() {
     end: Date,
     options: Intl.DateTimeFormatOptions,
   ): string {
-    return new Intl.DateTimeFormat(locale.value, options).formatRange(start, end);
+    return new Intl.DateTimeFormat(locale.value, options).formatRange(
+      start,
+      end,
+    );
   }
 
   const regionNames = computed(

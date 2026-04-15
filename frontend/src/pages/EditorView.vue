@@ -5,7 +5,12 @@ import AlbumViewer from "@/components/AlbumViewer.vue";
 import EditorHeader from "@/components/editor/EditorHeader.vue";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { useAlbumQuery, useMediaQuery, useStepsQuery, useSegmentsQuery } from "@/queries/queries";
+import {
+  useAlbumQuery,
+  useMediaQuery,
+  useStepsQuery,
+  useSegmentsQuery,
+} from "@/queries/queries";
 import { useLocale } from "@/composables/useLocale";
 import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
@@ -23,7 +28,9 @@ import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
 const DRAWER_WIDTH = 280;
 
 let savedAlbumId: string | null = null;
-try { savedAlbumId = localStorage.getItem(LAST_ALBUM_KEY); } catch {}
+try {
+  savedAlbumId = localStorage.getItem(LAST_ALBUM_KEY);
+} catch {}
 const selectedAlbumId = ref<string | null>(savedAlbumId);
 
 watch(selectedAlbumId, (id) => {
@@ -38,12 +45,16 @@ const albumIds = computed(() => userData.value?.album_ids ?? null);
 
 // Auto-select first album when none saved (VueUse `whenever` pattern)
 if (!selectedAlbumId.value) {
-  const stop = watch(albumIds, (ids) => {
-    if (ids?.length) {
-      selectedAlbumId.value = ids[0]!;
-      void nextTick(() => stop());
-    }
-  }, { immediate: true });
+  const stop = watch(
+    albumIds,
+    (ids) => {
+      if (ids?.length) {
+        selectedAlbumId.value = ids[0]!;
+        void nextTick(() => stop());
+      }
+    },
+    { immediate: true },
+  );
 }
 
 const { data: album } = useAlbumQuery(selectedAlbumId);
@@ -56,9 +67,14 @@ useLocale(locale);
 useEditorKeyboard();
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
-watch(selectedAlbumId, () => { undoStack.clear(); photoFocus.blur(); resetActiveSection(); });
+watch(selectedAlbumId, () => {
+  undoStack.clear();
+  photoFocus.blur();
+  resetActiveSection();
+});
 
-const { activeStepId, activeSectionKey, resetActiveSection } = useActiveSection();
+const { activeStepId, activeSectionKey, resetActiveSection } =
+  useActiveSection();
 onBeforeUnmount(resetActiveSection);
 const activeStep = computed(() =>
   activeStepId.value != null
@@ -105,7 +121,11 @@ const activeStep = computed(() =>
       :maps-ranges="album.maps_ranges ?? undefined"
     />
     <div v-else class="fit flex flex-center" role="status">
-      <q-spinner-dots color="primary" size="2rem" :aria-label="t('album.loading', { name: '' })" />
+      <q-spinner-dots
+        color="primary"
+        size="2rem"
+        :aria-label="t('album.loading', { name: '' })"
+      />
     </div>
   </q-drawer>
 

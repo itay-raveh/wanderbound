@@ -1,4 +1,4 @@
-/** A4 landscape — single source of truth for page dimensions. */
+/** A4 landscape - single source of truth for page dimensions. */
 export const PAGE_WIDTH_MM = 297;
 export const PAGE_HEIGHT_MM = 210;
 

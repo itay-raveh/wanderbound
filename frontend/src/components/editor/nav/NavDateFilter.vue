@@ -1,7 +1,17 @@
 <script lang="ts" setup>
 import type { Step } from "@/client";
-import { isoDate, inDateRange, datesToRanges, parseLocalDate, toQDate, SHORT_DATE } from "@/utils/date";
-import { useDateRangePicker, parseDraftRanges } from "@/composables/useDateRangePicker";
+import {
+  isoDate,
+  inDateRange,
+  datesToRanges,
+  parseLocalDate,
+  toQDate,
+  SHORT_DATE,
+} from "@/utils/date";
+import {
+  useDateRangePicker,
+  parseDraftRanges,
+} from "@/composables/useDateRangePicker";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUndoStack } from "@/composables/useUndoStack";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
@@ -35,19 +45,26 @@ const hiddenSet = computed(() => new Set(props.hiddenSteps));
 const includedSteps = computed(() => {
   if (!hiddenSet.value.size) return null;
   const filtered = props.steps.filter((s) => !hiddenSet.value.has(s.id));
-  return filtered.length && filtered.length < props.steps.length ? filtered : null;
+  return filtered.length && filtered.length < props.steps.length
+    ? filtered
+    : null;
 });
 
 const dateRangeModel = computed(() => {
   const steps = includedSteps.value;
   if (!steps) return null;
-  return datesToRanges(steps.map((s) => isoDate(s.datetime)))
-    .map(([from, to]) => ({ from: toQDate(from), to: toQDate(to) }));
+  return datesToRanges(steps.map((s) => isoDate(s.datetime))).map(
+    ([from, to]) => ({ from: toQDate(from), to: toQDate(to) }),
+  );
 });
 
-const { draft, isOpen, open, close } = useDateRangePicker(() => dateRangeModel.value);
+const { draft, isOpen, open, close } = useDateRangePicker(
+  () => dateRangeModel.value,
+);
 
-watch(dateRangeModel, (v) => { if (!isOpen.value) draft.value = v ?? null; });
+watch(dateRangeModel, (v) => {
+  if (!isOpen.value) draft.value = v ?? null;
+});
 
 function onPickerClose() {
   const val = close();
@@ -65,8 +82,10 @@ function onPickerClose() {
 const rangeDisplay = computed(() => {
   const steps = includedSteps.value;
   if (!steps) return "";
-  const dates = steps.map((s) => parseLocalDate(s.datetime)).sort((a, b) => a.getTime() - b.getTime());
-  return formatDateRange(dates[0]!, dates.at(-1)!, SHORT_DATE);
+  const dates = steps
+    .map((s) => parseLocalDate(s.datetime))
+    .sort((a, b) => a.getTime() - b.getTime());
+  return formatDateRange(dates[0], dates.at(-1)!, SHORT_DATE);
 });
 
 const popupRef = ref<PopupExpose>();
@@ -78,18 +97,40 @@ function clearFilter() {
     $q.notify({
       message: t("nav.filterCleared"),
       timeout: 4000,
-      actions: [{ label: t("shortcuts.undo"), color: "primary", handler: () => undoStack.undo() }],
+      actions: [
+        {
+          label: t("shortcuts.undo"),
+          color: "primary",
+          handler: () => undoStack.undo(),
+        },
+      ],
     });
   });
 }
 </script>
 
 <template>
-  <button type="button" class="nav-chip" :aria-label="t('nav.dateFilter')" aria-haspopup="dialog" @click.stop>
+  <button
+    type="button"
+    class="nav-chip"
+    :aria-label="t('nav.dateFilter')"
+    aria-haspopup="dialog"
+    @click.stop
+  >
     <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
     <span dir="auto">{{ rangeDisplay || t("album.allDates") }}</span>
-    <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" class="chip-chevron" />
-    <q-popup-proxy ref="popupRef" transition-show="scale" transition-hide="scale" @before-show="open" @before-hide="onPickerClose">
+    <q-icon
+      :name="symOutlinedKeyboardArrowDown"
+      size="var(--type-xs)"
+      class="chip-chevron"
+    />
+    <q-popup-proxy
+      ref="popupRef"
+      transition-show="scale"
+      transition-hide="scale"
+      @before-show="open"
+      @before-hide="onPickerClose"
+    >
       <div class="picker-panel">
         <StepDatePicker
           v-model="draft"

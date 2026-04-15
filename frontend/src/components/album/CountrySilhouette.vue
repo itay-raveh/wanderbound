@@ -9,7 +9,9 @@ const props = defineProps<{
   color?: string;
 }>();
 
-const href = computed(() => `/countries/${props.countryCode.toLowerCase()}.svg#map`);
+const href = computed(
+  () => `/countries/${props.countryCode.toLowerCase()}.svg#map`,
+);
 
 const resolvedViewBox = computed(() => {
   if (props.viewBox) return props.viewBox;

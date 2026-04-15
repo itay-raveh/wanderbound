@@ -76,7 +76,7 @@ describe("onCoverUpdate", () => {
     result.onCoverUpdate("p2");
 
     expect(mutateSpy).toHaveBeenCalledOnce();
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     expect(payload.sid).toBe(1);
     expect(payload.update.cover).toBe("p2");
     // p2 should be removed from pages
@@ -97,7 +97,7 @@ describe("onCoverUpdate", () => {
 
     result.onCoverUpdate("new_cover");
 
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.cover).toBe("new_cover");
     expect(payload.update.pages).toEqual([["p1"]]);
     // Old cover should be added to unused list
@@ -116,7 +116,7 @@ describe("onCoverUpdate", () => {
 
     result.onCoverUpdate("new_cover");
 
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.cover).toBe("new_cover");
     expect(payload.update.unused).toEqual(["u1", "u2"]);
 
@@ -139,7 +139,7 @@ describe("onPageUpdate", () => {
     // "c" dragged from page 1 to page 0
     result.onPageUpdate(0, ["a", "b", "c"]);
 
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.pages).toEqual([["a", "b", "c"], ["d"]]);
     expect(payload.update.unused).toEqual([]);
 
@@ -156,7 +156,7 @@ describe("onPageUpdate", () => {
     // "u1" dragged from unused to page 0
     result.onPageUpdate(0, ["a", "u1"]);
 
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.pages).toEqual([["a", "u1"]]);
     expect(payload.update.unused).toEqual(["u2"]);
 
@@ -173,7 +173,7 @@ describe("onPageUpdate", () => {
     // Move "b" from page 1 to page 0
     result.onPageUpdate(0, ["a", "b"]);
 
-    const payload = mutateSpy.mock.calls[0]![0];
+    const payload = mutateSpy.mock.calls[0][0];
     // Page 1 becomes empty after removing "b", should be filtered out
     expect(payload.update.pages).toEqual([["a", "b"]]);
 

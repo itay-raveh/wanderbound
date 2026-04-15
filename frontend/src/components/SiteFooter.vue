@@ -16,9 +16,13 @@ const hasMeta = !!(authorName || version);
 <template>
   <footer class="site-footer text-caption">
     <nav class="site-footer-group">
-      <router-link to="/legal#privacy" class="site-footer-link">{{ t("footer.privacy") }}</router-link>
+      <router-link to="/legal#privacy" class="site-footer-link">{{
+        t("footer.privacy")
+      }}</router-link>
       <span class="site-footer-sep" aria-hidden="true">&middot;</span>
-      <router-link to="/legal#terms" class="site-footer-link">{{ t("footer.terms") }}</router-link>
+      <router-link to="/legal#terms" class="site-footer-link">{{
+        t("footer.terms")
+      }}</router-link>
       <template v-if="contactEmail || githubUrl">
         <span class="site-footer-sep" aria-hidden="true">&middot;</span>
         <a

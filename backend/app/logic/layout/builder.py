@@ -43,7 +43,7 @@ def _three_page_count(n: int) -> int:
 def _bad_page_count(p: int, l: int) -> int:
     """Count undesirable pages: lonely portraits (1p-0l) and 3-landscape pages (0p-3l).
 
-    Single landscapes (1l) aren't penalised — they're unavoidable edge cases
+    Single landscapes (1l) aren't penalised - they're unavoidable edge cases
     and look fine as full-width images, unlike lonely portraits or 3-landscape
     grids which waste space or crop poorly.
     """
@@ -144,7 +144,7 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
 
     media: list[Media] = [m async for m in _step_media(step_dir)]
 
-    # Split and sort portraits (widest first — closest to portrait threshold)
+    # Split and sort portraits (widest first - closest to portrait threshold)
     portraits = [
         p.name
         for p in sorted(

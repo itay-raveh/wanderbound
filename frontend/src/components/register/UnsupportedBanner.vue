@@ -13,15 +13,23 @@ const { t } = useI18n();
   <div class="banner" role="alert">
     <div class="banner-header row no-wrap items-center q-gutter-x-sm">
       <q-icon :name="matWarning" size="sm" class="text-danger" />
-      <span class="text-subtitle1 text-bright">{{ t("register.unsupportedTitle") }}</span>
+      <span class="text-subtitle1 text-bright">{{
+        t("register.unsupportedTitle")
+      }}</span>
     </div>
-    <i18n-t keypath="register.unsupportedBody" tag="p" class="text-body2 text-muted no-margin">
+    <i18n-t
+      keypath="register.unsupportedBody"
+      tag="p"
+      class="text-body2 text-muted no-margin"
+    >
       <template #chrome><strong>Chrome</strong></template>
       <template #firefox><strong>Firefox</strong></template>
       <template #safari><strong>Safari</strong></template>
       <template #edge><strong>Edge</strong></template>
     </i18n-t>
-    <span v-if="reason" class="text-caption block q-mt-xs text-faint">{{ reason }}</span>
+    <span v-if="reason" class="text-caption block q-mt-xs text-faint">{{
+      reason
+    }}</span>
   </div>
 </template>
 

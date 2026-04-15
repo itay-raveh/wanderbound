@@ -64,7 +64,12 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
     </div>
     <div class="item-info">
       <span class="item-name">{{ t("nav.map") }}</span>
-      <button type="button" class="map-dates" aria-haspopup="dialog" @click.stop>
+      <button
+        type="button"
+        class="map-dates"
+        aria-haspopup="dialog"
+        @click.stop
+      >
         <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
         {{ formatMapRange(dateRange) }}
         <q-popup-proxy
@@ -75,7 +80,10 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
         >
           <StepDatePicker
             ref="datePickerRef"
-            :model-value="{ from: toQDate(dateRange[0]), to: toQDate(dateRange[1]) }"
+            :model-value="{
+              from: toQDate(dateRange[0]),
+              to: toQDate(dateRange[1]),
+            }"
             :steps="steps"
             :colors="colors"
             range
@@ -125,8 +133,12 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   cursor: pointer;
   padding: var(--gap-xs);
   border-radius: var(--radius-xs);
-  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
-  transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
+  border-bottom: 1px dashed
+    color-mix(in srgb, var(--text-muted) 50%, transparent);
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast),
+    border-color var(--duration-fast);
 
   &:hover {
     color: var(--q-primary);
@@ -155,7 +167,10 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   border-radius: var(--radius-sm);
   color: var(--text-faint);
   opacity: 0;
-  transition: opacity var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+  transition:
+    opacity var(--duration-fast),
+    color var(--duration-fast),
+    background var(--duration-fast);
 
   .nav-item:hover & {
     opacity: 1;

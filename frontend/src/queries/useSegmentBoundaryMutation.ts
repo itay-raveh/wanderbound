@@ -20,7 +20,7 @@ export function useSegmentBoundaryMutation() {
     },
     onSuccess: (outlines) => {
       cache.setQueryData(queryKeys.segments(albumId.value), outlines);
-      // Segment points are now stale — the boundary changed which points
+      // Segment points are now stale - the boundary changed which points
       // belong to which segment.  Invalidate so HikeMapPage refetches.
       void cache.invalidateQueries({
         key: [...queryKeys.album(albumId.value), "segment-points"],

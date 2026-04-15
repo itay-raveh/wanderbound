@@ -19,8 +19,15 @@ const emit = defineEmits<{
         <span class="auth-btn-text">{{ t("login.signInGoogle") }}</span>
       </span>
       <GoogleLogin
-        :callback="(r: CallbackTypes.CredentialPopupResponse) => emit('google', r)"
-        :button-config="{ theme: 'outline', size: 'large', shape: 'pill', width: '260' }"
+        :callback="
+          (r: CallbackTypes.CredentialPopupResponse) => emit('google', r)
+        "
+        :button-config="{
+          theme: 'outline',
+          size: 'large',
+          shape: 'pill',
+          width: '260',
+        }"
         class="auth-btn-overlay"
       />
     </div>

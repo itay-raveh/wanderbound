@@ -18,17 +18,31 @@ const props = defineProps<{
   segments: SegmentOutline[];
 }>();
 
-const { user, formatDistance, distanceUnit, formatTemp, formatElevation, formatDate, countryName } = useUserQuery();
+const {
+  user,
+  formatDistance,
+  distanceUnit,
+  formatTemp,
+  formatElevation,
+  formatDate,
+  countryName,
+} = useUserQuery();
 const { t } = useI18n();
 
 const overview = computed(() =>
-  computeOverview(props.steps, props.segments, null, user.value?.living_location ?? null),
+  computeOverview(
+    props.steps,
+    props.segments,
+    null,
+    user.value?.living_location ?? null,
+  ),
 );
 
 const tapestryItems = computed(() =>
   overview.value.countries.map((c) => {
     const raw = props.album.colors[c.code];
-    const color = typeof raw === "string" ? toOverviewTone(raw) : "var(--q-primary)";
+    const color =
+      typeof raw === "string" ? toOverviewTone(raw) : "var(--q-primary)";
     return { ...c, color };
   }),
 );
@@ -36,10 +50,15 @@ const tapestryItems = computed(() =>
 const combinedViewBox = computed(() => {
   if (props.steps.length === 0) return undefined;
 
-  // Union of all visited countries' mainland bounds — bounds.json already
+  // Union of all visited countries' mainland bounds - bounds.json already
   // excludes distant overseas territories, so we can safely include them fully.
-  let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
-  let totalArea = 0, weightedX = 0, weightedY = 0;
+  let sMinX = Infinity,
+    sMinY = Infinity,
+    sMaxX = -Infinity,
+    sMaxY = -Infinity;
+  let totalArea = 0,
+    weightedX = 0,
+    weightedY = 0;
 
   for (const c of overview.value.countries) {
     const b = countryBounds[c.code.toLowerCase()];
@@ -59,8 +78,10 @@ const combinedViewBox = computed(() => {
   if (!isFinite(sMinX)) {
     for (const step of props.steps) {
       const [x, y] = toSvgMercator(step.location.lon, step.location.lat);
-      sMinX = Math.min(sMinX, x); sMinY = Math.min(sMinY, y);
-      sMaxX = Math.max(sMaxX, x); sMaxY = Math.max(sMaxY, y);
+      sMinX = Math.min(sMinX, x);
+      sMinY = Math.min(sMinY, y);
+      sMaxX = Math.max(sMaxX, x);
+      sMaxY = Math.max(sMaxY, y);
     }
     const spanX = sMaxX - sMinX || 1;
     const spanY = sMaxY - sMinY || 1;
@@ -159,19 +180,49 @@ const factColumns = computed(() => {
 </script>
 
 <template>
-  <div class="page-container overview" role="region" :aria-label="t('overview.title')">
+  <div
+    class="page-container overview"
+    role="region"
+    :aria-label="t('overview.title')"
+  >
     <div class="overview-content">
       <template v-for="(col, ci) in factColumns" :key="ci">
-        <div class="side-facts" :class="ci === 0 ? 'side-start' : 'side-end'" role="list">
-          <div v-for="f in col" :key="f.label" role="listitem" class="fact" :style="{ '--accent': f.color }">
+        <div
+          class="side-facts"
+          :class="ci === 0 ? 'side-start' : 'side-end'"
+          role="list"
+        >
+          <div
+            v-for="f in col"
+            :key="f.label"
+            role="listitem"
+            class="fact"
+            :style="{ '--accent': f.color }"
+          >
             <div class="fact-icon" aria-hidden="true">
-              <img v-if="f.iconUrl" :src="f.iconUrl" class="fact-wx" loading="eager" alt="">
-              <q-icon v-else-if="f.iconName" :name="f.iconName" size="1.5rem" class="fact-qi" />
+              <img
+                v-if="f.iconUrl"
+                :src="f.iconUrl"
+                class="fact-wx"
+                loading="eager"
+                alt=""
+              />
+              <q-icon
+                v-else-if="f.iconName"
+                :name="f.iconName"
+                size="1.5rem"
+                class="fact-qi"
+              />
             </div>
             <span class="fact-label">{{ f.label }}</span>
             <span class="fact-value">{{ f.value }}</span>
             <span class="fact-context">
-              <img :src="flagUrl(f.countryCode)" class="fact-flag" loading="eager" :alt="countryName(f.countryCode, '')">
+              <img
+                :src="flagUrl(f.countryCode)"
+                class="fact-flag"
+                loading="eager"
+                :alt="countryName(f.countryCode, '')"
+              />
               <span class="fact-place">{{ f.place }}</span>
             </span>
             <span class="fact-date" dir="auto">{{ f.date }}</span>
@@ -201,8 +252,12 @@ const factColumns = computed(() => {
             :alt="item.detail"
             class="tapestry-flag"
             loading="eager"
+          />
+          <span
+            class="tapestry-name"
+            :style="{ color: item.color }"
+            :title="countryName(item.code, item.detail)"
           >
-          <span class="tapestry-name" :style="{ color: item.color }" :title="countryName(item.code, item.detail)">
             {{ countryName(item.code, item.detail) }}
           </span>
         </div>
@@ -236,9 +291,9 @@ const factColumns = computed(() => {
   z-index: 1;
   display: grid;
   grid-template:
-    "start  map  end"     1fr
+    "start  map  end" 1fr
     "labels labels labels" auto
-    / 3fr   5fr  3fr;
+    / 3fr 5fr 3fr;
   flex: 1;
   padding: var(--page-inset-y) var(--page-inset-x);
   column-gap: var(--gap-md);
@@ -254,8 +309,12 @@ const factColumns = computed(() => {
   min-width: 0;
 }
 
-.side-start { grid-area: start; }
-.side-end   { grid-area: end; }
+.side-start {
+  grid-area: start;
+}
+.side-end {
+  grid-area: end;
+}
 
 /* Stat facts use spacing rhythm to form two visual groups:
    HERO  = icon → label → value  (tight cluster, colored + bright)

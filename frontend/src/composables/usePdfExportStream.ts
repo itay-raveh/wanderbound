@@ -49,23 +49,41 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
       switch (event.type) {
         case "queued": {
           const msg = t("pdf.queued");
-          progress.value = { phase: "queued", done: 0, total: null, message: msg };
+          progress.value = {
+            phase: "queued",
+            done: 0,
+            total: null,
+            message: msg,
+          };
           return { loading: msg };
         }
         case "progress": {
           const total = event.total ?? null;
-          const msg = event.phase === "loading"
-            ? (total != null
-              ? t("pdf.loadingProgress", { done: event.done, total })
-              : t("common.loadingAlbum"))
-            : (event.done > 0
-              ? t("pdf.renderingBytes", { size: humanStorageSize(event.done) })
-              : t("pdf.renderingSingle"));
-          progress.value = { phase: event.phase, done: event.done, total, message: msg };
+          const msg =
+            event.phase === "loading"
+              ? total != null
+                ? t("pdf.loadingProgress", { done: event.done, total })
+                : t("common.loadingAlbum")
+              : event.done > 0
+                ? t("pdf.renderingBytes", {
+                    size: humanStorageSize(event.done),
+                  })
+                : t("pdf.renderingSingle");
+          progress.value = {
+            phase: event.phase,
+            done: event.done,
+            total,
+            message: msg,
+          };
           return { loading: msg };
         }
         case "done":
-          progress.value = { phase: "done", done: 0, total: null, message: t("pdf.ready") };
+          progress.value = {
+            phase: "done",
+            done: 0,
+            total: null,
+            message: t("pdf.ready"),
+          };
           return { done: event.token };
         case "error":
           return { error: t("error.pdfExport") };

@@ -36,7 +36,8 @@ const context = computed<Context>(() => {
   if (!key) return "empty";
   if (key === "cover-front" || key === "cover-back") return "cover";
   if (key === "overview") return "overview";
-  if (key === "full-map" || key.startsWith("map-") || key.startsWith("hike-")) return "map";
+  if (key === "full-map" || key.startsWith("map-") || key.startsWith("hike-"))
+    return "map";
   return "empty";
 });
 
@@ -44,12 +45,16 @@ const context = computed<Context>(() => {
 const albumMutation = useAlbumMutation(() => props.album.id);
 const isCoverBack = computed(() => props.sectionKey === "cover-back");
 const coverField = computed(() =>
-  isCoverBack.value ? "back_cover_photo" as const : "front_cover_photo" as const,
+  isCoverBack.value
+    ? ("back_cover_photo" as const)
+    : ("front_cover_photo" as const),
 );
 const activeCoverPhoto = computed(() => props.album[coverField.value]);
 
 const landscapePhotos = computed(() =>
-  props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)).map((m) => m.name),
+  props.media
+    .filter((m) => !isPortrait(m) && !isVideo(m.name))
+    .map((m) => m.name),
 );
 
 function selectCoverPhoto(name: string) {
@@ -69,11 +74,18 @@ const panelLabel = computed(() =>
     <q-separator class="properties-separator" />
 
     <!-- Step: unused photos tray -->
-    <UnusedDrawer v-if="context === 'step'" :step="step!" :album-id="album.id" class="context-section" />
+    <UnusedDrawer
+      v-if="context === 'step'"
+      :step="step!"
+      :album-id="album.id"
+      class="context-section"
+    />
 
     <!-- Cover: photo picker grid -->
     <div v-else-if="context === 'cover'" class="context-section">
-      <div class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted">
+      <div
+        class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted"
+      >
         <q-icon :name="panelIcon" size="var(--type-md)" />
         <span>{{ panelLabel }}</span>
       </div>
@@ -84,7 +96,12 @@ const panelLabel = computed(() =>
           :src="mediaThumbUrl(photo, album.id)"
           class="cover-cell"
           :class="{ selected: photo === activeCoverPhoto }"
-          :aria-label="t('album.selectCoverPhoto', { index: index + 1, total: landscapePhotos.length })"
+          :aria-label="
+            t('album.selectCoverPhoto', {
+              index: index + 1,
+              total: landscapePhotos.length,
+            })
+          "
           role="button"
           tabindex="0"
           loading="lazy"
@@ -92,7 +109,7 @@ const panelLabel = computed(() =>
           @click="selectCoverPhoto(photo)"
           @keydown.enter="selectCoverPhoto(photo)"
           @keydown.space.prevent="selectCoverPhoto(photo)"
-        >
+        />
       </div>
       <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
     </div>

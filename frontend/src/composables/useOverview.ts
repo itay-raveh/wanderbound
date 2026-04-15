@@ -58,7 +58,7 @@ export function computeOverview(
   }
   const countries = [...seen].map(([code, detail]) => ({ code, detail }));
 
-  // Extremes — single pass over all steps
+  // Extremes - single pass over all steps
   let coldest: ColdExtreme | null = null;
   let hottest: StepExtreme | null = null;
   let highestElevation: StepExtreme | null = null;
@@ -76,7 +76,10 @@ export function computeOverview(
     if (!coldest || dayFeels < coldest.value) {
       coldest = { value: dayFeels, step: s, isNight: false };
     }
-    if (s.weather.night && s.weather.night.feels_like < (coldest?.value ?? Infinity)) {
+    if (
+      s.weather.night &&
+      s.weather.night.feels_like < (coldest?.value ?? Infinity)
+    ) {
       coldest = { value: s.weather.night.feels_like, step: s, isNight: true };
     }
 

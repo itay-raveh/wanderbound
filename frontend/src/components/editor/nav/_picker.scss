@@ -13,7 +13,9 @@
   padding: var(--gap-sm) var(--gap-sm-md);
   border-radius: var(--radius-md);
   white-space: nowrap;
-  transition: color var(--duration-fast), background var(--duration-fast);
+  transition:
+    color var(--duration-fast),
+    background var(--duration-fast);
 
   &:hover {
     color: var(--q-primary);
@@ -58,7 +60,9 @@
   cursor: pointer;
   padding: var(--gap-xs) var(--gap-sm);
   border-radius: var(--radius-sm);
-  transition: color var(--duration-fast), background var(--duration-fast);
+  transition:
+    color var(--duration-fast),
+    background var(--duration-fast);
   margin-inline-start: auto;
 
   &:hover {

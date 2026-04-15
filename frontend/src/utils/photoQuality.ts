@@ -1,7 +1,17 @@
 import type { Media, Step } from "@/client";
 import type { PageFraction } from "@/utils/photoLayout";
-import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH, META_RATIO } from "@/utils/pageSize";
-import { FULL_PAGE_FRACTION, enforceOrientationOrder, photoPageFraction, resolveLayoutClass } from "@/utils/photoLayout";
+import {
+  PAGE_WIDTH_MM,
+  PAGE_HEIGHT_MM,
+  MM_PER_INCH,
+  META_RATIO,
+} from "@/utils/pageSize";
+import {
+  FULL_PAGE_FRACTION,
+  enforceOrientationOrder,
+  photoPageFraction,
+  resolveLayoutClass,
+} from "@/utils/photoLayout";
 import { isPortraitByName } from "@/utils/media";
 
 export type QualityTier = "ok" | "caution" | "warning";
@@ -20,9 +30,16 @@ const DPI_CAUTION = 100;
 const DPI_WARNING = 75;
 
 export const COVER_FRACTION: PageFraction = FULL_PAGE_FRACTION;
-export const PHOTO_PANEL_FRACTION: PageFraction = { widthFrac: 1 - META_RATIO, heightFrac: 1 };
+export const PHOTO_PANEL_FRACTION: PageFraction = {
+  widthFrac: 1 - META_RATIO,
+  heightFrac: 1,
+};
 
-export function computeDpi(widthPx: number, heightPx: number, cell: PageFraction): number {
+export function computeDpi(
+  widthPx: number,
+  heightPx: number,
+  cell: PageFraction,
+): number {
   const cellWidthInches = (cell.widthFrac * PAGE_WIDTH_MM) / MM_PER_INCH;
   const cellHeightInches = (cell.heightFrac * PAGE_HEIGHT_MM) / MM_PER_INCH;
   return Math.min(widthPx / cellWidthInches, heightPx / cellHeightInches);
@@ -59,14 +76,20 @@ export function summarizeQuality(
   }
 
   // Cover photos
-  if (frontCover) count(mediaQuality(frontCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
-  if (backCover) count(mediaQuality(backCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
+  if (frontCover)
+    count(mediaQuality(frontCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
+  if (backCover)
+    count(mediaQuality(backCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
 
   const isP = (name: string) => isPortraitByName(name, mediaByName);
 
   for (const step of steps) {
     // Step cover (right panel of StepMainPage)
-    if (step.cover) count(mediaQuality(step.cover, PHOTO_PANEL_FRACTION, mediaByName)?.tier ?? "ok");
+    if (step.cover)
+      count(
+        mediaQuality(step.cover, PHOTO_PANEL_FRACTION, mediaByName)?.tier ??
+          "ok",
+      );
 
     // Photo pages
     for (const page of step.pages) {
@@ -78,7 +101,7 @@ export function summarizeQuality(
       const layoutClass = resolveLayoutClass(ordered, isP);
       for (let i = 0; i < ordered.length; i++) {
         const cell = photoPageFraction(layoutClass, i);
-        count(mediaQuality(ordered[i]!, cell, mediaByName)?.tier ?? "ok");
+        count(mediaQuality(ordered[i], cell, mediaByName)?.tier ?? "ok");
       }
     }
   }

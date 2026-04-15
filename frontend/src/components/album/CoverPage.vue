@@ -25,12 +25,14 @@ const coverMedia = computed(() =>
 );
 
 const coverQuality = computed(() =>
-  coverMedia.value ? mediaQuality(coverMedia.value, COVER_FRACTION, mediaByName.value) : null,
+  coverMedia.value
+    ? mediaQuality(coverMedia.value, COVER_FRACTION, mediaByName.value)
+    : null,
 );
 
 const dates = computed(() => {
-  const start = parseLocalDate(props.steps[0]!.datetime);
-  const end = parseLocalDate(props.steps[props.steps.length - 1]!.datetime);
+  const start = parseLocalDate(props.steps[0].datetime);
+  const end = parseLocalDate(props.steps[props.steps.length - 1].datetime);
   return formatDateRange(start, end, {
     month: "long",
     day: "numeric",
@@ -83,7 +85,7 @@ function saveText(field: "title" | "subtitle", value: string) {
 <style lang="scss" scoped>
 // -- Front Cover --
 
-// Dark overlay instead of filter: brightness() — filters break in Chromium's PDF backend.
+// Dark overlay instead of filter: brightness() - filters break in Chromium's PDF backend.
 .cover-dimmed::after {
   content: "";
   position: absolute;
@@ -100,7 +102,11 @@ function saveText(field: "title" | "subtitle", value: string) {
   justify-content: center;
   padding: var(--page-inset-y) var(--page-inset-x);
   gap: var(--gap-md);
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.35) 0%,
+    transparent 70%
+  );
 }
 
 .front-date {
@@ -140,5 +146,4 @@ function saveText(field: "title" | "subtitle", value: string) {
   background: rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
 }
-
 </style>

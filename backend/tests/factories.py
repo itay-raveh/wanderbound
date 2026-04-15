@@ -1,4 +1,4 @@
-"""Test data factories and helpers — plain functions, no pytest fixtures."""
+"""Test data factories and helpers - plain functions, no pytest fixtures."""
 
 from __future__ import annotations
 

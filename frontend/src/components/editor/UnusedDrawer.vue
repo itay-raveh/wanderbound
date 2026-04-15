@@ -19,14 +19,23 @@ const stepMut = useStepMutation(() => props.albumId);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
 const localUnused = ref([...props.step.unused]);
-watch(() => props.step.unused, (val) => {
-  if (val.length === localUnused.value.length &&
-      val.every((v, i) => v === localUnused.value[i])) return;
-  localUnused.value = [...val];
-});
+watch(
+  () => props.step.unused,
+  (val) => {
+    if (
+      val.length === localUnused.value.length &&
+      val.every((v, i) => v === localUnused.value[i])
+    )
+      return;
+    localUnused.value = [...val];
+  },
+);
 
 function save() {
-  stepMut.mutate({ sid: props.step.id, update: unusedUpdatePayload(props.step, [...localUnused.value]) });
+  stepMut.mutate({
+    sid: props.step.id,
+    update: unusedUpdatePayload(props.step, [...localUnused.value]),
+  });
 }
 
 const trackRef = ref<HTMLElement | null>(null);
@@ -34,25 +43,27 @@ const trackRef = ref<HTMLElement | null>(null);
 useDraggable(trackRef, localUnused, {
   group: "photos",
   animation: 200,
-  onUpdate() { save(); },
-  onAdd() { save(); },
+  onUpdate() {
+    save();
+  },
+  onAdd() {
+    save();
+  },
 });
 </script>
 
 <template>
   <div class="unused-drawer">
-    <div class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted">
+    <div
+      class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted"
+    >
       <q-icon :name="matPhotoLibrary" size="var(--type-md)" />
       <span>{{ t("album.unused") }}</span>
       <span class="text-faint">{{ localUnused.length }}</span>
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
-      <MediaItem
-        v-for="photo in localUnused"
-        :key="photo"
-        :media="photo"
-      />
+      <MediaItem v-for="photo in localUnused" :key="photo" :media="photo" />
     </div>
     <div v-if="localUnused.length === 0" class="drawer-empty">
       {{ t("album.dropPhotosHere") }}
@@ -86,7 +97,9 @@ useDraggable(trackRef, localUnused, {
   font-size: var(--type-xs);
   color: var(--text-faint);
   text-align: center;
-  transition: border-color var(--duration-fast), color var(--duration-fast);
+  transition:
+    border-color var(--duration-fast),
+    color var(--duration-fast);
 }
 
 // When empty, collapse the track so the empty state fills the drawer
@@ -118,12 +131,12 @@ useDraggable(trackRef, localUnused, {
     border-radius: var(--radius-xs);
   }
 
-  // Hide video play overlay — just static thumbnails in the tray.
+  // Hide video play overlay - just static thumbnails in the tray.
   :deep(.play-overlay) {
     display: none;
   }
 
-  // Constrain ALL children — including SortableJS ghost clones dragged
+  // Constrain ALL children - including SortableJS ghost clones dragged
   // in from photo pages, which would otherwise retain their large page size.
   > :deep(*) {
     width: 100%;

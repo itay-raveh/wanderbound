@@ -62,20 +62,20 @@ describe("segmentsOverlapping", () => {
   it("returns segments that overlap the time window", () => {
     const result = segmentsOverlapping(segments, 150, 350);
     expect(result).toHaveLength(2);
-    expect(result[0]!.start_time).toBe(100);
-    expect(result[1]!.start_time).toBe(300);
+    expect(result[0].start_time).toBe(100);
+    expect(result[1].start_time).toBe(300);
   });
 
   it("includes segment when window touches segment start", () => {
     const result = segmentsOverlapping(segments, 50, 100);
     expect(result).toHaveLength(1);
-    expect(result[0]!.start_time).toBe(100);
+    expect(result[0].start_time).toBe(100);
   });
 
   it("includes segment when window touches segment end", () => {
     const result = segmentsOverlapping(segments, 200, 250);
     expect(result).toHaveLength(1);
-    expect(result[0]!.start_time).toBe(100);
+    expect(result[0].start_time).toBe(100);
   });
 
   it("returns empty when no overlap", () => {
@@ -100,10 +100,10 @@ describe("buildSections", () => {
     const result = buildSections(steps, segments, ranges);
     // Map before step 1, then step 1, step 2, step 3
     expect(result).toHaveLength(4);
-    expect(result[0]!.type).toBe("map");
-    expect(result[1]!.type).toBe("step");
-    expect(result[2]!.type).toBe("step");
-    expect(result[3]!.type).toBe("step");
+    expect(result[0].type).toBe("map");
+    expect(result[1].type).toBe("step");
+    expect(result[2].type).toBe("step");
+    expect(result[3].type).toBe("step");
   });
 
   it("creates hike section when only hike segments (no transport)", () => {
@@ -115,9 +115,9 @@ describe("buildSections", () => {
 
     const result = buildSections(steps, segments, ranges);
     expect(result).toHaveLength(2);
-    expect(result[0]!.type).toBe("hike");
-    if (result[0]!.type === "hike") {
-      expect(result[0]!.hikeSegment.kind).toBe("hike");
+    expect(result[0].type).toBe("hike");
+    if (result[0].type === "hike") {
+      expect(result[0].hikeSegment.kind).toBe("hike");
     }
   });
 
@@ -133,7 +133,7 @@ describe("buildSections", () => {
 
     const result = buildSections(steps, segments, ranges);
     expect(result).toHaveLength(2);
-    expect(result[0]!.type).toBe("map");
+    expect(result[0].type).toBe("map");
   });
 
   it("skips ranges with no matching steps", () => {
@@ -144,7 +144,7 @@ describe("buildSections", () => {
     const result = buildSections(steps, [], ranges);
     // Only the step, no map for the empty range
     expect(result).toHaveLength(1);
-    expect(result[0]!.type).toBe("step");
+    expect(result[0].type).toBe("step");
   });
 
   it("handles multiple map ranges with different steps", () => {
@@ -164,10 +164,10 @@ describe("buildSections", () => {
     const result = buildSections(steps, segments, ranges);
     // map1, step1, map2, step2
     expect(result).toHaveLength(4);
-    expect(result[0]!.type).toBe("map");
-    expect(result[1]!.type).toBe("step");
-    expect(result[2]!.type).toBe("map");
-    expect(result[3]!.type).toBe("step");
+    expect(result[0].type).toBe("map");
+    expect(result[1].type).toBe("step");
+    expect(result[2].type).toBe("map");
+    expect(result[3].type).toBe("step");
   });
 
   it("attaches overlapping segments to map sections", () => {
@@ -186,13 +186,13 @@ describe("buildSections", () => {
     expect(mapSection).toBeDefined();
     if (mapSection && mapSection.type === "map") {
       expect(mapSection.segments).toHaveLength(1);
-      expect(mapSection.segments[0]!.start_time).toBe(50);
+      expect(mapSection.segments[0].start_time).toBe(50);
     }
   });
 });
 
 // ---------------------------------------------------------------------------
-// activeSectionId — maps virtualizer indices to section identifiers
+// activeSectionId - maps virtualizer indices to section identifiers
 // ---------------------------------------------------------------------------
 
 describe("activeSectionId", () => {
@@ -219,6 +219,6 @@ describe("activeSectionId", () => {
     const sections = [mapSection(range), stepSection(1)];
     const result = activeSectionId(sections, 0);
     expect(typeof result).toBe("string");
-    expect(result).toBe(sectionKey(sections[0]!));
+    expect(result).toBe(sectionKey(sections[0]));
   });
 });

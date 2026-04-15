@@ -34,7 +34,7 @@ const ALBUM_OVERRIDES = {
 };
 
 // ---------------------------------------------------------------------------
-// Demo lifecycle — create, process, customize, clean up
+// Demo lifecycle - create, process, customize, clean up
 // ---------------------------------------------------------------------------
 
 interface DemoSession {
@@ -78,7 +78,7 @@ async function waitForProcessing(session: DemoSession): Promise<void> {
     if (done) break;
     const text = decoder.decode(value, { stream: true });
     if (text.includes('"type":"error"') || text.includes("event: error")) {
-      throw new Error("Processing failed — error event received");
+      throw new Error("Processing failed - error event received");
     }
   }
   console.log("  Processing complete");
@@ -213,7 +213,7 @@ function save(name: string, mode: string) {
 async function captureCover(page: Page, mode: string) {
   const cover = page.locator(".page-container.cover-page").first();
   if ((await cover.count()) === 0) {
-    console.warn(`  ⚠ No cover page found — skipping cover-${mode}.jpg`);
+    console.warn(`  ⚠ No cover page found - skipping cover-${mode}.jpg`);
     return;
   }
   await waitForImages(cover);
@@ -222,7 +222,7 @@ async function captureCover(page: Page, mode: string) {
 }
 
 async function captureAutoAlbum(page: Page, mode: string) {
-  // Target a 1P+2L mixed page — the most visually interesting layout for the showcase.
+  // Target a 1P+2L mixed page - the most visually interesting layout for the showcase.
   const mixed = page.locator(".page-container:has(.layout-1p-2l)").first();
   if ((await mixed.count()) > 0) {
     await waitForImages(mixed);
@@ -238,14 +238,14 @@ async function captureAutoAlbum(page: Page, mode: string) {
     }
   }
   console.warn(
-    `  ⚠ No 1P+2L page with loaded photos — skipping auto-album-${mode}.jpg`,
+    `  ⚠ No 1P+2L page with loaded photos - skipping auto-album-${mode}.jpg`,
   );
 }
 
 async function captureHikeMap(page: Page, mode: string) {
-  const hike = page.locator(".page-container:has(.elevation-overlay)").first();
+  const hike = page.locator(".page-container:has(.elevation-chart)").first();
   if ((await hike.count()) === 0) {
-    console.warn(`  ⚠ No hike map found — skipping hike-map-${mode}.jpg`);
+    console.warn(`  ⚠ No hike map found - skipping hike-map-${mode}.jpg`);
     return;
   }
   await Promise.race([
@@ -253,7 +253,7 @@ async function captureHikeMap(page: Page, mode: string) {
       () =>
         (
           document
-            .querySelector(".elevation-overlay svg path")
+            .querySelector(".elevation-chart svg path")
             ?.getAttribute("d")?.length ?? 0
         ) > 10,
     ),
@@ -267,7 +267,7 @@ async function captureHikeMap(page: Page, mode: string) {
 async function captureStepPage(page: Page, mode: string, name = "step-page") {
   const stepMain = page.locator(".page-container.step-main").first();
   if ((await stepMain.count()) === 0) {
-    console.warn(`  ⚠ No step main page found — skipping ${name}-${mode}.jpg`);
+    console.warn(`  ⚠ No step main page found - skipping ${name}-${mode}.jpg`);
     return;
   }
   await waitForImages(stepMain);
@@ -278,7 +278,7 @@ async function captureStepPage(page: Page, mode: string, name = "step-page") {
 async function captureOverview(page: Page, mode: string) {
   const overview = page.locator(".page-container.overview").first();
   if ((await overview.count()) === 0) {
-    console.warn(`  ⚠ No overview page found — skipping overview-${mode}.jpg`);
+    console.warn(`  ⚠ No overview page found - skipping overview-${mode}.jpg`);
     return;
   }
   await waitForImages(overview);

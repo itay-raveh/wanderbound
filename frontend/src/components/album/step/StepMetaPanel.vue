@@ -3,7 +3,11 @@ import type { Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";
-import { getCountryColor, CONTRAST_TEXT_DARK, CONTRAST_TEXT_LIGHT } from "../colors";
+import {
+  getCountryColor,
+  CONTRAST_TEXT_DARK,
+  CONTRAST_TEXT_LIGHT,
+} from "../colors";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { flagUrl, weatherIconUrl } from "@/utils/media";
 import { colors as qColors, Dark } from "quasar";
@@ -34,7 +38,9 @@ const countryColor = computed(() => {
 });
 
 const badgeTextColor = computed(() =>
-  qColors.brightness(countryColor.value) > 128 ? CONTRAST_TEXT_DARK : CONTRAST_TEXT_LIGHT,
+  qColors.brightness(countryColor.value) > 128
+    ? CONTRAST_TEXT_DARK
+    : CONTRAST_TEXT_LIGHT,
 );
 
 /** Derive alt text from Basmilius weather icon names (e.g. "partly-cloudy-day" → "partly cloudy"). */
@@ -107,7 +113,9 @@ const dateStr = computed(() => {
     <div class="name-block">
       <div class="country-row text-muted">
         <img :src="flagUrl(step.location.country_code)" class="flag" alt="" />
-        <span>{{ countryName(step.location.country_code, step.location.detail) }}</span>
+        <span>{{
+          countryName(step.location.country_code, step.location.detail)
+        }}</span>
       </div>
       <EditableText
         :model-value="step.name"
@@ -163,7 +171,9 @@ const dateStr = computed(() => {
 
         <!-- Elevation -->
         <div class="stat-col">
-          <span class="stat-label text-muted">{{ isKm ? t("units.masl") : t("units.ftAsl") }}</span>
+          <span class="stat-label text-muted">{{
+            isKm ? t("units.masl") : t("units.ftAsl")
+          }}</span>
           <span class="stat-value text-bright">{{
             formatElevationValue(step.elevation)
           }}</span>

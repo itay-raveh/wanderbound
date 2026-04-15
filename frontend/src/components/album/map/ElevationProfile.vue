@@ -20,7 +20,7 @@ const { t } = useI18n();
 const uid = useId();
 const gradId = `elev-gradient-${uid}`;
 
-// Fixed SVG coordinate space — CSS controls the visual size via the container.
+// Fixed SVG coordinate space - CSS controls the visual size via the container.
 // The SVG scales to fill its container while preserving this aspect ratio.
 const W = 500;
 const H = 70;
@@ -31,7 +31,7 @@ const PLOT_H = H - PAD.top - PAD.bottom;
 const chart = computed(() => {
   if (props.points.length < 2) return null;
 
-  const lastDist = props.points[props.points.length - 1]!.dist;
+  const lastDist = props.points[props.points.length - 1].dist;
   if (lastDist === 0) return null;
 
   const elevFactor = props.isKm ? 1 : M_TO_FT;
@@ -39,7 +39,7 @@ const chart = computed(() => {
   const elevations = props.points.map((p) => p.elevation * elevFactor);
 
   // d3 scaleLinear: domain = data units, range = SVG coordinates.
-  // No .nice() — data fills the chart. ticks() still picks round values.
+  // No .nice() - data fills the chart. ticks() still picks round values.
   // Small top padding so the highest tick label isn't clipped by the viewBox.
   const yMin = Math.min(...elevations);
   const yMax = Math.max(...elevations);
@@ -60,7 +60,7 @@ const chart = computed(() => {
   const xTicks = x.ticks(5).filter((v) => v > 0);
   const domainEnd = lastDist * distFactor;
   const lastXTick = xTicks.at(-1) ?? 0;
-  const xTickStep = xTicks.length >= 2 ? xTicks[1]! - xTicks[0]! : domainEnd;
+  const xTickStep = xTicks.length >= 2 ? xTicks[1] - xTicks[0] : domainEnd;
   const endTick = Math.round(domainEnd);
   if (domainEnd - lastXTick > xTickStep * 0.4 && endTick !== lastXTick) {
     xTicks.push(endTick);
@@ -79,7 +79,7 @@ const chart = computed(() => {
     .join(" ");
 
   const bottomY = PAD.top + PLOT_H;
-  const areaPath = `${linePath} L${pixels.at(-1)!.x.toFixed(1)},${bottomY} L${pixels[0]!.x.toFixed(1)},${bottomY} Z`;
+  const areaPath = `${linePath} L${pixels.at(-1)!.x.toFixed(1)},${bottomY} L${pixels[0].x.toFixed(1)},${bottomY} Z`;
 
   return { linePath, areaPath, toX, toY, yTicks, xTicks };
 });
@@ -118,7 +118,13 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? PAD.top) - 4);
 
 <template>
   <div class="elevation-chart">
-    <svg v-if="chart" :viewBox="`0 0 ${W} ${H}`" direction="ltr" role="img" :aria-label="t('hike.elevationProfile')">
+    <svg
+      v-if="chart"
+      :viewBox="`0 0 ${W} ${H}`"
+      direction="ltr"
+      role="img"
+      :aria-label="t('hike.elevationProfile')"
+    >
       <defs>
         <linearGradient :id="gradId" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" :stop-color="accent" stop-opacity="0.33" />
@@ -141,7 +147,13 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? PAD.top) - 4);
       <path :d="chart.areaPath" :fill="`url(#${gradId})`" />
 
       <!-- Line stroke -->
-      <path :d="chart.linePath" fill="none" :stroke="accent" stroke-width="1.5" stroke-linejoin="round" />
+      <path
+        :d="chart.linePath"
+        fill="none"
+        :stroke="accent"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+      />
 
       <!-- Y-axis labels -->
       <text
@@ -156,7 +168,12 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? PAD.top) - 4);
       </text>
 
       <!-- Y-axis unit -->
-      <text :x="PAD.left - 2" :y="unitY" text-anchor="end" class="axis-label unit-label">
+      <text
+        :x="PAD.left - 2"
+        :y="unitY"
+        text-anchor="end"
+        class="axis-label unit-label"
+      >
         {{ elevUnit }}
       </text>
 

@@ -19,7 +19,9 @@ const emit = defineEmits<{
 }>();
 
 const photoQuality = computed(() =>
-  props.photo ? mediaQuality(props.photo, PHOTO_PANEL_FRACTION, mediaByName.value) : null,
+  props.photo
+    ? mediaQuality(props.photo, PHOTO_PANEL_FRACTION, mediaByName.value)
+    : null,
 );
 </script>
 
@@ -54,7 +56,8 @@ const photoQuality = computed(() =>
 
 .description-text {
   flex: 0 0 var(--meta-width);
-  padding: var(--page-inset-y) var(--page-inset-y) var(--page-inset-y) var(--page-inset-x);
+  padding: var(--page-inset-y) var(--page-inset-y) var(--page-inset-y)
+    var(--page-inset-x);
   font-family: var(--font-album-body);
   font-size: var(--type-xs);
   line-height: 1.65;
@@ -73,7 +76,7 @@ const photoQuality = computed(() =>
 .topo-filler {
   flex: 1;
   min-height: 0;
-  background: url('/topo-contours.svg') center / cover no-repeat;
+  background: url("/topo-contours.svg") center / cover no-repeat;
   print-color-adjust: exact;
 }
 </style>

@@ -8,12 +8,13 @@ const focusedStepId = ref<number | null>(null);
 const focusedPhotoId = ref<string | null>(null);
 
 let getSteps: () => Step[] = () => [];
-let mutateFn: ((sid: number, update: Partial<StepUpdate>) => void) | null = null;
+let mutateFn: ((sid: number, update: Partial<StepUpdate>) => void) | null =
+  null;
 let scrollToStepFn: ((stepId: number) => void) | null = null;
 let scrollRafId = 0;
 let awaitingStepTransition = false;
 
-/** Cover is shown on StepMainPage (not focusable) — skip it in navigation. */
+/** Cover is shown on StepMainPage (not focusable) - skip it in navigation. */
 function pagedPhotos(step: Step): string[] {
   const all = step.pages.flat();
   return step.cover ? all.filter((p) => p !== step.cover) : all;
@@ -29,7 +30,8 @@ function advanceFocus(photos: string[], removedIdx: number) {
     focusedPhotoId.value = null;
     return;
   }
-  const focusIdx = removedIdx < photos.length - 1 ? removedIdx + 1 : removedIdx - 1;
+  const focusIdx =
+    removedIdx < photos.length - 1 ? removedIdx + 1 : removedIdx - 1;
   focusedPhotoId.value = photos[focusIdx]!;
   scrollFocusedIntoView();
 }
@@ -109,12 +111,13 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 
   const delta = direction === "next" ? 1 : -1;
   for (let i = orderIdx + delta; i >= 0 && i < steps.length; i += delta) {
-    const nextStep = steps[i]!;
+    const nextStep = steps[i];
     const photos = pagedPhotos(nextStep);
     if (photos.length === 0) continue;
 
     focusedStepId.value = nextStep.id;
-    focusedPhotoId.value = direction === "next" ? photos[0]! : photos[photos.length - 1]!;
+    focusedPhotoId.value =
+      direction === "next" ? photos[0] : photos[photos.length - 1];
     awaitingStepTransition = true;
     scrollToStepFn?.(nextStep.id);
     scrollFocusedIntoView();
@@ -125,7 +128,7 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
 }
 
 function move(direction: "prev" | "next") {
-  // Block navigation while a cross-step scroll is still settling —
+  // Block navigation while a cross-step scroll is still settling  -
   // the target step's DOM isn't mounted yet, so advancing would
   // silently skip photos the user can't see.
   if (awaitingStepTransition) return;
@@ -144,7 +147,8 @@ function move(direction: "prev" | "next") {
     : -1;
 
   if (currentIdx < 0) {
-    focusedPhotoId.value = direction === "next" ? photos[0]! : photos[photos.length - 1]!;
+    focusedPhotoId.value =
+      direction === "next" ? photos[0] : photos[photos.length - 1];
     return;
   }
 
@@ -163,7 +167,8 @@ function move(direction: "prev" | "next") {
 }
 
 function sendToUnused(): boolean {
-  const step = focusedStepId.value != null ? getStep(focusedStepId.value) : null;
+  const step =
+    focusedStepId.value != null ? getStep(focusedStepId.value) : null;
   const photoId = focusedPhotoId.value;
   if (!step || !photoId) return false;
 
@@ -174,7 +179,8 @@ function sendToUnused(): boolean {
 }
 
 function setAsCover(): boolean {
-  const step = focusedStepId.value != null ? getStep(focusedStepId.value) : null;
+  const step =
+    focusedStepId.value != null ? getStep(focusedStepId.value) : null;
   const photoId = focusedPhotoId.value;
   if (!step || !photoId) return false;
 

@@ -16,7 +16,7 @@ const mediaBody = Buffer.from(TINY_JPEG_BASE64, "base64");
 
 // Strict mock guard: register first so it matches last (Playwright is LIFO).
 // Any /api/v1/** request not handled by a later, more specific route lands
-// here and is recorded. Tests fail in teardown if anything was recorded —
+// here and is recorded. Tests fail in teardown if anything was recorded  -
 // preventing silent fall-through to the dev-server proxy and a non-existent
 // backend, which would otherwise mask missing mocks behind passing tests.
 async function installStrictMockGuard(page: Page) {
@@ -65,7 +65,7 @@ async function mockDefaultSteps(page: Page) {
 }
 
 async function mockFocusData(page: Page) {
-  // PATCH for step updates (sendToUnused, setAsCover) — accept optimistically.
+  // PATCH for step updates (sendToUnused, setAsCover) - accept optimistically.
   await page.route(`${API}/albums/*/steps/*`, (route) => {
     if (route.request().method() === "PATCH") {
       return route.fulfill({ json: {} });

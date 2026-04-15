@@ -36,7 +36,10 @@ export function useStepMutation(aid: () => string) {
           undoStack.push({
             type: "step",
             sid: payload.sid,
-            before: pickSnapshot(oldStep, Object.keys(payload.update) as (keyof StepUpdate)[]),
+            before: pickSnapshot(
+              oldStep,
+              Object.keys(payload.update) as (keyof StepUpdate)[],
+            ),
             after: { ...payload.update },
           });
         }

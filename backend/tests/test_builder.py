@@ -158,5 +158,5 @@ class TestBuildStepLayout:
         assert media_by_name[jpg_name].is_portrait
         assert not media_by_name[vid_name].is_portrait
         flat = [name for page in layout.pages for name in page]
-        # Cover portrait is excluded from pages — only the video remains.
+        # Cover portrait is excluded from pages - only the video remains.
         assert flat == [vid_name]

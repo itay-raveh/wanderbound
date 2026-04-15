@@ -3,7 +3,14 @@ import type { Step } from "@/client";
 import { getCountryColor } from "../album/colors";
 import { isoDate, qDateNavBounds, toQDate } from "@/utils/date";
 import { QDate } from "quasar";
-import { computed, getCurrentInstance, onBeforeUnmount, onMounted, useTemplateRef, watchEffect } from "vue";
+import {
+  computed,
+  getCurrentInstance,
+  onBeforeUnmount,
+  onMounted,
+  useTemplateRef,
+  watchEffect,
+} from "vue";
 
 defineOptions({ inheritAttrs: false });
 
@@ -80,7 +87,7 @@ defineExpose({
 <template>
   <q-date
     ref="dateRef"
-    v-bind="($attrs as any)"
+    v-bind="$attrs as any"
     minimal
     :options="dateOptions"
     :events="hasStep"
