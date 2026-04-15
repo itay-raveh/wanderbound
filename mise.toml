@@ -12,6 +12,8 @@ run = [
     "cp -n .env.example .env || true",
     "uv sync",
     "bun install",
+    "pre-commit install --install-hooks",
+    "pre-commit install --hook-type commit-msg",
     "mise run generate",
     "mise run db:migrate",
 ]
