@@ -104,7 +104,6 @@ body,
   color-scheme: dark;
   --page-bg: #232338;
   --bg: #1e1e2e;
-  --bg-rgb: 30 30 46;
   --bg-secondary: #252540;
   --bg-deep: #0a0a12;
   --text: #e5e7eb;
@@ -150,7 +149,6 @@ body,
   color-scheme: light;
   --page-bg: #ffffff;
   --bg: #f3f4f6;
-  --bg-rgb: 243 244 246;
   --bg-secondary: #ffffff;
   --bg-deep: #dce1e8;
   --text: #1f2937;

@@ -19,8 +19,7 @@ import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
 
 const { t } = useI18n();
-const uid = useId();
-const fadeGradId = `hike-fade-${uid}`;
+const fadeGradId = `hike-fade-${useId()}`;
 
 const props = defineProps<{
   steps: Step[];
@@ -304,15 +303,13 @@ watch(safeMarginMm, () => {
 <template>
   <div ref="hike-map" role="img" :aria-label="`${t('hike.mapLabel')} – ${stats.distance} ${distanceUnit}`" class="page-container relative-position overflow-hidden">
     <div class="stats-block">
+      <div class="stats-bg" aria-hidden="true" />
       <div class="stat-distance" :style="{ color: countryColor }">
         {{ stats.distance }} {{ distanceUnit }}
       </div>
       <div class="stat-meta">
-        {{ stats.duration }}
-        <template v-if="stats.elevGain">
-          <span class="stat-sep">&middot;</span>
-          +{{ stats.elevGain }} {{ elevationUnit }}
-        </template>
+        <span>{{ stats.duration }}</span>
+        <span v-if="stats.elevGain">↑ {{ stats.elevGain }} {{ elevationUnit }}</span>
       </div>
     </div>
     <!-- Fade overlay: SVG gradient with stop-opacity instead of CSS alpha
@@ -381,10 +378,23 @@ watch(safeMarginMm, () => {
   right: calc(var(--gap-lg) + var(--safe-margin, 0mm));
   /* rtl:ignore */
   text-align: right;
-  /* rtl:ignore */
-  padding: var(--gap-sm) var(--gap-md);
-  background: rgb(var(--bg-rgb) / 0.80);
-  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm-md) var(--gap-md-lg);
+  border-radius: var(--radius-md);
+  isolation: isolate;
+}
+
+// Separate opacity layer for PDF-safe semi-transparency.
+// CSS opacity is native PDF graphics state; rgb(var(--XX-rgb)/a) is not.
+.stats-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+  opacity: 0.80;
+  border-radius: inherit;
   print-color-adjust: exact;
 }
 
@@ -392,19 +402,19 @@ watch(safeMarginMm, () => {
   font-family: var(--font-ui);
   font-weight: 800;
   font-size: var(--type-xl);
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-tight);
   line-height: 1.1;
 }
 
 .stat-meta {
+  display: flex;
+  gap: var(--gap-md);
   font-family: var(--font-ui);
-  font-weight: 600;
-  font-size: var(--type-xs);
+  font-weight: 500;
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
   color: var(--text-bright);
-  line-height: 1.3;
-}
-
-.stat-sep {
-  color: var(--text-muted);
+  line-height: 1.2;
 }
 </style>
