@@ -2,9 +2,9 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, CreateDemoData, CreateDemoResponses, DeleteDemoData, DeleteDemoResponses, DeleteUserData, DeleteUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, ProcessUserData, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
+import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, AuthorizeData, AuthorizeResponses, CreateDemoData, CreateDemoResponses, CreateSessionData, CreateSessionResponses, DeleteDemoData, DeleteDemoResponses, DeleteUserData, DeleteUserResponses, DisconnectData, DisconnectResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponse, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponse, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, GooglePhotosCallbackData, GooglePhotosCallbackResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, MatchPhotosData, MatchPhotosErrors, MatchPhotosResponse, MatchPhotosResponses, PollSessionData, PollSessionErrors, PollSessionResponses, ProcessUserData, ProcessUserResponse, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UpgradePhotosData, UpgradePhotosErrors, UpgradePhotosResponse, UpgradePhotosResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
 
-export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
+export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
      * You can provide a client instance returned by `createClient()` instead of
      * individual options. This might be also useful if you want to implement a
@@ -66,12 +66,12 @@ export const createDemo = <ThrowOnError extends boolean = true>(options?: Option
 /**
  * Process User
  */
-export const processUser = <ThrowOnError extends boolean = true>(options?: Options<ProcessUserData, ThrowOnError>) => (options?.client ?? client).sse.get<ProcessUserResponses, unknown, ThrowOnError>({ url: '/api/v1/users/process', ...options });
+export const processUser = <ThrowOnError extends boolean = true>(options?: Options<ProcessUserData, ThrowOnError, ProcessUserResponse>) => (options?.client ?? client).sse.get<ProcessUserResponses, unknown, ThrowOnError>({ url: '/api/v1/users/process', ...options });
 
 /**
  * Export Data
  */
-export const exportData = <ThrowOnError extends boolean = true>(options?: Options<ExportDataData, ThrowOnError>) => (options?.client ?? client).sse.get<ExportDataResponses, unknown, ThrowOnError>({ url: '/api/v1/users/export', ...options });
+export const exportData = <ThrowOnError extends boolean = true>(options?: Options<ExportDataData, ThrowOnError, ExportDataResponse>) => (options?.client ?? client).sse.get<ExportDataResponses, unknown, ThrowOnError>({ url: '/api/v1/users/export', ...options });
 
 /**
  * Download Export
@@ -174,7 +174,7 @@ export const readPrintBundle = <ThrowOnError extends boolean = true>(options: Op
 /**
  * Generate Pdf
  */
-export const generatePdf = <ThrowOnError extends boolean = true>(options: Options<GeneratePdfData, ThrowOnError>) => (options.client ?? client).sse.post<GeneratePdfResponses, GeneratePdfErrors, ThrowOnError>({ url: '/api/v1/albums/{aid}/pdf/generate', ...options });
+export const generatePdf = <ThrowOnError extends boolean = true>(options: Options<GeneratePdfData, ThrowOnError, GeneratePdfResponse>) => (options.client ?? client).sse.post<GeneratePdfResponses, GeneratePdfErrors, ThrowOnError>({ url: '/api/v1/albums/{aid}/pdf/generate', ...options });
 
 /**
  * Get Media
@@ -185,3 +185,45 @@ export const getMedia = <ThrowOnError extends boolean = true>(options: Options<G
  * Update Video Frame
  */
 export const updateVideoFrame = <ThrowOnError extends boolean = true>(options: Options<UpdateVideoFrameData, ThrowOnError>) => (options.client ?? client).patch<UpdateVideoFrameResponses, UpdateVideoFrameErrors, ThrowOnError>({ url: '/api/v1/albums/{aid}/media/{name}', ...options });
+
+/**
+ * Authorize
+ */
+export const authorize = <ThrowOnError extends boolean = true>(options?: Options<AuthorizeData, ThrowOnError>) => (options?.client ?? client).get<AuthorizeResponses, unknown, ThrowOnError>({ url: '/api/v1/google-photos/authorize', ...options });
+
+/**
+ * Google Photos Callback
+ */
+export const googlePhotosCallback = <ThrowOnError extends boolean = true>(options?: Options<GooglePhotosCallbackData, ThrowOnError>) => (options?.client ?? client).get<GooglePhotosCallbackResponses, unknown, ThrowOnError>({ url: '/api/v1/google-photos/callback', ...options });
+
+/**
+ * Create Session
+ */
+export const createSession = <ThrowOnError extends boolean = true>(options?: Options<CreateSessionData, ThrowOnError>) => (options?.client ?? client).post<CreateSessionResponses, unknown, ThrowOnError>({ url: '/api/v1/google-photos/sessions', ...options });
+
+/**
+ * Poll Session
+ */
+export const pollSession = <ThrowOnError extends boolean = true>(options: Options<PollSessionData, ThrowOnError>) => (options.client ?? client).get<PollSessionResponses, PollSessionErrors, ThrowOnError>({ url: '/api/v1/google-photos/sessions/{session_id}', ...options });
+
+/**
+ * Match Photos
+ */
+export const matchPhotos = <ThrowOnError extends boolean = true>(options: Options<MatchPhotosData, ThrowOnError, MatchPhotosResponse>) => (options.client ?? client).sse.post<MatchPhotosResponses, MatchPhotosErrors, ThrowOnError>({ url: '/api/v1/google-photos/match/{aid}', ...options });
+
+/**
+ * Upgrade Photos
+ */
+export const upgradePhotos = <ThrowOnError extends boolean = true>(options: Options<UpgradePhotosData, ThrowOnError, UpgradePhotosResponse>) => (options.client ?? client).sse.post<UpgradePhotosResponses, UpgradePhotosErrors, ThrowOnError>({
+    url: '/api/v1/google-photos/upgrade/{aid}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Disconnect
+ */
+export const disconnect = <ThrowOnError extends boolean = true>(options?: Options<DisconnectData, ThrowOnError>) => (options?.client ?? client).delete<DisconnectResponses, unknown, ThrowOnError>({ url: '/api/v1/google-photos/connection', ...options });

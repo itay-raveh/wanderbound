@@ -14,13 +14,17 @@ interface AlbumProvide {
   media: ComputedRef<Media[]>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
+  photosConnected?: ComputedRef<boolean>;
 }
 
-interface AlbumContext extends AlbumProvide {
+interface AlbumContext extends Omit<AlbumProvide, "photosConnected"> {
   mediaByName: ComputedRef<Map<string, Media>>;
+  photosConnected: ComputedRef<boolean>;
 }
 
 const KEY: InjectionKey<AlbumContext> = Symbol("album");
+
+const PHOTOS_NOT_CONNECTED = computed(() => false);
 
 export function provideAlbum(ctx: AlbumProvide): AlbumContext {
   const mediaByName = computed(() => {
@@ -28,7 +32,11 @@ export function provideAlbum(ctx: AlbumProvide): AlbumContext {
     for (const m of ctx.media.value) map.set(m.name, m);
     return map;
   });
-  const albumCtx = { ...ctx, mediaByName };
+  const albumCtx: AlbumContext = {
+    ...ctx,
+    mediaByName,
+    photosConnected: ctx.photosConnected ?? PHOTOS_NOT_CONNECTED,
+  };
   provide(KEY, albumCtx);
   return albumCtx;
 }

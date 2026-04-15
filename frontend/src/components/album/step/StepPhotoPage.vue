@@ -12,7 +12,7 @@ import {
 } from "@/utils/photoLayout";
 import { mediaQuality } from "@/utils/photoQuality";
 
-const { mediaByName } = useAlbum();
+const { mediaByName, photosConnected } = useAlbum();
 const printMode = usePrintMode();
 
 const props = defineProps<{
@@ -65,6 +65,7 @@ const photoQualities = computed(() =>
       name,
       photoPageFraction(layoutClass.value, i),
       mediaByName.value,
+      photosConnected.value,
     ),
   ),
 );

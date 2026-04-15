@@ -26,8 +26,18 @@ export interface PhotoQuality {
   dpi: number;
 }
 
-const DPI_CAUTION = 100;
-const DPI_WARNING = 75;
+const DPI_CAUTION_DEFAULT = 100;
+const DPI_WARNING_DEFAULT = 75;
+const DPI_CAUTION_UPGRADED = 150;
+const DPI_WARNING_UPGRADED = 100;
+
+export function dpiCautionThreshold(photosConnected: boolean): number {
+  return photosConnected ? DPI_CAUTION_UPGRADED : DPI_CAUTION_DEFAULT;
+}
+
+export function dpiWarningThreshold(photosConnected: boolean): number {
+  return photosConnected ? DPI_WARNING_UPGRADED : DPI_WARNING_DEFAULT;
+}
 
 export const COVER_FRACTION: PageFraction = FULL_PAGE_FRACTION;
 export const PHOTO_PANEL_FRACTION: PageFraction = {
@@ -45,9 +55,12 @@ export function computeDpi(
   return Math.min(widthPx / cellWidthInches, heightPx / cellHeightInches);
 }
 
-export function dpiTier(dpi: number): QualityTier {
-  if (dpi < DPI_WARNING) return "warning";
-  if (dpi < DPI_CAUTION) return "caution";
+export function dpiTier(
+  dpi: number,
+  photosConnected = false,
+): QualityTier {
+  if (dpi < dpiWarningThreshold(photosConnected)) return "warning";
+  if (dpi < dpiCautionThreshold(photosConnected)) return "caution";
   return "ok";
 }
 
@@ -55,11 +68,12 @@ export function mediaQuality(
   name: string,
   cell: PageFraction,
   mediaByName: ReadonlyMap<string, Media>,
+  photosConnected = false,
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
   const dpi = computeDpi(m.width, m.height, cell);
-  return { tier: dpiTier(dpi), dpi: Math.round(dpi) };
+  return { tier: dpiTier(dpi, photosConnected), dpi: Math.round(dpi) };
 }
 
 export function summarizeQuality(
@@ -67,6 +81,7 @@ export function summarizeQuality(
   frontCover: string | undefined,
   backCover: string | undefined,
   mediaByName: ReadonlyMap<string, Media>,
+  photosConnected = false,
 ): QualitySummary {
   const summary: QualitySummary = { caution: 0, warning: 0 };
 
@@ -77,9 +92,15 @@ export function summarizeQuality(
 
   // Cover photos
   if (frontCover)
-    count(mediaQuality(frontCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
+    count(
+      mediaQuality(frontCover, COVER_FRACTION, mediaByName, photosConnected)
+        ?.tier ?? "ok",
+    );
   if (backCover)
-    count(mediaQuality(backCover, COVER_FRACTION, mediaByName)?.tier ?? "ok");
+    count(
+      mediaQuality(backCover, COVER_FRACTION, mediaByName, photosConnected)
+        ?.tier ?? "ok",
+    );
 
   const isP = (name: string) => isPortraitByName(name, mediaByName);
 
@@ -87,8 +108,12 @@ export function summarizeQuality(
     // Step cover (right panel of StepMainPage)
     if (step.cover)
       count(
-        mediaQuality(step.cover, PHOTO_PANEL_FRACTION, mediaByName)?.tier ??
-          "ok",
+        mediaQuality(
+          step.cover,
+          PHOTO_PANEL_FRACTION,
+          mediaByName,
+          photosConnected,
+        )?.tier ?? "ok",
       );
 
     // Photo pages
@@ -101,7 +126,10 @@ export function summarizeQuality(
       const layoutClass = resolveLayoutClass(ordered, isP);
       for (let i = 0; i < ordered.length; i++) {
         const cell = photoPageFraction(layoutClass, i);
-        count(mediaQuality(ordered[i], cell, mediaByName)?.tier ?? "ok");
+        count(
+          mediaQuality(ordered[i], cell, mediaByName, photosConnected)?.tier ??
+            "ok",
+        );
       }
     }
   }

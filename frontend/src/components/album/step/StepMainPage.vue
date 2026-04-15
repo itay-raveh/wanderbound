@@ -7,7 +7,7 @@ import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
 import { computed } from "vue";
 
-const { mediaByName } = useAlbum();
+const { mediaByName, photosConnected } = useAlbum();
 
 const props = defineProps<{
   step: Step;
@@ -21,7 +21,12 @@ const emit = defineEmits<{
 
 const coverQuality = computed(() =>
   props.step.cover
-    ? mediaQuality(props.step.cover, PHOTO_PANEL_FRACTION, mediaByName.value)
+    ? mediaQuality(
+        props.step.cover,
+        PHOTO_PANEL_FRACTION,
+        mediaByName.value,
+        photosConnected.value,
+      )
     : null,
 );
 </script>

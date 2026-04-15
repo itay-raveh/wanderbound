@@ -17,7 +17,7 @@ const darkMode = computed(() => route.query.dark === "true");
 onMounted(() => Dark.set(darkMode.value));
 
 const { data: bundle, error } = usePrintBundleQuery(aid);
-const { locale } = useUserQuery();
+const { user: userData, locale } = useUserQuery();
 const { t } = useI18n();
 useLocale(locale);
 
@@ -172,6 +172,7 @@ onUnmounted(() => clearTimeout(pollTimer));
       :steps="steps"
       :segment-outlines="segmentOutlines"
       print-mode
+      :photos-connected="!!userData?.google_photos_connected_at"
     />
     <div v-else class="status-message flex flex-center text-muted">
       {{ t("common.loadingAlbum") }}
