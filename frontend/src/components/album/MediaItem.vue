@@ -28,12 +28,10 @@ const photoFocus = usePhotoFocus();
 const canFocus = computed(() => props.focusable && !printMode && stepId != null);
 const isFocused = computed(() => canFocus.value && photoFocus.focusedPhotoId.value === props.media);
 
-const elRef = ref<HTMLElement | null>(null);
 
 function handleClick() {
   if (!canFocus.value) return;
   photoFocus.focus(stepId!, props.media);
-  elRef.value?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function handleSpace() {
@@ -107,7 +105,6 @@ function onVideoKey(e: KeyboardEvent) {
 
 <template>
   <div
-    ref="elRef"
     :class="['media-item', { focused: isFocused }]"
     class="relative-position overflow-hidden non-selectable"
     :data-media="media"

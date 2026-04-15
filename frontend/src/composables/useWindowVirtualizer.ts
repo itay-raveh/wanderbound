@@ -32,6 +32,23 @@ type WindowVirtualizerOpts = PartialKeys<
   "observeElementRect" | "observeElementOffset" | "scrollToFn" | "getScrollElement"
 >;
 
+/**
+ * Cancel the virtualizer's internal scroll reconciliation loop.
+ *
+ * When `scrollToIndex` is called with `behavior: "smooth"`, the virtualizer
+ * runs a rAF loop (up to 5 s) that re-scrolls toward the target on every
+ * frame. If the user manually scrolls away during that window, the loop
+ * fights them - the page snaps back to the programmatic target.
+ *
+ * `scrollState` is TypeScript `private` (erased at runtime), so we can null
+ * it directly to stop the loop. This is the only reliable cancellation
+ * mechanism - the library exposes no public API for it.
+ */
+function cancelProgrammaticScroll(v: Virtualizer<Window, Element>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (v as any).scrollState = null;
+}
+
 export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
   const version = ref(0);
 
@@ -58,6 +75,13 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
   const virtualizer = new Virtualizer<Window, Element>(resolveOptions());
   const cleanup = virtualizer._didMount();
 
+  // Cancel programmatic scroll when user manually scrolls (wheel or touch).
+  // Without this, virtualizer.scrollToIndex with smooth behavior fights the
+  // user for up to 5 seconds.
+  const onUserScroll = () => cancelProgrammaticScroll(virtualizer);
+  window.addEventListener("wheel", onUserScroll, { passive: true });
+  window.addEventListener("touchmove", onUserScroll, { passive: true });
+
   watch(
     () => unref(options),
     () => {
@@ -67,7 +91,11 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
     },
   );
 
-  onScopeDispose(cleanup);
+  onScopeDispose(() => {
+    cleanup();
+    window.removeEventListener("wheel", onUserScroll);
+    window.removeEventListener("touchmove", onUserScroll);
+  });
 
   const items = computed<VirtualItem[]>(() => {
     void version.value;

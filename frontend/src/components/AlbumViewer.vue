@@ -293,7 +293,7 @@ if (props.printMode) {
     :style="[{ '--editor-zoom': String(editorZoom) }, albumStyle]"
     @wheel="onWheel"
   >
-    <div ref="listRef" :style="{ height: `${size}px`, position: 'relative' }">
+    <div ref="listRef" :style="{ height: `${size}px`, position: 'relative', overflowAnchor: 'none' }">
       <div
         :style="{
           position: 'absolute',
