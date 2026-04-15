@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import { useMeta } from "quasar";
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 import privacyRaw from "../../../PRIVACY.md?raw";
 import termsRaw from "../../../TERMS.md?raw";
 
 useMeta({ title: "Legal" });
 
-const privacyHtml = marked.parse(privacyRaw) as string;
-const termsHtml = marked.parse(termsRaw) as string;
+const privacyHtml = DOMPurify.sanitize(marked.parse(privacyRaw) as string);
+const termsHtml = DOMPurify.sanitize(marked.parse(termsRaw) as string);
 </script>
 
 <template>

@@ -36,6 +36,7 @@
     "@turf/length": "^7.3.4",
     "@turf/nearest-point-on-line": "^7.3.4",
     "canvas-confetti": "^1.9.4",
+    "dompurify": "^3.4.0",
     "d3-scale": "^4.0.2",
     "mapbox-gl": "^3.20.0",
     "marked": "^18.0.0",
