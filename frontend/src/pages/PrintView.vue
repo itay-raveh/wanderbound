@@ -143,7 +143,7 @@ onUnmounted(() => clearTimeout(pollTimer));
 <template>
   <div class="print-view">
     <div v-if="error" class="status-message flex flex-center text-negative">
-      {{ t("print.loadFailed") }} {{ error.message }}
+      {{ t("error.loadAlbum") }} {{ error.message }}
     </div>
     <AlbumViewer
       v-else-if="bundle"
@@ -153,7 +153,7 @@ onUnmounted(() => clearTimeout(pollTimer));
       :segment-outlines="segmentOutlines"
       print-mode
     />
-    <div v-else class="status-message flex flex-center text-muted">{{ t("print.loading") }}</div>
+    <div v-else class="status-message flex flex-center text-muted">{{ t("common.loadingAlbum") }}</div>
   </div>
 </template>
 

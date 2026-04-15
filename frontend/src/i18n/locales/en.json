@@ -2,6 +2,38 @@
   "brand": "Wanderbound",
   "tagline": "Upload your {polarsteps} trip and get a print-ready album",
 
+  "common": {
+    "loadingAlbum": "Loading album...",
+    "retry": "Please try again."
+  },
+
+  "units": {
+    "km": "km",
+    "mi": "mi",
+    "m": "m",
+    "ft": "ft",
+    "masl": "m asl",
+    "ftAsl": "ft asl"
+  },
+
+  "duration": {
+    "hours": "{n}h",
+    "days": "{n}d"
+  },
+
+  "phase": {
+    "label": {
+      "elevations": "Mapping terrain",
+      "weather": "Checking weather",
+      "layouts": "Arranging photos"
+    },
+    "status": {
+      "elevations": "Tracing the terrain you crossed...",
+      "weather": "Recalling the weather along the way...",
+      "layouts": "Arranging your photos on the page..."
+    }
+  },
+
   "landing": {
     "autoAlbumTitle": "Your photos, beautifully laid out",
     "autoAlbumBody": "Upload your {polarsteps} export and we arrange every photo across pages, balanced and print-ready. You pick your favorites.",
@@ -10,7 +42,7 @@
     "overviewTitle": "Your whole trip, one page",
     "overviewBody": "Highest point, coldest night, hottest day, furthest from home. Your trip on a single page with the countries you visited.",
     "localizationTitle": "Your language, your direction",
-    "localizationBody": "{polarsteps}' own album only supports English layouts. Wanderbound handles Hebrew, Arabic, Japanese and right-to-left layouts. Your album matches your language.",
+    "localizationBody": "Unlike the {polarsteps}' album, we handle Hebrew, Arabic, Japanese and right-to-left layouts. Your album matches your language.",
     "openEditor": "Open editor",
     "ctaTitle": "Your trip deserves a real album",
     "ctaBody": "Your photos, routes, and stories are in {polarsteps}. Turn them into an album you'll flip through."
@@ -19,7 +51,7 @@
   "login": {
     "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
-    "signInFailed": "Sign-in failed. Please try again."
+    "signInFailed": "Sign-in failed. @:common.retry"
   },
 
   "register": {
@@ -30,7 +62,7 @@
     "getDataStep4": "Check your email for the download link",
     "getDataWait": "The archive usually arrives within minutes, but can take up to a few hours.",
     "uploadTitle": "Upload your {file}",
-    "uploadFailed": "Upload failed. Please try again.",
+    "uploadFailed": "Upload failed. @:common.retry",
     "uploadProgress": "Upload progress",
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
     "greeting": "Hey, {name}",
@@ -41,11 +73,6 @@
     "statusReady": "Your album is ready",
     "statusError": "Something went wrong",
     "statusBuilding": "Building your album...",
-    "statusPhase": {
-      "elevations": "Tracing the terrain you crossed...",
-      "weather": "Recalling the weather along the way...",
-      "layouts": "Arranging your photos on the page..."
-    },
     "overallProgress": "Overall progress",
     "tripsProgress": "{current} of {total} trips",
     "trips": "no trips | {n} trip | {n} trips",
@@ -61,18 +88,12 @@
     "getDataGuide": "See Polarsteps' step-by-step guide"
   },
 
-  "phase": {
-    "elevations": "Mapping terrain",
-    "weather": "Checking weather",
-    "layouts": "Arranging photos"
-  },
-
   "editor": {
     "toolbar": "Album tools",
     "exportPdf": "Export PDF",
     "font": "Heading font",
     "bodyFont": "Body font",
-    "properties": "Album",
+    "properties": "Properties",
     "safeMargin": "Safe margin",
     "zoom": "Zoom"
   },
@@ -82,16 +103,14 @@
     "appearance": "Appearance",
     "light": "Light",
     "dark": "Dark",
-    "locale": "Language & region",
     "distance": "Distance",
     "temperature": "Temperature",
     "account": "Account",
-    "data": "Your data",
     "signOut": "Sign out",
     "reuploadData": "Re-upload data",
     "exportData": "Export my data",
     "deleteAll": "Delete all data",
-    "deleteFailed": "Couldn't delete your data. Please try again."
+    "deleteFailed": "Couldn't delete your data. @:common.retry"
   },
 
   "delete": {
@@ -104,8 +123,6 @@
 
   "album": {
     "day": "DAY {n}",
-    "masl": "m asl",
-    "ftAsl": "ft asl",
     "stepNamePlaceholder": "Step name",
     "descriptionPlaceholder": "Add a description...",
     "dropPhotoToAdd": "Drop a photo to add a page",
@@ -116,9 +133,6 @@
     "unusedHint": "Photos from this step — drag to a page to place",
     "dropPhotosHere": "Drop photos here",
     "removeMap": "Remove map",
-    "changeDateRange": "Change date range",
-    "cancel": "Cancel",
-    "save": "Save",
     "loading": "Loading '{name}'...",
     "useAsPoster": "Use as poster",
     "prevFrame": "Previous frame (,)",
@@ -131,19 +145,12 @@
   },
 
   "hike": {
-    "hours": "{n}h",
-    "days": "{n}d",
     "mapLabel": "Hike route map",
     "elevationProfile": "Elevation profile"
   },
 
   "overview": {
     "title": "Trip overview",
-    "days": "Days",
-    "km": "km",
-    "mi": "mi",
-    "m": "m",
-    "ft": "ft",
     "coldest": "Coldest",
     "hottest": "Hottest",
     "highest": "Highest",
@@ -151,14 +158,7 @@
   },
 
   "inspector": {
-    "overview": "Overview",
-    "mapHint": "Route and markers are generated from your GPS tracks",
-    "overviewHint": "Statistics are calculated from your trip data"
-  },
-
-  "print": {
-    "loadFailed": "Failed to load album:",
-    "loading": "Loading album..."
+    "overview": "Overview"
   },
 
   "export": {
@@ -167,21 +167,21 @@
   },
 
   "error": {
-    "updatePreference": "Couldn't save your preference. Please try again.",
-    "saveAlbum": "Couldn't save album changes. Please try again.",
-    "saveStep": "Couldn't save step changes. Please try again.",
-    "videoFrame": "Couldn't set the video poster. Please try again.",
-    "pdfExport": "PDF export failed. Please try again.",
-    "dataExport": "Data export failed. Please try again.",
+    "loadAlbum": "Failed to load album:",
+    "updatePreference": "Couldn't save your preference. @:common.retry",
+    "saveAlbum": "Couldn't save album changes. @:common.retry",
+    "saveStep": "Couldn't save step changes. @:common.retry",
+    "videoFrame": "Couldn't set the video poster. @:common.retry",
+    "pdfExport": "PDF export failed. @:common.retry",
+    "dataExport": "Data export failed. @:common.retry",
     "processingFailed": "Processing failed. Please try again later.",
-    "connectionFailed": "Connection lost. Please try again.",
-    "adjustBoundary": "Couldn't adjust the boundary. Please try again."
+    "connectionFailed": "Connection lost. @:common.retry",
+    "adjustBoundary": "Couldn't adjust the boundary. @:common.retry"
   },
 
   "pdf": {
     "queued": "Waiting to start...",
-    "loading": "Loading album...",
-    "loadingProgress": "Loading album... ({done}/{total})",
+    "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "Generating PDF...",
     "renderingBytes": "Generating PDF... {size}",
     "ready": "Ready",
@@ -212,7 +212,6 @@
     "cover": "Cover",
     "map": "Map",
     "stepNavigation": "Step navigation",
-    "unusedPhotos": "Unused photos",
     "selectAlbum": "Select album",
     "dateFilter": "Filter by date range",
     "hideStep": "Hide step",

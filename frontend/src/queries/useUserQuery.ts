@@ -43,8 +43,8 @@ export function useUserQuery() {
     await router.push({ name: "landing" });
   }
 
-  const distanceUnit = computed(() => t(isKm.value ? "overview.km" : "overview.mi"));
-  const elevationUnit = computed(() => t(isKm.value ? "overview.m" : "overview.ft"));
+  const distanceUnit = computed(() => t(isKm.value ? "units.km" : "units.mi"));
+  const elevationUnit = computed(() => t(isKm.value ? "units.m" : "units.ft"));
 
   function formatDistance(km: number): string {
     const value = isKm.value ? km : km * KM_TO_MI;

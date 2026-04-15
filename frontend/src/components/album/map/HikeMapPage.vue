@@ -76,7 +76,7 @@ const elevationSamples = ref<
 const stats = computed(() => {
   const seg = fullHikeSegment.value;
   if (!seg || seg.points.length < 2)
-    return { distance: "0", duration: t("hike.hours", { n: 0 }), elevGain: 0 };
+    return { distance: "0", duration: t("duration.hours", { n: 0 }), elevGain: 0 };
 
   const pts = seg.points;
   const startTime = pts[0]!.time;
@@ -113,8 +113,8 @@ const stats = computed(() => {
 
   const duration =
     hours >= 24
-      ? t("hike.days", { n: Math.ceil(hours / 24) })
-      : t("hike.hours", { n: Math.round(hours) });
+      ? t("duration.days", { n: Math.ceil(hours / 24) })
+      : t("duration.hours", { n: Math.round(hours) });
 
   return {
     distance: dist.toFixed(1),

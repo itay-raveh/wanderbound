@@ -1,59 +1,86 @@
 {
   "brand": "Wanderbound",
-  "tagline": "העלו את הטיול מ-{polarsteps} וקבלו אלבום מוכן לדפוס",
+  "tagline": "העלו את הטיול מ-{polarsteps} וקבלו אלבום מוכן להדפסה",
+
+  "common": {
+    "loadingAlbum": "טוען אלבום...",
+    "retry": "נסו שוב."
+  },
+
+  "units": {
+    "km": "ק״מ",
+    "mi": "מייל",
+    "m": "מ׳",
+    "ft": "רגל",
+    "masl": "מ׳ מעל פני הים",
+    "ftAsl": "רגל מעל פני הים"
+  },
+
+  "duration": {
+    "hours": "{n} שעות",
+    "days": "{n} ימים"
+  },
+
+  "phase": {
+    "label": {
+      "elevations": "ממפה שטח",
+      "weather": "בודק מזג אוויר",
+      "layouts": "מסדר תמונות"
+    },
+    "status": {
+      "elevations": "ממפה פסגות ועליות בטרקים...",
+      "weather": "אוסף נתוני מזג אוויר...",
+      "layouts": "מסדר את התמונות בעמודים..."
+    }
+  },
 
   "landing": {
-    "autoAlbumTitle": "התמונות שלכם, מסודרות על הדף",
-    "autoAlbumBody": "מעלים את הייצוא מ-{polarsteps} ואנחנו מסדרים כל תמונה על פני עמודים, מאוזנת ומוכנה לדפוס. אתם בוחרים את המועדפות.",
-    "hikeMapTitle": "לראות את השביל כמו שאתם זוכרים אותו",
-    "hikeMapBody": "הטרקים שלכם על תצלום לוויין עם המסלול המדויק ופרופיל גובה שמראה כל עלייה וירידה.",
-    "overviewTitle": "כל הטיול, עמוד אחד",
-    "overviewBody": "הנקודה הגבוהה, הלילה הכי קר, היום הכי חם, הכי רחוק מהבית. הטיול שלכם בעמוד אחד עם המדינות שביקרתם בהן.",
-    "localizationTitle": "השפה שלכם, הכיוון שלכם",
-    "localizationBody": "האלבום הרשמי של {polarsteps} תומך רק באנגלית. Wanderbound תומך בעברית, ערבית, יפנית ובפריסה מימין לשמאל. האלבום מתאים לשפה שלכם.",
+    "autoAlbumTitle": "תמונות מסודרות אוטומטית",
+    "autoAlbumBody": "אנחנו מסדרים את כל התמונות שלכם מ-{polarsteps} בעמודים מאוזנים, שלא תצטרכו להתחיל לגרור אחת אחת.",
+    "hikeMapTitle": "חזרה לטרקים מדהימים",
+    "hikeMapBody": "הטרקים שלכם משורטטים על מפות לוויין, עם המסלול המדויק ופרופיל גובה שמראה כל עלייה וירידה.",
+    "overviewTitle": "כל המסע במבט מלמעלה",
+    "overviewBody": "הפסגה הכי גבוהה, הלילה הכי קר, היום הכי חם, המקום כי רחוק מהבית.",
+    "localizationTitle": "עובד בכל שפה",
+    "localizationBody": "האלבום הרשמי של {polarsteps} לא תומך בעברית כמו שצריך. אנחנו תומכים במגוון שפות, כולל תמיכה נכונה ביישור ימין-לשמאל.",
     "openEditor": "לעורך",
     "ctaTitle": "מגיע לטיול שלכם אלבום אמיתי",
-    "ctaBody": "התמונות, המסלולים והסיפורים ב-{polarsteps}. הפכו אותם לאלבום שתדפדפו בו."
+    "ctaBody": "התמונות, המסלולים והסיפורים סתם שוכבים ב-{polarsteps}. הפכו אותם לאלבום שתדפדפו בו."
   },
 
   "login": {
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
-    "signInFailed": "ההתחברות נכשלה. נסו שוב."
+    "signInFailed": "ההתחברות נכשלה. @:common.retry"
   },
 
   "register": {
     "getDataTitle": "הורידו את המידע מ-Polarsteps",
-    "getDataStep1": "נכנסים ל-{link} במחשב",
+    "getDataStep1": "נכנסים ל-{link}",
     "getDataStep2": "עוברים ל-{settings}, גוללים ל-{download}",
     "getDataStep3": "לוחצים על {startArchive}",
-    "getDataStep4": "בודקים את המייל לקישור הורדה",
-    "getDataWait": "הארכיון בדרך כלל מגיע תוך דקות, אבל יכול לקחת עד כמה שעות.",
+    "getDataStep4": "מחכים למייל עם קישור להורדה",
+    "getDataWait": "זה בדרך כלל מגיע תוך דקות, אבל יכול לקחת עד כמה שעות.",
     "uploadTitle": "העלו את ה-{file}",
-    "uploadFailed": "ההעלאה נכשלה. נסו שוב.",
-    "uploadProgress": "התקדמות העלאה",
+    "uploadFailed": "ההעלאה נכשלה. @:common.retry",
+    "uploadProgress": "התקדמות ההעלאה",
     "fileTooLarge": "הקובץ גדול מדי. מקסימום {max} GB.",
     "greeting": "היי, {name}",
     "evictedTitle": "שמחים שחזרתם!",
-    "evictedBody": "פינינו את הקבצים כדי לחסוך מקום, אבל העריכות נשמרו. העלו מחדש כדי להמשיך מאיפה שעצרתם.",
+    "evictedBody": "פינינו את התמונות שלכם כדי לפנות מקום למשתמשים אחרים, אבל כל העריכות נשמרו. העלו מחדש כדי להמשיך מאיפה שעצרתם.",
     "reuploadTitle": "עדכון נתונים",
     "reuploadBody": "העלו נתונים חדשים כדי לעדכן את האלבומים עם תמונות וטיולים חדשים.",
     "statusReady": "האלבום מוכן",
     "statusError": "משהו השתבש",
     "statusBuilding": "בונים את האלבום...",
-    "statusPhase": {
-      "elevations": "מתחקה אחרי גבהי השטח...",
-      "weather": "אוסף נתוני מזג אוויר...",
-      "layouts": "מסדר תמונות על העמודים..."
-    },
-    "overallProgress": "התקדמות כללית",
+    "overallProgress": "התקדמות",
     "tripsProgress": "טיול {current} מתוך {total}",
     "trips": "אין טיולים | טיול אחד | {n} טיולים",
-    "steps": "אין עצירות | עצירה אחת | {n} עצירות",
+    "steps": "אין צעדים | צעד אחד | {n} צעדים",
     "countries": "אין מדינות | מדינה אחת | {n} מדינות",
     "tryAgain": "נסו שוב",
     "openAlbum": "לאלבום",
-    "unsupportedTitle": "הדפדפן לא נתמך",
+    "unsupportedTitle": "הדפדפן שלכם לא נתמך",
     "unsupportedBody": "עברו לדפדפן עדכני: {chrome}, {firefox}, {safari}, או {edge}.",
     "welcomeNew": "האלבום שלכם מתחיל כאן",
     "welcomeBack": "שמחים שחזרתם",
@@ -61,37 +88,29 @@
     "getDataGuide": "למדריך המפורט של Polarsteps"
   },
 
-  "phase": {
-    "elevations": "ממפה שטח",
-    "weather": "בודק מזג אוויר",
-    "layouts": "מסדר תמונות"
-  },
-
   "editor": {
-    "toolbar": "כלי אלבום",
+    "toolbar": "כלים",
     "exportPdf": "הורדת PDF",
     "font": "גופן כותרות",
     "bodyFont": "גופן גוף",
-    "properties": "אלבום",
+    "properties": "מאפיינים",
     "safeMargin": "שוליים בטוחים",
     "zoom": "זום"
   },
 
   "settings": {
-    "menu": "הגדרות",
+    "menu": "תפריט",
     "appearance": "מראה",
     "light": "בהיר",
     "dark": "כהה",
-    "locale": "שפה ואזור",
     "distance": "מרחק",
     "temperature": "טמפרטורה",
     "account": "חשבון",
-    "data": "הנתונים שלכם",
     "signOut": "התנתקות",
     "reuploadData": "העלאה מחדש",
-    "exportData": "ייצוא הנתונים שלי",
+    "exportData": "ייצוא כל הנתונים",
     "deleteAll": "מחיקת כל הנתונים",
-    "deleteFailed": "לא הצלחנו למחוק את הנתונים. נסו שוב."
+    "deleteFailed": "לא הצלחנו למחוק את הנתונים. @:common.retry"
   },
 
   "delete": {
@@ -104,21 +123,16 @@
 
   "album": {
     "day": "יום {n}",
-    "masl": "מ׳ מעל פני הים",
-    "ftAsl": "רגל מעל פני הים",
-    "stepNamePlaceholder": "שם העצירה",
+    "stepNamePlaceholder": "שם הצעד...",
     "descriptionPlaceholder": "כתבו תיאור...",
     "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
     "frontCover": "שער קדמי",
     "backCover": "שער אחורי",
-    "noLandscapePhotos": "אין תמונות לרוחב",
+    "noLandscapePhotos": "אין תמונות מתאימות",
     "unused": "לא בשימוש",
-    "unusedHint": "תמונות מהעצירה הזו. גררו לעמוד כדי להוסיף",
+    "unusedHint": "תמונות מהצעד הזה. גררו לעמוד כדי להוסיף",
     "dropPhotosHere": "גררו תמונות לכאן",
     "removeMap": "הסרת מפה",
-    "changeDateRange": "שינוי תאריכים",
-    "cancel": "ביטול",
-    "save": "שמירה",
     "loading": "טוען '{name}'...",
     "useAsPoster": "בחירה כפוסטר",
     "prevFrame": "פריים קודם (,)",
@@ -131,19 +145,12 @@
   },
 
   "hike": {
-    "hours": "{n} שע׳",
-    "days": "{n} ימים",
     "mapLabel": "מפת מסלול טרק",
     "elevationProfile": "פרופיל גובה"
   },
 
   "overview": {
     "title": "סקירת הטיול",
-    "days": "ימים",
-    "km": "ק״מ",
-    "mi": "מייל",
-    "m": "מ׳",
-    "ft": "רגל",
     "coldest": "הכי קר",
     "hottest": "הכי חם",
     "highest": "הכי גבוה",
@@ -151,41 +158,34 @@
   },
 
   "inspector": {
-    "overview": "סקירה",
-    "mapHint": "המסלול והסמנים נבנים מנתוני ה-GPS שלכם",
-    "overviewHint": "הנתונים מחושבים מהטיול שלכם"
-  },
-
-  "print": {
-    "loadFailed": "טעינת האלבום נכשלה:",
-    "loading": "טוען אלבום..."
+    "overview": "סיכום"
   },
 
   "export": {
-    "preparing": "מכין ייצוא...",
-    "progress": "מייצא נתונים... {done} / {total} קבצים"
+    "preparing": "מכין...",
+    "progress": "מייצא... {done} / {total} קבצים"
   },
 
   "error": {
-    "updatePreference": "לא הצלחנו לשמור את ההעדפה. נסו שוב.",
-    "saveAlbum": "לא הצלחנו לשמור את האלבום. נסו שוב.",
-    "saveStep": "לא הצלחנו לשמור את השינויים. נסו שוב.",
-    "videoFrame": "לא הצלחנו לעדכן את הפוסטר. נסו שוב.",
-    "pdfExport": "ייצוא PDF נכשל. נסו שוב.",
-    "dataExport": "ייצוא הנתונים נכשל. נסו שוב.",
+    "loadAlbum": "טעינת האלבום נכשלה:",
+    "updatePreference": "לא הצלחנו לשמור את ההעדפה. @:common.retry",
+    "saveAlbum": "לא הצלחנו לשמור את האלבום. @:common.retry",
+    "saveStep": "לא הצלחנו לשמור את השינויים. @:common.retry",
+    "videoFrame": "לא הצלחנו לעדכן את הפוסטר. @:common.retry",
+    "pdfExport": "ייצוא PDF נכשל. @:common.retry",
+    "dataExport": "ייצוא הנתונים נכשל. @:common.retry",
     "processingFailed": "העיבוד נכשל. נסו שוב מאוחר יותר.",
-    "connectionFailed": "החיבור נותק. נסו שוב.",
-    "adjustBoundary": "לא הצלחנו לשנות את הגבול. נסו שוב."
+    "connectionFailed": "החיבור נותק. @:common.retry",
+    "adjustBoundary": "לא הצלחנו לשנות את הגבול. @:common.retry"
   },
 
   "pdf": {
-    "queued": "ממתין להתחלה...",
-    "loading": "טוען אלבום...",
-    "loadingProgress": "טוען אלבום... ({done}/{total})",
+    "queued": "ממתין בתור...",
+    "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
     "renderingBytes": "מייצר PDF... {size}",
     "ready": "מוכן",
-    "cancel": "ביטול ייצוא"
+    "cancel": "ביטול"
   },
 
   "footer": {
@@ -208,15 +208,14 @@
   },
 
   "nav": {
-    "steps": "עצירות",
+    "steps": "צעדים",
     "cover": "שער",
     "map": "מפה",
-    "stepNavigation": "ניווט עצירות",
-    "unusedPhotos": "תמונות שלא בשימוש",
+    "stepNavigation": "ניווט צעדים",
     "selectAlbum": "בחירת אלבום",
     "dateFilter": "סינון לפי תאריכים",
-    "hideStep": "הסתרת עצירה",
-    "showStep": "הצגת עצירה",
+    "hideStep": "הסתרת צעד",
+    "showStep": "הצגת צעד",
     "hideAll": "הסתרת הכל",
     "showAll": "הצגת הכל",
     "maps": "מפות",
@@ -236,8 +235,8 @@
   },
 
   "demo": {
-    "tryButton": "נסו עם נתוני הדגמה",
-    "bannerText": "אתם מעיינים באלבום הדגמה",
+    "tryButton": "נסו עם אלבום דוגמה",
+    "bannerText": "אתם מעיינים באלבום דוגמה",
     "bannerCta": "התחברו עם הטיול שלכם"
   },
 

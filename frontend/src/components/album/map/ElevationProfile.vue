@@ -99,7 +99,7 @@ const yLabels = computed(() => {
 const xLabels = computed(() => {
   if (!chart.value) return [];
   const { xTicks, toX } = chart.value;
-  const unit = t(props.isKm ? "overview.km" : "overview.mi");
+  const unit = t(props.isKm ? "units.km" : "units.mi");
   const distFactor = props.isKm ? 1 : KM_TO_MI;
 
   return xTicks.map((value, i, arr) => {
@@ -112,7 +112,7 @@ const xLabels = computed(() => {
   });
 });
 
-const elevUnit = computed(() => t(props.isKm ? "overview.m" : "overview.ft"));
+const elevUnit = computed(() => t(props.isKm ? "units.m" : "units.ft"));
 const unitY = computed(() => (yLabels.value.at(-1)?.y ?? PAD.top) - 4);
 </script>
 

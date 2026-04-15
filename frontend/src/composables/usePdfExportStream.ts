@@ -57,7 +57,7 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
           const msg = event.phase === "loading"
             ? (total != null
               ? t("pdf.loadingProgress", { done: event.done, total })
-              : t("pdf.loading"))
+              : t("common.loadingAlbum"))
             : (event.done > 0
               ? t("pdf.renderingBytes", { size: humanStorageSize(event.done) })
               : t("pdf.renderingSingle"));

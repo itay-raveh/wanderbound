@@ -87,7 +87,7 @@ function clearAllMaps() {
             <span class="picker-confirm-text">{{ t("nav.removeAllMaps") }}</span>
             <div class="picker-confirm-actions">
               <button type="button" class="picker-cancel-btn" @click="confirmingClear = false">
-                {{ t("album.cancel") }}
+                {{ t("delete.cancel") }}
               </button>
               <button type="button" class="picker-remove-btn" @click="clearAllMaps">
                 {{ t("nav.remove") }}

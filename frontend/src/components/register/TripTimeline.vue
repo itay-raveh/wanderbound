@@ -117,7 +117,7 @@ const overallPercent = computed(() => {
               size="0.75rem"
               class="phase-icon"
             />
-            <span class="phase-label text-no-wrap ellipsis">{{ t(`phase.${p}`) }}</span>
+            <span class="phase-label text-no-wrap ellipsis">{{ t(`phase.label.${p}`) }}</span>
 
             <q-icon
               v-if="phaseStatuses[p] === 'done'"

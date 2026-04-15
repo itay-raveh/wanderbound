@@ -163,7 +163,7 @@ const dateStr = computed(() => {
 
         <!-- Elevation -->
         <div class="stat-col">
-          <span class="stat-label text-muted">{{ isKm ? t("album.masl") : t("album.ftAsl") }}</span>
+          <span class="stat-label text-muted">{{ isKm ? t("units.masl") : t("units.ftAsl") }}</span>
           <span class="stat-value text-bright">{{
             formatElevationValue(step.elevation)
           }}</span>

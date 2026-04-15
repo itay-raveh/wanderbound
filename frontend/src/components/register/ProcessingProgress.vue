@@ -35,7 +35,7 @@ const totalCountries = computed(() => {
 const statusMessage = computed(() => {
   for (const p of PHASE_ORDER) {
     const { done, total } = props.phaseDone[p];
-    if (total > 0 && done < total) return t(`register.statusPhase.${p}`);
+    if (total > 0 && done < total) return t(`phase.status.${p}`);
   }
   return t("register.statusBuilding");
 });

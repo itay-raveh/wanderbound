@@ -134,8 +134,8 @@ async function handleDelete() {
               <SegmentedControl
                 :model-value="isKm"
                 :options="[
-                  { label: t('overview.km'), value: true },
-                  { label: t('overview.mi'), value: false },
+                  { label: t('units.km'), value: true },
+                  { label: t('units.mi'), value: false },
                 ]"
                 :aria-label="t('settings.distance')"
                 compact
