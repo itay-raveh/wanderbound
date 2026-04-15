@@ -35,7 +35,7 @@
   },
 
   "landing": {
-    "autoAlbumTitle": "Your photos, beautifully laid out",
+    "autoAlbumTitle": "Your photos, laid out for print",
     "autoAlbumBody": "Upload your {polarsteps} export and we arrange every photo across pages, balanced and print-ready. You pick your favorites.",
     "hikeMapTitle": "See the trail the way you remember it",
     "hikeMapBody": "Your hikes appear on satellite imagery with the exact route you walked and an elevation profile showing every climb and descent.",
@@ -130,7 +130,7 @@
     "backCover": "Back Cover",
     "noLandscapePhotos": "No landscape photos available",
     "unused": "Unused",
-    "unusedHint": "Photos from this step — drag to a page to place",
+    "unusedHint": "Photos from this step - drag to a page to place",
     "dropPhotosHere": "Drop photos here",
     "removeMap": "Remove map",
     "loading": "Loading '{name}'...",
