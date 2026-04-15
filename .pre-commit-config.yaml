@@ -69,6 +69,13 @@ repos:
         files: ^frontend/.*\.(ts|tsx|vue|js|jsx)$
         pass_filenames: false
 
+      - id: commitlint
+        name: commitlint
+        entry: bun x commitlint --edit
+        language: system
+        stages: [commit-msg]
+        always_run: true
+
       - id: check-staleness
         name: check generated asset freshness
         entry: scripts/check-staleness.sh

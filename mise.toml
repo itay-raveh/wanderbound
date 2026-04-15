@@ -2,6 +2,7 @@
 python = "3.14"
 bun = "1"
 uv = "latest"
+"github:orhun/git-cliff" = "latest"
 
 # -- Setup --------------------------------------------------------
 
@@ -221,6 +222,16 @@ depends = [
 [tasks.ci]
 description = "Run the full CI pipeline locally"
 depends = ["lint", "test", "build"]
+
+# -- Changelog ----------------------------------------------------
+
+[tasks.changelog]
+description = "Regenerate CHANGELOG.md from all tags"
+run = "git cliff --output CHANGELOG.md"
+
+[tasks."changelog:next"]
+description = "Preview release notes for unreleased commits"
+run = "git cliff --unreleased --strip header"
 
 # -- Clean --------------------------------------------------------
 
