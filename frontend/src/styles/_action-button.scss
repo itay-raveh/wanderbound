@@ -1,5 +1,5 @@
 @mixin action-button {
-  .export-btn {
+  .action-btn {
     font-family: var(--font-ui);
     font-size: var(--type-sm);
     font-weight: 500;
@@ -31,7 +31,7 @@
     }
   }
 
-  .export-btn.running {
+  .action-btn.running {
     border-color: var(--border-color);
     color: var(--text-muted);
     cursor: pointer;
@@ -66,7 +66,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .export-btn.error {
+  .action-btn.error {
     border-color: var(--q-negative);
     color: var(--q-negative);
 
@@ -76,7 +76,7 @@
     }
   }
 
-  .export-btn.done {
+  .action-btn.done {
     border-color: var(--q-primary);
     color: var(--q-primary);
     cursor: default;

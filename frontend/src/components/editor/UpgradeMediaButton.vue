@@ -72,7 +72,7 @@ const { confirmUpgrade } = upgrade;
   <template v-if="upgrade.googlePhotosState.value !== 'unavailable'">
     <button
       v-if="upgrade.phase.value === 'done'"
-      class="export-btn done"
+      class="action-btn done"
       aria-disabled="true"
       :aria-label="t('upgrade.done', { count: upgrade.matchSummary.value?.matched ?? 0 })"
     >
@@ -86,7 +86,7 @@ const { confirmUpgrade } = upgrade;
 
     <button
       v-else-if="upgrade.phase.value === 'error'"
-      class="export-btn error"
+      class="action-btn error"
       :aria-label="t('upgrade.error')"
       @click="upgrade.start(props.albumId)"
     >
@@ -100,7 +100,7 @@ const { confirmUpgrade } = upgrade;
 
     <button
       v-else-if="isRunning"
-      class="export-btn running"
+      class="action-btn running"
       :aria-label="progressMessage"
       aria-busy="true"
       @click="upgrade.cancel()"
@@ -120,7 +120,7 @@ const { confirmUpgrade } = upgrade;
 
     <button
       v-else
-      class="export-btn"
+      class="action-btn"
       :aria-label="t('upgrade.button')"
       @click="upgrade.start(props.albumId)"
     >

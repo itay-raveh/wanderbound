@@ -275,16 +275,24 @@ async def upgrade_media(
         finally:
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
-            album.media, album.upgraded_media = await apply_upgrade_results(
-                album_dir, body.matches, album.media, album.upgraded_media, succeeded
-            )
-            session.add(album)
-            await session.commit()
             try:
-                await delete_picker_session(body.session_id, access_token)
-            except httpx.HTTPError:
-                logger.warning("Failed to delete picker session %s", body.session_id)
-            _album_locks.pop((user.id, aid), None)
+                album.media, album.upgraded_media = await apply_upgrade_results(
+                    album_dir,
+                    body.matches,
+                    album.media,
+                    album.upgraded_media,
+                    succeeded,
+                )
+                session.add(album)
+                await session.commit()
+                try:
+                    await delete_picker_session(body.session_id, access_token)
+                except httpx.HTTPError:
+                    logger.warning(
+                        "Failed to delete picker session %s", body.session_id
+                    )
+            finally:
+                _album_locks.pop((user.id, aid), None)
 
 
 # ---------------------------------------------------------------------------

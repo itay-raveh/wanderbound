@@ -43,7 +43,7 @@ function onConfirmExport() {
 <template>
   <button
     v-if="pdf.state.value === 'done'"
-    class="export-btn done"
+    class="action-btn done"
     aria-disabled="true"
     :aria-label="t('pdf.ready')"
   >
@@ -53,7 +53,7 @@ function onConfirmExport() {
 
   <button
     v-else-if="pdf.state.value === 'running'"
-    class="export-btn running"
+    class="action-btn running"
     :aria-label="t('pdf.cancel')"
     aria-busy="true"
     @click="pdf.abort()"
@@ -73,7 +73,7 @@ function onConfirmExport() {
 
   <button
     v-else
-    class="export-btn"
+    class="action-btn"
     :aria-label="t('editor.exportPdf')"
     @click="onExportPdf"
   >
