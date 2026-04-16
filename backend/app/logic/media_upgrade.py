@@ -9,6 +9,7 @@ import asyncio
 import contextlib
 import functools
 import logging
+import os
 import subprocess
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -50,6 +51,12 @@ _FALLBACK_MAX_DIMENSION = 100
 @functools.cache
 def _download_sem() -> asyncio.Semaphore:
     return asyncio.Semaphore(5)
+
+
+# Bounded concurrency for local hashing (CPU-intensive pHash + ffprobe).
+@functools.cache
+def _hash_sem() -> asyncio.Semaphore:
+    return asyncio.Semaphore(min(8, (os.cpu_count() or 4)))
 
 
 type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
@@ -348,9 +355,10 @@ async def _hash_local_media(
         if not path.exists():
             return name, None
         try:
-            if is_video(name):
-                return name, await asyncio.to_thread(_extract_video_frames, path)
-            return name, await asyncio.to_thread(compute_phash_from_path, path)
+            async with _hash_sem():
+                if is_video(name):
+                    return name, await asyncio.to_thread(_extract_video_frames, path)
+                return name, await asyncio.to_thread(compute_phash_from_path, path)
         except OSError, SyntaxError, subprocess.CalledProcessError:
             logger.warning("Failed to hash %s", name, exc_info=True)
             return name, None
@@ -536,8 +544,11 @@ _MAX_LONG_EDGE = 3000
 _JPEG_QUALITY = 85
 
 
-def _process_photo_sync(data: bytes) -> bytes:
-    """Normalize a downloaded original: transpose, resize, strip EXIF, save as JPEG."""
+def _process_photo_sync(data: bytes) -> tuple[bytes, int, int]:
+    """Normalize a downloaded original: transpose, resize, strip EXIF, save as JPEG.
+
+    Returns (jpeg_bytes, width, height).
+    """
     with Image.open(BytesIO(data)) as raw:
         img = ImageOps.exif_transpose(raw) or raw
         img = img.convert("RGB")
@@ -553,7 +564,8 @@ def _process_photo_sync(data: bytes) -> bytes:
 
         buf = BytesIO()
         img.save(buf, "JPEG", quality=_JPEG_QUALITY)
-        return buf.getvalue()
+        w, h = img.size
+        return buf.getvalue(), w, h
 
 
 def _detect_hdr(path: Path) -> bool:
@@ -639,12 +651,6 @@ async def _process_video(input_path: Path, output: Path) -> None:
         await asyncio.to_thread(lambda: input_path.unlink(missing_ok=True))
 
 
-def _validate_image(path: Path) -> tuple[int, int]:
-    """Open an image and return its (width, height)."""
-    with Image.open(path) as img:
-        return img.size
-
-
 def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
     """Log and return True when the new file is not larger than existing."""
     if new_w * new_h <= existing.width * existing.height:
@@ -696,10 +702,8 @@ async def _replace_video(
 
 async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
     """Process and replace a single photo. Returns True on success."""
-    data = await asyncio.to_thread(_process_photo_sync, data)
+    data, width, height = await asyncio.to_thread(_process_photo_sync, data)
     await asyncio.to_thread(tmp_path.write_bytes, data)
-
-    width, height = await asyncio.to_thread(_validate_image, tmp_path)
 
     try:
         existing = await asyncio.to_thread(Media.load, target)

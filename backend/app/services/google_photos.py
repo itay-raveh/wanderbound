@@ -9,12 +9,12 @@ import logging
 import time
 from functools import cache
 from pathlib import Path
-from typing import IO
+from typing import IO, Annotated
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
 from httpx_retries import Retry, RetryTransport
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 from pydantic.alias_generators import to_camel
 
 from app.core.config import get_settings
@@ -33,7 +33,7 @@ _DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
 
 type AccessToken = str
 type RefreshToken = str
-type PickerSessionId = str
+type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
 type GoogleMediaId = str
 type MediaFilename = str
 type MimeType = str
@@ -333,15 +333,17 @@ class TokenProvider:
         self._refresh_token = refresh_token
         self._token: AccessToken = ""
         self._fetched_at = 0.0
+        self._lock = asyncio.Lock()
 
     async def get(self) -> AccessToken:
-        now = time.monotonic()
-        if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
+        async with self._lock:
+            now = time.monotonic()
+            if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
+                return self._token
+            data = await refresh_access_token(self._refresh_token)
+            self._token = data.access_token
+            self._fetched_at = now
             return self._token
-        data = await refresh_access_token(self._refresh_token)
-        self._token = data.access_token
-        self._fetched_at = now
-        return self._token
 
 
 async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:

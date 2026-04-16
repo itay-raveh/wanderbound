@@ -477,36 +477,40 @@ class TestProcessPhoto:
         with Image.open(BytesIO(data)) as src:
             assert len(src.getexif()) > 0
 
-        result = _process_photo_sync(data)
+        result, _, _ = _process_photo_sync(data)
 
         with Image.open(BytesIO(result)) as out:
             assert len(out.getexif()) == 0
 
     def test_resizes_large_landscape(self) -> None:
         data = _make_jpeg_bytes(5000, 3000)
-        result = _process_photo_sync(data)
+        result, w, h = _process_photo_sync(data)
 
+        assert (w, h) == (_MAX_LONG_EDGE, 1800)
         with Image.open(BytesIO(result)) as out:
             assert out.size == (_MAX_LONG_EDGE, 1800)
 
     def test_resizes_large_portrait(self) -> None:
         data = _make_jpeg_bytes(3000, 5000)
-        result = _process_photo_sync(data)
+        result, w, h = _process_photo_sync(data)
 
+        assert (w, h) == (1800, _MAX_LONG_EDGE)
         with Image.open(BytesIO(result)) as out:
             assert out.size == (1800, _MAX_LONG_EDGE)
 
     def test_preserves_small_image(self) -> None:
         data = _make_jpeg_bytes(2000, 1500)
-        result = _process_photo_sync(data)
+        result, w, h = _process_photo_sync(data)
 
+        assert (w, h) == (2000, 1500)
         with Image.open(BytesIO(result)) as out:
             assert out.size == (2000, 1500)
 
     def test_converts_png_to_jpeg(self) -> None:
         data = _make_png_bytes(800, 600)
-        result = _process_photo_sync(data)
+        result, w, h = _process_photo_sync(data)
 
+        assert (w, h) == (800, 600)
         with Image.open(BytesIO(result)) as out:
             assert out.format == "JPEG"
             assert out.size == (800, 600)
@@ -519,10 +523,11 @@ class TestProcessPhoto:
         exif_bytes = exif.tobytes()
 
         data = _make_jpeg_bytes(400, 600, exif=exif_bytes)
-        result = _process_photo_sync(data)
+        result, w, h = _process_photo_sync(data)
 
+        # After transpose: 600x400 (landscape)
+        assert (w, h) == (600, 400)
         with Image.open(BytesIO(result)) as out:
-            # After transpose: 600x400 (landscape)
             assert out.size == (600, 400)
 
 
