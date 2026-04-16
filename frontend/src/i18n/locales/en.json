@@ -4,7 +4,8 @@
 
   "common": {
     "loadingAlbum": "Loading album...",
-    "retry": "Please try again."
+    "retry": "Please try again.",
+    "cancel": "Cancel"
   },
 
   "units": {
@@ -117,7 +118,6 @@
   "delete": {
     "title": "Delete all data?",
     "body": "This will permanently remove your uploaded data and all albums. You'll need to upload again to continue.",
-    "cancel": "Cancel",
     "confirm": "Delete everything",
     "deleting": "Deleting..."
   },

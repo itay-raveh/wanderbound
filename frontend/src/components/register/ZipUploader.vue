@@ -3,7 +3,7 @@ import { client } from "@/client/client.gen";
 import type { UploadResult } from "@/client";
 import type { Provider } from "@/router";
 import { useQuasar } from "quasar";
-import { ref } from "vue";
+import { onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
 
@@ -31,8 +31,11 @@ const file = ref<File | null>(null);
 const uploading = ref(false);
 const progress = ref(0);
 const dragging = ref(false);
+const dragDepth = ref(0);
 const fileInputRef = ref<HTMLInputElement>();
 const abortController = ref<AbortController | null>(null);
+
+onUnmounted(() => abortController.value?.abort());
 
 function buildAuthForm(): FormData {
   const form = new FormData();
@@ -52,7 +55,17 @@ function onFileSelected(event: Event) {
   if (selected) handleFile(selected);
 }
 
+function onDragEnter() {
+  dragDepth.value++;
+  dragging.value = true;
+}
+
+function onDragLeave() {
+  if (--dragDepth.value === 0) dragging.value = false;
+}
+
 function onDrop(event: DragEvent) {
+  dragDepth.value = 0;
   dragging.value = false;
   const dropped = event.dataTransfer?.files[0];
   if (dropped) handleFile(dropped);
@@ -256,8 +269,9 @@ function reset() {
         @click="pickFiles"
         @keydown.enter.prevent="pickFiles"
         @keydown.space.prevent="pickFiles"
-        @dragover.prevent="dragging = true"
-        @dragleave.prevent="dragging = false"
+        @dragenter.prevent="onDragEnter"
+        @dragover.prevent
+        @dragleave.prevent="onDragLeave"
         @drop.prevent="onDrop"
       >
         <q-icon :name="symOutlinedLuggage" size="3rem" class="drop-zone-icon" />

@@ -125,7 +125,7 @@ function clearAllMaps() {
                 class="picker-cancel-btn"
                 @click="confirmingClear = false"
               >
-                {{ t("delete.cancel") }}
+                {{ t("common.cancel") }}
               </button>
               <button
                 type="button"
