@@ -51,7 +51,6 @@ const steps = [
           {{ t("upgrade.onboarding.cancel") }}
         </q-btn>
         <q-btn
-          v-close-popup
           flat
           no-caps
           class="col text-body2 confirm-btn"

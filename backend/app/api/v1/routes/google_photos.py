@@ -351,6 +351,9 @@ async def upgrade_media(
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
             try:
+                # Re-fetch album state so we don't overwrite concurrent edits
+                # (e.g. user rearranged photos in another tab during upgrade).
+                await session.refresh(album)
                 album.media, album.upgraded_media = await apply_upgrade_results(
                     album_dir,
                     body.matches,

@@ -34,7 +34,6 @@ defineEmits<{
           cancelLabel
         }}</q-btn>
         <q-btn
-          v-close-popup
           flat
           no-caps
           :disable="confirmDisabled"
