@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
 from sqlmodel import select
@@ -39,8 +39,6 @@ from ..deps import SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/google-photos", tags=["google-photos"])
-
 
 def _require_google_user(user: UserDep) -> None:
     """Raise 403 if the user is not linked to a Google account."""
@@ -49,6 +47,13 @@ def _require_google_user(user: UserDep) -> None:
             status.HTTP_403_FORBIDDEN,
             "Google Photos upgrade requires a Google account",
         )
+
+
+router = APIRouter(
+    prefix="/google-photos",
+    tags=["google-photos"],
+    dependencies=[Depends(_require_google_user)],
+)
 
 
 async def _get_access_token(user: UserDep) -> AccessToken:
@@ -79,7 +84,6 @@ async def _get_access_token(user: UserDep) -> AccessToken:
 
 @router.get("/authorize")
 async def authorize(request: Request, user: UserDep) -> dict[str, str]:
-    _require_google_user(user)
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
     url = await oauth.google_photos.create_authorization_url(
@@ -93,7 +97,6 @@ async def authorize(request: Request, user: UserDep) -> dict[str, str]:
 async def callback(
     request: Request, user: UserDep, session: SessionDep
 ) -> dict[str, str]:
-    _require_google_user(user)
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
     token = await oauth.google_photos.authorize_access_token(
@@ -125,7 +128,6 @@ class PickerSessionResponse(BaseModel):
 
 @router.post("/sessions")
 async def create_session(user: UserDep) -> PickerSessionResponse:
-    _require_google_user(user)
     access_token = await _get_access_token(user)
     picker = await create_picker_session(access_token)
     return PickerSessionResponse(
@@ -142,7 +144,6 @@ class SessionStatusResponse(BaseModel):
 async def poll_session(
     session_id: PickerSessionId, user: UserDep
 ) -> SessionStatusResponse:
-    _require_google_user(user)
     access_token = await _get_access_token(user)
     data = await poll_picker_session(session_id, access_token)
     return SessionStatusResponse(ready=data.media_items_set)
@@ -162,9 +163,8 @@ async def match_photos(
     aid: str,
     user: UserDep,
     session: SessionDep,
-    session_id: Annotated[str, Query()],
+    session_id: Annotated[PickerSessionId, Query()],
 ) -> AsyncIterable[UpgradeEvent]:
-    _require_google_user(user)
     access_token = await _get_access_token(user)
 
     album = await session.get_one(Album, (user.id, aid))
@@ -210,7 +210,6 @@ async def upgrade_photos(
     user: UserDep,
     session: SessionDep,
 ) -> AsyncIterable[UpgradeEvent]:
-    _require_google_user(user)
     access_token = await _get_access_token(user)
 
     album = await session.get_one(Album, (user.id, aid))
@@ -244,7 +243,6 @@ async def upgrade_photos(
 
 @router.delete("/connection")
 async def disconnect(user: UserDep, session: SessionDep) -> None:
-    _require_google_user(user)
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None
     session.add(user)

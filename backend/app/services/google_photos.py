@@ -123,19 +123,9 @@ class _GoogleResponse(BaseModel):
     )
 
 
-class _PhotoMetadata(_GoogleResponse):
-    focal_length: float | None = None
-    aperture_f_number: float | None = None
-    iso_equivalent: int | None = None
-    exposure_time: str | None = None
-
-
 class _MediaFileMetadata(_GoogleResponse):
     width: int | None = None
     height: int | None = None
-    camera_make: str | None = None
-    camera_model: str | None = None
-    photo_metadata: _PhotoMetadata | None = None
 
 
 class _RawMediaFile(_GoogleResponse):
@@ -154,7 +144,6 @@ class _RawMediaItem(_GoogleResponse):
 
 class _PollingConfig(_GoogleResponse):
     poll_interval: str | None = None
-    timeout_in: str | None = None
 
 
 class _SessionResponse(_GoogleResponse):
@@ -162,7 +151,6 @@ class _SessionResponse(_GoogleResponse):
     picker_uri: str
     polling_config: _PollingConfig | None = None
     media_items_set: bool = False
-    expire_time: str | None = None
 
 
 class _MediaItemsPage(_GoogleResponse):
@@ -172,9 +160,6 @@ class _MediaItemsPage(_GoogleResponse):
 
 class _TokenResponse(_GoogleResponse):
     access_token: str
-    expires_in: int
-    token_type: str = "Bearer"  # noqa: S105
-    scope: str = ""
 
 
 # ---------------------------------------------------------------------------
