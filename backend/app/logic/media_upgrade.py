@@ -172,6 +172,8 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 # ---------------------------------------------------------------------------
 
 _VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
+_FFPROBE_TIMEOUT = 30
+_FFMPEG_FRAME_TIMEOUT = 30
 
 
 def _video_duration_sync(path: Path) -> float:
@@ -190,6 +192,7 @@ def _video_duration_sync(path: Path) -> float:
         capture_output=True,
         text=True,
         check=True,
+        timeout=_FFPROBE_TIMEOUT,
     )
     try:
         return float(result.stdout.strip())
@@ -224,6 +227,7 @@ def _extract_video_frames(path: Path) -> list[imagehash.ImageHash]:
             ],
             capture_output=True,
             check=True,
+            timeout=_FFMPEG_FRAME_TIMEOUT,
         )
         with Image.open(BytesIO(result.stdout)) as img:
             hashes.append(compute_phash(img))
@@ -360,7 +364,7 @@ async def _hash_local_media(
                 if is_video(name):
                     return name, await asyncio.to_thread(_extract_video_frames, path)
                 return name, await asyncio.to_thread(compute_phash_from_path, path)
-        except OSError, SyntaxError, subprocess.CalledProcessError:
+        except OSError, SyntaxError, subprocess.SubprocessError:
             logger.warning("Failed to hash %s", name, exc_info=True)
             return name, None
 
@@ -587,6 +591,7 @@ def _detect_hdr(path: Path) -> bool:
         capture_output=True,
         text=True,
         check=False,
+        timeout=_FFPROBE_TIMEOUT,
     )
     transfer = result.stdout.strip()
     return transfer in ("smpte2084", "arib-std-b67")  # PQ (HDR10) or HLG
@@ -692,12 +697,15 @@ async def _replace_video(
         return False
 
     await asyncio.to_thread(tmp_path.rename, target)
-    delete_thumbnails(target)
-    # Re-extract poster from upgraded video
-    poster = target.with_suffix(".jpg")
-    if await asyncio.to_thread(poster.exists):
-        delete_thumbnails(poster)
-    await extract_frame(target)
+    # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
+    try:
+        await asyncio.to_thread(delete_thumbnails, target)
+        poster = target.with_suffix(".jpg")
+        if await asyncio.to_thread(poster.exists):
+            await asyncio.to_thread(delete_thumbnails, poster)
+        await extract_frame(target)
+    except OSError:
+        logger.warning("Thumbnail cleanup failed for %s", name, exc_info=True)
     return True
 
 
@@ -715,7 +723,7 @@ async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -
         return False
 
     await asyncio.to_thread(tmp_path.rename, target)
-    delete_thumbnails(target)
+    await asyncio.to_thread(delete_thumbnails, target)
     return True
 
 
@@ -790,7 +798,13 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             return None
         try:
             ok = await _download_and_replace(match, item, album_dir, tmp_dir, tokens)
-        except OSError, SyntaxError, httpx.HTTPError, RuntimeError:
+        except (
+            OSError,
+            SyntaxError,
+            httpx.HTTPError,
+            RuntimeError,
+            subprocess.SubprocessError,
+        ):
             logger.exception("Failed to upgrade %s", match.local_name)
             return None
         else:
@@ -839,6 +853,7 @@ async def apply_upgrade_results(
     the user can retry.
     """
     media_by_name = {m.name: m for m in media}
+    new_upgraded = dict(upgraded_media)
     for match in matches:
         if match.local_name not in succeeded:
             continue
@@ -854,5 +869,5 @@ async def apply_upgrade_results(
         except OSError, SyntaxError, RuntimeError:
             logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
             continue
-        upgraded_media[match.local_name] = match.google_id
-    return list(media_by_name.values()), upgraded_media
+        new_upgraded[match.local_name] = match.google_id
+    return list(media_by_name.values()), new_upgraded

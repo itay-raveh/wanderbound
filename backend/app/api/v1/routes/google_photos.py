@@ -57,6 +57,14 @@ def _sse(event: UpgradeEvent) -> str:
     return f"data: {event.model_dump_json()}\n\n"
 
 
+def _album_dir(user: UserDep, aid: str) -> Path:
+    """Resolve the album directory, rejecting path traversal in ``aid``."""
+    resolved = (user.trips_folder / aid).resolve()
+    if not resolved.is_relative_to(user.trips_folder):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return resolved
+
+
 def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
     """Raise 422 if any match references a file not in the album."""
     for m in matches:
@@ -225,7 +233,7 @@ async def match_media(
     access_token = await _get_access_token(user)
 
     album = await session.get_one(Album, (user.id, aid))
-    album_dir = user.trips_folder / aid
+    album_dir = _album_dir(user, aid)
 
     items = await get_media_items(session_id, access_token)
     media_names = [m.name for m in album.media]
@@ -284,7 +292,7 @@ async def _prepare_upgrade(
         access_token = await tokens.get()
 
         album = await session.get_one(Album, (user.id, aid))
-        album_dir = user.trips_folder / aid
+        album_dir = _album_dir(user, aid)
 
         _validate_match_names(body.matches, {m.name for m in album.media})
 
