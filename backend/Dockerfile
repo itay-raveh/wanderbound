@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-RUN python generate_openapi.py > openapi.json
+RUN python generate_openapi.py openapi.json
 
 RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser \
     && mkdir -p /app/backend/data \

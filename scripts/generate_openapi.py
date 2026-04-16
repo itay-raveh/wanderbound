@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
     from fastapi.routing import APIRoute
 
 API_V1_STR = "/api/v1"
+_DEFAULT_OUT = Path(__file__).resolve().parents[1] / "frontend" / "openapi.json"
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -23,4 +25,7 @@ app = FastAPI(
 )
 app.include_router(router, prefix=API_V1_STR)
 
-json.dump(app.openapi(), sys.stdout, indent=2)
+spec = json.dumps(app.openapi(), indent=2) + "\n"
+out = Path(sys.argv[1]) if len(sys.argv) > 1 else _DEFAULT_OUT
+out.write_text(spec)
+print(f"Wrote {out}")
