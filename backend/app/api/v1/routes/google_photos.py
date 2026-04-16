@@ -11,6 +11,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
 from sqlmodel import select
@@ -29,6 +30,7 @@ from app.models.step import Step
 from app.services.google_photos import (
     AccessToken,
     PickerSessionId,
+    TokenProvider,
     create_picker_session,
     delete_picker_session,
     get_media_items,
@@ -106,10 +108,15 @@ async def authorize(request: Request, user: UserDep) -> dict[str, str]:
     return {"authorization_url": url["url"]}
 
 
-@router.get("/callback", name="google_photos_callback")
+_CALLBACK_HTML = HTMLResponse(
+    "<html><body><script>window.close()</script></body></html>"
+)
+
+
+@router.get("/callback", name="google_photos_callback", response_class=HTMLResponse)
 async def callback(
     request: Request, user: UserDep, session: SessionDep
-) -> dict[str, str]:
+) -> HTMLResponse:
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
     token = await oauth.google_photos.authorize_access_token(
@@ -126,7 +133,7 @@ async def callback(
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
-    return {"status": "connected"}
+    return _CALLBACK_HTML
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +249,12 @@ async def upgrade_media(
 
     async with lock:
         access_token = await _get_access_token(user)
+        # _get_access_token raises 400 if missing, so this is guaranteed non-None
+        encrypted = user.google_photos_refresh_token
+        if not encrypted:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
+        refresh_token = decrypt_token(encrypted)
+        tokens = TokenProvider(refresh_token)
 
         album = await session.get_one(Album, (user.id, aid))
         album_dir = user.trips_folder / aid
@@ -264,7 +277,7 @@ async def upgrade_media(
                 album_dir=album_dir,
                 matches=body.matches,
                 google_items_by_id=items_by_id,
-                access_token=access_token,
+                tokens=tokens,
                 already_upgraded=album.upgraded_media,
                 succeeded=succeeded,
             ):
@@ -286,7 +299,7 @@ async def upgrade_media(
                 session.add(album)
                 await session.commit()
                 try:
-                    await delete_picker_session(body.session_id, access_token)
+                    await delete_picker_session(body.session_id, await tokens.get())
                 except httpx.HTTPError:
                     logger.warning(
                         "Failed to delete picker session %s", body.session_id

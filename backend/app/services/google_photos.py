@@ -5,7 +5,9 @@ and original photo byte downloads.
 """
 
 import logging
+import time
 from functools import cache
+from pathlib import Path
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -280,6 +282,48 @@ async def download_media_bytes(
     resp = await _download_client().get(url, headers=_picker_headers(access_token))
     resp.raise_for_status()
     return resp.content
+
+
+async def download_media_to_file(
+    base_url: MediaBaseUrl,
+    access_token: AccessToken,
+    dest: Path,
+    *,
+    param: str = "=d",
+) -> None:
+    """Stream media bytes to a file on disk (avoids holding large files in RAM)."""
+    url = f"{base_url}{param}"
+    async with _download_client().stream(
+        "GET", url, headers=_picker_headers(access_token)
+    ) as resp:
+        resp.raise_for_status()
+        with dest.open("wb") as f:
+            async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
+                f.write(chunk)
+
+
+class TokenProvider:
+    """Lazily refreshes the Google access token when it nears expiry.
+
+    Google access tokens last 3600s. This refreshes proactively at 50min
+    so long-running upgrade streams don't hit 401s mid-download.
+    """
+
+    _REFRESH_MARGIN = 3000  # refresh after 50 minutes
+
+    def __init__(self, refresh_token: RefreshToken) -> None:
+        self._refresh_token = refresh_token
+        self._token: AccessToken = ""
+        self._fetched_at = 0.0
+
+    async def get(self) -> AccessToken:
+        now = time.monotonic()
+        if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
+            return self._token
+        data = await refresh_access_token(self._refresh_token)
+        self._token = data.access_token
+        self._fetched_at = now
+        return self._token
 
 
 async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:

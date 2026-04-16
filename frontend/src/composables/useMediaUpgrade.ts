@@ -38,6 +38,7 @@ interface MatchSummary {
 }
 
 const POLL_INTERVAL_MS = 2000;
+const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
 
 type MatchEvent =
@@ -191,13 +192,16 @@ export function useMediaUpgrade() {
     pickerTab: Window | null,
     signal: AbortSignal,
   ): Promise<void> {
+    const deadline = Date.now() + PICKER_TIMEOUT_MS;
     while (!signal.aborted) {
+      if (Date.now() > deadline) {
+        throw new Error("Photo selection timed out");
+      }
       const result = await gp.pollSession(sessionId);
       if (result.ready) return;
       // If the picker tab was closed by user, keep polling briefly in case
       // the session becomes ready from server side
       if (pickerTab?.closed) {
-        // Give it a couple more polls
         for (let i = 0; i < 3 && !signal.aborted; i++) {
           await sleep(POLL_INTERVAL_MS, signal);
           const retry = await gp.pollSession(sessionId);

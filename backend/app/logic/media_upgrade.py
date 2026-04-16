@@ -31,7 +31,9 @@ from app.services.google_photos import (
     GoogleMediaId,
     MediaFilename,
     PickedMediaItem,
+    TokenProvider,
     download_media_bytes,
+    download_media_to_file,
 )
 
 logger = logging.getLogger(__name__)
@@ -588,13 +590,10 @@ _HDR_TONEMAP_FILTER = (
 )
 
 
-async def _process_video(data: bytes, output: Path) -> None:
+async def _process_video(input_path: Path, output: Path) -> None:
     """Re-encode video: H.264, capped resolution, stripped metadata, HDR tone-mapped."""
-    tmp_input = output.with_suffix(".tmp.mp4")
-    await asyncio.to_thread(tmp_input.write_bytes, data)
-
     try:
-        is_hdr = await asyncio.to_thread(_detect_hdr, tmp_input)
+        is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
 
         scale_filter = (
             f"scale='min({_MAX_LONG_EDGE},iw)':'min({_MAX_LONG_EDGE},ih)'"
@@ -607,7 +606,7 @@ async def _process_video(data: bytes, output: Path) -> None:
             "ffmpeg",
             "-y",
             "-i",
-            str(tmp_input),
+            str(input_path),
             "-vf",
             vf,
             "-c:v",
@@ -637,7 +636,7 @@ async def _process_video(data: bytes, output: Path) -> None:
         if proc.returncode != 0:
             raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
     finally:
-        tmp_input.unlink(missing_ok=True)
+        await asyncio.to_thread(lambda: input_path.unlink(missing_ok=True))
 
 
 def _validate_image(path: Path) -> tuple[int, int]:
@@ -661,10 +660,12 @@ def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
     return False
 
 
-async def _replace_video(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
+async def _replace_video(
+    name: str, raw_path: Path, tmp_path: Path, target: Path
+) -> bool:
     """Process and replace a single video. Returns True on success."""
     try:
-        await _process_video(data, tmp_path)
+        await _process_video(raw_path, tmp_path)
     except RuntimeError:
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         raise
@@ -718,27 +719,32 @@ async def _download_and_replace(
     item: PickedMediaItem,
     album_dir: Path,
     tmp_dir: Path,
-    access_token: AccessToken,
+    tokens: TokenProvider,
 ) -> bool:
     """Download one original, process, and replace the compressed file.
 
     Returns True on success, False on failure.
+    Videos stream directly to disk to avoid holding large files in RAM.
     """
-    download_param = "=dv" if is_video(match.local_name) else "=d"
-
-    async with _download_sem():
-        data = await download_media_bytes(
-            item.media_file.base_url, access_token, param=download_param
-        )
-
-    if not data:
-        return False
-
     target = album_dir / match.local_name
     tmp_path = tmp_dir / match.local_name
 
     if is_video(match.local_name):
-        return await _replace_video(match.local_name, data, tmp_path, target)
+        raw_path = tmp_dir / f"{match.local_name}.raw"
+        async with _download_sem():
+            access_token = await tokens.get()
+            await download_media_to_file(
+                item.media_file.base_url, access_token, raw_path, param="=dv"
+            )
+        return await _replace_video(match.local_name, raw_path, tmp_path, target)
+
+    async with _download_sem():
+        access_token = await tokens.get()
+        data = await download_media_bytes(
+            item.media_file.base_url, access_token, param="=d"
+        )
+    if not data:
+        return False
     return await _replace_photo(match.local_name, data, tmp_path, target)
 
 
@@ -746,7 +752,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     album_dir: Path,
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
-    access_token: AccessToken,
+    tokens: TokenProvider,
     already_upgraded: dict[MediaFilename, GoogleMediaId],
     succeeded: set[MediaFilename] | None = None,
 ) -> AsyncIterator[UpgradeEvent]:
@@ -774,9 +780,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         if not item:
             return None
         try:
-            ok = await _download_and_replace(
-                match, item, album_dir, tmp_dir, access_token
-            )
+            ok = await _download_and_replace(match, item, album_dir, tmp_dir, tokens)
         except OSError, SyntaxError, httpx.HTTPError, RuntimeError:
             logger.exception("Failed to upgrade %s", match.local_name)
             return None

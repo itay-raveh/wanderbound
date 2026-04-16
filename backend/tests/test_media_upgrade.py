@@ -567,9 +567,8 @@ class TestExtractVideoFrames:
 
 class TestProcessVideo:
     async def test_reencodes_to_h264(self, sample_video: Path, tmp_path: Path) -> None:
-        data = sample_video.read_bytes()  # noqa: ASYNC240
         out = tmp_path / "out.mp4"
-        await _process_video(data, out)
+        await _process_video(sample_video, out)
 
         assert out.exists()
         # Verify H.264 codec via ffprobe
@@ -613,9 +612,8 @@ class TestProcessVideo:
             check=True,
             capture_output=True,
         )
-        data = source.read_bytes()
         out = tmp_path / "out.mp4"
-        await _process_video(data, out)
+        await _process_video(source, out)
 
         # Check output dimensions
         result = subprocess.run(  # noqa: S603, ASYNC221
@@ -639,9 +637,8 @@ class TestProcessVideo:
         assert max(w, h) <= _MAX_LONG_EDGE
 
     async def test_strips_metadata(self, sample_video: Path, tmp_path: Path) -> None:
-        data = sample_video.read_bytes()  # noqa: ASYNC240
         out = tmp_path / "out.mp4"
-        await _process_video(data, out)
+        await _process_video(sample_video, out)
 
         result = subprocess.run(  # noqa: S603, ASYNC221
             [  # noqa: S607
