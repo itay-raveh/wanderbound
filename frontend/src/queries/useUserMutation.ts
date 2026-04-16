@@ -1,6 +1,6 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateUser } from "@/client";
-import type { User, UserUpdate } from "@/client";
+import type { UserPublic, UserUpdate } from "@/client";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
 import { queryKeys } from "./keys";
@@ -15,7 +15,7 @@ export function useUserMutation() {
     },
     onMutate: (body) => {
       const key = queryKeys.user();
-      const prev = cache.getQueryData<User>(key);
+      const prev = cache.getQueryData<UserPublic>(key);
       if (prev) {
         cache.setQueryData(key, { ...prev, ...body });
       }

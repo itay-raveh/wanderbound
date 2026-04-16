@@ -27,8 +27,8 @@ const matchEvents = [
     matched: 2,
     unmatched: 1,
     matches: [
-      { local_name: "photo1.jpg", google_id: "gid-1", step_id: 1 },
-      { local_name: "photo2.jpg", google_id: "gid-2", step_id: 1 },
+      { local_name: "photo1.jpg", google_id: "gid-1", distance: 0 },
+      { local_name: "photo2.jpg", google_id: "gid-2", distance: 0 },
     ],
   },
 ];

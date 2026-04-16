@@ -30,6 +30,8 @@ Locale = Annotated[
 
 
 class UserBase(SQLModel):
+    """Shared editable fields (used by User, UserPublic, UserUpdate)."""
+
     first_name: str = Field(max_length=255)
     locale: Locale
     unit_is_km: bool
@@ -56,6 +58,11 @@ class OAuthIdentity(BaseModel):
     first_name: str
     picture: HttpUrl | None = None
     provider: AuthProvider
+
+
+# ---------------------------------------------------------------------------
+# Table model (all DB columns)
+# ---------------------------------------------------------------------------
 
 
 class User(UserBase, table=True):
@@ -108,3 +115,28 @@ class User(UserBase, table=True):
     @property
     def trips_folder(self) -> Path:
         return self.folder / "trip"
+
+
+# ---------------------------------------------------------------------------
+# API read model (excludes internal-only columns)
+# ---------------------------------------------------------------------------
+
+
+class UserPublic(UserBase):
+    """Safe-to-expose fields for API responses.
+
+    Sibling of User, not a parent. Both inherit from UserBase following
+    the official SQLModel multiple-models pattern.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    google_sub: str | None = None
+    microsoft_sub: str | None = None
+    profile_image_url: str | None = None
+    living_location: Location | None = None
+    album_ids: list[str] = []
+    is_demo: bool = False
+    has_data: bool = False
+    google_photos_connected_at: datetime | None = None

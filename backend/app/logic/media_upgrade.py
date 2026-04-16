@@ -703,7 +703,7 @@ async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -
 
     try:
         existing = await asyncio.to_thread(Media.load, target)
-    except OSError:
+    except OSError, SyntaxError:
         existing = None
     if existing and _skip_smaller(name, width, height, existing):
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
@@ -731,12 +731,16 @@ async def _download_and_replace(
 
     if is_video(match.local_name):
         raw_path = tmp_dir / f"{match.local_name}.raw"
-        async with _download_sem():
-            access_token = await tokens.get()
-            await download_media_to_file(
-                item.media_file.base_url, access_token, raw_path, param="=dv"
-            )
-        return await _replace_video(match.local_name, raw_path, tmp_path, target)
+        try:
+            async with _download_sem():
+                access_token = await tokens.get()
+                await download_media_to_file(
+                    item.media_file.base_url, access_token, raw_path, param="=dv"
+                )
+            return await _replace_video(match.local_name, raw_path, tmp_path, target)
+        except Exception:
+            await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
+            raise
 
     async with _download_sem():
         access_token = await tokens.get()
@@ -791,21 +795,24 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     replaced = 0
     failed = 0
 
-    for i, coro in enumerate(asyncio.as_completed(upgrade_tasks)):
-        name = await coro
-        if name:
-            replaced += 1
-            succeeded.add(name)
-        else:
-            failed += 1
-        yield UpgradeDownloading(done=i + 1, total=total)
-
-    # Clean up any orphaned tmp files (e.g. from failed validation)
-    # before removing the directory.
-    with contextlib.suppress(OSError):
-        for leftover in tmp_dir.iterdir():
-            leftover.unlink(missing_ok=True)
-        tmp_dir.rmdir()
+    try:
+        for i, coro in enumerate(asyncio.as_completed(upgrade_tasks)):
+            name = await coro
+            if name:
+                replaced += 1
+                succeeded.add(name)
+            else:
+                failed += 1
+            yield UpgradeDownloading(done=i + 1, total=total)
+    finally:
+        for t in upgrade_tasks:
+            t.cancel()
+        # Clean up any orphaned tmp files (e.g. from failed validation)
+        # before removing the directory.
+        with contextlib.suppress(OSError):
+            for leftover in tmp_dir.iterdir():
+                leftover.unlink(missing_ok=True)
+            tmp_dir.rmdir()
 
     yield UpgradeDone(replaced=replaced, failed=failed)
 

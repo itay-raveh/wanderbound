@@ -329,7 +329,7 @@ class TokenProvider:
 async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
     """Exchange a refresh token for a fresh access token via Google's token endpoint."""
     settings = get_settings()
-    resp = await _picker_client().post(
+    resp = await _download_client().post(
         "https://oauth2.googleapis.com/token",
         data={
             "client_id": settings.VITE_GOOGLE_CLIENT_ID,

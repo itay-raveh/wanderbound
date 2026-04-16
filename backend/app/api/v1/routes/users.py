@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from secrets import randbelow
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from zipfile import BadZipFile
 
 from fastapi import (
@@ -36,7 +36,14 @@ from app.logic.export import (
 from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
-from app.models.user import AuthProvider, OAuthIdentity, PSUser, User, UserUpdate
+from app.models.user import (
+    AuthProvider,
+    OAuthIdentity,
+    PSUser,
+    User,
+    UserPublic,
+    UserUpdate,
+)
 
 from ..deps import SessionDep, UserDep, apply_update, login_session
 from .auth import verify_credential
@@ -163,7 +170,7 @@ async def upload_data(
         raise
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=user, trips=trips)
+    return UploadResult(user=UserPublic.model_validate(user), trips=trips)
 
 
 @cache
@@ -243,7 +250,7 @@ async def create_demo(
     login_session(request, user.id)
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=user, trips=list(trips))
+    return UploadResult(user=UserPublic.model_validate(user), trips=list(trips))
 
 
 async def _remove_user(user: User, session: SessionDep, request: Request) -> None:
@@ -304,13 +311,13 @@ async def download_export(
     )
 
 
-@router.get("")
-async def read_user(user: UserDep) -> User:
+@router.get("", response_model=UserPublic)
+async def read_user(user: UserDep) -> Any:
     return user
 
 
-@router.patch("")
-async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> User:
+@router.patch("", response_model=UserPublic)
+async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> Any:
     return await apply_update(session, user, update, refresh=False)
 
 
