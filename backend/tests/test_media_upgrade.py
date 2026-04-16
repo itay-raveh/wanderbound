@@ -19,6 +19,7 @@ from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
 from app.logic.media_upgrade import (
+    _CROSS_TYPE_COST,
     _FALLBACK_MAX_DIMENSION,
     _MAX_LONG_EDGE,
     MATCH_THRESHOLD,
@@ -26,6 +27,7 @@ from app.logic.media_upgrade import (
     _bucket_by_window,
     _cross_step_fallback,
     _extract_video_frames,
+    _hash_distance,
     _parse_timestamp,
     _process_photo_sync,
     _process_video,
@@ -117,6 +119,23 @@ class TestBuildCostMatrix:
         )
         assert len(matrix) == 3
         assert len(matrix[0]) == 5
+
+
+class TestHashDistance:
+    def test_empty_frame_list_returns_cross_type_cost(self) -> None:
+        candidate = _make_hash(42)
+        assert _hash_distance([], candidate) == _CROSS_TYPE_COST
+
+    def test_single_frame_returns_hamming_distance(self) -> None:
+        local = _make_hash(0xFF)
+        candidate = _make_hash(0xFF)
+        assert _hash_distance([local], candidate) == 0
+
+    def test_multi_frame_returns_minimum(self) -> None:
+        close = _make_hash(0xFF00)
+        far = _make_hash(0x0)
+        candidate = _make_hash(0xFF00)
+        assert _hash_distance([far, close], candidate) == 0
 
 
 class TestMatchWithinWindow:
@@ -424,6 +443,28 @@ class TestCrossStepFallback:
         )
 
         assert len(all_matches) == 0
+
+    def test_runs_at_exact_dimension_limit(self) -> None:
+        """Fallback still runs when both dimensions are exactly at the limit."""
+        h = _make_hash(0)
+        n = _FALLBACK_MAX_DIMENSION
+        names = [f"photo{i}.jpg" for i in range(n)]
+        hashes = dict.fromkeys(names, h)
+        items = [_make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(n)]
+        candidate_hashes = {f"gp-{i}": h for i in range(n)}
+
+        all_matches: list[MatchResult] = []
+        _cross_step_fallback(
+            all_matches,
+            matched_locals=set(),
+            matched_candidates=set(),
+            media_names=names,
+            local_hashes=hashes,
+            candidate_hashes=candidate_hashes,
+            google_items=items,
+        )
+
+        assert len(all_matches) == n
 
     def test_skips_when_exceeding_dimension_limit(self) -> None:
         """Fallback is skipped when matrix would be too large."""
