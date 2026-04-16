@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import SENTRY_IGNORED, setup_logging
+from app.logic.chunked_upload import upload_store
 from app.logic.export import lifespan as export_lifespan
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.session import cancel_all_sessions
@@ -52,7 +53,11 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
 
-    async with pdf_lifespan() as browser_manager, export_lifespan():
+    async with (
+        pdf_lifespan() as browser_manager,
+        export_lifespan(),
+        upload_store.lifespan(),
+    ):
         app.state.browser_manager = browser_manager
         try:
             yield
