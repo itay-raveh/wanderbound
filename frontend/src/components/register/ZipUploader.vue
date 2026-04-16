@@ -73,7 +73,7 @@ function onDrop(event: DragEvent) {
 
 function handleFile(selected: File) {
   if (uploading.value) return;
-  if (!selected.name.endsWith(".zip") || selected.size === 0) {
+  if (!selected.name.toLowerCase().endsWith(".zip") || selected.size === 0) {
     $q.notify({ type: "negative", message: t("register.badZip") });
     return;
   }

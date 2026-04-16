@@ -9,7 +9,7 @@ import pytest
 
 from app.core.config import get_settings
 
-from .factories import mock_extract, mock_jwt
+from .factories import mock_extract, mock_jwt, sign_in_and_upload
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -193,6 +193,31 @@ class TestCompleteChunkedUpload:
                 data={"credential": "fake", "provider": provider},
             )
         assert resp.status_code == 200
+
+    async def test_reupload_via_session_cookie(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        """Logged-in user can re-upload without credential/provider."""
+        users_dir = tmp_path / "users"
+        users_dir.mkdir(exist_ok=True)
+        await sign_in_and_upload(client, users_dir)
+
+        # Init without credential - session cookie provides auth
+        init_resp = await client.post("/api/v1/users/upload/init")
+        assert init_resp.status_code == 200
+        upload_id = init_resp.json()["upload_id"]
+
+        await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"fake-zip",
+        )
+
+        with mock_extract(users_dir):
+            resp = await client.post(
+                f"/api/v1/users/upload/{upload_id}/complete",
+            )
+        assert resp.status_code == 200
+        assert resp.json()["user"]["id"] == 999
 
     async def test_rejects_wrong_owner(self, client: AsyncClient) -> None:
         """Complete by a different user than init returns 403."""
