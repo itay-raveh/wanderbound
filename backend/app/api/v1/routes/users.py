@@ -22,6 +22,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, Response
 from fastapi.sse import EventSourceResponse
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
@@ -171,7 +172,7 @@ async def upload_data(
         temp_folder, ps_user, trips = await asyncio.to_thread(
             extract_and_scan, file.file
         )
-    except (BadZipFile, OSError) as e:
+    except (BadZipFile, OSError, ValidationError) as e:
         logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
         raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
 
@@ -267,7 +268,7 @@ async def complete_chunked_upload(
         temp_folder, ps_user, trips = await asyncio.to_thread(
             extract_and_scan, assembled
         )
-    except (BadZipFile, OSError) as e:
+    except (BadZipFile, OSError, ValidationError) as e:
         logger.warning("Bad ZIP from chunked upload %s: %s", upload_id[:8], e)
         raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
     finally:
