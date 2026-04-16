@@ -34,13 +34,17 @@ class UploadStore:
     """Manages in-progress chunked uploads with automatic TTL eviction."""
 
     def __init__(self, base: Path | None = None) -> None:
-        self._base = base or get_settings().DATA_FOLDER / "chunked-uploads"
+        self._base_override = base
+        self._base: Path  # resolved in lifespan()
         self._sessions: dict[str, _Session] = {}
 
     # -- lifecycle --------------------------------------------------------
 
     @asynccontextmanager
     async def lifespan(self) -> AsyncGenerator[None]:
+        self._base = (
+            self._base_override or get_settings().DATA_FOLDER / "chunked-uploads"
+        )
         shutil.rmtree(self._base, ignore_errors=True)
         self._base.mkdir(parents=True, exist_ok=True)
         try:
