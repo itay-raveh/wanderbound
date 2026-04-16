@@ -30,7 +30,7 @@ type AccessToken = str
 type RefreshToken = str
 type PickerSessionId = str
 type GoogleMediaId = str
-type PhotoFilename = str
+type MediaFilename = str
 type MimeType = str
 type MediaBaseUrl = str
 
@@ -89,7 +89,7 @@ def _download_client() -> httpx.AsyncClient:
 class MediaFile(BaseModel):
     base_url: MediaBaseUrl
     mime_type: MimeType
-    filename: PhotoFilename
+    filename: MediaFilename
     width: int | None = None
     height: int | None = None
 

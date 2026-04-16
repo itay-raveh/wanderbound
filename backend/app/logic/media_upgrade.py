@@ -1,8 +1,8 @@
-"""Photo matching and upgrade logic.
+"""Media matching and upgrade logic.
 
-Matches compressed Polarsteps photos to Google Photos originals using
-perceptual hashing (pHash) and the Hungarian algorithm for optimal
-bipartite assignment.
+Matches compressed Polarsteps media (photos and videos) to Google Photos
+originals using perceptual hashing (pHash) and the Hungarian algorithm
+for optimal bipartite assignment.
 """
 
 import asyncio
@@ -27,7 +27,7 @@ from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_v
 from app.services.google_photos import (
     AccessToken,
     GoogleMediaId,
-    PhotoFilename,
+    MediaFilename,
     PickedMediaItem,
     download_media_bytes,
 )
@@ -61,7 +61,7 @@ class StepWindow(BaseModel):
 
 
 class MatchResult(BaseModel):
-    local_name: PhotoFilename
+    local_name: MediaFilename
     google_id: GoogleMediaId
     distance: int
 
@@ -255,7 +255,7 @@ def build_cost_matrix(
 
 
 def match_within_window(  # noqa: PLR0913
-    local_names: list[PhotoFilename],
+    local_names: list[MediaFilename],
     local_hashes: list[LocalHash],
     candidate_ids: list[GoogleMediaId],
     candidate_hashes: list[imagehash.ImageHash],
@@ -334,8 +334,8 @@ def _deduplicate_items(
 
 async def _hash_local_media(
     album_dir: Path,
-    media_names: list[PhotoFilename],
-) -> dict[PhotoFilename, LocalHash]:
+    media_names: list[MediaFilename],
+) -> dict[MediaFilename, LocalHash]:
     """Compute perceptual hashes for local media files (concurrent).
 
     Photos: single pHash. Videos: list of 4 pHashes from sampled frames.
@@ -394,7 +394,7 @@ async def _hash_candidates(
 
 async def run_matching(  # noqa: PLR0913
     album_dir: Path,
-    media_names: list[PhotoFilename],
+    media_names: list[MediaFilename],
     step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
@@ -449,13 +449,13 @@ async def run_matching(  # noqa: PLR0913
 def _match_across_windows(
     windows: list[StepWindow],
     google_by_window: dict[int, list[PickedMediaItem]],
-    media_names: list[PhotoFilename],
-    local_hashes: dict[PhotoFilename, LocalHash],
+    media_names: list[MediaFilename],
+    local_hashes: dict[MediaFilename, LocalHash],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> tuple[list[MatchResult], set[PhotoFilename], set[GoogleMediaId]]:
+) -> tuple[list[MatchResult], set[MediaFilename], set[GoogleMediaId]]:
     """Run Hungarian matching within each time window."""
     all_matches: list[MatchResult] = []
-    matched_locals: set[PhotoFilename] = set()
+    matched_locals: set[MediaFilename] = set()
     matched_candidates: set[GoogleMediaId] = set()
 
     for window in windows:
@@ -489,10 +489,10 @@ def _match_across_windows(
 
 def _cross_step_fallback(  # noqa: PLR0913
     all_matches: list[MatchResult],
-    matched_locals: set[PhotoFilename],
+    matched_locals: set[MediaFilename],
     matched_candidates: set[GoogleMediaId],
-    media_names: list[PhotoFilename],
-    local_hashes: dict[PhotoFilename, LocalHash],
+    media_names: list[MediaFilename],
+    local_hashes: dict[MediaFilename, LocalHash],
     google_items: list[PickedMediaItem],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:
@@ -743,7 +743,7 @@ async def execute_upgrade(
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
     access_token: AccessToken,
-    already_upgraded: dict[PhotoFilename, GoogleMediaId],
+    already_upgraded: dict[MediaFilename, GoogleMediaId],
 ) -> AsyncIterator[UpgradeEvent]:
     """Download originals and replace compressed files concurrently.
 
@@ -793,8 +793,8 @@ async def apply_upgrade_results(
     album_dir: Path,
     matches: list[MatchResult],
     media: list[Media],
-    upgraded_media: dict[PhotoFilename, GoogleMediaId],
-) -> tuple[list[Media], dict[PhotoFilename, GoogleMediaId]]:
+    upgraded_media: dict[MediaFilename, GoogleMediaId],
+) -> tuple[list[Media], dict[MediaFilename, GoogleMediaId]]:
     """Re-probe replaced files and update media list + upgrade map."""
     media_by_name = {m.name: m for m in media}
     for match in matches:

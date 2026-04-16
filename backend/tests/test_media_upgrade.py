@@ -1,4 +1,4 @@
-"""Unit tests for photo matching and processing.
+"""Unit tests for media matching and processing.
 
 Tests pure computation: time-window bucketing, distance matrix building,
 Hungarian matching, threshold rejection, cross-step fallback, video frame
@@ -18,7 +18,7 @@ import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
-from app.logic.photo_upgrade import (
+from app.logic.media_upgrade import (
     _FALLBACK_MAX_DIMENSION,
     _MAX_LONG_EDGE,
     MATCH_THRESHOLD,

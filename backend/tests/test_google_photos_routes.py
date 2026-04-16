@@ -2,7 +2,7 @@
 
 Tests auth gating and disconnect. The full upgrade flow requires mocking
 the Google Picker API extensively, which is best tested E2E. The matching
-algorithm is already covered by unit tests in test_photo_upgrade.py.
+algorithm is already covered by unit tests in test_media_upgrade.py.
 """
 
 from __future__ import annotations

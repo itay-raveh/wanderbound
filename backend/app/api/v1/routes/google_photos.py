@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.core.encryption import decrypt_token, encrypt_token
-from app.logic.photo_upgrade import (
+from app.logic.media_upgrade import (
     MatchResult,
     UpgradeEvent,
     apply_upgrade_results,
@@ -224,13 +224,13 @@ async def upgrade_photos(
         matches=body.matches,
         google_items_by_id=items_by_id,
         access_token=access_token,
-        already_upgraded=album.upgraded_photos,
+        already_upgraded=album.upgraded_media,
     ):
         yield event
 
     # Persist upgrade results after streaming completes
-    album.media, album.upgraded_photos = await apply_upgrade_results(
-        album_dir, body.matches, album.media, album.upgraded_photos
+    album.media, album.upgraded_media = await apply_upgrade_results(
+        album_dir, body.matches, album.media, album.upgraded_media
     )
     session.add(album)
     await session.commit()
