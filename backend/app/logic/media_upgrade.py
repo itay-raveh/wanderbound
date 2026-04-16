@@ -7,6 +7,7 @@ for optimal bipartite assignment.
 
 import asyncio
 import contextlib
+import functools
 import logging
 import subprocess
 from collections.abc import AsyncIterator
@@ -40,8 +41,13 @@ MATCH_THRESHOLD = 12
 # Skip cross-step fallback if the matrix exceeds this size.
 _FALLBACK_MAX_DIMENSION = 100
 
+
 # Bounded concurrency for Google Photos downloads (matching + replacement).
-_DOWNLOAD_SEM = asyncio.Semaphore(5)
+# Created lazily via @cache to avoid binding to the wrong event loop at import time.
+@functools.cache
+def _download_sem() -> asyncio.Semaphore:
+    return asyncio.Semaphore(5)
+
 
 type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
@@ -368,7 +374,7 @@ async def _hash_candidates(
     ) -> tuple[str, imagehash.ImageHash | None]:
         try:
             thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
-            async with _DOWNLOAD_SEM:
+            async with _download_sem():
                 thumb_bytes = await download_media_bytes(
                     item.media_file.base_url, access_token, param=thumb_param
                 )
@@ -722,7 +728,7 @@ async def _download_and_replace(
     """
     download_param = "=dv" if is_video(match.local_name) else "=d"
 
-    async with _DOWNLOAD_SEM:
+    async with _download_sem():
         data = await download_media_bytes(
             item.media_file.base_url, access_token, param=download_param
         )

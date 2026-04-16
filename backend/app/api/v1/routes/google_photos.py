@@ -215,25 +215,36 @@ async def upgrade_photos(
     album = await session.get_one(Album, (user.id, aid))
     album_dir = user.trips_folder / aid
 
+    # Validate every match references an actual album file (prevents path traversal)
+    valid_names = {m.name for m in album.media}
+    for m in body.matches:
+        if m.local_name not in valid_names:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Unknown media file: {m.local_name}",
+            )
+
     items = await get_media_items(body.session_id, access_token)
-    await delete_picker_session(body.session_id, access_token)
     items_by_id = {item.id: item for item in items}
 
-    async for event in execute_upgrade(
-        album_dir=album_dir,
-        matches=body.matches,
-        google_items_by_id=items_by_id,
-        access_token=access_token,
-        already_upgraded=album.upgraded_media,
-    ):
-        yield event
-
-    # Persist upgrade results after streaming completes
-    album.media, album.upgraded_media = await apply_upgrade_results(
-        album_dir, body.matches, album.media, album.upgraded_media
-    )
-    session.add(album)
-    await session.commit()
+    try:
+        async for event in execute_upgrade(
+            album_dir=album_dir,
+            matches=body.matches,
+            google_items_by_id=items_by_id,
+            access_token=access_token,
+            already_upgraded=album.upgraded_media,
+        ):
+            yield event
+    finally:
+        # Persist results even if the client disconnects mid-stream.
+        # Files already replaced on disk must be reflected in the DB.
+        album.media, album.upgraded_media = await apply_upgrade_results(
+            album_dir, body.matches, album.media, album.upgraded_media
+        )
+        session.add(album)
+        await session.commit()
+        await delete_picker_session(body.session_id, access_token)
 
 
 # ---------------------------------------------------------------------------
