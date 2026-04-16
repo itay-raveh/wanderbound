@@ -15,16 +15,18 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.core.encryption import decrypt_token, encrypt_token
-from app.logic.layout.media import Media
 from app.logic.photo_upgrade import (
     MatchResult,
     UpgradeEvent,
+    apply_upgrade_results,
     execute_upgrade,
     run_matching,
 )
 from app.models.album import Album
 from app.models.step import Step
 from app.services.google_photos import (
+    AccessToken,
+    PickerSessionId,
     create_picker_session,
     delete_picker_session,
     get_media_items,
@@ -49,7 +51,7 @@ def _require_google_user(user: UserDep) -> None:
         )
 
 
-async def _get_access_token(user: UserDep) -> str:
+async def _get_access_token(user: UserDep) -> AccessToken:
     """Decrypt the stored refresh token and exchange it for a fresh access token."""
     if not user.google_photos_refresh_token:
         raise HTTPException(
@@ -67,7 +69,7 @@ async def _get_access_token(user: UserDep) -> str:
             status.HTTP_401_UNAUTHORIZED,
             "Google Photos authorization expired. Please reconnect.",
         ) from None
-    return token_data["access_token"]
+    return token_data.access_token
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +119,7 @@ async def callback(
 
 
 class PickerSessionResponse(BaseModel):
-    session_id: str
+    session_id: PickerSessionId
     picker_uri: str
 
 
@@ -137,15 +139,13 @@ class SessionStatusResponse(BaseModel):
 
 
 @router.get("/sessions/{session_id}")
-async def poll_session(session_id: str, user: UserDep) -> SessionStatusResponse:
+async def poll_session(
+    session_id: PickerSessionId, user: UserDep
+) -> SessionStatusResponse:
     _require_google_user(user)
     access_token = await _get_access_token(user)
     data = await poll_picker_session(session_id, access_token)
-
-    if not data.get("mediaItemsSet"):
-        return SessionStatusResponse(ready=False)
-
-    return SessionStatusResponse(ready=True)
+    return SessionStatusResponse(ready=data.media_items_set)
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ async def match_photos(
 
 
 class UpgradeRequest(BaseModel):
-    session_id: str
+    session_id: PickerSessionId
     matches: list[MatchResult]
 
 
@@ -230,19 +230,9 @@ async def upgrade_photos(
         yield event
 
     # Persist upgrade results after streaming completes
-    await session.refresh(album)
-    media_by_name = {m.name: m for m in album.media}
-    for match in body.matches:
-        target = album_dir / match.local_name
-        try:
-            updated = Media.load(target)
-            if match.local_name in media_by_name:
-                media_by_name[match.local_name] = updated
-        except OSError, SyntaxError:
-            logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
-        album.upgraded_photos[match.local_name] = match.google_id
-
-    album.media = list(media_by_name.values())
+    album.media, album.upgraded_photos = await apply_upgrade_results(
+        album_dir, body.matches, album.media, album.upgraded_photos
+    )
     session.add(album)
     await session.commit()
 

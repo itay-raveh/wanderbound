@@ -7,6 +7,7 @@ algorithm is already covered by unit tests in test_photo_upgrade.py.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
@@ -78,7 +79,7 @@ class TestPickerSession:
         uid = user_data["id"]
         await connect_google_photos(session, uid)
 
-        mock_token_resp = {"access_token": "fresh-token", "expires_in": 3600}
+        mock_token_resp = SimpleNamespace(access_token="fresh-token")  # noqa: S106
         mock_picker = AsyncMock()
         mock_picker.return_value.id = "session-abc"
         mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"

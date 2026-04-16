@@ -12,6 +12,7 @@ from app.logic.layout.media import Media
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
 from app.models.step import Step
+from app.services.google_photos import GoogleMediaId, PhotoFilename
 
 type DateRange = tuple[date, date]
 
@@ -73,10 +74,10 @@ class Album(AlbumMeta, table=True):
         default_factory=list,
         sa_column=Column(PydanticJSON(list[Media]), nullable=False),
     )
-    upgraded_photos: dict[str, str] = Field(
+    upgraded_photos: dict[PhotoFilename, GoogleMediaId] = Field(
         default_factory=dict,
         sa_column=Column(
-            PydanticJSON(dict[str, str]),
+            PydanticJSON(dict[PhotoFilename, GoogleMediaId]),
             nullable=False,
             server_default="{}",
         ),
