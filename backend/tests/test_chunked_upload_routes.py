@@ -193,3 +193,19 @@ class TestCompleteChunkedUpload:
                 data={"credential": "fake", "provider": provider},
             )
         assert resp.status_code == 200
+
+    async def test_rejects_wrong_owner(self, client: AsyncClient) -> None:
+        """Complete by a different user than init returns 403."""
+        # Init as Google user (owner = "google:google-123")
+        upload_id = await _init(client)
+        await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"chunk",
+        )
+        # Complete as Microsoft user (owner = "microsoft:microsoft-456")
+        with mock_jwt("microsoft"):
+            resp = await client.post(
+                f"/api/v1/users/upload/{upload_id}/complete",
+                data={"credential": "fake", "provider": "microsoft"},
+            )
+        assert resp.status_code == 403

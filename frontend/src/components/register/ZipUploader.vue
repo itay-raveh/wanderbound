@@ -73,8 +73,8 @@ function onDrop(event: DragEvent) {
 
 function handleFile(selected: File) {
   if (uploading.value) return;
-  if (!selected.name.endsWith(".zip")) {
-    $q.notify({ type: "negative", message: t("register.uploadFailed") });
+  if (!selected.name.endsWith(".zip") || selected.size === 0) {
+    $q.notify({ type: "negative", message: t("register.badZip") });
     return;
   }
   if (selected.size > maxFileSize) {
