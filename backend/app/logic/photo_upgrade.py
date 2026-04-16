@@ -225,26 +225,53 @@ def _extract_video_frames(path: Path) -> list[imagehash.ImageHash]:
 # ---------------------------------------------------------------------------
 
 
+_CROSS_TYPE_COST = 999  # above any possible match threshold
+
+
+def _hash_distance(local: LocalHash, candidate: imagehash.ImageHash) -> int:
+    """Compute distance between a local hash (single or multi-frame) and a candidate."""
+    if isinstance(local, imagehash.ImageHash):
+        return int(local - candidate)
+    return min(int(frame - candidate) for frame in local)
+
+
 def build_cost_matrix(
-    local_hashes: list[imagehash.ImageHash],
+    local_hashes: list[LocalHash],
     candidate_hashes: list[imagehash.ImageHash],
+    local_is_video: list[bool],
+    candidate_is_video: list[bool],
 ) -> list[list[int]]:
-    """Build a Hamming distance matrix between local and candidate hashes."""
-    return [[int(lh - ch) for ch in candidate_hashes] for lh in local_hashes]
+    """Build a distance matrix. Cross-type pairs get infinite cost."""
+    matrix: list[list[int]] = []
+    for i, lh in enumerate(local_hashes):
+        row: list[int] = []
+        for j, ch in enumerate(candidate_hashes):
+            if local_is_video[i] != candidate_is_video[j]:
+                row.append(_CROSS_TYPE_COST)
+            else:
+                row.append(_hash_distance(lh, ch))
+        matrix.append(row)
+    return matrix
 
 
-def match_within_window(
+def match_within_window(  # noqa: PLR0913
     local_names: list[PhotoFilename],
-    local_hashes: list[imagehash.ImageHash],
+    local_hashes: list[LocalHash],
     candidate_ids: list[GoogleMediaId],
     candidate_hashes: list[imagehash.ImageHash],
+    local_is_video: list[bool],
+    candidate_is_video: list[bool],
     threshold: int = MATCH_THRESHOLD,
 ) -> list[MatchResult]:
     """Run Hungarian algorithm on a cost matrix, reject pairs above threshold."""
     if not local_names or not candidate_ids:
         return []
 
-    cost = np.array(build_cost_matrix(local_hashes, candidate_hashes))
+    cost = np.array(
+        build_cost_matrix(
+            local_hashes, candidate_hashes, local_is_video, candidate_is_video
+        )
+    )
     row_idx, col_idx = linear_sum_assignment(cost)
 
     results: list[MatchResult] = []
@@ -446,9 +473,11 @@ def _match_across_windows(
 
         results = match_within_window(
             local_names=unmatched_local,
-            local_hashes=[local_hashes[n] for n in unmatched_local],  # type: ignore[list-item]  # video LocalHash cost matrix in task 5
+            local_hashes=[local_hashes[n] for n in unmatched_local],
             candidate_ids=[item.id for item in unmatched_cands],
             candidate_hashes=[candidate_hashes[item.id] for item in unmatched_cands],
+            local_is_video=[is_video(n) for n in unmatched_local],
+            candidate_is_video=[item.type == "VIDEO" for item in unmatched_cands],
         )
         for r in results:
             all_matches.append(r)
@@ -485,11 +514,13 @@ def _cross_step_fallback(  # noqa: PLR0913
     ):
         fallback_results = match_within_window(
             local_names=remaining_local,
-            local_hashes=[local_hashes[n] for n in remaining_local],  # type: ignore[list-item]  # video LocalHash cost matrix in task 5
+            local_hashes=[local_hashes[n] for n in remaining_local],
             candidate_ids=[item.id for item in remaining_candidates],
             candidate_hashes=[
                 candidate_hashes[item.id] for item in remaining_candidates
             ],
+            local_is_video=[is_video(n) for n in remaining_local],
+            candidate_is_video=[item.type == "VIDEO" for item in remaining_candidates],
         )
         all_matches.extend(fallback_results)
 
