@@ -44,6 +44,24 @@ _MEDIA_ITEM_JSON = {
     },
 }
 
+_VIDEO_ITEM_JSON = {
+    "id": "vid-1",
+    "createTime": "2024-06-15T14:30:00Z",
+    "type": "VIDEO",
+    "mediaFile": {
+        "baseUrl": "https://lh3.googleusercontent.com/vid",
+        "mimeType": "video/mp4",
+        "filename": "VID_1234.mp4",
+        "mediaFileMetadata": {"width": 3840, "height": 2160},
+    },
+    "videoMetadata": {
+        "cameraMake": "Google",
+        "cameraModel": "Pixel 8",
+        "fps": 30.0,
+        "processingStatus": "READY",
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Response parsing (Pydantic camelCase -> snake_case)
@@ -202,3 +220,36 @@ class TestGetMediaItems:
 
         assert len(items) == 1
         assert items[0].type == "VIDEO"
+
+    async def test_video_processing_status_surfaced(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get.return_value = _json_response(
+            {"mediaItems": [_VIDEO_ITEM_JSON]}
+        )
+
+        with patch(
+            "app.services.google_photos._picker_client", return_value=mock_client
+        ):
+            items = await get_media_items("session-1", "token-1")
+
+        assert len(items) == 1
+        assert items[0].type == "VIDEO"
+        assert items[0].video_processing_status == "READY"
+
+
+class TestVideoMetadataParsing:
+    def test_video_processing_status_parsed(self) -> None:
+        page = _MediaItemsPage.model_validate({"mediaItems": [_VIDEO_ITEM_JSON]})
+        assert page.media_items[0].type == "VIDEO"
+
+    def test_video_processing_status_surfaced_on_picked_item(self) -> None:
+        """get_media_items should surface processingStatus on PickedMediaItem."""
+        page = _MediaItemsPage.model_validate({"mediaItems": [_VIDEO_ITEM_JSON]})
+        raw = page.media_items[0]
+        assert raw.video_metadata is not None
+        assert raw.video_metadata.processing_status == "READY"
+
+    def test_photo_has_no_video_metadata(self) -> None:
+        page = _MediaItemsPage.model_validate({"mediaItems": [_MEDIA_ITEM_JSON]})
+        raw = page.media_items[0]
+        assert raw.video_metadata is None

@@ -99,6 +99,7 @@ class PickedMediaItem(BaseModel):
     create_time: str
     type: str  # "PHOTO" or "VIDEO"
     media_file: MediaFile
+    video_processing_status: str | None = None  # "READY", "PROCESSING", "FAILED"
 
 
 class PickerSession(BaseModel):
@@ -128,6 +129,10 @@ class _MediaFileMetadata(_GoogleResponse):
     height: int | None = None
 
 
+class _VideoMetadata(_GoogleResponse):
+    processing_status: str = "READY"
+
+
 class _RawMediaFile(_GoogleResponse):
     base_url: str = ""
     mime_type: str = "image/jpeg"
@@ -140,6 +145,7 @@ class _RawMediaItem(_GoogleResponse):
     create_time: str = ""
     type: str = "PHOTO"
     media_file: _RawMediaFile = _RawMediaFile()
+    video_metadata: _VideoMetadata | None = None
 
 
 class _PollingConfig(_GoogleResponse):
@@ -235,6 +241,9 @@ async def get_media_items(
                 create_time=raw.create_time,
                 type=raw.type,
                 media_file=_to_media_file(raw.media_file),
+                video_processing_status=(
+                    raw.video_metadata.processing_status if raw.video_metadata else None
+                ),
             )
             for raw in page.media_items
         )
