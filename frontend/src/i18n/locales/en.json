@@ -4,7 +4,8 @@
 
   "common": {
     "loadingAlbum": "Loading album...",
-    "retry": "Please try again."
+    "retry": "Please try again.",
+    "cancel": "Cancel"
   },
 
   "units": {
@@ -65,6 +66,7 @@
     "uploadFailed": "Upload failed. @:common.retry",
     "uploadProgress": "Upload progress",
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
+    "badZip": "This file doesn't look like a valid Polarsteps export.",
     "greeting": "Hey, {name}",
     "evictedTitle": "Welcome back!",
     "evictedBody": "We cleaned up your files to save space, but your edits are saved. Re-upload your data to continue where you left off.",
@@ -116,7 +118,6 @@
   "delete": {
     "title": "Delete all data?",
     "body": "This will permanently remove your uploaded data and all albums. You'll need to upload again to continue.",
-    "cancel": "Cancel",
     "confirm": "Delete everything",
     "deleting": "Deleting..."
   },

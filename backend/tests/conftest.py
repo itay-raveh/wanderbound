@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.deps import _get_session
 from app.core.config import get_settings
+from app.logic.chunked_upload import upload_store
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 
@@ -53,10 +54,13 @@ async def client(
     # Disable background eviction - it opens its own DB session, bypassing
     # the test transaction rollback and causing cross-test data leaks.
     with patch("app.api.v1.routes.users.run_eviction"):
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as c:
+        async with (
+            upload_store.lifespan(),
+            AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as c,
+        ):
             yield c
     app.dependency_overrides.clear()
 

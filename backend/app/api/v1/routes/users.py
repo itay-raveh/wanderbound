@@ -20,12 +20,14 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.sse import EventSourceResponse
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.resources import MiB
+from app.logic.chunked_upload import upload_store
 from app.logic.eviction import run_eviction
 from app.logic.export import (
     EXPORT_FILENAME,
@@ -65,9 +67,7 @@ def _check_upload_size(file: UploadFile) -> int:
             size // MiB,
             max_bytes // MiB,
         )
-        raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
-        )
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large")
     return size
 
 
@@ -91,41 +91,31 @@ async def _resolve_auth(
     return None, await verify_credential(credential, provider)
 
 
-@router.post("/upload")
-async def upload_data(
-    file: UploadFile,
-    request: Request,
+def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
+    """Stable identifier for the auth principal behind an upload session."""
+    if existing is not None:
+        return f"uid:{existing.id}"
+    assert identity is not None  # noqa: S101 - _resolve_auth guarantees one is set
+    return f"{identity.provider}:{identity.sub}"
+
+
+async def _finalize_upload(  # noqa: PLR0913
+    temp_folder: Path,
+    ps_user: PSUser,
+    trips: list[TripMeta],
+    existing: User | None,
+    identity: OAuthIdentity | None,
     session: SessionDep,
+    request: Request,
     background_tasks: BackgroundTasks,
-    auth: Annotated[_AuthForm, Depends()],
 ) -> UploadResult:
-    uid: int | None = request.session.get("uid")
-
-    # Auth first - reject unauthorized users before processing the ZIP.
-    existing, identity = await _resolve_auth(
-        uid, auth.credential, auth.provider, session, request
-    )
-
-    size = _check_upload_size(file)
-    logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
-    try:
-        temp_folder, ps_user, trips = await asyncio.to_thread(
-            extract_and_scan, file.file
-        )
-    except (BadZipFile, OSError) as e:
-        logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
-        raise HTTPException(
-            status.HTTP_406_NOT_ACCEPTABLE,
-            detail="Bad ZIP",
-        ) from e
-
+    """Shared logic for creating/updating a user after ZIP extraction."""
     album_ids = [t.id for t in trips]
 
-    cancel_session(ps_user.id)
-
     try:
+        cancel_session(ps_user.id)
+
         if existing is not None:
-            # Re-upload: update existing user with new ZIP data
             existing.album_ids = album_ids
             existing.living_location = ps_user.living_location
             existing.first_name = existing.first_name or ps_user.first_name
@@ -134,7 +124,6 @@ async def upload_data(
             user = existing
             logger.info("User %d re-uploaded ZIP", user.id)
         else:
-            # New user: identity is guaranteed set (uid was absent)
             oauth = cast("OAuthIdentity", identity)
             user = User(
                 id=ps_user.id,
@@ -153,7 +142,6 @@ async def upload_data(
             login_session(request, user.id)
             logger.info("New user %d created via upload", user.id)
 
-        # Move extracted data to user's permanent folder
         target = user.folder
         if target.exists():
             await asyncio.to_thread(shutil.rmtree, target)
@@ -164,6 +152,143 @@ async def upload_data(
 
     background_tasks.add_task(run_eviction, user.id)
     return UploadResult(user=user, trips=trips)
+
+
+@router.post("/upload")
+async def upload_data(
+    file: UploadFile,
+    request: Request,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    auth: Annotated[_AuthForm, Depends()],
+) -> UploadResult:
+    uid: int | None = request.session.get("uid")
+    existing, identity = await _resolve_auth(
+        uid, auth.credential, auth.provider, session, request
+    )
+
+    size = _check_upload_size(file)
+    logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
+    try:
+        temp_folder, ps_user, trips = await asyncio.to_thread(
+            extract_and_scan, file.file
+        )
+    except (BadZipFile, OSError, ValidationError) as e:
+        logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
+        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
+
+    return await _finalize_upload(
+        temp_folder,
+        ps_user,
+        trips,
+        existing,
+        identity,
+        session,
+        request,
+        background_tasks,
+    )
+
+
+# -- Chunked upload -----------------------------------------------------------
+
+
+@router.post("/upload/init")
+async def init_chunked_upload(
+    request: Request,
+    session: SessionDep,
+    auth: Annotated[_AuthForm, Depends()],
+) -> dict[str, str]:
+    """Start a chunked upload session. Returns an opaque upload_id."""
+    uid: int | None = request.session.get("uid")
+    existing, identity = await _resolve_auth(
+        uid, auth.credential, auth.provider, session, request
+    )
+
+    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
+    owner = _upload_owner(existing, identity)
+    upload_id = upload_store.create(max_bytes, owner=owner)
+    return {"upload_id": upload_id}
+
+
+@router.put("/upload/{upload_id}/{chunk_index}")
+async def upload_chunk(
+    upload_id: str,
+    chunk_index: int,
+    request: Request,
+) -> Response:
+    """Upload a single chunk of a file. Body is raw binary.
+
+    No per-request auth: the cryptographic upload_id (256-bit
+    ``secrets.token_urlsafe``) acts as a bearer token.  Ownership is
+    verified when the session is finalized in ``complete_chunked_upload``.
+    """
+    body = await request.body()
+    try:
+        await asyncio.to_thread(upload_store.write_chunk, upload_id, chunk_index, body)
+    except KeyError:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Upload session not found"
+        ) from None
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
+    except OverflowError:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large"
+        ) from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/upload/{upload_id}/complete")
+async def complete_chunked_upload(
+    upload_id: str,
+    request: Request,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    auth: Annotated[_AuthForm, Depends()],
+) -> UploadResult:
+    """Assemble chunks and process the ZIP."""
+    uid: int | None = request.session.get("uid")
+    existing, identity = await _resolve_auth(
+        uid, auth.credential, auth.provider, session, request
+    )
+
+    owner = _upload_owner(existing, identity)
+    try:
+        assembled, upload_dir = await asyncio.to_thread(
+            upload_store.assemble, upload_id, owner=owner
+        )
+    except KeyError:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Upload session not found"
+        ) from None
+    except PermissionError:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Upload session belongs to a different user"
+        ) from None
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
+
+    try:
+        temp_folder, ps_user, trips = await asyncio.to_thread(
+            extract_and_scan, assembled
+        )
+    except (BadZipFile, OSError, ValidationError) as e:
+        logger.warning("Bad ZIP from chunked upload %s: %s", upload_id[:8], e)
+        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
+    finally:
+        assembled.close()
+        await asyncio.to_thread(shutil.rmtree, upload_dir, ignore_errors=True)
+
+    return await _finalize_upload(
+        temp_folder,
+        ps_user,
+        trips,
+        existing,
+        identity,
+        session,
+        request,
+        background_tasks,
+    )
 
 
 @cache
