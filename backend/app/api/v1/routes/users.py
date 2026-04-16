@@ -90,6 +90,14 @@ async def _resolve_auth(
     return None, await verify_credential(credential, provider)
 
 
+def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
+    """Stable identifier for the auth principal behind an upload session."""
+    if existing is not None:
+        return f"uid:{existing.id}"
+    assert identity is not None  # noqa: S101 - _resolve_auth guarantees one is set
+    return f"{identity.provider}:{identity.sub}"
+
+
 async def _finalize_upload(  # noqa: PLR0913
     temp_folder: Path,
     ps_user: PSUser,
@@ -190,10 +198,13 @@ async def init_chunked_upload(
 ) -> dict[str, str]:
     """Start a chunked upload session. Returns an opaque upload_id."""
     uid: int | None = request.session.get("uid")
-    await _resolve_auth(uid, auth.credential, auth.provider, session, request)
+    existing, identity = await _resolve_auth(
+        uid, auth.credential, auth.provider, session, request
+    )
 
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
-    upload_id = upload_store.create(max_bytes)
+    owner = _upload_owner(existing, identity)
+    upload_id = upload_store.create(max_bytes, owner=owner)
     return {"upload_id": upload_id}
 
 
@@ -234,11 +245,18 @@ async def complete_chunked_upload(
         uid, auth.credential, auth.provider, session, request
     )
 
+    owner = _upload_owner(existing, identity)
     try:
-        assembled = await asyncio.to_thread(upload_store.assemble, upload_id)
+        assembled = await asyncio.to_thread(
+            upload_store.assemble, upload_id, owner=owner
+        )
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"
+        ) from None
+    except PermissionError:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Upload session belongs to a different user"
         ) from None
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None

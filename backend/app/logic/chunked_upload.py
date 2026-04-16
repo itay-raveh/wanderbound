@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import secrets
 import shutil
@@ -21,6 +22,7 @@ class _Session:
     timer: asyncio.TimerHandle
     max_bytes: int
     max_chunks: int
+    owner: str
     accumulated_bytes: int = 0
     chunks_written: set[int] = field(default_factory=set)
 
@@ -48,7 +50,7 @@ class UploadStore:
 
     # -- public API -------------------------------------------------------
 
-    def create(self, max_bytes: int) -> str:
+    def create(self, max_bytes: int, *, owner: str) -> str:
         """Start a new upload session. Returns an opaque upload_id."""
         upload_id = secrets.token_urlsafe()
         upload_dir = self._base / secrets.token_hex(16)
@@ -62,6 +64,7 @@ class UploadStore:
             timer=timer,
             max_bytes=max_bytes,
             max_chunks=max_chunks,
+            owner=owner,
         )
         logger.info("Upload session %s created", upload_id[:8])
         return upload_id
@@ -85,7 +88,8 @@ class UploadStore:
         # Deduct old size before overflow check so retries aren't falsely rejected
         effective = session.accumulated_bytes
         if index in session.chunks_written:
-            effective -= (session.dir / f"{index:04d}").stat().st_size
+            with contextlib.suppress(OSError):
+                effective -= (session.dir / f"{index:04d}").stat().st_size
         elif len(session.chunks_written) >= session.max_chunks:
             msg = f"Too many chunks (limit {session.max_chunks})"
             raise ValueError(msg)
@@ -98,15 +102,20 @@ class UploadStore:
         session.accumulated_bytes = effective + len(data)
         session.chunks_written.add(index)
 
-    def assemble(self, upload_id: str) -> BinaryIO:
+    def assemble(self, upload_id: str, *, owner: str) -> BinaryIO:
         """Concatenate all chunks into a single seekable file.
 
         Pops the session from the store. The caller owns the returned file
         and the session directory (must clean up both).
+
+        Raises PermissionError if *owner* doesn't match the session creator.
         """
-        session = self._sessions.pop(upload_id, None)
+        session = self._sessions.get(upload_id)
         if session is None:
             raise KeyError(upload_id)
+        if session.owner != owner:
+            raise PermissionError("Upload session belongs to a different user")
+        self._sessions.pop(upload_id)
         session.timer.cancel()
 
         chunks = sorted(session.dir.glob("[0-9]*"))
