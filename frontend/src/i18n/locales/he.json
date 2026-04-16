@@ -273,7 +273,8 @@
       "cancel": "ביטול"
     },
     "downloading": "מוריד {done}/{total}",
-    "done": "שודרגו {count} קבצים לאיכות מקורית",
+    "done": "שודרגו {replaced} קבצים לאיכות מקורית",
+    "donePartial": "שודרגו {replaced} מתוך {total} קבצים",
     "error": "השדרוג נכשל. נסו שוב.",
     "disconnect": "ניתוק Google Photos"
   }

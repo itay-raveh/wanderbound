@@ -3,7 +3,6 @@
 OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 """
 
-import asyncio
 import logging
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
@@ -43,16 +42,9 @@ from ..deps import SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
 
-# Per-album lock prevents concurrent upgrades to the same album from
-# racing on temp files, disk renames, and DB commits.
-_album_locks: dict[tuple[int, str], asyncio.Lock] = {}
-
-
-def _get_album_lock(uid: int, aid: str) -> asyncio.Lock:
-    key = (uid, aid)
-    if key not in _album_locks:
-        _album_locks[key] = asyncio.Lock()
-    return _album_locks[key]
+# Tracks albums currently being upgraded. Checked/mutated in a single
+# synchronous block (no await between check and add) to avoid TOCTOU races.
+_upgrades_in_progress: set[tuple[int, str]] = set()
 
 
 def _require_google_user(user: UserDep) -> None:
@@ -240,14 +232,15 @@ async def upgrade_media(
     user: UserDep,
     session: SessionDep,
 ) -> AsyncIterable[UpgradeEvent]:
-    lock = _get_album_lock(user.id, aid)
-    if lock.locked():
+    key = (user.id, aid)
+    if key in _upgrades_in_progress:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "An upgrade is already running for this album.",
         )
+    _upgrades_in_progress.add(key)
 
-    async with lock:
+    try:
         access_token = await _get_access_token(user)
         # _get_access_token raises 400 if missing, so this is guaranteed non-None
         encrypted = user.google_photos_refresh_token
@@ -288,24 +281,21 @@ async def upgrade_media(
         finally:
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
+            album.media, album.upgraded_media = await apply_upgrade_results(
+                album_dir,
+                body.matches,
+                album.media,
+                album.upgraded_media,
+                succeeded,
+            )
+            session.add(album)
+            await session.commit()
             try:
-                album.media, album.upgraded_media = await apply_upgrade_results(
-                    album_dir,
-                    body.matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
-                )
-                session.add(album)
-                await session.commit()
-                try:
-                    await delete_picker_session(body.session_id, await tokens.get())
-                except httpx.HTTPError:
-                    logger.warning(
-                        "Failed to delete picker session %s", body.session_id
-                    )
-            finally:
-                _album_locks.pop((user.id, aid), None)
+                await delete_picker_session(body.session_id, await tokens.get())
+            except httpx.HTTPError:
+                logger.warning("Failed to delete picker session %s", body.session_id)
+    finally:
+        _upgrades_in_progress.discard(key)
 
 
 # ---------------------------------------------------------------------------
