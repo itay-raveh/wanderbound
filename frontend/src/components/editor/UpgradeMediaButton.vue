@@ -7,6 +7,7 @@ import {
   symOutlinedClose,
   symOutlinedCheck,
   symOutlinedError,
+  symOutlinedLinkOff,
   symOutlinedUpgrade,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
@@ -65,6 +66,13 @@ const showSummary = computed({
   },
 });
 
+const doneMessage = computed(() => {
+  const { done: replaced, total } = upgrade.progress.value;
+  const failed = total - replaced;
+  if (failed > 0) return t("upgrade.donePartial", { replaced, total });
+  return t("upgrade.done", { replaced });
+});
+
 const { confirmUpgrade } = upgrade;
 </script>
 
@@ -74,14 +82,14 @@ const { confirmUpgrade } = upgrade;
       v-if="upgrade.phase.value === 'done'"
       class="action-btn done"
       aria-disabled="true"
-      :aria-label="t('upgrade.done', { count: upgrade.matchSummary.value?.matched ?? 0 })"
+      :aria-label="doneMessage"
     >
       <q-icon
         :name="symOutlinedCheck"
         size="var(--type-lg)"
         class="done-icon"
       />
-      {{ t("upgrade.done", { count: upgrade.matchSummary.value?.matched ?? 0 }) }}
+      {{ doneMessage }}
     </button>
 
     <button
@@ -126,6 +134,16 @@ const { confirmUpgrade } = upgrade;
     >
       <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
       {{ t("upgrade.button") }}
+    </button>
+
+    <button
+      v-if="upgrade.googlePhotosState.value === 'connected' && upgrade.phase.value === 'idle'"
+      class="disconnect-btn"
+      :aria-label="t('upgrade.disconnect')"
+      @click="upgrade.disconnect()"
+    >
+      <q-icon :name="symOutlinedLinkOff" size="var(--type-sm)" />
+      {{ t("upgrade.disconnect") }}
     </button>
 
     <UpgradeOnboardingDialog

@@ -301,6 +301,7 @@ export function useMediaUpgrade() {
     start: (albumId: string) => void start(albumId),
     confirmUpgrade,
     cancel,
+    disconnect: gp.disconnect,
   };
 }
 

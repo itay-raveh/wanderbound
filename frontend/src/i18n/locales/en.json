@@ -273,7 +273,8 @@
       "cancel": "Cancel"
     },
     "downloading": "Downloading {done}/{total}",
-    "done": "Upgraded {count} files to original quality",
+    "done": "Upgraded {replaced} files to original quality",
+    "donePartial": "Upgraded {replaced} of {total} files",
     "error": "Upgrade failed. Try again.",
     "disconnect": "Disconnect Google Photos"
   }

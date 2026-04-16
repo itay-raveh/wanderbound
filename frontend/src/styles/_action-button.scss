@@ -102,4 +102,27 @@
       animation: none;
     }
   }
+
+  .disconnect-btn {
+    font-family: var(--font-ui);
+    font-size: var(--type-xs);
+    color: var(--text-faint);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-xs);
+    padding: var(--gap-xs) 0;
+    transition: color var(--duration-fast);
+
+    &:hover {
+      color: var(--text-muted);
+    }
+
+    &:focus-visible {
+      outline: 0.125rem solid var(--q-primary);
+      outline-offset: 0.125rem;
+    }
+  }
 }
