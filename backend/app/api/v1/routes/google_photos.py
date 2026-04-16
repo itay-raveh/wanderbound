@@ -4,7 +4,7 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 """
 
 import logging
-from collections.abc import AsyncIterable
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -45,6 +45,21 @@ logger = logging.getLogger(__name__)
 # Tracks albums currently being upgraded. Checked/mutated in a single
 # synchronous block (no await between check and add) to avoid TOCTOU races.
 _upgrades_in_progress: set[tuple[int, str]] = set()
+
+
+def _sse(event: UpgradeEvent) -> str:
+    """Format an upgrade event as an SSE data frame."""
+    return f"data: {event.model_dump_json()}\n\n"
+
+
+def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
+    """Raise 422 if any match references a file not in the album."""
+    for m in matches:
+        if m.local_name not in valid_names:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Unknown media file: {m.local_name}",
+            )
 
 
 def _require_google_user(user: UserDep) -> None:
@@ -180,7 +195,6 @@ async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
 
 @router.post(
     "/match/{aid}",
-    response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
 async def match_media(
@@ -188,7 +202,8 @@ async def match_media(
     user: UserDep,
     session: SessionDep,
     session_id: Annotated[PickerSessionId, Query()],
-) -> AsyncIterable[UpgradeEvent]:
+) -> EventSourceResponse:
+    # Validate before streaming - HTTPExceptions need uncommitted headers.
     access_token = await _get_access_token(user)
 
     album = await session.get_one(Album, (user.id, aid))
@@ -207,19 +222,22 @@ async def match_media(
     step_timestamps = [s.timestamp for s in step_rows]
     step_ids = [s.id for s in step_rows]
 
-    try:
-        async for event in run_matching(
-            album_dir=album_dir,
-            media_names=media_names,
-            step_timestamps=step_timestamps,
-            step_ids=step_ids,
-            google_items=items,
-            access_token=access_token,
-        ):
-            yield event
-    except Exception:
-        logger.exception("Matching failed for album %s", aid)
-        yield UpgradeError(detail="Matching failed unexpectedly.")
+    async def stream() -> AsyncGenerator[str]:
+        try:
+            async for event in run_matching(
+                album_dir=album_dir,
+                media_names=media_names,
+                step_timestamps=step_timestamps,
+                step_ids=step_ids,
+                google_items=items,
+                access_token=access_token,
+            ):
+                yield _sse(event)
+        except Exception:
+            logger.exception("Matching failed for album %s", aid)
+            yield _sse(UpgradeError(detail="Matching failed unexpectedly."))
+
+    return EventSourceResponse(stream())
 
 
 class UpgradeRequest(BaseModel):
@@ -229,45 +247,40 @@ class UpgradeRequest(BaseModel):
 
 @router.post(
     "/upgrade/{aid}",
-    response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
-async def upgrade_media(  # noqa: C901
+async def upgrade_media(
     aid: str,
     body: UpgradeRequest,
     user: UserDep,
     session: SessionDep,
-) -> AsyncIterable[UpgradeEvent]:
+) -> EventSourceResponse:
+    # Validate before streaming - HTTPExceptions need uncommitted headers.
     key = (user.id, aid)
     if key in _upgrades_in_progress:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "An upgrade is already running for this album.",
         )
+
+    if not user.google_photos_refresh_token:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
+    refresh_token = decrypt_token(user.google_photos_refresh_token)
+    tokens = TokenProvider(refresh_token)
+    access_token = await tokens.get()
+
+    album = await session.get_one(Album, (user.id, aid))
+    album_dir = user.trips_folder / aid
+
+    _validate_match_names(body.matches, {m.name for m in album.media})
+
+    items = await get_media_items(body.session_id, access_token)
+    items_by_id = {item.id: item for item in items}
+
+    # All validation passed - register the lock and start streaming.
     _upgrades_in_progress.add(key)
 
-    try:
-        if not user.google_photos_refresh_token:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
-        refresh_token = decrypt_token(user.google_photos_refresh_token)
-        tokens = TokenProvider(refresh_token)
-        access_token = await tokens.get()
-
-        album = await session.get_one(Album, (user.id, aid))
-        album_dir = user.trips_folder / aid
-
-        # Validate every match references an actual album file (prevents path traversal)
-        valid_names = {m.name for m in album.media}
-        for m in body.matches:
-            if m.local_name not in valid_names:
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    f"Unknown media file: {m.local_name}",
-                )
-
-        items = await get_media_items(body.session_id, access_token)
-        items_by_id = {item.id: item for item in items}
-
+    async def stream() -> AsyncGenerator[str]:
         succeeded: set[str] = set()
         try:
             async for event in execute_upgrade(
@@ -278,10 +291,10 @@ async def upgrade_media(  # noqa: C901
                 already_upgraded=album.upgraded_media,
                 succeeded=succeeded,
             ):
-                yield event
+                yield _sse(event)
         except Exception:
             logger.exception("Upgrade failed for album %s", aid)
-            yield UpgradeError(detail="Upgrade failed unexpectedly.")
+            yield _sse(UpgradeError(detail="Upgrade failed unexpectedly."))
         finally:
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
@@ -305,8 +318,9 @@ async def upgrade_media(  # noqa: C901
                 await delete_picker_session(body.session_id, await tokens.get())
             except httpx.HTTPError:
                 logger.warning("Failed to delete picker session %s", body.session_id)
-    finally:
-        _upgrades_in_progress.discard(key)
+            _upgrades_in_progress.discard(key)
+
+    return EventSourceResponse(stream())
 
 
 # ---------------------------------------------------------------------------

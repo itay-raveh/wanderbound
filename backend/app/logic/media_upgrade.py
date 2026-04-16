@@ -194,6 +194,7 @@ def _video_duration_sync(path: Path) -> float:
     try:
         return float(result.stdout.strip())
     except ValueError:
+        logger.debug("Could not parse duration for %s, defaulting to 2s", path.name)
         return 2.0
 
 
