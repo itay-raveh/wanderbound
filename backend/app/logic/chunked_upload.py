@@ -3,13 +3,14 @@ import contextlib
 import logging
 import secrets
 import shutil
-import tempfile
 import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
+
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,8 @@ class _Session:
 class UploadStore:
     """Manages in-progress chunked uploads with automatic TTL eviction."""
 
-    def __init__(self) -> None:
-        self._base = Path(tempfile.gettempdir()) / "chunked-uploads"
+    def __init__(self, base: Path | None = None) -> None:
+        self._base = base or get_settings().DATA_FOLDER / "chunked-uploads"
         self._sessions: dict[str, _Session] = {}
 
     # -- lifecycle --------------------------------------------------------

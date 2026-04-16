@@ -1,6 +1,7 @@
 """Unit tests for the UploadStore chunked-upload manager."""
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 
@@ -10,8 +11,8 @@ MAX_BYTES = 1024 * 1024  # 1 MiB - small limit for tests
 
 
 @pytest.fixture
-async def store() -> AsyncIterator[UploadStore]:
-    store = UploadStore()
+async def store(tmp_path: Path) -> AsyncIterator[UploadStore]:
+    store = UploadStore(base=tmp_path / "chunked-uploads")
     async with store.lifespan():
         yield store
 
@@ -129,8 +130,8 @@ class TestAssemble:
 
 
 class TestEviction:
-    async def test_expired_session_is_cleaned_up(self) -> None:
-        store = UploadStore()
+    async def test_expired_session_is_cleaned_up(self, tmp_path: Path) -> None:
+        store = UploadStore(base=tmp_path / "chunked-uploads")
         async with store.lifespan():
             uid = store.create(MAX_BYTES, owner="test")
             store.write_chunk(uid, 0, b"data")
