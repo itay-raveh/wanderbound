@@ -33,7 +33,7 @@ interface UpgradeProgress {
 
 interface MatchSummary {
   matches: MatchResult[];
-  totalPhotos: number;
+  totalMedia: number;
   matched: number;
   unmatched: number;
 }
@@ -223,7 +223,7 @@ export function usePhotoUpgrade() {
         case "match_summary":
           summary = {
             matches: event.matches,
-            totalPhotos: event.total_photos,
+            totalMedia: event.total_media,
             matched: event.matched,
             unmatched: event.unmatched,
           };

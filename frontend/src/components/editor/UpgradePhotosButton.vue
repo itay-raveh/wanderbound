@@ -121,7 +121,7 @@ const { confirmUpgrade } = upgrade;
     <UpgradeMatchSummary
       v-model="showSummary"
       :matched="upgrade.matchSummary.value?.matched ?? 0"
-      :total="upgrade.matchSummary.value?.totalPhotos ?? 0"
+      :total="upgrade.matchSummary.value?.totalMedia ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
       @confirm="confirmUpgrade"
     />

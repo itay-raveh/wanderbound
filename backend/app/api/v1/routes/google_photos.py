@@ -171,7 +171,7 @@ async def match_photos(
     album_dir = user.trips_folder / aid
 
     items = await get_media_items(session_id, access_token)
-    photo_names = [m.name for m in album.media if m.name.endswith(".jpg")]
+    media_names = [m.name for m in album.media]
 
     step_rows = (
         await session.exec(
@@ -185,7 +185,7 @@ async def match_photos(
 
     async for event in run_matching(
         album_dir=album_dir,
-        media_names=photo_names,
+        media_names=media_names,
         step_timestamps=step_timestamps,
         step_ids=step_ids,
         google_items=items,

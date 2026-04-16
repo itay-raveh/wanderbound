@@ -88,7 +88,7 @@ class UpgradeReplacing(BaseModel):
 
 class UpgradeMatchSummary(BaseModel):
     type: Literal["match_summary"] = "match_summary"
-    total_photos: int
+    total_media: int
     matched: int
     unmatched: int
     matches: list[MatchResult]
@@ -439,7 +439,7 @@ async def run_matching(  # noqa: PLR0913
     )
 
     yield UpgradeMatchSummary(
-        total_photos=total,
+        total_media=total,
         matched=len(all_matches),
         unmatched=total - len(all_matches),
         matches=all_matches,
