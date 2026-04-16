@@ -162,6 +162,12 @@ async def poll_session(
     return SessionStatusResponse(ready=data.media_items_set)
 
 
+@router.delete("/sessions/{session_id}", status_code=204)
+async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
+    access_token = await _get_access_token(user)
+    await delete_picker_session(session_id, access_token)
+
+
 # ---------------------------------------------------------------------------
 # SSE matching + upgrade
 # ---------------------------------------------------------------------------

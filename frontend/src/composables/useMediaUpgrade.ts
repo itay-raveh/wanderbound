@@ -60,6 +60,7 @@ export function useMediaUpgrade() {
   let confirmResolve: (() => void) | null = null;
   let confirmReject: ((reason: Error) => void) | null = null;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
+  let activeSessionId: string | null = null;
 
   function reset() {
     progress.value = { done: 0, total: 0 };
@@ -67,6 +68,7 @@ export function useMediaUpgrade() {
     errorDetail.value = null;
     confirmResolve = null;
     confirmReject = null;
+    activeSessionId = null;
   }
 
   async function start(albumId: string) {
@@ -98,6 +100,7 @@ export function useMediaUpgrade() {
       // Step 3: Create Picker session and open in new tab
       phase.value = "picking";
       const { sessionId, pickerUri } = await gp.createPickerSession();
+      activeSessionId = sessionId;
       if (signal.aborted) return;
       const pickerTab = window.open(pickerUri + "/autoclose", "_blank");
 
@@ -119,6 +122,10 @@ export function useMediaUpgrade() {
       // Step 6: Show summary, wait for confirmation
       matchSummary.value = summary;
       if (summary.matched === 0) {
+        if (activeSessionId) {
+          gp.closeSession(activeSessionId).catch(() => {});
+          activeSessionId = null;
+        }
         phase.value = "done";
         scheduleDoneReset();
         return;
@@ -150,6 +157,9 @@ export function useMediaUpgrade() {
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
+    if (activeSessionId) {
+      gp.closeSession(activeSessionId).catch(() => {});
+    }
     confirmResolve = null;
     confirmReject = null;
     if (resetTimer !== null) {

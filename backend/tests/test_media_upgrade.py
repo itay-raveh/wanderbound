@@ -367,6 +367,7 @@ class TestBucketByWindow:
         bucketed = _bucket_by_window([item], windows)
         # Should land in window 1 (via overlap) and also window 2
         assert any(i.id == "g1" for i in bucketed[1])
+        assert any(i.id == "g1" for i in bucketed[2])
 
 
 class TestCrossStepFallback:

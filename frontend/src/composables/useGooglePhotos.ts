@@ -1,6 +1,7 @@
 import { computed } from "vue";
 import {
   authorize,
+  closeSession as closeSessionApi,
   createSession,
   disconnect as disconnectApi,
   pollSession as pollSessionApi,
@@ -84,6 +85,10 @@ export function useGooglePhotos() {
     return { ready: data.ready };
   }
 
+  async function closePickerSession(sessionId: string): Promise<void> {
+    await closeSessionApi({ path: { session_id: sessionId } });
+  }
+
   return {
     state,
     isConnected,
@@ -91,5 +96,6 @@ export function useGooglePhotos() {
     disconnect: disconnectGooglePhotos,
     createPickerSession,
     pollSession: pollPickerSession,
+    closeSession: closePickerSession,
   };
 }
