@@ -252,29 +252,29 @@
   },
 
   "upgrade": {
-    "button": "שדרוג תמונות",
+    "button": "שדרוג מדיה",
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
-      "step1": "Polarsteps דחס את תמונות הטיול. המקוריות עדיין ב-Google Photos שלך.",
-      "step2": "Google Photos ייפתח בלשונית חדשה. חפשו לפי תאריכי הטיול או מיקום, ובחרו את תמונות הטיול.",
-      "step3": "נתאים כל תמונה ונחליף את הגרסה הדחוסה במקורית.",
-      "tip": "Shift+לחיצה בוחר טווח תמונות ב-Google Photos.",
+      "step1": "Polarsteps דחס את התמונות והסרטונים של הטיול. המקוריים עדיין ב-Google Photos שלך.",
+      "step2": "Google Photos ייפתח בלשונית חדשה. חפשו לפי תאריכי הטיול או מיקום, ובחרו את התמונות והסרטונים של הטיול.",
+      "step3": "נתאים כל קובץ ונחליף את הגרסה הדחוסה במקורית.",
+      "tip": "Shift+לחיצה בוחר טווח ב-Google Photos.",
       "continue": "חיבור Google Photos",
       "cancel": "ביטול"
     },
     "authorizing": "מתחבר ל-Google Photos...",
-    "picking": "ממתין לבחירת תמונות...",
-    "matching": "מתאים תמונות {done}/{total}",
+    "picking": "ממתין לבחירה...",
+    "matching": "מתאים {done}/{total}",
     "summary": {
       "title": "תוצאות התאמה",
-      "matched": "הותאמו {matched} מתוך {total} תמונות",
-      "unmatched": "{count} תמונות לא הותאמו",
+      "matched": "הותאמו {matched} מתוך {total}",
+      "unmatched": "{count} לא הותאמו",
       "confirm": "החלף במקוריות",
       "cancel": "ביטול"
     },
     "downloading": "מוריד {done}/{total}",
-    "done": "שודרגו {count} תמונות לאיכות מקורית",
-    "error": "שדרוג התמונות נכשל. נסו שוב.",
+    "done": "שודרגו {count} קבצים לאיכות מקורית",
+    "error": "השדרוג נכשל. נסו שוב.",
     "disconnect": "ניתוק Google Photos"
   }
 }

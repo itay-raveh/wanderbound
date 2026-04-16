@@ -252,29 +252,29 @@
   },
 
   "upgrade": {
-    "button": "Upgrade Photos",
+    "button": "Upgrade Media",
     "onboarding": {
       "title": "Upgrade to Original Quality",
-      "step1": "Polarsteps compressed your trip photos. The originals are still in your Google Photos.",
-      "step2": "Google Photos opens in a new tab. Search by your trip dates or location, then select your trip photos.",
-      "step3": "We match each photo and replace the compressed version with your original.",
-      "tip": "Shift+click selects a range of photos in Google Photos.",
+      "step1": "Polarsteps compressed your trip photos and videos. The originals are still in your Google Photos.",
+      "step2": "Google Photos opens in a new tab. Search by your trip dates or location, then select your trip photos and videos.",
+      "step3": "We match each file and replace the compressed version with your original.",
+      "tip": "Shift+click selects a range in Google Photos.",
       "continue": "Connect Google Photos",
       "cancel": "Cancel"
     },
     "authorizing": "Connecting to Google Photos...",
-    "picking": "Waiting for photo selection...",
-    "matching": "Matching photos {done}/{total}",
+    "picking": "Waiting for selection...",
+    "matching": "Matching {done}/{total}",
     "summary": {
       "title": "Match Results",
-      "matched": "Matched {matched} of {total} photos",
-      "unmatched": "{count} photos did not match",
+      "matched": "Matched {matched} of {total}",
+      "unmatched": "{count} did not match",
       "confirm": "Replace with Originals",
       "cancel": "Cancel"
     },
     "downloading": "Downloading {done}/{total}",
-    "done": "Upgraded {count} photos to original quality",
-    "error": "Photo upgrade failed. Try again.",
+    "done": "Upgraded {count} files to original quality",
+    "error": "Upgrade failed. Try again.",
     "disconnect": "Disconnect Google Photos"
   }
 }
