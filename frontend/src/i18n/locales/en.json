@@ -65,6 +65,7 @@
     "uploadFailed": "Upload failed. @:common.retry",
     "uploadProgress": "Upload progress",
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
+    "badZip": "This file doesn't look like a valid Polarsteps export.",
     "greeting": "Hey, {name}",
     "evictedTitle": "Welcome back!",
     "evictedBody": "We cleaned up your files to save space, but your edits are saved. Re-upload your data to continue where you left off.",
