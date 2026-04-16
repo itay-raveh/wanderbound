@@ -105,11 +105,11 @@ class UploadStore:
             session.accumulated_bytes = effective + len(data)
             session.chunks_written.add(index)
 
-    def assemble(self, upload_id: str, *, owner: str) -> BinaryIO:
+    def assemble(self, upload_id: str, *, owner: str) -> tuple[BinaryIO, Path]:
         """Concatenate all chunks into a single seekable file.
 
-        Pops the session from the store. The caller owns the returned file
-        and the session directory (must clean up both).
+        Returns ``(file, session_dir)``.  The caller owns both and must
+        clean them up (close the file, then ``shutil.rmtree`` the dir).
 
         Raises PermissionError if *owner* doesn't match the session creator.
         """
@@ -143,7 +143,7 @@ class UploadStore:
             chunk_path.unlink()
 
         try:
-            return assembled.open("rb")
+            return assembled.open("rb"), session.dir
         except OSError:
             shutil.rmtree(session.dir, ignore_errors=True)
             raise

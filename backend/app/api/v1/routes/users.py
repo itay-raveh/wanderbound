@@ -215,7 +215,12 @@ async def upload_chunk(
     chunk_index: int,
     request: Request,
 ) -> Response:
-    """Upload a single chunk of a file. Body is raw binary."""
+    """Upload a single chunk of a file. Body is raw binary.
+
+    No per-request auth: the cryptographic upload_id (128-bit
+    ``secrets.token_urlsafe``) acts as a bearer token.  Ownership is
+    verified when the session is finalized in ``complete_chunked_upload``.
+    """
     body = await request.body()
     try:
         await asyncio.to_thread(upload_store.write_chunk, upload_id, chunk_index, body)
@@ -248,7 +253,7 @@ async def complete_chunked_upload(
 
     owner = _upload_owner(existing, identity)
     try:
-        assembled = await asyncio.to_thread(
+        assembled, upload_dir = await asyncio.to_thread(
             upload_store.assemble, upload_id, owner=owner
         )
     except KeyError:
@@ -261,8 +266,6 @@ async def complete_chunked_upload(
         ) from None
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
-
-    upload_dir = Path(assembled.name).parent
 
     try:
         temp_folder, ps_user, trips = await asyncio.to_thread(

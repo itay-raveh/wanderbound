@@ -62,7 +62,7 @@ class TestWriteChunk:
         # Re-upload same index with different data - should succeed and
         # correct the accumulated size (not double-count).
         store.write_chunk(uid, 0, b"world!")
-        assembled = store.assemble(uid, owner="test")
+        assembled, _ = store.assemble(uid, owner="test")
         try:
             assert assembled.read() == b"world!"
         finally:
@@ -88,7 +88,7 @@ class TestAssemble:
         store.write_chunk(uid, 1, b"BBB")
         store.write_chunk(uid, 0, b"AAA")
 
-        assembled = store.assemble(uid, owner="test")
+        assembled, _ = store.assemble(uid, owner="test")
         try:
             assert assembled.read() == b"AAABBB"
         finally:
@@ -106,7 +106,7 @@ class TestAssemble:
     async def test_session_removed_after_assemble(self, store: UploadStore) -> None:
         uid = store.create(MAX_BYTES, owner="test")
         store.write_chunk(uid, 0, b"x")
-        assembled = store.assemble(uid, owner="test")
+        assembled, _ = store.assemble(uid, owner="test")
         assembled.close()
         # Second assemble should fail - session was consumed
         with pytest.raises(KeyError):
