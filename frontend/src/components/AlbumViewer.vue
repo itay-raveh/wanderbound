@@ -68,7 +68,6 @@ const props = defineProps<{
   steps: Step[];
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
-  photosConnected?: boolean;
 }>();
 
 const albumId = computed(() => props.album.id);
@@ -120,14 +119,12 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1].datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-const photosConnected = computed(() => props.photosConnected ?? false);
-const { mediaByName } = provideAlbum({
+const { mediaByName, photosConnected } = provideAlbum({
   albumId,
   colors: albumColors,
   media: albumMedia,
   tripStart,
   totalDays,
-  photosConnected,
 });
 
 if (!props.printMode) {

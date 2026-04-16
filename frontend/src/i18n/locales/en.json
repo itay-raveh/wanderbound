@@ -259,8 +259,10 @@
       "step2": "We'll open Google Photos in a new tab. Search for your trip dates or location, then select all your trip photos.",
       "step3": "Once you confirm, we'll match each photo and replace the compressed versions with your originals.",
       "tip": "Tip: In Google Photos, use Shift+click to select a range of photos quickly.",
-      "continue": "Connect Google Photos"
+      "continue": "Connect Google Photos",
+      "cancel": "Cancel"
     },
+    "authorizing": "Connecting to Google Photos...",
     "picking": "Waiting for photo selection...",
     "matching": "Matching photos {done}/{total}",
     "summary": {

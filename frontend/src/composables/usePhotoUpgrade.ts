@@ -13,6 +13,7 @@ import {
 import { useGooglePhotos } from "./useGooglePhotos";
 import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
+import { PHOTO_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
 
 type UpgradePhase =
   | "idle"
@@ -37,7 +38,6 @@ interface MatchSummary {
   unmatched: number;
 }
 
-const ONBOARDED_KEY = "wanderbound-photo-upgrade-onboarded";
 const POLL_INTERVAL_MS = 2000;
 const DONE_RESET_MS = 3000;
 
@@ -83,10 +83,10 @@ export function usePhotoUpgrade() {
 
     try {
       // Step 1: Onboarding (first time only)
-      if (!localStorage.getItem(ONBOARDED_KEY)) {
+      if (!localStorage.getItem(PHOTO_UPGRADE_ONBOARDED_KEY)) {
         phase.value = "onboarding";
         await waitForConfirmation(signal);
-        localStorage.setItem(ONBOARDED_KEY, "1");
+        localStorage.setItem(PHOTO_UPGRADE_ONBOARDED_KEY, "1");
       }
 
       // Step 2: Authorize if needed

@@ -259,8 +259,10 @@
       "step2": "נפתח את Google Photos בלשונית חדשה. חפשו לפי תאריכי הטיול או מיקום, ובחרו את כל תמונות הטיול.",
       "step3": "לאחר אישור, נתאים כל תמונה ונחליף את הגרסאות הדחוסות במקוריות.",
       "tip": "טיפ: ב-Google Photos, השתמשו ב-Shift+לחיצה כדי לבחור טווח תמונות במהירות.",
-      "continue": "חיבור Google Photos"
+      "continue": "חיבור Google Photos",
+      "cancel": "ביטול"
     },
+    "authorizing": "מתחבר ל-Google Photos...",
     "picking": "ממתין לבחירת תמונות...",
     "matching": "מתאים תמונות {done}/{total}",
     "summary": {

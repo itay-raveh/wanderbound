@@ -48,7 +48,7 @@ const steps = [
           no-caps
           class="col text-body2 bg-surface"
         >
-          {{ t("upgrade.summary.cancel") }}
+          {{ t("upgrade.onboarding.cancel") }}
         </q-btn>
         <q-btn
           flat

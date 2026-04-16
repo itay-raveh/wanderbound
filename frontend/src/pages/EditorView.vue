@@ -155,7 +155,6 @@ const activeStep = computed(() =>
       :media="media"
       :steps="steps"
       :segment-outlines="segmentOutlines"
-      :photos-connected="!!userData?.google_photos_connected_at"
     />
   </q-page>
 </template>

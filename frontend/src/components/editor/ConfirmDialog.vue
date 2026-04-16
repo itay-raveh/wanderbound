@@ -4,7 +4,7 @@ const show = defineModel<boolean>({ required: true });
 withDefaults(
   defineProps<{
     icon: string;
-    variant?: "danger" | "warning";
+    variant?: "danger" | "warning" | "primary";
     title: string;
     body: string;
     confirmLabel: string;
@@ -68,6 +68,11 @@ defineEmits<{
     background: color-mix(in srgb, var(--q-warning) 20%, var(--surface));
     color: var(--q-warning);
   }
+
+  &.primary {
+    background: color-mix(in srgb, var(--q-primary) 12%, var(--surface));
+    color: var(--q-primary);
+  }
 }
 
 .confirm-title {
@@ -77,6 +82,7 @@ defineEmits<{
 
 .confirm-text {
   line-height: 1.5;
+  white-space: pre-line;
   margin: 0 0 var(--gap-lg);
 }
 
@@ -89,6 +95,11 @@ defineEmits<{
   &.warning {
     background: var(--q-warning);
     color: #111;
+  }
+
+  &.primary {
+    background: var(--q-primary);
+    color: white;
   }
 }
 </style>

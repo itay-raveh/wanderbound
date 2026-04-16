@@ -76,12 +76,12 @@ export function useGooglePhotos() {
 
   async function pollPickerSession(
     sessionId: string,
-  ): Promise<{ ready: boolean; items?: unknown[] | null }> {
+  ): Promise<{ ready: boolean }> {
     const { data } = await pollSessionApi({
       path: { session_id: sessionId },
     });
     if (!data) throw new Error("Failed to poll session");
-    return { ready: data.ready, items: data.items };
+    return { ready: data.ready };
   }
 
   return {
