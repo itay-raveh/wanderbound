@@ -49,7 +49,7 @@ def get_oauth() -> OAuth:
         name="google_photos",
         server_metadata_url=_DISCOVERY_URL,
         client_id=settings.VITE_GOOGLE_CLIENT_ID,
-        client_secret=settings.GOOGLE_PHOTOS_CLIENT_SECRET,
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
         client_kwargs={"scope": _SCOPE},
     )
     return oauth
@@ -289,7 +289,7 @@ async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
         "https://oauth2.googleapis.com/token",
         data={
             "client_id": settings.VITE_GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_PHOTOS_CLIENT_SECRET,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
         },
