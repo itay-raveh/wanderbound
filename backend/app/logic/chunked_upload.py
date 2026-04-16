@@ -4,6 +4,7 @@ import logging
 import secrets
 import shutil
 import tempfile
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ class _Session:
     max_bytes: int
     max_chunks: int
     owner: str
+    lock: threading.Lock = field(default_factory=threading.Lock)
     accumulated_bytes: int = 0
     chunks_written: set[int] = field(default_factory=set)
 
@@ -85,22 +87,23 @@ class UploadStore:
             msg = f"Chunk {index} is {len(data)} bytes (limit {_CHUNK_LIMIT})"
             raise ValueError(msg)
 
-        # Deduct old size before overflow check so retries aren't falsely rejected
-        effective = session.accumulated_bytes
-        if index in session.chunks_written:
-            with contextlib.suppress(OSError):
-                effective -= (session.dir / f"{index:04d}").stat().st_size
-        elif len(session.chunks_written) >= session.max_chunks:
-            msg = f"Too many chunks (limit {session.max_chunks})"
-            raise ValueError(msg)
+        with session.lock:
+            # Deduct old size before overflow check so retries aren't falsely rejected
+            effective = session.accumulated_bytes
+            if index in session.chunks_written:
+                with contextlib.suppress(OSError):
+                    effective -= (session.dir / f"{index:04d}").stat().st_size
+            elif len(session.chunks_written) >= session.max_chunks:
+                msg = f"Too many chunks (limit {session.max_chunks})"
+                raise ValueError(msg)
 
-        if effective + len(data) > session.max_bytes:
-            raise OverflowError("Upload exceeds maximum size")
+            if effective + len(data) > session.max_bytes:
+                raise OverflowError("Upload exceeds maximum size")
 
-        chunk_path = session.dir / f"{index:04d}"
-        chunk_path.write_bytes(data)
-        session.accumulated_bytes = effective + len(data)
-        session.chunks_written.add(index)
+            chunk_path = session.dir / f"{index:04d}"
+            chunk_path.write_bytes(data)
+            session.accumulated_bytes = effective + len(data)
+            session.chunks_written.add(index)
 
     def assemble(self, upload_id: str, *, owner: str) -> BinaryIO:
         """Concatenate all chunks into a single seekable file.
@@ -118,23 +121,32 @@ class UploadStore:
         self._sessions.pop(upload_id)
         session.timer.cancel()
 
-        chunks = sorted(session.dir.glob("[0-9]*"))
-        if not chunks:
+        if not session.chunks_written:
             shutil.rmtree(session.dir, ignore_errors=True)
             msg = "No chunks uploaded"
             raise ValueError(msg)
 
+        expected = set(range(len(session.chunks_written)))
+        if session.chunks_written != expected:
+            shutil.rmtree(session.dir, ignore_errors=True)
+            msg = "Chunks are not contiguous from 0"
+            raise ValueError(msg)
+
+        chunks = sorted(session.dir.glob("[0-9]*"))
         assembled = session.dir / "assembled.zip"
         with assembled.open("wb") as out:
             for chunk_path in chunks:
                 with chunk_path.open("rb") as src:
                     shutil.copyfileobj(src, out)
 
-        # Remove individual chunk files, keep only the assembled file
         for chunk_path in chunks:
             chunk_path.unlink()
 
-        return assembled.open("rb")
+        try:
+            return assembled.open("rb")
+        except OSError:
+            shutil.rmtree(session.dir, ignore_errors=True)
+            raise
 
     # -- internals --------------------------------------------------------
 

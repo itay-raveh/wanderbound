@@ -120,6 +120,13 @@ class TestAssemble:
         with pytest.raises(PermissionError, match="different user"):
             store.assemble(uid, owner="bob")
 
+    async def test_non_contiguous_chunks_raises(self, store: UploadStore) -> None:
+        uid = store.create(MAX_BYTES, owner="test")
+        store.write_chunk(uid, 0, b"AAA")
+        store.write_chunk(uid, 2, b"CCC")  # skipped index 1
+        with pytest.raises(ValueError, match="not contiguous"):
+            store.assemble(uid, owner="test")
+
 
 class TestEviction:
     async def test_expired_session_is_cleaned_up(self) -> None:
