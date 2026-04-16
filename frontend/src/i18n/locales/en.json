@@ -255,9 +255,7 @@
     "button": "Upgrade Media",
     "onboarding": {
       "title": "Upgrade to Original Quality",
-      "step1": "Polarsteps compressed your trip photos and videos. The originals are still in your Google Photos.",
-      "step2": "Google Photos opens in a new tab. Search by your trip dates or location, then select your trip photos and videos.",
-      "step3": "We match each file and replace the compressed version with your original.",
+      "body": "Polarsteps compresses your photos and videos. Connect Google Photos to replace them with your originals.",
       "tip": "Shift+click selects a range in Google Photos.",
       "continue": "Connect Google Photos",
       "cancel": "Cancel"
@@ -266,9 +264,8 @@
     "picking": "Waiting for selection...",
     "matching": "Matching {done}/{total}",
     "summary": {
-      "title": "Match Results",
-      "matched": "Matched {matched} of {total}",
-      "unmatched": "{count} did not match",
+      "title": "{matched} of {total} found in Google Photos",
+      "unmatched": "{count} could not be matched and will stay as-is.",
       "confirm": "Replace with Originals",
       "cancel": "Cancel"
     },
@@ -277,6 +274,12 @@
     "doneSkipped": "Upgraded {replaced} files, {skipped} already full quality",
     "donePartial": "Upgraded {replaced} of {total} files",
     "error": "Upgrade failed. Try again.",
-    "disconnect": "Disconnect Google Photos"
+    "disconnect": "Disconnect Google Photos",
+    "disconnectConfirm": {
+      "title": "Disconnect Google Photos?",
+      "body": "You can reconnect any time to upgrade more files.",
+      "confirm": "Disconnect",
+      "cancel": "Cancel"
+    }
   }
 }

@@ -18,18 +18,18 @@ defineEmits<{
 
 const { t } = useI18n();
 
-const bodyText = computed(() => {
-  const matched = t("upgrade.summary.matched", {
+const titleText = computed(() =>
+  t("upgrade.summary.title", {
     matched: props.matched,
     total: props.total,
-  });
+  }),
+);
+
+const bodyText = computed(() => {
   if (props.unmatched > 0) {
-    const unmatched = t("upgrade.summary.unmatched", {
-      count: props.unmatched,
-    });
-    return `${matched}\n${unmatched}`;
+    return t("upgrade.summary.unmatched", { count: props.unmatched });
   }
-  return matched;
+  return "";
 });
 </script>
 
@@ -38,7 +38,7 @@ const bodyText = computed(() => {
     v-model="show"
     :icon="symOutlinedHighQuality"
     variant="primary"
-    :title="t('upgrade.summary.title')"
+    :title="titleText"
     :body="bodyText"
     :confirm-label="t('upgrade.summary.confirm')"
     :cancel-label="t('upgrade.summary.cancel')"

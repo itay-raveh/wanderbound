@@ -255,9 +255,7 @@
     "button": "שדרוג מדיה",
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
-      "step1": "Polarsteps דחס את התמונות והסרטונים של הטיול. המקוריים עדיין ב-Google Photos שלך.",
-      "step2": "Google Photos ייפתח בלשונית חדשה. חפשו לפי תאריכי הטיול או מיקום, ובחרו את התמונות והסרטונים של הטיול.",
-      "step3": "נתאים כל קובץ ונחליף את הגרסה הדחוסה במקורית.",
+      "body": "Polarsteps דוחס את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
       "tip": "Shift+לחיצה בוחר טווח ב-Google Photos.",
       "continue": "חיבור Google Photos",
       "cancel": "ביטול"
@@ -266,16 +264,22 @@
     "picking": "ממתין לבחירה...",
     "matching": "מתאים {done}/{total}",
     "summary": {
-      "title": "תוצאות התאמה",
-      "matched": "הותאמו {matched} מתוך {total}",
-      "unmatched": "{count} לא הותאמו",
+      "title": "{matched} מתוך {total} נמצאו ב-Google Photos",
+      "unmatched": "{count} לא הותאמו ויישארו כפי שהם.",
       "confirm": "החלף במקוריות",
       "cancel": "ביטול"
     },
     "downloading": "מוריד {done}/{total}",
     "done": "שודרגו {replaced} קבצים לאיכות מקורית",
+    "doneSkipped": "שודרגו {replaced} קבצים, {skipped} כבר באיכות מלאה",
     "donePartial": "שודרגו {replaced} מתוך {total} קבצים",
     "error": "השדרוג נכשל. נסו שוב.",
-    "disconnect": "ניתוק Google Photos"
+    "disconnect": "ניתוק Google Photos",
+    "disconnectConfirm": {
+      "title": "לנתק את Google Photos?",
+      "body": "תוכלו להתחבר מחדש בכל עת כדי לשדרג קבצים נוספים.",
+      "confirm": "ניתוק",
+      "cancel": "ביטול"
+    }
   }
 }

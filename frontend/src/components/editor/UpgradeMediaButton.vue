@@ -3,6 +3,7 @@ import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
 import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import {
   symOutlinedClose,
   symOutlinedCheck,
@@ -11,13 +12,14 @@ import {
   symOutlinedUpgrade,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
 const props = defineProps<{ albumId: string }>();
 
 const upgrade = useMediaUpgrade();
+const showDisconnectConfirm = ref(false);
 
 const isRunning = computed(() => {
   const p = upgrade.phase.value;
@@ -76,15 +78,29 @@ const doneMessage = computed(() => {
   return t("upgrade.done", { replaced });
 });
 
+const errorTooltip = computed(() => {
+  const detail = upgrade.errorDetail.value;
+  return detail ? `${t("upgrade.error")}\n${detail}` : t("upgrade.error");
+});
+
+function handleDisconnect() {
+  showDisconnectConfirm.value = true;
+}
+
+function confirmDisconnect() {
+  showDisconnectConfirm.value = false;
+  void upgrade.disconnect();
+}
+
 const { confirmUpgrade } = upgrade;
 </script>
 
 <template>
   <template v-if="upgrade.googlePhotosState.value !== 'unavailable'">
-    <button
+    <div
       v-if="upgrade.phase.value === 'done'"
+      role="status"
       class="action-btn done"
-      aria-disabled="true"
       :aria-label="doneMessage"
     >
       <q-icon
@@ -93,11 +109,12 @@ const { confirmUpgrade } = upgrade;
         class="done-icon"
       />
       {{ doneMessage }}
-    </button>
+    </div>
 
     <button
       v-else-if="upgrade.phase.value === 'error'"
       class="action-btn error"
+      :title="errorTooltip"
       :aria-label="t('upgrade.error')"
       @click="upgrade.start(props.albumId)"
     >
@@ -142,7 +159,7 @@ const { confirmUpgrade } = upgrade;
       v-if="upgrade.googlePhotosState.value === 'connected' && upgrade.phase.value === 'idle'"
       class="disconnect-btn"
       :aria-label="t('upgrade.disconnect')"
-      @click="upgrade.disconnect()"
+      @click="handleDisconnect()"
     >
       <q-icon :name="symOutlinedLinkOff" size="var(--type-sm)" />
       {{ t("upgrade.disconnect") }}
@@ -159,6 +176,17 @@ const { confirmUpgrade } = upgrade;
       :total="upgrade.matchSummary.value?.totalMedia ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
       @confirm="confirmUpgrade"
+    />
+
+    <ConfirmDialog
+      v-model="showDisconnectConfirm"
+      :icon="symOutlinedLinkOff"
+      variant="warning"
+      :title="t('upgrade.disconnectConfirm.title')"
+      :body="t('upgrade.disconnectConfirm.body')"
+      :confirm-label="t('upgrade.disconnectConfirm.confirm')"
+      :cancel-label="t('upgrade.disconnectConfirm.cancel')"
+      @confirm="confirmDisconnect"
     />
   </template>
 </template>

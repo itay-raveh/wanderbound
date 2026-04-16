@@ -28,7 +28,7 @@ defineEmits<{
       <h3 class="confirm-title text-weight-semibold text-bright">
         {{ title }}
       </h3>
-      <p class="confirm-text text-body2 text-muted">{{ body }}</p>
+      <p v-if="body" class="confirm-text text-body2 text-muted">{{ body }}</p>
       <div class="confirm-actions row no-wrap q-gutter-x-sm">
         <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
           cancelLabel
