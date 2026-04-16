@@ -340,9 +340,10 @@ async def _hash_candidates(
         item: PickedMediaItem,
     ) -> tuple[str, imagehash.ImageHash | None]:
         try:
+            thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
             async with _DOWNLOAD_SEM:
                 thumb_bytes = await download_media_bytes(
-                    item.media_file.base_url, access_token, param="=w400"
+                    item.media_file.base_url, access_token, param=thumb_param
                 )
             return item.id, await asyncio.to_thread(
                 compute_phash_from_bytes, thumb_bytes
