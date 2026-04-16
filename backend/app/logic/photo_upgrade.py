@@ -216,7 +216,11 @@ def _bucket_by_window(
     """Assign Google Photos items to step windows by creation timestamp."""
     by_window: dict[int, list[PickedMediaItem]] = {w.step_id: [] for w in windows}
     for item in google_items:
-        if item.type != "PHOTO":
+        if (
+            item.type == "VIDEO"
+            and item.video_processing_status is not None
+            and item.video_processing_status != "READY"
+        ):
             continue
         ct = _parse_timestamp(item.create_time)
         if ct is None:

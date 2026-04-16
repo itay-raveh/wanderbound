@@ -175,6 +175,7 @@ def _make_item(
     create_time: str,
     *,
     item_type: str = "PHOTO",
+    video_processing_status: str | None = None,
 ) -> PickedMediaItem:
     return PickedMediaItem(
         id=item_id,
@@ -182,9 +183,10 @@ def _make_item(
         type=item_type,
         media_file=MediaFile(
             base_url="https://example.com",
-            mime_type="image/jpeg",
-            filename=f"{item_id}.jpg",
+            mime_type="video/mp4" if item_type == "VIDEO" else "image/jpeg",
+            filename=f"{item_id}.mp4" if item_type == "VIDEO" else f"{item_id}.jpg",
         ),
+        video_processing_status=video_processing_status,
     )
 
 
@@ -216,12 +218,56 @@ class TestBucketByWindow:
         assert len(bucketed[1]) == 1
         assert bucketed[1][0].id == "g1"
 
-    def test_video_items_skipped(self) -> None:
+    def test_video_without_status_accepted(self) -> None:
+        """Videos with no processing status (None) are accepted."""
         windows = build_step_windows(
             step_timestamps=[1_000_000.0],
             step_ids=[1],
         )
         video = _make_item("v1", "1970-01-12T13:46:40+00:00", item_type="VIDEO")
+        bucketed = _bucket_by_window([video], windows)
+        assert len(bucketed[1]) == 1
+
+    def test_ready_video_accepted(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0],
+            step_ids=[1],
+        )
+        video = _make_item(
+            "v1",
+            "1970-01-12T13:46:40+00:00",
+            item_type="VIDEO",
+            video_processing_status="READY",
+        )
+        bucketed = _bucket_by_window([video], windows)
+        assert len(bucketed[1]) == 1
+        assert bucketed[1][0].id == "v1"
+
+    def test_processing_video_skipped(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0],
+            step_ids=[1],
+        )
+        video = _make_item(
+            "v1",
+            "1970-01-12T13:46:40+00:00",
+            item_type="VIDEO",
+            video_processing_status="PROCESSING",
+        )
+        bucketed = _bucket_by_window([video], windows)
+        assert len(bucketed[1]) == 0
+
+    def test_failed_video_skipped(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0],
+            step_ids=[1],
+        )
+        video = _make_item(
+            "v1",
+            "1970-01-12T13:46:40+00:00",
+            item_type="VIDEO",
+            video_processing_status="FAILED",
+        )
         bucketed = _bucket_by_window([video], windows)
         assert len(bucketed[1]) == 0
 
