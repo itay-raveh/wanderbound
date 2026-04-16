@@ -102,7 +102,13 @@ async def authorize(request: Request, user: UserDep) -> dict[str, str]:
     return {"authorization_url": rv["url"]}
 
 
-_CALLBACK_BODY = "<html><body><script>window.close()</script></body></html>"
+_CALLBACK_BODY = (
+    "<!DOCTYPE html><html><head><title>Connected</title>"
+    "<style>body{font-family:system-ui;display:grid;"
+    "place-items:center;height:100vh;margin:0}</style>"
+    "</head><body><p>Connected. You can close this tab."
+    "</p></body></html>"
+)
 
 
 @router.get("/callback", name="google_photos_callback", response_class=HTMLResponse)
@@ -226,7 +232,7 @@ class UpgradeRequest(BaseModel):
     response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
-async def upgrade_media(
+async def upgrade_media(  # noqa: C901
     aid: str,
     body: UpgradeRequest,
     user: UserDep,
@@ -279,15 +285,22 @@ async def upgrade_media(
         finally:
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
-            album.media, album.upgraded_media = await apply_upgrade_results(
-                album_dir,
-                body.matches,
-                album.media,
-                album.upgraded_media,
-                succeeded,
-            )
-            session.add(album)
-            await session.commit()
+            try:
+                album.media, album.upgraded_media = await apply_upgrade_results(
+                    album_dir,
+                    body.matches,
+                    album.media,
+                    album.upgraded_media,
+                    succeeded,
+                )
+                session.add(album)
+                await session.commit()
+            except Exception:
+                logger.exception(
+                    "Failed to persist upgrade results for album %s"
+                    " - filesystem may be ahead of DB",
+                    aid,
+                )
             try:
                 await delete_picker_session(body.session_id, await tokens.get())
             except httpx.HTTPError:

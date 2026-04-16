@@ -838,13 +838,14 @@ async def apply_upgrade_results(
         if match.local_name not in succeeded:
             continue
         target = album_dir / match.local_name
+        if match.local_name not in media_by_name:
+            continue
         try:
             if is_video(match.local_name):
                 updated = await Media.probe(target)
             else:
                 updated = await asyncio.to_thread(Media.load, target)
-            if match.local_name in media_by_name:
-                media_by_name[match.local_name] = updated
+            media_by_name[match.local_name] = updated
         except OSError, SyntaxError, RuntimeError:
             logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
             continue

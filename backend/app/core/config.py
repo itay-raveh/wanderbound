@@ -101,6 +101,8 @@ class Settings(BaseSettings):
             missing.append("VITE_FRONTEND_URL")
         if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:
             missing.append("VITE_GOOGLE_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID")
+        if self.VITE_GOOGLE_CLIENT_ID and not self.GOOGLE_CLIENT_SECRET:
+            missing.append("GOOGLE_CLIENT_SECRET")
         if missing:
             raise ValueError(f"required in production: {', '.join(missing)}")
         return self
