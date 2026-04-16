@@ -55,14 +55,16 @@ const progressMessage = computed(() => {
 const showOnboarding = computed({
   get: () => upgrade.phase.value === "onboarding",
   set: (v: boolean) => {
-    if (!v) upgrade.cancel();
+    // Only cancel if the user dismissed the dialog (backdrop/ESC), not
+    // if the phase advanced past onboarding after confirmUpgrade().
+    if (!v && upgrade.phase.value === "onboarding") upgrade.cancel();
   },
 });
 
 const showSummary = computed({
   get: () => upgrade.phase.value === "confirming",
   set: (v: boolean) => {
-    if (!v) upgrade.cancel();
+    if (!v && upgrade.phase.value === "confirming") upgrade.cancel();
   },
 });
 

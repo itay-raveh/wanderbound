@@ -334,13 +334,21 @@ class TokenProvider:
         self._token: AccessToken = ""
         self._fetched_at = 0.0
         self._lock = asyncio.Lock()
+        self._revoked = False
 
     async def get(self) -> AccessToken:
         async with self._lock:
+            if self._revoked:
+                raise RuntimeError("Google refresh token has been revoked")
             now = time.monotonic()
             if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
                 return self._token
-            data = await refresh_access_token(self._refresh_token)
+            try:
+                data = await refresh_access_token(self._refresh_token)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (400, 401):
+                    self._revoked = True
+                raise
             self._token = data.access_token
             self._fetched_at = now
             return self._token

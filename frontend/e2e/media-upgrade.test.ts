@@ -37,13 +37,13 @@ const matchEvents = [
 const upgradeEvents = [
   { type: "downloading", done: 1, total: 2 },
   { type: "downloading", done: 2, total: 2 },
-  { type: "done", replaced: 2, failed: 0 },
+  { type: "done", replaced: 2, skipped: 0, failed: 0 },
 ];
 
 /** SSE upgrade events where one file fails. */
 const upgradeEventsPartial = [
   { type: "downloading", done: 1, total: 2 },
-  { type: "done", replaced: 1, failed: 1 },
+  { type: "done", replaced: 1, skipped: 0, failed: 1 },
 ];
 
 async function setupUpgradeRoutes(page: Page) {
