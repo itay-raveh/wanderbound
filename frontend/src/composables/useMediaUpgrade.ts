@@ -1,7 +1,7 @@
 import { onScopeDispose, ref } from "vue";
 import {
-  matchPhotos,
-  upgradePhotos,
+  matchMedia,
+  upgradeMedia,
   type MatchResult,
   type UpgradeDownloading,
   type UpgradeDone,
@@ -13,7 +13,7 @@ import {
 import { useGooglePhotos } from "./useGooglePhotos";
 import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
-import { PHOTO_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
+import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
 
 type UpgradePhase =
   | "idle"
@@ -49,7 +49,7 @@ type MatchEvent =
   | UpgradeDone
   | UpgradeError;
 
-export function usePhotoUpgrade() {
+export function useMediaUpgrade() {
   const gp = useGooglePhotos();
   const cache = useQueryCache();
 
@@ -83,10 +83,10 @@ export function usePhotoUpgrade() {
 
     try {
       // Step 1: Onboarding (first time only)
-      if (!localStorage.getItem(PHOTO_UPGRADE_ONBOARDED_KEY)) {
+      if (!localStorage.getItem(MEDIA_UPGRADE_ONBOARDED_KEY)) {
         phase.value = "onboarding";
         await waitForConfirmation(signal);
-        localStorage.setItem(PHOTO_UPGRADE_ONBOARDED_KEY, "1");
+        localStorage.setItem(MEDIA_UPGRADE_ONBOARDED_KEY, "1");
       }
 
       // Step 2: Authorize if needed
@@ -106,7 +106,7 @@ export function usePhotoUpgrade() {
       await pollUntilReady(sessionId, pickerTab, signal);
       if (signal.aborted) return;
 
-      // Step 5: Match photos via SSE
+      // Step 5: Match media via SSE
       phase.value = "matching";
       progress.value = { done: 0, total: 0 };
       const summary = await runMatchStream(albumId, sessionId, signal);
@@ -128,7 +128,7 @@ export function usePhotoUpgrade() {
       await waitForConfirmation(signal);
       if (signal.aborted) return;
 
-      // Step 7: Upgrade photos via SSE
+      // Step 7: Upgrade media via SSE
       phase.value = "downloading";
       progress.value = { done: 0, total: summary.matched };
       await runUpgradeStream(albumId, sessionId, summary.matches, signal);
@@ -205,7 +205,7 @@ export function usePhotoUpgrade() {
     sessionId: string,
     signal: AbortSignal,
   ): Promise<MatchSummary | null> {
-    const { stream } = await matchPhotos({
+    const { stream } = await matchMedia({
       path: { aid: albumId },
       query: { session_id: sessionId },
       signal,
@@ -242,7 +242,7 @@ export function usePhotoUpgrade() {
     matches: MatchResult[],
     signal: AbortSignal,
   ): Promise<void> {
-    const { stream } = await upgradePhotos({
+    const { stream } = await upgradeMedia({
       path: { aid: albumId },
       body: {
         session_id: sessionId,

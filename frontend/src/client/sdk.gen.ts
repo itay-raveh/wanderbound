@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, AuthorizeData, AuthorizeResponses, CreateDemoData, CreateDemoResponses, CreateSessionData, CreateSessionResponses, DeleteDemoData, DeleteDemoResponses, DeleteUserData, DeleteUserResponses, DisconnectData, DisconnectResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponse, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponse, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, GooglePhotosCallbackData, GooglePhotosCallbackResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, MatchPhotosData, MatchPhotosErrors, MatchPhotosResponse, MatchPhotosResponses, PollSessionData, PollSessionErrors, PollSessionResponses, ProcessUserData, ProcessUserResponse, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UpgradePhotosData, UpgradePhotosErrors, UpgradePhotosResponse, UpgradePhotosResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
+import type { AdjustSegmentBoundaryData, AdjustSegmentBoundaryErrors, AdjustSegmentBoundaryResponses, AuthenticateData, AuthenticateErrors, AuthenticateResponses, AuthorizeData, AuthorizeResponses, CreateDemoData, CreateDemoResponses, CreateSessionData, CreateSessionResponses, DeleteDemoData, DeleteDemoResponses, DeleteUserData, DeleteUserResponses, DisconnectData, DisconnectResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadPdfData, DownloadPdfErrors, DownloadPdfResponses, ExportDataData, ExportDataResponse, ExportDataResponses, GeneratePdfData, GeneratePdfErrors, GeneratePdfResponse, GeneratePdfResponses, GetMediaData, GetMediaErrors, GetMediaResponses, GooglePhotosCallbackData, GooglePhotosCallbackResponses, HealthCheckData, HealthCheckResponses, LogoutData, LogoutResponses, MatchMediaData, MatchMediaErrors, MatchMediaResponse, MatchMediaResponses, PollSessionData, PollSessionErrors, PollSessionResponses, ProcessUserData, ProcessUserResponse, ProcessUserResponses, ReadAlbumData, ReadAlbumErrors, ReadAlbumResponses, ReadMediaData, ReadMediaErrors, ReadMediaResponses, ReadPrintBundleData, ReadPrintBundleErrors, ReadPrintBundleResponses, ReadSegmentPointsData, ReadSegmentPointsErrors, ReadSegmentPointsResponses, ReadSegmentsData, ReadSegmentsErrors, ReadSegmentsResponses, ReadStepsData, ReadStepsErrors, ReadStepsResponses, ReadUserData, ReadUserResponses, UpdateAlbumData, UpdateAlbumErrors, UpdateAlbumResponses, UpdateStepData, UpdateStepErrors, UpdateStepResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UpdateVideoFrameData, UpdateVideoFrameErrors, UpdateVideoFrameResponses, UpgradeMediaData, UpgradeMediaErrors, UpgradeMediaResponse, UpgradeMediaResponses, UploadDataData, UploadDataErrors, UploadDataResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -207,14 +207,14 @@ export const createSession = <ThrowOnError extends boolean = true>(options?: Opt
 export const pollSession = <ThrowOnError extends boolean = true>(options: Options<PollSessionData, ThrowOnError>) => (options.client ?? client).get<PollSessionResponses, PollSessionErrors, ThrowOnError>({ url: '/api/v1/google-photos/sessions/{session_id}', ...options });
 
 /**
- * Match Photos
+ * Match Media
  */
-export const matchPhotos = <ThrowOnError extends boolean = true>(options: Options<MatchPhotosData, ThrowOnError, MatchPhotosResponse>) => (options.client ?? client).sse.post<MatchPhotosResponses, MatchPhotosErrors, ThrowOnError>({ url: '/api/v1/google-photos/match/{aid}', ...options });
+export const matchMedia = <ThrowOnError extends boolean = true>(options: Options<MatchMediaData, ThrowOnError, MatchMediaResponse>) => (options.client ?? client).sse.post<MatchMediaResponses, MatchMediaErrors, ThrowOnError>({ url: '/api/v1/google-photos/match/{aid}', ...options });
 
 /**
- * Upgrade Photos
+ * Upgrade Media
  */
-export const upgradePhotos = <ThrowOnError extends boolean = true>(options: Options<UpgradePhotosData, ThrowOnError, UpgradePhotosResponse>) => (options.client ?? client).sse.post<UpgradePhotosResponses, UpgradePhotosErrors, ThrowOnError>({
+export const upgradeMedia = <ThrowOnError extends boolean = true>(options: Options<UpgradeMediaData, ThrowOnError, UpgradeMediaResponse>) => (options.client ?? client).sse.post<UpgradeMediaResponses, UpgradeMediaErrors, ThrowOnError>({
     url: '/api/v1/google-photos/upgrade/{aid}',
     ...options,
     headers: {

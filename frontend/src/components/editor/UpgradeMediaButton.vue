@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { usePhotoUpgrade } from "@/composables/usePhotoUpgrade";
+import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
 import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
@@ -15,7 +15,7 @@ const { t } = useI18n();
 
 const props = defineProps<{ albumId: string }>();
 
-const upgrade = usePhotoUpgrade();
+const upgrade = useMediaUpgrade();
 
 const isRunning = computed(() => {
   const p = upgrade.phase.value;

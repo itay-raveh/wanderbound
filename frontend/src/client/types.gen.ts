@@ -69,10 +69,10 @@ export type Album = {
      */
     media?: Array<Media>;
     /**
-     * Upgraded Photos
+     * Upgraded Media
      */
-    upgraded_photos?: {
-        [key: string]: string;
+    upgraded_media?: {
+        [key in MediaFilename]?: GoogleMediaId;
     };
 };
 
@@ -295,6 +295,8 @@ export type ExportProgress = {
     files_total: number;
 };
 
+export type GoogleMediaId = string;
+
 /**
  * HTTPValidationError
  */
@@ -353,14 +355,8 @@ export type Location = {
  * MatchResult
  */
 export type MatchResult = {
-    /**
-     * Local Name
-     */
-    local_name: string;
-    /**
-     * Google Id
-     */
-    google_id: string;
+    local_name: MediaFilename;
+    google_id: GoogleMediaId;
     /**
      * Distance
      */
@@ -385,31 +381,7 @@ export type Media = {
     height: number;
 };
 
-/**
- * MediaFile
- */
-export type MediaFile = {
-    /**
-     * Base Url
-     */
-    base_url: string;
-    /**
-     * Mime Type
-     */
-    mime_type: string;
-    /**
-     * Filename
-     */
-    filename: string;
-    /**
-     * Width
-     */
-    width?: number | null;
-    /**
-     * Height
-     */
-    height?: number | null;
-};
+export type MediaFilename = string;
 
 /**
  * PdfDone
@@ -490,33 +462,13 @@ export type PhaseUpdate = {
     total: number;
 };
 
-/**
- * PickedMediaItem
- */
-export type PickedMediaItem = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Create Time
-     */
-    create_time: string;
-    /**
-     * Type
-     */
-    type: string;
-    media_file: MediaFile;
-};
+export type PickerSessionId = string;
 
 /**
  * PickerSessionResponse
  */
 export type PickerSessionResponse = {
-    /**
-     * Session Id
-     */
-    session_id: string;
+    session_id: PickerSessionId;
     /**
      * Picker Uri
      */
@@ -650,10 +602,6 @@ export type SessionStatusResponse = {
      * Ready
      */
     ready: boolean;
-    /**
-     * Items
-     */
-    items?: Array<PickedMediaItem> | null;
 };
 
 /**
@@ -833,9 +781,9 @@ export type UpgradeMatchSummary = {
      */
     type?: 'match_summary';
     /**
-     * Total Photos
+     * Total Media
      */
-    total_photos: number;
+    total_media: number;
     /**
      * Matched
      */
@@ -894,10 +842,7 @@ export type UpgradeReplacing = {
  * UpgradeRequest
  */
 export type UpgradeRequest = {
-    /**
-     * Session Id
-     */
-    session_id: string;
+    session_id: PickerSessionId;
     /**
      * Matches
      */
@@ -1973,7 +1918,7 @@ export type PollSessionResponses = {
 
 export type PollSessionResponse = PollSessionResponses[keyof PollSessionResponses];
 
-export type MatchPhotosData = {
+export type MatchMediaData = {
     body?: never;
     path: {
         /**
@@ -1982,35 +1927,32 @@ export type MatchPhotosData = {
         aid: string;
     };
     query: {
-        /**
-         * Session Id
-         */
-        session_id: string;
+        session_id: PickerSessionId;
     };
     url: '/api/v1/google-photos/match/{aid}';
 };
 
-export type MatchPhotosErrors = {
+export type MatchMediaErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MatchPhotosError = MatchPhotosErrors[keyof MatchPhotosErrors];
+export type MatchMediaError = MatchMediaErrors[keyof MatchMediaErrors];
 
-export type MatchPhotosResponses = {
+export type MatchMediaResponses = {
     /**
-     * Response 200 Match Photos
+     * Response 200 Match Media
      *
      * Successful Response
      */
     200: Array<UpgradeMatching | UpgradeDownloading | UpgradeReplacing | UpgradeMatchSummary | UpgradeDone | UpgradeError>;
 };
 
-export type MatchPhotosResponse = MatchPhotosResponses[keyof MatchPhotosResponses];
+export type MatchMediaResponse = MatchMediaResponses[keyof MatchMediaResponses];
 
-export type UpgradePhotosData = {
+export type UpgradeMediaData = {
     body: UpgradeRequest;
     path: {
         /**
@@ -2022,25 +1964,25 @@ export type UpgradePhotosData = {
     url: '/api/v1/google-photos/upgrade/{aid}';
 };
 
-export type UpgradePhotosErrors = {
+export type UpgradeMediaErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type UpgradePhotosError = UpgradePhotosErrors[keyof UpgradePhotosErrors];
+export type UpgradeMediaError = UpgradeMediaErrors[keyof UpgradeMediaErrors];
 
-export type UpgradePhotosResponses = {
+export type UpgradeMediaResponses = {
     /**
-     * Response 200 Upgrade Photos
+     * Response 200 Upgrade Media
      *
      * Successful Response
      */
     200: Array<UpgradeMatching | UpgradeDownloading | UpgradeReplacing | UpgradeMatchSummary | UpgradeDone | UpgradeError>;
 };
 
-export type UpgradePhotosResponse = UpgradePhotosResponses[keyof UpgradePhotosResponses];
+export type UpgradeMediaResponse = UpgradeMediaResponses[keyof UpgradeMediaResponses];
 
 export type DisconnectData = {
     body?: never;

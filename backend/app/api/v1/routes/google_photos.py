@@ -159,7 +159,7 @@ async def poll_session(
     response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
-async def match_photos(
+async def match_media(
     aid: str,
     user: UserDep,
     session: SessionDep,
@@ -204,7 +204,7 @@ class UpgradeRequest(BaseModel):
     response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
-async def upgrade_photos(
+async def upgrade_media(
     aid: str,
     body: UpgradeRequest,
     user: UserDep,
