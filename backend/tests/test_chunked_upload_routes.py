@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from app.core.config import get_settings
+
 from .factories import mock_extract, mock_jwt
 
 if TYPE_CHECKING:
@@ -81,6 +83,25 @@ class TestUploadChunk:
                 data={"credential": "fake", "provider": "google"},
             )
         assert complete.status_code == 200
+
+    async def test_rejects_overflow(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Accumulated chunks exceeding max_bytes return 413."""
+        # Set a tiny limit so a small chunk triggers overflow
+        monkeypatch.setattr(get_settings(), "VITE_MAX_UPLOAD_GB", 0)
+        with mock_jwt("google"):
+            init_resp = await client.post(
+                "/api/v1/users/upload/init",
+                data={"credential": "fake", "provider": "google"},
+            )
+        upload_id = init_resp.json()["upload_id"]
+
+        resp = await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"any data at all",
+        )
+        assert resp.status_code == 413
 
 
 class TestCompleteChunkedUpload:

@@ -75,27 +75,27 @@ class UploadStore:
         session = self._sessions.get(upload_id)
         if session is None:
             raise KeyError(upload_id)
-        if index < 0:
-            msg = f"Negative chunk index: {index}"
+        if not 0 <= index < 10_000:
+            msg = f"Chunk index out of range: {index}"
             raise ValueError(msg)
         if len(data) > _CHUNK_LIMIT:
             msg = f"Chunk {index} is {len(data)} bytes (limit {_CHUNK_LIMIT})"
             raise ValueError(msg)
-        if session.accumulated_bytes + len(data) > session.max_bytes:
-            raise OverflowError("Upload exceeds maximum size")
-        if (
-            index not in session.chunks_written
-            and len(session.chunks_written) >= session.max_chunks
-        ):
+
+        # Deduct old size before overflow check so retries aren't falsely rejected
+        effective = session.accumulated_bytes
+        if index in session.chunks_written:
+            effective -= (session.dir / f"{index:04d}").stat().st_size
+        elif len(session.chunks_written) >= session.max_chunks:
             msg = f"Too many chunks (limit {session.max_chunks})"
             raise ValueError(msg)
-        if index in session.chunks_written:
-            # Idempotent retry - overwrite is fine
-            session.accumulated_bytes -= (session.dir / f"{index:04d}").stat().st_size
+
+        if effective + len(data) > session.max_bytes:
+            raise OverflowError("Upload exceeds maximum size")
 
         chunk_path = session.dir / f"{index:04d}"
         chunk_path.write_bytes(data)
-        session.accumulated_bytes += len(data)
+        session.accumulated_bytes = effective + len(data)
         session.chunks_written.add(index)
 
     def assemble(self, upload_id: str) -> BinaryIO:

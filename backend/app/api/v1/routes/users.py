@@ -66,9 +66,7 @@ def _check_upload_size(file: UploadFile) -> int:
             size // MiB,
             max_bytes // MiB,
         )
-        raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
-        )
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large")
     return size
 
 
@@ -208,7 +206,7 @@ async def upload_chunk(
     """Upload a single chunk of a file. Body is raw binary."""
     body = await request.body()
     try:
-        upload_store.write_chunk(upload_id, chunk_index, body)
+        await asyncio.to_thread(upload_store.write_chunk, upload_id, chunk_index, body)
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"
@@ -217,7 +215,7 @@ async def upload_chunk(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
     except OverflowError:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Upload too large"
+            status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large"
         ) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -237,7 +235,7 @@ async def complete_chunked_upload(
     )
 
     try:
-        assembled = upload_store.assemble(upload_id)
+        assembled = await asyncio.to_thread(upload_store.assemble, upload_id)
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"

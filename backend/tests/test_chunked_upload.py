@@ -19,8 +19,13 @@ async def store() -> AsyncIterator[UploadStore]:
 class TestWriteChunk:
     async def test_rejects_negative_index(self, store: UploadStore) -> None:
         uid = store.create(MAX_BYTES)
-        with pytest.raises(ValueError, match="Negative"):
+        with pytest.raises(ValueError, match="out of range"):
             store.write_chunk(uid, -1, b"x")
+
+    async def test_rejects_index_above_9999(self, store: UploadStore) -> None:
+        uid = store.create(MAX_BYTES)
+        with pytest.raises(ValueError, match="out of range"):
+            store.write_chunk(uid, 10_000, b"x")
 
     async def test_rejects_oversized_chunk(self, store: UploadStore) -> None:
         uid = store.create(MAX_BYTES)
@@ -41,6 +46,15 @@ class TestWriteChunk:
         store.write_chunk(uid, 1, b"b")
         with pytest.raises(ValueError, match="Too many chunks"):
             store.write_chunk(uid, 2, b"c")
+
+    async def test_retry_not_falsely_rejected_by_overflow(
+        self, store: UploadStore
+    ) -> None:
+        """Retrying a chunk should deduct old size before the overflow check."""
+        uid = store.create(100)
+        store.write_chunk(uid, 0, b"\x00" * 90)
+        # Retry with a smaller chunk - effective total = 11, well under 100
+        store.write_chunk(uid, 0, b"\x00" * 11)
 
     async def test_idempotent_retry_adjusts_size(self, store: UploadStore) -> None:
         uid = store.create(MAX_BYTES)
