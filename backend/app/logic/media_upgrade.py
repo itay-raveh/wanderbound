@@ -646,7 +646,7 @@ def _validate_image(path: Path) -> tuple[int, int]:
         return img.size
 
 
-def _is_not_larger(name: str, new_w: int, new_h: int, existing: Media) -> bool:
+def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
     """Log and return True when the new file is not larger than existing."""
     if new_w * new_h <= existing.width * existing.height:
         logger.info(
@@ -679,7 +679,7 @@ async def _replace_video(name: str, data: bytes, tmp_path: Path, target: Path) -
         existing = await Media.probe(target)
     except RuntimeError, OSError:
         existing = None
-    if existing and _is_not_larger(name, new_media.width, new_media.height, existing):
+    if existing and _skip_smaller(name, new_media.width, new_media.height, existing):
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         return False
 
@@ -704,7 +704,7 @@ async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -
         existing = await asyncio.to_thread(Media.load, target)
     except OSError:
         existing = None
-    if existing and _is_not_larger(name, width, height, existing):
+    if existing and _skip_smaller(name, width, height, existing):
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         return False
 

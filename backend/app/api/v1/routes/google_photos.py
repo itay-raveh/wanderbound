@@ -280,7 +280,10 @@ async def upgrade_media(
             )
             session.add(album)
             await session.commit()
-            await delete_picker_session(body.session_id, access_token)
+            try:
+                await delete_picker_session(body.session_id, access_token)
+            except httpx.HTTPError:
+                logger.warning("Failed to delete picker session %s", body.session_id)
             _album_locks.pop((user.id, aid), None)
 
 
