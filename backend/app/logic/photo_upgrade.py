@@ -17,7 +17,8 @@ from typing import Literal
 import imagehash
 import numpy as np
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
-from PIL import Image
+from PIL import Image, ImageOps
+from PIL.Image import Resampling
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
 
@@ -25,7 +26,6 @@ from app.logic.layout.media import Media, delete_thumbnails
 from app.services.google_photos import (
     AccessToken,
     GoogleMediaId,
-    MimeType,
     PhotoFilename,
     PickedMediaItem,
     download_media_bytes,
@@ -424,17 +424,27 @@ def _cross_step_fallback(  # noqa: PLR0913
 # ---------------------------------------------------------------------------
 
 
-def _needs_jpeg_conversion(mime_type: MimeType) -> bool:
-    """Check if a MIME type needs conversion to JPEG."""
-    return mime_type.lower() != "image/jpeg"
+_MAX_LONG_EDGE = 3000
+_JPEG_QUALITY = 85
 
 
-def _convert_to_jpeg_sync(data: bytes) -> bytes:
-    """Convert image bytes to JPEG format (synchronous)."""
-    with Image.open(BytesIO(data)) as img:
-        rgb = img.convert("RGB")
+def _process_photo_sync(data: bytes) -> bytes:
+    """Normalize a downloaded original: transpose, resize, strip EXIF, save as JPEG."""
+    with Image.open(BytesIO(data)) as raw:
+        img = ImageOps.exif_transpose(raw) or raw
+        img = img.convert("RGB")
+
+        w, h = img.size
+        long_edge = max(w, h)
+        if long_edge > _MAX_LONG_EDGE:
+            scale = _MAX_LONG_EDGE / long_edge
+            img = img.resize(
+                (round(w * scale), round(h * scale)),
+                Resampling.LANCZOS,
+            )
+
         buf = BytesIO()
-        rgb.save(buf, "JPEG", quality=95)
+        img.save(buf, "JPEG", quality=_JPEG_QUALITY)
         return buf.getvalue()
 
 
@@ -461,8 +471,7 @@ async def _download_and_replace(
     if not data:
         return False
 
-    if _needs_jpeg_conversion(item.media_file.mime_type):
-        data = await asyncio.to_thread(_convert_to_jpeg_sync, data)
+    data = await asyncio.to_thread(_process_photo_sync, data)
 
     tmp_path = tmp_dir / match.local_name
     await asyncio.to_thread(tmp_path.write_bytes, data)
