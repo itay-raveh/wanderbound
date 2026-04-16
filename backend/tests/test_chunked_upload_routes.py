@@ -59,6 +59,29 @@ class TestUploadChunk:
         )
         assert resp.status_code == 400
 
+    async def test_idempotent_retry(self, client: AsyncClient, tmp_path: Path) -> None:
+        """Re-uploading the same chunk index uses the latest data."""
+        upload_id = await _init(client)
+
+        await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"first-attempt",
+        )
+        resp = await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"retry-attempt",
+        )
+        assert resp.status_code == 204
+
+        users_dir = tmp_path / "users"
+        users_dir.mkdir(exist_ok=True)
+        with mock_jwt("google"), mock_extract(users_dir):
+            complete = await client.post(
+                f"/api/v1/users/upload/{upload_id}/complete",
+                data={"credential": "fake", "provider": "google"},
+            )
+        assert complete.status_code == 200
+
 
 class TestCompleteChunkedUpload:
     async def test_happy_path(self, client: AsyncClient, tmp_path: Path) -> None:
