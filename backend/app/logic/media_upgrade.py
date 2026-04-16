@@ -16,6 +16,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
+import httpx
 import imagehash
 import numpy as np
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
@@ -374,7 +375,7 @@ async def _hash_candidates(
             return item.id, await asyncio.to_thread(
                 compute_phash_from_bytes, thumb_bytes
             )
-        except OSError, SyntaxError:
+        except OSError, SyntaxError, httpx.HTTPError:
             logger.warning(
                 "Failed to download/hash thumbnail for %s",
                 item.id,
@@ -662,7 +663,11 @@ def _is_not_larger(name: str, new_w: int, new_h: int, existing: Media) -> bool:
 
 async def _replace_video(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
     """Process and replace a single video. Returns True on success."""
-    await _process_video(data, tmp_path)
+    try:
+        await _process_video(data, tmp_path)
+    except RuntimeError:
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        raise
 
     try:
         new_media = await Media.probe(tmp_path)
@@ -772,7 +777,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             ok = await _download_and_replace(
                 match, item, album_dir, tmp_dir, access_token
             )
-        except OSError, SyntaxError:
+        except OSError, SyntaxError, httpx.HTTPError, RuntimeError:
             logger.exception("Failed to upgrade %s", match.local_name)
             return None
         else:

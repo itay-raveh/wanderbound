@@ -263,6 +263,9 @@ async def upgrade_media(
                 succeeded=succeeded,
             ):
                 yield event
+        except Exception:
+            logger.exception("Upgrade failed for album %s", aid)
+            yield UpgradeError(detail="Upgrade failed unexpectedly.")
         finally:
             # Persist results even if the client disconnects mid-stream.
             # Files already replaced on disk must be reflected in the DB.
@@ -272,6 +275,7 @@ async def upgrade_media(
             session.add(album)
             await session.commit()
             await delete_picker_session(body.session_id, access_token)
+            _album_locks.pop((user.id, aid), None)
 
 
 # ---------------------------------------------------------------------------
