@@ -8,6 +8,7 @@ bipartite assignment.
 import asyncio
 import contextlib
 import logging
+import subprocess
 from collections.abc import AsyncIterator
 from datetime import datetime
 from io import BytesIO
@@ -22,7 +23,7 @@ from PIL.Image import Resampling
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
 
-from app.logic.layout.media import Media, delete_thumbnails
+from app.logic.layout.media import Media, delete_thumbnails, is_video
 from app.services.google_photos import (
     AccessToken,
     GoogleMediaId,
@@ -41,6 +42,8 @@ _FALLBACK_MAX_DIMENSION = 100
 
 # Bounded concurrency for Google Photos downloads (matching + replacement).
 _DOWNLOAD_SEM = asyncio.Semaphore(5)
+
+type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +159,68 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 
 
 # ---------------------------------------------------------------------------
+# Video frame hashing
+# ---------------------------------------------------------------------------
+
+_VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
+
+
+def _video_duration_sync(path: Path) -> float:
+    """Get video duration via ffprobe (synchronous)."""
+    result = subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return 2.0
+
+
+def _extract_video_frames(path: Path) -> list[imagehash.ImageHash]:
+    """Extract frames at 10/30/50/70% of duration and compute pHash for each."""
+    duration = _video_duration_sync(path)
+    hashes: list[imagehash.ImageHash] = []
+    for pct in _VIDEO_SAMPLE_POINTS:
+        ts = duration * pct
+        result = subprocess.run(  # noqa: S603
+            [  # noqa: S607
+                "ffmpeg",
+                "-y",
+                "-v",
+                "error",
+                "-ss",
+                str(ts),
+                "-i",
+                str(path),
+                "-frames:v",
+                "1",
+                "-f",
+                "image2pipe",
+                "-vcodec",
+                "png",
+                "-",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        with Image.open(BytesIO(result.stdout)) as img:
+            hashes.append(compute_phash(img))
+    return hashes
+
+
+# ---------------------------------------------------------------------------
 # Cost matrix and Hungarian matching
 # ---------------------------------------------------------------------------
 
@@ -240,23 +305,28 @@ def _deduplicate_items(
     return list({item.id: item for item in items}.values())
 
 
-async def _hash_local_photos(
+async def _hash_local_media(
     album_dir: Path,
-    photo_names: list[PhotoFilename],
-) -> dict[PhotoFilename, imagehash.ImageHash]:
-    """Compute perceptual hashes for local photo files (concurrent)."""
+    media_names: list[PhotoFilename],
+) -> dict[PhotoFilename, LocalHash]:
+    """Compute perceptual hashes for local media files (concurrent).
 
-    async def _hash_one(name: str) -> tuple[str, imagehash.ImageHash | None]:
+    Photos: single pHash. Videos: list of 4 pHashes from sampled frames.
+    """
+
+    async def _hash_one(name: str) -> tuple[str, LocalHash | None]:
         path = album_dir / name
         if not path.exists():
             return name, None
         try:
+            if is_video(name):
+                return name, await asyncio.to_thread(_extract_video_frames, path)
             return name, await asyncio.to_thread(compute_phash_from_path, path)
-        except OSError, SyntaxError:
+        except OSError, SyntaxError, subprocess.CalledProcessError:
             logger.warning("Failed to hash %s", name, exc_info=True)
             return name, None
 
-    results = await asyncio.gather(*(_hash_one(n) for n in photo_names))
+    results = await asyncio.gather(*(_hash_one(n) for n in media_names))
     return {name: h for name, h in results if h is not None}
 
 
@@ -296,7 +366,7 @@ async def _hash_candidates(
 
 async def run_matching(  # noqa: PLR0913
     album_dir: Path,
-    photo_names: list[PhotoFilename],
+    media_names: list[PhotoFilename],
     step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
@@ -304,16 +374,16 @@ async def run_matching(  # noqa: PLR0913
 ) -> AsyncIterator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
-    1. Hash local photos
+    1. Hash local media (photos + videos)
     2. Bucket Google items into step windows
     3. Download thumbnails and hash them
     4. Hungarian match within each window
     5. Cross-step fallback for unmatched
     6. Yield summary
     """
-    total = len(photo_names)
+    total = len(media_names)
 
-    local_hashes = await _hash_local_photos(album_dir, photo_names)
+    local_hashes = await _hash_local_media(album_dir, media_names)
     yield UpgradeMatching(phase="hashing_local", done=total, total=total)
 
     windows = build_step_windows(step_timestamps, step_ids)
@@ -327,14 +397,14 @@ async def run_matching(  # noqa: PLR0913
     )
 
     all_matches, matched_locals, matched_candidates = _match_across_windows(
-        windows, google_by_window, photo_names, local_hashes, candidate_hashes
+        windows, google_by_window, media_names, local_hashes, candidate_hashes
     )
 
     _cross_step_fallback(
         all_matches,
         matched_locals,
         matched_candidates,
-        photo_names,
+        media_names,
         local_hashes,
         google_items,
         candidate_hashes,
@@ -351,8 +421,8 @@ async def run_matching(  # noqa: PLR0913
 def _match_across_windows(
     windows: list[StepWindow],
     google_by_window: dict[int, list[PickedMediaItem]],
-    photo_names: list[PhotoFilename],
-    local_hashes: dict[PhotoFilename, imagehash.ImageHash],
+    media_names: list[PhotoFilename],
+    local_hashes: dict[PhotoFilename, LocalHash],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> tuple[list[MatchResult], set[PhotoFilename], set[GoogleMediaId]]:
     """Run Hungarian matching within each time window."""
@@ -363,7 +433,7 @@ def _match_across_windows(
     for window in windows:
         window_items = google_by_window[window.step_id]
         unmatched_local = [
-            n for n in photo_names if n in local_hashes and n not in matched_locals
+            n for n in media_names if n in local_hashes and n not in matched_locals
         ]
         unmatched_cands = [
             item
@@ -375,7 +445,7 @@ def _match_across_windows(
 
         results = match_within_window(
             local_names=unmatched_local,
-            local_hashes=[local_hashes[n] for n in unmatched_local],
+            local_hashes=[local_hashes[n] for n in unmatched_local],  # type: ignore[list-item]  # video LocalHash cost matrix in task 5
             candidate_ids=[item.id for item in unmatched_cands],
             candidate_hashes=[candidate_hashes[item.id] for item in unmatched_cands],
         )
@@ -391,14 +461,14 @@ def _cross_step_fallback(  # noqa: PLR0913
     all_matches: list[MatchResult],
     matched_locals: set[PhotoFilename],
     matched_candidates: set[GoogleMediaId],
-    photo_names: list[PhotoFilename],
-    local_hashes: dict[PhotoFilename, imagehash.ImageHash],
+    media_names: list[PhotoFilename],
+    local_hashes: dict[PhotoFilename, LocalHash],
     google_items: list[PickedMediaItem],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:
-    """Try matching remaining unmatched photos across all windows."""
+    """Try matching remaining unmatched media across all windows."""
     remaining_local = [
-        n for n in photo_names if n in local_hashes and n not in matched_locals
+        n for n in media_names if n in local_hashes and n not in matched_locals
     ]
     remaining_candidates = [
         item
@@ -414,7 +484,7 @@ def _cross_step_fallback(  # noqa: PLR0913
     ):
         fallback_results = match_within_window(
             local_names=remaining_local,
-            local_hashes=[local_hashes[n] for n in remaining_local],
+            local_hashes=[local_hashes[n] for n in remaining_local],  # type: ignore[list-item]  # video LocalHash cost matrix in task 5
             candidate_ids=[item.id for item in remaining_candidates],
             candidate_hashes=[
                 candidate_hashes[item.id] for item in remaining_candidates

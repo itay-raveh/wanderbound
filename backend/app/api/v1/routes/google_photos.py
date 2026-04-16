@@ -185,7 +185,7 @@ async def match_photos(
 
     async for event in run_matching(
         album_dir=album_dir,
-        photo_names=photo_names,
+        media_names=photo_names,
         step_timestamps=step_timestamps,
         step_ids=step_ids,
         google_items=items,

@@ -1,15 +1,19 @@
 """Unit tests for photo matching and processing.
 
 Tests pure computation: time-window bucketing, distance matrix building,
-Hungarian matching, threshold rejection, cross-step fallback, and
-post-download photo processing (EXIF strip, resize, format conversion).
+Hungarian matching, threshold rejection, cross-step fallback, video frame
+extraction, and post-download photo processing (EXIF strip, resize,
+format conversion).
 """
 
+import subprocess
 from datetime import UTC, datetime
 from io import BytesIO
+from pathlib import Path
 
 import imagehash
 import numpy as np
+import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
@@ -19,6 +23,7 @@ from app.logic.photo_upgrade import (
     MatchResult,
     _bucket_by_window,
     _cross_step_fallback,
+    _extract_video_frames,
     _parse_timestamp,
     _process_photo_sync,
     build_cost_matrix,
@@ -311,7 +316,7 @@ class TestCrossStepFallback:
             all_matches,
             matched_locals,
             matched_candidates,
-            photo_names=["photo1.jpg"],
+            media_names=["photo1.jpg"],
             local_hashes=local_hashes,
             candidate_hashes=candidate_hashes,
             google_items=[item],
@@ -331,7 +336,7 @@ class TestCrossStepFallback:
             all_matches,
             matched_locals,
             matched_candidates,
-            photo_names=["photo1.jpg"],
+            media_names=["photo1.jpg"],
             local_hashes={"photo1.jpg": h},
             candidate_hashes={"gp-1": h},
             google_items=[_make_item("gp-1", "2024-01-15T10:00:00Z")],
@@ -353,7 +358,7 @@ class TestCrossStepFallback:
             all_matches,
             matched_locals=set(),
             matched_candidates=set(),
-            photo_names=names,
+            media_names=names,
             local_hashes=hashes,
             candidate_hashes=candidate_hashes,
             google_items=items,
@@ -449,3 +454,42 @@ class TestProcessPhoto:
         with Image.open(BytesIO(result)) as out:
             # After transpose: 600x400 (landscape)
             assert out.size == (600, 400)
+
+
+@pytest.fixture
+def sample_video(tmp_path: Path) -> Path:
+    """Create a minimal 2-second test video via ffmpeg."""
+    out = tmp_path / "test.mp4"
+    subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:size=320x240:duration=2:rate=30",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return out
+
+
+class TestExtractVideoFrames:
+    def test_extracts_four_frames(self, sample_video: Path) -> None:
+        frames = _extract_video_frames(sample_video)
+        assert len(frames) == 4
+        for frame in frames:
+            assert isinstance(frame, imagehash.ImageHash)
+
+    def test_all_frames_from_same_video_are_similar(self, sample_video: Path) -> None:
+        """A solid-color video should produce near-identical hashes."""
+        frames = _extract_video_frames(sample_video)
+        for i in range(len(frames) - 1):
+            assert frames[i] - frames[i + 1] < 5
