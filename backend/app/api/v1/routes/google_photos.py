@@ -3,12 +3,16 @@
 OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 """
 
+from __future__ import annotations
+
 import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 import httpx
+from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.sse import EventSourceResponse
@@ -28,6 +32,7 @@ from app.models.album import Album
 from app.models.step import Step
 from app.services.google_photos import (
     AccessToken,
+    PickedMediaItem,
     PickerSessionId,
     TokenProvider,
     create_picker_session,
@@ -42,8 +47,8 @@ from ..deps import SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
 
-# Tracks albums currently being upgraded. Checked/mutated in a single
-# synchronous block (no await between check and add) to avoid TOCTOU races.
+# Tracks albums currently being upgraded. The check-and-add is done without
+# intervening awaits so two concurrent requests can't both pass the check.
 _upgrades_in_progress: set[tuple[int, str]] = set()
 
 
@@ -126,15 +131,28 @@ _CALLBACK_BODY = (
 )
 
 
+_CALLBACK_ERROR_BODY = (
+    "<!DOCTYPE html><html><head><title>Connection Failed</title>"
+    "<style>body{font-family:system-ui;display:grid;"
+    "place-items:center;height:100vh;margin:0;color:#666}"
+    "</style></head><body><p>Could not connect Google Photos. "
+    "Please close this tab and try again.</p></body></html>"
+)
+
+
 @router.get("/callback", name="google_photos_callback", response_class=HTMLResponse)
 async def callback(
     request: Request, user: UserDep, session: SessionDep
 ) -> HTMLResponse:
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
-    token = await oauth.google_photos.authorize_access_token(
-        request, redirect_uri=redirect_uri
-    )
+    try:
+        token = await oauth.google_photos.authorize_access_token(
+            request, redirect_uri=redirect_uri
+        )
+    except OAuthError:
+        logger.exception("Google Photos OAuth callback failed for user %d", user.id)
+        return HTMLResponse(_CALLBACK_ERROR_BODY, status_code=400)
     refresh_token = token.get("refresh_token")
     if not refresh_token:
         raise HTTPException(
@@ -245,6 +263,39 @@ class UpgradeRequest(BaseModel):
     matches: list[MatchResult]
 
 
+async def _prepare_upgrade(
+    user: UserDep,
+    body: UpgradeRequest,
+    session: SessionDep,
+    aid: str,
+    key: tuple[int, str],
+) -> tuple[Album, Path, dict[str, PickedMediaItem], TokenProvider]:
+    """Validate and prepare all data for the upgrade stream.
+
+    Releases the upgrade lock on failure so a retry can proceed.
+    """
+    encrypted_refresh = user.google_photos_refresh_token
+    if not encrypted_refresh:
+        _upgrades_in_progress.discard(key)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
+    try:
+        refresh_token = decrypt_token(encrypted_refresh)
+        tokens = TokenProvider(refresh_token)
+        access_token = await tokens.get()
+
+        album = await session.get_one(Album, (user.id, aid))
+        album_dir = user.trips_folder / aid
+
+        _validate_match_names(body.matches, {m.name for m in album.media})
+
+        items = await get_media_items(body.session_id, access_token)
+        items_by_id = {item.id: item for item in items}
+    except Exception:
+        _upgrades_in_progress.discard(key)
+        raise
+    return album, album_dir, items_by_id, tokens
+
+
 @router.post(
     "/upgrade/{aid}",
     responses={200: {"model": list[UpgradeEvent]}},
@@ -256,29 +307,22 @@ async def upgrade_media(
     session: SessionDep,
 ) -> EventSourceResponse:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
+    if not user.google_photos_refresh_token:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
+
     key = (user.id, aid)
     if key in _upgrades_in_progress:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "An upgrade is already running for this album.",
         )
-
-    if not user.google_photos_refresh_token:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
-    refresh_token = decrypt_token(user.google_photos_refresh_token)
-    tokens = TokenProvider(refresh_token)
-    access_token = await tokens.get()
-
-    album = await session.get_one(Album, (user.id, aid))
-    album_dir = user.trips_folder / aid
-
-    _validate_match_names(body.matches, {m.name for m in album.media})
-
-    items = await get_media_items(body.session_id, access_token)
-    items_by_id = {item.id: item for item in items}
-
-    # All validation passed - register the lock and start streaming.
+    # Register the lock immediately (no await between check and add)
+    # to prevent concurrent requests from both passing the check.
     _upgrades_in_progress.add(key)
+
+    album, album_dir, items_by_id, tokens = await _prepare_upgrade(
+        user, body, session, aid, key
+    )
 
     async def stream() -> AsyncGenerator[str]:
         succeeded: set[str] = set()
