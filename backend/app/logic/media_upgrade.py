@@ -796,7 +796,11 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             failed += 1
         yield UpgradeDownloading(done=i + 1, total=total)
 
+    # Clean up any orphaned tmp files (e.g. from failed validation)
+    # before removing the directory.
     with contextlib.suppress(OSError):
+        for leftover in tmp_dir.iterdir():
+            leftover.unlink(missing_ok=True)
         tmp_dir.rmdir()
 
     yield UpgradeDone(replaced=replaced, failed=failed)
