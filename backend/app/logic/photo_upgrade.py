@@ -23,7 +23,7 @@ from PIL.Image import Resampling
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
 
-from app.logic.layout.media import Media, delete_thumbnails, is_video
+from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.services.google_photos import (
     AccessToken,
     GoogleMediaId,
@@ -646,6 +646,69 @@ def _validate_image(path: Path) -> tuple[int, int]:
         return img.size
 
 
+def _is_not_larger(name: str, new_w: int, new_h: int, existing: Media) -> bool:
+    """Log and return True when the new file is not larger than existing."""
+    if new_w * new_h <= existing.width * existing.height:
+        logger.info(
+            "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
+            name,
+            new_w,
+            new_h,
+            existing.width,
+            existing.height,
+        )
+        return True
+    return False
+
+
+async def _replace_video(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
+    """Process and replace a single video. Returns True on success."""
+    await _process_video(data, tmp_path)
+
+    try:
+        new_media = await Media.probe(tmp_path)
+    except RuntimeError:
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        return False
+
+    try:
+        existing = await Media.probe(target)
+    except RuntimeError, OSError:
+        existing = None
+    if existing and _is_not_larger(name, new_media.width, new_media.height, existing):
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        return False
+
+    await asyncio.to_thread(tmp_path.rename, target)
+    delete_thumbnails(target)
+    # Re-extract poster from upgraded video
+    poster = target.with_suffix(".jpg")
+    if await asyncio.to_thread(poster.exists):
+        delete_thumbnails(poster)
+    await extract_frame(target)
+    return True
+
+
+async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
+    """Process and replace a single photo. Returns True on success."""
+    data = await asyncio.to_thread(_process_photo_sync, data)
+    await asyncio.to_thread(tmp_path.write_bytes, data)
+
+    width, height = await asyncio.to_thread(_validate_image, tmp_path)
+
+    try:
+        existing = Media.load(target)
+    except OSError:
+        existing = None
+    if existing and _is_not_larger(name, width, height, existing):
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        return False
+
+    await asyncio.to_thread(tmp_path.rename, target)
+    delete_thumbnails(target)
+    return True
+
+
 async def _download_and_replace(
     match: MatchResult,
     item: PickedMediaItem,
@@ -653,43 +716,26 @@ async def _download_and_replace(
     tmp_dir: Path,
     access_token: AccessToken,
 ) -> bool:
-    """Download one original, validate, and replace the compressed file.
+    """Download one original, process, and replace the compressed file.
 
     Returns True on success, False on failure.
     """
+    download_param = "=dv" if is_video(match.local_name) else "=d"
+
     async with _DOWNLOAD_SEM:
-        data = await download_media_bytes(item.media_file.base_url, access_token)
+        data = await download_media_bytes(
+            item.media_file.base_url, access_token, param=download_param
+        )
 
     if not data:
         return False
 
-    data = await asyncio.to_thread(_process_photo_sync, data)
-
-    tmp_path = tmp_dir / match.local_name
-    await asyncio.to_thread(tmp_path.write_bytes, data)
-
-    width, height = await asyncio.to_thread(_validate_image, tmp_path)
-
     target = album_dir / match.local_name
-    try:
-        existing = Media.load(target)
-    except OSError:
-        existing = None
-    if existing and width * height <= existing.width * existing.height:
-        logger.info(
-            "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
-            match.local_name,
-            width,
-            height,
-            existing.width,
-            existing.height,
-        )
-        tmp_path.unlink(missing_ok=True)
-        return False
+    tmp_path = tmp_dir / match.local_name
 
-    tmp_path.rename(target)
-    delete_thumbnails(target)
-    return True
+    if is_video(match.local_name):
+        return await _replace_video(match.local_name, data, tmp_path, target)
+    return await _replace_photo(match.local_name, data, tmp_path, target)
 
 
 async def execute_upgrade(
@@ -747,20 +793,20 @@ async def apply_upgrade_results(
     album_dir: Path,
     matches: list[MatchResult],
     media: list[Media],
-    upgraded_photos: dict[PhotoFilename, GoogleMediaId],
+    upgraded_media: dict[PhotoFilename, GoogleMediaId],
 ) -> tuple[list[Media], dict[PhotoFilename, GoogleMediaId]]:
-    """Re-probe replaced files and update media list + upgrade map.
-
-    Returns the updated (media, upgraded_photos) for the caller to persist.
-    """
+    """Re-probe replaced files and update media list + upgrade map."""
     media_by_name = {m.name: m for m in media}
     for match in matches:
         target = album_dir / match.local_name
         try:
-            updated = await asyncio.to_thread(Media.load, target)
+            if is_video(match.local_name):
+                updated = await Media.probe(target)
+            else:
+                updated = await asyncio.to_thread(Media.load, target)
             if match.local_name in media_by_name:
                 media_by_name[match.local_name] = updated
-        except OSError, SyntaxError:
+        except OSError, SyntaxError, RuntimeError:
             logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
-        upgraded_photos[match.local_name] = match.google_id
-    return list(media_by_name.values()), upgraded_photos
+        upgraded_media[match.local_name] = match.google_id
+    return list(media_by_name.values()), upgraded_media
