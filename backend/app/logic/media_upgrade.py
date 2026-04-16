@@ -10,7 +10,7 @@ import contextlib
 import functools
 import logging
 import subprocess
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -227,7 +227,7 @@ def _extract_video_frames(path: Path) -> list[imagehash.ImageHash]:
 # ---------------------------------------------------------------------------
 
 
-_CROSS_TYPE_COST = 999  # above any possible match threshold
+_CROSS_TYPE_COST = MATCH_THRESHOLD + 1
 
 
 def _hash_distance(local: LocalHash, candidate: imagehash.ImageHash) -> int:
@@ -401,7 +401,7 @@ async def run_matching(  # noqa: PLR0913
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     access_token: AccessToken,
-) -> AsyncIterator[UpgradeEvent]:
+) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
     1. Hash local media (photos + videos)
@@ -759,7 +759,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     tokens: TokenProvider,
     already_upgraded: dict[MediaFilename, GoogleMediaId],
     succeeded: set[MediaFilename] | None = None,
-) -> AsyncIterator[UpgradeEvent]:
+) -> AsyncGenerator[UpgradeEvent]:
     """Download originals and replace compressed files concurrently.
 
     Yields progress events for SSE streaming as each download completes.
@@ -794,6 +794,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     upgrade_tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
     replaced = 0
     failed = 0
+    completed = False
 
     try:
         for i, coro in enumerate(asyncio.as_completed(upgrade_tasks)):
@@ -804,6 +805,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             else:
                 failed += 1
             yield UpgradeDownloading(done=i + 1, total=total)
+        completed = True
     finally:
         for t in upgrade_tasks:
             t.cancel()
@@ -814,7 +816,8 @@ async def execute_upgrade(  # noqa: PLR0913, C901
                 leftover.unlink(missing_ok=True)
             tmp_dir.rmdir()
 
-    yield UpgradeDone(replaced=replaced, failed=failed)
+    if completed:
+        yield UpgradeDone(replaced=replaced, failed=failed)
 
 
 async def apply_upgrade_results(

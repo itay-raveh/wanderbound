@@ -101,7 +101,7 @@ const { confirmUpgrade } = upgrade;
       <q-icon
         :name="symOutlinedError"
         size="var(--type-lg)"
-        class="error-icon"
+
       />
       {{ t("upgrade.error") }}
     </button>

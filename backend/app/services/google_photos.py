@@ -4,10 +4,12 @@ Handles OAuth2 (Authlib), Picker session lifecycle, media item retrieval,
 and original photo byte downloads.
 """
 
+import asyncio
 import logging
 import time
 from functools import cache
 from pathlib import Path
+from typing import IO
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 _PICKER_BASE = "https://photospicker.googleapis.com"
 _SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
 _DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
+_DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
 
 
 # ---------------------------------------------------------------------------
@@ -291,15 +294,30 @@ async def download_media_to_file(
     *,
     param: str = "=d",
 ) -> None:
-    """Stream media bytes to a file on disk (avoids holding large files in RAM)."""
+    """Stream media bytes to a file on disk (avoids holding large files in RAM).
+
+    Chunks are buffered and flushed to disk via ``asyncio.to_thread`` every
+    4 MB so that synchronous ``write()`` calls don't block the event loop
+    under I/O pressure.
+    """
     url = f"{base_url}{param}"
     async with _download_client().stream(
         "GET", url, headers=_picker_headers(access_token)
     ) as resp:
         resp.raise_for_status()
+        buf = bytearray()
+
+        def _flush(f: IO[bytes], data: bytes) -> None:
+            f.write(data)
+
         with dest.open("wb") as f:
             async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
-                f.write(chunk)
+                buf.extend(chunk)
+                if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
+                    await asyncio.to_thread(_flush, f, bytes(buf))
+                    buf.clear()
+            if buf:
+                await asyncio.to_thread(_flush, f, bytes(buf))
 
 
 class TokenProvider:

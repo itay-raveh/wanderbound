@@ -93,16 +93,16 @@ async def _get_access_token(user: UserDep) -> AccessToken:
 async def authorize(request: Request, user: UserDep) -> dict[str, str]:
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
-    url = await oauth.google_photos.create_authorization_url(
+    rv = await oauth.google_photos.create_authorization_url(
         redirect_uri, access_type="offline", prompt="consent"
     )
-    request.session["google_photos_state"] = url["state"]
-    return {"authorization_url": url["url"]}
+    await oauth.google_photos.save_authorize_data(
+        request, redirect_uri=redirect_uri, **rv
+    )
+    return {"authorization_url": rv["url"]}
 
 
-_CALLBACK_HTML = HTMLResponse(
-    "<html><body><script>window.close()</script></body></html>"
-)
+_CALLBACK_BODY = "<html><body><script>window.close()</script></body></html>"
 
 
 @router.get("/callback", name="google_photos_callback", response_class=HTMLResponse)
@@ -125,7 +125,7 @@ async def callback(
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
-    return _CALLBACK_HTML
+    return HTMLResponse(_CALLBACK_BODY)
 
 
 # ---------------------------------------------------------------------------
@@ -241,13 +241,11 @@ async def upgrade_media(
     _upgrades_in_progress.add(key)
 
     try:
-        access_token = await _get_access_token(user)
-        # _get_access_token raises 400 if missing, so this is guaranteed non-None
-        encrypted = user.google_photos_refresh_token
-        if not encrypted:
+        if not user.google_photos_refresh_token:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
-        refresh_token = decrypt_token(encrypted)
+        refresh_token = decrypt_token(user.google_photos_refresh_token)
         tokens = TokenProvider(refresh_token)
+        access_token = await tokens.get()
 
         album = await session.get_one(Album, (user.id, aid))
         album_dir = user.trips_folder / aid
