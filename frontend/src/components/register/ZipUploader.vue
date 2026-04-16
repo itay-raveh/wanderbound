@@ -59,6 +59,7 @@ function onDrop(event: DragEvent) {
 }
 
 function handleFile(selected: File) {
+  if (uploading.value) return;
   if (!selected.name.endsWith(".zip")) {
     $q.notify({ type: "negative", message: t("register.uploadFailed") });
     return;
@@ -92,6 +93,7 @@ async function uploadChunkWithRetry(
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", url);
         xhr.withCredentials = true;
+        xhr.timeout = 120_000; // 2 minutes per chunk
 
         const onAbort = () => {
           xhr.abort();
@@ -112,6 +114,10 @@ async function uploadChunkWithRetry(
         xhr.onerror = () => {
           signal.removeEventListener("abort", onAbort);
           reject(new Error("Network error"));
+        };
+        xhr.ontimeout = () => {
+          signal.removeEventListener("abort", onAbort);
+          reject(new Error("Timeout"));
         };
         xhr.send(blob);
       });
@@ -176,6 +182,7 @@ async function startUpload(selected: File) {
     );
     if (!completeRes.ok) throw new Error(`${completeRes.status}`);
     const result = (await completeRes.json()) as UploadResult;
+    reset();
     emit("uploaded", result);
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
