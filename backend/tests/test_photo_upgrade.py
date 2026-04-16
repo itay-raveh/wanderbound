@@ -1,17 +1,25 @@
 """Unit tests for the photo matching algorithm.
 
 Tests pure computation: time-window bucketing, distance matrix building,
-Hungarian matching, and threshold rejection.
+Hungarian matching, threshold rejection, and cross-step fallback.
 """
+
+from datetime import UTC, datetime
 
 import imagehash
 import numpy as np
 
 from app.logic.photo_upgrade import (
+    _FALLBACK_MAX_DIMENSION,
+    MatchResult,
+    _bucket_by_window,
+    _cross_step_fallback,
+    _parse_timestamp,
     build_cost_matrix,
     build_step_windows,
     match_within_window,
 )
+from app.services.google_photos import MediaFile, PickedMediaItem
 
 
 def _make_hash(value: int) -> imagehash.ImageHash:
@@ -149,3 +157,154 @@ class TestMatchWithinWindow:
         assert len(results) == 1
         assert results[0].google_id == "gp-2"
         assert results[0].distance == 0
+
+
+# ---------------------------------------------------------------------------
+# Helpers for bucketing / fallback tests
+# ---------------------------------------------------------------------------
+
+
+def _make_item(
+    item_id: str,
+    create_time: str,
+    *,
+    item_type: str = "PHOTO",
+) -> PickedMediaItem:
+    return PickedMediaItem(
+        id=item_id,
+        create_time=create_time,
+        type=item_type,
+        media_file=MediaFile(
+            base_url="https://example.com",
+            mime_type="image/jpeg",
+            filename=f"{item_id}.jpg",
+        ),
+    )
+
+
+class TestParseTimestamp:
+    def test_iso_utc(self) -> None:
+        ts = _parse_timestamp("2024-01-15T10:30:00+00:00")
+        assert ts is not None
+        assert abs(ts - 1705314600.0) < 1
+
+    def test_iso_with_timezone(self) -> None:
+        ts = _parse_timestamp("2024-01-15T12:30:00+02:00")
+        assert ts is not None
+        # 12:30 UTC+2 = 10:30 UTC
+        assert abs(ts - 1705314600.0) < 1
+
+    def test_invalid_returns_none(self) -> None:
+        assert _parse_timestamp("not-a-date") is None
+        assert _parse_timestamp("") is None
+
+
+class TestBucketByWindow:
+    def test_item_lands_in_correct_window(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0, 1_050_000.0],
+            step_ids=[1, 2],
+        )
+        item = _make_item("g1", "1970-01-12T19:20:00+00:00")  # epoch 1_020_000
+        bucketed = _bucket_by_window([item], windows)
+        assert len(bucketed[1]) == 1
+        assert bucketed[1][0].id == "g1"
+
+    def test_video_items_skipped(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0],
+            step_ids=[1],
+        )
+        video = _make_item("v1", "1970-01-12T13:46:40+00:00", item_type="VIDEO")
+        bucketed = _bucket_by_window([video], windows)
+        assert len(bucketed[1]) == 0
+
+    def test_invalid_timestamp_skipped(self) -> None:
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0],
+            step_ids=[1],
+        )
+        bad = _make_item("b1", "not-a-timestamp")
+        bucketed = _bucket_by_window([bad], windows)
+        assert len(bucketed[1]) == 0
+
+    def test_overlap_margin_includes_boundary_items(self) -> None:
+        """Items just past a window boundary should still match via overlap."""
+        windows = build_step_windows(
+            step_timestamps=[1_000_000.0, 1_050_000.0],
+            step_ids=[1, 2],
+        )
+        # Item at exactly 1_050_000 + 10 min (within 30-min overlap of window 1)
+        t = 1_050_000.0 + 600
+        iso = datetime.fromtimestamp(t, UTC).isoformat()
+        item = _make_item("g1", iso)
+        bucketed = _bucket_by_window([item], windows)
+        # Should land in window 1 (via overlap) and also window 2
+        assert any(i.id == "g1" for i in bucketed[1])
+
+
+class TestCrossStepFallback:
+    def test_matches_remaining_unmatched(self) -> None:
+        """Unmatched photos get a second chance across all windows."""
+        h = _make_hash(42)
+        all_matches: list[MatchResult] = []
+        matched_locals: set[str] = set()
+        matched_candidates: set[str] = set()
+
+        local_hashes = {"photo1.jpg": h}
+        candidate_hashes = {"gp-1": h}
+        item = _make_item("gp-1", "2024-01-15T10:00:00Z")
+
+        _cross_step_fallback(
+            all_matches,
+            matched_locals,
+            matched_candidates,
+            photo_names=["photo1.jpg"],
+            local_hashes=local_hashes,
+            candidate_hashes=candidate_hashes,
+            google_items=[item],
+        )
+
+        assert len(all_matches) == 1
+        assert all_matches[0].local_name == "photo1.jpg"
+        assert all_matches[0].google_id == "gp-1"
+
+    def test_skips_already_matched(self) -> None:
+        h = _make_hash(42)
+        all_matches: list[MatchResult] = []
+        matched_locals = {"photo1.jpg"}
+        matched_candidates = {"gp-1"}
+
+        _cross_step_fallback(
+            all_matches,
+            matched_locals,
+            matched_candidates,
+            photo_names=["photo1.jpg"],
+            local_hashes={"photo1.jpg": h},
+            candidate_hashes={"gp-1": h},
+            google_items=[_make_item("gp-1", "2024-01-15T10:00:00Z")],
+        )
+
+        assert len(all_matches) == 0
+
+    def test_skips_when_exceeding_dimension_limit(self) -> None:
+        """Fallback is skipped when matrix would be too large."""
+        h = _make_hash(0)
+        n = _FALLBACK_MAX_DIMENSION + 1
+        names = [f"photo{i}.jpg" for i in range(n)]
+        hashes = dict.fromkeys(names, h)
+        items = [_make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(n)]
+        candidate_hashes = {f"gp-{i}": h for i in range(n)}
+
+        all_matches: list[MatchResult] = []
+        _cross_step_fallback(
+            all_matches,
+            matched_locals=set(),
+            matched_candidates=set(),
+            photo_names=names,
+            local_hashes=hashes,
+            candidate_hashes=candidate_hashes,
+            google_items=items,
+        )
+
+        assert len(all_matches) == 0
