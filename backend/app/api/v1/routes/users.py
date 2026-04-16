@@ -111,9 +111,10 @@ async def _finalize_upload(  # noqa: PLR0913
 ) -> UploadResult:
     """Shared logic for creating/updating a user after ZIP extraction."""
     album_ids = [t.id for t in trips]
-    cancel_session(ps_user.id)
 
     try:
+        cancel_session(ps_user.id)
+
         if existing is not None:
             existing.album_ids = album_ids
             existing.living_location = ps_user.living_location
@@ -217,7 +218,7 @@ async def upload_chunk(
 ) -> Response:
     """Upload a single chunk of a file. Body is raw binary.
 
-    No per-request auth: the cryptographic upload_id (128-bit
+    No per-request auth: the cryptographic upload_id (256-bit
     ``secrets.token_urlsafe``) acts as a bearer token.  Ownership is
     verified when the session is finalized in ``complete_chunked_upload``.
     """
