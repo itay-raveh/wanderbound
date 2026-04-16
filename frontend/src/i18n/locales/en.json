@@ -274,6 +274,7 @@
     },
     "downloading": "Downloading {done}/{total}",
     "done": "Upgraded {replaced} files to original quality",
+    "doneSkipped": "Upgraded {replaced} files, {skipped} already full quality",
     "donePartial": "Upgraded {replaced} of {total} files",
     "error": "Upgrade failed. Try again.",
     "disconnect": "Disconnect Google Photos"

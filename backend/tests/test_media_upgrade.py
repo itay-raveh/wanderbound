@@ -44,23 +44,34 @@ def _make_hash(value: int) -> imagehash.ImageHash:
 
 class TestBuildStepWindows:
     def test_single_step_gets_24h_window(self) -> None:
+        margin = 30 * 60
         windows = build_step_windows(
             step_timestamps=[1_700_000_000.0],
             step_ids=[1],
         )
         assert len(windows) == 1
         assert windows[0].step_id == 1
-        assert windows[0].start == 1_700_000_000.0
-        assert windows[0].end == 1_700_000_000.0 + 86400 + 30 * 60
+        assert windows[0].start == 1_700_000_000.0 - margin
+        assert windows[0].end == 1_700_000_000.0 + 86400 + margin
+
+    def test_first_window_extends_backward(self) -> None:
+        margin = 30 * 60
+        windows = build_step_windows(
+            step_timestamps=[1_700_000_000.0, 1_700_050_000.0],
+            step_ids=[1, 2],
+        )
+        assert windows[0].start == 1_700_000_000.0 - margin
+        assert windows[1].start == 1_700_050_000.0
 
     def test_two_steps_use_next_start_as_end(self) -> None:
+        margin = 30 * 60
         windows = build_step_windows(
             step_timestamps=[1_700_000_000.0, 1_700_050_000.0],
             step_ids=[1, 2],
         )
         assert len(windows) == 2
-        assert windows[0].end == 1_700_050_000.0 + 30 * 60
-        assert windows[1].end == 1_700_050_000.0 + 86400 + 30 * 60
+        assert windows[0].end == 1_700_050_000.0 + margin
+        assert windows[1].end == 1_700_050_000.0 + 86400 + margin
 
     def test_overlap_margin_extends_boundaries(self) -> None:
         windows = build_step_windows(

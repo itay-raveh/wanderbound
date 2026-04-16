@@ -67,9 +67,10 @@ const showSummary = computed({
 });
 
 const doneMessage = computed(() => {
-  const { done: replaced, total } = upgrade.progress.value;
+  const { done: replaced, total, skipped = 0 } = upgrade.progress.value;
   const failed = total - replaced;
   if (failed > 0) return t("upgrade.donePartial", { replaced, total });
+  if (skipped > 0) return t("upgrade.doneSkipped", { replaced, skipped });
   return t("upgrade.done", { replaced });
 });
 

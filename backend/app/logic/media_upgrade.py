@@ -107,6 +107,7 @@ class UpgradeMatchSummary(BaseModel):
 class UpgradeDone(BaseModel):
     type: Literal["done"] = "done"
     replaced: int
+    skipped: int
     failed: int
 
 
@@ -142,8 +143,11 @@ def build_step_windows(
     """
     windows: list[StepWindow] = []
     for i, (ts, sid) in enumerate(zip(step_timestamps, step_ids, strict=True)):
+        # First window extends backward to catch items with clock skew or
+        # timezone offsets (e.g. photos taken just before departure).
+        start = ts - _OVERLAP_MARGIN if i == 0 else ts
         end = step_timestamps[i + 1] if i + 1 < len(step_timestamps) else ts + 86400
-        windows.append(StepWindow(step_id=sid, start=ts, end=end + _OVERLAP_MARGIN))
+        windows.append(StepWindow(step_id=sid, start=start, end=end + _OVERLAP_MARGIN))
     return windows
 
 
@@ -698,7 +702,7 @@ async def _replace_video(
         new_media = await Media.probe(tmp_path)
     except RuntimeError:
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        return False
+        raise
 
     try:
         existing = await Media.probe(target)
@@ -745,11 +749,11 @@ async def _download_and_replace(
     album_dir: Path,
     tmp_dir: Path,
     tokens: TokenProvider,
-) -> bool:
+) -> bool | None:
     """Download one original, process, and replace the compressed file.
 
-    Returns True on success, False on failure.
-    Videos stream directly to disk to avoid holding large files in RAM.
+    Returns True if replaced, False if skipped (original not larger),
+    None if the download produced no data.
     """
     target = album_dir / match.local_name
     tmp_path = tmp_dir / match.local_name
@@ -773,7 +777,7 @@ async def _download_and_replace(
             item.media_file.base_url, access_token, param="=d"
         )
     if not data:
-        return False
+        return None
     return await _replace_photo(match.local_name, data, tmp_path, target)
 
 
@@ -798,7 +802,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     total = len(to_upgrade)
 
     if total == 0:
-        yield UpgradeDone(replaced=0, failed=0)
+        yield UpgradeDone(replaced=0, skipped=0, failed=0)
         return
 
     tmp_dir = album_dir / ".upgrade-tmp"
@@ -809,7 +813,9 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         if not item:
             return None
         try:
-            ok = await _download_and_replace(match, item, album_dir, tmp_dir, tokens)
+            result = await _download_and_replace(
+                match, item, album_dir, tmp_dir, tokens
+            )
         except (
             OSError,
             SyntaxError,
@@ -819,12 +825,15 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         ):
             logger.exception("Failed to upgrade %s", match.local_name)
             return None
-        else:
-            return match.local_name if ok else None
+        if result is True:
+            return match.local_name
+        if result is False:
+            skipped_names.add(match.local_name)
+        return None
 
+    skipped_names: set[str] = set()
     upgrade_tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
     replaced = 0
-    failed = 0
     completed = False
 
     try:
@@ -833,8 +842,6 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             if name:
                 replaced += 1
                 succeeded.add(name)
-            else:
-                failed += 1
             yield UpgradeDownloading(done=i + 1, total=total)
         completed = True
     finally:
@@ -849,7 +856,9 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             tmp_dir.rmdir()
 
     if completed:
-        yield UpgradeDone(replaced=replaced, failed=failed)
+        skipped = len(skipped_names)
+        failed = total - replaced - skipped
+        yield UpgradeDone(replaced=replaced, skipped=skipped, failed=failed)
 
 
 async def apply_upgrade_results(

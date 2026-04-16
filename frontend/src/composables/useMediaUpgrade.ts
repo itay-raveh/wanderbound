@@ -28,6 +28,7 @@ type UpgradePhase =
 interface UpgradeProgress {
   done: number;
   total: number;
+  skipped?: number;
 }
 
 interface MatchSummary {
@@ -274,8 +275,12 @@ export function useMediaUpgrade() {
           progress.value = { done: event.done, total: event.total };
           break;
         case "done": {
-          const { replaced, failed } = event;
-          progress.value = { done: replaced, total: replaced + failed };
+          const { replaced, skipped, failed } = event;
+          progress.value = {
+            done: replaced,
+            total: replaced + failed,
+            skipped,
+          };
           receivedTerminal = true;
           break;
         }
