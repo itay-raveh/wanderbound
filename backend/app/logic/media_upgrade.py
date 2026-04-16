@@ -246,6 +246,8 @@ def _hash_distance(local: LocalHash, candidate: imagehash.ImageHash) -> int:
     """Compute distance between a local hash (single or multi-frame) and a candidate."""
     if isinstance(local, imagehash.ImageHash):
         return int(local - candidate)
+    if not local:
+        return _CROSS_TYPE_COST
     return min(int(frame - candidate) for frame in local)
 
 
@@ -600,6 +602,7 @@ def _detect_hdr(path: Path) -> bool:
 _VIDEO_CRF = "23"
 _VIDEO_PRESET = "medium"
 _AUDIO_BITRATE = "128k"
+_REENCODE_TIMEOUT = 600  # 10 minutes for video re-encode
 
 _HDR_TONEMAP_FILTER = (
     "zscale=t=linear:npl=100,format=gbrpf32le,"
@@ -649,7 +652,16 @@ async def _process_video(input_path: Path, output: Path) -> None:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await proc.communicate()
+        try:
+            _, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_REENCODE_TIMEOUT
+            )
+        except TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            raise RuntimeError(
+                f"ffmpeg re-encode timed out after {_REENCODE_TIMEOUT}s"
+            ) from None
 
         if proc.returncode != 0:
             raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
@@ -828,8 +840,9 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     finally:
         for t in upgrade_tasks:
             t.cancel()
-        # Clean up any orphaned tmp files (e.g. from failed validation)
-        # before removing the directory.
+        # Wait for cancelled tasks to finish before cleaning up tmp files
+        # they may still be writing to.
+        await asyncio.gather(*upgrade_tasks, return_exceptions=True)
         with contextlib.suppress(OSError):
             for leftover in tmp_dir.iterdir():
                 leftover.unlink(missing_ok=True)

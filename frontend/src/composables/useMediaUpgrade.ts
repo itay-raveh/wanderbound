@@ -265,6 +265,8 @@ export function useMediaUpgrade() {
       sseMaxRetryAttempts: 0,
     });
 
+    let receivedTerminal = false;
+
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
       switch (event.type) {
@@ -274,11 +276,16 @@ export function useMediaUpgrade() {
         case "done": {
           const { replaced, failed } = event;
           progress.value = { done: replaced, total: replaced + failed };
+          receivedTerminal = true;
           break;
         }
         case "error":
           throw new Error(event.detail);
       }
+    }
+
+    if (!receivedTerminal) {
+      throw new Error("Connection lost during upgrade");
     }
   }
 
