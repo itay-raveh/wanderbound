@@ -3,6 +3,7 @@
 OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
@@ -17,6 +18,7 @@ from sqlmodel import select
 from app.core.encryption import decrypt_token, encrypt_token
 from app.logic.media_upgrade import (
     MatchResult,
+    UpgradeError,
     UpgradeEvent,
     apply_upgrade_results,
     execute_upgrade,
@@ -38,6 +40,17 @@ from app.services.google_photos import (
 from ..deps import SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
+
+# Per-album lock prevents concurrent upgrades to the same album from
+# racing on temp files, disk renames, and DB commits.
+_album_locks: dict[tuple[int, str], asyncio.Lock] = {}
+
+
+def _get_album_lock(uid: int, aid: str) -> asyncio.Lock:
+    key = (uid, aid)
+    if key not in _album_locks:
+        _album_locks[key] = asyncio.Lock()
+    return _album_locks[key]
 
 
 def _require_google_user(user: UserDep) -> None:
@@ -183,15 +196,19 @@ async def match_media(
     step_timestamps = [s.timestamp for s in step_rows]
     step_ids = [s.id for s in step_rows]
 
-    async for event in run_matching(
-        album_dir=album_dir,
-        media_names=media_names,
-        step_timestamps=step_timestamps,
-        step_ids=step_ids,
-        google_items=items,
-        access_token=access_token,
-    ):
-        yield event
+    try:
+        async for event in run_matching(
+            album_dir=album_dir,
+            media_names=media_names,
+            step_timestamps=step_timestamps,
+            step_ids=step_ids,
+            google_items=items,
+            access_token=access_token,
+        ):
+            yield event
+    except Exception:
+        logger.exception("Matching failed for album %s", aid)
+        yield UpgradeError(detail="Matching failed unexpectedly.")
 
 
 class UpgradeRequest(BaseModel):
@@ -210,41 +227,51 @@ async def upgrade_media(
     user: UserDep,
     session: SessionDep,
 ) -> AsyncIterable[UpgradeEvent]:
-    access_token = await _get_access_token(user)
-
-    album = await session.get_one(Album, (user.id, aid))
-    album_dir = user.trips_folder / aid
-
-    # Validate every match references an actual album file (prevents path traversal)
-    valid_names = {m.name for m in album.media}
-    for m in body.matches:
-        if m.local_name not in valid_names:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                f"Unknown media file: {m.local_name}",
-            )
-
-    items = await get_media_items(body.session_id, access_token)
-    items_by_id = {item.id: item for item in items}
-
-    try:
-        async for event in execute_upgrade(
-            album_dir=album_dir,
-            matches=body.matches,
-            google_items_by_id=items_by_id,
-            access_token=access_token,
-            already_upgraded=album.upgraded_media,
-        ):
-            yield event
-    finally:
-        # Persist results even if the client disconnects mid-stream.
-        # Files already replaced on disk must be reflected in the DB.
-        album.media, album.upgraded_media = await apply_upgrade_results(
-            album_dir, body.matches, album.media, album.upgraded_media
+    lock = _get_album_lock(user.id, aid)
+    if lock.locked():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "An upgrade is already running for this album.",
         )
-        session.add(album)
-        await session.commit()
-        await delete_picker_session(body.session_id, access_token)
+
+    async with lock:
+        access_token = await _get_access_token(user)
+
+        album = await session.get_one(Album, (user.id, aid))
+        album_dir = user.trips_folder / aid
+
+        # Validate every match references an actual album file (prevents path traversal)
+        valid_names = {m.name for m in album.media}
+        for m in body.matches:
+            if m.local_name not in valid_names:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    f"Unknown media file: {m.local_name}",
+                )
+
+        items = await get_media_items(body.session_id, access_token)
+        items_by_id = {item.id: item for item in items}
+
+        succeeded: set[str] = set()
+        try:
+            async for event in execute_upgrade(
+                album_dir=album_dir,
+                matches=body.matches,
+                google_items_by_id=items_by_id,
+                access_token=access_token,
+                already_upgraded=album.upgraded_media,
+                succeeded=succeeded,
+            ):
+                yield event
+        finally:
+            # Persist results even if the client disconnects mid-stream.
+            # Files already replaced on disk must be reflected in the DB.
+            album.media, album.upgraded_media = await apply_upgrade_results(
+                album_dir, body.matches, album.media, album.upgraded_media, succeeded
+            )
+            session.add(album)
+            await session.commit()
+            await delete_picker_session(body.session_id, access_token)
 
 
 # ---------------------------------------------------------------------------

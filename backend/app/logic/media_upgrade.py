@@ -86,12 +86,6 @@ class UpgradeDownloading(BaseModel):
     total: int
 
 
-class UpgradeReplacing(BaseModel):
-    type: Literal["replacing"] = "replacing"
-    done: int
-    total: int
-
-
 class UpgradeMatchSummary(BaseModel):
     type: Literal["match_summary"] = "match_summary"
     total_media: int
@@ -114,7 +108,6 @@ class UpgradeError(BaseModel):
 UpgradeEvent = (
     UpgradeMatching
     | UpgradeDownloading
-    | UpgradeReplacing
     | UpgradeMatchSummary
     | UpgradeDone
     | UpgradeError
@@ -703,7 +696,7 @@ async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -
     width, height = await asyncio.to_thread(_validate_image, tmp_path)
 
     try:
-        existing = Media.load(target)
+        existing = await asyncio.to_thread(Media.load, target)
     except OSError:
         existing = None
     if existing and _is_not_larger(name, width, height, existing):
@@ -744,17 +737,23 @@ async def _download_and_replace(
     return await _replace_photo(match.local_name, data, tmp_path, target)
 
 
-async def execute_upgrade(
+async def execute_upgrade(  # noqa: PLR0913, C901
     album_dir: Path,
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
     access_token: AccessToken,
     already_upgraded: dict[MediaFilename, GoogleMediaId],
+    succeeded: set[MediaFilename] | None = None,
 ) -> AsyncIterator[UpgradeEvent]:
     """Download originals and replace compressed files concurrently.
 
     Yields progress events for SSE streaming as each download completes.
+    Successfully replaced filenames are added to *succeeded* (if provided)
+    so the caller can persist only actual replacements.
     """
+    if succeeded is None:
+        succeeded = set()
+
     to_upgrade = [m for m in matches if m.local_name not in already_upgraded]
     total = len(to_upgrade)
 
@@ -765,26 +764,29 @@ async def execute_upgrade(
     tmp_dir = album_dir / ".upgrade-tmp"
     tmp_dir.mkdir(exist_ok=True)
 
-    async def _upgrade_one(match: MatchResult) -> bool:
+    async def _upgrade_one(match: MatchResult) -> MediaFilename | None:
         item = google_items_by_id.get(match.google_id)
         if not item:
-            return False
+            return None
         try:
-            return await _download_and_replace(
+            ok = await _download_and_replace(
                 match, item, album_dir, tmp_dir, access_token
             )
         except OSError, SyntaxError:
             logger.exception("Failed to upgrade %s", match.local_name)
-            return False
+            return None
+        else:
+            return match.local_name if ok else None
 
-    tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
+    upgrade_tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
     replaced = 0
     failed = 0
 
-    for i, coro in enumerate(asyncio.as_completed(tasks)):
-        ok = await coro
-        if ok:
+    for i, coro in enumerate(asyncio.as_completed(upgrade_tasks)):
+        name = await coro
+        if name:
             replaced += 1
+            succeeded.add(name)
         else:
             failed += 1
         yield UpgradeDownloading(done=i + 1, total=total)
@@ -800,10 +802,18 @@ async def apply_upgrade_results(
     matches: list[MatchResult],
     media: list[Media],
     upgraded_media: dict[MediaFilename, GoogleMediaId],
+    succeeded: set[MediaFilename],
 ) -> tuple[list[Media], dict[MediaFilename, GoogleMediaId]]:
-    """Re-probe replaced files and update media list + upgrade map."""
+    """Re-probe replaced files and update media list + upgrade map.
+
+    Only files in *succeeded* are marked as upgraded. Files that failed
+    download or were skipped (e.g. not larger) are left untouched so
+    the user can retry.
+    """
     media_by_name = {m.name: m for m in media}
     for match in matches:
+        if match.local_name not in succeeded:
+            continue
         target = album_dir / match.local_name
         try:
             if is_video(match.local_name):
@@ -814,5 +824,6 @@ async def apply_upgrade_results(
                 media_by_name[match.local_name] = updated
         except OSError, SyntaxError, RuntimeError:
             logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
+            continue
         upgraded_media[match.local_name] = match.google_id
     return list(media_by_name.values()), upgraded_media

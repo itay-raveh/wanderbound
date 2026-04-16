@@ -6,6 +6,7 @@ import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
 import {
   symOutlinedClose,
   symOutlinedCheck,
+  symOutlinedError,
   symOutlinedUpgrade,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
@@ -81,6 +82,20 @@ const { confirmUpgrade } = upgrade;
         class="done-icon"
       />
       {{ t("upgrade.done", { count: upgrade.matchSummary.value?.matched ?? 0 }) }}
+    </button>
+
+    <button
+      v-else-if="upgrade.phase.value === 'error'"
+      class="export-btn error"
+      :aria-label="t('upgrade.error')"
+      @click="upgrade.start(props.albumId)"
+    >
+      <q-icon
+        :name="symOutlinedError"
+        size="var(--type-lg)"
+        class="error-icon"
+      />
+      {{ t("upgrade.error") }}
     </button>
 
     <button

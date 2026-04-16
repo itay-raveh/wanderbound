@@ -66,6 +66,16 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .export-btn.error {
+    border-color: var(--q-negative);
+    color: var(--q-negative);
+
+    &:hover {
+      background: var(--q-negative);
+      color: var(--bg);
+    }
+  }
+
   .export-btn.done {
     border-color: var(--q-primary);
     color: var(--q-primary);

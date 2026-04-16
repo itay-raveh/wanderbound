@@ -8,7 +8,6 @@ import {
   type UpgradeError,
   type UpgradeMatchSummary,
   type UpgradeMatching,
-  type UpgradeReplacing,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
 import { useQueryCache } from "@pinia/colada";
@@ -44,7 +43,6 @@ const DONE_RESET_MS = 3000;
 type MatchEvent =
   | UpgradeMatching
   | UpgradeDownloading
-  | UpgradeReplacing
   | UpgradeMatchSummary
   | UpgradeDone
   | UpgradeError;
@@ -72,7 +70,8 @@ export function useMediaUpgrade() {
   }
 
   async function start(albumId: string) {
-    if (phase.value !== "idle" && phase.value !== "done") return;
+    if (phase.value !== "idle" && phase.value !== "done" && phase.value !== "error")
+      return;
     if (resetTimer !== null) {
       clearTimeout(resetTimer);
       resetTimer = null;
@@ -256,7 +255,6 @@ export function useMediaUpgrade() {
       const event = raw as unknown as MatchEvent;
       switch (event.type) {
         case "downloading":
-        case "replacing":
           progress.value = { done: event.done, total: event.total };
           break;
         case "done": {
