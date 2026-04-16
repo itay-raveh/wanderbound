@@ -554,6 +554,92 @@ def _process_photo_sync(data: bytes) -> bytes:
         return buf.getvalue()
 
 
+def _detect_hdr(path: Path) -> bool:
+    """Check if a video has HDR color transfer characteristics."""
+    result = subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=color_transfer",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    transfer = result.stdout.strip()
+    return transfer in ("smpte2084", "arib-std-b67")  # PQ (HDR10) or HLG
+
+
+_VIDEO_CRF = "23"
+_VIDEO_PRESET = "medium"
+_AUDIO_BITRATE = "128k"
+
+_HDR_TONEMAP_FILTER = (
+    "zscale=t=linear:npl=100,format=gbrpf32le,"
+    "zscale=p=bt709,tonemap=hable:desat=0,"
+    "zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
+)
+
+
+async def _process_video(data: bytes, output: Path) -> None:
+    """Re-encode video: H.264, capped resolution, stripped metadata, HDR tone-mapped."""
+    tmp_input = output.with_suffix(".tmp.mp4")
+    await asyncio.to_thread(tmp_input.write_bytes, data)
+
+    try:
+        is_hdr = await asyncio.to_thread(_detect_hdr, tmp_input)
+
+        scale_filter = (
+            f"scale='min({_MAX_LONG_EDGE},iw)':'min({_MAX_LONG_EDGE},ih)'"
+            ":force_original_aspect_ratio=decrease:force_divisible_by=2"
+        )
+
+        vf = f"{_HDR_TONEMAP_FILTER},{scale_filter}" if is_hdr else scale_filter
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(tmp_input),
+            "-vf",
+            vf,
+            "-c:v",
+            "libx264",
+            "-crf",
+            _VIDEO_CRF,
+            "-preset",
+            _VIDEO_PRESET,
+            "-c:a",
+            "aac",
+            "-b:a",
+            _AUDIO_BITRATE,
+            "-map_metadata",
+            "-1",
+            "-movflags",
+            "+faststart",
+            str(output),
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
+    finally:
+        tmp_input.unlink(missing_ok=True)
+
+
 def _validate_image(path: Path) -> tuple[int, int]:
     """Open an image and return its (width, height)."""
     with Image.open(path) as img:

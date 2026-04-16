@@ -6,6 +6,7 @@ extraction, and post-download photo processing (EXIF strip, resize,
 format conversion).
 """
 
+import json
 import subprocess
 from datetime import UTC, datetime
 from io import BytesIO
@@ -27,6 +28,7 @@ from app.logic.photo_upgrade import (
     _extract_video_frames,
     _parse_timestamp,
     _process_photo_sync,
+    _process_video,
     build_cost_matrix,
     build_step_windows,
     match_within_window,
@@ -560,3 +562,102 @@ class TestExtractVideoFrames:
         frames = _extract_video_frames(sample_video)
         for i in range(len(frames) - 1):
             assert frames[i] - frames[i + 1] < 5
+
+
+class TestProcessVideo:
+    async def test_reencodes_to_h264(self, sample_video: Path, tmp_path: Path) -> None:
+        data = sample_video.read_bytes()  # noqa: ASYNC240
+        out = tmp_path / "out.mp4"
+        await _process_video(data, out)
+
+        assert out.exists()
+        # Verify H.264 codec via ffprobe
+        result = subprocess.run(  # noqa: S603, ASYNC221
+            [  # noqa: S607
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name",
+                "-of",
+                "csv=p=0",
+                str(out),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.stdout.strip() == "h264"
+
+    async def test_caps_resolution(self, tmp_path: Path) -> None:
+        # Create a 4K test video
+        source = tmp_path / "4k.mp4"
+        subprocess.run(  # noqa: S603, ASYNC221
+            [  # noqa: S607
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=red:size=3840x2160:duration=1:rate=30",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-an",
+                str(source),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        data = source.read_bytes()
+        out = tmp_path / "out.mp4"
+        await _process_video(data, out)
+
+        # Check output dimensions
+        result = subprocess.run(  # noqa: S603, ASYNC221
+            [  # noqa: S607
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height",
+                "-of",
+                "csv=p=0",
+                str(out),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        w, h = (int(x) for x in result.stdout.strip().split(","))
+        assert max(w, h) <= _MAX_LONG_EDGE
+
+    async def test_strips_metadata(self, sample_video: Path, tmp_path: Path) -> None:
+        data = sample_video.read_bytes()  # noqa: ASYNC240
+        out = tmp_path / "out.mp4"
+        await _process_video(data, out)
+
+        result = subprocess.run(  # noqa: S603, ASYNC221
+            [  # noqa: S607
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format_tags",
+                "-of",
+                "json",
+                str(out),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        tags = json.loads(result.stdout).get("format", {}).get("tags", {})
+        # Should have no meaningful metadata (ffmpeg adds encoder tag, that's ok)
+        assert "location" not in tags
+        assert "creation_time" not in tags
