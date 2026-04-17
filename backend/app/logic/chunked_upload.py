@@ -126,12 +126,13 @@ class UploadStore:
         try:
             written = await _stream_to_file(tmp_path, stream, index)
             self._commit_stream_chunk(session, index, tmp_path, written)
-        except BaseException:
-            with contextlib.suppress(OSError):
-                tmp_path.unlink()
+        except Exception:
             if upload_id not in self._sessions:
                 raise KeyError(upload_id) from None
             raise
+        finally:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
 
     @staticmethod
     def _commit_stream_chunk(
