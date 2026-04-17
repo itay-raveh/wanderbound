@@ -201,7 +201,7 @@
           "users"
         ],
         "summary": "Upload Chunk",
-        "description": "Upload a single chunk of a file. Body is raw binary.\n\nNo per-request auth: the cryptographic upload_id (256-bit\n``secrets.token_urlsafe``) acts as a bearer token.  Ownership is\nverified when the session is finalized in ``complete_chunked_upload``.",
+        "description": "Stream a chunk body to disk without loading it into memory.\n\nNo per-request auth: the cryptographic upload_id (256-bit\n``secrets.token_urlsafe``) acts as a bearer token.  Ownership is\nverified when the session is finalized in ``complete_chunked_upload``.",
         "operationId": "upload_chunk",
         "parameters": [
           {
