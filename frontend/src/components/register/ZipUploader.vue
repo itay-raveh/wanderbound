@@ -18,6 +18,7 @@ const emit = defineEmits<{
 
 const baseUrl = client.getConfig().baseUrl;
 const CHUNK_SIZE = 80 * 1024 * 1024; // 80 MiB
+const PARALLEL_CHUNKS = 4;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000];
 
@@ -34,6 +35,7 @@ const dragging = ref(false);
 const dragDepth = ref(0);
 const fileInputRef = ref<HTMLInputElement>();
 const abortController = ref<AbortController | null>(null);
+const chunkProgress = new Map<number, number>();
 
 onUnmounted(() => abortController.value?.abort());
 
@@ -92,10 +94,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function updateProgress(totalSize: number) {
+  let sum = 0;
+  for (const v of chunkProgress.values()) sum += v;
+  progress.value = sum / totalSize;
+}
+
 async function uploadChunkWithRetry(
   url: string,
   blob: Blob,
-  chunkStart: number,
+  chunkIndex: number,
   totalSize: number,
   signal: AbortSignal,
 ): Promise<void> {
@@ -116,13 +124,19 @@ async function uploadChunkWithRetry(
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            progress.value = (chunkStart + e.loaded) / totalSize;
+            chunkProgress.set(chunkIndex, e.loaded);
+            updateProgress(totalSize);
           }
         };
         xhr.onload = () => {
           signal.removeEventListener("abort", onAbort);
-          if (xhr.status === 204) resolve();
-          else reject(new Error(`${xhr.status}`));
+          if (xhr.status === 204) {
+            chunkProgress.set(chunkIndex, blob.size);
+            updateProgress(totalSize);
+            resolve();
+          } else {
+            reject(new Error(`${xhr.status}`));
+          }
         };
         xhr.onerror = () => {
           signal.removeEventListener("abort", onAbort);
@@ -167,21 +181,33 @@ async function startUpload(selected: File) {
     if (!initRes.ok) throw new Error(`${initRes.status}`);
     const { upload_id } = (await initRes.json()) as { upload_id: string };
 
-    // 2. Upload chunks
+    // 2. Upload chunks in parallel via a fixed worker pool
     const chunkCount = Math.ceil(selected.size / CHUNK_SIZE);
-    for (let i = 0; i < chunkCount; i++) {
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, selected.size);
-      const blob = selected.slice(start, end);
-      const url = `${baseUrl}/api/v1/users/upload/${upload_id}/${i}`;
-      await uploadChunkWithRetry(
-        url,
-        blob,
-        start,
-        selected.size,
-        controller.signal,
-      );
-    }
+    chunkProgress.clear();
+    const queue: number[] = Array.from({ length: chunkCount }, (_, i) => i);
+
+    const worker = async (): Promise<void> => {
+      while (queue.length > 0) {
+        const i = queue.shift();
+        if (i === undefined) return;
+        if (controller.signal.aborted) return;
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, selected.size);
+        const blob = selected.slice(start, end);
+        const url = `${baseUrl}/api/v1/users/upload/${upload_id}/${i}`;
+        await uploadChunkWithRetry(
+          url,
+          blob,
+          i,
+          selected.size,
+          controller.signal,
+        );
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: PARALLEL_CHUNKS }, () => worker()),
+    );
 
     // 3. Complete
     const completeRes = await fetch(
@@ -217,6 +243,7 @@ function reset() {
   file.value = null;
   uploading.value = false;
   progress.value = 0;
+  chunkProgress.clear();
 }
 </script>
 
