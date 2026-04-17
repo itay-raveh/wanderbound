@@ -1,6 +1,7 @@
 """Unit tests for the UploadStore chunked-upload manager."""
 
 import asyncio
+import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -242,3 +243,21 @@ class TestEviction:
 
             with pytest.raises(KeyError):
                 store.assemble(upload_id, owner="test")
+
+    async def test_eviction_during_write_surfaces_as_key_error(
+        self, store: UploadStore
+    ) -> None:
+        """A write already in flight when eviction runs raises KeyError, not OSError."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+        session = store._sessions[upload_id]
+
+        async def gen() -> AsyncIterator[bytes]:
+            # Simulate TTL eviction firing after the session lookup but before
+            # the write completes: dir gone, session popped from registry.
+            shutil.rmtree(session.dir)
+            store._sessions.pop(upload_id)
+            session.timer.cancel()
+            yield b"doomed"
+
+        with pytest.raises(KeyError):
+            await store.write_chunk_stream(upload_id, 0, gen())

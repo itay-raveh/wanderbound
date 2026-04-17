@@ -129,6 +129,8 @@ class UploadStore:
         except BaseException:
             with contextlib.suppress(OSError):
                 tmp_path.unlink()
+            if upload_id not in self._sessions:
+                raise KeyError(upload_id) from None
             raise
 
     @staticmethod
