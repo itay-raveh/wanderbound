@@ -239,6 +239,7 @@ function cancel() {
 }
 
 function reset() {
+  abortController.value?.abort();
   abortController.value = null;
   file.value = null;
   uploading.value = false;
