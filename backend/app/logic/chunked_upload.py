@@ -98,40 +98,6 @@ class UploadStore:
         logger.info("Upload session %s created", upload_id[:8])
         return upload_id
 
-    def write_chunk(self, upload_id: str, index: int, data: bytes) -> None:
-        """Write a chunk to the session directory.
-
-        Raises KeyError if session not found, ValueError on bad input,
-        OverflowError if accumulated size exceeds max_bytes.
-        """
-        session = self._sessions.get(upload_id)
-        if session is None:
-            raise KeyError(upload_id)
-        if not 0 <= index < 10_000:
-            msg = f"Chunk index out of range: {index}"
-            raise ValueError(msg)
-        if len(data) > _CHUNK_LIMIT:
-            msg = f"Chunk {index} is {len(data)} bytes (limit {_CHUNK_LIMIT})"
-            raise ValueError(msg)
-
-        with session.lock:
-            # Deduct old size before overflow check so retries aren't falsely rejected
-            effective = session.accumulated_bytes
-            if index in session.chunks_written:
-                with contextlib.suppress(OSError):
-                    effective -= (session.dir / f"{index:04d}").stat().st_size
-            elif len(session.chunks_written) >= session.max_chunks:
-                msg = f"Too many chunks (limit {session.max_chunks})"
-                raise ValueError(msg)
-
-            if effective + len(data) > session.max_bytes:
-                raise OverflowError("Upload exceeds maximum size")
-
-            chunk_path = session.dir / f"{index:04d}"
-            chunk_path.write_bytes(data)
-            session.accumulated_bytes = effective + len(data)
-            session.chunks_written.add(index)
-
     async def write_chunk_stream(
         self, upload_id: str, index: int, stream: AsyncIterator[bytes]
     ) -> None:
