@@ -1,5 +1,6 @@
 """Unit tests for the UploadStore chunked-upload manager."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -202,6 +203,51 @@ class TestWriteChunkStream:
 
         with pytest.raises(OverflowError):
             await store.write_chunk_stream(upload_id, 1, gen_overflow())
+
+    async def test_concurrent_same_index_writes_do_not_corrupt(
+        self, store: UploadStore
+    ) -> None:
+        """Two concurrent writes for the same chunk index must not corrupt."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        async def gen_a() -> AsyncIterator[bytes]:
+            yield b"AAAA"
+
+        async def gen_b() -> AsyncIterator[bytes]:
+            yield b"BBBB"
+
+        # Both writes target index 0 - whichever renames last wins, but
+        # neither should produce garbage bytes in the final chunk.
+        await asyncio.gather(
+            store.write_chunk_stream(upload_id, 0, gen_a()),
+            store.write_chunk_stream(upload_id, 0, gen_b()),
+        )
+
+        assembled, _ = store.assemble(upload_id, owner="test")
+        try:
+            final = assembled.read()
+            assert final in (b"AAAA", b"BBBB")
+        finally:
+            assembled.close()
+
+    async def test_concurrent_different_index_writes(self, store: UploadStore) -> None:
+        """Concurrent writes to different indices produce the union."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        async def gen(payload: bytes) -> AsyncIterator[bytes]:
+            yield payload
+
+        await asyncio.gather(
+            store.write_chunk_stream(upload_id, 0, gen(b"AAA")),
+            store.write_chunk_stream(upload_id, 1, gen(b"BBB")),
+            store.write_chunk_stream(upload_id, 2, gen(b"CCC")),
+        )
+
+        assembled, _ = store.assemble(upload_id, owner="test")
+        try:
+            assert assembled.read() == b"AAABBBCCC"
+        finally:
+            assembled.close()
 
 
 class TestEviction:
