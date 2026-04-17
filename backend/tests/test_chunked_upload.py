@@ -158,6 +158,51 @@ class TestWriteChunkStream:
         finally:
             assembled.close()
 
+    async def test_rejects_chunk_exceeding_limit_mid_stream(
+        self, store: UploadStore
+    ) -> None:
+        """A chunk that grows past _CHUNK_LIMIT mid-stream is aborted."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        # _CHUNK_LIMIT is 80 MiB + 1 KiB. Stream 81 MiB in 1 MiB pieces.
+        async def gen() -> AsyncIterator[bytes]:
+            for _ in range(81):
+                yield b"\x00" * (1024 * 1024)
+
+        with pytest.raises(ValueError, match="exceeds"):
+            await store.write_chunk_stream(upload_id, 0, gen())
+
+    async def test_tempfile_cleaned_up_on_error(self, store: UploadStore) -> None:
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        async def gen() -> AsyncIterator[bytes]:
+            for _ in range(81):
+                yield b"\x00" * (1024 * 1024)
+
+        with pytest.raises(ValueError, match="exceeds"):
+            await store.write_chunk_stream(upload_id, 0, gen())
+
+        # No .part files should remain in the session directory
+        session_dir = store._sessions[upload_id].dir
+        leftover = list(session_dir.glob("*.part"))
+        assert leftover == []
+
+    async def test_stream_rejects_accumulated_overflow(
+        self, store: UploadStore
+    ) -> None:
+        upload_id = store.create(100, owner="test")
+
+        async def gen_big() -> AsyncIterator[bytes]:
+            yield b"\x00" * 90
+
+        await store.write_chunk_stream(upload_id, 0, gen_big())
+
+        async def gen_overflow() -> AsyncIterator[bytes]:
+            yield b"\x00" * 20
+
+        with pytest.raises(OverflowError):
+            await store.write_chunk_stream(upload_id, 1, gen_overflow())
+
 
 class TestEviction:
     async def test_expired_session_is_cleaned_up(self, tmp_path: Path) -> None:
