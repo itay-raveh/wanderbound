@@ -13,7 +13,7 @@ RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
 COPY ./PRIVACY.md ./TERMS.md /app/
-COPY --from=openapi /app/backend/openapi.json ./openapi.json
+COPY ./backend/openapi.json /app/backend/openapi.json
 
 ARG VITE_MAX_UPLOAD_GB
 ARG VITE_MAPBOX_TOKEN

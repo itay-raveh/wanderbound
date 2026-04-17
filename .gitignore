@@ -22,9 +22,8 @@ blob-report/
 playwright/.cache/
 playwright/.auth/
 
-# Generated
+# Generated (openapi.json at backend/ is committed)
 frontend/src/client/
-frontend/openapi.json
 
 # Claude Code
 .superpowers
