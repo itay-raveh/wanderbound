@@ -1,7 +1,8 @@
 # Frontend
 
 See @mise.toml - relevant tasks: `dev:frontend`, `test:frontend`, `test:e2e`, `lint:frontend`, `format:frontend`, `build`.
-To regenerate the OpenAPI client: `bun x openapi-ts` (no mise task).
+
+OpenAPI client (`src/client/`) is generated from `backend/openapi.json` by `bun x openapi-ts`. The `dev`/`build`/`test`/`lint` scripts all run it automatically, so manual regeneration is rarely needed. The spec itself is committed and kept fresh by a pre-commit hook triggered by `backend/app/` changes.
 
 ## Non-Obvious Patterns
 

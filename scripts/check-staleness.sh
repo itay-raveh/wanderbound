@@ -80,6 +80,11 @@ check topo \
   frontend/public/topo-contours.svg -- \
   scripts/generate_topo.py
 
+check openapi \
+  backend/openapi.json -- \
+  backend/app/ \
+  scripts/generate_openapi.py
+
 if (( ${#stale[@]} )); then
   echo "Stale generated assets: ${stale[*]}"
   echo "Run the relevant 'mise run generate:*' task, then push again."

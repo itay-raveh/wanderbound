@@ -65,6 +65,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv run pytest
         working-directory: backend
+      - name: Verify backend/openapi.json is up-to-date
+        run: scripts/regen-openapi.sh
 
   test-frontend:
     runs-on: ubuntu-latest
@@ -82,19 +84,11 @@ jobs:
       VITE_FRONTEND_URL: http://localhost
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
-      - uses: astral-sh/setup-uv@v7
       - uses: oven-sh/setup-bun@v2
-      - run: uv sync --all-packages
       - run: bun install --frozen-lockfile
         working-directory: frontend
       - run: bunx playwright install --with-deps chromium
         working-directory: frontend
-      - name: Generate OpenAPI spec
-        run: uv run python ../scripts/generate_openapi.py > ../frontend/openapi.json
-        working-directory: backend
       - run: bun run test:e2e
         working-directory: frontend
       - if: failure()

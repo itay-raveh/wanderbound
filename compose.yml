@@ -162,8 +162,6 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      additional_contexts:
-        - openapi=service:backend
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}

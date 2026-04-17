@@ -1,26 +1,22 @@
 import json
+import os
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
 
-from fastapi import FastAPI
+# Settings are env-driven; the OpenAPI spec isn't affected by these values.
+for key in (
+    "SECRET_KEY",
+    "POSTGRES_SERVER",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DB",
+):
+    os.environ.setdefault(key, "codegen")
 
-from app.api.v1.router import router
+from app.main import app  # noqa: E402
 
-if TYPE_CHECKING:
-    from fastapi.routing import APIRoute
+DEFAULT_OUT = Path(__file__).resolve().parents[1] / "backend" / "openapi.json"
 
-API_V1_STR = "/api/v1"
-
-
-def custom_generate_unique_id(route: APIRoute) -> str:
-    return route.name
-
-
-app = FastAPI(
-    title="Wanderbound",
-    openapi_url=f"{API_V1_STR}/openapi.json",
-    generate_unique_id_function=custom_generate_unique_id,
-)
-app.include_router(router, prefix=API_V1_STR)
-
-json.dump(app.openapi(), sys.stdout, indent=2)
+out = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUT
+out.write_text(json.dumps(app.openapi(), indent=2) + "\n")
+print(f"Wrote {out}", file=sys.stderr)
