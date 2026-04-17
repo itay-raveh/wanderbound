@@ -4,11 +4,13 @@ import logging
 import secrets
 import shutil
 import threading
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
+
+import anyio
 
 from app.core.config import get_settings
 
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _UPLOAD_TTL = 3600  # 1 hour
 _CHUNK_LIMIT = 80 * 1024 * 1024 + 1024  # 80 MiB + 1 KiB margin
+_FLUSH_AT = 1024 * 1024  # flush buffer to disk every 1 MiB
 
 
 @dataclass
@@ -28,6 +31,25 @@ class _Session:
     lock: threading.Lock = field(default_factory=threading.Lock)
     accumulated_bytes: int = 0
     chunks_written: set[int] = field(default_factory=set)
+
+
+async def _stream_to_file(path: Path, stream: AsyncIterator[bytes], index: int) -> int:
+    """Drain *stream* into *path*, flushing every _FLUSH_AT bytes. Returns total."""
+    written = 0
+    async with await anyio.open_file(path, "wb") as f:
+        buf = bytearray()
+        async for piece in stream:
+            written += len(piece)
+            if written > _CHUNK_LIMIT:
+                msg = f"Chunk {index} exceeds {_CHUNK_LIMIT} bytes"
+                raise ValueError(msg)
+            buf.extend(piece)
+            if len(buf) >= _FLUSH_AT:
+                await f.write(bytes(buf))
+                buf.clear()
+        if buf:
+            await f.write(bytes(buf))
+    return written
 
 
 class UploadStore:
@@ -76,8 +98,10 @@ class UploadStore:
         logger.info("Upload session %s created", upload_id[:8])
         return upload_id
 
-    def write_chunk(self, upload_id: str, index: int, data: bytes) -> None:
-        """Write a chunk to the session directory.
+    async def write_chunk_stream(
+        self, upload_id: str, index: int, stream: AsyncIterator[bytes]
+    ) -> None:
+        """Stream a chunk body to disk without buffering it in memory.
 
         Raises KeyError if session not found, ValueError on bad input,
         OverflowError if accumulated size exceeds max_bytes.
@@ -88,26 +112,45 @@ class UploadStore:
         if not 0 <= index < 10_000:
             msg = f"Chunk index out of range: {index}"
             raise ValueError(msg)
-        if len(data) > _CHUNK_LIMIT:
-            msg = f"Chunk {index} is {len(data)} bytes (limit {_CHUNK_LIMIT})"
-            raise ValueError(msg)
 
+        # Pre-check the chunk-count limit for *new* indices (under lock).
         with session.lock:
-            # Deduct old size before overflow check so retries aren't falsely rejected
-            effective = session.accumulated_bytes
-            if index in session.chunks_written:
-                with contextlib.suppress(OSError):
-                    effective -= (session.dir / f"{index:04d}").stat().st_size
-            elif len(session.chunks_written) >= session.max_chunks:
+            if (
+                index not in session.chunks_written
+                and len(session.chunks_written) >= session.max_chunks
+            ):
                 msg = f"Too many chunks (limit {session.max_chunks})"
                 raise ValueError(msg)
 
-            if effective + len(data) > session.max_bytes:
+        tmp_path = session.dir / f"{index:04d}.{secrets.token_hex(8)}.part"
+        try:
+            written = await _stream_to_file(tmp_path, stream, index)
+            self._commit_stream_chunk(session, index, tmp_path, written)
+        except Exception:
+            if upload_id not in self._sessions:
+                raise KeyError(upload_id) from None
+            raise
+        finally:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _commit_stream_chunk(
+        session: _Session, index: int, tmp_path: Path, written: int
+    ) -> None:
+        """Atomically promote tmp_path to the final chunk path under the lock."""
+        final_path = session.dir / f"{index:04d}"
+        with session.lock:
+            effective = session.accumulated_bytes
+            if index in session.chunks_written:
+                with contextlib.suppress(OSError):
+                    effective -= final_path.stat().st_size
+
+            if effective + written > session.max_bytes:
                 raise OverflowError("Upload exceeds maximum size")
 
-            chunk_path = session.dir / f"{index:04d}"
-            chunk_path.write_bytes(data)
-            session.accumulated_bytes = effective + len(data)
+            tmp_path.rename(final_path)
+            session.accumulated_bytes = effective + written
             session.chunks_written.add(index)
 
     def assemble(self, upload_id: str, *, owner: str) -> tuple[BinaryIO, Path]:
@@ -137,7 +180,7 @@ class UploadStore:
             msg = "Chunks are not contiguous from 0"
             raise ValueError(msg)
 
-        chunks = sorted(session.dir.glob("[0-9]*"))
+        chunks = sorted(session.dir.glob("[0-9][0-9][0-9][0-9]"))
         assembled = session.dir / "assembled.zip"
         with assembled.open("wb") as out:
             for chunk_path in chunks:

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from starlette.requests import ClientDisconnect
 
 from app.core.config import get_settings
+from app.logic.chunked_upload import upload_store
 
 from .factories import mock_extract, mock_jwt, sign_in_and_upload
 
@@ -83,6 +86,23 @@ class TestUploadChunk:
                 data={"credential": "fake", "provider": "google"},
             )
         assert complete.status_code == 200
+
+    async def test_client_disconnect_returns_quietly(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Browser abort mid-upload should not produce a 500 traceback."""
+        upload_id = await _init(client)
+
+        async def raise_disconnect(*_args: object, **_kwargs: object) -> None:
+            raise ClientDisconnect
+
+        monkeypatch.setattr(upload_store, "write_chunk_stream", raise_disconnect)
+
+        resp = await client.put(
+            f"/api/v1/users/upload/{upload_id}/0",
+            content=b"anything",
+        )
+        assert resp.status_code == 204
 
     async def test_rejects_overflow(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
@@ -234,3 +254,34 @@ class TestCompleteChunkedUpload:
                 data={"credential": "fake", "provider": "microsoft"},
             )
         assert resp.status_code == 403
+
+
+class TestParallelChunkedUpload:
+    async def test_parallel_chunks_complete_cleanly(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        """4 concurrent PUTs to one session finish and complete succeeds."""
+        upload_id = await _init(client)
+
+        async def put_chunk(index: int, data: bytes) -> None:
+            resp = await client.put(
+                f"/api/v1/users/upload/{upload_id}/{index}",
+                content=data,
+            )
+            assert resp.status_code == 204
+
+        await asyncio.gather(
+            *(
+                put_chunk(i, p)
+                for i, p in enumerate([b"AAAA", b"BBBB", b"CCCC", b"DDDD"])
+            )
+        )
+
+        users_dir = tmp_path / "users"
+        users_dir.mkdir(exist_ok=True)
+        with mock_jwt("google"), mock_extract(users_dir):
+            resp = await client.post(
+                f"/api/v1/users/upload/{upload_id}/complete",
+                data={"credential": "fake", "provider": "google"},
+            )
+        assert resp.status_code == 200
