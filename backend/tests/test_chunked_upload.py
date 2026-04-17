@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
+from starlette.requests import ClientDisconnect
 
 from app.logic.chunked_upload import UploadStore
 
@@ -125,6 +126,21 @@ class TestWriteChunkStream:
     async def test_unknown_session_raises_key_error(self, store: UploadStore) -> None:
         with pytest.raises(KeyError):
             await store.write_chunk_stream("nonexistent", 0, _one(b"x"))
+
+    async def test_client_disconnect_propagates(self, store: UploadStore) -> None:
+        """ClientDisconnect from the stream must not be translated to KeyError."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        async def gen() -> AsyncIterator[bytes]:
+            yield b"partial"
+            raise ClientDisconnect
+
+        with pytest.raises(ClientDisconnect):
+            await store.write_chunk_stream(upload_id, 0, gen())
+
+        # Tempfile cleaned up, session still alive for retry
+        session_dir = store._sessions[upload_id].dir
+        assert list(session_dir.glob("*.part")) == []
 
     async def test_concurrent_same_index_writes_do_not_corrupt(
         self, store: UploadStore

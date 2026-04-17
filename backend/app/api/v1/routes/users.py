@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.sse import EventSourceResponse
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
+from starlette.requests import ClientDisconnect
 
 from app.core.config import get_settings
 from app.core.resources import MiB
@@ -224,6 +225,11 @@ async def upload_chunk(
     """
     try:
         await upload_store.write_chunk_stream(upload_id, chunk_index, request.stream())
+    except ClientDisconnect:
+        logger.info(
+            "Client disconnected during chunk %d of %s", chunk_index, upload_id[:8]
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"
