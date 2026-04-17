@@ -128,6 +128,36 @@ class TestAssemble:
         with pytest.raises(ValueError, match="not contiguous"):
             store.assemble(upload_id, owner="test")
 
+    async def test_assemble_ignores_orphan_part_files(self, store: UploadStore) -> None:
+        """Orphan .part tempfiles from crashed streaming writes are ignored."""
+        upload_id = store.create(MAX_BYTES, owner="test")
+        store.write_chunk(upload_id, 0, b"real")
+        # Simulate a stale tempfile from a crashed mid-commit streaming write
+        session = store._sessions[upload_id]
+        (session.dir / f"0000.{'ab' * 8}.part").write_bytes(b"STALE")
+
+        assembled, _ = store.assemble(upload_id, owner="test")
+        try:
+            assert assembled.read() == b"real"
+        finally:
+            assembled.close()
+
+
+class TestWriteChunkStream:
+    async def test_writes_stream_to_disk(self, store: UploadStore) -> None:
+        upload_id = store.create(MAX_BYTES, owner="test")
+
+        async def gen() -> AsyncIterator[bytes]:
+            yield b"hello "
+            yield b"world"
+
+        await store.write_chunk_stream(upload_id, 0, gen())
+        assembled, _ = store.assemble(upload_id, owner="test")
+        try:
+            assert assembled.read() == b"hello world"
+        finally:
+            assembled.close()
+
 
 class TestEviction:
     async def test_expired_session_is_cleaned_up(self, tmp_path: Path) -> None:
