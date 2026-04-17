@@ -10,7 +10,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from app.logic.pipeline import run_processing
-from app.logic.processing import ProcessingEvent
+from app.logic.processing import ErrorData, ProcessingEvent
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,9 @@ class ProcessingSession:
                 self._notify.set()
         except Exception:
             logger.exception("Processing task crashed for user %d", self._uid)
+            # Surface the crash to subscribers; without this the stream ends
+            # silently and the UI can't distinguish success from failure.
+            self._events.append(ErrorData())
         finally:
             self._done = True
             self._notify.set()
@@ -50,6 +53,10 @@ class ProcessingSession:
     @property
     def is_done(self) -> bool:
         return self._done
+
+    @property
+    def had_error(self) -> bool:
+        return any(isinstance(e, ErrorData) for e in self._events)
 
     def cancel(self) -> None:
         self._task.cancel()
@@ -94,15 +101,23 @@ def cancel_session(uid: int) -> None:
 
 
 async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
-    """Start or reconnect to a user's processing session."""
+    """Start or reconnect to a user's processing session.
+
+    A finished session that ended in error is replaced with a fresh run so the
+    user can retry without re-uploading. A finished session that succeeded is
+    replayed so a browser refresh still works.
+    """
     session = _sessions.get(user.id)
 
-    if session is not None:
+    if session is not None and not (session.is_done and session.had_error):
         if not session.is_done:
             logger.info("User %d reconnecting to active processing session", user.id)
         async for event in session.subscribe():
             yield event
         return
+
+    if session is not None:
+        logger.info("User %d retrying after failed processing session", user.id)
 
     session = ProcessingSession(user)
     _sessions[user.id] = session

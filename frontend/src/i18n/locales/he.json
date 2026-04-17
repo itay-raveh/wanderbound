@@ -81,6 +81,7 @@
     "steps": "אין צעדים | צעד אחד | {n} צעדים",
     "countries": "אין מדינות | מדינה אחת | {n} מדינות",
     "tryAgain": "נסו שוב",
+    "uploadAgain": "העלו קובץ אחר",
     "openAlbum": "לאלבום",
     "unsupportedTitle": "הדפדפן שלכם לא נתמך",
     "unsupportedBody": "עברו לדפדפן עדכני: {chrome}, {firefox}, {safari}, או {edge}.",

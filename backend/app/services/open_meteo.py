@@ -36,8 +36,16 @@ class _StepLike(Protocol):
     def datetime(self) -> datetime: ...
 
 
-def _elevation_weight(request: Request) -> int:
-    """Each coordinate in a batched elevation request counts as one API call."""
+def _request_weight(request: Request) -> int:
+    """Estimate how many API calls Open-Meteo will charge for this request.
+
+    Elevation is charged per coordinate in the batched lat/lon params.
+    Archive is charged per requested daily variable: the server multiplies each
+    variable into a separate billed call, which is invisible in our HTTP count.
+    """
+    if request.url.path.endswith("/v1/archive"):
+        daily = request.url.params.get("daily", "")
+        return daily.count(",") + 1 if daily else 1
     lat = request.url.params.get("latitude", "")
     return lat.count(",") + 1 if "," in lat else 1
 
@@ -50,7 +58,7 @@ _limiter = AsyncLimiter(480, 60)
 def _client() -> httpx.AsyncClient:
     return cached_client(
         transport=RateLimitedTransport(
-            _limiter, max_concurrent=20, weight_fn=_elevation_weight
+            _limiter, max_concurrent=20, weight_fn=_request_weight
         )
     )
 

@@ -15,6 +15,7 @@ import {
   matErrorOutline,
   matRefresh,
   matArrowForward,
+  matUploadFile,
 } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
@@ -27,6 +28,7 @@ const props = defineProps<{
 
 defineEmits<{
   retry: [];
+  reupload: [];
   done: [];
 }>();
 
@@ -144,15 +146,26 @@ watch(
         />
         <div class="error-body column no-wrap q-gutter-y-sm">
           <span class="text-body2 error-msg text-muted">{{ errorDetail }}</span>
-          <q-btn
-            outline
-            no-caps
-            dense
-            :icon="matRefresh"
-            :label="t('register.tryAgain')"
-            class="retry-btn bg-surface"
-            @click="$emit('retry')"
-          />
+          <div class="row q-gutter-sm">
+            <q-btn
+              outline
+              no-caps
+              dense
+              :icon="matRefresh"
+              :label="t('register.tryAgain')"
+              class="retry-btn bg-surface"
+              @click="$emit('retry')"
+            />
+            <q-btn
+              outline
+              no-caps
+              dense
+              :icon="matUploadFile"
+              :label="t('register.uploadAgain')"
+              class="retry-btn bg-surface"
+              @click="$emit('reupload')"
+            />
+          </div>
         </div>
       </div>
     </div>
