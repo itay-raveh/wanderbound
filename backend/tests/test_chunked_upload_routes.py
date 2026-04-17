@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -234,3 +235,34 @@ class TestCompleteChunkedUpload:
                 data={"credential": "fake", "provider": "microsoft"},
             )
         assert resp.status_code == 403
+
+
+class TestParallelChunkedUpload:
+    async def test_parallel_chunks_complete_cleanly(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        """4 concurrent PUTs to one session finish and complete succeeds."""
+        upload_id = await _init(client)
+
+        async def put_chunk(index: int, data: bytes) -> None:
+            resp = await client.put(
+                f"/api/v1/users/upload/{upload_id}/{index}",
+                content=data,
+            )
+            assert resp.status_code == 204
+
+        await asyncio.gather(
+            *(
+                put_chunk(i, p)
+                for i, p in enumerate([b"AAAA", b"BBBB", b"CCCC", b"DDDD"])
+            )
+        )
+
+        users_dir = tmp_path / "users"
+        users_dir.mkdir(exist_ok=True)
+        with mock_jwt("google"), mock_extract(users_dir):
+            resp = await client.post(
+                f"/api/v1/users/upload/{upload_id}/complete",
+                data={"credential": "fake", "provider": "google"},
+            )
+        assert resp.status_code == 200
