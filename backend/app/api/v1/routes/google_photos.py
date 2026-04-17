@@ -371,9 +371,10 @@ async def upgrade_media(
                 )
             try:
                 await delete_picker_session(body.session_id, await tokens.get())
-            except httpx.HTTPError:
+            except httpx.HTTPError, RuntimeError:
                 logger.warning("Failed to delete picker session %s", body.session_id)
-            _upgrades_in_progress.discard(key)
+            finally:
+                _upgrades_in_progress.discard(key)
 
     return EventSourceResponse(stream())
 
