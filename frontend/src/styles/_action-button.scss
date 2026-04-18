@@ -80,6 +80,7 @@
     border-color: var(--q-primary);
     color: var(--q-primary);
     cursor: default;
+    animation: fade-out 0.4s ease 2.5s forwards;
   }
 
   .done-icon {
@@ -97,8 +98,18 @@
     }
   }
 
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .done-icon {
+      animation: none;
+    }
+
+    .action-btn.done {
       animation: none;
     }
   }
@@ -120,7 +131,10 @@
     padding: 0 var(--gap-sm);
     border: 1px solid var(--q-primary);
     border-inline-start: none;
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+    border-start-end-radius: var(--radius-sm);
+    border-end-end-radius: var(--radius-sm);
     background: transparent;
     color: var(--q-primary);
     cursor: pointer;

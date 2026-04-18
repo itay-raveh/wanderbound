@@ -49,6 +49,15 @@ defineProps<{ progress: number }>();
   transform-origin: right;
 }
 
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .progress-fill::after {
     animation: none;

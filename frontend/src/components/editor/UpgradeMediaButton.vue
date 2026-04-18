@@ -168,6 +168,7 @@ const { confirmUpgrade } = upgrade;
     >
       <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
       {{ t("upgrade.button") }}
+      <span class="chrome-badge">{{ t("upgrade.chromeOnlyBadge") }}</span>
       <q-tooltip
         transition-show="scale"
         transition-hide="scale"
@@ -258,7 +259,13 @@ const { confirmUpgrade } = upgrade;
 
 .action-btn[aria-disabled="true"] {
   opacity: 0.5;
-  cursor: default;
+  cursor: help;
+}
+
+.chrome-badge {
+  font-size: var(--type-xs);
+  color: var(--text-faint);
+  font-weight: 400;
 }
 
 .chrome-tooltip {
