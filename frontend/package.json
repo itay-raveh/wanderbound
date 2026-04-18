@@ -50,7 +50,7 @@
     "vue3-google-login": "^2.0.37"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "0.95.0",
+    "@hey-api/openapi-ts": "0.96.0",
     "@intlify/unplugin-vue-i18n": "^11.0.7",
     "@playwright/test": "^1.58.2",
     "@quasar/vite-plugin": "^1.11.0",
