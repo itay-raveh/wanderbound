@@ -33,7 +33,7 @@ interface UpgradeProgress {
   skipped?: number;
 }
 
-interface MatchSummary {
+interface MatchSummaryData {
   matches: MatchResult[];
   totalPicked: number;
   matched: number;
@@ -45,7 +45,6 @@ const POLL_INTERVAL_MS = 2000;
 const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
 
-
 type MatchEvent =
   | UpgradeMatching
   | UpgradeDownloading
@@ -53,21 +52,28 @@ type MatchEvent =
   | UpgradeDone
   | UpgradeError;
 
+type ConfirmAction = "confirm" | "selectMore";
+
 export function useMediaUpgrade() {
   const gp = useGooglePhotos();
   const cache = useQueryCache();
 
   const phase = ref<UpgradePhase>("idle");
   const progress = ref<UpgradeProgress>({ done: 0, total: 0 });
-  const matchSummary = ref<MatchSummary | null>(null);
+  const matchSummary = ref<MatchSummaryData | null>(null);
   const errorDetail = ref<string | null>(null);
 
   let controller: AbortController | null = null;
-  let confirmResolve: (() => void) | null = null;
+  let confirmResolve: ((action: ConfirmAction) => void) | null = null;
   let confirmReject: ((reason: Error) => void) | null = null;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
-  let activeSessionId: string | null = null;
   let activePopup: Window | null = null;
+
+  // Multi-round state
+  const sessionIds: string[] = [];
+  const accumulatedMatches: MatchResult[] = [];
+  let runningTotalPicked = 0;
+  let runningAlreadyUpgraded = 0;
 
   function reset() {
     progress.value = { done: 0, total: 0 };
@@ -75,15 +81,18 @@ export function useMediaUpgrade() {
     errorDetail.value = null;
     confirmResolve = null;
     confirmReject = null;
-    activeSessionId = null;
     activePopup = null;
+    sessionIds.length = 0;
+    accumulatedMatches.length = 0;
+    runningTotalPicked = 0;
+    runningAlreadyUpgraded = 0;
   }
 
   function openPopup(): Window {
     const width = Math.min(screen.availWidth - 100, 1200);
     const height = Math.min(screen.availHeight - 100, 900);
-    const left = screen.availLeft + (screen.availWidth - width) / 2;
-    const top = screen.availTop + (screen.availHeight - height) / 2;
+    const left = ((screen as { availLeft?: number }).availLeft ?? 0) + (screen.availWidth - width) / 2;
+    const top = ((screen as { availTop?: number }).availTop ?? 0) + (screen.availHeight - height) / 2;
     const popup = window.open(
       "about:blank",
       "google-photos",
@@ -95,6 +104,29 @@ export function useMediaUpgrade() {
       "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
     popup.document.body.textContent = "Loading\u2026";
     return popup;
+  }
+
+  function mergeMatches(incoming: MatchResult[]) {
+    const byLocalName = new Map<string, MatchResult>();
+    for (const m of accumulatedMatches) byLocalName.set(m.local_name, m);
+    for (const m of incoming) {
+      const prev = byLocalName.get(m.local_name);
+      if (!prev || m.distance < prev.distance) {
+        byLocalName.set(m.local_name, m);
+      }
+    }
+    accumulatedMatches.length = 0;
+    accumulatedMatches.push(...byLocalName.values());
+  }
+
+  function buildMergedSummary(): MatchSummaryData {
+    return {
+      matches: [...accumulatedMatches],
+      totalPicked: runningTotalPicked,
+      matched: accumulatedMatches.length,
+      alreadyUpgraded: runningAlreadyUpgraded,
+      unmatched: Math.max(0, runningTotalPicked - accumulatedMatches.length),
+    };
   }
 
   async function start(albumId: string) {
@@ -111,8 +143,6 @@ export function useMediaUpgrade() {
 
     try {
       // Step 1: Onboarding (first time only)
-      // The popup is opened inside confirmUpgrade() from the confirm
-      // button's click handler, preserving the user gesture.
       if (!localStorage.getItem(MEDIA_UPGRADE_ONBOARDED_KEY)) {
         phase.value = "onboarding";
         await waitForConfirmation(signal);
@@ -129,10 +159,10 @@ export function useMediaUpgrade() {
         if (signal.aborted) return;
       }
 
-      // Step 3: Create Picker session, navigate same popup
+      // Step 3: Create first picker session
       phase.value = "picking";
       const { sessionId, pickerUri } = await gp.createPickerSession();
-      activeSessionId = sessionId;
+      sessionIds.push(sessionId);
       if (signal.aborted) return;
       activePopup.location.href = pickerUri + "/autoclose";
 
@@ -140,36 +170,45 @@ export function useMediaUpgrade() {
       await pollUntilReady(sessionId, signal);
       if (signal.aborted) return;
 
-      // Step 5: Match media via SSE
-      phase.value = "preparing";
-      progress.value = { done: 0, total: 0 };
-      const summary = await runMatchStream(albumId, sessionId, signal);
-      if (signal.aborted) return;
-      if (!summary) {
-        phase.value = "error";
-        errorDetail.value = UPGRADE_ERRORS.noResults;
-        return;
-      }
+      // Step 5-6: Match-confirm loop (supports "select more" rounds)
+      let currentSessionId = sessionId;
+      while (true) {
+        phase.value = "preparing";
+        progress.value = { done: 0, total: 0 };
 
-      // Step 6: Show summary, wait for confirmation
-      matchSummary.value = summary;
-      if (summary.matched === 0) {
-        if (activeSessionId) {
-          gp.closeSession(activeSessionId).catch(() => {});
-          activeSessionId = null;
+        const roundSummary = await runMatchStream(albumId, currentSessionId, signal);
+        if (signal.aborted) return;
+
+        if (roundSummary) {
+          mergeMatches(roundSummary.matches);
+          runningTotalPicked += roundSummary.totalPicked;
+          runningAlreadyUpgraded += roundSummary.alreadyUpgraded;
         }
-        phase.value = "done";
-        scheduleDoneReset();
-        return;
-      }
-      phase.value = "confirming";
-      await waitForConfirmation(signal);
-      if (signal.aborted) return;
 
-      // Step 7: Upgrade media via SSE
+        matchSummary.value = buildMergedSummary();
+        phase.value = "confirming";
+        const action = await waitForConfirmation(signal);
+        if (signal.aborted) return;
+        if (action === "confirm") break;
+
+        // "Select More": new session, popup was opened by selectMore()
+        const next = await gp.createPickerSession();
+        sessionIds.push(next.sessionId);
+        currentSessionId = next.sessionId;
+        if (signal.aborted) return;
+
+        phase.value = "picking";
+        activePopup.location.href = next.pickerUri + "/autoclose";
+
+        await pollUntilReady(currentSessionId, signal);
+        if (signal.aborted) return;
+      }
+
+      // Step 7: Upgrade
+      const toUpgrade = matchSummary.value.matched - matchSummary.value.alreadyUpgraded;
       phase.value = "downloading";
-      progress.value = { done: 0, total: summary.matched };
-      await runUpgradeStream(albumId, sessionId, summary.matches, signal);
+      progress.value = { done: 0, total: toUpgrade };
+      await runUpgradeStream(albumId, signal);
       if (signal.aborted) return;
 
       phase.value = "done";
@@ -180,19 +219,18 @@ export function useMediaUpgrade() {
       phase.value = "error";
       errorDetail.value = (err as Error).message;
     } finally {
-      if (activePopup && !activePopup.closed) activePopup.close();
+      try { activePopup?.close(); } catch { /* COOP may block */ }
       activePopup = null;
-      if (activeSessionId) {
-        gp.closeSession(activeSessionId).catch(() => {});
-        activeSessionId = null;
+      for (const sid of sessionIds) {
+        gp.closeSession(sid).catch(() => {});
       }
+      sessionIds.length = 0;
     }
   }
 
   function confirmUpgrade() {
     // Open popup from the confirm button's click gesture so it's never
-    // blocked.  Only during onboarding - the match-summary confirm
-    // doesn't need a popup.
+    // blocked. Only during onboarding.
     if (phase.value === "onboarding" && !activePopup) {
       try {
         activePopup = openPopup();
@@ -202,16 +240,28 @@ export function useMediaUpgrade() {
         return;
       }
     }
-    confirmResolve?.();
+    confirmResolve?.("confirm");
+  }
+
+  function selectMore() {
+    // Open popup from the user's click gesture to avoid popup blockers.
+    try {
+      activePopup = openPopup();
+    } catch {
+      phase.value = "error";
+      errorDetail.value = UPGRADE_ERRORS.popupBlocked;
+      return;
+    }
+    confirmResolve?.("selectMore");
   }
 
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
-    if (activePopup && !activePopup.closed) activePopup.close();
+    try { activePopup?.close(); } catch { /* COOP may block */ }
     activePopup = null;
-    if (activeSessionId) {
-      gp.closeSession(activeSessionId).catch(() => {});
+    for (const sid of sessionIds) {
+      gp.closeSession(sid).catch(() => {});
     }
     confirmResolve = null;
     confirmReject = null;
@@ -223,8 +273,8 @@ export function useMediaUpgrade() {
     reset();
   }
 
-  function waitForConfirmation(signal: AbortSignal): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  function waitForConfirmation(signal: AbortSignal): Promise<ConfirmAction> {
+    return new Promise<ConfirmAction>((resolve, reject) => {
       if (signal.aborted) {
         reject(new DOMException("Aborted", "AbortError"));
         return;
@@ -262,7 +312,7 @@ export function useMediaUpgrade() {
     albumId: string,
     sessionId: string,
     signal: AbortSignal,
-  ): Promise<MatchSummary | null> {
+  ): Promise<MatchSummaryData | null> {
     const { stream } = await matchMedia({
       path: { aid: albumId },
       query: { session_id: sessionId },
@@ -270,7 +320,7 @@ export function useMediaUpgrade() {
       sseMaxRetryAttempts: 0,
     });
 
-    let summary: MatchSummary | null = null;
+    let summary: MatchSummaryData | null = null;
 
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
@@ -299,15 +349,13 @@ export function useMediaUpgrade() {
 
   async function runUpgradeStream(
     albumId: string,
-    sessionId: string,
-    matches: MatchResult[],
     signal: AbortSignal,
   ): Promise<void> {
     const { stream } = await upgradeMedia({
       path: { aid: albumId },
       body: {
-        session_id: sessionId,
-        matches,
+        session_ids: [...sessionIds],
+        matches: accumulatedMatches,
       },
       signal,
       sseMaxRetryAttempts: 0,
@@ -379,6 +427,7 @@ export function useMediaUpgrade() {
     googlePhotosState: gp.state,
     start: (albumId: string) => void start(albumId),
     confirmUpgrade,
+    selectMore,
     cancel,
     disconnect: gp.disconnect,
   };

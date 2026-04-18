@@ -235,6 +235,7 @@ const { confirmUpgrade } = upgrade;
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
       :already-upgraded="upgrade.matchSummary.value?.alreadyUpgraded ?? 0"
       @confirm="confirmUpgrade"
+      @select-more="upgrade.selectMore()"
     />
 
     <ConfirmDialog

@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_engine
-from app.core.encryption import decrypt_token, encrypt_token
+from app.core.encryption import encrypt_token, try_decrypt_token
 from app.logic.media_upgrade import (
     MatchResult,
     UpgradeError,
@@ -98,7 +98,12 @@ async def _get_access_token(user: UserDep) -> AccessToken:
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
-    refresh_token = decrypt_token(user.google_photos_refresh_token)
+    refresh_token = try_decrypt_token(user.google_photos_refresh_token)
+    if not refresh_token:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Google Photos connection lost. Please reconnect.",
+        )
     try:
         token_data = await refresh_access_token(refresh_token)
     except httpx.HTTPError as exc:
@@ -227,7 +232,13 @@ async def match_media(
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
-    tokens = TokenProvider(decrypt_token(encrypted_refresh))
+    refresh_token = try_decrypt_token(encrypted_refresh)
+    if not refresh_token:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Google Photos connection lost. Please reconnect.",
+        )
+    tokens = TokenProvider(refresh_token)
     access_token = await tokens.get()
 
     album = await session.get_one(Album, (user.id, aid))
@@ -265,7 +276,7 @@ async def match_media(
 
 
 class UpgradeRequest(BaseModel):
-    session_id: PickerSessionId
+    session_ids: list[PickerSessionId] = Field(max_length=100)
     matches: list[MatchResult] = Field(max_length=10_000)
 
 
@@ -284,8 +295,14 @@ async def _prepare_upgrade(
     if not encrypted_refresh:
         _upgrades_in_progress.discard(key)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
+    refresh_token = try_decrypt_token(encrypted_refresh)
+    if not refresh_token:
+        _upgrades_in_progress.discard(key)
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Google Photos connection lost. Please reconnect.",
+        )
     try:
-        refresh_token = decrypt_token(encrypted_refresh)
         tokens = TokenProvider(refresh_token)
         access_token = await tokens.get()
 
@@ -294,8 +311,10 @@ async def _prepare_upgrade(
 
         _validate_match_names(body.matches, {m.name for m in album.media})
 
-        items = await get_media_items(body.session_id, access_token)
-        items_by_id = {item.id: item for item in items}
+        all_items: list[PickedMediaItem] = []
+        for sid in body.session_ids:
+            all_items.extend(await get_media_items(sid, access_token))
+        items_by_id = {item.id: item for item in all_items}
     except Exception:
         _upgrades_in_progress.discard(key)
         raise
@@ -317,6 +336,7 @@ async def _persist_upgrade(
     A future reconciliation job could fix this, but in practice transient
     DB failures rarely survive a retry.
     """
+    replaced = len(succeeded)
     for attempt in range(2):
         try:
             engine = get_engine()
@@ -334,17 +354,20 @@ async def _persist_upgrade(
         except Exception:
             if attempt == 0:
                 logger.warning(
-                    "Persist attempt 1 failed for album %s, retrying",
-                    aid,
+                    "Persist attempt 1 failed, retrying",
                     exc_info=True,
+                    extra={"uid": uid, "aid": aid, "replaced": replaced},
                 )
             else:
                 logger.exception(
-                    "Failed to persist upgrade results for album %s"
-                    " - filesystem may be ahead of DB",
-                    aid,
+                    "Failed to persist upgrade results - filesystem may be ahead of DB",
+                    extra={"uid": uid, "aid": aid, "replaced": replaced},
                 )
         else:
+            logger.info(
+                "Persisted upgrade results",
+                extra={"uid": uid, "aid": aid, "replaced": replaced},
+            )
             return
 
 
@@ -393,12 +416,13 @@ async def upgrade_media(
         yield UpgradeError(detail="Upgrade failed unexpectedly.")
     finally:
         await _persist_upgrade(user.id, aid, album_dir, body.matches, succeeded)
-        try:
-            await delete_picker_session(body.session_id, await tokens.get())
-        except httpx.HTTPError, RuntimeError:
-            logger.warning("Failed to delete picker session %s", body.session_id)
-        finally:
-            _upgrades_in_progress.discard(key)
+        access_token = await tokens.get()
+        for sid in body.session_ids:
+            try:
+                await delete_picker_session(sid, access_token)
+            except httpx.HTTPError, RuntimeError:
+                logger.warning("Failed to delete picker session %s", sid)
+        _upgrades_in_progress.discard(key)
 
 
 # ---------------------------------------------------------------------------

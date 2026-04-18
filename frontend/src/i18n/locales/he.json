@@ -267,10 +267,15 @@
     "matching": "מתאים {done}/{total}",
     "summary": {
       "title": "{matched} מתוך {total} הותאמו",
-      "alreadyUpgraded": "{count} כבר באיכות מקורית.",
-      "unmatched": "{count} לא נמצאו באלבום.",
+      "alreadyUpgraded": "{count} כבר באיכות מקורית",
+      "unmatched": "{count} לא נמצאו בבחירה",
       "confirm": "שדרגו {count} קבצים",
-      "cancel": "ביטול"
+      "selectMore": "בחרו עוד",
+      "cancel": "ביטול",
+      "noMatchTitle": "לא נמצאו התאמות",
+      "noMatchBody": "ודאו שבחרתם תמונות מהטיול",
+      "allUpgradedTitle": "כבר באיכות מקורית",
+      "allUpgradedBody": "כל הקבצים שנבחרו כבר שודרגו בעבר"
     },
     "downloading": "מוריד {done}/{total}",
     "done": "שודרגו {replaced} קבצים לאיכות מקורית",

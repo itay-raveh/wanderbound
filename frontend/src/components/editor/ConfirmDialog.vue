@@ -7,15 +7,17 @@ withDefaults(
     variant?: "danger" | "warning" | "primary";
     title: string;
     body: string;
-    confirmLabel: string;
+    confirmLabel?: string;
     cancelLabel: string;
     confirmDisabled?: boolean;
+    secondaryLabel?: string;
   }>(),
   { variant: "danger" },
 );
 
 defineEmits<{
   confirm: [];
+  secondary: [];
 }>();
 </script>
 
@@ -29,11 +31,26 @@ defineEmits<{
         {{ title }}
       </h3>
       <p v-if="body" class="confirm-text text-body2 text-muted">{{ body }}</p>
-      <div class="confirm-actions row no-wrap q-gutter-x-sm">
+      <div
+        :class="[
+          'confirm-actions',
+          secondaryLabel ? 'confirm-actions--stacked' : 'row no-wrap q-gutter-x-sm',
+        ]"
+      >
         <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
           cancelLabel
         }}</q-btn>
         <q-btn
+          v-if="secondaryLabel"
+          flat
+          no-caps
+          class="col text-body2 bg-surface"
+          @click="$emit('secondary')"
+        >
+          {{ secondaryLabel }}
+        </q-btn>
+        <q-btn
+          v-if="confirmLabel"
           flat
           no-caps
           :disable="confirmDisabled"
@@ -77,13 +94,19 @@ defineEmits<{
 
 .confirm-title {
   font-size: var(--type-subtitle);
-  margin: 0 0 var(--gap-md);
+  margin: 0 0 var(--gap-xs);
 }
 
 .confirm-text {
   line-height: 1.5;
   white-space: pre-line;
   margin: 0 0 var(--gap-lg);
+}
+
+.confirm-actions--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
 }
 
 .confirm-btn {

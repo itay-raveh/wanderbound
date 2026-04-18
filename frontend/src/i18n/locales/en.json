@@ -257,7 +257,7 @@
     "onboarding": {
       "title": "Upgrade to Original Quality",
       "body": "Polarsteps compresses your photos and videos. Connect Google Photos to replace them with your originals.",
-      "tip": "To easily select many photos, we recommend creating an album in Google Photos.",
+      "tip": "You can select photos in multiple rounds. For large trips, creating a Google Photos album makes selection easier.",
       "continue": "Connect Google Photos",
       "cancel": "Cancel"
     },
@@ -267,10 +267,15 @@
     "matching": "Matching {done}/{total}",
     "summary": {
       "title": "{matched} of {total} matched",
-      "alreadyUpgraded": "{count} already at original quality.",
-      "unmatched": "{count} not found in album.",
+      "alreadyUpgraded": "{count} already at original quality",
+      "unmatched": "{count} not found in selection",
       "confirm": "Upgrade {count} files",
-      "cancel": "Cancel"
+      "selectMore": "Select More",
+      "cancel": "Cancel",
+      "noMatchTitle": "No matches found",
+      "noMatchBody": "Make sure you selected photos from your trip",
+      "allUpgradedTitle": "Already at original quality",
+      "allUpgradedBody": "All matched files were already upgraded"
     },
     "downloading": "Downloading {done}/{total}",
     "done": "Upgraded {replaced} files to original quality",
