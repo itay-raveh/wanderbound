@@ -49,6 +49,10 @@ defineProps<{ progress: number }>();
   transform-origin: right;
 }
 
+:dir(rtl) .progress-fill::after {
+  animation-direction: reverse;
+}
+
 @keyframes shimmer {
   from {
     transform: translateX(-100%);

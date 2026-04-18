@@ -115,6 +115,7 @@ const { confirmUpgrade } = upgrade;
     <div
       v-if="upgrade.phase.value === 'done'"
       role="status"
+      aria-live="polite"
       class="action-btn done"
       :aria-label="doneMessage"
     >
@@ -129,7 +130,6 @@ const { confirmUpgrade } = upgrade;
     <button
       v-else-if="upgrade.phase.value === 'error'"
       class="action-btn error"
-      :title="errorTooltip"
       :aria-label="t('upgrade.error')"
       @click="upgrade.start(props.albumId)"
     >
@@ -138,6 +138,13 @@ const { confirmUpgrade } = upgrade;
         size="var(--type-lg)"
       />
       {{ errorMessage }}
+      <q-tooltip
+        transition-show="scale"
+        transition-hide="scale"
+        class="q-menu"
+      >
+        {{ errorTooltip }}
+      </q-tooltip>
     </button>
 
     <button
@@ -258,7 +265,7 @@ const { confirmUpgrade } = upgrade;
 @include action-button;
 
 .action-btn[aria-disabled="true"] {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: help;
 }
 
