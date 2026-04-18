@@ -44,17 +44,17 @@ describe("dpiTier", () => {
     expect(dpiTier(50)).toBe("warning");
   });
 
-  it("classifies >= 150 as ok (upgraded thresholds)", () => {
+  it("classifies >= 150 as ok when upgraded", () => {
     expect(dpiTier(150, true)).toBe("ok");
     expect(dpiTier(300, true)).toBe("ok");
   });
 
-  it("classifies 100-149 as caution (upgraded thresholds)", () => {
+  it("classifies 100-149 as caution when upgraded", () => {
     expect(dpiTier(149, true)).toBe("caution");
     expect(dpiTier(100, true)).toBe("caution");
   });
 
-  it("classifies < 100 as warning (upgraded thresholds)", () => {
+  it("classifies < 100 as warning when upgraded", () => {
     expect(dpiTier(99, true)).toBe("warning");
     expect(dpiTier(50, true)).toBe("warning");
   });
