@@ -16,7 +16,7 @@ from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.sse import EventSourceResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -101,9 +101,14 @@ async def _get_access_token(user: UserDep) -> AccessToken:
     refresh_token = decrypt_token(user.google_photos_refresh_token)
     try:
         token_data = await refresh_access_token(refresh_token)
-    except httpx.HTTPError:
-        logger.exception(
-            "Failed to refresh Google Photos access token for user %d", user.id
+    except httpx.HTTPError as exc:
+        # Log without the full traceback: httpx request bodies contain the
+        # plaintext refresh token and client secret, which logger.exception
+        # would capture and send to Sentry.
+        logger.error(  # noqa: TRY400
+            "Failed to refresh Google Photos access token for user %d: %s",
+            user.id,
+            type(exc).__name__,
         )
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
@@ -261,7 +266,7 @@ async def match_media(
 
 class UpgradeRequest(BaseModel):
     session_id: PickerSessionId
-    matches: list[MatchResult]
+    matches: list[MatchResult] = Field(max_length=10_000)
 
 
 async def _prepare_upgrade(
