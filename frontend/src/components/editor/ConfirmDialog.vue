@@ -39,17 +39,16 @@ defineEmits<{
         {{ title }}
       </h3>
       <p v-if="body" :id="`${id}-body`" class="confirm-text text-body2 text-muted">{{ body }}</p>
-      <div class="confirm-actions row no-wrap q-gutter-x-sm">
-        <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
+      <div class="confirm-actions">
+        <q-btn v-close-popup flat no-caps class="text-body2 cancel-btn">{{
           cancelLabel
         }}</q-btn>
         <q-btn
           v-if="secondaryLabel"
-          v-close-popup
           flat
           no-caps
           :class="[
-            'col text-body2',
+            'text-body2',
             confirmLabel ? 'secondary-btn' : 'confirm-btn primary',
           ]"
           @click="$emit('secondary')"
@@ -58,11 +57,10 @@ defineEmits<{
         </q-btn>
         <q-btn
           v-if="confirmLabel"
-          v-close-popup
           flat
           no-caps
           :disable="confirmDisabled"
-          :class="['col text-body2 confirm-btn', variant]"
+          :class="['text-body2 confirm-btn', variant]"
           @click="$emit('confirm')"
         >
           {{ confirmLabel }}
@@ -111,6 +109,20 @@ defineEmits<{
   margin: 0 0 var(--gap-lg);
 }
 
+.confirm-actions {
+  display: flex;
+  gap: var(--gap-md);
+
+  > .q-btn {
+    flex: 1 1 auto;
+  }
+}
+
+.cancel-btn {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+}
+
 .secondary-btn {
   border: 1px solid var(--border-color);
 }
@@ -118,17 +130,17 @@ defineEmits<{
 .confirm-btn {
   &.danger {
     background: var(--danger);
-    color: var(--bg);
+    color: var(--text-on-color);
   }
 
   &.warning {
     background: var(--q-warning);
-    color: var(--text-bright);
+    color: var(--text-on-warning);
   }
 
   &.primary {
     background: var(--q-primary);
-    color: var(--bg);
+    color: var(--text-on-color);
   }
 }
 </style>

@@ -293,7 +293,6 @@
       "authTimeout": "Authorization timed out.",
       "chromeOnly": "Unfortunately, this only works from Google Chrome."
     },
-    "chromeOnlyBadge": "(Chrome only)",
     "chromeOnlySub": "This is a known Google issue. We hope they fix it soon.",
     "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",

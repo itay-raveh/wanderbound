@@ -36,7 +36,7 @@ const id = useId();
           v-close-popup
           flat
           no-caps
-          class="col text-body2 bg-surface"
+          class="col text-body2 cancel-btn"
         >
           {{ t("upgrade.onboarding.cancel") }}
         </q-btn>
@@ -81,8 +81,13 @@ const id = useId();
   margin-top: var(--gap-md);
 }
 
+.cancel-btn {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+}
+
 .confirm-btn {
   background: var(--q-primary);
-  color: var(--bg);
+  color: var(--text-on-color);
 }
 </style>
