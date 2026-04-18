@@ -1,5 +1,9 @@
 <script lang="ts" setup>
+import { useId } from "vue";
+
 const show = defineModel<boolean>({ required: true });
+
+const id = useId();
 
 withDefaults(
   defineProps<{
@@ -22,21 +26,26 @@ defineEmits<{
 </script>
 
 <template>
-  <q-dialog v-model="show">
+  <q-dialog
+    v-model="show"
+    :aria-labelledby="`${id}-title`"
+    :aria-describedby="body ? `${id}-body` : undefined"
+  >
     <q-card class="confirm-dialog text-center">
       <div :class="['confirm-icon flex flex-center', variant]">
         <q-icon :name="icon" size="1.5rem" />
       </div>
-      <h3 class="confirm-title text-weight-semibold text-bright">
+      <h3 :id="`${id}-title`" class="confirm-title text-weight-semibold text-bright">
         {{ title }}
       </h3>
-      <p v-if="body" class="confirm-text text-body2 text-muted">{{ body }}</p>
+      <p v-if="body" :id="`${id}-body`" class="confirm-text text-body2 text-muted">{{ body }}</p>
       <div class="confirm-actions row no-wrap q-gutter-x-sm">
         <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
           cancelLabel
         }}</q-btn>
         <q-btn
           v-if="secondaryLabel"
+          v-close-popup
           flat
           no-caps
           :class="[
@@ -49,6 +58,7 @@ defineEmits<{
         </q-btn>
         <q-btn
           v-if="confirmLabel"
+          v-close-popup
           flat
           no-caps
           :disable="confirmDisabled"
@@ -65,7 +75,7 @@ defineEmits<{
 <style lang="scss" scoped>
 .confirm-dialog {
   padding: 1.75rem;
-  max-width: 24rem;
+  max-width: 26rem;
 }
 
 .confirm-icon {
@@ -80,12 +90,12 @@ defineEmits<{
   }
 
   &.warning {
-    background: color-mix(in srgb, var(--q-warning) 20%, var(--surface));
+    background: color-mix(in srgb, var(--q-warning) 15%, var(--surface));
     color: var(--q-warning);
   }
 
   &.primary {
-    background: color-mix(in srgb, var(--q-primary) 12%, var(--surface));
+    background: color-mix(in srgb, var(--q-primary) 15%, var(--surface));
     color: var(--q-primary);
   }
 }
@@ -108,17 +118,17 @@ defineEmits<{
 .confirm-btn {
   &.danger {
     background: var(--danger);
-    color: white;
+    color: var(--bg);
   }
 
   &.warning {
     background: var(--q-warning);
-    color: #111;
+    color: var(--text-bright);
   }
 
   &.primary {
     background: var(--q-primary);
-    color: white;
+    color: var(--bg);
   }
 }
 </style>

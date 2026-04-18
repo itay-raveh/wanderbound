@@ -126,4 +126,15 @@
   .q-field--outlined .q-field__control::before {
     transition: none;
   }
+
+  .q-transition--slide-up-enter-active,
+  .q-transition--slide-up-leave-active,
+  .q-transition--slide-down-enter-active,
+  .q-transition--slide-down-leave-active,
+  .q-transition--fade-enter-active,
+  .q-transition--fade-leave-active,
+  .q-transition--scale-enter-active,
+  .q-transition--scale-leave-active {
+    transition-duration: 0.01ms !important;
+  }
 }

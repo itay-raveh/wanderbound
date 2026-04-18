@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 
 const show = defineModel<boolean>({ required: true });
@@ -8,16 +9,21 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+const id = useId();
 </script>
 
 <template>
-  <q-dialog v-model="show">
+  <q-dialog
+    v-model="show"
+    :aria-labelledby="`${id}-title`"
+    :aria-describedby="`${id}-body`"
+  >
     <q-card class="onboarding-card">
-      <h3 class="onboarding-title text-weight-semibold text-bright">
+      <h3 :id="`${id}-title`" class="onboarding-title text-weight-semibold text-bright">
         {{ t("upgrade.onboarding.title") }}
       </h3>
 
-      <p class="onboarding-body text-body2 text-muted">
+      <p :id="`${id}-body`" class="onboarding-body text-body2 text-muted">
         {{ t("upgrade.onboarding.body") }}
       </p>
 
@@ -30,7 +36,7 @@ const { t } = useI18n();
           v-close-popup
           flat
           no-caps
-          class="col text-body2 cancel-btn"
+          class="col text-body2 bg-surface"
         >
           {{ t("upgrade.onboarding.cancel") }}
         </q-btn>
@@ -75,12 +81,8 @@ const { t } = useI18n();
   margin-top: var(--gap-md);
 }
 
-.cancel-btn {
-  border: 1px solid var(--border-color);
-}
-
 .confirm-btn {
   background: var(--q-primary);
-  color: white;
+  color: var(--bg);
 }
 </style>
