@@ -176,7 +176,7 @@
     "videoFrame": "לא הצלחנו לעדכן את הפוסטר. @:common.retry",
     "pdfExport": "ייצוא PDF נכשל. @:common.retry",
     "dataExport": "ייצוא הנתונים נכשל. @:common.retry",
-    "processingFailed": "העיבוד נכשל. נסו שוב מאוחר יותר.",
+    "processingFailed": "העיבוד נכשל.",
     "connectionFailed": "החיבור נותק. @:common.retry",
     "adjustBoundary": "לא הצלחנו לשנות את הגבול. @:common.retry"
   },
