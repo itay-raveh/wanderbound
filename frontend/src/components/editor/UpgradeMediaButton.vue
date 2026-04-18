@@ -8,6 +8,7 @@ import {
   symOutlinedClose,
   symOutlinedCheck,
   symOutlinedError,
+  symOutlinedKeyboardArrowDown,
   symOutlinedLinkOff,
   symOutlinedUpgrade,
 } from "@quasar/extras/material-symbols-outlined";
@@ -26,6 +27,7 @@ const isRunning = computed(() => {
   return (
     p === "authorizing" ||
     p === "picking" ||
+    p === "preparing" ||
     p === "matching" ||
     p === "downloading"
   );
@@ -45,6 +47,8 @@ const progressMessage = computed(() => {
       return t("upgrade.authorizing");
     case "picking":
       return t("upgrade.picking");
+    case "preparing":
+      return t("upgrade.preparing", { done, total });
     case "matching":
       return t("upgrade.matching", { done, total });
     case "downloading":
@@ -72,7 +76,7 @@ const showSummary = computed({
 
 const doneMessage = computed(() => {
   const { done: replaced, total, skipped = 0 } = upgrade.progress.value;
-  const failed = total - replaced;
+  const failed = total - replaced - skipped;
   if (failed > 0) return t("upgrade.donePartial", { replaced, total });
   if (skipped > 0) return t("upgrade.doneSkipped", { replaced, skipped });
   return t("upgrade.done", { replaced });
@@ -122,7 +126,7 @@ const { confirmUpgrade } = upgrade;
         :name="symOutlinedError"
         size="var(--type-lg)"
       />
-      {{ t("upgrade.error") }}
+      {{ upgrade.errorDetail.value || t("upgrade.error") }}
     </button>
 
     <button
@@ -145,6 +149,35 @@ const { confirmUpgrade } = upgrade;
       <ProgressBar :progress="progressFraction" />
     </button>
 
+    <div
+      v-else-if="upgrade.googlePhotosState.value === 'connected'"
+      class="split-btn"
+    >
+      <button
+        class="action-btn"
+        :aria-label="t('upgrade.button')"
+        @click="upgrade.start(props.albumId)"
+      >
+        <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
+        {{ t("upgrade.button") }}
+      </button>
+      <button
+        class="split-trigger"
+        :aria-label="t('upgrade.options')"
+        aria-haspopup="menu"
+      >
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-sm)" />
+        <q-menu anchor="bottom end" self="top end" :offset="[0, 4]">
+          <div class="split-menu">
+            <button class="split-menu-item" @click="handleDisconnect">
+              <q-icon :name="symOutlinedLinkOff" size="var(--type-sm)" />
+              {{ t("upgrade.disconnect") }}
+            </button>
+          </div>
+        </q-menu>
+      </button>
+    </div>
+
     <button
       v-else
       class="action-btn"
@@ -155,16 +188,6 @@ const { confirmUpgrade } = upgrade;
       {{ t("upgrade.button") }}
     </button>
 
-    <button
-      v-if="upgrade.googlePhotosState.value === 'connected' && upgrade.phase.value === 'idle'"
-      class="disconnect-btn"
-      :aria-label="t('upgrade.disconnect')"
-      @click="handleDisconnect()"
-    >
-      <q-icon :name="symOutlinedLinkOff" size="var(--type-sm)" />
-      {{ t("upgrade.disconnect") }}
-    </button>
-
     <UpgradeOnboardingDialog
       v-model="showOnboarding"
       @confirm="confirmUpgrade"
@@ -173,8 +196,9 @@ const { confirmUpgrade } = upgrade;
     <UpgradeMatchSummary
       v-model="showSummary"
       :matched="upgrade.matchSummary.value?.matched ?? 0"
-      :total="upgrade.matchSummary.value?.totalMedia ?? 0"
+      :total="upgrade.matchSummary.value?.totalPicked ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
+      :already-upgraded="upgrade.matchSummary.value?.alreadyUpgraded ?? 0"
       @confirm="confirmUpgrade"
     />
 

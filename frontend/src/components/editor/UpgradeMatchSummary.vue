@@ -10,6 +10,7 @@ const props = defineProps<{
   matched: number;
   total: number;
   unmatched: number;
+  alreadyUpgraded: number;
 }>();
 
 defineEmits<{
@@ -25,11 +26,17 @@ const titleText = computed(() =>
   }),
 );
 
+const toUpgrade = computed(() => props.matched - props.alreadyUpgraded);
+
 const bodyText = computed(() => {
-  if (props.unmatched > 0) {
-    return t("upgrade.summary.unmatched", { count: props.unmatched });
+  const parts: string[] = [];
+  if (props.alreadyUpgraded > 0) {
+    parts.push(t("upgrade.summary.alreadyUpgraded", { count: props.alreadyUpgraded }));
   }
-  return "";
+  if (props.unmatched > 0) {
+    parts.push(t("upgrade.summary.unmatched", { count: props.unmatched }));
+  }
+  return parts.join(" ");
 });
 </script>
 
@@ -40,7 +47,7 @@ const bodyText = computed(() => {
     variant="primary"
     :title="titleText"
     :body="bodyText"
-    :confirm-label="t('upgrade.summary.confirm')"
+    :confirm-label="t('upgrade.summary.confirm', { count: toUpgrade })"
     :cancel-label="t('upgrade.summary.cancel')"
     @confirm="$emit('confirm')"
   />

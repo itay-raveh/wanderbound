@@ -18,13 +18,14 @@ const connectedUser = {
 
 /** SSE match events: progress -> summary with 2 of 3 matched. */
 const matchEvents = [
-  { type: "matching", done: 1, total: 3 },
-  { type: "matching", done: 2, total: 3 },
-  { type: "matching", done: 3, total: 3 },
+  { type: "matching", phase: "matching", done: 1, total: 3 },
+  { type: "matching", phase: "matching", done: 2, total: 3 },
+  { type: "matching", phase: "matching", done: 3, total: 3 },
   {
     type: "match_summary",
-    total_media: 3,
+    total_picked: 3,
     matched: 2,
+    already_upgraded: 0,
     unmatched: 1,
     matches: [
       { local_name: "photo1.jpg", google_id: "gid-1", distance: 0 },
@@ -91,7 +92,7 @@ test.describe("Media Upgrade", () => {
     // Default mockUser has google_sub set, so button should appear
     await page.goto("/editor");
     await expect(
-      page.getByRole("button", { name: /upgrade/i }),
+      page.getByRole("button", { name: "Upgrade Media" }),
     ).toBeVisible({ timeout: 15_000 });
   });
 
@@ -105,7 +106,7 @@ test.describe("Media Upgrade", () => {
     });
     await page.goto("/editor");
 
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i });
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
     await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
     await upgradeBtn.click();
 
@@ -126,9 +127,20 @@ test.describe("Media Upgrade", () => {
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
 
-    // Block window.open
+    // Return a mock popup so openPopup() doesn't throw "Popup blocked"
     await page.addInitScript(() => {
-      window.open = () => null;
+      window.open = () =>
+        ({
+          closed: false,
+          close() {
+            this.closed = true;
+          },
+          location: { href: "" },
+          document: {
+            title: "",
+            body: { style: { cssText: "" }, textContent: "" },
+          },
+        }) as unknown as Window;
     });
 
     // Upgrade SSE
@@ -148,7 +160,7 @@ test.describe("Media Upgrade", () => {
     await page.goto("/editor");
 
     // Click upgrade
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i });
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
     await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
     await upgradeBtn.click();
 
@@ -157,7 +169,7 @@ test.describe("Media Upgrade", () => {
 
     // Confirm upgrade
     const confirmBtn = page.getByRole("button", {
-      name: /replace with originals/i,
+      name: /upgrade \d+ files/i,
     });
     await expect(confirmBtn).toBeVisible();
     await confirmBtn.click();
@@ -177,8 +189,20 @@ test.describe("Media Upgrade", () => {
       ([key]) => localStorage.setItem(key, "1"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
+    // Return a mock popup so openPopup() doesn't throw "Popup blocked"
     await page.addInitScript(() => {
-      window.open = () => null;
+      window.open = () =>
+        ({
+          closed: false,
+          close() {
+            this.closed = true;
+          },
+          location: { href: "" },
+          document: {
+            title: "",
+            body: { style: { cssText: "" }, textContent: "" },
+          },
+        }) as unknown as Window;
     });
 
     // Upgrade SSE with partial failure
@@ -196,13 +220,13 @@ test.describe("Media Upgrade", () => {
 
     await page.goto("/editor");
 
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i });
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
     await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
     await upgradeBtn.click();
 
     // Wait for match summary
     await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 10_000 });
-    await page.getByRole("button", { name: /replace with originals/i }).click();
+    await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
 
     // Partial failure: "Upgraded 1 of 2 files"
     await expect(page.getByText(/upgraded 1 of 2/i)).toBeVisible({
@@ -210,7 +234,7 @@ test.describe("Media Upgrade", () => {
     });
   });
 
-  test("disconnect button visible when connected", async ({
+  test("disconnect option visible in dropdown when connected", async ({
     authedPage: page,
   }) => {
     // Override user to be connected
@@ -220,8 +244,16 @@ test.describe("Media Upgrade", () => {
 
     await page.goto("/editor");
 
+    // Split-trigger chevron opens the dropdown menu
+    const splitTrigger = page.getByRole("button", {
+      name: "Upgrade options",
+    });
+    await expect(splitTrigger).toBeVisible({ timeout: 15_000 });
+    await splitTrigger.click();
+
+    // Disconnect option should appear in the dropdown
     await expect(
       page.getByRole("button", { name: /disconnect/i }),
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 5_000 });
   });
 });

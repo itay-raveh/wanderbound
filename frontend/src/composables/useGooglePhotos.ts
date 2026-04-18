@@ -24,35 +24,40 @@ export function useGooglePhotos() {
 
   const isConnected = computed(() => state.value === "connected");
 
-  async function authorizeGooglePhotos(): Promise<void> {
+  async function authorizeInPopup(popup: Window): Promise<void> {
     const { data } = await authorize();
     if (!data?.authorization_url) throw new Error("No authorization URL");
 
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.innerWidth - width) / 2;
-    const top = window.screenY + (window.innerHeight - height) / 2;
-    const popup = window.open(
-      data.authorization_url,
-      "google-photos-auth",
-      `width=${width},height=${height},left=${left},top=${top}`,
-    );
-    if (!popup) throw new Error("Popup blocked");
+    popup.location.href = data.authorization_url;
 
+    // The OAuth callback redirects to /oauth-connected.html on the
+    // frontend origin. That page broadcasts a message via
+    // BroadcastChannel (same-origin, COOP-immune). We listen here
+    // and resolve when the message arrives.
     await new Promise<void>((resolve, reject) => {
-      const interval = setInterval(() => {
-        try {
-          if (popup.closed) {
-            clearInterval(interval);
-            clearTimeout(timeout);
-            resolve();
-          }
-        } catch {
-          // Cross-origin - popup still open
+      const channel = new BroadcastChannel("wanderbound-oauth");
+
+      function cleanup() {
+        channel.close();
+        clearInterval(closedCheck);
+        clearTimeout(timeout);
+      }
+
+      channel.onmessage = (event) => {
+        if (event.data?.type !== "google-photos-connected") return;
+        cleanup();
+        resolve();
+      };
+
+      const closedCheck = setInterval(() => {
+        if (popup.closed) {
+          cleanup();
+          reject(new Error("Authorization cancelled"));
         }
       }, 500);
+
       const timeout = setTimeout(() => {
-        clearInterval(interval);
+        cleanup();
         if (!popup.closed) popup.close();
         reject(new Error("Authorization timed out"));
       }, 5 * 60 * 1000);
@@ -92,7 +97,7 @@ export function useGooglePhotos() {
   return {
     state,
     isConnected,
-    authorize: authorizeGooglePhotos,
+    authorize: authorizeInPopup,
     disconnect: disconnectGooglePhotos,
     createPickerSession,
     pollSession: pollPickerSession,

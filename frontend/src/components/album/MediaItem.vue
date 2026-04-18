@@ -7,7 +7,6 @@ import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import {
   isVideo as checkVideo,
   mediaUrl,
-  mediaSrcset,
   posterPath,
   SIZES_FULL,
   SIZES_HALF,
@@ -37,7 +36,7 @@ const props = withDefaults(
   { focusable: true, alt: "" },
 );
 
-const { albumId } = useAlbum();
+const { albumId, mediaByName } = useAlbum();
 const printMode = usePrintMode();
 
 const stepId = inject(STEP_ID_KEY, null);
@@ -60,25 +59,38 @@ function handleSpace() {
 }
 
 const isVideo = computed(() => checkVideo(props.media));
-const src = computed(() => mediaUrl(props.media, albumId.value));
+
+// Dimensions string from the media query. Changes after upgrade (new file has
+// different resolution), which busts the immutable-cache URLs.
+const mediaDims = computed(() => {
+  const m = mediaByName.value.get(props.media);
+  return m ? `${m.width}x${m.height}` : undefined;
+});
+
+const src = computed(() => {
+  const base = mediaUrl(props.media, albumId.value);
+  return mediaDims.value ? `${base}?d=${mediaDims.value}` : base;
+});
+
 const posterCacheBust = ref<number>();
 const posterSrc = computed(() => {
   if (!isVideo.value) return "";
   const base = mediaUrl(posterPath(props.media), albumId.value);
-  return posterCacheBust.value != null
-    ? `${base}?v=${posterCacheBust.value}`
-    : base;
+  const params: string[] = [];
+  if (mediaDims.value) params.push(`d=${mediaDims.value}`);
+  if (posterCacheBust.value != null) params.push(`v=${posterCacheBust.value}`);
+  return params.length ? `${base}?${params.join("&")}` : base;
 });
 
 const imgSrcset = computed(() => {
   if (printMode) return undefined;
   const name = isVideo.value ? posterPath(props.media) : props.media;
-  const v = posterCacheBust.value;
-  if (v != null) {
-    const base = mediaUrl(name, albumId.value);
-    return THUMB_WIDTHS.map((w) => `${base}?w=${w}&v=${v} ${w}w`).join(", ");
-  }
-  return mediaSrcset(name, albumId.value);
+  const base = mediaUrl(name, albumId.value);
+  const extra: string[] = [];
+  if (mediaDims.value) extra.push(`d=${mediaDims.value}`);
+  if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
+  const suffix = extra.length ? `&${extra.join("&")}` : "";
+  return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");
 });
 const imgSizes = computed(() => {
   if (!imgSrcset.value) return undefined;

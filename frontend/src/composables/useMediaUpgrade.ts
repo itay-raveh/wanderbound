@@ -1,4 +1,4 @@
-import { onScopeDispose, ref } from "vue";
+import { onScopeDispose, ref, watch } from "vue";
 import {
   matchMedia,
   upgradeMedia,
@@ -19,6 +19,7 @@ type UpgradePhase =
   | "onboarding"
   | "authorizing"
   | "picking"
+  | "preparing"
   | "matching"
   | "confirming"
   | "downloading"
@@ -33,8 +34,9 @@ interface UpgradeProgress {
 
 interface MatchSummary {
   matches: MatchResult[];
-  totalMedia: number;
+  totalPicked: number;
   matched: number;
+  alreadyUpgraded: number;
   unmatched: number;
 }
 
@@ -63,6 +65,7 @@ export function useMediaUpgrade() {
   let confirmReject: ((reason: Error) => void) | null = null;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
   let activeSessionId: string | null = null;
+  let activePopup: Window | null = null;
 
   function reset() {
     progress.value = { done: 0, total: 0 };
@@ -71,6 +74,25 @@ export function useMediaUpgrade() {
     confirmResolve = null;
     confirmReject = null;
     activeSessionId = null;
+    activePopup = null;
+  }
+
+  function openPopup(): Window {
+    const width = Math.min(screen.availWidth - 100, 1200);
+    const height = Math.min(screen.availHeight - 100, 900);
+    const left = screen.availLeft + (screen.availWidth - width) / 2;
+    const top = screen.availTop + (screen.availHeight - height) / 2;
+    const popup = window.open(
+      "about:blank",
+      "google-photos",
+      `width=${width},height=${height},left=${left},top=${top}`,
+    );
+    if (!popup) throw new Error("Popup blocked");
+    popup.document.title = "Google Photos";
+    popup.document.body.style.cssText =
+      "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
+    popup.document.body.textContent = "Loading\u2026";
+    return popup;
   }
 
   async function start(albumId: string) {
@@ -86,32 +108,37 @@ export function useMediaUpgrade() {
 
     try {
       // Step 1: Onboarding (first time only)
+      // The popup is opened inside confirmUpgrade() from the confirm
+      // button's click handler, preserving the user gesture.
       if (!localStorage.getItem(MEDIA_UPGRADE_ONBOARDED_KEY)) {
         phase.value = "onboarding";
         await waitForConfirmation(signal);
         localStorage.setItem(MEDIA_UPGRADE_ONBOARDED_KEY, "1");
       }
 
-      // Step 2: Authorize if needed
+      // For already-onboarded users, open popup from the button click gesture.
+      if (!activePopup) activePopup = openPopup();
+
+      // Step 2: Authorize if needed (navigates the existing popup)
       if (!gp.isConnected.value) {
         phase.value = "authorizing";
-        await gp.authorize();
+        await gp.authorize(activePopup);
         if (signal.aborted) return;
       }
 
-      // Step 3: Create Picker session and open in new tab
+      // Step 3: Create Picker session, navigate same popup
       phase.value = "picking";
       const { sessionId, pickerUri } = await gp.createPickerSession();
       activeSessionId = sessionId;
       if (signal.aborted) return;
-      const pickerTab = window.open(pickerUri + "/autoclose", "_blank");
+      activePopup.location.href = pickerUri + "/autoclose";
 
       // Step 4: Poll until ready
-      await pollUntilReady(sessionId, pickerTab, signal);
+      await pollUntilReady(sessionId, signal);
       if (signal.aborted) return;
 
       // Step 5: Match media via SSE
-      phase.value = "matching";
+      phase.value = "preparing";
       progress.value = { done: 0, total: 0 };
       const summary = await runMatchStream(albumId, sessionId, signal);
       if (signal.aborted) return;
@@ -149,16 +176,27 @@ export function useMediaUpgrade() {
       if ((err as Error).name === "AbortError") return;
       phase.value = "error";
       errorDetail.value = (err as Error).message;
+    } finally {
+      if (activePopup && !activePopup.closed) activePopup.close();
+      activePopup = null;
     }
   }
 
   function confirmUpgrade() {
+    // Open popup from the confirm button's click gesture so it's never
+    // blocked.  Only during onboarding - the match-summary confirm
+    // doesn't need a popup.
+    if (phase.value === "onboarding" && !activePopup) {
+      activePopup = openPopup();
+    }
     confirmResolve?.();
   }
 
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
+    if (activePopup && !activePopup.closed) activePopup.close();
+    activePopup = null;
     if (activeSessionId) {
       gp.closeSession(activeSessionId).catch(() => {});
     }
@@ -190,9 +228,10 @@ export function useMediaUpgrade() {
 
   async function pollUntilReady(
     sessionId: string,
-    pickerTab: Window | null,
     signal: AbortSignal,
   ): Promise<void> {
+    // Google sets COOP on the Picker page, so we can't check
+    // popup.closed reliably. Poll purely via the API.
     const deadline = Date.now() + PICKER_TIMEOUT_MS;
     while (!signal.aborted) {
       if (Date.now() > deadline) {
@@ -200,16 +239,6 @@ export function useMediaUpgrade() {
       }
       const result = await gp.pollSession(sessionId);
       if (result.ready) return;
-      // If the picker tab was closed by user, keep polling briefly in case
-      // the session becomes ready from server side
-      if (pickerTab?.closed) {
-        for (let i = 0; i < 3 && !signal.aborted; i++) {
-          await sleep(POLL_INTERVAL_MS, signal);
-          const retry = await gp.pollSession(sessionId);
-          if (retry.ready) return;
-        }
-        throw new Error("Picker closed without selecting photos");
-      }
       await sleep(POLL_INTERVAL_MS, signal);
     }
   }
@@ -232,13 +261,16 @@ export function useMediaUpgrade() {
       const event = raw as unknown as MatchEvent;
       switch (event.type) {
         case "matching":
+          if (event.phase === "preparing") phase.value = "preparing";
+          else phase.value = "matching";
           progress.value = { done: event.done, total: event.total };
           break;
         case "match_summary":
           summary = {
             matches: event.matches,
-            totalMedia: event.total_media,
+            totalPicked: event.total_picked,
             matched: event.matched,
+            alreadyUpgraded: event.already_upgraded,
             unmatched: event.unmatched,
           };
           break;
@@ -278,7 +310,7 @@ export function useMediaUpgrade() {
           const { replaced, skipped, failed } = event;
           progress.value = {
             done: replaced,
-            total: replaced + failed,
+            total: replaced + skipped + failed,
             skipped,
           };
           receivedTerminal = true;
@@ -302,7 +334,27 @@ export function useMediaUpgrade() {
     }, DONE_RESET_MS);
   }
 
-  onScopeDispose(() => cancel());
+  // Warn the user before navigating away during active operations.
+  const busyPhases: ReadonlySet<UpgradePhase> = new Set([
+    "preparing",
+    "matching",
+    "downloading",
+  ]);
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    e.preventDefault();
+  }
+  watch(phase, (cur, prev) => {
+    if (busyPhases.has(cur) && !busyPhases.has(prev)) {
+      window.addEventListener("beforeunload", onBeforeUnload);
+    } else if (!busyPhases.has(cur) && busyPhases.has(prev)) {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    }
+  });
+
+  onScopeDispose(() => {
+    window.removeEventListener("beforeunload", onBeforeUnload);
+    cancel();
+  });
 
   return {
     phase,
@@ -323,14 +375,14 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
       reject(new DOMException("Aborted", "AbortError"));
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      },
-      { once: true },
-    );
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }

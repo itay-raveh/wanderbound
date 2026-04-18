@@ -4,7 +4,8 @@
 
   "common": {
     "loadingAlbum": "טוען אלבום...",
-    "retry": "נסו שוב."
+    "retry": "נסו שוב.",
+    "cancel": "ביטול"
   },
 
   "units": {
@@ -262,11 +263,13 @@
     },
     "authorizing": "מתחבר ל-Google Photos...",
     "picking": "ממתין לבחירה...",
+    "preparing": "מנתח אלבום {done}/{total}",
     "matching": "מתאים {done}/{total}",
     "summary": {
-      "title": "{matched} מתוך {total} נמצאו ב-Google Photos",
-      "unmatched": "{count} לא הותאמו ויישארו כפי שהם.",
-      "confirm": "החלף במקוריות",
+      "title": "{matched} מתוך {total} הותאמו",
+      "alreadyUpgraded": "{count} כבר באיכות מקורית.",
+      "unmatched": "{count} לא נמצאו באלבום.",
+      "confirm": "שדרגו {count} קבצים",
       "cancel": "ביטול"
     },
     "downloading": "מוריד {done}/{total}",
@@ -274,6 +277,7 @@
     "doneSkipped": "שודרגו {replaced} קבצים, {skipped} כבר באיכות מלאה",
     "donePartial": "שודרגו {replaced} מתוך {total} קבצים",
     "error": "השדרוג נכשל. נסו שוב.",
+    "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",
     "disconnectConfirm": {
       "title": "לנתק את Google Photos?",

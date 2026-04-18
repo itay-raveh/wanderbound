@@ -4,7 +4,8 @@
 
   "common": {
     "loadingAlbum": "Loading album...",
-    "retry": "Please try again."
+    "retry": "Please try again.",
+    "cancel": "Cancel"
   },
 
   "units": {
@@ -262,11 +263,13 @@
     },
     "authorizing": "Connecting to Google Photos...",
     "picking": "Waiting for selection...",
+    "preparing": "Analyzing album {done}/{total}",
     "matching": "Matching {done}/{total}",
     "summary": {
-      "title": "{matched} of {total} found in Google Photos",
-      "unmatched": "{count} could not be matched and will stay as-is.",
-      "confirm": "Replace with Originals",
+      "title": "{matched} of {total} matched",
+      "alreadyUpgraded": "{count} already at original quality.",
+      "unmatched": "{count} not found in album.",
+      "confirm": "Upgrade {count} files",
       "cancel": "Cancel"
     },
     "downloading": "Downloading {done}/{total}",
@@ -274,6 +277,7 @@
     "doneSkipped": "Upgraded {replaced} files, {skipped} already full quality",
     "donePartial": "Upgraded {replaced} of {total} files",
     "error": "Upgrade failed. Try again.",
+    "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",
     "disconnectConfirm": {
       "title": "Disconnect Google Photos?",
