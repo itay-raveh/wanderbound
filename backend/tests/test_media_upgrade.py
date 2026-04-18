@@ -24,11 +24,12 @@ from app.logic.media_upgrade import (
     _FALLBACK_MAX_DIMENSION,
     _MAX_LONG_EDGE,
     MATCH_THRESHOLD,
+    HashedMedia,
     MatchResult,
     _bucket_by_window,
     _cross_step_fallback,
     _extract_video_frames,
-    _hash_distance,
+    _pairwise_distance,
     _parse_timestamp,
     _process_photo_sync,
     _process_video,
@@ -37,7 +38,11 @@ from app.logic.media_upgrade import (
     build_step_windows,
     match_within_window,
 )
-from app.services.google_photos import MediaFile, PickedMediaItem
+from app.services.google_photos import (
+    GoogleMediaType,
+    MediaFile,
+    PickedMediaItem,
+)
 
 from .factories import create_test_jpeg
 
@@ -46,6 +51,15 @@ def _make_hash(value: int) -> imagehash.ImageHash:
     """Create a deterministic hash for testing."""
     bits = np.array([(value >> i) & 1 for i in range(64)], dtype=bool)
     return imagehash.ImageHash(bits)
+
+
+def _hm(
+    key: str,
+    h: imagehash.ImageHash | list[imagehash.ImageHash],
+    *,
+    video: bool = False,
+) -> HashedMedia:
+    return HashedMedia(key=key, hash=h, is_video=video)
 
 
 class TestBuildStepWindows:
@@ -93,65 +107,46 @@ class TestBuildStepWindows:
 class TestBuildCostMatrix:
     def test_identical_hashes_produce_zero_cost(self) -> None:
         h = _make_hash(0xFF00FF00FF00FF00)
-        matrix = build_cost_matrix(
-            local_hashes=[h],
-            candidate_hashes=[h],
-            local_is_video=[False],
-            candidate_is_video=[False],
-        )
+        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h)])
         assert matrix[0][0] == 0
 
     def test_completely_different_hashes_produce_high_cost(self) -> None:
         h1 = _make_hash(0x0)
         h2 = _make_hash(0xFFFFFFFFFFFFFFFF)
-        matrix = build_cost_matrix(
-            local_hashes=[h1],
-            candidate_hashes=[h2],
-            local_is_video=[False],
-            candidate_is_video=[False],
-        )
+        matrix = build_cost_matrix([_hm("a", h1)], [_hm("b", h2)])
         assert matrix[0][0] == 64  # all bits differ
 
     def test_matrix_shape_matches_inputs(self) -> None:
-        hashes = [_make_hash(i) for i in range(3)]
-        candidates = [_make_hash(i + 100) for i in range(5)]
-        matrix = build_cost_matrix(
-            hashes,
-            candidates,
-            local_is_video=[False] * 3,
-            candidate_is_video=[False] * 5,
-        )
+        local_media = [_hm(f"l{i}", _make_hash(i)) for i in range(3)]
+        cands = [_hm(f"c{i}", _make_hash(i + 100)) for i in range(5)]
+        matrix = build_cost_matrix(local_media, cands)
         assert len(matrix) == 3
         assert len(matrix[0]) == 5
 
 
-class TestHashDistance:
+class TestPairwiseDistance:
     def test_empty_frame_list_returns_cross_type_cost(self) -> None:
         candidate = _make_hash(42)
-        assert _hash_distance([], candidate) == _CROSS_TYPE_COST
+        assert _pairwise_distance([], candidate) == _CROSS_TYPE_COST
 
     def test_single_frame_returns_hamming_distance(self) -> None:
         local = _make_hash(0xFF)
         candidate = _make_hash(0xFF)
-        assert _hash_distance([local], candidate) == 0
+        assert _pairwise_distance([local], candidate) == 0
 
     def test_multi_frame_returns_minimum(self) -> None:
         close = _make_hash(0xFF00)
         far = _make_hash(0x0)
         candidate = _make_hash(0xFF00)
-        assert _hash_distance([far, close], candidate) == 0
+        assert _pairwise_distance([far, close], candidate) == 0
 
 
 class TestMatchWithinWindow:
     def test_perfect_matches_all_paired(self) -> None:
         h = _make_hash(42)
         results = match_within_window(
-            local_names=["photo1.jpg", "photo2.jpg"],
-            local_hashes=[h, h],
-            candidate_ids=["gp-1", "gp-2"],
-            candidate_hashes=[h, h],
-            local_is_video=[False, False],
-            candidate_is_video=[False, False],
+            [_hm("photo1.jpg", h), _hm("photo2.jpg", h)],
+            [_hm("gp-1", h), _hm("gp-2", h)],
         )
         assert len(results) == 2
         assert all(r.distance == 0 for r in results)
@@ -159,14 +154,7 @@ class TestMatchWithinWindow:
     def test_above_threshold_rejected(self) -> None:
         h1 = _make_hash(0x0)
         h2 = _make_hash(0xFFFFFFFFFFFFFFFF)
-        results = match_within_window(
-            local_names=["photo1.jpg"],
-            local_hashes=[h1],
-            candidate_ids=["gp-1"],
-            candidate_hashes=[h2],
-            local_is_video=[False],
-            candidate_is_video=[False],
-        )
+        results = match_within_window([_hm("photo1.jpg", h1)], [_hm("gp-1", h2)])
         assert len(results) == 0
 
     def test_optimal_assignment_not_greedy(self) -> None:
@@ -189,37 +177,22 @@ class TestMatchWithinWindow:
         h_gp2 = imagehash.ImageHash(bits_gp2)
 
         results = match_within_window(
-            local_names=["photo1.jpg", "photo2.jpg"],
-            local_hashes=[h_p1, h_p2],
-            candidate_ids=["gp-1", "gp-2"],
-            candidate_hashes=[h_base, h_gp2],
-            local_is_video=[False, False],
-            candidate_is_video=[False, False],
+            [_hm("photo1.jpg", h_p1), _hm("photo2.jpg", h_p2)],
+            [_hm("gp-1", h_base), _hm("gp-2", h_gp2)],
         )
         matched_locals = {r.local_name for r in results}
         assert "photo1.jpg" in matched_locals
         assert "photo2.jpg" in matched_locals
 
     def test_empty_inputs_return_empty(self) -> None:
-        results = match_within_window(
-            local_names=[],
-            local_hashes=[],
-            candidate_ids=["gp-1"],
-            candidate_hashes=[_make_hash(0)],
-            local_is_video=[],
-            candidate_is_video=[False],
-        )
+        results = match_within_window([], [_hm("gp-1", _make_hash(0))])
         assert results == []
 
     def test_more_candidates_than_locals(self) -> None:
         h = _make_hash(42)
         results = match_within_window(
-            local_names=["photo1.jpg"],
-            local_hashes=[h],
-            candidate_ids=["gp-1", "gp-2", "gp-3"],
-            candidate_hashes=[_make_hash(99), h, _make_hash(88)],
-            local_is_video=[False],
-            candidate_is_video=[False, False, False],
+            [_hm("photo1.jpg", h)],
+            [_hm("gp-1", _make_hash(99)), _hm("gp-2", h), _hm("gp-3", _make_hash(88))],
         )
         assert len(results) == 1
         assert results[0].google_id == "gp-2"
@@ -230,46 +203,28 @@ class TestMediaAwareCostMatrix:
     def test_single_hash_unchanged(self) -> None:
         """Photo-to-photo matching works as before."""
         h = _make_hash(0xFF00FF00FF00FF00)
-        matrix = build_cost_matrix(
-            local_hashes=[h],
-            candidate_hashes=[h],
-            local_is_video=[False],
-            candidate_is_video=[False],
-        )
+        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h)])
         assert matrix[0][0] == 0
 
     def test_video_uses_minimum_distance(self) -> None:
         """Video cost is min distance across sampled frames."""
         h_close = _make_hash(42)
         h_far = _make_hash(0xFFFFFFFFFFFFFFFF)
-        h_candidate = _make_hash(42)
         matrix = build_cost_matrix(
-            local_hashes=[[h_far, h_close, h_far, h_far]],
-            candidate_hashes=[h_candidate],
-            local_is_video=[True],
-            candidate_is_video=[True],
+            [_hm("v", [h_far, h_close, h_far, h_far], video=True)],
+            [_hm("c", _make_hash(42), video=True)],
         )
         assert matrix[0][0] == 0  # min of distances, h_close matches exactly
 
     def test_cross_type_gets_infinite_cost(self) -> None:
         """Photo-to-video pairs get cost above threshold."""
         h = _make_hash(42)
-        matrix = build_cost_matrix(
-            local_hashes=[h],
-            candidate_hashes=[h],
-            local_is_video=[False],
-            candidate_is_video=[True],
-        )
+        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h, video=True)])
         assert matrix[0][0] > MATCH_THRESHOLD
 
     def test_video_to_photo_gets_infinite_cost(self) -> None:
         h = _make_hash(42)
-        matrix = build_cost_matrix(
-            local_hashes=[[h, h, h, h]],
-            candidate_hashes=[h],
-            local_is_video=[True],
-            candidate_is_video=[False],
-        )
+        matrix = build_cost_matrix([_hm("v", [h, h, h, h], video=True)], [_hm("c", h)])
         assert matrix[0][0] > MATCH_THRESHOLD
 
 
@@ -282,7 +237,7 @@ def _make_item(
     item_id: str,
     create_time: str,
     *,
-    item_type: str = "PHOTO",
+    item_type: GoogleMediaType = "PHOTO",
     video_processing_status: str | None = None,
 ) -> PickedMediaItem:
     return PickedMediaItem(

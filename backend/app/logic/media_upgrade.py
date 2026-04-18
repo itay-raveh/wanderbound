@@ -7,6 +7,7 @@ for optimal bipartite assignment.
 
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import logging
 import os
@@ -63,6 +64,19 @@ def _hash_sem() -> asyncio.Semaphore:
 
 
 type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
+
+
+@dataclasses.dataclass(slots=True)
+class HashedMedia:
+    """A media item with its perceptual hash, ready for matching.
+
+    Used on both sides of the matching problem: ``key`` is either
+    a local filename or a Google Photos media ID.
+    """
+
+    key: str
+    hash: imagehash.ImageHash | list[imagehash.ImageHash]
+    is_video: bool
 
 
 # ---------------------------------------------------------------------------
@@ -251,52 +265,43 @@ def _extract_video_frames(path: Path) -> list[imagehash.ImageHash]:
 _CROSS_TYPE_COST = MATCH_THRESHOLD + 1
 
 
-def _hash_distance(local: LocalHash, candidate: imagehash.ImageHash) -> int:
-    """Compute distance between a local hash (single or multi-frame) and a candidate."""
-    if isinstance(local, imagehash.ImageHash):
-        return int(local - candidate)
-    if not local:
+def _pairwise_distance(a: LocalHash, b: LocalHash) -> int:
+    """Distance between two hashes. Multi-frame hashes use minimum distance."""
+    # Flatten both sides to lists for uniform handling.
+    frames_a = [a] if isinstance(a, imagehash.ImageHash) else a
+    frames_b = [b] if isinstance(b, imagehash.ImageHash) else b
+    if not frames_a or not frames_b:
         return _CROSS_TYPE_COST
-    return min(int(frame - candidate) for frame in local)
+    return min(int(fa - fb) for fa in frames_a for fb in frames_b)
 
 
 def build_cost_matrix(
-    local_hashes: list[LocalHash],
-    candidate_hashes: list[imagehash.ImageHash],
-    local_is_video: list[bool],
-    candidate_is_video: list[bool],
+    local_media: list[HashedMedia],
+    candidate_media: list[HashedMedia],
 ) -> list[list[int]]:
     """Build a distance matrix. Cross-type pairs get infinite cost."""
     matrix: list[list[int]] = []
-    for i, lh in enumerate(local_hashes):
+    for loc in local_media:
         row: list[int] = []
-        for j, ch in enumerate(candidate_hashes):
-            if local_is_video[i] != candidate_is_video[j]:
+        for cand in candidate_media:
+            if loc.is_video != cand.is_video:
                 row.append(_CROSS_TYPE_COST)
             else:
-                row.append(_hash_distance(lh, ch))
+                row.append(_pairwise_distance(loc.hash, cand.hash))
         matrix.append(row)
     return matrix
 
 
-def match_within_window(  # noqa: PLR0913
-    local_names: list[MediaFilename],
-    local_hashes: list[LocalHash],
-    candidate_ids: list[GoogleMediaId],
-    candidate_hashes: list[imagehash.ImageHash],
-    local_is_video: list[bool],
-    candidate_is_video: list[bool],
+def match_within_window(
+    local_media: list[HashedMedia],
+    candidate_media: list[HashedMedia],
     threshold: int = MATCH_THRESHOLD,
 ) -> list[MatchResult]:
     """Run Hungarian algorithm on a cost matrix, reject pairs above threshold."""
-    if not local_names or not candidate_ids:
+    if not local_media or not candidate_media:
         return []
 
-    cost = np.array(
-        build_cost_matrix(
-            local_hashes, candidate_hashes, local_is_video, candidate_is_video
-        )
-    )
+    cost = np.array(build_cost_matrix(local_media, candidate_media))
     row_idx, col_idx = linear_sum_assignment(cost)
 
     results: list[MatchResult] = []
@@ -305,8 +310,8 @@ def match_within_window(  # noqa: PLR0913
         if dist <= threshold:
             results.append(
                 MatchResult(
-                    local_name=local_names[r],
-                    google_id=candidate_ids[c],
+                    local_name=local_media[r].key,
+                    google_id=candidate_media[c].key,
                     distance=dist,
                 )
             )
@@ -367,6 +372,7 @@ async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | 
             if is_video(name):
                 return name, await asyncio.to_thread(_extract_video_frames, path)
             return name, await asyncio.to_thread(compute_phash_from_path, path)
+    # Pillow raises SyntaxError on corrupt/truncated image headers.
     except OSError, SyntaxError, subprocess.SubprocessError:
         logger.warning("Failed to hash %s", name, exc_info=True)
         return name, None
@@ -496,25 +502,24 @@ def _match_across_windows(
 
     for window in windows:
         window_items = google_by_window[window.step_id]
-        unmatched_local = [
-            n for n in media_names if n in local_hashes and n not in matched_locals
+        hashed_locals = [
+            HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
+            for n in media_names
+            if n in local_hashes and n not in matched_locals
         ]
-        unmatched_cands = [
-            item
+        hashed_cands = [
+            HashedMedia(
+                key=item.id,
+                hash=candidate_hashes[item.id],
+                is_video=item.type == "VIDEO",
+            )
             for item in window_items
             if item.id in candidate_hashes and item.id not in matched_candidates
         ]
-        if not unmatched_local or not unmatched_cands:
+        if not hashed_locals or not hashed_cands:
             continue
 
-        results = match_within_window(
-            local_names=unmatched_local,
-            local_hashes=[local_hashes[n] for n in unmatched_local],
-            candidate_ids=[item.id for item in unmatched_cands],
-            candidate_hashes=[candidate_hashes[item.id] for item in unmatched_cands],
-            local_is_video=[is_video(n) for n in unmatched_local],
-            candidate_is_video=[item.type == "VIDEO" for item in unmatched_cands],
-        )
+        results = match_within_window(hashed_locals, hashed_cands)
         for r in results:
             all_matches.append(r)
             matched_locals.add(r.local_name)
@@ -533,32 +538,28 @@ def _cross_step_fallback(  # noqa: PLR0913
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:
     """Try matching remaining unmatched media across all windows."""
-    remaining_local = [
-        n for n in media_names if n in local_hashes and n not in matched_locals
+    hashed_locals = [
+        HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
+        for n in media_names
+        if n in local_hashes and n not in matched_locals
     ]
-    remaining_candidates = [
-        item
+    hashed_cands = [
+        HashedMedia(
+            key=item.id,
+            hash=candidate_hashes[item.id],
+            is_video=item.type == "VIDEO",
+        )
         for item in google_items
         if item.id in candidate_hashes and item.id not in matched_candidates
     ]
 
     if (
-        remaining_local
-        and remaining_candidates
-        and len(remaining_local) <= _FALLBACK_MAX_DIMENSION
-        and len(remaining_candidates) <= _FALLBACK_MAX_DIMENSION
+        hashed_locals
+        and hashed_cands
+        and len(hashed_locals) <= _FALLBACK_MAX_DIMENSION
+        and len(hashed_cands) <= _FALLBACK_MAX_DIMENSION
     ):
-        fallback_results = match_within_window(
-            local_names=remaining_local,
-            local_hashes=[local_hashes[n] for n in remaining_local],
-            candidate_ids=[item.id for item in remaining_candidates],
-            candidate_hashes=[
-                candidate_hashes[item.id] for item in remaining_candidates
-            ],
-            local_is_video=[is_video(n) for n in remaining_local],
-            candidate_is_video=[item.type == "VIDEO" for item in remaining_candidates],
-        )
-        all_matches.extend(fallback_results)
+        all_matches.extend(match_within_window(hashed_locals, hashed_cands))
 
 
 # ---------------------------------------------------------------------------

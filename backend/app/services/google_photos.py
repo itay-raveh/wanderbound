@@ -9,7 +9,7 @@ import logging
 import time
 from functools import cache
 from pathlib import Path
-from typing import IO, Annotated
+from typing import Annotated, Literal
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -44,6 +44,8 @@ type GoogleMediaId = Annotated[str, StringConstraints(max_length=256)]
 type MediaFilename = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._() -]+$")]
 type MimeType = str
 type MediaBaseUrl = str
+type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
+type VideoProcessingStatus = Literal["READY", "PROCESSING", "FAILED"]
 
 
 # ---------------------------------------------------------------------------
@@ -109,9 +111,9 @@ class MediaFile(BaseModel):
 class PickedMediaItem(BaseModel):
     id: GoogleMediaId
     create_time: str
-    type: str  # "PHOTO" or "VIDEO"
+    type: GoogleMediaType
     media_file: MediaFile
-    video_processing_status: str | None = None  # "READY", "PROCESSING", "FAILED"
+    video_processing_status: VideoProcessingStatus | None = None
 
 
 class PickerSession(BaseModel):
@@ -142,7 +144,7 @@ class _MediaFileMetadata(_GoogleResponse):
 
 
 class _VideoMetadata(_GoogleResponse):
-    processing_status: str = "READY"
+    processing_status: VideoProcessingStatus = "READY"
 
 
 class _RawMediaFile(_GoogleResponse):
@@ -155,7 +157,7 @@ class _RawMediaFile(_GoogleResponse):
 class _RawMediaItem(_GoogleResponse):
     id: str
     create_time: str = ""
-    type: str = "PHOTO"
+    type: GoogleMediaType = "PHOTO"
     media_file: _RawMediaFile = _RawMediaFile()
     video_metadata: _VideoMetadata | None = None
 
@@ -329,23 +331,20 @@ async def download_media_to_file(
         buf = bytearray()
         total_bytes = 0
 
-        def _flush(f: IO[bytes], data: bytes) -> None:
-            f.write(data)
-
         with dest.open("wb") as f:
             async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
                 total_bytes += len(chunk)
                 if total_bytes > max_bytes:
-                    dest.unlink(missing_ok=True)  # noqa: ASYNC240
+                    await asyncio.to_thread(dest.unlink, missing_ok=True)
                     raise DownloadTooLargeError(
                         f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
                     )
                 buf.extend(chunk)
                 if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
-                    await asyncio.to_thread(_flush, f, bytes(buf))
+                    await asyncio.to_thread(f.write, bytes(buf))
                     buf.clear()
             if buf:
-                await asyncio.to_thread(_flush, f, bytes(buf))
+                await asyncio.to_thread(f.write, bytes(buf))
 
 
 class TokenProvider:
