@@ -260,8 +260,10 @@ const { confirmUpgrade } = upgrade;
 }
 
 .chrome-tooltip {
-  max-width: 16rem;
-  padding: var(--gap-xs);
+  max-width: 22rem;
+  padding: var(--gap-sm);
+  font-size: var(--type-sm);
+  line-height: 1.4;
 }
 
 .chrome-tooltip-title {
@@ -271,7 +273,5 @@ const { confirmUpgrade } = upgrade;
 
 .chrome-tooltip-sub {
   margin: 0;
-  font-size: var(--type-xs);
-  line-height: 1.4;
 }
 </style>
