@@ -234,6 +234,7 @@ const { confirmUpgrade } = upgrade;
       :total="upgrade.matchSummary.value?.totalPicked ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
       :already-upgraded="upgrade.matchSummary.value?.alreadyUpgraded ?? 0"
+      :new-this-round="upgrade.matchSummary.value?.newThisRound ?? 0"
       @confirm="confirmUpgrade"
       @select-more="upgrade.selectMore()"
     />

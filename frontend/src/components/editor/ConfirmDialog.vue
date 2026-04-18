@@ -31,12 +31,7 @@ defineEmits<{
         {{ title }}
       </h3>
       <p v-if="body" class="confirm-text text-body2 text-muted">{{ body }}</p>
-      <div
-        :class="[
-          'confirm-actions',
-          secondaryLabel ? 'confirm-actions--stacked' : 'row no-wrap q-gutter-x-sm',
-        ]"
-      >
+      <div class="confirm-actions row no-wrap q-gutter-x-sm">
         <q-btn v-close-popup flat no-caps class="col text-body2 bg-surface">{{
           cancelLabel
         }}</q-btn>
@@ -44,7 +39,10 @@ defineEmits<{
           v-if="secondaryLabel"
           flat
           no-caps
-          class="col text-body2 bg-surface"
+          :class="[
+            'col text-body2',
+            confirmLabel ? 'secondary-btn' : 'confirm-btn primary',
+          ]"
           @click="$emit('secondary')"
         >
           {{ secondaryLabel }}
@@ -67,7 +65,7 @@ defineEmits<{
 <style lang="scss" scoped>
 .confirm-dialog {
   padding: 1.75rem;
-  max-width: 22rem;
+  max-width: 24rem;
 }
 
 .confirm-icon {
@@ -94,7 +92,7 @@ defineEmits<{
 
 .confirm-title {
   font-size: var(--type-subtitle);
-  margin: 0 0 var(--gap-xs);
+  margin: 0 0 var(--gap-md);
 }
 
 .confirm-text {
@@ -103,10 +101,8 @@ defineEmits<{
   margin: 0 0 var(--gap-lg);
 }
 
-.confirm-actions--stacked {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
+.secondary-btn {
+  border: 1px solid var(--border-color);
 }
 
 .confirm-btn {

@@ -11,6 +11,7 @@ const props = defineProps<{
   total: number;
   unmatched: number;
   alreadyUpgraded: number;
+  newThisRound: number;
 }>();
 
 defineEmits<{
@@ -24,24 +25,22 @@ const toUpgrade = computed(() => props.matched - props.alreadyUpgraded);
 
 const titleText = computed(() => {
   if (props.matched === 0) return t("upgrade.summary.noMatchTitle");
+  if (props.newThisRound === 0 && props.matched > 0)
+    return t("upgrade.summary.noNewMatchTitle");
   if (toUpgrade.value === 0) return t("upgrade.summary.allUpgradedTitle");
-  return t("upgrade.summary.title", {
-    matched: props.matched,
-    total: props.total,
-  });
+  return t("upgrade.summary.readyTitle", { count: toUpgrade.value });
 });
 
 const bodyText = computed(() => {
   if (props.matched === 0) return t("upgrade.summary.noMatchBody");
+  if (props.newThisRound === 0 && props.matched > 0)
+    return t("upgrade.summary.noNewMatchBody");
   if (toUpgrade.value === 0) return t("upgrade.summary.allUpgradedBody");
-  const parts: string[] = [];
-  if (props.alreadyUpgraded > 0) {
-    parts.push(t("upgrade.summary.alreadyUpgraded", { count: props.alreadyUpgraded }));
-  }
-  if (props.unmatched > 0) {
-    parts.push(t("upgrade.summary.unmatched", { count: props.unmatched }));
-  }
-  return parts.join("\n");
+  if (props.alreadyUpgraded > 0)
+    return t("upgrade.summary.alreadyUpgraded", {
+      count: props.alreadyUpgraded,
+    });
+  return "";
 });
 
 const confirmLabel = computed(() => {

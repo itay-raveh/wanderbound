@@ -39,6 +39,7 @@ interface MatchSummaryData {
   matched: number;
   alreadyUpgraded: number;
   unmatched: number;
+  newThisRound: number;
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -119,13 +120,14 @@ export function useMediaUpgrade() {
     accumulatedMatches.push(...byLocalName.values());
   }
 
-  function buildMergedSummary(): MatchSummaryData {
+  function buildMergedSummary(newThisRound: number): MatchSummaryData {
     return {
       matches: [...accumulatedMatches],
       totalPicked: runningTotalPicked,
       matched: accumulatedMatches.length,
       alreadyUpgraded: runningAlreadyUpgraded,
       unmatched: Math.max(0, runningTotalPicked - accumulatedMatches.length),
+      newThisRound,
     };
   }
 
@@ -179,13 +181,15 @@ export function useMediaUpgrade() {
         const roundSummary = await runMatchStream(albumId, currentSessionId, signal);
         if (signal.aborted) return;
 
+        const matchedBefore = accumulatedMatches.length;
         if (roundSummary) {
           mergeMatches(roundSummary.matches);
           runningTotalPicked += roundSummary.totalPicked;
           runningAlreadyUpgraded += roundSummary.alreadyUpgraded;
         }
+        const newThisRound = accumulatedMatches.length - matchedBefore;
 
-        matchSummary.value = buildMergedSummary();
+        matchSummary.value = buildMergedSummary(newThisRound);
         phase.value = "confirming";
         const action = await waitForConfirmation(signal);
         if (signal.aborted) return;
