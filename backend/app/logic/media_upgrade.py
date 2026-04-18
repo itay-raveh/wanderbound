@@ -875,8 +875,22 @@ async def execute_upgrade(  # noqa: PLR0913, C901
 
     if completed:
         skipped = len(skipped_names)
-        failed = total - replaced - skipped
-        yield UpgradeDone(replaced=replaced, skipped=skipped, failed=failed)
+        failed_names = [
+            m.local_name
+            for m in to_upgrade
+            if m.local_name not in succeeded and m.local_name not in skipped_names
+        ]
+        if failed_names:
+            logger.warning(
+                "Upgrade completed with %d failures: %s",
+                len(failed_names),
+                ", ".join(failed_names),
+            )
+        yield UpgradeDone(
+            replaced=replaced,
+            skipped=skipped,
+            failed=len(failed_names),
+        )
 
 
 async def apply_upgrade_results(

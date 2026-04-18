@@ -1,4 +1,5 @@
 import logging
+import shutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
@@ -53,6 +54,13 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
     await cleanup_orphaned_tmp(settings.USERS_FOLDER)
+
+    for binary in ("ffmpeg", "ffprobe"):
+        path = shutil.which(binary)
+        if path:
+            logger.info("%s available at %s", binary, path)
+        else:
+            logger.warning("%s not found on PATH - video features will fail", binary)
 
     async with pdf_lifespan() as browser_manager, export_lifespan():
         app.state.browser_manager = browser_manager
