@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
+import { Platform } from "quasar";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
 import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
@@ -159,6 +160,30 @@ const { confirmUpgrade } = upgrade;
       <ProgressBar :progress="progressFraction" />
     </button>
 
+    <button
+      v-else-if="!Platform.is.chrome"
+      class="action-btn"
+      aria-disabled="true"
+      :aria-label="t('upgrade.button')"
+    >
+      <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
+      {{ t("upgrade.button") }}
+      <q-tooltip
+        transition-show="scale"
+        transition-hide="scale"
+        class="q-menu"
+      >
+        <div class="chrome-tooltip">
+          <p class="chrome-tooltip-title">
+            {{ t("upgrade.errors.chromeOnly") }}
+          </p>
+          <p class="chrome-tooltip-sub text-faint">
+            {{ t("upgrade.chromeOnlySub") }}
+          </p>
+        </div>
+      </q-tooltip>
+    </button>
+
     <div
       v-else-if="upgrade.googlePhotosState.value === 'connected'"
       class="split-btn"
@@ -228,4 +253,25 @@ const { confirmUpgrade } = upgrade;
 <style lang="scss" scoped>
 @use "@/styles/action-button" as *;
 @include action-button;
+
+.action-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chrome-tooltip {
+  max-width: 16rem;
+  padding: var(--gap-xs);
+}
+
+.chrome-tooltip-title {
+  margin: 0 0 var(--gap-xs);
+  font-weight: 500;
+}
+
+.chrome-tooltip-sub {
+  margin: 0;
+  font-size: var(--type-xs);
+  line-height: 1.4;
+}
 </style>

@@ -257,7 +257,7 @@
     "onboarding": {
       "title": "Upgrade to Original Quality",
       "body": "Polarsteps compresses your photos and videos. Connect Google Photos to replace them with your originals.",
-      "tip": "For large trips, creating a Google Photos album makes selection easier.",
+      "tip": "To easily select many photos, we recommend creating an album in Google Photos.",
       "continue": "Connect Google Photos",
       "cancel": "Cancel"
     },
@@ -285,8 +285,9 @@
       "connectionLost": "Connection lost during upgrade.",
       "authCancelled": "Authorization cancelled.",
       "authTimeout": "Authorization timed out.",
-      "chromeOnly": "Please open this page in Chrome to upgrade your photos."
+      "chromeOnly": "Unfortunately, this only works from Google Chrome."
     },
+    "chromeOnlySub": "This is a known Google issue. We hope they fix it soon.",
     "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",
     "disconnectConfirm": {

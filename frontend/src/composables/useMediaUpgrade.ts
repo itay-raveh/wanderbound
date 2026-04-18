@@ -1,4 +1,3 @@
-import { Platform } from "quasar";
 import { onScopeDispose, ref, watch } from "vue";
 import {
   matchMedia,
@@ -101,13 +100,6 @@ export function useMediaUpgrade() {
   async function start(albumId: string) {
     if (phase.value !== "idle" && phase.value !== "done" && phase.value !== "error")
       return;
-
-    // Google Photos Picker only works in Chrome-based browsers.
-    if (!Platform.is.chrome) {
-      phase.value = "error";
-      errorDetail.value = UPGRADE_ERRORS.chromeOnly;
-      return;
-    }
 
     if (resetTimer !== null) {
       clearTimeout(resetTimer);
@@ -251,24 +243,14 @@ export function useMediaUpgrade() {
     sessionId: string,
     signal: AbortSignal,
   ): Promise<void> {
-    // Google sets COOP on the Picker page, so popup.closed throws
-    // a cross-origin error once COOP activates. We still check it
-    // because it works during the initial redirect and after the
-    // user closes the popup, catching the common "changed my mind"
-    // case instead of forcing a 10-minute timeout.
+    // Google sets COOP on the Picker page, which severs the opener
+    // reference and makes popup.closed return true even while the
+    // picker is still open.  Rely solely on the backend poll and
+    // the cancel button for user-initiated cancellation.
     const deadline = Date.now() + PICKER_TIMEOUT_MS;
     while (!signal.aborted) {
       if (Date.now() > deadline) {
         throw new Error(UPGRADE_ERRORS.selectionTimeout);
-      }
-      try {
-        if (activePopup?.closed) {
-          throw new Error(UPGRADE_ERRORS.selectionCancelled);
-        }
-      } catch (e) {
-        // COOP blocks cross-origin property access (DOMException) -
-        // ignore those, but re-throw our intentional cancellation.
-        if (e instanceof Error && !(e instanceof DOMException)) throw e;
       }
       const result = await gp.pollSession(sessionId);
       if (result.ready) return;

@@ -257,7 +257,7 @@
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
       "body": "Polarsteps מפקסלים את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
-      "tip": "לטיולים גדולים, יצירת אלבום ב-Google Photos מקלה על הבחירה.",
+      "tip": "כדי לבחור תמונות רבות בקלות, מומלץ ליצור אלבום ב-Google Photos.",
       "continue": "חיבור Google Photos",
       "cancel": "ביטול"
     },
@@ -285,8 +285,9 @@
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
       "authTimeout": "ההרשאה פגה.",
-      "chromeOnly": "פתחו את הדף ב-Chrome כדי לשדרג את התמונות."
+      "chromeOnly": "לצערנו, זה עובד רק מ-Google Chrome."
     },
+    "chromeOnlySub": "זהו באג ידוע של Google. אנחנו מקווים שהם יתקנו בקרוב.",
     "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",
     "disconnectConfirm": {

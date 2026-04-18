@@ -30,7 +30,7 @@ const { t } = useI18n();
           v-close-popup
           flat
           no-caps
-          class="col text-body2 bg-surface"
+          class="col text-body2 cancel-btn"
         >
           {{ t("upgrade.onboarding.cancel") }}
         </q-btn>
@@ -73,6 +73,10 @@ const { t } = useI18n();
 
 .onboarding-actions {
   margin-top: var(--gap-md);
+}
+
+.cancel-btn {
+  border: 1px solid var(--border-color);
 }
 
 .confirm-btn {

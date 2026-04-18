@@ -6,7 +6,6 @@ export const UPGRADE_ERRORS = {
   connectionLost: "connectionLost",
   authCancelled: "authCancelled",
   authTimeout: "authTimeout",
-  chromeOnly: "chromeOnly",
 } as const;
 
 export type UpgradeErrorKey = (typeof UPGRADE_ERRORS)[keyof typeof UPGRADE_ERRORS];
