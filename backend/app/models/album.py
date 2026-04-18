@@ -65,6 +65,14 @@ class AlbumMeta(AlbumBase):
     colors: dict[CountryCode, HexColor] = Field(
         sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
     )
+    upgraded_media: dict[MediaFilename, GoogleMediaId] = Field(
+        default_factory=dict,
+        sa_column=Column(
+            PydanticJSON(dict[MediaFilename, GoogleMediaId]),
+            nullable=False,
+            server_default="{}",
+        ),
+    )
 
 
 class Album(AlbumMeta, table=True):
@@ -73,14 +81,6 @@ class Album(AlbumMeta, table=True):
     media: list[Media] = Field(
         default_factory=list,
         sa_column=Column(PydanticJSON(list[Media]), nullable=False),
-    )
-    upgraded_media: dict[MediaFilename, GoogleMediaId] = Field(
-        default_factory=dict,
-        sa_column=Column(
-            PydanticJSON(dict[MediaFilename, GoogleMediaId]),
-            nullable=False,
-            server_default="{}",
-        ),
     )
 
 

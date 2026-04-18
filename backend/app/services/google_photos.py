@@ -25,6 +25,12 @@ _PICKER_BASE = "https://photospicker.googleapis.com"
 _SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
 _DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 _DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
+_MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB per file (videos)
+_MAX_PHOTO_BYTES = 200 * 1024 * 1024  # 200 MB per photo
+
+
+class DownloadTooLargeError(RuntimeError):
+    """Raised when a download exceeds the size limit."""
 
 
 # ---------------------------------------------------------------------------
@@ -34,8 +40,8 @@ _DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
 type AccessToken = str
 type RefreshToken = str
 type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
-type GoogleMediaId = str
-type MediaFilename = str
+type GoogleMediaId = Annotated[str, StringConstraints(max_length=256)]
+type MediaFilename = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._() -]+$")]
 type MimeType = str
 type MediaBaseUrl = str
 
@@ -83,6 +89,7 @@ def _download_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         transport=RetryTransport(retry=_RETRY),
         timeout=60.0,
+        follow_redirects=True,
     )
 
 
@@ -159,7 +166,7 @@ class _PollingConfig(_GoogleResponse):
 
 class _SessionResponse(_GoogleResponse):
     id: str
-    picker_uri: str
+    picker_uri: str | None = None  # only present in create response
     polling_config: _PollingConfig | None = None
     media_items_set: bool = False
 
@@ -202,6 +209,8 @@ async def create_picker_session(access_token: AccessToken) -> PickerSession:
     )
     resp.raise_for_status()
     data = _SessionResponse.model_validate_json(resp.content)
+    if not data.picker_uri:
+        raise ValueError("Create session response missing pickerUri")
     polling = data.polling_config
     return PickerSession(
         id=data.id,
@@ -222,6 +231,9 @@ async def poll_picker_session(
     return _SessionResponse.model_validate_json(resp.content)
 
 
+_MAX_MEDIA_PAGES = 100
+
+
 async def get_media_items(
     session_id: PickerSessionId, access_token: AccessToken
 ) -> list[PickedMediaItem]:
@@ -229,7 +241,7 @@ async def get_media_items(
     items: list[PickedMediaItem] = []
     page_token: str | None = None
     client = _picker_client()
-    while True:
+    for _ in range(_MAX_MEDIA_PAGES):
         params: dict[str, str] = {"sessionId": session_id}
         if page_token:
             params["pageToken"] = page_token
@@ -275,7 +287,11 @@ async def delete_picker_session(
 
 
 async def download_media_bytes(
-    base_url: MediaBaseUrl, access_token: AccessToken, *, param: str = "=d"
+    base_url: MediaBaseUrl,
+    access_token: AccessToken,
+    *,
+    param: str = "=d",
+    max_bytes: int = _MAX_PHOTO_BYTES,
 ) -> bytes:
     """Download media bytes from a baseUrl with the given parameter suffix.
 
@@ -284,6 +300,10 @@ async def download_media_bytes(
     url = f"{base_url}{param}"
     resp = await _download_client().get(url, headers=_picker_headers(access_token))
     resp.raise_for_status()
+    if len(resp.content) > max_bytes:
+        raise DownloadTooLargeError(
+            f"Photo download exceeds {max_bytes // (1024 * 1024)} MB limit"
+        )
     return resp.content
 
 
@@ -293,6 +313,7 @@ async def download_media_to_file(
     dest: Path,
     *,
     param: str = "=d",
+    max_bytes: int = _MAX_DOWNLOAD_BYTES,
 ) -> None:
     """Stream media bytes to a file on disk (avoids holding large files in RAM).
 
@@ -306,12 +327,19 @@ async def download_media_to_file(
     ) as resp:
         resp.raise_for_status()
         buf = bytearray()
+        total_bytes = 0
 
         def _flush(f: IO[bytes], data: bytes) -> None:
             f.write(data)
 
         with dest.open("wb") as f:
             async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    dest.unlink(missing_ok=True)  # noqa: ASYNC240
+                    raise DownloadTooLargeError(
+                        f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
+                    )
                 buf.extend(chunk)
                 if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
                     await asyncio.to_thread(_flush, f, bytes(buf))

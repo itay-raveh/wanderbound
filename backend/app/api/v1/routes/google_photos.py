@@ -6,7 +6,7 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -14,11 +14,14 @@ from typing import Annotated
 import httpx
 from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
+from app.core.db import get_engine
 from app.core.encryption import decrypt_token, encrypt_token
 from app.logic.media_upgrade import (
     MatchResult,
@@ -49,12 +52,9 @@ logger = logging.getLogger(__name__)
 
 # Tracks albums currently being upgraded. The check-and-add is done without
 # intervening awaits so two concurrent requests can't both pass the check.
+# NOTE: process-local - does not protect across multiple workers/containers.
+# Use a DB advisory lock if running multiple workers in production.
 _upgrades_in_progress: set[tuple[int, str]] = set()
-
-
-def _sse(event: UpgradeEvent) -> str:
-    """Format an upgrade event as an SSE data frame."""
-    return f"data: {event.model_dump_json()}\n\n"
 
 
 def _album_dir(user: UserDep, aid: str) -> Path:
@@ -70,7 +70,7 @@ def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> 
     for m in matches:
         if m.local_name not in valid_names:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"Unknown media file: {m.local_name}",
             )
 
@@ -130,49 +130,34 @@ async def authorize(request: Request, user: UserDep) -> dict[str, str]:
     return {"authorization_url": rv["url"]}
 
 
-_CALLBACK_BODY = (
-    "<!DOCTYPE html><html><head><title>Connected</title>"
-    "<style>body{font-family:system-ui;display:grid;"
-    "place-items:center;height:100vh;margin:0}</style>"
-    "</head><body><p>Connected. You can close this tab."
-    "</p></body></html>"
-)
+def _oauth_redirect(*, error: bool = False) -> RedirectResponse:
+    url = f"{get_settings().VITE_FRONTEND_URL}/oauth-connected.html"
+    if error:
+        url += "?error"
+    return RedirectResponse(url)
 
 
-_CALLBACK_ERROR_BODY = (
-    "<!DOCTYPE html><html><head><title>Connection Failed</title>"
-    "<style>body{font-family:system-ui;display:grid;"
-    "place-items:center;height:100vh;margin:0;color:#666}"
-    "</style></head><body><p>Could not connect Google Photos. "
-    "Please close this tab and try again.</p></body></html>"
-)
-
-
-@router.get("/callback", name="google_photos_callback", response_class=HTMLResponse)
+@router.get("/callback", name="google_photos_callback")
 async def callback(
     request: Request, user: UserDep, session: SessionDep
-) -> HTMLResponse:
+) -> RedirectResponse:
     oauth = get_oauth()
-    redirect_uri = str(request.url_for("google_photos_callback"))
     try:
-        token = await oauth.google_photos.authorize_access_token(
-            request, redirect_uri=redirect_uri
-        )
+        token = await oauth.google_photos.authorize_access_token(request)
     except OAuthError:
         logger.exception("Google Photos OAuth callback failed for user %d", user.id)
-        return HTMLResponse(_CALLBACK_ERROR_BODY, status_code=400)
+        return _oauth_redirect(error=True)
     refresh_token = token.get("refresh_token")
     if not refresh_token:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "No refresh token received. Try disconnecting and reconnecting.",
-        )
+        logger.warning("No refresh token for user %d", user.id)
+        return _oauth_redirect(error=True)
 
     user.google_photos_refresh_token = encrypt_token(refresh_token)
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
-    return HTMLResponse(_CALLBACK_BODY)
+    logger.info("OAuth callback complete: user %d connected", user.id)
+    return _oauth_redirect()
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +206,7 @@ async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
 
 @router.post(
     "/match/{aid}",
+    response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
 async def match_media(
@@ -228,42 +214,49 @@ async def match_media(
     user: UserDep,
     session: SessionDep,
     session_id: Annotated[PickerSessionId, Query()],
-) -> EventSourceResponse:
+) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
-    access_token = await _get_access_token(user)
+    encrypted_refresh = user.google_photos_refresh_token
+    if not encrypted_refresh:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Google Photos not connected. Please authorize first.",
+        )
+    tokens = TokenProvider(decrypt_token(encrypted_refresh))
+    access_token = await tokens.get()
 
     album = await session.get_one(Album, (user.id, aid))
     album_dir = _album_dir(user, aid)
 
     items = await get_media_items(session_id, access_token)
-    media_names = [m.name for m in album.media]
 
     step_rows = (
         await session.exec(
             select(Step)
             .where(Step.uid == user.id, Step.aid == aid)
-            .order_by(Step.timestamp)  # type: ignore[union-attr]
+            .order_by(col(Step.timestamp))
         )
     ).all()
     step_timestamps = [s.timestamp for s in step_rows]
     step_ids = [s.id for s in step_rows]
+    media_by_step = {
+        s.id: [name for page in s.pages for name in page] + s.unused for s in step_rows
+    }
 
-    async def stream() -> AsyncGenerator[str]:
-        try:
-            async for event in run_matching(
-                album_dir=album_dir,
-                media_names=media_names,
-                step_timestamps=step_timestamps,
-                step_ids=step_ids,
-                google_items=items,
-                access_token=access_token,
-            ):
-                yield _sse(event)
-        except Exception:
-            logger.exception("Matching failed for album %s", aid)
-            yield _sse(UpgradeError(detail="Matching failed unexpectedly."))
-
-    return EventSourceResponse(stream())
+    try:
+        async for event in run_matching(
+            album_dir=album_dir,
+            media_by_step=media_by_step,
+            step_timestamps=step_timestamps,
+            step_ids=step_ids,
+            google_items=items,
+            tokens=tokens,
+            already_upgraded=album.upgraded_media,
+        ):
+            yield event
+    except Exception:
+        logger.exception("Matching failed for album %s", aid)
+        yield UpgradeError(detail="Matching failed unexpectedly.")
 
 
 class UpgradeRequest(BaseModel):
@@ -304,8 +297,48 @@ async def _prepare_upgrade(
     return album, album_dir, items_by_id, tokens
 
 
+async def _persist_upgrade(
+    uid: int,
+    aid: str,
+    album_dir: Path,
+    matches: list[MatchResult],
+    succeeded: set[str],
+) -> None:
+    """Write upgrade results to DB, retrying once on transient failure."""
+    for attempt in range(2):
+        try:
+            engine = get_engine()
+            async with AsyncSession(engine, expire_on_commit=False) as persist_session:
+                album = await persist_session.get_one(Album, (uid, aid))
+                album.media, album.upgraded_media = await apply_upgrade_results(
+                    album_dir,
+                    matches,
+                    album.media,
+                    album.upgraded_media,
+                    succeeded,
+                )
+                persist_session.add(album)
+                await persist_session.commit()
+        except Exception:
+            if attempt == 0:
+                logger.warning(
+                    "Persist attempt 1 failed for album %s, retrying",
+                    aid,
+                    exc_info=True,
+                )
+            else:
+                logger.exception(
+                    "Failed to persist upgrade results for album %s"
+                    " - filesystem may be ahead of DB",
+                    aid,
+                )
+        else:
+            return
+
+
 @router.post(
     "/upgrade/{aid}",
+    response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
 )
 async def upgrade_media(
@@ -313,7 +346,7 @@ async def upgrade_media(
     body: UpgradeRequest,
     user: UserDep,
     session: SessionDep,
-) -> EventSourceResponse:
+) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
     if not user.google_photos_refresh_token:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
@@ -332,51 +365,28 @@ async def upgrade_media(
         user, body, session, aid, key
     )
 
-    async def stream() -> AsyncGenerator[str]:
-        succeeded: set[str] = set()
+    succeeded: set[str] = set()
+    try:
+        async for event in execute_upgrade(
+            album_dir=album_dir,
+            matches=body.matches,
+            google_items_by_id=items_by_id,
+            tokens=tokens,
+            already_upgraded=album.upgraded_media,
+            succeeded=succeeded,
+        ):
+            yield event
+    except Exception:
+        logger.exception("Upgrade failed for album %s", aid)
+        yield UpgradeError(detail="Upgrade failed unexpectedly.")
+    finally:
+        await _persist_upgrade(user.id, aid, album_dir, body.matches, succeeded)
         try:
-            async for event in execute_upgrade(
-                album_dir=album_dir,
-                matches=body.matches,
-                google_items_by_id=items_by_id,
-                tokens=tokens,
-                already_upgraded=album.upgraded_media,
-                succeeded=succeeded,
-            ):
-                yield _sse(event)
-        except Exception:
-            logger.exception("Upgrade failed for album %s", aid)
-            yield _sse(UpgradeError(detail="Upgrade failed unexpectedly."))
+            await delete_picker_session(body.session_id, await tokens.get())
+        except httpx.HTTPError, RuntimeError:
+            logger.warning("Failed to delete picker session %s", body.session_id)
         finally:
-            # Persist results even if the client disconnects mid-stream.
-            # Files already replaced on disk must be reflected in the DB.
-            try:
-                # Re-fetch album state so we don't overwrite concurrent edits
-                # (e.g. user rearranged photos in another tab during upgrade).
-                await session.refresh(album)
-                album.media, album.upgraded_media = await apply_upgrade_results(
-                    album_dir,
-                    body.matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
-                )
-                session.add(album)
-                await session.commit()
-            except Exception:
-                logger.exception(
-                    "Failed to persist upgrade results for album %s"
-                    " - filesystem may be ahead of DB",
-                    aid,
-                )
-            try:
-                await delete_picker_session(body.session_id, await tokens.get())
-            except httpx.HTTPError, RuntimeError:
-                logger.warning("Failed to delete picker session %s", body.session_id)
-            finally:
-                _upgrades_in_progress.discard(key)
-
-    return EventSourceResponse(stream())
+            _upgrades_in_progress.discard(key)
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +394,7 @@ async def upgrade_media(
 # ---------------------------------------------------------------------------
 
 
-@router.delete("/connection")
+@router.delete("/connection", status_code=status.HTTP_204_NO_CONTENT)
 async def disconnect(user: UserDep, session: SessionDep) -> None:
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None

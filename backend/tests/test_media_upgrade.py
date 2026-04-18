@@ -18,6 +18,7 @@ import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
+from app.logic.layout.media import Media
 from app.logic.media_upgrade import (
     _CROSS_TYPE_COST,
     _FALLBACK_MAX_DIMENSION,
@@ -31,11 +32,14 @@ from app.logic.media_upgrade import (
     _parse_timestamp,
     _process_photo_sync,
     _process_video,
+    apply_upgrade_results,
     build_cost_matrix,
     build_step_windows,
     match_within_window,
 )
 from app.services.google_photos import MediaFile, PickedMediaItem
+
+from .factories import create_test_jpeg
 
 
 def _make_hash(value: int) -> imagehash.ImageHash:
@@ -716,3 +720,106 @@ class TestProcessVideo:
         # Should have no meaningful metadata (ffmpeg adds encoder tag, that's ok)
         assert "location" not in tags
         assert "creation_time" not in tags
+
+
+# ---------------------------------------------------------------------------
+# apply_upgrade_results
+# ---------------------------------------------------------------------------
+
+
+class TestApplyUpgradeResults:
+    async def test_updates_media_for_succeeded_files(self, tmp_path: Path) -> None:
+        """Succeeded files are re-probed and added to upgraded_media."""
+        create_test_jpeg(tmp_path / "photo1.jpg", 4000, 3000)
+        old_media = [Media(name="photo1.jpg", width=800, height=600)]
+        matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
+
+        new_media, new_upgraded = await apply_upgrade_results(
+            tmp_path,
+            matches,
+            old_media,
+            {},
+            {"photo1.jpg"},
+        )
+        assert len(new_media) == 1
+        assert new_media[0].width == 4000
+        assert new_media[0].height == 3000
+        assert new_upgraded == {"photo1.jpg": "gid-1"}
+
+    async def test_skips_files_not_in_succeeded(self, tmp_path: Path) -> None:
+        """Files not in succeeded set keep original metadata."""
+        create_test_jpeg(tmp_path / "photo1.jpg", 4000, 3000)
+        old_media = [Media(name="photo1.jpg", width=800, height=600)]
+        matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
+
+        new_media, new_upgraded = await apply_upgrade_results(
+            tmp_path,
+            matches,
+            old_media,
+            {},
+            set(),
+        )
+        assert new_media[0].width == 800  # unchanged
+        assert new_upgraded == {}
+
+    async def test_skips_files_not_in_media_list(self, tmp_path: Path) -> None:
+        """Files in succeeded but not in media list are silently skipped."""
+        create_test_jpeg(tmp_path / "orphan.jpg", 4000, 3000)
+        old_media = [Media(name="photo1.jpg", width=800, height=600)]
+        matches = [MatchResult(local_name="orphan.jpg", google_id="gid-1", distance=0)]
+
+        new_media, new_upgraded = await apply_upgrade_results(
+            tmp_path,
+            matches,
+            old_media,
+            {},
+            {"orphan.jpg"},
+        )
+        assert len(new_media) == 1
+        assert new_media[0].name == "photo1.jpg"
+        assert new_upgraded == {}
+
+    async def test_continues_on_probe_failure(self, tmp_path: Path) -> None:
+        """If re-probing a file fails, it is skipped but others proceed."""
+        create_test_jpeg(tmp_path / "good.jpg", 4000, 3000)
+        # Write garbage to simulate a corrupted file
+        (tmp_path / "bad.jpg").write_bytes(b"not an image")
+        old_media = [
+            Media(name="good.jpg", width=800, height=600),
+            Media(name="bad.jpg", width=800, height=600),
+        ]
+        matches = [
+            MatchResult(local_name="bad.jpg", google_id="gid-bad", distance=0),
+            MatchResult(local_name="good.jpg", google_id="gid-good", distance=0),
+        ]
+
+        new_media, new_upgraded = await apply_upgrade_results(
+            tmp_path,
+            matches,
+            old_media,
+            {},
+            {"bad.jpg", "good.jpg"},
+        )
+        assert new_upgraded == {"good.jpg": "gid-good"}
+        media_by_name = {m.name: m for m in new_media}
+        assert media_by_name["good.jpg"].width == 4000
+        assert media_by_name["bad.jpg"].width == 800  # unchanged
+
+    async def test_preserves_existing_upgraded_media(self, tmp_path: Path) -> None:
+        """Previously upgraded files are preserved in the output map."""
+        create_test_jpeg(tmp_path / "new.jpg", 4000, 3000)
+        old_media = [
+            Media(name="old.jpg", width=2000, height=1500),
+            Media(name="new.jpg", width=800, height=600),
+        ]
+        matches = [MatchResult(local_name="new.jpg", google_id="gid-new", distance=0)]
+        existing_upgraded = {"old.jpg": "gid-old"}
+
+        _, new_upgraded = await apply_upgrade_results(
+            tmp_path,
+            matches,
+            old_media,
+            existing_upgraded,
+            {"new.jpg"},
+        )
+        assert new_upgraded == {"old.jpg": "gid-old", "new.jpg": "gid-new"}

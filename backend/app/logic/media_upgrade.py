@@ -10,12 +10,13 @@ import contextlib
 import functools
 import logging
 import os
+import shutil
 import subprocess
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import httpx
 import imagehash
@@ -23,12 +24,11 @@ import numpy as np
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from scipy.optimize import linear_sum_assignment
 
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.services.google_photos import (
-    AccessToken,
     GoogleMediaId,
     MediaFilename,
     PickedMediaItem,
@@ -44,6 +44,9 @@ MATCH_THRESHOLD = 12
 
 # Skip cross-step fallback if the matrix exceeds this size.
 _FALLBACK_MAX_DIMENSION = 100
+
+
+_UPGRADE_TMP_DIR = ".upgrade-tmp"
 
 
 # Bounded concurrency for Google Photos downloads (matching + replacement).
@@ -98,8 +101,9 @@ class UpgradeDownloading(BaseModel):
 
 class UpgradeMatchSummary(BaseModel):
     type: Literal["match_summary"] = "match_summary"
-    total_media: int
+    total_picked: int
     matched: int
+    already_upgraded: int
     unmatched: int
     matches: list[MatchResult]
 
@@ -116,13 +120,14 @@ class UpgradeError(BaseModel):
     detail: str
 
 
-UpgradeEvent = (
+UpgradeEvent = Annotated[
     UpgradeMatching
     | UpgradeDownloading
     | UpgradeMatchSummary
     | UpgradeDone
-    | UpgradeError
-)
+    | UpgradeError,
+    Field(discriminator="type"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -352,60 +357,40 @@ def _deduplicate_items(
     return list({item.id: item for item in items}.values())
 
 
-async def _hash_local_media(
-    album_dir: Path,
-    media_names: list[MediaFilename],
-) -> dict[MediaFilename, LocalHash]:
-    """Compute perceptual hashes for local media files (concurrent).
-
-    Photos: single pHash. Videos: list of 4 pHashes from sampled frames.
-    """
-
-    async def _hash_one(name: str) -> tuple[str, LocalHash | None]:
-        path = album_dir / name
-        if not path.exists():
-            return name, None
-        try:
-            async with _hash_sem():
-                if is_video(name):
-                    return name, await asyncio.to_thread(_extract_video_frames, path)
-                return name, await asyncio.to_thread(compute_phash_from_path, path)
-        except OSError, SyntaxError, subprocess.SubprocessError:
-            logger.warning("Failed to hash %s", name, exc_info=True)
-            return name, None
-
-    results = await asyncio.gather(*(_hash_one(n) for n in media_names))
-    return {name: h for name, h in results if h is not None}
+async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | None]:
+    """Hash one local file. Photos: single pHash. Videos: 4 sampled frames."""
+    path = album_dir / name
+    if not path.exists():
+        return name, None
+    try:
+        async with _hash_sem():
+            if is_video(name):
+                return name, await asyncio.to_thread(_extract_video_frames, path)
+            return name, await asyncio.to_thread(compute_phash_from_path, path)
+    except OSError, SyntaxError, subprocess.SubprocessError:
+        logger.warning("Failed to hash %s", name, exc_info=True)
+        return name, None
 
 
-async def _hash_candidates(
-    items: list[PickedMediaItem],
-    access_token: AccessToken,
-) -> dict[GoogleMediaId, imagehash.ImageHash]:
-    """Download thumbnails and compute perceptual hashes (concurrent)."""
-
-    async def _hash_one(
-        item: PickedMediaItem,
-    ) -> tuple[str, imagehash.ImageHash | None]:
-        try:
-            thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
-            async with _download_sem():
-                thumb_bytes = await download_media_bytes(
-                    item.media_file.base_url, access_token, param=thumb_param
-                )
-            return item.id, await asyncio.to_thread(
-                compute_phash_from_bytes, thumb_bytes
+async def _hash_candidate_one(
+    item: PickedMediaItem, tokens: TokenProvider
+) -> tuple[str, imagehash.ImageHash | None]:
+    """Download one Google Photos thumbnail and compute its pHash."""
+    try:
+        thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
+        async with _download_sem():
+            access_token = await tokens.get()
+            thumb_bytes = await download_media_bytes(
+                item.media_file.base_url, access_token, param=thumb_param
             )
-        except OSError, SyntaxError, httpx.HTTPError:
-            logger.warning(
-                "Failed to download/hash thumbnail for %s",
-                item.id,
-                exc_info=True,
-            )
-            return item.id, None
-
-    results = await asyncio.gather(*(_hash_one(item) for item in items))
-    return {item_id: h for item_id, h in results if h is not None}
+        return item.id, await asyncio.to_thread(compute_phash_from_bytes, thumb_bytes)
+    except OSError, SyntaxError, httpx.HTTPError:
+        logger.warning(
+            "Failed to download/hash thumbnail for %s",
+            item.id,
+            exc_info=True,
+        )
+        return item.id, None
 
 
 # ---------------------------------------------------------------------------
@@ -415,40 +400,65 @@ async def _hash_candidates(
 
 async def run_matching(  # noqa: PLR0913
     album_dir: Path,
-    media_names: list[MediaFilename],
+    media_by_step: dict[int, list[MediaFilename]],
     step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
-    access_token: AccessToken,
+    tokens: TokenProvider,
+    already_upgraded: dict[MediaFilename, GoogleMediaId] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
-    1. Hash local media (photos + videos)
-    2. Bucket Google items into step windows
-    3. Download thumbnails and hash them
-    4. Hungarian match within each window
-    5. Cross-step fallback for unmatched
-    6. Yield summary
+    Two-phase progress so the user sees counts matching their selection:
+    "preparing" hashes local media, "matching" hashes picked Google items.
+    Only media from steps that have picked Google items are hashed.
     """
-    total = len(media_names)
+    if already_upgraded is None:
+        already_upgraded = {}
 
-    local_hashes = await _hash_local_media(album_dir, media_names)
-    yield UpgradeMatching(phase="hashing_local", done=total, total=total)
-
+    # Bucket Google items by step windows (fast, no I/O)
     windows = build_step_windows(step_timestamps, step_ids)
     google_by_window = _bucket_by_window(google_items, windows)
-
     all_window_items = [item for items in google_by_window.values() for item in items]
     unique_items = _deduplicate_items(all_window_items)
-    candidate_hashes = await _hash_candidates(unique_items, access_token)
-    yield UpgradeMatching(
-        phase="hashing_candidates", done=len(unique_items), total=len(unique_items)
-    )
 
+    # Only hash local media from steps that have picked Google items.
+    populated_steps = {sid for sid, items in google_by_window.items() if items}
+    media_names = [
+        name
+        for sid in step_ids
+        if sid in populated_steps
+        for name in media_by_step.get(sid, [])
+    ]
+
+    # Phase 1: Hash local media (separate progress counter)
+    local_hashes: dict[MediaFilename, LocalHash] = {}
+    local_total = len(media_names)
+    local_tasks = [
+        asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
+    ]
+    for i, coro in enumerate(asyncio.as_completed(local_tasks)):
+        name, h = await coro
+        if h is not None:
+            local_hashes[name] = h
+        yield UpgradeMatching(phase="preparing", done=i + 1, total=local_total)
+
+    # Phase 2: Download thumbnails and hash (progress scoped to picked items)
+    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
+    cand_total = len(unique_items)
+    cand_tasks = [
+        asyncio.create_task(_hash_candidate_one(item, tokens)) for item in unique_items
+    ]
+    for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
+        item_id, h = await coro
+        if h is not None:
+            candidate_hashes[item_id] = h
+        yield UpgradeMatching(phase="matching", done=i + 1, total=cand_total)
+
+    # Phase 3: Hungarian match within windows + cross-step fallback (CPU only)
     all_matches, matched_locals, matched_candidates = _match_across_windows(
         windows, google_by_window, media_names, local_hashes, candidate_hashes
     )
-
     _cross_step_fallback(
         all_matches,
         matched_locals,
@@ -459,10 +469,15 @@ async def run_matching(  # noqa: PLR0913
         candidate_hashes,
     )
 
+    already_upgraded_count = sum(
+        1 for m in all_matches if m.local_name in already_upgraded
+    )
+
     yield UpgradeMatchSummary(
-        total_media=total,
+        total_picked=len(google_items),
         matched=len(all_matches),
-        unmatched=total - len(all_matches),
+        already_upgraded=already_upgraded_count,
+        unmatched=len(google_items) - len(all_matches),
         matches=all_matches,
     )
 
@@ -707,12 +722,13 @@ async def _replace_video(
     try:
         existing = await Media.probe(target)
     except RuntimeError, OSError:
+        logger.debug("Could not probe existing video %s", name, exc_info=True)
         existing = None
     if existing and _skip_smaller(name, new_media.width, new_media.height, existing):
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         return False
 
-    await asyncio.to_thread(tmp_path.rename, target)
+    await asyncio.to_thread(shutil.move, tmp_path, target)
     # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
     try:
         await asyncio.to_thread(delete_thumbnails, target)
@@ -733,12 +749,13 @@ async def _replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -
     try:
         existing = await asyncio.to_thread(Media.load, target)
     except OSError, SyntaxError:
+        logger.debug("Could not load existing photo %s", name, exc_info=True)
         existing = None
     if existing and _skip_smaller(name, width, height, existing):
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         return False
 
-    await asyncio.to_thread(tmp_path.rename, target)
+    await asyncio.to_thread(shutil.move, tmp_path, target)
     await asyncio.to_thread(delete_thumbnails, target)
     return True
 
@@ -805,7 +822,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         yield UpgradeDone(replaced=0, skipped=0, failed=0)
         return
 
-    tmp_dir = album_dir / ".upgrade-tmp"
+    tmp_dir = album_dir / _UPGRADE_TMP_DIR
     tmp_dir.mkdir(exist_ok=True)
 
     async def _upgrade_one(match: MatchResult) -> MediaFilename | None:
@@ -893,3 +910,24 @@ async def apply_upgrade_results(
             continue
         new_upgraded[match.local_name] = match.google_id
     return list(media_by_name.values()), new_upgraded
+
+
+async def cleanup_orphaned_tmp(users_folder: Path) -> None:
+    """Remove leftover .upgrade-tmp dirs from interrupted upgrades."""
+
+    def _scan_and_remove() -> int:
+        count = 0
+        for tmp_dir in users_folder.glob(f"*/trip/*/{_UPGRADE_TMP_DIR}"):
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            count += 1
+        return count
+
+    removed = await asyncio.to_thread(_scan_and_remove)
+    if removed:
+        logger.info("Cleaned up %d orphaned upgrade-tmp dirs", removed)
+
+
+def _clear_caches() -> None:
+    """Reset cached semaphores (for test isolation across event loops)."""
+    _download_sem.cache_clear()
+    _hash_sem.cache_clear()

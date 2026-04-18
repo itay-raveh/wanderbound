@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.deps import _get_session
 from app.core.config import get_settings
+from app.logic.media_upgrade import _clear_caches
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 
@@ -59,6 +60,12 @@ async def client(
         ) as c:
             yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_media_upgrade_caches() -> Iterator[None]:
+    yield
+    _clear_caches()
 
 
 @pytest.fixture(scope="module")

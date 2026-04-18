@@ -11,7 +11,12 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import HTTPException
+
+from app.api.v1.routes.google_photos import _validate_match_names
 from app.core.config import get_settings
+from app.logic.media_upgrade import MatchResult
 from app.models.user import User
 
 from .factories import (
@@ -59,7 +64,7 @@ class TestDisconnect:
         await connect_google_photos(session, uid)
 
         resp = await client.delete("/api/v1/google-photos/connection")
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
         # Verify tokens cleared in DB
         user = await session.get(User, uid)
@@ -100,3 +105,25 @@ class TestPickerSession:
         data = resp.json()
         assert data["session_id"] == "session-abc"
         assert "picker" in data["picker_uri"]
+
+
+class TestValidateMatchNames:
+    def test_accepts_valid_names(self) -> None:
+        matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
+        _validate_match_names(matches, {"photo1.jpg", "photo2.jpg"})
+
+    def test_rejects_unknown_name(self) -> None:
+        matches = [MatchResult(local_name="unknown.jpg", google_id="gid-1", distance=0)]
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_match_names(matches, {"photo1.jpg"})
+        assert exc_info.value.status_code == 422
+
+    def test_rejects_if_any_name_invalid(self) -> None:
+        matches = [
+            MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0),
+            MatchResult(local_name="evil.jpg", google_id="gid-2", distance=0),
+        ]
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_match_names(matches, {"photo1.jpg"})
+        assert exc_info.value.status_code == 422
+        assert "evil.jpg" in str(exc_info.value.detail)

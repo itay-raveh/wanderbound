@@ -15,6 +15,7 @@ from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import SENTRY_IGNORED, setup_logging
 from app.logic.export import lifespan as export_lifespan
+from app.logic.media_upgrade import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.session import cancel_all_sessions
 
@@ -51,6 +52,7 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
+    await cleanup_orphaned_tmp(settings.USERS_FOLDER)
 
     async with pdf_lifespan() as browser_manager, export_lifespan():
         app.state.browser_manager = browser_manager
@@ -77,11 +79,11 @@ if settings.all_cors_origins:
     )
 
 app.add_middleware(
-    SessionMiddleware,  # ty: ignore[invalid-argument-type]
+    SessionMiddleware,
     secret_key=settings.SECRET_KEY,
     session_cookie="session",
     max_age=30 * 86400,  # 30 days
-    same_site="strict",
+    same_site="lax",
     https_only=settings.ENVIRONMENT != "local",
 )
 
