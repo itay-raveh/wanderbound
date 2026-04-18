@@ -1,8 +1,16 @@
+min_version = "2026.4.8"
+
+[settings]
+# Hash source contents instead of mtime, for fresh clones and CI
+task.source_freshness_hash_contents = true
+
 [tools]
 python = "3.14"
 bun = "1"
-uv = "latest"
-"github:orhun/git-cliff" = "latest"
+uv = "0.10"
+"github:orhun/git-cliff" = "2"
+# prek is still 0.x; pin minor so patches flow without breakage.
+prek = "0.3"
 
 # -- Setup --------------------------------------------------------
 
@@ -12,27 +20,11 @@ run = [
     "cp -n .env.example .env || true",
     "uv sync",
     "bun install",
-    "pre-commit install --install-hooks",
-    "pre-commit install --hook-type commit-msg",
+    "prek install --prepare-hooks",
+    "prek install --hook-type commit-msg",
     "mise run generate",
     "mise run db:migrate",
 ]
-
-[tasks.doctor]
-description = "Check that all required tools and services are available"
-run = """
-set -euo pipefail
-err=0
-for cmd in docker uv bun mise; do
-  if command -v "$cmd" &>/dev/null; then
-    printf 'OK  %-10s %s\\n' "$cmd" "$(command -v "$cmd")"
-  else
-    printf 'MISSING  %s\\n' "$cmd"; err=1
-  fi
-done
-docker info &>/dev/null && echo "OK  docker daemon" || { echo "MISSING  docker daemon"; err=1; }
-exit $err
-"""
 
 # -- Dev servers --------------------------------------------------
 
@@ -40,6 +32,7 @@ exit $err
 description = "Start backend dev server"
 dir = "backend"
 run = "uv run fastapi dev"
+depends = ["db:migrate"]
 
 [tasks."dev:frontend"]
 description = "Start frontend dev server"
@@ -104,10 +97,6 @@ description = "Find dead JS/TS code (knip)"
 dir = "frontend"
 run = "bun x knip"
 
-[tasks.deadcode]
-description = "Find all dead code"
-depends = ["deadcode:*"]
-
 # -- Formatting ---------------------------------------------------
 
 [tasks."format:backend"]
@@ -124,27 +113,14 @@ run = "bun run format"
 description = "Format all code"
 depends = ["format:*"]
 
-# -- Fix ----------------------------------------------------------
-
-[tasks.fix]
-description = "Auto-fix all fixable format issues"
-depends = ["format"]
-
-# -- Build --------------------------------------------------------
-
-[tasks.build]
-description = "Build frontend for production"
-dir = "frontend"
-run = "bun run build"
-
 # -- Docker -------------------------------------------------------
 
 [tasks.up]
-description = "Start all Docker services"
+description = "Start Docker services"
 run = "docker compose up"
 
 [tasks.down]
-description = "Stop all Docker services and clean up"
+description = "Stop Docker services and clean up"
 run = "docker compose down --remove-orphans"
 
 [tasks.logs]
@@ -160,9 +136,12 @@ dir = "backend"
 run = "uv run alembic upgrade head"
 
 [tasks."db:migration"]
-description = "Create a new alembic migration (pass name as argument)"
+description = "Create a new alembic migration"
 dir = "backend"
-run = "uv run alembic revision --autogenerate -m \"$*\""
+usage = '''
+arg "<name>" help="Migration message (quote if multi-word)"
+'''
+run = 'uv run alembic revision --autogenerate -m "$usage_name"'
 
 [tasks."db:shell"]
 description = "Open interactive psql session"
@@ -171,6 +150,7 @@ raw = true
 
 [tasks."db:reset"]
 description = "Drop and recreate database, then run migrations"
+confirm = "This will permanently drop all data in the database. Continue?"
 run = [
     "docker compose exec db dropdb -U ${POSTGRES_USER:-postgres} --if-exists ${POSTGRES_DB:-app}",
     "docker compose exec db createdb -U ${POSTGRES_USER:-postgres} ${POSTGRES_DB:-app}",
@@ -186,24 +166,45 @@ raw = true
 
 [tasks."generate:countries"]
 description = "Regenerate country SVGs and bounds.json from Natural Earth data"
+sources = ["scripts/generate_countries.py"]
+outputs = [
+    "frontend/public/countries/*.svg",
+    "frontend/src/countries/bounds.json",
+]
 run = "uv run scripts/generate_countries.py"
 
 [tasks."generate:fonts"]
 description = "Download Google Fonts and generate @font-face CSS from fonts.json"
+sources = ["scripts/generate_fonts.py", "frontend/fonts.json"]
+outputs = [
+    "frontend/public/fonts/**/*",
+    "frontend/src/styles/fonts.css",
+]
 run = "uv run scripts/generate_fonts.py"
 
 [tasks."generate:topo"]
 description = "Generate topographic contour SVG"
+sources = ["scripts/generate_topo.py"]
+outputs = ["frontend/public/topo-contours.svg"]
 run = "uv run scripts/generate_topo.py"
 
 [tasks."generate:og-image"]
 description = "Generate OG social preview image"
-depends = ["generate:fonts"]
+depends = ["generate:fonts", "generate:topo"]
+sources = [
+    "scripts/generate-og-image.ts",
+    "frontend/public/logo.svg",
+    "frontend/public/topo-contours.svg",
+    "frontend/public/fonts/**",
+]
+outputs = ["frontend/public/og-image.png"]
 run = "bun scripts/generate-og-image.ts"
 
 [tasks."generate:openapi"]
 description = "Export OpenAPI spec to backend/openapi.json"
 dir = "backend"
+sources = ["app/**/*.py", "../scripts/generate_openapi.py"]
+outputs = ["openapi.json"]
 run = "uv run python ../scripts/generate_openapi.py"
 
 [tasks."generate:landing"]
@@ -220,29 +221,8 @@ depends = [
     "generate:openapi",
 ]
 
-# -- CI -----------------------------------------------------------
-
-[tasks.ci]
-description = "Run the full CI pipeline locally"
-depends = ["lint", "test", "build"]
-
 # -- Changelog ----------------------------------------------------
 
 [tasks."changelog:next"]
 description = "Preview release notes for unreleased commits"
 run = "git cliff --unreleased --strip header"
-
-# -- Clean --------------------------------------------------------
-
-[tasks.clean]
-description = "Remove caches and build artifacts"
-run = [
-    "rm -rf .pytest_cache .ruff_cache",
-    "find . -type d -name __pycache__ -not -path './.venv/*' -not -path './node_modules/*' -exec rm -rf {} + 2>/dev/null || true",
-    "rm -rf frontend/dist",
-]
-
-[tasks.nuke]
-description = "Full reset to fresh-clone state (keeps .env)"
-depends = ["down", "clean"]
-run = "rm -rf node_modules frontend/node_modules .venv"
