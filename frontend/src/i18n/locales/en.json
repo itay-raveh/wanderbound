@@ -81,6 +81,7 @@
     "steps": "no steps | {n} step | {n} steps",
     "countries": "no countries | {n} country | {n} countries",
     "tryAgain": "Try again",
+    "uploadAgain": "Upload a different file",
     "openAlbum": "Open your album",
     "unsupportedTitle": "Browser not supported",
     "unsupportedBody": "Switch to a recent browser: {chrome}, {firefox}, {safari}, or {edge}.",
@@ -175,7 +176,7 @@
     "videoFrame": "Couldn't set the video poster. @:common.retry",
     "pdfExport": "PDF export failed. @:common.retry",
     "dataExport": "Data export failed. @:common.retry",
-    "processingFailed": "Processing failed. Please try again later.",
+    "processingFailed": "Processing failed.",
     "connectionFailed": "Connection lost. @:common.retry",
     "adjustBoundary": "Couldn't adjust the boundary. @:common.retry"
   },
