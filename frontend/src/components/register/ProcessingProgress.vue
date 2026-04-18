@@ -213,9 +213,14 @@ watch(
   border-color: var(--border-color);
   color: var(--text);
   align-self: flex-start;
+  padding: 0.375rem 1rem;
   transition:
     border-color var(--duration-fast) ease,
     background var(--duration-fast) ease;
+}
+
+.retry-btn :deep(.q-btn__content) {
+  gap: 0.5rem;
 }
 
 .retry-btn:hover {
