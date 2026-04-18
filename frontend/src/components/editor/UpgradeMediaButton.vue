@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
+import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
 import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
@@ -82,9 +83,18 @@ const doneMessage = computed(() => {
   return t("upgrade.done", { replaced });
 });
 
+function translateError(key: string | null): string {
+  if (!key) return t("upgrade.error");
+  const path = `upgrade.errors.${key as UpgradeErrorKey}`;
+  const translated = t(path);
+  return translated === path ? t("upgrade.error") : translated;
+}
+
+const errorMessage = computed(() => translateError(upgrade.errorDetail.value));
+
 const errorTooltip = computed(() => {
-  const detail = upgrade.errorDetail.value;
-  return detail ? `${t("upgrade.error")}\n${detail}` : t("upgrade.error");
+  const msg = errorMessage.value;
+  return msg !== t("upgrade.error") ? `${t("upgrade.error")}\n${msg}` : msg;
 });
 
 function handleDisconnect() {
@@ -126,7 +136,7 @@ const { confirmUpgrade } = upgrade;
         :name="symOutlinedError"
         size="var(--type-lg)"
       />
-      {{ upgrade.errorDetail.value || t("upgrade.error") }}
+      {{ errorMessage }}
     </button>
 
     <button

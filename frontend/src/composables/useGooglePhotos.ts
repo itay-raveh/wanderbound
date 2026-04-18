@@ -1,4 +1,5 @@
 import { computed } from "vue";
+import { UPGRADE_ERRORS } from "./upgradeErrors";
 import {
   authorize,
   closeSession as closeSessionApi,
@@ -52,14 +53,14 @@ export function useGooglePhotos() {
       const closedCheck = setInterval(() => {
         if (popup.closed) {
           cleanup();
-          reject(new Error("Authorization cancelled"));
+          reject(new Error(UPGRADE_ERRORS.authCancelled));
         }
       }, 500);
 
       const timeout = setTimeout(() => {
         cleanup();
         if (!popup.closed) popup.close();
-        reject(new Error("Authorization timed out"));
+        reject(new Error(UPGRADE_ERRORS.authTimeout));
       }, 5 * 60 * 1000);
     });
 

@@ -256,8 +256,8 @@
     "button": "שדרוג מדיה",
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
-      "body": "Polarsteps דוחס את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
-      "tip": "Shift+לחיצה בוחר טווח ב-Google Photos.",
+      "body": "Polarsteps מפקסלים את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
+      "tip": "לטיולים גדולים, יצירת אלבום ב-Google Photos מקלה על הבחירה.",
       "continue": "חיבור Google Photos",
       "cancel": "ביטול"
     },
@@ -277,6 +277,16 @@
     "doneSkipped": "שודרגו {replaced} קבצים, {skipped} כבר באיכות מלאה",
     "donePartial": "שודרגו {replaced} מתוך {total} קבצים",
     "error": "השדרוג נכשל. נסו שוב.",
+    "errors": {
+      "popupBlocked": "חלון קופץ נחסם. אפשרו חלונות קופצים ונסו שוב.",
+      "noResults": "לא נמצאו תוצאות מההתאמה.",
+      "selectionTimeout": "הבחירה פגה.",
+      "selectionCancelled": "הבחירה בוטלה.",
+      "connectionLost": "החיבור אבד במהלך השדרוג.",
+      "authCancelled": "ההרשאה בוטלה.",
+      "authTimeout": "ההרשאה פגה.",
+      "chromeOnly": "פתחו את הדף ב-Chrome כדי לשדרג את התמונות."
+    },
     "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",
     "disconnectConfirm": {

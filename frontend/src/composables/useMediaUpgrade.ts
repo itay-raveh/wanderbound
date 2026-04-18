@@ -1,3 +1,4 @@
+import { Platform } from "quasar";
 import { onScopeDispose, ref, watch } from "vue";
 import {
   matchMedia,
@@ -10,6 +11,7 @@ import {
   type UpgradeMatching,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
+import { UPGRADE_ERRORS } from "./upgradeErrors";
 import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
@@ -43,6 +45,7 @@ interface MatchSummary {
 const POLL_INTERVAL_MS = 2000;
 const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
+
 
 type MatchEvent =
   | UpgradeMatching
@@ -87,7 +90,7 @@ export function useMediaUpgrade() {
       "google-photos",
       `width=${width},height=${height},left=${left},top=${top}`,
     );
-    if (!popup) throw new Error("Popup blocked");
+    if (!popup) throw new Error(UPGRADE_ERRORS.popupBlocked);
     popup.document.title = "Google Photos";
     popup.document.body.style.cssText =
       "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
@@ -98,6 +101,14 @@ export function useMediaUpgrade() {
   async function start(albumId: string) {
     if (phase.value !== "idle" && phase.value !== "done" && phase.value !== "error")
       return;
+
+    // Google Photos Picker only works in Chrome-based browsers.
+    if (!Platform.is.chrome) {
+      phase.value = "error";
+      errorDetail.value = UPGRADE_ERRORS.chromeOnly;
+      return;
+    }
+
     if (resetTimer !== null) {
       clearTimeout(resetTimer);
       resetTimer = null;
@@ -144,7 +155,7 @@ export function useMediaUpgrade() {
       if (signal.aborted) return;
       if (!summary) {
         phase.value = "error";
-        errorDetail.value = "Matching returned no results";
+        errorDetail.value = UPGRADE_ERRORS.noResults;
         return;
       }
 
@@ -195,7 +206,7 @@ export function useMediaUpgrade() {
         activePopup = openPopup();
       } catch {
         phase.value = "error";
-        errorDetail.value = "Popup blocked";
+        errorDetail.value = UPGRADE_ERRORS.popupBlocked;
         return;
       }
     }
@@ -248,11 +259,11 @@ export function useMediaUpgrade() {
     const deadline = Date.now() + PICKER_TIMEOUT_MS;
     while (!signal.aborted) {
       if (Date.now() > deadline) {
-        throw new Error("Photo selection timed out");
+        throw new Error(UPGRADE_ERRORS.selectionTimeout);
       }
       try {
         if (activePopup?.closed) {
-          throw new Error("Photo selection cancelled");
+          throw new Error(UPGRADE_ERRORS.selectionCancelled);
         }
       } catch (e) {
         // COOP blocks cross-origin property access (DOMException) -
@@ -344,7 +355,7 @@ export function useMediaUpgrade() {
     }
 
     if (!receivedTerminal) {
-      throw new Error("Connection lost during upgrade");
+      throw new Error(UPGRADE_ERRORS.connectionLost);
     }
   }
 
