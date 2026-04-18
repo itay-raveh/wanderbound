@@ -128,7 +128,7 @@ def cached_client(
             storage=AsyncSqliteStorage(
                 default_ttl=_CACHE_TTL,
                 database_path=get_settings().DATA_FOLDER / "http_cache.sqlite",
-            ),  # type: ignore[arg-type]
+            ),  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
             policy=policy,
         )
     )

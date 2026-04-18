@@ -52,7 +52,7 @@ async def run_eviction(skip_uid: int) -> None:
 
     async with AsyncSession(get_engine()) as session:
         result = await session.exec(
-            select(User).order_by(User.last_active_at.asc())  # type: ignore[union-attr]
+            select(User).order_by(User.last_active_at.asc())  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
         )
         candidates = result.all()
 

@@ -398,7 +398,7 @@ def resolve_international_waters(steps: list[PSStep]) -> None:
                 "International-water steps [%s] attributed to %s, "
                 "but next step '%s' is %s",
                 names,
-                prev_code.upper(),  # type: ignore[union-attr]
+                prev_code.upper(),  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
                 step.name,
                 step.location.country_code.upper(),
             )

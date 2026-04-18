@@ -81,7 +81,7 @@ async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[Step]
     result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     return list(result.all())
 
@@ -93,7 +93,7 @@ async def read_segments(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
@@ -114,7 +114,7 @@ async def read_segment_points(
             Segment.start_time >= from_time,
             Segment.end_time <= to_time,
         )
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     segments = result.all()
 
@@ -180,10 +180,10 @@ async def adjust_segment_boundary(
     # Find the adjacent segment (nearest non-overlapping on the relevant side)
     if body.handle == "start":
         time_filter = Segment.end_time <= target.start_time
-        ordering = Segment.end_time.desc()  # type: ignore[union-attr]
+        ordering = Segment.end_time.desc()  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
     else:
         time_filter = Segment.start_time >= target.end_time
-        ordering = Segment.start_time.asc()  # type: ignore[union-attr]
+        ordering = Segment.start_time.asc()  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
     result = await session.exec(
         select(Segment)
         .where(
@@ -225,7 +225,7 @@ async def adjust_segment_boundary(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == uid, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
@@ -244,12 +244,12 @@ async def read_print_bundle(
     steps_result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     segments_result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
     )
     steps = list(steps_result.all())
     segments = list(segments_result.all())

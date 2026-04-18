@@ -42,7 +42,7 @@ async def _touch_activity(uid: int) -> None:
         async with AsyncSession(get_engine()) as session:
             await session.exec(
                 update(User)
-                .where(User.id == uid)  # type: ignore[arg-type]
+                .where(User.id == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
                 .values(last_active_at=datetime.now(UTC))
             )
             await session.commit()

@@ -202,8 +202,8 @@ async def export_user_data(
     for step in (
         await session.exec(
             select(Step)
-            .where(Step.uid == user.id, Step.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
-            .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+            .where(Step.uid == user.id, Step.aid.in_(album_ids_loaded))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+            .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
         )
     ).all():
         steps_by_album[step.aid].append(step)
@@ -212,8 +212,8 @@ async def export_user_data(
     for segment in (
         await session.exec(
             select(Segment)
-            .where(Segment.uid == user.id, Segment.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
-            .order_by(Segment.start_time)  # type: ignore[union-attr]
+            .where(Segment.uid == user.id, Segment.aid.in_(album_ids_loaded))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+            .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
         )
     ).all():
         segments_by_album[segment.aid].append(segment)

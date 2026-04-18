@@ -140,13 +140,13 @@ async def _save_reupload(
         if reconciled_aids:
             await session.exec(
                 delete(Step)
-                .where(Step.uid == uid)  # type: ignore[arg-type]
-                .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+                .where(Step.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+                .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
             )
             await session.exec(
                 delete(Segment)
-                .where(Segment.uid == uid)  # type: ignore[arg-type]
-                .where(Segment.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+                .where(Segment.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+                .where(Segment.aid.in_(reconciled_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
             )
 
         current_aids = {d.name for d in trip_dirs}
@@ -154,8 +154,8 @@ async def _save_reupload(
         if orphan_aids:
             await session.exec(
                 delete(Album)
-                .where(Album.uid == uid)  # type: ignore[arg-type]
-                .where(Album.id.in_(orphan_aids))  # type: ignore[union-attr]
+                .where(Album.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+                .where(Album.id.in_(orphan_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
             )
         await session.flush()
 
