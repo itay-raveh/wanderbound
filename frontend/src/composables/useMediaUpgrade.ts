@@ -179,6 +179,10 @@ export function useMediaUpgrade() {
     } finally {
       if (activePopup && !activePopup.closed) activePopup.close();
       activePopup = null;
+      if (activeSessionId) {
+        gp.closeSession(activeSessionId).catch(() => {});
+        activeSessionId = null;
+      }
     }
   }
 
@@ -187,7 +191,13 @@ export function useMediaUpgrade() {
     // blocked.  Only during onboarding - the match-summary confirm
     // doesn't need a popup.
     if (phase.value === "onboarding" && !activePopup) {
-      activePopup = openPopup();
+      try {
+        activePopup = openPopup();
+      } catch {
+        phase.value = "error";
+        errorDetail.value = "Popup blocked";
+        return;
+      }
     }
     confirmResolve?.();
   }
@@ -244,8 +254,10 @@ export function useMediaUpgrade() {
         if (activePopup?.closed) {
           throw new Error("Photo selection cancelled");
         }
-      } catch {
-        // COOP blocks cross-origin property access - ignore.
+      } catch (e) {
+        // COOP blocks cross-origin property access (DOMException) -
+        // ignore those, but re-throw our intentional cancellation.
+        if (e instanceof Error && !(e instanceof DOMException)) throw e;
       }
       const result = await gp.pollSession(sessionId);
       if (result.ready) return;

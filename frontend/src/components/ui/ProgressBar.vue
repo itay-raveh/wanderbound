@@ -3,7 +3,13 @@ defineProps<{ progress: number }>();
 </script>
 
 <template>
-  <div class="progress-track">
+  <div
+    class="progress-track"
+    role="progressbar"
+    :aria-valuenow="Math.round(progress * 100)"
+    aria-valuemin="0"
+    aria-valuemax="100"
+  >
     <div class="progress-fill" :style="{ transform: `scaleX(${progress})` }" />
   </div>
 </template>
