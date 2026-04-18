@@ -41,7 +41,7 @@ type AccessToken = str
 type RefreshToken = str
 type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
 type GoogleMediaId = Annotated[str, StringConstraints(max_length=256)]
-type MediaFilename = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._() -]+$")]
+type MediaFilename = Annotated[str, StringConstraints(pattern=r"^[^/\\\x00]+$")]
 type MimeType = str
 type MediaBaseUrl = str
 type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
@@ -348,21 +348,26 @@ async def download_media_to_file(
         resp.raise_for_status()
         buf = bytearray()
         total_bytes = 0
+        too_large = False
 
         with dest.open("wb") as f:
             async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
                 total_bytes += len(chunk)
                 if total_bytes > max_bytes:
-                    await asyncio.to_thread(dest.unlink, missing_ok=True)
-                    raise DownloadTooLargeError(
-                        f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
-                    )
+                    too_large = True
+                    break
                 buf.extend(chunk)
                 if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
                     await asyncio.to_thread(f.write, bytes(buf))
                     buf.clear()
-            if buf:
+            if not too_large and buf:
                 await asyncio.to_thread(f.write, bytes(buf))
+
+        if too_large:
+            await asyncio.to_thread(dest.unlink, missing_ok=True)
+            raise DownloadTooLargeError(
+                f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
+            )
 
 
 class TokenProvider:
