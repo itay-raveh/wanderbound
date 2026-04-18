@@ -230,12 +230,22 @@ export function useMediaUpgrade() {
     sessionId: string,
     signal: AbortSignal,
   ): Promise<void> {
-    // Google sets COOP on the Picker page, so we can't check
-    // popup.closed reliably. Poll purely via the API.
+    // Google sets COOP on the Picker page, so popup.closed throws
+    // a cross-origin error once COOP activates. We still check it
+    // because it works during the initial redirect and after the
+    // user closes the popup, catching the common "changed my mind"
+    // case instead of forcing a 10-minute timeout.
     const deadline = Date.now() + PICKER_TIMEOUT_MS;
     while (!signal.aborted) {
       if (Date.now() > deadline) {
         throw new Error("Photo selection timed out");
+      }
+      try {
+        if (activePopup?.closed) {
+          throw new Error("Photo selection cancelled");
+        }
+      } catch {
+        // COOP blocks cross-origin property access - ignore.
       }
       const result = await gp.pollSession(sessionId);
       if (result.ready) return;

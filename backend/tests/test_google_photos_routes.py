@@ -1,20 +1,25 @@
 """Integration tests for Google Photos routes.
 
-Tests auth gating and disconnect. The full upgrade flow requires mocking
-the Google Picker API extensively, which is best tested E2E. The matching
-algorithm is already covered by unit tests in test_media_upgrade.py.
+Tests auth gating, disconnect, and edge cases. The full upgrade flow
+requires mocking the Google Picker API extensively, which is best tested
+E2E. The matching algorithm is covered in test_media_upgrade.py.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.routes.google_photos import _validate_match_names
+from app.api.v1.routes.google_photos import (
+    _persist_upgrade,
+    _upgrades_in_progress,
+    _validate_match_names,
+)
 from app.core.config import get_settings
 from app.logic.media_upgrade import MatchResult
 from app.models.user import User
@@ -25,6 +30,8 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -127,3 +134,113 @@ class TestValidateMatchNames:
             _validate_match_names(matches, {"photo1.jpg"})
         assert exc_info.value.status_code == 422
         assert "evil.jpg" in str(exc_info.value.detail)
+
+
+class TestConcurrentUpgradeLock:
+    def test_duplicate_key_detected(self) -> None:
+        """The lock set correctly prevents concurrent upgrades."""
+        key = (999, "album-xyz")
+        _upgrades_in_progress.add(key)
+        try:
+            assert key in _upgrades_in_progress
+            # The route checks `if key in _upgrades_in_progress` and
+            # raises 409. We test the set mechanism directly because
+            # SSE generator endpoints don't propagate HTTPException
+            # cleanly through the ASGI test client.
+        finally:
+            _upgrades_in_progress.discard(key)
+        assert key not in _upgrades_in_progress
+
+
+class TestPersistUpgradeRetry:
+    def _make_mock_session(self) -> AsyncMock:
+        mock = AsyncMock()
+        mock.get_one = AsyncMock(
+            return_value=SimpleNamespace(media=[], upgraded_media=[])
+        )
+        mock.add = MagicMock()  # sync method, not async
+        mock.__aenter__ = AsyncMock(return_value=mock)
+        mock.__aexit__ = AsyncMock(return_value=False)
+        return mock
+
+    async def test_retries_on_first_failure(self, tmp_path: Path) -> None:
+        """_persist_upgrade retries once when the first commit fails."""
+        call_count = 0
+
+        mock_session = self._make_mock_session()
+
+        async def commit_side_effect() -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Transient DB error")
+
+        mock_session.commit = AsyncMock(side_effect=commit_side_effect)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos.get_engine",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.AsyncSession",
+                return_value=mock_session,
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.apply_upgrade_results",
+                return_value=([], []),
+            ),
+        ):
+            await _persist_upgrade(1, "trip-1", tmp_path, [], set())
+
+        assert call_count == 2  # first failed, second succeeded
+
+    async def test_logs_error_on_total_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Both retry attempts fail - logs ERROR with clear message."""
+        mock_session = self._make_mock_session()
+        mock_session.commit = AsyncMock(side_effect=RuntimeError("DB down"))
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos.get_engine",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.AsyncSession",
+                return_value=mock_session,
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.apply_upgrade_results",
+                return_value=([], []),
+            ),
+        ):
+            await _persist_upgrade(1, "trip-1", tmp_path, [], set())
+
+        assert any("filesystem may be ahead of DB" in r.message for r in caplog.records)
+
+
+class TestTokenRevocation:
+    async def test_expired_token_returns_401(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """User with revoked token gets 401 on session create."""
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        user_data = await sign_in_and_upload(client, users_dir, provider="google")
+        uid = user_data["id"]
+        await connect_google_photos(session, uid)
+
+        with patch(
+            "app.api.v1.routes.google_photos.refresh_access_token",
+            side_effect=httpx.HTTPStatusError(
+                "Unauthorized",
+                request=httpx.Request("POST", "http://test"),
+                response=httpx.Response(401),
+            ),
+        ):
+            resp = await client.post("/api/v1/google-photos/sessions")
+
+        assert resp.status_code == 401

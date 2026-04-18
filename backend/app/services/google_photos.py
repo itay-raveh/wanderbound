@@ -269,6 +269,13 @@ async def get_media_items(
         if not page.next_page_token:
             break
         page_token = page.next_page_token
+    else:
+        logger.warning(
+            "Hit %d-page limit for session %s (%d items fetched)",
+            _MAX_MEDIA_PAGES,
+            session_id,
+            len(items),
+        )
     return items
 
 
@@ -300,13 +307,24 @@ async def download_media_bytes(
     param="=d" for originals, "=w400" for thumbnails.
     """
     url = f"{base_url}{param}"
-    resp = await _download_client().get(url, headers=_picker_headers(access_token))
-    resp.raise_for_status()
-    if len(resp.content) > max_bytes:
-        raise DownloadTooLargeError(
-            f"Photo download exceeds {max_bytes // (1024 * 1024)} MB limit"
-        )
-    return resp.content
+    limit_mb = max_bytes // (1024 * 1024)
+    async with _download_client().stream(
+        "GET", url, headers=_picker_headers(access_token)
+    ) as resp:
+        resp.raise_for_status()
+        declared = resp.headers.get("content-length")
+        if declared and int(declared) > max_bytes:
+            raise DownloadTooLargeError(f"Photo download exceeds {limit_mb} MB limit")
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in resp.aiter_bytes():
+            total += len(chunk)
+            if total > max_bytes:
+                raise DownloadTooLargeError(
+                    f"Photo download exceeds {limit_mb} MB limit"
+                )
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 
 async def download_media_to_file(

@@ -204,7 +204,7 @@ async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.post(
+@router.get(
     "/match/{aid}",
     response_class=EventSourceResponse,
     responses={200: {"model": list[UpgradeEvent]}},
@@ -304,7 +304,14 @@ async def _persist_upgrade(
     matches: list[MatchResult],
     succeeded: set[str],
 ) -> None:
-    """Write upgrade results to DB, retrying once on transient failure."""
+    """Write upgrade results to DB, retrying once on transient failure.
+
+    Called from the ``finally`` block of the upgrade SSE stream, so it
+    cannot yield events back to the client. On total failure the
+    filesystem may be ahead of the DB; the ERROR log is the only signal.
+    A future reconciliation job could fix this, but in practice transient
+    DB failures rarely survive a retry.
+    """
     for attempt in range(2):
         try:
             engine = get_engine()
