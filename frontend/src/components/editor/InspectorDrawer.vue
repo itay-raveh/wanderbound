@@ -26,6 +26,7 @@ provideAlbum({
   media: computed(() => props.media),
   tripStart: computed(() => ""),
   totalDays: computed(() => 1),
+  upgradedMedia: computed(() => new Set(Object.keys(props.album.upgraded_media ?? {}))),
 });
 
 type Context = "step" | "cover" | "map" | "overview" | "empty";
