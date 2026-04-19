@@ -17,6 +17,7 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Salt and info are not secret: https://datatracker.ietf.org/doc/html/rfc5869#section-3.1
 _SALT = b"wanderbound-hkdf-v1"
 _INFO = b"wanderbound-token-encryption"
 
