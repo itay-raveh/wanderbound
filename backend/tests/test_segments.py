@@ -22,11 +22,11 @@ from zoneinfo import ZoneInfo
 import polars as pl
 import pytest
 
-from app.logic.trip_processing import multi_day_hike_ranges, segment_timezone
 from app.logic.spatial.segments import (
     _remove_gps_noise,
     build_segments,
 )
+from app.logic.trip_processing import multi_day_hike_ranges, segment_timezone
 from app.models.polarsteps import Point, PSLocations, PSTrip
 from app.models.segment import Segment, SegmentData, SegmentKind
 

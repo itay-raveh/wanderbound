@@ -4,15 +4,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.logic.trip_processing import (
-    PhaseUpdate,
-    ProcessingEvent,
-    TripStart,
-)
 from app.logic.session import (
     ProcessingSession,
     _sessions,
     process_stream,
+)
+from app.logic.trip_processing import (
+    PhaseUpdate,
+    ProcessingEvent,
+    TripStart,
 )
 from app.models.user import User
 from tests.factories import collect_async
