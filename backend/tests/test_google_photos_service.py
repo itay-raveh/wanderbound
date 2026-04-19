@@ -6,12 +6,17 @@ Uses real httpx.Response objects so Pydantic parsing runs end-to-end.
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 
 from app.services.google_photos import (
+    DownloadTooLargeError,
     PickedMediaItem,
     PickerSession,
     TokenProvider,
@@ -19,6 +24,8 @@ from app.services.google_photos import (
     _SessionResponse,
     _TokenResponse,
     create_picker_session,
+    download_media_bytes,
+    download_media_to_file,
     get_media_items,
 )
 
@@ -325,3 +332,105 @@ class TestTokenProvider:
             t1, t2 = await asyncio.gather(tp.get(), tp.get())
         assert t1 == t2 == "tok-shared"
         assert mock.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Download size limits and cleanup
+# ---------------------------------------------------------------------------
+
+_BASE_URL = "https://lh3.googleusercontent.com/test"
+_TOKEN = "ya29.test"  # noqa: S105
+
+
+def _streaming_client(
+    chunks: list[bytes], headers: dict[str, str] | None = None
+) -> AsyncMock:
+    """Build a mock httpx.AsyncClient whose .stream() yields the given chunks."""
+    resp = AsyncMock()
+    resp.raise_for_status = lambda: None
+    resp.headers = headers or {}
+    resp.aiter_bytes = lambda **_: _async_iter(chunks)
+
+    @asynccontextmanager
+    async def _stream(*_args: Any, **_kwargs: Any) -> AsyncIterator[AsyncMock]:
+        yield resp
+
+    client = AsyncMock()
+    client.stream = _stream
+    return client
+
+
+async def _async_iter(items: list[bytes]) -> AsyncIterator[bytes]:
+    for item in items:
+        yield item
+
+
+class TestDownloadMediaBytes:
+    async def test_rejects_content_length_over_limit(self) -> None:
+        client = _streaming_client([], headers={"content-length": "1000"})
+        with (
+            patch("app.services.google_photos._download_client", return_value=client),
+            pytest.raises(DownloadTooLargeError),
+        ):
+            await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=500)
+
+    async def test_rejects_stream_exceeding_limit(self) -> None:
+        """Even without content-length, reject if chunks exceed max_bytes."""
+        client = _streaming_client([b"x" * 600])
+        with (
+            patch("app.services.google_photos._download_client", return_value=client),
+            pytest.raises(DownloadTooLargeError),
+        ):
+            await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=500)
+
+    async def test_accepts_within_limit(self) -> None:
+        client = _streaming_client([b"hello"])
+        with patch("app.services.google_photos._download_client", return_value=client):
+            result = await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=1000)
+        assert result == b"hello"
+
+
+class TestDownloadMediaToFile:
+    async def test_cleans_up_partial_file_on_size_limit(self, tmp_path: Path) -> None:
+        dest = tmp_path / "photo.jpg"
+        client = _streaming_client([b"x" * 600])
+        with (
+            patch("app.services.google_photos._download_client", return_value=client),
+            pytest.raises(DownloadTooLargeError),
+        ):
+            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=500)
+        assert not dest.exists(), "Partial file should be cleaned up"
+
+    async def test_cleans_up_on_http_error(self, tmp_path: Path) -> None:
+        dest = tmp_path / "photo.jpg"
+
+        def _raise() -> None:
+            raise httpx.HTTPStatusError(
+                "Server Error",
+                request=httpx.Request("GET", "http://test"),
+                response=httpx.Response(500),
+            )
+
+        resp = AsyncMock()
+        resp.raise_for_status = _raise
+        resp.headers = {}
+
+        @asynccontextmanager
+        async def _stream(*_a: Any, **_kw: Any) -> AsyncIterator[AsyncMock]:
+            yield resp
+
+        client = AsyncMock()
+        client.stream = _stream
+        with (
+            patch("app.services.google_photos._download_client", return_value=client),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await download_media_to_file(_BASE_URL, _TOKEN, dest)
+        assert not dest.exists(), "File should be cleaned up on HTTP error"
+
+    async def test_writes_file_on_success(self, tmp_path: Path) -> None:
+        dest = tmp_path / "photo.jpg"
+        client = _streaming_client([b"photo-data"])
+        with patch("app.services.google_photos._download_client", return_value=client):
+            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=1000)
+        assert dest.read_bytes() == b"photo-data"
