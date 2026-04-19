@@ -10,14 +10,16 @@ import time
 from functools import cache
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
 from httpx_retries import Retry, RetryTransport
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic.alias_generators import to_camel
 
 from app.core.config import get_settings
+from app.models.google_photos import GoogleMediaId, MediaFilename
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,12 @@ class DownloadTooLargeError(RuntimeError):
     """Raised when a download exceeds the size limit."""
 
 
+def _raise_too_large(max_bytes: int) -> None:
+    raise DownloadTooLargeError(
+        f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Semantic type aliases
 # ---------------------------------------------------------------------------
@@ -40,10 +48,19 @@ class DownloadTooLargeError(RuntimeError):
 type AccessToken = str
 type RefreshToken = str
 type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
-type GoogleMediaId = Annotated[str, StringConstraints(max_length=256)]
-type MediaFilename = Annotated[str, StringConstraints(pattern=r"^[^/\\\x00]+$")]
 type MimeType = str
-type MediaBaseUrl = str
+_ALLOWED_MEDIA_HOSTS = frozenset({"lh3.googleusercontent.com"})
+
+
+def _validate_media_base_url(v: str) -> str:
+    host = urlparse(v).hostname
+    if host not in _ALLOWED_MEDIA_HOSTS:
+        msg = f"Untrusted media host: {host}"
+        raise ValueError(msg)
+    return v
+
+
+type MediaBaseUrl = Annotated[str, AfterValidator(_validate_media_base_url)]
 type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
 type VideoProcessingStatus = Literal["READY", "PROCESSING", "FAILED"]
 
@@ -93,6 +110,12 @@ def _download_client() -> httpx.AsyncClient:
         timeout=60.0,
         follow_redirects=True,
     )
+
+
+@cache
+def _token_client() -> httpx.AsyncClient:
+    """Dedicated client for OAuth token exchange - no redirect following."""
+    return httpx.AsyncClient(timeout=30.0)
 
 
 # ---------------------------------------------------------------------------
@@ -342,32 +365,35 @@ async def download_media_to_file(
     under I/O pressure.
     """
     url = f"{base_url}{param}"
-    async with _download_client().stream(
-        "GET", url, headers=_picker_headers(access_token)
-    ) as resp:
-        resp.raise_for_status()
-        buf = bytearray()
-        total_bytes = 0
-        too_large = False
+    ok = False
+    try:
+        async with _download_client().stream(
+            "GET", url, headers=_picker_headers(access_token)
+        ) as resp:
+            resp.raise_for_status()
+            buf = bytearray()
+            total_bytes = 0
+            too_large = False
 
-        with dest.open("wb") as f:
-            async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
-                total_bytes += len(chunk)
-                if total_bytes > max_bytes:
-                    too_large = True
-                    break
-                buf.extend(chunk)
-                if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
+            with dest.open("wb") as f:
+                async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > max_bytes:
+                        too_large = True
+                        break
+                    buf.extend(chunk)
+                    if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
+                        await asyncio.to_thread(f.write, bytes(buf))
+                        buf.clear()
+                if not too_large and buf:
                     await asyncio.to_thread(f.write, bytes(buf))
-                    buf.clear()
-            if not too_large and buf:
-                await asyncio.to_thread(f.write, bytes(buf))
 
         if too_large:
+            _raise_too_large(max_bytes)
+        ok = True
+    finally:
+        if not ok:
             await asyncio.to_thread(dest.unlink, missing_ok=True)
-            raise DownloadTooLargeError(
-                f"Download exceeds {max_bytes // (1024 * 1024)} MB limit"
-            )
 
 
 class TokenProvider:
@@ -407,7 +433,7 @@ class TokenProvider:
 async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
     """Exchange a refresh token for a fresh access token via Google's token endpoint."""
     settings = get_settings()
-    resp = await _download_client().post(
+    resp = await _token_client().post(
         "https://oauth2.googleapis.com/token",
         data={
             "client_id": settings.VITE_GOOGLE_CLIENT_ID,

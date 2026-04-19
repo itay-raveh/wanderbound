@@ -9,10 +9,10 @@ from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
 from app.logic.layout.media import Media
+from app.models.google_photos import GoogleMediaId, MediaFilename
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
 from app.models.step import Step
-from app.services.google_photos import GoogleMediaId, MediaFilename
 
 type DateRange = tuple[date, date]
 
