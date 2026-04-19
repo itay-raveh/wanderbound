@@ -6,6 +6,7 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,11 +51,22 @@ from ..deps import SessionDep, UserDep
 
 logger = logging.getLogger(__name__)
 
-# Tracks albums currently being upgraded. The check-and-add is done without
-# intervening awaits so two concurrent requests can't both pass the check.
+# Tracks albums currently being upgraded (key -> monotonic start time).
+# The check-and-add is done without intervening awaits so two concurrent
+# requests can't both pass the check.
 # NOTE: process-local - does not protect across multiple workers/containers.
 # Use a DB advisory lock if running multiple workers in production.
-_upgrades_in_progress: set[tuple[int, str]] = set()
+_upgrades_in_progress: dict[tuple[int, str], float] = {}
+_UPGRADE_LOCK_TTL = 30 * 60  # 30 minutes
+
+
+def _expire_stale_locks() -> None:
+    """Remove upgrade locks older than the TTL (e.g. after OOM kill)."""
+    cutoff = time.monotonic() - _UPGRADE_LOCK_TTL
+    stale = [k for k, t in _upgrades_in_progress.items() if t < cutoff]
+    for k in stale:
+        logger.warning("Expiring stale upgrade lock for %s", k)
+        del _upgrades_in_progress[k]
 
 
 def _album_dir(user: UserDep, aid: str) -> Path:
@@ -172,6 +184,11 @@ async def callback(
 
 # ---------------------------------------------------------------------------
 # Picker session management
+#
+# Session ownership: Google's Picker API binds each session to the OAuth
+# credentials that created it. Every endpoint below resolves the *current*
+# user's access token via _get_access_token(), so User B cannot interact
+# with User A's session even if they guess the ID.
 # ---------------------------------------------------------------------------
 
 
@@ -222,7 +239,6 @@ async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
 async def match_media(
     aid: str,
     user: UserDep,
-    session: SessionDep,
     session_id: Annotated[PickerSessionId, Query()],
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
@@ -241,23 +257,27 @@ async def match_media(
     tokens = TokenProvider(refresh_token)
     access_token = await tokens.get()
 
-    album = await session.get_one(Album, (user.id, aid))
+    # Short-lived DB session: read album + steps, then release the
+    # connection before the long-running matching generator starts.
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        album = await session.get_one(Album, (user.id, aid))
+        step_rows = (
+            await session.exec(
+                select(Step)
+                .where(Step.uid == user.id, Step.aid == aid)
+                .order_by(col(Step.timestamp))
+            )
+        ).all()
+
     album_dir = _album_dir(user, aid)
-
-    items = await get_media_items(session_id, access_token)
-
-    step_rows = (
-        await session.exec(
-            select(Step)
-            .where(Step.uid == user.id, Step.aid == aid)
-            .order_by(col(Step.timestamp))
-        )
-    ).all()
+    already_upgraded = dict(album.upgraded_media)
     step_timestamps = [s.timestamp for s in step_rows]
     step_ids = [s.id for s in step_rows]
     media_by_step = {
         s.id: [name for page in s.pages for name in page] + s.unused for s in step_rows
     }
+
+    items = await get_media_items(session_id, access_token)
 
     try:
         async for event in run_matching(
@@ -267,7 +287,7 @@ async def match_media(
             step_ids=step_ids,
             google_items=items,
             tokens=tokens,
-            already_upgraded=album.upgraded_media,
+            already_upgraded=already_upgraded,
         ):
             yield event
     except Exception:
@@ -293,11 +313,11 @@ async def _prepare_upgrade(
     """
     encrypted_refresh = user.google_photos_refresh_token
     if not encrypted_refresh:
-        _upgrades_in_progress.discard(key)
+        _upgrades_in_progress.pop(key, None)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
     refresh_token = try_decrypt_token(encrypted_refresh)
     if not refresh_token:
-        _upgrades_in_progress.discard(key)
+        _upgrades_in_progress.pop(key, None)
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Google Photos connection lost. Please reconnect.",
@@ -316,7 +336,7 @@ async def _prepare_upgrade(
             all_items.extend(await get_media_items(sid, access_token))
         items_by_id = {item.id: item for item in all_items}
     except Exception:
-        _upgrades_in_progress.discard(key)
+        _upgrades_in_progress.pop(key, None)
         raise
     return album, album_dir, items_by_id, tokens
 
@@ -387,6 +407,7 @@ async def upgrade_media(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not connected")
 
     key = (user.id, aid)
+    _expire_stale_locks()
     if key in _upgrades_in_progress:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -394,7 +415,7 @@ async def upgrade_media(
         )
     # Register the lock immediately (no await between check and add)
     # to prevent concurrent requests from both passing the check.
-    _upgrades_in_progress.add(key)
+    _upgrades_in_progress[key] = time.monotonic()
 
     album, album_dir, items_by_id, tokens = await _prepare_upgrade(
         user, body, session, aid, key
@@ -422,7 +443,7 @@ async def upgrade_media(
                 await delete_picker_session(sid, access_token)
             except httpx.HTTPError, RuntimeError:
                 logger.warning("Failed to delete picker session %s", sid)
-        _upgrades_in_progress.discard(key)
+        _upgrades_in_progress.pop(key, None)
 
 
 # ---------------------------------------------------------------------------

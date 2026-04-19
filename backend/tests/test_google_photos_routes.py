@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from authlib.integrations.starlette_client import OAuthError
 from fastapi import HTTPException
 
 from app.api.v1.routes.google_photos import (
@@ -138,17 +139,17 @@ class TestValidateMatchNames:
 
 class TestConcurrentUpgradeLock:
     def test_duplicate_key_detected(self) -> None:
-        """The lock set correctly prevents concurrent upgrades."""
+        """The lock dict correctly prevents concurrent upgrades."""
         key = (999, "album-xyz")
-        _upgrades_in_progress.add(key)
+        _upgrades_in_progress[key] = 0.0
         try:
             assert key in _upgrades_in_progress
             # The route checks `if key in _upgrades_in_progress` and
-            # raises 409. We test the set mechanism directly because
+            # raises 409. We test the dict mechanism directly because
             # SSE generator endpoints don't propagate HTTPException
             # cleanly through the ASGI test client.
         finally:
-            _upgrades_in_progress.discard(key)
+            _upgrades_in_progress.pop(key, None)
         assert key not in _upgrades_in_progress
 
 
@@ -219,6 +220,81 @@ class TestPersistUpgradeRetry:
             await _persist_upgrade(1, "trip-1", tmp_path, [], set())
 
         assert any("filesystem may be ahead of DB" in r.message for r in caplog.records)
+
+
+class TestOAuthCallback:
+    async def test_success_stores_refresh_token(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        user_data = await sign_in_and_upload(client, users_dir, provider="google")
+        uid = user_data["id"]
+
+        mock_oauth = MagicMock()
+        mock_oauth.google_photos.authorize_access_token = AsyncMock(
+            return_value={"refresh_token": "rt-new-123", "access_token": "at-xyz"}
+        )
+
+        with patch(
+            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
+        ):
+            resp = await client.get(
+                "/api/v1/google-photos/callback", follow_redirects=False
+            )
+
+        assert resp.status_code == 307
+        assert "?error" not in resp.headers["location"]
+
+        user = await session.get(User, uid)
+        assert user is not None
+        assert user.google_photos_refresh_token is not None
+        assert user.google_photos_connected_at is not None
+
+    async def test_oauth_error_redirects_with_error(self, client: AsyncClient) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        await sign_in_and_upload(client, users_dir, provider="google")
+
+        mock_oauth = MagicMock()
+        mock_oauth.google_photos.authorize_access_token = AsyncMock(
+            side_effect=OAuthError("access_denied")
+        )
+
+        with patch(
+            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
+        ):
+            resp = await client.get(
+                "/api/v1/google-photos/callback", follow_redirects=False
+            )
+
+        assert resp.status_code == 307
+        assert "?error" in resp.headers["location"]
+
+    async def test_no_refresh_token_redirects_with_error(
+        self, client: AsyncClient
+    ) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        await sign_in_and_upload(client, users_dir, provider="google")
+
+        mock_oauth = MagicMock()
+        mock_oauth.google_photos.authorize_access_token = AsyncMock(
+            return_value={"access_token": "at-xyz"}  # no refresh_token
+        )
+
+        with patch(
+            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
+        ):
+            resp = await client.get(
+                "/api/v1/google-photos/callback", follow_redirects=False
+            )
+
+        assert resp.status_code == 307
+        assert "?error" in resp.headers["location"]
 
 
 class TestTokenRevocation:
