@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
+    SECRET_KEY_PREVIOUS: str | None = None
     VITE_FRONTEND_URL: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

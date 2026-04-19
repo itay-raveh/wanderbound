@@ -1,25 +1,43 @@
 """Fernet symmetric encryption for sensitive tokens (e.g. OAuth refresh tokens).
 
-Derives a stable Fernet key from SECRET_KEY so encrypted values survive restarts.
+Derives a stable Fernet key from SECRET_KEY via HKDF so encrypted values
+survive restarts. Supports zero-downtime key rotation via MultiFernet
+when SECRET_KEY_PREVIOUS is set.
 """
 
 import base64
-import hashlib
 import logging
 from functools import cache
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+_SALT = b"wanderbound-hkdf-v1"
+_INFO = b"wanderbound-token-encryption"
+
+
+def _derive_fernet_key(secret: str) -> bytes:
+    """Derive a url-safe Fernet key from an arbitrary secret via HKDF."""
+    raw = HKDF(algorithm=SHA256(), length=32, salt=_SALT, info=_INFO).derive(
+        secret.encode()
+    )
+    return base64.urlsafe_b64encode(raw)
+
 
 @cache
-def _fernet() -> Fernet:
-    """Derive a stable Fernet key from SECRET_KEY (cached for process lifetime)."""
-    digest = hashlib.sha256(get_settings().SECRET_KEY.encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
+def _fernet() -> Fernet | MultiFernet:
+    """Build a Fernet (or MultiFernet for key rotation) from settings."""
+    settings = get_settings()
+    current = Fernet(_derive_fernet_key(settings.SECRET_KEY))
+    if settings.SECRET_KEY_PREVIOUS:
+        previous = Fernet(_derive_fernet_key(settings.SECRET_KEY_PREVIOUS))
+        return MultiFernet([current, previous])
+    return current
 
 
 def encrypt_token(plaintext: str) -> str:

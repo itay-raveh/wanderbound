@@ -3,7 +3,12 @@
 import pytest
 from cryptography.fernet import InvalidToken
 
-from app.core.encryption import decrypt_token, encrypt_token
+from app.core.encryption import (
+    _derive_fernet_key,
+    decrypt_token,
+    encrypt_token,
+    try_decrypt_token,
+)
 
 
 class TestTokenEncryption:
@@ -25,3 +30,18 @@ class TestTokenEncryption:
     def test_empty_string_round_trips(self) -> None:
         encrypted = encrypt_token("")
         assert decrypt_token(encrypted) == ""
+
+    def test_try_decrypt_returns_none_on_invalid(self) -> None:
+        assert try_decrypt_token("not-valid-fernet-data") is None
+
+    def test_try_decrypt_returns_plaintext_on_valid(self) -> None:
+        encrypted = encrypt_token("secret")
+        assert try_decrypt_token(encrypted) == "secret"
+
+
+class TestKeyDerivation:
+    def test_deterministic(self) -> None:
+        assert _derive_fernet_key("test") == _derive_fernet_key("test")
+
+    def test_different_secrets_produce_different_keys(self) -> None:
+        assert _derive_fernet_key("key-a") != _derive_fernet_key("key-b")
