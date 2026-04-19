@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.deps import _get_session
 from app.core.config import get_settings
-from app.logic.media_upgrade import _clear_caches
+from app.logic.media_upgrade.pipeline import _clear_caches
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 

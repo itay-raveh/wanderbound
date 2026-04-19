@@ -452,3 +452,18 @@ async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
     )
     resp.raise_for_status()
     return _TokenResponse.model_validate_json(resp.content)
+
+
+async def revoke_refresh_token(refresh_token: RefreshToken) -> None:
+    """Best-effort revoke at Google.
+
+    https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
+    """
+    try:
+        resp = await _token_client().post(
+            "https://oauth2.googleapis.com/revoke",
+            data={"token": refresh_token},
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.warning("Token revoke failed: %s", type(exc).__name__)

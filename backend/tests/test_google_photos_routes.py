@@ -7,6 +7,7 @@ E2E. The matching algorithm is covered in test_media_upgrade.py.
 
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,7 +18,8 @@ from authlib.integrations.starlette_client import OAuthError
 from fastapi import HTTPException
 
 from app.api.v1.routes.google_photos import (
-    _persist_upgrade,
+    _UPGRADE_LOCK_TTL,
+    _expire_stale_locks,
     _upgrades_in_progress,
     _validate_match_names,
 )
@@ -31,8 +33,6 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -137,89 +137,40 @@ class TestValidateMatchNames:
         assert "evil.jpg" in str(exc_info.value.detail)
 
 
-class TestConcurrentUpgradeLock:
-    def test_duplicate_key_detected(self) -> None:
-        """The lock dict correctly prevents concurrent upgrades."""
+class TestExpireStaleLocks:
+    def test_removes_expired_locks(self) -> None:
+        """Locks older than TTL are removed."""
         key = (999, "album-xyz")
-        _upgrades_in_progress[key] = 0.0
+        _upgrades_in_progress[key] = time.monotonic() - _UPGRADE_LOCK_TTL - 1
         try:
-            assert key in _upgrades_in_progress
-            # The route checks `if key in _upgrades_in_progress` and
-            # raises 409. We test the dict mechanism directly because
-            # SSE generator endpoints don't propagate HTTPException
-            # cleanly through the ASGI test client.
+            _expire_stale_locks()
+            assert key not in _upgrades_in_progress
         finally:
             _upgrades_in_progress.pop(key, None)
-        assert key not in _upgrades_in_progress
 
+    def test_keeps_fresh_locks(self) -> None:
+        """Locks within TTL are preserved."""
+        key = (999, "album-xyz")
+        _upgrades_in_progress[key] = time.monotonic()
+        try:
+            _expire_stale_locks()
+            assert key in _upgrades_in_progress
+        finally:
+            _upgrades_in_progress.pop(key, None)
 
-class TestPersistUpgradeRetry:
-    def _make_mock_session(self) -> AsyncMock:
-        mock = AsyncMock()
-        mock.get_one = AsyncMock(
-            return_value=SimpleNamespace(media=[], upgraded_media=[])
-        )
-        mock.add = MagicMock()  # sync method, not async
-        mock.__aenter__ = AsyncMock(return_value=mock)
-        mock.__aexit__ = AsyncMock(return_value=False)
-        return mock
-
-    async def test_retries_on_first_failure(self, tmp_path: Path) -> None:
-        """_persist_upgrade retries once when the first commit fails."""
-        call_count = 0
-
-        mock_session = self._make_mock_session()
-
-        async def commit_side_effect() -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise RuntimeError("Transient DB error")
-
-        mock_session.commit = AsyncMock(side_effect=commit_side_effect)
-
-        with (
-            patch(
-                "app.api.v1.routes.google_photos.get_engine",
-                return_value=AsyncMock(),
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.AsyncSession",
-                return_value=mock_session,
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.apply_upgrade_results",
-                return_value=([], []),
-            ),
-        ):
-            await _persist_upgrade(1, "trip-1", tmp_path, [], set())
-
-        assert call_count == 2  # first failed, second succeeded
-
-    async def test_logs_error_on_total_failure(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Both retry attempts fail - logs ERROR with clear message."""
-        mock_session = self._make_mock_session()
-        mock_session.commit = AsyncMock(side_effect=RuntimeError("DB down"))
-
-        with (
-            patch(
-                "app.api.v1.routes.google_photos.get_engine",
-                return_value=AsyncMock(),
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.AsyncSession",
-                return_value=mock_session,
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.apply_upgrade_results",
-                return_value=([], []),
-            ),
-        ):
-            await _persist_upgrade(1, "trip-1", tmp_path, [], set())
-
-        assert any("filesystem may be ahead of DB" in r.message for r in caplog.records)
+    def test_mixed_fresh_and_stale(self) -> None:
+        """Only stale locks are removed; fresh ones survive."""
+        stale = (1, "old")
+        fresh = (2, "new")
+        _upgrades_in_progress[stale] = time.monotonic() - _UPGRADE_LOCK_TTL - 1
+        _upgrades_in_progress[fresh] = time.monotonic()
+        try:
+            _expire_stale_locks()
+            assert stale not in _upgrades_in_progress
+            assert fresh in _upgrades_in_progress
+        finally:
+            _upgrades_in_progress.pop(stale, None)
+            _upgrades_in_progress.pop(fresh, None)
 
 
 class TestOAuthCallback:
