@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.logic.processing import (
+from app.logic.trip_processing import (
     PhaseUpdate,
     ProcessingEvent,
     TripStart,

@@ -33,8 +33,8 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
-from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
+from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
 from app.models.user import (
     AuthProvider,

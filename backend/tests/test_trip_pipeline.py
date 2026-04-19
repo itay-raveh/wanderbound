@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.logic.pipeline import _save_reupload
+from app.logic.trip_pipeline import _save_reupload
 from app.models.album import Album
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -132,7 +132,7 @@ class TestSaveReuploadDeletesSegments:
         trip_dir = tmp_path / AID
         trip_dir.mkdir()
 
-        with patch("app.logic.pipeline.get_engine", return_value=engine):
+        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
             await _save_reupload(
                 uid=UID,
                 objects=[new_album, new_step],

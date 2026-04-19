@@ -14,7 +14,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.logic.demo_i18n import apply_overlay, load_overlay
-from app.logic.processing import (
+from app.logic.reconcile import reconcile_trip
+from app.logic.trip_processing import (
     DbRow,
     ErrorData,
     PhaseUpdate,
@@ -29,7 +30,6 @@ from app.logic.processing import (
     run_elevations,
     run_weather,
 )
-from app.logic.reconcile import reconcile_trip
 from app.models.album import Album
 from app.models.segment import Segment
 from app.models.step import Step

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.http import RateLimitedTransport, cached_client
-from app.logic.matching import (
+from app.logic.route_matching import (
     Coords,
     is_sparse,
     reduce_coords,

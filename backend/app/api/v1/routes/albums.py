@@ -17,8 +17,8 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import select
 
 from app.logic.layout.media import Media
-from app.logic.matching import MATCHABLE_KINDS, total_length_km
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
+from app.logic.route_matching import MATCHABLE_KINDS, total_length_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,

@@ -1,4 +1,4 @@
-"""Tests for app.logic.processing."""
+"""Tests for app.logic.trip_processing."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import pytest
 
-from app.logic.processing import (
+from app.logic.trip_processing import (
     resolve_international_waters,
     segment_timezone,
 )

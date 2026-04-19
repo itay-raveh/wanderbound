@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app.logic.layout import Layout
 from app.logic.layout.media import Media, media_sem, normalize_name
-from app.logic.processing import (
+from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
     TripResults,

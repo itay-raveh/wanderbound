@@ -9,8 +9,8 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
-from app.logic.pipeline import run_processing
-from app.logic.processing import ProcessingEvent
+from app.logic.trip_pipeline import run_processing
+from app.logic.trip_processing import ProcessingEvent
 from app.models.user import User
 
 logger = logging.getLogger(__name__)

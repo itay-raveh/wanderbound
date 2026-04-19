@@ -2,7 +2,7 @@
 
 import re
 
-from app.logic.pipeline import _apply_demo_i18n
+from app.logic.trip_pipeline import _apply_demo_i18n
 from app.models.user import User
 
 from .test_demo_i18n import make_album, make_step
