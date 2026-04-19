@@ -1,8 +1,6 @@
 export const UPGRADE_ERRORS = {
   popupBlocked: "popupBlocked",
-  noResults: "noResults",
   selectionTimeout: "selectionTimeout",
-  selectionCancelled: "selectionCancelled",
   connectionLost: "connectionLost",
   authCancelled: "authCancelled",
   authTimeout: "authTimeout",

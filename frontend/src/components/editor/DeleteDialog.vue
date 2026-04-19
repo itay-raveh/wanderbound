@@ -23,7 +23,7 @@ const { t } = useI18n();
     :title="t('delete.title')"
     :body="t('delete.body')"
     :confirm-label="deleting ? t('delete.deleting') : t('delete.confirm')"
-    :cancel-label="t('delete.cancel')"
+    :cancel-label="t('common.cancel')"
     :confirm-disabled="deleting"
     @confirm="$emit('confirm')"
   />

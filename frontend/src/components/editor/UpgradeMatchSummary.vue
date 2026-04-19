@@ -57,7 +57,7 @@ const confirmLabel = computed(() => {
     :title="titleText"
     :body="bodyText"
     :confirm-label="confirmLabel"
-    :cancel-label="t('upgrade.summary.cancel')"
+    :cancel-label="t('common.cancel')"
     :secondary-label="t('upgrade.summary.selectMore')"
     @confirm="$emit('confirm')"
     @secondary="$emit('selectMore')"

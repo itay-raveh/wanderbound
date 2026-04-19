@@ -38,7 +38,7 @@ const id = useId();
           no-caps
           class="col text-body2 cancel-btn"
         >
-          {{ t("upgrade.onboarding.cancel") }}
+          {{ t("common.cancel") }}
         </q-btn>
         <q-btn
           flat

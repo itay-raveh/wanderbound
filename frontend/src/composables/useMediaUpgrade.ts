@@ -33,12 +33,15 @@ interface UpgradeProgress {
   skipped?: number;
 }
 
-interface MatchSummaryData {
+interface RoundMatchResult {
   matches: MatchResult[];
   totalPicked: number;
   matched: number;
   alreadyUpgraded: number;
   unmatched: number;
+}
+
+interface MatchSummaryData extends RoundMatchResult {
   newThisRound: number;
 }
 
@@ -263,12 +266,9 @@ export function useMediaUpgrade() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
     try { activePopup?.close(); } catch { /* COOP may block */ }
-    activePopup = null;
     for (const sid of sessionIds) {
       gp.closeSession(sid).catch(() => {});
     }
-    confirmResolve = null;
-    confirmReject = null;
     if (resetTimer !== null) {
       clearTimeout(resetTimer);
       resetTimer = null;
@@ -316,7 +316,7 @@ export function useMediaUpgrade() {
     albumId: string,
     sessionId: string,
     signal: AbortSignal,
-  ): Promise<MatchSummaryData | null> {
+  ): Promise<RoundMatchResult | null> {
     const { stream } = await matchMedia({
       path: { aid: albumId },
       query: { session_id: sessionId },
@@ -324,7 +324,7 @@ export function useMediaUpgrade() {
       sseMaxRetryAttempts: 0,
     });
 
-    let summary: MatchSummaryData | null = null;
+    let summary: RoundMatchResult | null = null;
 
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;

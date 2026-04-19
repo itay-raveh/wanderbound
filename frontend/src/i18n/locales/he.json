@@ -117,7 +117,6 @@
   "delete": {
     "title": "למחוק הכול?",
     "body": "כל הנתונים והאלבומים יימחקו לצמיתות. תצטרכו להעלות מחדש כדי להמשיך.",
-    "cancel": "ביטול",
     "confirm": "מחיקת הכול",
     "deleting": "מוחק..."
   },
@@ -258,8 +257,7 @@
       "title": "שדרוג לאיכות מקורית",
       "body": "Polarsteps מפקסלים את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
       "tip": "כדי לבחור תמונות רבות בקלות, מומלץ ליצור אלבום ב-Google Photos.",
-      "continue": "חיבור Google Photos",
-      "cancel": "ביטול"
+      "continue": "חיבור Google Photos"
     },
     "authorizing": "מתחבר ל-Google Photos...",
     "picking": "ממתין לבחירה...",
@@ -275,8 +273,7 @@
       "allUpgradedBody": "כל הקבצים שנבחרו כבר שודרגו בעבר.",
       "alreadyUpgraded": "{count} כבר באיכות המקורית.",
       "confirm": "שדרגו {count} קבצים",
-      "selectMore": "בחרו עוד",
-      "cancel": "ביטול"
+      "selectMore": "בחרו עוד"
     },
     "downloading": "מוריד {done}/{total}",
     "done": "שודרגו {replaced} קבצים לאיכות מקורית",
@@ -285,9 +282,7 @@
     "error": "השדרוג נכשל. נסו שוב.",
     "errors": {
       "popupBlocked": "חלון קופץ נחסם. אפשרו חלונות קופצים ונסו שוב.",
-      "noResults": "לא נמצאו תוצאות מההתאמה.",
       "selectionTimeout": "הבחירה פגה.",
-      "selectionCancelled": "הבחירה בוטלה.",
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
       "authTimeout": "ההרשאה פגה.",
@@ -299,8 +294,7 @@
     "disconnectConfirm": {
       "title": "לנתק את Google Photos?",
       "body": "תוכלו להתחבר מחדש בכל עת כדי לשדרג קבצים נוספים.",
-      "confirm": "ניתוק",
-      "cancel": "ביטול"
+      "confirm": "ניתוק"
     }
   }
 }

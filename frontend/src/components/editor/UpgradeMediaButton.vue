@@ -253,7 +253,7 @@ const { confirmUpgrade } = upgrade;
       :title="t('upgrade.disconnectConfirm.title')"
       :body="t('upgrade.disconnectConfirm.body')"
       :confirm-label="t('upgrade.disconnectConfirm.confirm')"
-      :cancel-label="t('upgrade.disconnectConfirm.cancel')"
+      :cancel-label="t('common.cancel')"
       @confirm="confirmDisconnect"
     />
   </template>

@@ -164,8 +164,8 @@ test.describe("Media Upgrade", () => {
     await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
     await upgradeBtn.click();
 
-    // Match summary dialog should appear with "2 of 3" matched
-    await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 10_000 });
+    // Match summary dialog should appear
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({ timeout: 10_000 });
 
     // Confirm upgrade
     const confirmBtn = page.getByRole("button", {
@@ -225,7 +225,7 @@ test.describe("Media Upgrade", () => {
     await upgradeBtn.click();
 
     // Wait for match summary
-    await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
 
     // Partial failure: "Upgraded 1 of 2 files"
@@ -255,5 +255,256 @@ test.describe("Media Upgrade", () => {
     await expect(
       page.getByRole("button", { name: /disconnect/i }),
     ).toBeVisible({ timeout: 5_000 });
+  });
+
+  // -- Cancel flows ----------------------------------------------------------
+
+  test("cancel from onboarding closes dialog and returns to idle", async ({
+    authedPage: page,
+  }) => {
+    await setupUpgradeRoutes(page);
+    await page.addInitScript(() => {
+      window.open = () => null;
+    });
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    // Onboarding dialog should appear
+    await expect(page.getByText(/original quality/i)).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // Cancel - computed setter triggers upgrade.cancel()
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    // Should return to idle
+    await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/original quality/i)).not.toBeVisible();
+  });
+
+  test("cancel from match summary returns to idle", async ({
+    authedPage: page,
+  }) => {
+    await setupUpgradeRoutes(page);
+    await page.addInitScript(
+      ([key]) => localStorage.setItem(key, "1"),
+      [MEDIA_UPGRADE_ONBOARDED_KEY],
+    );
+    await page.addInitScript(() => {
+      window.open = () =>
+        ({
+          closed: false,
+          close() {
+            this.closed = true;
+          },
+          location: { href: "" },
+          document: {
+            title: "",
+            body: { style: { cssText: "" }, textContent: "" },
+          },
+        }) as unknown as Window;
+    });
+
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    // Match summary with "2 files ready"
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Cancel - computed setter triggers upgrade.cancel()
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    // Should return to idle
+    await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("cancel during picking aborts and returns to idle", async ({
+    authedPage: page,
+  }) => {
+    await page.route(`${API}/users`, (route) =>
+      route.fulfill({ json: connectedUser }),
+    );
+    await page.route(`${API}/google-photos/sessions`, (route) => {
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          json: {
+            session_id: "sess-1",
+            picker_uri: "https://photos.google.com/picker/sess-1",
+          },
+        });
+      }
+      return route.fallback();
+    });
+    // Poll always returns not-ready so picking phase persists
+    await page.route(`${API}/google-photos/sessions/sess-1`, (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: { ready: false } });
+      }
+      return route.fulfill({ status: 204, body: "" });
+    });
+
+    await page.addInitScript(
+      ([key]) => localStorage.setItem(key, "1"),
+      [MEDIA_UPGRADE_ONBOARDED_KEY],
+    );
+    await page.addInitScript(() => {
+      window.open = () =>
+        ({
+          closed: false,
+          close() {
+            this.closed = true;
+          },
+          location: { href: "" },
+          document: {
+            title: "",
+            body: { style: { cssText: "" }, textContent: "" },
+          },
+        }) as unknown as Window;
+    });
+
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    // Should enter picking phase with running button
+    const runningBtn = page.getByRole("button", {
+      name: /waiting for selection/i,
+    });
+    await expect(runningBtn).toBeVisible({ timeout: 5_000 });
+
+    // Click running button to cancel
+    await runningBtn.click();
+
+    // Should return to idle
+    await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
+  });
+
+  // -- Select more flow ------------------------------------------------------
+
+  test("select more accumulates matches across rounds", async ({
+    authedPage: page,
+  }) => {
+    let sessionCount = 0;
+
+    await page.route(`${API}/users`, (route) =>
+      route.fulfill({ json: connectedUser }),
+    );
+    await page.route(`${API}/google-photos/sessions`, (route) => {
+      if (route.request().method() === "POST") {
+        sessionCount++;
+        return route.fulfill({
+          json: {
+            session_id: `sess-${sessionCount}`,
+            picker_uri: `https://photos.google.com/picker/sess-${sessionCount}`,
+          },
+        });
+      }
+      return route.fallback();
+    });
+    // Both sessions immediately ready; DELETE returns 204
+    await page.route(`${API}/google-photos/sessions/sess-*`, (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: { ready: true } });
+      }
+      return route.fulfill({ status: 204, body: "" });
+    });
+
+    const round2MatchEvents = [
+      { type: "matching", phase: "matching", done: 1, total: 2 },
+      { type: "matching", phase: "matching", done: 2, total: 2 },
+      {
+        type: "match_summary",
+        total_picked: 2,
+        matched: 1,
+        already_upgraded: 0,
+        unmatched: 1,
+        matches: [
+          { local_name: "cover.jpg", google_id: "gid-3", distance: 0 },
+        ],
+      },
+    ];
+
+    let matchRound = 0;
+    await page.route(`${API}/google-photos/match/**`, (route) => {
+      matchRound++;
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sseBody(matchRound === 1 ? matchEvents : round2MatchEvents),
+      });
+    });
+
+    await page.route(`${API}/google-photos/upgrade/**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sseBody([
+          { type: "downloading", done: 1, total: 3 },
+          { type: "downloading", done: 2, total: 3 },
+          { type: "downloading", done: 3, total: 3 },
+          { type: "done", replaced: 3, skipped: 0, failed: 0 },
+        ]),
+      }),
+    );
+
+    await page.route(`${API}/albums/*/media`, (route) =>
+      route.fulfill({ json: mockMedia }),
+    );
+
+    await page.addInitScript(
+      ([key]) => localStorage.setItem(key, "1"),
+      [MEDIA_UPGRADE_ONBOARDED_KEY],
+    );
+    await page.addInitScript(() => {
+      window.open = () =>
+        ({
+          closed: false,
+          close() {
+            this.closed = true;
+          },
+          location: { href: "" },
+          document: {
+            title: "",
+            body: { style: { cssText: "" }, textContent: "" },
+          },
+        }) as unknown as Window;
+    });
+
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    // Round 1: summary shows "2 files ready to upgrade"
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Click "Select More" to start round 2
+    await page.getByRole("button", { name: /select more/i }).click();
+
+    // After round 2, merged summary shows "3 files ready to upgrade"
+    await expect(page.getByText(/3 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Confirm upgrade
+    await page.getByRole("button", { name: /upgrade 3 files/i }).click();
+
+    // Done
+    await expect(page.getByText(/upgraded 3 files/i)).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });
