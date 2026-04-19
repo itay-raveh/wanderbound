@@ -4,7 +4,7 @@ import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
 import { Platform } from "quasar";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
-import UpgradeMatchSummary from "./UpgradeMatchSummary.vue";
+import UpgradeMatchDialog from "./UpgradeMatchDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import {
   symOutlinedClose,
@@ -235,7 +235,7 @@ const { confirmUpgrade } = upgrade;
       @confirm="confirmUpgrade"
     />
 
-    <UpgradeMatchSummary
+    <UpgradeMatchDialog
       v-model="showSummary"
       :matched="upgrade.matchSummary.value?.matched ?? 0"
       :total="upgrade.matchSummary.value?.totalPicked ?? 0"
