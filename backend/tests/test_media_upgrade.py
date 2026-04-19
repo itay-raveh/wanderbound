@@ -26,17 +26,17 @@ from app.logic.media_upgrade import (
     MATCH_THRESHOLD,
     HashedMedia,
     MatchResult,
-    _bucket_by_window,
-    _cross_step_fallback,
-    _extract_video_frames,
     _pairwise_distance,
     _parse_timestamp,
-    _process_photo_sync,
-    _process_video,
     apply_upgrade_results,
+    bucket_by_window,
     build_cost_matrix,
     build_step_windows,
+    cross_step_fallback,
+    extract_video_frame_hashes,
     match_within_window,
+    process_photo_sync,
+    process_video,
 )
 from app.services.google_photos import (
     GoogleMediaType,
@@ -245,7 +245,7 @@ def _make_item(
         create_time=create_time,
         type=item_type,
         media_file=MediaFile(
-            base_url="https://example.com",
+            base_url="https://lh3.googleusercontent.com/test",
             mime_type="video/mp4" if item_type == "VIDEO" else "image/jpeg",
             filename=f"{item_id}.mp4" if item_type == "VIDEO" else f"{item_id}.jpg",
         ),
@@ -277,7 +277,7 @@ class TestBucketByWindow:
             step_ids=[1, 2],
         )
         item = _make_item("g1", "1970-01-12T19:20:00+00:00")  # epoch 1_020_000
-        bucketed = _bucket_by_window([item], windows)
+        bucketed = bucket_by_window([item], windows)
         assert len(bucketed[1]) == 1
         assert bucketed[1][0].id == "g1"
 
@@ -288,7 +288,7 @@ class TestBucketByWindow:
             step_ids=[1],
         )
         video = _make_item("v1", "1970-01-12T13:46:40+00:00", item_type="VIDEO")
-        bucketed = _bucket_by_window([video], windows)
+        bucketed = bucket_by_window([video], windows)
         assert len(bucketed[1]) == 1
 
     def test_ready_video_accepted(self) -> None:
@@ -302,7 +302,7 @@ class TestBucketByWindow:
             item_type="VIDEO",
             video_processing_status="READY",
         )
-        bucketed = _bucket_by_window([video], windows)
+        bucketed = bucket_by_window([video], windows)
         assert len(bucketed[1]) == 1
         assert bucketed[1][0].id == "v1"
 
@@ -317,7 +317,7 @@ class TestBucketByWindow:
             item_type="VIDEO",
             video_processing_status="PROCESSING",
         )
-        bucketed = _bucket_by_window([video], windows)
+        bucketed = bucket_by_window([video], windows)
         assert len(bucketed[1]) == 0
 
     def test_failed_video_skipped(self) -> None:
@@ -331,7 +331,7 @@ class TestBucketByWindow:
             item_type="VIDEO",
             video_processing_status="FAILED",
         )
-        bucketed = _bucket_by_window([video], windows)
+        bucketed = bucket_by_window([video], windows)
         assert len(bucketed[1]) == 0
 
     def test_invalid_timestamp_skipped(self) -> None:
@@ -340,7 +340,7 @@ class TestBucketByWindow:
             step_ids=[1],
         )
         bad = _make_item("b1", "not-a-timestamp")
-        bucketed = _bucket_by_window([bad], windows)
+        bucketed = bucket_by_window([bad], windows)
         assert len(bucketed[1]) == 0
 
     def test_overlap_margin_includes_boundary_items(self) -> None:
@@ -353,7 +353,7 @@ class TestBucketByWindow:
         t = 1_050_000.0 + 600
         iso = datetime.fromtimestamp(t, UTC).isoformat()
         item = _make_item("g1", iso)
-        bucketed = _bucket_by_window([item], windows)
+        bucketed = bucket_by_window([item], windows)
         # Should land in window 1 (via overlap) and also window 2
         assert any(i.id == "g1" for i in bucketed[1])
         assert any(i.id == "g1" for i in bucketed[2])
@@ -371,7 +371,7 @@ class TestCrossStepFallback:
         candidate_hashes = {"gp-1": h}
         item = _make_item("gp-1", "2024-01-15T10:00:00Z")
 
-        _cross_step_fallback(
+        cross_step_fallback(
             all_matches,
             matched_locals,
             matched_candidates,
@@ -391,7 +391,7 @@ class TestCrossStepFallback:
         matched_locals = {"photo1.jpg"}
         matched_candidates = {"gp-1"}
 
-        _cross_step_fallback(
+        cross_step_fallback(
             all_matches,
             matched_locals,
             matched_candidates,
@@ -413,7 +413,7 @@ class TestCrossStepFallback:
         candidate_hashes = {f"gp-{i}": h for i in range(n)}
 
         all_matches: list[MatchResult] = []
-        _cross_step_fallback(
+        cross_step_fallback(
             all_matches,
             matched_locals=set(),
             matched_candidates=set(),
@@ -435,7 +435,7 @@ class TestCrossStepFallback:
         candidate_hashes = {f"gp-{i}": h for i in range(n)}
 
         all_matches: list[MatchResult] = []
-        _cross_step_fallback(
+        cross_step_fallback(
             all_matches,
             matched_locals=set(),
             matched_candidates=set(),
@@ -488,14 +488,14 @@ class TestProcessPhoto:
         with Image.open(BytesIO(data)) as src:
             assert len(src.getexif()) > 0
 
-        result, _, _ = _process_photo_sync(data)
+        result, _, _ = process_photo_sync(data)
 
         with Image.open(BytesIO(result)) as out:
             assert len(out.getexif()) == 0
 
     def test_resizes_large_landscape(self) -> None:
         data = _make_jpeg_bytes(5000, 3000)
-        result, w, h = _process_photo_sync(data)
+        result, w, h = process_photo_sync(data)
 
         assert (w, h) == (_MAX_LONG_EDGE, 1800)
         with Image.open(BytesIO(result)) as out:
@@ -503,7 +503,7 @@ class TestProcessPhoto:
 
     def test_resizes_large_portrait(self) -> None:
         data = _make_jpeg_bytes(3000, 5000)
-        result, w, h = _process_photo_sync(data)
+        result, w, h = process_photo_sync(data)
 
         assert (w, h) == (1800, _MAX_LONG_EDGE)
         with Image.open(BytesIO(result)) as out:
@@ -511,7 +511,7 @@ class TestProcessPhoto:
 
     def test_preserves_small_image(self) -> None:
         data = _make_jpeg_bytes(2000, 1500)
-        result, w, h = _process_photo_sync(data)
+        result, w, h = process_photo_sync(data)
 
         assert (w, h) == (2000, 1500)
         with Image.open(BytesIO(result)) as out:
@@ -519,7 +519,7 @@ class TestProcessPhoto:
 
     def test_converts_png_to_jpeg(self) -> None:
         data = _make_png_bytes(800, 600)
-        result, w, h = _process_photo_sync(data)
+        result, w, h = process_photo_sync(data)
 
         assert (w, h) == (800, 600)
         with Image.open(BytesIO(result)) as out:
@@ -534,7 +534,7 @@ class TestProcessPhoto:
         exif_bytes = exif.tobytes()
 
         data = _make_jpeg_bytes(400, 600, exif=exif_bytes)
-        result, w, h = _process_photo_sync(data)
+        result, w, h = process_photo_sync(data)
 
         # After transpose: 600x400 (landscape)
         assert (w, h) == (600, 400)
@@ -569,14 +569,14 @@ def sample_video(tmp_path: Path) -> Path:
 
 class TestExtractVideoFrames:
     def test_extracts_four_frames(self, sample_video: Path) -> None:
-        frames = _extract_video_frames(sample_video)
+        frames = extract_video_frame_hashes(sample_video)
         assert len(frames) == 4
         for frame in frames:
             assert isinstance(frame, imagehash.ImageHash)
 
     def test_all_frames_from_same_video_are_similar(self, sample_video: Path) -> None:
         """A solid-color video should produce near-identical hashes."""
-        frames = _extract_video_frames(sample_video)
+        frames = extract_video_frame_hashes(sample_video)
         for i in range(len(frames) - 1):
             assert frames[i] - frames[i + 1] < 5
 
@@ -584,7 +584,7 @@ class TestExtractVideoFrames:
 class TestProcessVideo:
     async def test_reencodes_to_h264(self, sample_video: Path, tmp_path: Path) -> None:
         out = tmp_path / "out.mp4"
-        await _process_video(sample_video, out)
+        await process_video(sample_video, out)
 
         assert out.exists()
         # Verify H.264 codec via ffprobe
@@ -629,7 +629,7 @@ class TestProcessVideo:
             capture_output=True,
         )
         out = tmp_path / "out.mp4"
-        await _process_video(source, out)
+        await process_video(source, out)
 
         # Check output dimensions
         result = subprocess.run(  # noqa: S603, ASYNC221
@@ -654,7 +654,7 @@ class TestProcessVideo:
 
     async def test_strips_metadata(self, sample_video: Path, tmp_path: Path) -> None:
         out = tmp_path / "out.mp4"
-        await _process_video(sample_video, out)
+        await process_video(sample_video, out)
 
         result = subprocess.run(  # noqa: S603, ASYNC221
             [  # noqa: S607

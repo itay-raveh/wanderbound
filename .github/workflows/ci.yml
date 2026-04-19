@@ -63,6 +63,7 @@ jobs:
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: uv run pytest
         working-directory: backend
 
@@ -70,9 +71,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
       - uses: oven-sh/setup-bun@v2
+      - run: uv sync --all-packages
       - run: bun install --frozen-lockfile
         working-directory: frontend
+      - name: Generate OpenAPI client
+        run: uv run python scripts/generate_openapi.py && cd frontend && bun x openapi-ts
       - run: bun run test
         working-directory: frontend
 
@@ -92,9 +100,8 @@ jobs:
         working-directory: frontend
       - run: bunx playwright install --with-deps chromium
         working-directory: frontend
-      - name: Generate OpenAPI spec
-        run: uv run python ../scripts/generate_openapi.py > ../frontend/openapi.json
-        working-directory: backend
+      - name: Generate OpenAPI client
+        run: uv run python scripts/generate_openapi.py && cd frontend && bun x openapi-ts
       - run: bun run test:e2e
         working-directory: frontend
       - if: failure()

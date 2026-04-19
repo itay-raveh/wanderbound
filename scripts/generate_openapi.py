@@ -28,4 +28,4 @@ app.include_router(router, prefix=API_V1_STR)
 spec = json.dumps(app.openapi(), indent=2) + "\n"
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else _DEFAULT_OUT
 out.write_text(spec)
-print(f"Wrote {out}")
+print(f"Wrote {out}", file=sys.stderr)
