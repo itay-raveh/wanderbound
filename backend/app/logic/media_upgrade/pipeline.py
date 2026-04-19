@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validate_call
 
 if TYPE_CHECKING:
     import imagehash
@@ -257,8 +257,9 @@ async def run_matching(  # noqa: PLR0913
 # ---------------------------------------------------------------------------
 
 
+@validate_call(config={"arbitrary_types_allowed": True})
 async def _download_and_replace(
-    match: MatchResult,
+    local_name: MediaName,
     item: PickedMediaItem,
     album_dir: Path,
     tmp_dir: Path,
@@ -266,21 +267,25 @@ async def _download_and_replace(
 ) -> bool | None:
     """Download one original, process, and replace the compressed file.
 
+    ``local_name`` is validated against the strict ``MediaName`` pattern at
+    the call boundary - this is the only place we build filesystem paths
+    from a user-supplied filename, so traversal sequences are rejected here.
+
     Returns True if replaced, False if skipped (original not larger),
     None if the download produced no data.
     """
-    target = album_dir / match.local_name
-    tmp_path = tmp_dir / match.local_name
+    target = album_dir / local_name
+    tmp_path = tmp_dir / local_name
 
-    if is_video(match.local_name):
-        raw_path = tmp_dir / f"{match.local_name}.raw"
+    if is_video(local_name):
+        raw_path = tmp_dir / f"{local_name}.raw"
         try:
             async with _download_sem():
                 access_token = await tokens.get()
                 await download_media_to_file(
                     item.media_file.base_url, access_token, raw_path, param="=dv"
                 )
-            return await replace_video(match.local_name, raw_path, tmp_path, target)
+            return await replace_video(local_name, raw_path, tmp_path, target)
         except Exception:
             await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
             raise
@@ -292,7 +297,7 @@ async def _download_and_replace(
         )
     if not data:
         return None
-    return await replace_photo(match.local_name, data, tmp_path, target)
+    return await replace_photo(local_name, data, tmp_path, target)
 
 
 async def execute_upgrade(  # noqa: PLR0913, C901
@@ -328,7 +333,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
             return None
         try:
             result = await _download_and_replace(
-                match, item, album_dir, tmp_dir, tokens
+                match.local_name, item, album_dir, tmp_dir, tokens
             )
         except (
             OSError,
