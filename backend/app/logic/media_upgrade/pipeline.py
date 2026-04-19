@@ -33,7 +33,7 @@ from app.services.google_photos import (
     download_media_to_file,
 )
 
-from .matching import (
+from .phash_matching import (
     LocalHash,
     MatchResult,
     bucket_by_window,
@@ -42,10 +42,9 @@ from .matching import (
     compute_phash_from_path,
     cross_step_fallback,
     deduplicate_items,
-    extract_video_frame_hashes,
     match_across_windows,
 )
-from .processing import replace_photo, replace_video
+from .processing import extract_video_frame_hashes, replace_photo, replace_video
 
 logger = logging.getLogger(__name__)
 

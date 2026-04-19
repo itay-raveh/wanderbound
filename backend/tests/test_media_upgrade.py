@@ -33,7 +33,7 @@ from app.logic.media_upgrade import (
     process_photo_sync,
     process_video,
 )
-from app.logic.media_upgrade.matching import (
+from app.logic.media_upgrade.phash_matching import (
     _CROSS_TYPE_COST,
     _FALLBACK_MAX_DIMENSION,
     _pairwise_distance,

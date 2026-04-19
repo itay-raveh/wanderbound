@@ -7,7 +7,6 @@ for optimal bipartite assignment.
 
 import dataclasses
 import logging
-import subprocess
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -22,8 +21,6 @@ from scipy.optimize import linear_sum_assignment
 from app.logic.layout.media import MediaName, is_video
 from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import PickedMediaItem
-
-from .processing import _FFPROBE_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -120,72 +117,6 @@ def compute_phash_from_path(path: Path) -> imagehash.ImageHash:
 def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
     with Image.open(BytesIO(data)) as img:
         return compute_phash(img)
-
-
-# ---------------------------------------------------------------------------
-# Video frame hashing
-# ---------------------------------------------------------------------------
-
-_VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
-_FFMPEG_FRAME_TIMEOUT = 30
-
-
-def _video_duration_sync(path: Path) -> float:
-    """Get video duration via ffprobe (synchronous)."""
-    result = subprocess.run(  # noqa: S603
-        [  # noqa: S607
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=_FFPROBE_TIMEOUT,
-    )
-    try:
-        return float(result.stdout.strip())
-    except ValueError:
-        logger.debug("Could not parse duration for %s, defaulting to 2s", path.name)
-        return 2.0
-
-
-def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
-    """Extract frames at 10/30/50/70% of duration and compute pHash for each."""
-    duration = _video_duration_sync(path)
-    hashes: list[imagehash.ImageHash] = []
-    for pct in _VIDEO_SAMPLE_POINTS:
-        ts = duration * pct
-        result = subprocess.run(  # noqa: S603
-            [  # noqa: S607
-                "ffmpeg",
-                "-y",
-                "-v",
-                "error",
-                "-ss",
-                str(ts),
-                "-i",
-                str(path),
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-vcodec",
-                "png",
-                "-",
-            ],
-            capture_output=True,
-            check=True,
-            timeout=_FFMPEG_FRAME_TIMEOUT,
-        )
-        with Image.open(BytesIO(result.stdout)) as img:
-            hashes.append(compute_phash(img))
-    return hashes
 
 
 # ---------------------------------------------------------------------------

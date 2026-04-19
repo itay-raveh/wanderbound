@@ -11,6 +11,8 @@ import subprocess
 from io import BytesIO
 from pathlib import Path
 
+import imagehash
+import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
 
@@ -143,6 +145,72 @@ async def process_video(input_path: Path, output: Path) -> None:
             raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
     finally:
         await asyncio.to_thread(lambda: input_path.unlink(missing_ok=True))
+
+
+# ---------------------------------------------------------------------------
+# Video frame hashing (perceptual hash of sampled frames, for matching)
+# ---------------------------------------------------------------------------
+
+_VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
+_FFMPEG_FRAME_TIMEOUT = 30
+
+
+def _video_duration_sync(path: Path) -> float:
+    """Get video duration via ffprobe (synchronous)."""
+    result = subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=_FFPROBE_TIMEOUT,
+    )
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        logger.debug("Could not parse duration for %s, defaulting to 2s", path.name)
+        return 2.0
+
+
+def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
+    """Extract frames at 10/30/50/70% of duration and compute pHash for each."""
+    duration = _video_duration_sync(path)
+    hashes: list[imagehash.ImageHash] = []
+    for pct in _VIDEO_SAMPLE_POINTS:
+        ts = duration * pct
+        result = subprocess.run(  # noqa: S603
+            [  # noqa: S607
+                "ffmpeg",
+                "-y",
+                "-v",
+                "error",
+                "-ss",
+                str(ts),
+                "-i",
+                str(path),
+                "-frames:v",
+                "1",
+                "-f",
+                "image2pipe",
+                "-vcodec",
+                "png",
+                "-",
+            ],
+            capture_output=True,
+            check=True,
+            timeout=_FFMPEG_FRAME_TIMEOUT,
+        )
+        with Image.open(BytesIO(result.stdout)) as img:
+            hashes.append(imagehash.phash(img))
+    return hashes
 
 
 # ---------------------------------------------------------------------------

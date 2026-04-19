@@ -1,7 +1,7 @@
 """Media upgrade package - matching and replacing compressed media with originals."""
 
 # Re-export public API so existing `from app.logic.media_upgrade import X` works.
-from .matching import (
+from .phash_matching import (
     MATCH_THRESHOLD,
     HashedMedia,
     LocalHash,
@@ -15,7 +15,6 @@ from .matching import (
     compute_phash_from_path,
     cross_step_fallback,
     deduplicate_items,
-    extract_video_frame_hashes,
     match_across_windows,
     match_within_window,
 )
@@ -32,6 +31,7 @@ from .pipeline import (
     run_matching,
 )
 from .processing import (
+    extract_video_frame_hashes,
     process_photo_sync,
     process_video,
     replace_photo,
