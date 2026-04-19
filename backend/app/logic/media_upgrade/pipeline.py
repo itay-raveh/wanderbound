@@ -11,7 +11,6 @@ import asyncio
 import contextlib
 import functools
 import logging
-import os
 import shutil
 import subprocess
 from collections.abc import AsyncGenerator
@@ -24,6 +23,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     import imagehash
 
+from app.core.resources import detect_cpu_count
 from app.logic.layout.media import Media, MediaName, is_video
 from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import (
@@ -66,7 +66,7 @@ def _download_sem() -> asyncio.Semaphore:
 
 @functools.cache
 def _hash_sem() -> asyncio.Semaphore:
-    return asyncio.Semaphore(min(8, (os.cpu_count() or 4)))
+    return asyncio.Semaphore(min(8, detect_cpu_count()))
 
 
 # ---------------------------------------------------------------------------

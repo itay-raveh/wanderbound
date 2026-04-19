@@ -3,6 +3,7 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import sentry_sdk
@@ -98,6 +99,14 @@ async def _get_browser(request: Request) -> Browser:
 
 
 BrowserDep = Annotated[Browser, Depends(_get_browser)]
+
+
+def album_dir(user: User, aid: str) -> Path:
+    """Resolve the album directory, rejecting path traversal in ``aid``."""
+    resolved = (user.trips_folder / aid).resolve()
+    if not resolved.is_relative_to(user.trips_folder):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return resolved
 
 
 def login_session(request: Request, uid: int) -> None:

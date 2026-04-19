@@ -21,6 +21,12 @@ def detect_storage_bytes(path: Path) -> int:
 
 
 @cache
+def detect_cpu_count() -> int:
+    """Available CPUs, respecting cgroup limits (e.g. Docker --cpus)."""
+    return os.process_cpu_count() or os.cpu_count() or 4
+
+
+@cache
 def detect_memory_mb() -> int:
     """Container memory limit in MB from cgroup, with system fallback."""
     try:

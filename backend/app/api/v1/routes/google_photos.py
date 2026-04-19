@@ -47,7 +47,7 @@ from app.services.google_photos import (
     refresh_access_token,
 )
 
-from ..deps import SessionDep, UserDep
+from ..deps import SessionDep, UserDep, album_dir as _album_dir
 
 logger = logging.getLogger(__name__)
 
@@ -67,14 +67,6 @@ def _expire_stale_locks() -> None:
     for k in stale:
         logger.warning("Expiring stale upgrade lock for %s", k)
         del _upgrades_in_progress[k]
-
-
-def _album_dir(user: UserDep, aid: str) -> Path:
-    """Resolve the album directory, rejecting path traversal in ``aid``."""
-    resolved = (user.trips_folder / aid).resolve()
-    if not resolved.is_relative_to(user.trips_folder):
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return resolved
 
 
 def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
