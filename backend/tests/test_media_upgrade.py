@@ -20,14 +20,9 @@ from PIL.ExifTags import Base as ExifBase
 
 from app.logic.layout.media import Media
 from app.logic.media_upgrade import (
-    _CROSS_TYPE_COST,
-    _FALLBACK_MAX_DIMENSION,
-    _MAX_LONG_EDGE,
     MATCH_THRESHOLD,
     HashedMedia,
     MatchResult,
-    _pairwise_distance,
-    _parse_timestamp,
     apply_upgrade_results,
     bucket_by_window,
     build_cost_matrix,
@@ -38,9 +33,16 @@ from app.logic.media_upgrade import (
     process_photo_sync,
     process_video,
 )
+from app.logic.media_upgrade.matching import (
+    _CROSS_TYPE_COST,
+    _FALLBACK_MAX_DIMENSION,
+    _pairwise_distance,
+    _parse_timestamp,
+)
+from app.logic.media_upgrade.processing import _MAX_LONG_EDGE
 from app.services.google_photos import (
+    GoogleMediaFile,
     GoogleMediaType,
-    MediaFile,
     PickedMediaItem,
 )
 
@@ -244,7 +246,7 @@ def _make_item(
         id=item_id,
         create_time=create_time,
         type=item_type,
-        media_file=MediaFile(
+        media_file=GoogleMediaFile(
             base_url="https://lh3.googleusercontent.com/test",
             mime_type="video/mp4" if item_type == "VIDEO" else "image/jpeg",
             filename=f"{item_id}.mp4" if item_type == "VIDEO" else f"{item_id}.jpg",

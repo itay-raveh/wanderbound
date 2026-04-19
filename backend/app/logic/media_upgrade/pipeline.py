@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     import imagehash
 
-from app.logic.layout.media import Media, is_video
-from app.models.google_photos import GoogleMediaId, MediaFilename
+from app.logic.layout.media import Media, MediaName, is_video
+from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import (
     PickedMediaItem,
     TokenProvider,
@@ -167,12 +167,12 @@ async def _hash_candidate_one(
 
 async def run_matching(  # noqa: PLR0913
     album_dir: Path,
-    media_by_step: dict[int, list[MediaFilename]],
+    media_by_step: dict[int, list[MediaName]],
     step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     tokens: TokenProvider,
-    already_upgraded: dict[MediaFilename, GoogleMediaId] | None = None,
+    already_upgraded: dict[MediaName, GoogleMediaId] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
@@ -199,7 +199,7 @@ async def run_matching(  # noqa: PLR0913
     ]
 
     # Phase 1: Hash local media (separate progress counter)
-    local_hashes: dict[MediaFilename, LocalHash] = {}
+    local_hashes: dict[MediaName, LocalHash] = {}
     local_total = len(media_names)
     local_tasks = [
         asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
@@ -300,8 +300,8 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
     tokens: TokenProvider,
-    already_upgraded: dict[MediaFilename, GoogleMediaId],
-    succeeded: set[MediaFilename] | None = None,
+    already_upgraded: dict[MediaName, GoogleMediaId],
+    succeeded: set[MediaName] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Download originals and replace compressed files concurrently.
 
@@ -322,7 +322,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
     tmp_dir = album_dir / _UPGRADE_TMP_DIR
     tmp_dir.mkdir(exist_ok=True)
 
-    async def _upgrade_one(match: MatchResult) -> MediaFilename | None:
+    async def _upgrade_one(match: MatchResult) -> MediaName | None:
         item = google_items_by_id.get(match.google_id)
         if not item:
             return None
@@ -398,9 +398,9 @@ async def apply_upgrade_results(
     album_dir: Path,
     matches: list[MatchResult],
     media: list[Media],
-    upgraded_media: dict[MediaFilename, GoogleMediaId],
-    succeeded: set[MediaFilename],
-) -> tuple[list[Media], dict[MediaFilename, GoogleMediaId]]:
+    upgraded_media: dict[MediaName, GoogleMediaId],
+    succeeded: set[MediaName],
+) -> tuple[list[Media], dict[MediaName, GoogleMediaId]]:
     """Re-probe replaced files and update media list + upgrade map.
 
     Only files in *succeeded* are marked as upgraded. Files that failed

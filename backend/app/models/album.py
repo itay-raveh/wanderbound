@@ -8,8 +8,8 @@ from sqlalchemy import String
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.logic.layout.media import Media
-from app.models.google_photos import GoogleMediaId, MediaFilename
+from app.logic.layout.media import Media, MediaName
+from app.models.google_photos import GoogleMediaId
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
 from app.models.step import Step
@@ -65,10 +65,10 @@ class AlbumMeta(AlbumBase):
     colors: dict[CountryCode, HexColor] = Field(
         sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
     )
-    upgraded_media: dict[MediaFilename, GoogleMediaId] = Field(
+    upgraded_media: dict[MediaName, GoogleMediaId] = Field(
         default_factory=dict,
         sa_column=Column(
-            PydanticJSON(dict[MediaFilename, GoogleMediaId]),
+            PydanticJSON(dict[MediaName, GoogleMediaId]),
             nullable=False,
             server_default="{}",
         ),

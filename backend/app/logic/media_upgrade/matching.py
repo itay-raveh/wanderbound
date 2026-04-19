@@ -19,13 +19,21 @@ from PIL import Image
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
 
-from app.logic.layout.media import is_video
-from app.models.google_photos import GoogleMediaId, MediaFilename
+from app.logic.layout.media import MediaName, is_video
+from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import PickedMediaItem
+
+from .processing import _FFPROBE_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
-# Hamming distance threshold for accepting a match.
+# Hamming distance threshold for accepting a pHash match.
+# pHash produces a 64-bit hash; distance 0 = identical, 64 = maximally different.
+# We compare Polarsteps exports (heavy JPEG, ~1024-2048px) against Google Photos
+# thumbnails (400px, separate compression pipeline). Both derive from the same
+# original but go through independent lossy pipelines, which typically introduces
+# 8-12 bits of hash variance. 12 sits at the upper end of "same image, different
+# compression" and below "different image" territory (~15+).
 MATCH_THRESHOLD = 12
 
 # Skip cross-step fallback if the matrix exceeds this size.
@@ -48,7 +56,7 @@ class HashedMedia:
 
 
 class MatchResult(BaseModel):
-    local_name: MediaFilename
+    local_name: str
     google_id: GoogleMediaId
     distance: int
 
@@ -66,6 +74,12 @@ class StepWindow(BaseModel):
 # Time-window bucketing
 # ---------------------------------------------------------------------------
 
+# Buffer added to each step window boundary. Polarsteps step timestamps can
+# land anywhere within a multi-day step, so windows are primarily defined by
+# adjacent step starts. This margin catches photos with slight clock skew at
+# the boundaries. Photos shared/received later (with download timestamps far
+# from the original event) are handled by cross_step_fallback, which matches
+# all remaining unmatched items globally regardless of time windows.
 _OVERLAP_MARGIN = 30 * 60  # 30 minutes in seconds
 
 
@@ -113,7 +127,6 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 # ---------------------------------------------------------------------------
 
 _VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
-_FFPROBE_TIMEOUT = 30
 _FFMPEG_FRAME_TIMEOUT = 30
 
 
@@ -282,13 +295,13 @@ def deduplicate_items(
 def match_across_windows(
     windows: list[StepWindow],
     google_by_window: dict[int, list[PickedMediaItem]],
-    media_names: list[MediaFilename],
-    local_hashes: dict[MediaFilename, LocalHash],
+    media_names: list[MediaName],
+    local_hashes: dict[MediaName, LocalHash],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> tuple[list[MatchResult], set[MediaFilename], set[GoogleMediaId]]:
+) -> tuple[list[MatchResult], set[MediaName], set[GoogleMediaId]]:
     """Run Hungarian matching within each time window."""
     all_matches: list[MatchResult] = []
-    matched_locals: set[MediaFilename] = set()
+    matched_locals: set[MediaName] = set()
     matched_candidates: set[GoogleMediaId] = set()
 
     for window in windows:
@@ -321,10 +334,10 @@ def match_across_windows(
 
 def cross_step_fallback(  # noqa: PLR0913
     all_matches: list[MatchResult],
-    matched_locals: set[MediaFilename],
+    matched_locals: set[MediaName],
     matched_candidates: set[GoogleMediaId],
-    media_names: list[MediaFilename],
-    local_hashes: dict[MediaFilename, LocalHash],
+    media_names: list[MediaName],
+    local_hashes: dict[MediaName, LocalHash],
     google_items: list[PickedMediaItem],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:

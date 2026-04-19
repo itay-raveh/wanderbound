@@ -2,15 +2,11 @@
 
 # Re-export public API so existing `from app.logic.media_upgrade import X` works.
 from .matching import (
-    _CROSS_TYPE_COST,
-    _FALLBACK_MAX_DIMENSION,
     MATCH_THRESHOLD,
     HashedMedia,
     LocalHash,
     MatchResult,
     StepWindow,
-    _pairwise_distance,
-    _parse_timestamp,
     bucket_by_window,
     build_cost_matrix,
     build_step_windows,
@@ -30,14 +26,12 @@ from .pipeline import (
     UpgradeEvent,
     UpgradeMatching,
     UpgradeMatchSummary,
-    _clear_caches,
     apply_upgrade_results,
     cleanup_orphaned_tmp,
     execute_upgrade,
     run_matching,
 )
 from .processing import (
-    _MAX_LONG_EDGE,
     process_photo_sync,
     process_video,
     replace_photo,
@@ -46,9 +40,6 @@ from .processing import (
 
 __all__ = [
     "MATCH_THRESHOLD",
-    "_CROSS_TYPE_COST",
-    "_FALLBACK_MAX_DIMENSION",
-    "_MAX_LONG_EDGE",
     "HashedMedia",
     "LocalHash",
     "MatchResult",
@@ -59,9 +50,6 @@ __all__ = [
     "UpgradeEvent",
     "UpgradeMatchSummary",
     "UpgradeMatching",
-    "_clear_caches",
-    "_pairwise_distance",
-    "_parse_timestamp",
     "apply_upgrade_results",
     "bucket_by_window",
     "build_cost_matrix",

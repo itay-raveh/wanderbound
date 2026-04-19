@@ -19,7 +19,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic.alias_generators import to_camel
 
 from app.core.config import get_settings
-from app.models.google_photos import GoogleMediaId, MediaFilename
+from app.models.google_photos import GoogleMediaId
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def _validate_media_base_url(v: str) -> str:
     return v
 
 
-type MediaBaseUrl = Annotated[str, AfterValidator(_validate_media_base_url)]
+type GoogleMediaBaseUrl = Annotated[str, AfterValidator(_validate_media_base_url)]
 type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
 type VideoProcessingStatus = Literal["READY", "PROCESSING", "FAILED"]
 
@@ -123,10 +123,10 @@ def _token_client() -> httpx.AsyncClient:
 # ---------------------------------------------------------------------------
 
 
-class MediaFile(BaseModel):
-    base_url: MediaBaseUrl
+class GoogleMediaFile(BaseModel):
+    base_url: GoogleMediaBaseUrl
     mime_type: MimeType
-    filename: MediaFilename
+    filename: str
     width: int | None = None
     height: int | None = None
 
@@ -135,7 +135,7 @@ class PickedMediaItem(BaseModel):
     id: GoogleMediaId
     create_time: str
     type: GoogleMediaType
-    media_file: MediaFile
+    media_file: GoogleMediaFile
     video_processing_status: VideoProcessingStatus | None = None
 
 
@@ -214,9 +214,9 @@ def _picker_headers(access_token: AccessToken) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _to_media_file(raw: _RawMediaFile) -> MediaFile:
+def _to_media_file(raw: _RawMediaFile) -> GoogleMediaFile:
     meta = raw.media_file_metadata
-    return MediaFile(
+    return GoogleMediaFile(
         base_url=raw.base_url,
         mime_type=raw.mime_type,
         filename=raw.filename,
@@ -319,7 +319,7 @@ async def delete_picker_session(
 
 
 async def download_media_bytes(
-    base_url: MediaBaseUrl,
+    base_url: GoogleMediaBaseUrl,
     access_token: AccessToken,
     *,
     param: str = "=d",
@@ -351,7 +351,7 @@ async def download_media_bytes(
 
 
 async def download_media_to_file(
-    base_url: MediaBaseUrl,
+    base_url: GoogleMediaBaseUrl,
     access_token: AccessToken,
     dest: Path,
     *,
