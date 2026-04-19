@@ -19,6 +19,7 @@ from app.logic.export import lifespan as export_lifespan
 from app.logic.media_upgrade import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.session import cancel_all_sessions
+from app.services.google_photos import close_clients as close_google_clients
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             yield
         finally:
             cancel_all_sessions()
+            await close_google_clients()
 
 
 app = FastAPI(

@@ -118,6 +118,14 @@ def _token_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=30.0)
 
 
+async def close_clients() -> None:
+    """Close shared httpx clients on shutdown."""
+    for factory in (_picker_client, _download_client, _token_client):
+        if factory.cache_info().currsize:
+            await factory().aclose()
+            factory.cache_clear()
+
+
 # ---------------------------------------------------------------------------
 # Public domain models
 # ---------------------------------------------------------------------------
