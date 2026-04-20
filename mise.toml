@@ -7,7 +7,7 @@ task.source_freshness_hash_contents = true
 [tools]
 python = "3.14"
 bun = "1"
-uv = "0.10"
+uv = "0.11.7"
 "github:orhun/git-cliff" = "2"
 # prek is still 0.x; pin minor so patches flow without breakage.
 prek = "0.3"
