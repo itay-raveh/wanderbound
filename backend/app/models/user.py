@@ -13,7 +13,7 @@ from pydantic import (
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.core.config import get_settings
-from app.core.db import PydanticJSON, all_optional
+from app.core.db import EncryptedString, PydanticJSON, all_optional
 from app.models.polarsteps import Location
 
 
@@ -93,7 +93,10 @@ class User(UserBase, table=True):
             server_default=sa.func.now(),
         ),
     )
-    google_photos_refresh_token: str | None = Field(default=None)
+    google_photos_refresh_token: str | None = Field(
+        default=None,
+        sa_column=Column("google_photos_refresh_token", EncryptedString, nullable=True),
+    )
     google_photos_connected_at: datetime | None = Field(
         default=None,
         sa_column=Column(

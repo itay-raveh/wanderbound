@@ -21,7 +21,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_engine
-from app.core.encryption import encrypt_token, try_decrypt_token
 from app.core.locks import try_advisory_lock
 from app.logic.media_upgrade import (
     MatchResult,
@@ -103,25 +102,29 @@ router = APIRouter(
 )
 
 
-def _decrypt_refresh_token(user: UserDep) -> RefreshToken:
-    """Decrypt the stored refresh token, raising HTTP errors on failure."""
-    if not user.google_photos_refresh_token:
+def _get_refresh_token(user: UserDep) -> RefreshToken:
+    """Return the stored refresh token, raising HTTP errors on failure.
+
+    `connected_at` is the source of truth for whether the user connected;
+    a null `refresh_token` alongside a non-null `connected_at` means the
+    stored ciphertext could not be decrypted (e.g. after SECRET_KEY rotation).
+    """
+    if user.google_photos_connected_at is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
-    refresh_token = try_decrypt_token(user.google_photos_refresh_token)
-    if not refresh_token:
+    if user.google_photos_refresh_token is None:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Google Photos connection lost. Please reconnect.",
         )
-    return refresh_token
+    return user.google_photos_refresh_token
 
 
 async def _get_access_token(user: UserDep) -> AccessToken:
-    """Decrypt the stored refresh token and exchange it for a fresh access token."""
-    refresh_token = _decrypt_refresh_token(user)
+    """Exchange the stored refresh token for a fresh access token."""
+    refresh_token = _get_refresh_token(user)
     try:
         token_data = await refresh_access_token(refresh_token)
     except httpx.HTTPError as exc:
@@ -196,7 +199,7 @@ async def callback(
         logger.warning("No refresh token for user %d", user.id)
         return _oauth_redirect(nonce, error=True)
 
-    user.google_photos_refresh_token = encrypt_token(refresh_token)
+    user.google_photos_refresh_token = refresh_token
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
@@ -270,7 +273,7 @@ async def match_media(
                 status.HTTP_409_CONFLICT,
                 "A matching run is already in progress for this album.",
             )
-        tokens = TokenProvider(_decrypt_refresh_token(user))
+        tokens = TokenProvider(_get_refresh_token(user))
         access_token = await tokens.get()
 
         album, step_rows = await _snapshot_album_and_steps(user.id, aid)
@@ -323,7 +326,7 @@ async def upgrade_media(
     user: UserDep,
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
-    if not user.google_photos_refresh_token:
+    if user.google_photos_connected_at is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
@@ -342,7 +345,7 @@ async def upgrade_media(
 
         _validate_match_names(body.matches, valid_names)
 
-        tokens = TokenProvider(_decrypt_refresh_token(user))
+        tokens = TokenProvider(_get_refresh_token(user))
         access_token = await tokens.get()
 
         all_items: list[PickedMediaItem] = []
@@ -371,9 +374,7 @@ async def upgrade_media(
 @router.delete("/connection", status_code=status.HTTP_204_NO_CONTENT)
 async def disconnect(user: UserDep, session: SessionDep) -> None:
     if user.google_photos_refresh_token:
-        token = try_decrypt_token(user.google_photos_refresh_token)
-        if token:
-            await revoke_refresh_token(token)
+        await revoke_refresh_token(user.google_photos_refresh_token)
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None
     session.add(user)

@@ -3,11 +3,12 @@ from functools import cache
 from typing import Any
 
 from pydantic import TypeAdapter
-from sqlalchemy import TypeDecorator
+from sqlalchemy import String, TypeDecorator
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import JSON, SQLModel
 
 from app.core.config import get_settings
+from app.core.encryption import encrypt_token, try_decrypt_token
 
 
 class PydanticJSON(TypeDecorator[Any]):
@@ -29,6 +30,19 @@ class PydanticJSON(TypeDecorator[Any]):
         if value is None:
             return None
         return self._adapter.validate_python(value)
+
+
+class EncryptedString(TypeDecorator[str]):
+    """Fernet-encrypted string column. Decrypt returns None after key rotation."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: str | None, dialect: Any) -> str | None:  # noqa: ARG002
+        return encrypt_token(value) if value is not None else None
+
+    def process_result_value(self, value: str | None, dialect: Any) -> str | None:  # noqa: ARG002
+        return try_decrypt_token(value) if value is not None else None
 
 
 def all_optional[T: SQLModel](cls: type[T]) -> type[T]:

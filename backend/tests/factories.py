@@ -15,7 +15,6 @@ import jwt as jwt_module
 from PIL import Image
 
 from app.core.config import get_settings
-from app.core.encryption import encrypt_token
 from app.logic.layout.media import Media
 from app.logic.upload import TripMeta
 from app.models.album import Album
@@ -177,10 +176,10 @@ GOOGLE_REFRESH_TOKEN = "1//0fake-refresh-token-for-tests"  # noqa: S105
 
 
 async def connect_google_photos(session: AsyncSession, uid: int) -> None:
-    """Mark user as Google Photos connected with an encrypted refresh token."""
+    """Mark user as Google Photos connected with a refresh token."""
     user = await session.get(User, uid)
     assert user is not None
-    user.google_photos_refresh_token = encrypt_token(GOOGLE_REFRESH_TOKEN)
+    user.google_photos_refresh_token = GOOGLE_REFRESH_TOKEN
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.flush()
