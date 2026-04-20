@@ -89,7 +89,7 @@ jobs:
       - run: bun run test:e2e
         working-directory: frontend
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: frontend/e2e/test-results/
