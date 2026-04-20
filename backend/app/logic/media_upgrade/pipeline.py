@@ -27,6 +27,7 @@ from app.core.resources import detect_cpu_count
 from app.logic.layout.media import Media, MediaName, is_video
 from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import (
+    MAX_PHOTO_BYTES,
     PickedMediaItem,
     TokenProvider,
     download_media_bytes,
@@ -263,40 +264,37 @@ async def _download_and_replace(
     album_dir: Path,
     tmp_dir: Path,
     tokens: TokenProvider,
-) -> bool | None:
+) -> bool:
     """Download one original, process, and replace the compressed file.
 
     ``local_name`` is validated against the strict ``MediaName`` pattern at
     the call boundary - this is the only place we build filesystem paths
     from a user-supplied filename, so traversal sequences are rejected here.
 
-    Returns True if replaced, False if skipped (original not larger),
-    None if the download produced no data.
+    Returns True if replaced, False if skipped (original not larger).
     """
     target = album_dir / local_name
     tmp_path = tmp_dir / local_name
+    raw_path = tmp_dir / f"{local_name}.raw"
 
     if is_video(local_name):
-        raw_path = tmp_dir / f"{local_name}.raw"
-        try:
-            async with _download_sem():
-                access_token = await tokens.get()
-                await download_media_to_file(
-                    item.media_file.base_url, access_token, raw_path, param="=dv"
-                )
-            return await replace_video(local_name, raw_path, tmp_path, target)
-        except Exception:
-            await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
-            raise
+        param, replace, extra = "=dv", replace_video, {}
+    else:
+        param, replace, extra = "=d", replace_photo, {"max_bytes": MAX_PHOTO_BYTES}
 
-    async with _download_sem():
-        access_token = await tokens.get()
-        data = await download_media_bytes(
-            item.media_file.base_url, access_token, param="=d"
-        )
-    if not data:
-        return None
-    return await replace_photo(local_name, data, tmp_path, target)
+    try:
+        async with _download_sem():
+            access_token = await tokens.get()
+            await download_media_to_file(
+                item.media_file.base_url,
+                access_token,
+                raw_path,
+                param=param,
+                **extra,
+            )
+        return await replace(local_name, raw_path, tmp_path, target)
+    finally:
+        await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
 
 
 async def execute_upgrade(  # noqa: PLR0913, C901
@@ -331,7 +329,7 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         if not item:
             return None
         try:
-            result = await _download_and_replace(
+            replaced = await _download_and_replace(
                 match.local_name, item, album_dir, tmp_dir, tokens
             )
         except (
@@ -343,10 +341,9 @@ async def execute_upgrade(  # noqa: PLR0913, C901
         ):
             logger.exception("Failed to upgrade %s", match.local_name)
             return None
-        if result is True:
+        if replaced:
             return match.local_name
-        if result is False:
-            skipped_names.add(match.local_name)
+        skipped_names.add(match.local_name)
         return None
 
     skipped_names: set[str] = set()

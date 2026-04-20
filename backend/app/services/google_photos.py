@@ -28,7 +28,7 @@ _SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
 _DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 _DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
 _MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB per file (videos)
-_MAX_PHOTO_BYTES = 200 * 1024 * 1024  # 200 MB per photo
+MAX_PHOTO_BYTES = 200 * 1024 * 1024  # 200 MB per photo
 
 
 class DownloadTooLargeError(RuntimeError):
@@ -331,7 +331,7 @@ async def download_media_bytes(
     access_token: AccessToken,
     *,
     param: str = "=d",
-    max_bytes: int = _MAX_PHOTO_BYTES,
+    max_bytes: int = MAX_PHOTO_BYTES,
 ) -> bytes:
     """Download media bytes from a baseUrl with the given parameter suffix.
 
@@ -370,38 +370,33 @@ async def download_media_to_file(
 
     Chunks are buffered and flushed to disk via ``asyncio.to_thread`` every
     4 MB so that synchronous ``write()`` calls don't block the event loop
-    under I/O pressure.
+    under I/O pressure. The caller owns ``dest`` and is responsible for
+    cleaning up a partial file if this function raises.
     """
     url = f"{base_url}{param}"
-    ok = False
-    try:
-        async with _download_client().stream(
-            "GET", url, headers=_picker_headers(access_token)
-        ) as resp:
-            resp.raise_for_status()
-            buf = bytearray()
-            total_bytes = 0
-            too_large = False
+    async with _download_client().stream(
+        "GET", url, headers=_picker_headers(access_token)
+    ) as resp:
+        resp.raise_for_status()
+        buf = bytearray()
+        total_bytes = 0
+        too_large = False
 
-            with dest.open("wb") as f:
-                async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
-                    total_bytes += len(chunk)
-                    if total_bytes > max_bytes:
-                        too_large = True
-                        break
-                    buf.extend(chunk)
-                    if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
-                        await asyncio.to_thread(f.write, bytes(buf))
-                        buf.clear()
-                if not too_large and buf:
+        with dest.open("wb") as f:
+            async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    too_large = True
+                    break
+                buf.extend(chunk)
+                if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
                     await asyncio.to_thread(f.write, bytes(buf))
+                    buf.clear()
+            if not too_large and buf:
+                await asyncio.to_thread(f.write, bytes(buf))
 
-        if too_large:
-            _raise_too_large(max_bytes)
-        ok = True
-    finally:
-        if not ok:
-            await asyncio.to_thread(dest.unlink, missing_ok=True)
+    if too_large:
+        _raise_too_large(max_bytes)
 
 
 class TokenProvider:

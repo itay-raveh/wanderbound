@@ -24,28 +24,27 @@ _MAX_LONG_EDGE = 3000
 _JPEG_QUALITY = 85
 
 
-def process_photo_sync(data: bytes) -> tuple[bytes, int, int]:
+def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
     """Normalize a downloaded original: transpose, resize, strip EXIF, save as JPEG.
 
-    Returns (jpeg_bytes, width, height).
+    Reads from ``raw_path`` and writes the processed JPEG to ``tmp_path``.
+    Returns ``(width, height)``.
     """
-    with Image.open(BytesIO(data)) as raw:
+    with Image.open(raw_path) as raw:
         img = ImageOps.exif_transpose(raw) or raw
         img = img.convert("RGB")
 
-        w, h = img.size
-        long_edge = max(w, h)
+        long_edge = max(img.size)
         if long_edge > _MAX_LONG_EDGE:
             scale = _MAX_LONG_EDGE / long_edge
+            w, h = img.size
             img = img.resize(
                 (round(w * scale), round(h * scale)),
                 Resampling.LANCZOS,
             )
 
-        buf = BytesIO()
-        img.save(buf, "JPEG", quality=_JPEG_QUALITY)
-        w, h = img.size
-        return buf.getvalue(), w, h
+        img.save(tmp_path, "JPEG", quality=_JPEG_QUALITY)
+        return img.size
 
 
 # ---------------------------------------------------------------------------
@@ -90,61 +89,62 @@ def _detect_hdr(path: Path) -> bool:
 
 
 async def process_video(input_path: Path, output: Path) -> None:
-    """Re-encode video: H.264, capped resolution, stripped metadata, HDR tone-mapped."""
+    """Re-encode video: H.264, capped resolution, stripped metadata, HDR tone-mapped.
+
+    Reads from ``input_path``, writes to ``output``. Does not modify
+    ``input_path``; the caller owns its lifecycle.
+    """
+    is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
+
+    scale_filter = (
+        f"scale='min({_MAX_LONG_EDGE},iw)':'min({_MAX_LONG_EDGE},ih)'"
+        ":force_original_aspect_ratio=decrease:force_divisible_by=2"
+    )
+
+    vf = f"{_HDR_TONEMAP_FILTER},{scale_filter}" if is_hdr else scale_filter
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(input_path),
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-crf",
+        _VIDEO_CRF,
+        "-preset",
+        _VIDEO_PRESET,
+        "-c:a",
+        "aac",
+        "-b:a",
+        _AUDIO_BITRATE,
+        "-map_metadata",
+        "-1",
+        "-movflags",
+        "+faststart",
+        str(output),
+    ]
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
     try:
-        is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
-
-        scale_filter = (
-            f"scale='min({_MAX_LONG_EDGE},iw)':'min({_MAX_LONG_EDGE},ih)'"
-            ":force_original_aspect_ratio=decrease:force_divisible_by=2"
+        _, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=_REENCODE_TIMEOUT
         )
+    except TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        raise RuntimeError(
+            f"ffmpeg re-encode timed out after {_REENCODE_TIMEOUT}s"
+        ) from None
 
-        vf = f"{_HDR_TONEMAP_FILTER},{scale_filter}" if is_hdr else scale_filter
-
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(input_path),
-            "-vf",
-            vf,
-            "-c:v",
-            "libx264",
-            "-crf",
-            _VIDEO_CRF,
-            "-preset",
-            _VIDEO_PRESET,
-            "-c:a",
-            "aac",
-            "-b:a",
-            _AUDIO_BITRATE,
-            "-map_metadata",
-            "-1",
-            "-movflags",
-            "+faststart",
-            str(output),
-        ]
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            _, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=_REENCODE_TIMEOUT
-            )
-        except TimeoutError:
-            proc.kill()
-            await proc.communicate()
-            raise RuntimeError(
-                f"ffmpeg re-encode timed out after {_REENCODE_TIMEOUT}s"
-            ) from None
-
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
-    finally:
-        await asyncio.to_thread(lambda: input_path.unlink(missing_ok=True))
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
 
 
 # ---------------------------------------------------------------------------
@@ -239,26 +239,22 @@ async def replace_video(
     """Process and replace a single video. Returns True on success."""
     try:
         await process_video(raw_path, tmp_path)
-    except RuntimeError:
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        raise
-
-    try:
         new_media = await Media.probe(tmp_path)
-    except RuntimeError:
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        raise
 
-    try:
-        existing = await Media.probe(target)
-    except RuntimeError, OSError:
-        logger.debug("Could not probe existing video %s", name, exc_info=True)
-        existing = None
-    if existing and _skip_smaller(name, new_media.width, new_media.height, existing):
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        return False
+        try:
+            existing = await Media.probe(target)
+        except RuntimeError, OSError:
+            logger.debug("Could not probe existing video %s", name, exc_info=True)
+            existing = None
+        if existing and _skip_smaller(
+            name, new_media.width, new_media.height, existing
+        ):
+            return False
 
-    await asyncio.to_thread(shutil.move, tmp_path, target)
+        await asyncio.to_thread(shutil.move, tmp_path, target)
+    finally:
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+
     # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
     try:
         await asyncio.to_thread(delete_thumbnails, target)
@@ -271,20 +267,24 @@ async def replace_video(
     return True
 
 
-async def replace_photo(name: str, data: bytes, tmp_path: Path, target: Path) -> bool:
+async def replace_photo(
+    name: str, raw_path: Path, tmp_path: Path, target: Path
+) -> bool:
     """Process and replace a single photo. Returns True on success."""
-    data, width, height = await asyncio.to_thread(process_photo_sync, data)
-    await asyncio.to_thread(tmp_path.write_bytes, data)
-
     try:
-        existing = await asyncio.to_thread(Media.load, target)
-    except OSError, SyntaxError:
-        logger.debug("Could not load existing photo %s", name, exc_info=True)
-        existing = None
-    if existing and _skip_smaller(name, width, height, existing):
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        return False
+        width, height = await asyncio.to_thread(process_photo_sync, raw_path, tmp_path)
 
-    await asyncio.to_thread(shutil.move, tmp_path, target)
+        try:
+            existing = await asyncio.to_thread(Media.load, target)
+        except OSError, SyntaxError:
+            logger.debug("Could not load existing photo %s", name, exc_info=True)
+            existing = None
+        if existing and _skip_smaller(name, width, height, existing):
+            return False
+
+        await asyncio.to_thread(shutil.move, tmp_path, target)
+    finally:
+        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+
     await asyncio.to_thread(delete_thumbnails, target)
     return True

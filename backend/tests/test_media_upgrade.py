@@ -9,7 +9,6 @@ format conversion).
 import json
 import subprocess
 from datetime import UTC, datetime
-from io import BytesIO
 from pathlib import Path
 
 import imagehash
@@ -455,27 +454,25 @@ class TestCrossStepFallback:
 # ---------------------------------------------------------------------------
 
 
-def _make_jpeg_bytes(width: int, height: int, *, exif: bytes | None = None) -> bytes:
-    """Create a JPEG image in memory, optionally with EXIF data."""
+def _write_jpeg(
+    path: Path, width: int, height: int, *, exif: bytes | None = None
+) -> None:
+    """Write a JPEG image to *path*, optionally with EXIF data."""
     img = Image.new("RGB", (width, height), color=(100, 150, 200))
-    buf = BytesIO()
     kwargs: dict = {"format": "JPEG", "quality": 95}
     if exif is not None:
         kwargs["exif"] = exif
-    img.save(buf, **kwargs)
-    return buf.getvalue()
+    img.save(path, **kwargs)
 
 
-def _make_png_bytes(width: int, height: int) -> bytes:
-    """Create a PNG image in memory."""
+def _write_png(path: Path, width: int, height: int) -> None:
+    """Write a PNG image to *path*."""
     img = Image.new("RGBA", (width, height), color=(100, 150, 200, 255))
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    img.save(path, format="PNG")
 
 
 class TestProcessPhoto:
-    def test_strips_exif(self) -> None:
+    def test_strips_exif(self, tmp_path: Path) -> None:
         """EXIF metadata must be removed."""
         img = Image.new("RGB", (800, 600))
         exif = img.getexif()
@@ -484,64 +481,80 @@ class TestProcessPhoto:
         exif[ExifBase.Software] = "TestSuite"
         exif_bytes = exif.tobytes()
 
-        data = _make_jpeg_bytes(800, 600, exif=exif_bytes)
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 800, 600, exif=exif_bytes)
 
-        # Verify source has EXIF
-        with Image.open(BytesIO(data)) as src:
+        with Image.open(raw) as src:
             assert len(src.getexif()) > 0
 
-        result, _, _ = process_photo_sync(data)
+        process_photo_sync(raw, out)
 
-        with Image.open(BytesIO(result)) as out:
-            assert len(out.getexif()) == 0
+        with Image.open(out) as result:
+            assert len(result.getexif()) == 0
 
-    def test_resizes_large_landscape(self) -> None:
-        data = _make_jpeg_bytes(5000, 3000)
-        result, w, h = process_photo_sync(data)
+    def test_resizes_large_landscape(self, tmp_path: Path) -> None:
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 5000, 3000)
+
+        w, h = process_photo_sync(raw, out)
 
         assert (w, h) == (_MAX_LONG_EDGE, 1800)
-        with Image.open(BytesIO(result)) as out:
-            assert out.size == (_MAX_LONG_EDGE, 1800)
+        with Image.open(out) as result:
+            assert result.size == (_MAX_LONG_EDGE, 1800)
 
-    def test_resizes_large_portrait(self) -> None:
-        data = _make_jpeg_bytes(3000, 5000)
-        result, w, h = process_photo_sync(data)
+    def test_resizes_large_portrait(self, tmp_path: Path) -> None:
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 3000, 5000)
+
+        w, h = process_photo_sync(raw, out)
 
         assert (w, h) == (1800, _MAX_LONG_EDGE)
-        with Image.open(BytesIO(result)) as out:
-            assert out.size == (1800, _MAX_LONG_EDGE)
+        with Image.open(out) as result:
+            assert result.size == (1800, _MAX_LONG_EDGE)
 
-    def test_preserves_small_image(self) -> None:
-        data = _make_jpeg_bytes(2000, 1500)
-        result, w, h = process_photo_sync(data)
+    def test_preserves_small_image(self, tmp_path: Path) -> None:
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 2000, 1500)
+
+        w, h = process_photo_sync(raw, out)
 
         assert (w, h) == (2000, 1500)
-        with Image.open(BytesIO(result)) as out:
-            assert out.size == (2000, 1500)
+        with Image.open(out) as result:
+            assert result.size == (2000, 1500)
 
-    def test_converts_png_to_jpeg(self) -> None:
-        data = _make_png_bytes(800, 600)
-        result, w, h = process_photo_sync(data)
+    def test_converts_png_to_jpeg(self, tmp_path: Path) -> None:
+        raw = tmp_path / "in.png"
+        out = tmp_path / "out.jpg"
+        _write_png(raw, 800, 600)
+
+        w, h = process_photo_sync(raw, out)
 
         assert (w, h) == (800, 600)
-        with Image.open(BytesIO(result)) as out:
-            assert out.format == "JPEG"
-            assert out.size == (800, 600)
+        with Image.open(out) as result:
+            assert result.format == "JPEG"
+            assert result.size == (800, 600)
 
-    def test_handles_orientation_tag(self) -> None:
+    def test_handles_orientation_tag(self, tmp_path: Path) -> None:
         """EXIF orientation 6 (rotated 90 CW) should produce a transposed image."""
         img = Image.new("RGB", (400, 600))  # portrait source
         exif = img.getexif()
         exif[ExifBase.Orientation] = 6  # 90 CW rotation
         exif_bytes = exif.tobytes()
 
-        data = _make_jpeg_bytes(400, 600, exif=exif_bytes)
-        result, w, h = process_photo_sync(data)
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 400, 600, exif=exif_bytes)
+
+        w, h = process_photo_sync(raw, out)
 
         # After transpose: 600x400 (landscape)
         assert (w, h) == (600, 400)
-        with Image.open(BytesIO(result)) as out:
-            assert out.size == (600, 400)
+        with Image.open(out) as result:
+            assert result.size == (600, 400)
 
 
 @pytest.fixture

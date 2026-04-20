@@ -391,7 +391,14 @@ class TestDownloadMediaBytes:
 
 
 class TestDownloadMediaToFile:
-    async def test_cleans_up_partial_file_on_size_limit(self, tmp_path: Path) -> None:
+    async def test_writes_file_on_success(self, tmp_path: Path) -> None:
+        dest = tmp_path / "photo.jpg"
+        client = _streaming_client([b"photo-data"])
+        with patch("app.services.google_photos._download_client", return_value=client):
+            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=1000)
+        assert dest.read_bytes() == b"photo-data"
+
+    async def test_raises_on_size_limit(self, tmp_path: Path) -> None:
         dest = tmp_path / "photo.jpg"
         client = _streaming_client([b"x" * 600])
         with (
@@ -399,38 +406,3 @@ class TestDownloadMediaToFile:
             pytest.raises(DownloadTooLargeError),
         ):
             await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=500)
-        assert not dest.exists(), "Partial file should be cleaned up"
-
-    async def test_cleans_up_on_http_error(self, tmp_path: Path) -> None:
-        dest = tmp_path / "photo.jpg"
-
-        def _raise() -> None:
-            raise httpx.HTTPStatusError(
-                "Server Error",
-                request=httpx.Request("GET", "http://test"),
-                response=httpx.Response(500),
-            )
-
-        resp = AsyncMock()
-        resp.raise_for_status = _raise
-        resp.headers = {}
-
-        @asynccontextmanager
-        async def _stream(*_a: Any, **_kw: Any) -> AsyncIterator[AsyncMock]:
-            yield resp
-
-        client = AsyncMock()
-        client.stream = _stream
-        with (
-            patch("app.services.google_photos._download_client", return_value=client),
-            pytest.raises(httpx.HTTPStatusError),
-        ):
-            await download_media_to_file(_BASE_URL, _TOKEN, dest)
-        assert not dest.exists(), "File should be cleaned up on HTTP error"
-
-    async def test_writes_file_on_success(self, tmp_path: Path) -> None:
-        dest = tmp_path / "photo.jpg"
-        client = _streaming_client([b"photo-data"])
-        with patch("app.services.google_photos._download_client", return_value=client):
-            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=1000)
-        assert dest.read_bytes() == b"photo-data"
