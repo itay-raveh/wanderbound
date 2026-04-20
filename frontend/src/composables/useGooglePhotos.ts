@@ -1,12 +1,12 @@
 import { computed } from "vue";
 import { UPGRADE_ERRORS } from "./upgradeErrors";
 import {
-  authorize,
   closeSession as closeSessionApi,
   createSession,
   disconnect as disconnectApi,
   pollSession as pollSessionApi,
 } from "@/client";
+import { client } from "@/client/client.gen";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
@@ -27,10 +27,8 @@ export function useGooglePhotos() {
 
   async function authorizeInPopup(popup: Window): Promise<void> {
     const nonce = crypto.randomUUID();
-    const { data } = await authorize({ query: { nonce } });
-    if (!data?.authorization_url) throw new Error("No authorization URL");
-
-    popup.location.href = data.authorization_url;
+    const baseUrl = client.getConfig().baseUrl ?? "";
+    popup.location.href = `${baseUrl}/api/v1/google-photos/authorize?nonce=${encodeURIComponent(nonce)}`;
 
     await new Promise<void>((resolve, reject) => {
       const channel = new BroadcastChannel(`wanderbound-oauth-${nonce}`);

@@ -128,7 +128,7 @@ async def authorize(
     request: Request,
     user: UserDep,
     nonce: Annotated[str, Query(min_length=8, max_length=64)],
-) -> dict[str, str]:
+) -> RedirectResponse:
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
     rv = await oauth.google_photos.create_authorization_url(
@@ -138,7 +138,7 @@ async def authorize(
         request, redirect_uri=redirect_uri, **rv
     )
     request.session["oauth_nonce"] = nonce
-    return {"authorization_url": rv["url"]}
+    return RedirectResponse(rv["url"])
 
 
 def _oauth_redirect(nonce: str | None, *, error: bool = False) -> RedirectResponse:
