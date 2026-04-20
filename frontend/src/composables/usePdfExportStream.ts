@@ -8,7 +8,10 @@ import {
 } from "@/client";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
-import { useSseDownload, type SseDownloadHandle } from "./useSseDownload";
+import {
+  usePolledExportDownload,
+  type PolledExportHandle,
+} from "./usePolledExportDownload";
 import { ref, watch, type Ref } from "vue";
 
 type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError;
@@ -20,7 +23,7 @@ interface PdfProgress {
   message: string;
 }
 
-interface PdfExportHandle extends SseDownloadHandle {
+interface PdfExportHandle extends PolledExportHandle {
   progress: Ref<PdfProgress>;
 }
 
@@ -34,7 +37,7 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
     message: "",
   });
 
-  const handle = useSseDownload<PdfEvent>({
+  const handle = usePolledExportDownload<PdfEvent>({
     headless: true,
     async connect(signal) {
       const { stream } = await generatePdf({

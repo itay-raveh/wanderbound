@@ -6,7 +6,10 @@ import {
 } from "@/client";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
-import { useSseDownload, type SseDownloadHandle } from "./useSseDownload";
+import {
+  usePolledExportDownload,
+  type PolledExportHandle,
+} from "./usePolledExportDownload";
 
 type ExportEvent = ExportProgress | ExportDone | ExportError;
 
@@ -15,8 +18,8 @@ function progressMessage(done: number, total: number): string {
   return t("export.progress", { done, total });
 }
 
-export function useDataExport(): SseDownloadHandle {
-  return useSseDownload<ExportEvent>({
+export function useDataExport(): PolledExportHandle {
+  return usePolledExportDownload<ExportEvent>({
     async connect(signal) {
       const { stream } = await exportData({
         signal,

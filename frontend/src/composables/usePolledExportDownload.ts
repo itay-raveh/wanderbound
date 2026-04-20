@@ -1,12 +1,12 @@
 import { onScopeDispose, ref, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
 
-export type SseStreamState = "idle" | "running" | "done" | "error";
+export type ExportState = "idle" | "running" | "done" | "error";
 
-export interface SseDownloadHandle {
+export interface PolledExportHandle {
   start(): void;
   abort(): void;
-  state: Ref<SseStreamState>;
+  state: Ref<ExportState>;
 }
 
 type EventAction = { loading: string } | { done: string } | { error: string };
@@ -16,7 +16,7 @@ function resolve(v: StringOrGetter): string {
   return typeof v === "function" ? v() : v;
 }
 
-interface SseDownloadConfig<T = unknown> {
+interface PolledExportConfig<T = unknown> {
   connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
   onEvent(event: T): EventAction;
   downloadUrl(token: string): string;
@@ -29,10 +29,10 @@ interface SseDownloadConfig<T = unknown> {
 
 const DONE_RESET_MS = 1500;
 
-export function useSseDownload<T>(
-  config: SseDownloadConfig<T>,
-): SseDownloadHandle {
-  const state = ref<SseStreamState>("idle");
+export function usePolledExportDownload<T>(
+  config: PolledExportConfig<T>,
+): PolledExportHandle {
+  const state = ref<ExportState>("idle");
   let controller: AbortController | null = null;
   let lastMsg = "";
   let resetTimer: ReturnType<typeof setTimeout> | null = null;

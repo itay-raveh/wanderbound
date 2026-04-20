@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
-import { useProcessingStream } from "@/composables/useProcessingStream";
+import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { getAuthState, clearAuthState as clearAuth } from "@/router";
 import { useI18n } from "vue-i18n";
@@ -41,7 +41,7 @@ const pageState = computed<UploadState>(() => {
 });
 
 const uploadResult = ref<UploadResult | null>(null);
-const stream = useProcessingStream();
+const stream = useTripProcessingStream();
 
 const heroName = computed(
   () => uploadResult.value?.user.first_name ?? user.value?.first_name,

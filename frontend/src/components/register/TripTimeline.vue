@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import type { ProcessingPhase, TripMeta } from "@/client";
-import { PHASE_ORDER } from "@/composables/useProcessingStream";
-import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { PHASE_ORDER } from "@/composables/useTripProcessingStream";
+import type {
+  PhaseDone,
+  ProcessingState,
+} from "@/composables/useTripProcessingStream";
 import { useI18n } from "vue-i18n";
 import {
   matCheck,
@@ -15,7 +18,7 @@ import ProgressBar from "@/components/ui/ProgressBar.vue";
 
 const props = defineProps<{
   trips: TripMeta[];
-  state: StreamState;
+  state: ProcessingState;
   tripIndex: number;
   phaseDone: PhaseDone;
 }>();

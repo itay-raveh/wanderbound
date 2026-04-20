@@ -71,6 +71,31 @@ def _require_google_user(user: UserDep) -> None:
         )
 
 
+async def _snapshot_album(uid: int, aid: str) -> Album:
+    """Read the album in a short-lived session and release the connection.
+
+    Used before SSE streams so the DB connection is not held for the full
+    duration of the stream. ``expire_on_commit=False`` keeps already-loaded
+    attributes accessible after the session closes.
+    """
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        return await session.get_one(Album, (uid, aid))
+
+
+async def _snapshot_album_and_steps(uid: int, aid: str) -> tuple[Album, list[Step]]:
+    """Read album + its steps in a short-lived session."""
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        album = await session.get_one(Album, (uid, aid))
+        step_rows = (
+            await session.exec(
+                select(Step)
+                .where(Step.uid == uid, Step.aid == aid)
+                .order_by(col(Step.timestamp))
+            )
+        ).all()
+    return album, list(step_rows)
+
+
 router = APIRouter(
     prefix="/google-photos",
     tags=["google-photos"],
@@ -248,17 +273,7 @@ async def match_media(
         tokens = TokenProvider(_decrypt_refresh_token(user))
         access_token = await tokens.get()
 
-        # Short-lived DB session: read album + steps, then release the
-        # connection before the long-running matching generator starts.
-        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-            album = await session.get_one(Album, (user.id, aid))
-            step_rows = (
-                await session.exec(
-                    select(Step)
-                    .where(Step.uid == user.id, Step.aid == aid)
-                    .order_by(col(Step.timestamp))
-                )
-            ).all()
+        album, step_rows = await _snapshot_album_and_steps(user.id, aid)
 
         album_dir = _album_dir(user, aid)
         already_upgraded = dict(album.upgraded_media)
@@ -321,12 +336,9 @@ async def upgrade_media(
                 "An upgrade is already running for this album.",
             )
 
-        # Short-lived DB session: snapshot album state, then release before
-        # the long-running picker fetch + upgrade generator.
-        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-            album = await session.get_one(Album, (user.id, aid))
-            valid_names = {m.name for m in album.media}
-            already_upgraded = dict(album.upgraded_media)
+        album = await _snapshot_album(user.id, aid)
+        valid_names = {m.name for m in album.media}
+        already_upgraded = dict(album.upgraded_media)
 
         _validate_match_names(body.matches, valid_names)
 

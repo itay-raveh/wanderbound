@@ -9,7 +9,7 @@ import {
 import { t } from "@/i18n";
 
 export type { ProcessingPhase };
-export type StreamState = "idle" | "running" | "done" | "error";
+export type ProcessingState = "idle" | "running" | "done" | "error";
 
 export interface PhaseProgress {
   done: number;
@@ -24,10 +24,10 @@ export const PHASE_ORDER: ProcessingPhase[] = [
   "layouts",
 ];
 
-interface UseProcessingStream {
+interface UseTripProcessingStream {
   start(): void;
   abort(): void;
-  state: Ref<StreamState>;
+  state: Ref<ProcessingState>;
   tripIndex: Ref<number>;
   phaseDone: Ref<PhaseDone>;
   errorDetail: Ref<string | null>;
@@ -45,8 +45,8 @@ function freshPhaseDone(): PhaseDone {
   ) as PhaseDone;
 }
 
-export function useProcessingStream(): UseProcessingStream {
-  const state = ref<StreamState>("idle");
+export function useTripProcessingStream(): UseTripProcessingStream {
+  const state = ref<ProcessingState>("idle");
   const tripIndex = ref(0);
   const phaseDone = ref<PhaseDone>(freshPhaseDone());
   const errorDetail = ref<string | null>(null);
