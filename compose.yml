@@ -57,10 +57,7 @@ services:
         condition: service_healthy
         restart: true
     environment:
-      POSTGRES_SERVER: db
-      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
-      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY:?Variable not set}
       VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:-}
       VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}

@@ -28,6 +28,14 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def ensure_psycopg_scheme(v: Any) -> Any:
+    # SQLAlchemy's +psycopg suffix selects psycopg3; CNPG/Heroku/Render emit
+    # plain postgresql://, so rewrite at ingest rather than at each consumer.
+    if isinstance(v, str) and v.startswith("postgresql://"):
+        return "postgresql+psycopg://" + v.removeprefix("postgresql://")
+    return v
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
@@ -61,23 +69,9 @@ class Settings(BaseSettings):
             self.VITE_FRONTEND_URL
         ]
 
-    POSTGRES_SERVER: str
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-
-    @computed_field
-    @property
-    def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
-        return PostgresDsn.build(
-            scheme="postgresql+psycopg",
-            username=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            port=self.POSTGRES_PORT,
-            path=self.POSTGRES_DB,
-        )
+    SQLALCHEMY_DATABASE_URI: Annotated[
+        PostgresDsn, BeforeValidator(ensure_psycopg_scheme)
+    ]
 
     VITE_MAPBOX_TOKEN: str | None = None
 

@@ -4,14 +4,10 @@ import sys
 from pathlib import Path
 
 # Settings are env-driven; the OpenAPI spec isn't affected by these values.
-for key in (
-    "SECRET_KEY",
-    "POSTGRES_SERVER",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "POSTGRES_DB",
-):
-    os.environ.setdefault(key, "codegen")
+os.environ.setdefault("SECRET_KEY", "codegen")
+os.environ.setdefault(
+    "SQLALCHEMY_DATABASE_URI", "postgresql+psycopg://codegen:codegen@localhost/codegen"
+)
 
 from app.main import app  # noqa: E402
 
