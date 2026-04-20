@@ -53,10 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci
-      POSTGRES_SERVER: localhost
-      POSTGRES_USER: ci
-      POSTGRES_PASSWORD: ci
-      POSTGRES_DB: ci
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://ci:ci@localhost:5432/ci
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -115,11 +112,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      POSTGRES_SERVER: localhost
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: ci
-      POSTGRES_PASSWORD: ci
-      POSTGRES_DB: ci
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://ci:ci@localhost:5432/ci
       SECRET_KEY: ci
     steps:
       - uses: actions/checkout@v6
