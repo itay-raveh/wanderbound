@@ -375,7 +375,7 @@ async def _cleanup_picker_sessions(
     for sid in session_ids:
         try:
             await delete_picker_session(sid, access_token)
-        except httpx.HTTPError, RuntimeError:
+        except httpx.HTTPError:
             logger.warning("Failed to delete picker session %s", sid)
 
 
