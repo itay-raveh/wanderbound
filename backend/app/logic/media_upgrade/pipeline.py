@@ -8,28 +8,33 @@ SSE events for progress streaming.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import functools
 import logging
 import shutil
 import subprocess
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, Field, validate_call
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     import imagehash
 
+from app.core.db import get_engine
 from app.core.resources import detect_cpu_count
 from app.logic.layout.media import Media, MediaName, is_video
+from app.models.album import Album
 from app.models.google_photos import GoogleMediaId
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
     PickedMediaItem,
+    PickerSessionId,
     TokenProvider,
+    delete_picker_session,
     download_media_bytes,
     download_media_to_file,
 )
@@ -297,81 +302,148 @@ async def _download_and_replace(
         await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
 
 
-async def execute_upgrade(  # noqa: PLR0913, C901
+@asynccontextmanager
+async def _upgrade_tmp(album_dir: Path) -> AsyncIterator[Path]:
+    """Create and clean up the per-album tmp dir used during upgrade."""
+    tmp_dir = album_dir / _UPGRADE_TMP_DIR
+    await asyncio.to_thread(functools.partial(tmp_dir.mkdir, exist_ok=True))
+    try:
+        yield tmp_dir
+    finally:
+        await asyncio.to_thread(shutil.rmtree, tmp_dir, ignore_errors=True)
+
+
+async def _persist_upgrade(
+    uid: int,
+    aid: str,
+    album_dir: Path,
+    matches: list[MatchResult],
+    succeeded: set[MediaName],
+) -> None:
+    """Write upgrade results to DB, retrying once on transient failure.
+
+    Called from the ``finally`` block of ``run_upgrade``, so it cannot
+    yield events back to the client. On total failure the filesystem may
+    be ahead of the DB; the ERROR log is the only signal.
+    """
+    if not succeeded:
+        return
+    replaced = len(succeeded)
+    for attempt in range(2):
+        try:
+            async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+                album = await session.get_one(Album, (uid, aid))
+                album.media, album.upgraded_media = await apply_upgrade_results(
+                    album_dir,
+                    matches,
+                    album.media,
+                    album.upgraded_media,
+                    succeeded,
+                )
+                session.add(album)
+                await session.commit()
+        except Exception:
+            if attempt == 0:
+                logger.warning(
+                    "Persist attempt 1 failed, retrying after 0.5s",
+                    exc_info=True,
+                    extra={"uid": uid, "aid": aid, "replaced": replaced},
+                )
+                await asyncio.sleep(0.5)
+            else:
+                logger.exception(
+                    "Failed to persist upgrade results - filesystem may be ahead of DB",
+                    extra={"uid": uid, "aid": aid, "replaced": replaced},
+                )
+        else:
+            logger.info(
+                "Persisted upgrade results",
+                extra={"uid": uid, "aid": aid, "replaced": replaced},
+            )
+            return
+
+
+async def _cleanup_picker_sessions(
+    session_ids: list[PickerSessionId],
+    tokens: TokenProvider,
+) -> None:
+    """Best-effort deletion of picker sessions after upgrade."""
+    try:
+        access_token = await tokens.get()
+    except httpx.HTTPError, RuntimeError:
+        logger.warning("Skipping picker session cleanup - token unavailable")
+        return
+    for sid in session_ids:
+        try:
+            await delete_picker_session(sid, access_token)
+        except httpx.HTTPError:
+            logger.warning("Failed to delete picker session %s", sid)
+
+
+async def run_upgrade(  # noqa: PLR0913, C901
+    *,
+    uid: int,
+    aid: str,
     album_dir: Path,
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
-    tokens: TokenProvider,
     already_upgraded: dict[MediaName, GoogleMediaId],
-    succeeded: set[MediaName] | None = None,
+    tokens: TokenProvider,
+    session_ids: list[PickerSessionId],
 ) -> AsyncGenerator[UpgradeEvent]:
-    """Download originals and replace compressed files concurrently.
+    """End-to-end upgrade: download + replace, persist results, release picker sessions.
 
-    Yields progress events for SSE streaming as each download completes.
-    Successfully replaced filenames are added to *succeeded* (if provided)
-    so the caller can persist only actual replacements.
+    Owns the full post-validation lifecycle. Yields SSE events for streaming.
+    Exceptions during streaming become ``UpgradeError`` events; persist and
+    picker cleanup always run.
     """
-    if succeeded is None:
-        succeeded = set()
-
     to_upgrade = [m for m in matches if m.local_name not in already_upgraded]
     total = len(to_upgrade)
-
-    if total == 0:
-        yield UpgradeDone(replaced=0, skipped=0, failed=0)
-        return
-
-    tmp_dir = album_dir / _UPGRADE_TMP_DIR
-    tmp_dir.mkdir(exist_ok=True)
-
-    async def _upgrade_one(match: MatchResult) -> MediaName | None:
-        item = google_items_by_id.get(match.google_id)
-        if not item:
-            return None
-        try:
-            replaced = await _download_and_replace(
-                match.local_name, item, album_dir, tmp_dir, tokens
-            )
-        except (
-            OSError,
-            SyntaxError,
-            httpx.HTTPError,
-            RuntimeError,
-            subprocess.SubprocessError,
-        ):
-            logger.exception("Failed to upgrade %s", match.local_name)
-            return None
-        if replaced:
-            return match.local_name
-        skipped_names.add(match.local_name)
-        return None
-
-    skipped_names: set[str] = set()
-    upgrade_tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
-    replaced = 0
-    completed = False
+    succeeded: set[MediaName] = set()
+    skipped_names: set[MediaName] = set()
 
     try:
-        for i, coro in enumerate(asyncio.as_completed(upgrade_tasks)):
-            name = await coro
-            if name:
-                replaced += 1
-                succeeded.add(name)
-            yield UpgradeDownloading(done=i + 1, total=total)
-        completed = True
-    finally:
-        for t in upgrade_tasks:
-            t.cancel()
-        # Wait for cancelled tasks to finish before cleaning up tmp files
-        # they may still be writing to.
-        await asyncio.gather(*upgrade_tasks, return_exceptions=True)
-        with contextlib.suppress(OSError):
-            for leftover in tmp_dir.iterdir():
-                leftover.unlink(missing_ok=True)
-            tmp_dir.rmdir()
+        if total == 0:
+            yield UpgradeDone(replaced=0, skipped=0, failed=0)
+            return
 
-    if completed:
-        skipped = len(skipped_names)
+        async with _upgrade_tmp(album_dir) as tmp_dir:
+
+            async def _upgrade_one(match: MatchResult) -> MediaName | None:
+                item = google_items_by_id.get(match.google_id)
+                if not item:
+                    return None
+                try:
+                    replaced = await _download_and_replace(
+                        match.local_name, item, album_dir, tmp_dir, tokens
+                    )
+                except (
+                    OSError,
+                    SyntaxError,
+                    httpx.HTTPError,
+                    RuntimeError,
+                    subprocess.SubprocessError,
+                ):
+                    logger.exception("Failed to upgrade %s", match.local_name)
+                    return None
+                if replaced:
+                    return match.local_name
+                skipped_names.add(match.local_name)
+                return None
+
+            tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
+            try:
+                for i, coro in enumerate(asyncio.as_completed(tasks)):
+                    name = await coro
+                    if name:
+                        succeeded.add(name)
+                    yield UpgradeDownloading(done=i + 1, total=total)
+            finally:
+                for t in tasks:
+                    t.cancel()
+                # Wait for cancelled tasks before tmp cleanup runs.
+                await asyncio.gather(*tasks, return_exceptions=True)
+
         failed_names = [
             m.local_name
             for m in to_upgrade
@@ -384,10 +456,18 @@ async def execute_upgrade(  # noqa: PLR0913, C901
                 ", ".join(failed_names),
             )
         yield UpgradeDone(
-            replaced=replaced,
-            skipped=skipped,
+            replaced=len(succeeded),
+            skipped=len(skipped_names),
             failed=len(failed_names),
         )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(  # noqa: TRY400
+            "Upgrade failed for album %s: %s: %s", aid, type(exc).__name__, exc
+        )
+        yield UpgradeError(detail="Upgrade failed unexpectedly.")
+    finally:
+        await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
+        await _cleanup_picker_sessions(session_ids, tokens)
 
 
 # ---------------------------------------------------------------------------

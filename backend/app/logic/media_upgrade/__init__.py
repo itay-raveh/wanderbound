@@ -27,8 +27,8 @@ from .pipeline import (
     UpgradeMatchSummary,
     apply_upgrade_results,
     cleanup_orphaned_tmp,
-    execute_upgrade,
     run_matching,
+    run_upgrade,
 )
 from .processing import (
     extract_video_frame_hashes,
@@ -60,7 +60,6 @@ __all__ = [
     "compute_phash_from_path",
     "cross_step_fallback",
     "deduplicate_items",
-    "execute_upgrade",
     "extract_video_frame_hashes",
     "match_across_windows",
     "match_within_window",
@@ -69,4 +68,5 @@ __all__ = [
     "replace_photo",
     "replace_video",
     "run_matching",
+    "run_upgrade",
 ]

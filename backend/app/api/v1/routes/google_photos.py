@@ -5,11 +5,9 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Annotated
 
 import httpx
@@ -29,9 +27,8 @@ from app.logic.media_upgrade import (
     MatchResult,
     UpgradeError,
     UpgradeEvent,
-    apply_upgrade_results,
-    execute_upgrade,
     run_matching,
+    run_upgrade,
 )
 from app.models.album import Album
 from app.models.step import Step
@@ -300,96 +297,6 @@ class UpgradeRequest(BaseModel):
     matches: list[MatchResult] = Field(max_length=10_000)
 
 
-async def _prepare_upgrade(
-    user: UserDep,
-    body: UpgradeRequest,
-    session: SessionDep,
-    aid: str,
-) -> tuple[Album, Path, dict[str, PickedMediaItem], TokenProvider]:
-    """Validate and prepare all data for the upgrade stream."""
-    tokens = TokenProvider(_decrypt_refresh_token(user))
-    access_token = await tokens.get()
-
-    album = await session.get_one(Album, (user.id, aid))
-    album_dir = _album_dir(user, aid)
-
-    _validate_match_names(body.matches, {m.name for m in album.media})
-
-    all_items: list[PickedMediaItem] = []
-    for sid in body.session_ids:
-        all_items.extend(await get_media_items(sid, access_token))
-    items_by_id = {item.id: item for item in all_items}
-    return album, album_dir, items_by_id, tokens
-
-
-async def _persist_upgrade(
-    uid: int,
-    aid: str,
-    album_dir: Path,
-    matches: list[MatchResult],
-    succeeded: set[str],
-) -> None:
-    """Write upgrade results to DB, retrying once on transient failure.
-
-    Called from the ``finally`` block of the upgrade SSE stream, so it
-    cannot yield events back to the client. On total failure the
-    filesystem may be ahead of the DB; the ERROR log is the only signal.
-    A future reconciliation job could fix this, but in practice transient
-    DB failures rarely survive a retry.
-    """
-    replaced = len(succeeded)
-    for attempt in range(2):
-        try:
-            engine = get_engine()
-            async with AsyncSession(engine, expire_on_commit=False) as persist_session:
-                album = await persist_session.get_one(Album, (uid, aid))
-                album.media, album.upgraded_media = await apply_upgrade_results(
-                    album_dir,
-                    matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
-                )
-                persist_session.add(album)
-                await persist_session.commit()
-        except Exception:
-            if attempt == 0:
-                logger.warning(
-                    "Persist attempt 1 failed, retrying after 0.5s",
-                    exc_info=True,
-                    extra={"uid": uid, "aid": aid, "replaced": replaced},
-                )
-                await asyncio.sleep(0.5)
-            else:
-                logger.exception(
-                    "Failed to persist upgrade results - filesystem may be ahead of DB",
-                    extra={"uid": uid, "aid": aid, "replaced": replaced},
-                )
-        else:
-            logger.info(
-                "Persisted upgrade results",
-                extra={"uid": uid, "aid": aid, "replaced": replaced},
-            )
-            return
-
-
-async def _cleanup_picker_sessions(
-    session_ids: list[PickerSessionId],
-    tokens: TokenProvider,
-) -> None:
-    """Best-effort cleanup of picker sessions after upgrade."""
-    try:
-        access_token = await tokens.get()
-    except httpx.HTTPError, RuntimeError:
-        logger.warning("Skipping picker session cleanup - token unavailable")
-        return
-    for sid in session_ids:
-        try:
-            await delete_picker_session(sid, access_token)
-        except httpx.HTTPError:
-            logger.warning("Failed to delete picker session %s", sid)
-
-
 @router.post(
     "/upgrade/{aid}",
     response_class=EventSourceResponse,
@@ -399,11 +306,8 @@ async def upgrade_media(
     aid: str,
     body: UpgradeRequest,
     user: UserDep,
-    session: SessionDep,
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
-    # Quick check before acquiring the upgrade lock; full validation
-    # (including decrypt) happens in _prepare_upgrade.
     if not user.google_photos_refresh_token:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -416,29 +320,35 @@ async def upgrade_media(
                 status.HTTP_409_CONFLICT,
                 "An upgrade is already running for this album.",
             )
-        album, album_dir, items_by_id, tokens = await _prepare_upgrade(
-            user, body, session, aid
-        )
 
-        succeeded: set[str] = set()
-        try:
-            async for event in execute_upgrade(
-                album_dir=album_dir,
-                matches=body.matches,
-                google_items_by_id=items_by_id,
-                tokens=tokens,
-                already_upgraded=album.upgraded_media,
-                succeeded=succeeded,
-            ):
-                yield event
-        except Exception as exc:  # noqa: BLE001
-            logger.error(  # noqa: TRY400
-                "Upgrade failed for album %s: %s: %s", aid, type(exc).__name__, exc
-            )
-            yield UpgradeError(detail="Upgrade failed unexpectedly.")
-        finally:
-            await _persist_upgrade(user.id, aid, album_dir, body.matches, succeeded)
-            await _cleanup_picker_sessions(body.session_ids, tokens)
+        # Short-lived DB session: snapshot album state, then release before
+        # the long-running picker fetch + upgrade generator.
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+            album = await session.get_one(Album, (user.id, aid))
+            valid_names = {m.name for m in album.media}
+            already_upgraded = dict(album.upgraded_media)
+
+        _validate_match_names(body.matches, valid_names)
+
+        tokens = TokenProvider(_decrypt_refresh_token(user))
+        access_token = await tokens.get()
+
+        all_items: list[PickedMediaItem] = []
+        for sid in body.session_ids:
+            all_items.extend(await get_media_items(sid, access_token))
+        items_by_id = {item.id: item for item in all_items}
+
+        async for event in run_upgrade(
+            uid=user.id,
+            aid=aid,
+            album_dir=_album_dir(user, aid),
+            matches=body.matches,
+            google_items_by_id=items_by_id,
+            already_upgraded=already_upgraded,
+            tokens=tokens,
+            session_ids=body.session_ids,
+        ):
+            yield event
 
 
 # ---------------------------------------------------------------------------
