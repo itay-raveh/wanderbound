@@ -1,8 +1,8 @@
 """Fernet symmetric encryption for sensitive tokens (e.g. OAuth refresh tokens).
 
-Derives a stable Fernet key from SECRET_KEY via HKDF so encrypted values
-survive restarts. Supports zero-downtime key rotation via MultiFernet
-when SECRET_KEY_PREVIOUS is set.
+Key is derived from SECRET_KEY via HKDF. Rotation: set SECRET_KEY_PREVIOUS
+to the old key so existing ciphertexts stay decryptable; tokens that aren't
+re-encrypted before the previous key is dropped simply trip a reconnect.
 """
 
 import base64
