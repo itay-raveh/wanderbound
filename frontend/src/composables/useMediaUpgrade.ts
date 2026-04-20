@@ -1,8 +1,7 @@
-import { onScopeDispose, ref, watch } from "vue";
+import { onScopeDispose, ref, watchEffect } from "vue";
 import {
   matchMedia,
   upgradeMedia,
-  type MatchResult,
   type UpgradeDownloading,
   type UpgradeDone,
   type UpgradeError,
@@ -11,6 +10,11 @@ import {
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
 import { UPGRADE_ERRORS } from "./upgradeErrors";
+import {
+  createMatchAccumulator,
+  type MatchRound,
+  type MatchSummary,
+} from "./matchAccumulator";
 import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
@@ -34,18 +38,6 @@ interface UpgradeProgress {
   skipped?: number;
 }
 
-interface RoundMatchResult {
-  matches: MatchResult[];
-  totalPicked: number;
-  matched: number;
-  alreadyUpgraded: number;
-  unmatched: number;
-}
-
-interface MatchSummaryData extends RoundMatchResult {
-  newThisRound: number;
-}
-
 const POLL_INTERVAL_MS = 2000;
 const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
@@ -65,7 +57,7 @@ export function useMediaUpgrade() {
 
   const phase = ref<UpgradePhase>("idle");
   const progress = ref<UpgradeProgress>({ done: 0, total: 0 });
-  const matchSummary = ref<MatchSummaryData | null>(null);
+  const matchSummary = ref<MatchSummary | null>(null);
   const errorDetail = ref<string | null>(null);
 
   let controller: AbortController | null = null;
@@ -74,11 +66,8 @@ export function useMediaUpgrade() {
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
   let activePopup: Window | null = null;
 
-  // Multi-round state
   const sessionIds: string[] = [];
-  const accumulatedMatches: MatchResult[] = [];
-  let runningTotalPicked = 0;
-  let runningAlreadyUpgraded = 0;
+  const accumulator = createMatchAccumulator();
 
   function reset() {
     progress.value = { done: 0, total: 0 };
@@ -88,9 +77,7 @@ export function useMediaUpgrade() {
     confirmReject = null;
     activePopup = null;
     sessionIds.length = 0;
-    accumulatedMatches.length = 0;
-    runningTotalPicked = 0;
-    runningAlreadyUpgraded = 0;
+    accumulator.reset();
   }
 
   function openPopup(): Window {
@@ -109,30 +96,6 @@ export function useMediaUpgrade() {
       "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
     popup.document.body.textContent = "Loading\u2026";
     return popup;
-  }
-
-  function mergeMatches(incoming: MatchResult[]) {
-    const byLocalName = new Map<string, MatchResult>();
-    for (const m of accumulatedMatches) byLocalName.set(m.local_name, m);
-    for (const m of incoming) {
-      const prev = byLocalName.get(m.local_name);
-      if (!prev || m.distance < prev.distance) {
-        byLocalName.set(m.local_name, m);
-      }
-    }
-    accumulatedMatches.length = 0;
-    accumulatedMatches.push(...byLocalName.values());
-  }
-
-  function buildMergedSummary(newThisRound: number): MatchSummaryData {
-    return {
-      matches: [...accumulatedMatches],
-      totalPicked: runningTotalPicked,
-      matched: accumulatedMatches.length,
-      alreadyUpgraded: runningAlreadyUpgraded,
-      unmatched: Math.max(0, runningTotalPicked - accumulatedMatches.length),
-      newThisRound,
-    };
   }
 
   async function start(albumId: string) {
@@ -185,15 +148,8 @@ export function useMediaUpgrade() {
         const roundSummary = await runMatchStream(albumId, currentSessionId, signal);
         if (signal.aborted) return;
 
-        const matchedBefore = accumulatedMatches.length;
-        if (roundSummary) {
-          mergeMatches(roundSummary.matches);
-          runningTotalPicked += roundSummary.totalPicked;
-          runningAlreadyUpgraded += roundSummary.alreadyUpgraded;
-        }
-        const newThisRound = accumulatedMatches.length - matchedBefore;
-
-        matchSummary.value = buildMergedSummary(newThisRound);
+        const newThisRound = roundSummary ? accumulator.merge(roundSummary) : 0;
+        matchSummary.value = accumulator.summary(newThisRound);
         phase.value = "confirming";
         const action = await waitForConfirmation(signal);
         if (signal.aborted) return;
@@ -317,7 +273,7 @@ export function useMediaUpgrade() {
     albumId: string,
     sessionId: string,
     signal: AbortSignal,
-  ): Promise<RoundMatchResult | null> {
+  ): Promise<MatchRound | null> {
     const { stream } = await matchMedia({
       path: { aid: albumId },
       query: { session_id: sessionId },
@@ -325,7 +281,7 @@ export function useMediaUpgrade() {
       sseMaxRetryAttempts: 0,
     });
 
-    let summary: RoundMatchResult | null = null;
+    let round: MatchRound | null = null;
 
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
@@ -336,12 +292,10 @@ export function useMediaUpgrade() {
           progress.value = { done: event.done, total: event.total };
           break;
         case "match_summary":
-          summary = {
+          round = {
             matches: event.matches,
             totalPicked: event.total_picked,
-            matched: event.matched,
             alreadyUpgraded: event.already_upgraded,
-            unmatched: event.unmatched,
           };
           break;
         case "error":
@@ -349,7 +303,7 @@ export function useMediaUpgrade() {
       }
     }
 
-    return summary;
+    return round;
   }
 
   async function runUpgradeStream(
@@ -360,7 +314,7 @@ export function useMediaUpgrade() {
       path: { aid: albumId },
       body: {
         session_ids: [...sessionIds],
-        matches: accumulatedMatches,
+        matches: [...accumulator.matches],
       },
       signal,
       sseMaxRetryAttempts: 0,
@@ -402,27 +356,23 @@ export function useMediaUpgrade() {
     }, DONE_RESET_MS);
   }
 
-  // Warn the user before navigating away during active operations.
+  // Warn before navigating away while a picker is open or the pipeline is running.
+  // `picking` is included so a mid-picker refresh still triggers the prompt -
+  // without it the backend picker session would be orphaned (finally never runs).
   const busyPhases: ReadonlySet<UpgradePhase> = new Set([
+    "picking",
     "preparing",
     "matching",
     "downloading",
   ]);
-  function onBeforeUnload(e: BeforeUnloadEvent) {
-    e.preventDefault();
-  }
-  watch(phase, (cur, prev) => {
-    if (busyPhases.has(cur) && !busyPhases.has(prev)) {
-      window.addEventListener("beforeunload", onBeforeUnload);
-    } else if (!busyPhases.has(cur) && busyPhases.has(prev)) {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-    }
+  watchEffect((onCleanup) => {
+    if (!busyPhases.has(phase.value)) return;
+    const handler = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", handler);
+    onCleanup(() => window.removeEventListener("beforeunload", handler));
   });
 
-  onScopeDispose(() => {
-    window.removeEventListener("beforeunload", onBeforeUnload);
-    cancel();
-  });
+  onScopeDispose(cancel);
 
   return {
     phase,
