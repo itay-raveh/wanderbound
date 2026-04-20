@@ -11,6 +11,7 @@ withDefaults(
     variant?: "danger" | "warning" | "primary";
     title: string;
     body: string;
+    tip?: string;
     confirmLabel?: string;
     cancelLabel: string;
     confirmDisabled?: boolean;
@@ -31,15 +32,16 @@ defineEmits<{
     :aria-labelledby="`${id}-title`"
     :aria-describedby="body ? `${id}-body` : undefined"
   >
-    <q-card class="confirm-dialog text-center">
-      <div :class="['confirm-icon flex flex-center', variant]">
+    <q-card class="prompt-dialog text-center">
+      <div :class="['prompt-icon flex flex-center', variant]">
         <q-icon :name="icon" size="1.5rem" />
       </div>
-      <h3 :id="`${id}-title`" class="confirm-title text-weight-semibold text-bright">
+      <h3 :id="`${id}-title`" class="prompt-title text-weight-semibold text-bright">
         {{ title }}
       </h3>
-      <p v-if="body" :id="`${id}-body`" class="confirm-text text-body2 text-muted">{{ body }}</p>
-      <div class="confirm-actions">
+      <p v-if="body" :id="`${id}-body`" class="prompt-text text-body2 text-muted">{{ body }}</p>
+      <p v-if="tip" class="prompt-tip text-body2 text-faint">{{ tip }}</p>
+      <div class="prompt-actions">
         <q-btn v-close-popup flat no-caps class="text-body2 cancel-btn">{{
           cancelLabel
         }}</q-btn>
@@ -71,12 +73,12 @@ defineEmits<{
 </template>
 
 <style lang="scss" scoped>
-.confirm-dialog {
+.prompt-dialog {
   padding: 1.75rem;
   max-width: 26rem;
 }
 
-.confirm-icon {
+.prompt-icon {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 50%;
@@ -98,18 +100,23 @@ defineEmits<{
   }
 }
 
-.confirm-title {
+.prompt-title {
   font-size: var(--type-subtitle);
   margin: 0 0 var(--gap-md);
 }
 
-.confirm-text {
+.prompt-text {
   line-height: 1.5;
   white-space: pre-line;
   margin: 0 0 var(--gap-lg);
 }
 
-.confirm-actions {
+.prompt-tip {
+  font-size: var(--type-xs);
+  margin: calc(var(--gap-lg) * -1) 0 var(--gap-lg);
+}
+
+.prompt-actions {
   display: flex;
   gap: var(--gap-md);
 

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { symOutlinedHighQuality } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import ConfirmDialog from "./ConfirmDialog.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 import { computed } from "vue";
 
 const show = defineModel<boolean>({ required: true });
@@ -50,7 +50,7 @@ const confirmLabel = computed(() => {
 </script>
 
 <template>
-  <ConfirmDialog
+  <PromptDialog
     v-model="show"
     :icon="symOutlinedHighQuality"
     variant="primary"

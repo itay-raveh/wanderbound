@@ -3,9 +3,8 @@ import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
 import { Platform } from "quasar";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
-import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 import UpgradeMatchDialog from "./UpgradeMatchDialog.vue";
-import ConfirmDialog from "./ConfirmDialog.vue";
 import {
   symOutlinedError,
   symOutlinedKeyboardArrowDown,
@@ -199,8 +198,15 @@ const { confirmUpgrade } = upgrade;
       </button>
     </div>
 
-    <UpgradeOnboardingDialog
+    <PromptDialog
       v-model="showOnboarding"
+      :icon="symOutlinedUpgrade"
+      variant="primary"
+      :title="t('upgrade.onboarding.title')"
+      :body="t('upgrade.onboarding.body')"
+      :tip="t('upgrade.onboarding.tip')"
+      :confirm-label="t('upgrade.onboarding.continue')"
+      :cancel-label="t('common.cancel')"
       @confirm="confirmUpgrade"
     />
 
@@ -215,7 +221,7 @@ const { confirmUpgrade } = upgrade;
       @select-more="upgrade.selectMore()"
     />
 
-    <ConfirmDialog
+    <PromptDialog
       v-model="showDisconnectConfirm"
       :icon="symOutlinedLinkOff"
       variant="warning"
