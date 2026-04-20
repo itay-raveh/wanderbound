@@ -2,13 +2,11 @@
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
 import { Platform } from "quasar";
-import ProgressBar from "@/components/ui/ProgressBar.vue";
+import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import UpgradeOnboardingDialog from "./UpgradeOnboardingDialog.vue";
 import UpgradeMatchDialog from "./UpgradeMatchDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import {
-  symOutlinedClose,
-  symOutlinedCheck,
   symOutlinedError,
   symOutlinedKeyboardArrowDown,
   symOutlinedLinkOff,
@@ -33,6 +31,16 @@ const isRunning = computed(() => {
     p === "matching" ||
     p === "downloading"
   );
+});
+
+const buttonState = computed<"idle" | "running" | "done" | null>(() => {
+  const p = upgrade.phase.value;
+  if (p === "done") return "done";
+  if (isRunning.value) return "running";
+  if (p === "error") return null;
+  if (!Platform.is.chrome) return null;
+  if (upgrade.googlePhotosState.value === "connected") return null;
+  return "idle";
 });
 
 const progressFraction = computed(() => {
@@ -112,20 +120,17 @@ const { confirmUpgrade } = upgrade;
 
 <template>
   <template v-if="upgrade.googlePhotosState.value !== 'unavailable'">
-    <div
-      v-if="upgrade.phase.value === 'done'"
-      role="status"
-      aria-live="polite"
-      class="action-btn done"
-      :aria-label="doneMessage"
-    >
-      <q-icon
-        :name="symOutlinedCheck"
-        size="var(--type-lg)"
-        class="done-icon"
-      />
-      {{ doneMessage }}
-    </div>
+    <AsyncActionButton
+      v-if="buttonState"
+      :state="buttonState"
+      :idle-icon="symOutlinedUpgrade"
+      :idle-label="t('upgrade.button')"
+      :progress-fraction="progressFraction"
+      :progress-message="progressMessage"
+      :done-message="doneMessage"
+      @start="upgrade.start(props.albumId)"
+      @cancel="upgrade.cancel()"
+    />
 
     <button
       v-else-if="upgrade.phase.value === 'error'"
@@ -133,10 +138,7 @@ const { confirmUpgrade } = upgrade;
       :aria-label="t('upgrade.error')"
       @click="upgrade.start(props.albumId)"
     >
-      <q-icon
-        :name="symOutlinedError"
-        size="var(--type-lg)"
-      />
+      <q-icon :name="symOutlinedError" size="var(--type-lg)" />
       {{ errorMessage }}
       <q-tooltip
         transition-show="scale"
@@ -145,26 +147,6 @@ const { confirmUpgrade } = upgrade;
       >
         {{ errorTooltip }}
       </q-tooltip>
-    </button>
-
-    <button
-      v-else-if="isRunning"
-      class="action-btn running"
-      :aria-label="progressMessage"
-      aria-busy="true"
-      @click="upgrade.cancel()"
-    >
-      <div class="progress-content">
-        <q-icon
-          :name="symOutlinedClose"
-          size="var(--type-md)"
-          class="cancel-icon"
-        />
-        <span class="progress-text" aria-live="polite">{{
-          progressMessage
-        }}</span>
-      </div>
-      <ProgressBar :progress="progressFraction" />
     </button>
 
     <button
@@ -191,10 +173,7 @@ const { confirmUpgrade } = upgrade;
       </q-tooltip>
     </button>
 
-    <div
-      v-else-if="upgrade.googlePhotosState.value === 'connected'"
-      class="split-btn"
-    >
+    <div v-else class="split-btn">
       <button
         class="action-btn"
         :aria-label="t('upgrade.button')"
@@ -219,16 +198,6 @@ const { confirmUpgrade } = upgrade;
         </q-menu>
       </button>
     </div>
-
-    <button
-      v-else
-      class="action-btn"
-      :aria-label="t('upgrade.button')"
-      @click="upgrade.start(props.albumId)"
-    >
-      <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
-      {{ t("upgrade.button") }}
-    </button>
 
     <UpgradeOnboardingDialog
       v-model="showOnboarding"
@@ -263,9 +232,90 @@ const { confirmUpgrade } = upgrade;
 @use "@/styles/action-button" as *;
 @include action-button;
 
+.action-btn.error {
+  border-color: var(--q-negative);
+  color: var(--q-negative);
+
+  &:hover {
+    background: var(--q-negative);
+    color: var(--bg);
+  }
+}
+
 .action-btn[aria-disabled="true"] {
   opacity: 0.6;
   cursor: help;
+}
+
+.split-btn {
+  display: inline-flex;
+  align-items: stretch;
+
+  .action-btn {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+  }
+}
+
+.split-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--gap-sm);
+  min-width: 2.75rem;
+  border: 1px solid var(--q-primary);
+  border-inline-start: none;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--radius-sm);
+  border-end-end-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--q-primary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+
+  &:hover {
+    background: var(--q-primary);
+    color: var(--bg);
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.125rem;
+  }
+}
+
+.split-menu {
+  padding: var(--gap-xs);
+  min-width: 10rem;
+}
+
+.split-menu-item {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  padding: var(--gap-sm) var(--gap-md);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  color: var(--text-muted);
+  box-sizing: border-box;
+  transition: background var(--duration-fast);
+
+  &:hover {
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: -1px;
+  }
 }
 
 .chrome-tooltip {
