@@ -7,7 +7,6 @@ E2E. The matching algorithm is covered in test_media_upgrade.py.
 
 from __future__ import annotations
 
-import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,12 +16,7 @@ import pytest
 from authlib.integrations.starlette_client import OAuthError
 from fastapi import HTTPException
 
-from app.api.v1.routes.google_photos import (
-    _UPGRADE_LOCK_TTL,
-    _expire_stale_locks,
-    _upgrades_in_progress,
-    _validate_match_names,
-)
+from app.api.v1.routes.google_photos import _validate_match_names
 from app.core.config import get_settings
 from app.logic.media_upgrade import MatchResult
 from app.models.user import User
@@ -135,42 +129,6 @@ class TestValidateMatchNames:
             _validate_match_names(matches, {"photo1.jpg"})
         assert exc_info.value.status_code == 422
         assert "evil.jpg" in str(exc_info.value.detail)
-
-
-class TestExpireStaleLocks:
-    def test_removes_expired_locks(self) -> None:
-        """Locks older than TTL are removed."""
-        key = (999, "album-xyz")
-        _upgrades_in_progress[key] = time.monotonic() - _UPGRADE_LOCK_TTL - 1
-        try:
-            _expire_stale_locks()
-            assert key not in _upgrades_in_progress
-        finally:
-            _upgrades_in_progress.pop(key, None)
-
-    def test_keeps_fresh_locks(self) -> None:
-        """Locks within TTL are preserved."""
-        key = (999, "album-xyz")
-        _upgrades_in_progress[key] = time.monotonic()
-        try:
-            _expire_stale_locks()
-            assert key in _upgrades_in_progress
-        finally:
-            _upgrades_in_progress.pop(key, None)
-
-    def test_mixed_fresh_and_stale(self) -> None:
-        """Only stale locks are removed; fresh ones survive."""
-        stale = (1, "old")
-        fresh = (2, "new")
-        _upgrades_in_progress[stale] = time.monotonic() - _UPGRADE_LOCK_TTL - 1
-        _upgrades_in_progress[fresh] = time.monotonic()
-        try:
-            _expire_stale_locks()
-            assert stale not in _upgrades_in_progress
-            assert fresh in _upgrades_in_progress
-        finally:
-            _upgrades_in_progress.pop(stale, None)
-            _upgrades_in_progress.pop(fresh, None)
 
 
 class TestOAuthCallback:

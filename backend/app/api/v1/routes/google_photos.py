@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.encryption import encrypt_token, try_decrypt_token
+from app.core.locks import try_advisory_lock
 from app.logic.media_upgrade import (
     MatchResult,
     UpgradeError,
@@ -53,23 +53,6 @@ from app.services.google_photos import (
 from ..deps import SessionDep, UserDep, album_dir as _album_dir
 
 logger = logging.getLogger(__name__)
-
-# Tracks albums currently being upgraded (key -> monotonic start time).
-# The check-and-add is done without intervening awaits so two concurrent
-# requests can't both pass the check.
-# NOTE: process-local - does not protect across multiple workers/containers.
-# Use a DB advisory lock if running multiple workers in production.
-_upgrades_in_progress: dict[tuple[int, str], float] = {}
-_UPGRADE_LOCK_TTL = 30 * 60  # 30 minutes
-
-
-def _expire_stale_locks() -> None:
-    """Remove upgrade locks older than the TTL (e.g. after OOM kill)."""
-    cutoff = time.monotonic() - _UPGRADE_LOCK_TTL
-    stale = [k for k, t in _upgrades_in_progress.items() if t < cutoff]
-    for k in stale:
-        logger.warning("Expiring stale upgrade lock for %s", k)
-        del _upgrades_in_progress[k]
 
 
 def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
@@ -248,50 +231,57 @@ async def match_media(
     session_id: Annotated[PickerSessionId, Query()],
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
-    tokens = TokenProvider(_decrypt_refresh_token(user))
-    access_token = await tokens.get()
-
-    # Short-lived DB session: read album + steps, then release the
-    # connection before the long-running matching generator starts.
-    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        album = await session.get_one(Album, (user.id, aid))
-        step_rows = (
-            await session.exec(
-                select(Step)
-                .where(Step.uid == user.id, Step.aid == aid)
-                .order_by(col(Step.timestamp))
+    async with try_advisory_lock(f"gphotos-match:{user.id}:{aid}") as acquired:
+        if not acquired:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "A matching run is already in progress for this album.",
             )
-        ).all()
+        tokens = TokenProvider(_decrypt_refresh_token(user))
+        access_token = await tokens.get()
 
-    album_dir = _album_dir(user, aid)
-    already_upgraded = dict(album.upgraded_media)
-    step_timestamps = [s.timestamp for s in step_rows]
-    step_ids = [s.id for s in step_rows]
-    media_by_step = {
-        s.id: [name for page in s.pages for name in page] + s.unused for s in step_rows
-    }
+        # Short-lived DB session: read album + steps, then release the
+        # connection before the long-running matching generator starts.
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+            album = await session.get_one(Album, (user.id, aid))
+            step_rows = (
+                await session.exec(
+                    select(Step)
+                    .where(Step.uid == user.id, Step.aid == aid)
+                    .order_by(col(Step.timestamp))
+                )
+            ).all()
 
-    items = await get_media_items(session_id, access_token)
+        album_dir = _album_dir(user, aid)
+        already_upgraded = dict(album.upgraded_media)
+        step_timestamps = [s.timestamp for s in step_rows]
+        step_ids = [s.id for s in step_rows]
+        media_by_step = {
+            s.id: [name for page in s.pages for name in page] + s.unused
+            for s in step_rows
+        }
 
-    try:
-        async for event in run_matching(
-            album_dir=album_dir,
-            media_by_step=media_by_step,
-            step_timestamps=step_timestamps,
-            step_ids=step_ids,
-            google_items=items,
-            tokens=tokens,
-            already_upgraded=already_upgraded,
-        ):
-            yield event
-    except Exception as exc:  # noqa: BLE001
-        # logger.exception would capture the full traceback; if TokenProvider
-        # raised httpx.HTTPStatusError the request body contains the plaintext
-        # refresh token and client secret (see _get_access_token for context).
-        logger.error(  # noqa: TRY400
-            "Matching failed for album %s: %s: %s", aid, type(exc).__name__, exc
-        )
-        yield UpgradeError(detail="Matching failed unexpectedly.")
+        items = await get_media_items(session_id, access_token)
+
+        try:
+            async for event in run_matching(
+                album_dir=album_dir,
+                media_by_step=media_by_step,
+                step_timestamps=step_timestamps,
+                step_ids=step_ids,
+                google_items=items,
+                tokens=tokens,
+                already_upgraded=already_upgraded,
+            ):
+                yield event
+        except Exception as exc:  # noqa: BLE001
+            # logger.exception would capture the full traceback; if TokenProvider
+            # raised httpx.HTTPStatusError the request body contains the plaintext
+            # refresh token and client secret (see _get_access_token for context).
+            logger.error(  # noqa: TRY400
+                "Matching failed for album %s: %s: %s", aid, type(exc).__name__, exc
+            )
+            yield UpgradeError(detail="Matching failed unexpectedly.")
 
 
 class UpgradeRequest(BaseModel):
@@ -409,17 +399,12 @@ async def upgrade_media(
             "Google Photos not connected. Please authorize first.",
         )
 
-    key = (user.id, aid)
-    _expire_stale_locks()
-    if key in _upgrades_in_progress:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "An upgrade is already running for this album.",
-        )
-    # Register the lock immediately (no await between check and add)
-    # to prevent concurrent requests from both passing the check.
-    _upgrades_in_progress[key] = time.monotonic()
-    try:
+    async with try_advisory_lock(f"gphotos-upgrade:{user.id}:{aid}") as acquired:
+        if not acquired:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "An upgrade is already running for this album.",
+            )
         album, album_dir, items_by_id, tokens = await _prepare_upgrade(
             user, body, session, aid
         )
@@ -443,8 +428,6 @@ async def upgrade_media(
         finally:
             await _persist_upgrade(user.id, aid, album_dir, body.matches, succeeded)
             await _cleanup_picker_sessions(body.session_ids, tokens)
-    finally:
-        _upgrades_in_progress.pop(key, None)
 
 
 # ---------------------------------------------------------------------------
