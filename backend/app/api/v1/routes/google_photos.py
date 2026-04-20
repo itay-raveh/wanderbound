@@ -124,7 +124,11 @@ async def _get_access_token(user: UserDep) -> AccessToken:
 
 
 @router.get("/authorize")
-async def authorize(request: Request, user: UserDep) -> dict[str, str]:
+async def authorize(
+    request: Request,
+    user: UserDep,
+    nonce: Annotated[str, Query(min_length=8, max_length=64)],
+) -> dict[str, str]:
     oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
     rv = await oauth.google_photos.create_authorization_url(
@@ -133,13 +137,19 @@ async def authorize(request: Request, user: UserDep) -> dict[str, str]:
     await oauth.google_photos.save_authorize_data(
         request, redirect_uri=redirect_uri, **rv
     )
+    request.session["oauth_nonce"] = nonce
     return {"authorization_url": rv["url"]}
 
 
-def _oauth_redirect(*, error: bool = False) -> RedirectResponse:
+def _oauth_redirect(nonce: str | None, *, error: bool = False) -> RedirectResponse:
     url = f"{get_settings().VITE_FRONTEND_URL}/oauth-connected.html"
+    params = []
     if error:
-        url += "?error"
+        params.append("error")
+    if nonce:
+        params.append(f"nonce={nonce}")
+    if params:
+        url += "?" + "&".join(params)
     return RedirectResponse(url)
 
 
@@ -147,6 +157,7 @@ def _oauth_redirect(*, error: bool = False) -> RedirectResponse:
 async def callback(
     request: Request, user: UserDep, session: SessionDep
 ) -> RedirectResponse:
+    nonce = request.session.pop("oauth_nonce", None)
     oauth = get_oauth()
     try:
         token = await oauth.google_photos.authorize_access_token(request)
@@ -157,18 +168,18 @@ async def callback(
             type(exc).__name__,
             exc,
         )
-        return _oauth_redirect(error=True)
+        return _oauth_redirect(nonce, error=True)
     refresh_token = token.get("refresh_token")
     if not refresh_token:
         logger.warning("No refresh token for user %d", user.id)
-        return _oauth_redirect(error=True)
+        return _oauth_redirect(nonce, error=True)
 
     user.google_photos_refresh_token = encrypt_token(refresh_token)
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
     logger.info("OAuth callback complete: user %d connected", user.id)
-    return _oauth_redirect()
+    return _oauth_redirect(nonce)
 
 
 # ---------------------------------------------------------------------------

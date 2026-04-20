@@ -26,17 +26,14 @@ export function useGooglePhotos() {
   const isConnected = computed(() => state.value === "connected");
 
   async function authorizeInPopup(popup: Window): Promise<void> {
-    const { data } = await authorize();
+    const nonce = crypto.randomUUID();
+    const { data } = await authorize({ query: { nonce } });
     if (!data?.authorization_url) throw new Error("No authorization URL");
 
     popup.location.href = data.authorization_url;
 
-    // The OAuth callback redirects to /oauth-connected.html on the
-    // frontend origin. That page broadcasts a message via
-    // BroadcastChannel (same-origin, COOP-immune). We listen here
-    // and resolve when the message arrives.
     await new Promise<void>((resolve, reject) => {
-      const channel = new BroadcastChannel("wanderbound-oauth");
+      const channel = new BroadcastChannel(`wanderbound-oauth-${nonce}`);
 
       function cleanup() {
         channel.close();
@@ -44,8 +41,7 @@ export function useGooglePhotos() {
         clearTimeout(timeout);
       }
 
-      channel.onmessage = (event) => {
-        if (event.data?.type !== "google-photos-connected") return;
+      channel.onmessage = () => {
         cleanup();
         resolve();
       };
