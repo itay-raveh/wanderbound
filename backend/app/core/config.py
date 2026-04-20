@@ -17,6 +17,8 @@ from app.core.resources import detect_storage_bytes
 # Reserve 10% of detected storage for DB WAL, logs, temp files, uploads
 _STORAGE_HEADROOM = 0.9
 
+_DOCKER_SECRETS_DIR = Path("/run/secrets")
+
 
 def parse_cors(v: Any) -> list[str] | str:
     if isinstance(v, str) and not v.startswith("["):
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
         env_file="../.env",
+        secrets_dir=_DOCKER_SECRETS_DIR if _DOCKER_SECRETS_DIR.is_dir() else None,
         env_ignore_empty=True,
         extra="ignore",
     )
