@@ -56,6 +56,7 @@ _VIDEO_CRF = "23"
 _VIDEO_PRESET = "medium"
 _AUDIO_BITRATE = "128k"
 _REENCODE_TIMEOUT = 600  # 10 minutes for video re-encode
+_MAX_OUTPUT_BYTES = 500 * 1024 * 1024  # ~10m phone video at CRF 23
 
 _HDR_TONEMAP_FILTER = (
     "zscale=t=linear:npl=100,format=gbrpf32le,"
@@ -124,6 +125,8 @@ async def process_video(input_path: Path, output: Path) -> None:
         "-1",
         "-movflags",
         "+faststart",
+        "-fs",
+        str(_MAX_OUTPUT_BYTES),
         str(output),
     ]
 
@@ -145,6 +148,13 @@ async def process_video(input_path: Path, output: Path) -> None:
 
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
+
+    # -fs stops writing once the cap is reached, producing a truncated file
+    # whose container is typically unreadable. Treat it as an explicit failure.
+    size = await asyncio.to_thread(lambda: output.stat().st_size)
+    if size >= _MAX_OUTPUT_BYTES:
+        msg = f"ffmpeg output hit {_MAX_OUTPUT_BYTES}-byte cap"
+        raise RuntimeError(msg)
 
 
 # ---------------------------------------------------------------------------

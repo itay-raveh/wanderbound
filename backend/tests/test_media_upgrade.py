@@ -667,6 +667,16 @@ class TestProcessVideo:
         w, h = (int(x) for x in result.stdout.strip().split(","))
         assert max(w, h) <= _MAX_LONG_EDGE
 
+    async def test_raises_when_output_hits_cap(
+        self, sample_video: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.processing._MAX_OUTPUT_BYTES", 1024
+        )
+        out = tmp_path / "out.mp4"
+        with pytest.raises(RuntimeError, match="cap"):
+            await process_video(sample_video, out)
+
     async def test_strips_metadata(self, sample_video: Path, tmp_path: Path) -> None:
         out = tmp_path / "out.mp4"
         await process_video(sample_video, out)
