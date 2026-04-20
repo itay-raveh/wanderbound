@@ -16,7 +16,7 @@ from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import SENTRY_IGNORED, setup_logging
 from app.logic.export import lifespan as export_lifespan
-from app.logic.media_upgrade import cleanup_orphaned_tmp
+from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.session import cancel_all_sessions
 from app.services.google_photos import close_clients as close_google_clients

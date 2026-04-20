@@ -22,8 +22,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.locks import try_advisory_lock
-from app.logic.media_upgrade import (
-    MatchResult,
+from app.logic.media_upgrade.phash_matching import MatchResult
+from app.logic.media_upgrade.pipeline import (
     UpgradeError,
     UpgradeEvent,
     run_matching,

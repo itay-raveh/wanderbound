@@ -18,27 +18,27 @@ from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
 from app.logic.layout.media import Media
-from app.logic.media_upgrade import (
+from app.logic.media_upgrade.phash_matching import (
+    _CROSS_TYPE_COST,
+    _FALLBACK_MAX_DIMENSION,
     MATCH_THRESHOLD,
     HashedMedia,
     MatchResult,
-    apply_upgrade_results,
+    _pairwise_distance,
+    _parse_timestamp,
     bucket_by_window,
     build_cost_matrix,
     build_step_windows,
     cross_step_fallback,
-    extract_video_frame_hashes,
     match_within_window,
+)
+from app.logic.media_upgrade.pipeline import apply_upgrade_results
+from app.logic.media_upgrade.processing import (
+    _MAX_LONG_EDGE,
+    extract_video_frame_hashes,
     process_photo_sync,
     process_video,
 )
-from app.logic.media_upgrade.phash_matching import (
-    _CROSS_TYPE_COST,
-    _FALLBACK_MAX_DIMENSION,
-    _pairwise_distance,
-    _parse_timestamp,
-)
-from app.logic.media_upgrade.processing import _MAX_LONG_EDGE
 from app.services.google_photos import (
     GoogleMediaFile,
     GoogleMediaType,

@@ -18,7 +18,7 @@ from fastapi import HTTPException
 
 from app.api.v1.routes.google_photos import _validate_match_names
 from app.core.config import get_settings
-from app.logic.media_upgrade import MatchResult
+from app.logic.media_upgrade.phash_matching import MatchResult
 from app.models.user import User
 
 from .factories import (
