@@ -81,9 +81,10 @@ function onSummaryVisibility(v: boolean) {
 const doneMessage = computed(() => {
   const { done: replaced, total, skipped = 0 } = upgrade.progress.value;
   const failed = total - replaced - skipped;
-  if (failed > 0) return t("upgrade.donePartial", { replaced, total });
-  if (skipped > 0) return t("upgrade.doneSkipped", { replaced, skipped });
-  return t("upgrade.done", { replaced });
+  if (failed > 0) return t("upgrade.donePartial", { replaced, total }, total);
+  if (skipped > 0)
+    return t("upgrade.doneSkipped", { replaced, skipped }, replaced);
+  return t("upgrade.done", { replaced }, replaced);
 });
 
 function translateError(key: string | null): string {

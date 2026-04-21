@@ -28,7 +28,11 @@ const titleText = computed(() => {
   if (props.newThisRound === 0 && props.matched > 0)
     return t("upgrade.summary.noNewMatchTitle");
   if (toUpgrade.value === 0) return t("upgrade.summary.allUpgradedTitle");
-  return t("upgrade.summary.readyTitle", { count: toUpgrade.value });
+  return t(
+    "upgrade.summary.readyTitle",
+    { count: toUpgrade.value },
+    toUpgrade.value,
+  );
 });
 
 const bodyText = computed(() => {
@@ -37,15 +41,21 @@ const bodyText = computed(() => {
     return t("upgrade.summary.noNewMatchBody");
   if (toUpgrade.value === 0) return t("upgrade.summary.allUpgradedBody");
   if (props.alreadyUpgraded > 0)
-    return t("upgrade.summary.alreadyUpgraded", {
-      count: props.alreadyUpgraded,
-    });
+    return t(
+      "upgrade.summary.alreadyUpgraded",
+      { count: props.alreadyUpgraded },
+      props.alreadyUpgraded,
+    );
   return "";
 });
 
 const confirmLabel = computed(() => {
   if (toUpgrade.value <= 0) return undefined;
-  return t("upgrade.summary.confirm", { count: toUpgrade.value });
+  return t(
+    "upgrade.summary.confirm",
+    { count: toUpgrade.value },
+    toUpgrade.value,
+  );
 });
 </script>
 
