@@ -45,7 +45,7 @@ from app.models.user import (
     UserUpdate,
 )
 
-from ..deps import SessionDep, UserDep, apply_update, login_session
+from ..deps import HttpClientsDep, SessionDep, UserDep, apply_update, login_session
 from .auth import verify_credential
 
 logger = logging.getLogger(__name__)
@@ -279,8 +279,10 @@ async def delete_demo(
     response_class=EventSourceResponse,
     responses={200: {"model": list[ProcessingEvent]}},
 )
-async def process_user(user: UserDep) -> AsyncIterable[ProcessingEvent]:
-    async for event in process_stream(user):
+async def process_user(
+    user: UserDep, http: HttpClientsDep
+) -> AsyncIterable[ProcessingEvent]:
+    async for event in process_stream(http, user):
         yield event
 
 

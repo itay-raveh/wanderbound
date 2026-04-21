@@ -19,12 +19,14 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, Field, validate_call
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     import imagehash
 
 from app.core.db import get_engine
+from app.core.http_clients import HttpClients
 from app.core.resources import detect_cpu_count
 from app.logic.layout.media import Media, MediaName, is_video
 from app.models.album import Album
@@ -50,7 +52,12 @@ from .phash_matching import (
     deduplicate_items,
     match_across_windows,
 )
-from .processing import extract_video_frame_hashes, replace_photo, replace_video
+from .processing import (
+    extract_video_frame_hashes,
+    replace_photo,
+    replace_video,
+    tmp_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +69,8 @@ _UPGRADE_TMP_DIR = ".upgrade-tmp"
 # ---------------------------------------------------------------------------
 
 # Created lazily via @cache to avoid binding to the wrong event loop at import time.
-
-
-@functools.cache
-def _download_sem() -> asyncio.Semaphore:
-    return asyncio.Semaphore(5)
+# Download concurrency is capped at the HTTP layer via httpx.Limits on the
+# gphotos_download client, so no semaphore is needed here.
 
 
 @functools.cache
@@ -145,16 +149,17 @@ async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | 
 
 
 async def _hash_candidate_one(
-    item: PickedMediaItem, tokens: TokenProvider
+    download: httpx.AsyncClient,
+    item: PickedMediaItem,
+    tokens: TokenProvider,
 ) -> tuple[str, imagehash.ImageHash | None]:
     """Download one Google Photos thumbnail and compute its pHash."""
     try:
         thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
-        async with _download_sem():
-            access_token = await tokens.get()
-            thumb_bytes = await download_media_bytes(
-                item.media_file.base_url, access_token, param=thumb_param
-            )
+        access_token = await tokens.get()
+        thumb_bytes = await download_media_bytes(
+            download, item.media_file.base_url, access_token, param=thumb_param
+        )
         return item.id, await asyncio.to_thread(compute_phash_from_bytes, thumb_bytes)
     except OSError, SyntaxError, httpx.HTTPError:
         logger.warning(
@@ -171,6 +176,7 @@ async def _hash_candidate_one(
 
 
 async def run_matching(  # noqa: PLR0913
+    clients: HttpClients,
     album_dir: Path,
     media_by_step: dict[int, list[MediaName]],
     step_timestamps: list[float],
@@ -219,7 +225,8 @@ async def run_matching(  # noqa: PLR0913
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
     cand_total = len(unique_items)
     cand_tasks = [
-        asyncio.create_task(_hash_candidate_one(item, tokens)) for item in unique_items
+        asyncio.create_task(_hash_candidate_one(clients.gphotos_download, item, tokens))
+        for item in unique_items
     ]
     for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
         item_id, h = await coro
@@ -263,7 +270,8 @@ async def run_matching(  # noqa: PLR0913
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
-async def _download_and_replace(
+async def _download_and_replace(  # noqa: PLR0913
+    download: httpx.AsyncClient,
     local_name: MediaName,
     item: PickedMediaItem,
     album_dir: Path,
@@ -287,19 +295,17 @@ async def _download_and_replace(
     else:
         param, replace, extra = "=d", replace_photo, {"max_bytes": MAX_PHOTO_BYTES}
 
-    try:
-        async with _download_sem():
-            access_token = await tokens.get()
-            await download_media_to_file(
-                item.media_file.base_url,
-                access_token,
-                raw_path,
-                param=param,
-                **extra,
-            )
-        return await replace(local_name, raw_path, tmp_path, target)
-    finally:
-        await asyncio.to_thread(lambda: raw_path.unlink(missing_ok=True))
+    async with tmp_file(raw_path) as raw:
+        access_token = await tokens.get()
+        await download_media_to_file(
+            download,
+            item.media_file.base_url,
+            access_token,
+            raw,
+            param=param,
+            **extra,
+        )
+        return await replace(local_name, raw, tmp_path, target)
 
 
 @asynccontextmanager
@@ -320,50 +326,45 @@ async def _persist_upgrade(
     matches: list[MatchResult],
     succeeded: set[MediaName],
 ) -> None:
-    """Write upgrade results to DB, retrying once on transient failure.
+    """Write upgrade results to DB after a successful disk replace.
 
     Called from the ``finally`` block of ``run_upgrade``, so it cannot
-    yield events back to the client. On total failure the filesystem may
-    be ahead of the DB; the ERROR log is the only signal.
+    yield events back to the client. If the commit fails the filesystem
+    is ahead of the DB; drift self-heals on the user's next upgrade
+    attempt (``_skip_smaller`` makes the re-replace a no-op, persist
+    runs again). ``pool_pre_ping`` already handles idle-death at checkout.
     """
     if not succeeded:
         return
     replaced = len(succeeded)
-    for attempt in range(2):
-        try:
-            async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-                album = await session.get_one(Album, (uid, aid))
-                album.media, album.upgraded_media = await apply_upgrade_results(
-                    album_dir,
-                    matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
-                )
-                session.add(album)
-                await session.commit()
-        except Exception:
-            if attempt == 0:
-                logger.warning(
-                    "Persist attempt 1 failed, retrying after 0.5s",
-                    exc_info=True,
-                    extra={"uid": uid, "aid": aid, "replaced": replaced},
-                )
-                await asyncio.sleep(0.5)
-            else:
-                logger.exception(
-                    "Failed to persist upgrade results - filesystem may be ahead of DB",
-                    extra={"uid": uid, "aid": aid, "replaced": replaced},
-                )
-        else:
-            logger.info(
-                "Persisted upgrade results",
-                extra={"uid": uid, "aid": aid, "replaced": replaced},
+    try:
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+            album = await session.get_one(Album, (uid, aid))
+            album.media, album.upgraded_media = await apply_upgrade_results(
+                album_dir,
+                matches,
+                album.media,
+                album.upgraded_media,
+                succeeded,
             )
-            return
+            session.add(album)
+            await session.commit()
+    except SQLAlchemyError:
+        logger.warning(
+            "Failed to persist upgrade results - filesystem ahead of DB, "
+            "will self-heal on next upgrade attempt",
+            exc_info=True,
+            extra={"uid": uid, "aid": aid, "replaced": replaced},
+        )
+        return
+    logger.info(
+        "Persisted upgrade results",
+        extra={"uid": uid, "aid": aid, "replaced": replaced},
+    )
 
 
 async def _cleanup_picker_sessions(
+    picker: httpx.AsyncClient,
     session_ids: list[PickerSessionId],
     tokens: TokenProvider,
 ) -> None:
@@ -375,13 +376,14 @@ async def _cleanup_picker_sessions(
         return
     for sid in session_ids:
         try:
-            await delete_picker_session(sid, access_token)
+            await delete_picker_session(picker, sid, access_token)
         except httpx.HTTPError:
             logger.warning("Failed to delete picker session %s", sid)
 
 
 async def run_upgrade(  # noqa: PLR0913, C901
     *,
+    clients: HttpClients,
     uid: int,
     aid: str,
     album_dir: Path,
@@ -415,7 +417,12 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     return None
                 try:
                     replaced = await _download_and_replace(
-                        match.local_name, item, album_dir, tmp_dir, tokens
+                        clients.gphotos_download,
+                        match.local_name,
+                        item,
+                        album_dir,
+                        tmp_dir,
+                        tokens,
                     )
                 except (
                     OSError,
@@ -467,7 +474,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
         yield UpgradeError(detail="Upgrade failed unexpectedly.")
     finally:
         await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
-        await _cleanup_picker_sessions(session_ids, tokens)
+        await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
 
 
 # ---------------------------------------------------------------------------
@@ -526,5 +533,4 @@ async def cleanup_orphaned_tmp(users_folder: Path) -> None:
 
 def _clear_caches() -> None:
     """Reset cached semaphores (for test isolation across event loops)."""
-    _download_sem.cache_clear()
     _hash_sem.cache_clear()

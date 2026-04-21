@@ -7,15 +7,12 @@ Rate-limited to stay under Mapbox free-tier limits (60 req/min).
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
-from functools import cache
 from typing import Literal
 
 import httpx
-from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.core.http import RateLimitedTransport, cached_client
 from app.logic.route_matching import (
     Coords,
     is_sparse,
@@ -32,15 +29,6 @@ MATCH_MAX_COORDS = 100
 
 _MATCHING_URL = "https://api.mapbox.com/matching/v5/mapbox"
 _DIRECTIONS_URL = "https://api.mapbox.com/directions/v5/mapbox"
-
-# Mapbox free tier: 300 req/min (matching), 60 req/min (directions).
-# Use the stricter limit as shared budget.
-_limiter = AsyncLimiter(50, 60)
-
-
-@cache
-def _client() -> httpx.AsyncClient:
-    return cached_client(transport=RateLimitedTransport(_limiter))
 
 
 class _GeoJSONLineString(BaseModel):
@@ -209,6 +197,7 @@ async def _match_one(
 
 
 async def match_segment(
+    client: httpx.AsyncClient,
     points_lonlat: Coords,
     profile: Profile,
 ) -> Coords | None:
@@ -221,10 +210,11 @@ async def match_segment(
     if not token:
         return None
 
-    return await _match_one(_client(), points_lonlat, profile, token)
+    return await _match_one(client, points_lonlat, profile, token)
 
 
 async def match_segments(
+    client: httpx.AsyncClient,
     pairs: list[tuple[Coords, Profile]],
 ) -> list[Coords | None]:
     """Match multiple segments concurrently, sharing one HTTP connection pool."""
@@ -235,7 +225,6 @@ async def match_segments(
     if not token:
         return [None] * len(pairs)
 
-    client = _client()
     return await asyncio.gather(
         *(_match_one(client, coords, profile, token) for coords, profile in pairs)
     )

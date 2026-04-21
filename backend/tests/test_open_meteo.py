@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -94,10 +94,10 @@ class TestElevations:
             "500", request=MagicMock(), response=MagicMock()
         )
 
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=resp)
-            with pytest.raises(httpx.HTTPStatusError):
-                await collect_async(elevations(locs))
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=resp)
+        with pytest.raises(httpx.HTTPStatusError):
+            await collect_async(elevations(client, locs))
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +163,9 @@ class TestBuildWeathers:
         mock_response = MagicMock(status_code=200)
         mock_response.content = json.dumps(resp_data).encode()
 
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
-            result = [w async for w in build_weathers([step])]
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=mock_response)
+        result = [w async for w in build_weathers(client, [step])]
 
         assert len(result) == 1
         idx, w = result[0]
@@ -177,10 +177,8 @@ class TestBuildWeathers:
 
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                side_effect=httpx.HTTPError("fail")
-            )
-            with pytest.raises(RuntimeError, match="Weather API"):
-                async for _ in build_weathers([step]):
-                    pass
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
+        with pytest.raises(RuntimeError, match="Weather API"):
+            async for _ in build_weathers(client, [step]):
+                pass

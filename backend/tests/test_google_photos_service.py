@@ -140,10 +140,7 @@ class TestCreatePickerSession:
         mock_client = AsyncMock()
         mock_client.post.return_value = _json_response(_SESSION_JSON)
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            session = await create_picker_session("test-token")
+        session = await create_picker_session(mock_client, "test-token")
 
         assert isinstance(session, PickerSession)
         assert session.id == "session-xyz"
@@ -156,13 +153,8 @@ class TestCreatePickerSession:
             500, request=httpx.Request("POST", "http://test"), content=b"error"
         )
 
-        with (
-            patch(
-                "app.services.google_photos._picker_client", return_value=mock_client
-            ),
-            pytest.raises(httpx.HTTPStatusError),
-        ):
-            await create_picker_session("test-token")
+        with pytest.raises(httpx.HTTPStatusError):
+            await create_picker_session(mock_client, "test-token")
 
 
 class TestGetMediaItems:
@@ -172,10 +164,7 @@ class TestGetMediaItems:
         mock_client = AsyncMock()
         mock_client.get.return_value = _json_response(page_json)
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            items = await get_media_items("session-1", "token-1")
+        items = await get_media_items(mock_client, "session-1", "token-1")
 
         assert len(items) == 1
         assert isinstance(items[0], PickedMediaItem)
@@ -193,10 +182,7 @@ class TestGetMediaItems:
         mock_client = AsyncMock()
         mock_client.get.side_effect = [page1, page2]
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            items = await get_media_items("session-1", "token-1")
+        items = await get_media_items(mock_client, "session-1", "token-1")
 
         assert len(items) == 2
         assert items[0].id == "media-1"
@@ -209,10 +195,7 @@ class TestGetMediaItems:
         mock_client = AsyncMock()
         mock_client.get.return_value = _json_response({})
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            items = await get_media_items("session-1", "token-1")
+        items = await get_media_items(mock_client, "session-1", "token-1")
 
         assert items == []
 
@@ -222,10 +205,7 @@ class TestGetMediaItems:
         mock_client = AsyncMock()
         mock_client.get.return_value = _json_response({"mediaItems": [video]})
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            items = await get_media_items("session-1", "token-1")
+        items = await get_media_items(mock_client, "session-1", "token-1")
 
         assert len(items) == 1
         assert items[0].type == "VIDEO"
@@ -236,10 +216,7 @@ class TestGetMediaItems:
             {"mediaItems": [_VIDEO_ITEM_JSON]}
         )
 
-        with patch(
-            "app.services.google_photos._picker_client", return_value=mock_client
-        ):
-            items = await get_media_items("session-1", "token-1")
+        items = await get_media_items(mock_client, "session-1", "token-1")
 
         assert len(items) == 1
         assert items[0].type == "VIDEO"
@@ -278,11 +255,14 @@ def _mock_refresh(token: str = "fresh-token") -> AsyncMock:  # noqa: S107
     return mock
 
 
+_DUMMY_CLIENT = AsyncMock(spec=httpx.AsyncClient)
+
+
 class TestTokenProvider:
     async def test_returns_cached_token_within_margin(self) -> None:
         mock = _mock_refresh("tok-1")
         with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider("rt-1")
+            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
             t1 = await tp.get()
             t2 = await tp.get()
         assert t1 == "tok-1"
@@ -292,7 +272,7 @@ class TestTokenProvider:
     async def test_refreshes_when_past_margin(self) -> None:
         call_count = 0
 
-        async def _refresh(_rt: str) -> _TokenResponse:
+        async def _refresh(_client: httpx.AsyncClient, _rt: str) -> _TokenResponse:
             nonlocal call_count
             call_count += 1
             return _TokenResponse.model_validate({"access_token": f"tok-{call_count}"})
@@ -301,7 +281,7 @@ class TestTokenProvider:
             patch("app.services.google_photos.refresh_access_token", _refresh),
             patch.object(TokenProvider, "_REFRESH_MARGIN", 0),  # expire immediately
         ):
-            tp = TokenProvider("rt-1")
+            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
             t1 = await tp.get()
             t2 = await tp.get()
         assert t1 == "tok-1"
@@ -317,7 +297,7 @@ class TestTokenProvider:
             )
         )
         with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider("rt-bad")
+            tp = TokenProvider(_DUMMY_CLIENT, "rt-bad")
             with pytest.raises(httpx.HTTPStatusError):
                 await tp.get()
             # Subsequent calls raise RuntimeError, not HTTP error
@@ -328,7 +308,7 @@ class TestTokenProvider:
         """Two concurrent .get() calls should only trigger one refresh."""
         mock = _mock_refresh("tok-shared")
         with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider("rt-1")
+            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
             t1, t2 = await asyncio.gather(tp.get(), tp.get())
         assert t1 == t2 == "tok-shared"
         assert mock.call_count == 1
@@ -368,25 +348,18 @@ async def _async_iter(items: list[bytes]) -> AsyncIterator[bytes]:
 class TestDownloadMediaBytes:
     async def test_rejects_content_length_over_limit(self) -> None:
         client = _streaming_client([], headers={"content-length": "1000"})
-        with (
-            patch("app.services.google_photos._download_client", return_value=client),
-            pytest.raises(DownloadTooLargeError),
-        ):
-            await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=500)
+        with pytest.raises(DownloadTooLargeError):
+            await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=500)
 
     async def test_rejects_stream_exceeding_limit(self) -> None:
         """Even without content-length, reject if chunks exceed max_bytes."""
         client = _streaming_client([b"x" * 600])
-        with (
-            patch("app.services.google_photos._download_client", return_value=client),
-            pytest.raises(DownloadTooLargeError),
-        ):
-            await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=500)
+        with pytest.raises(DownloadTooLargeError):
+            await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=500)
 
     async def test_accepts_within_limit(self) -> None:
         client = _streaming_client([b"hello"])
-        with patch("app.services.google_photos._download_client", return_value=client):
-            result = await download_media_bytes(_BASE_URL, _TOKEN, max_bytes=1000)
+        result = await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=1000)
         assert result == b"hello"
 
 
@@ -394,15 +367,11 @@ class TestDownloadMediaToFile:
     async def test_writes_file_on_success(self, tmp_path: Path) -> None:
         dest = tmp_path / "photo.jpg"
         client = _streaming_client([b"photo-data"])
-        with patch("app.services.google_photos._download_client", return_value=client):
-            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=1000)
+        await download_media_to_file(client, _BASE_URL, _TOKEN, dest, max_bytes=1000)
         assert dest.read_bytes() == b"photo-data"
 
     async def test_raises_on_size_limit(self, tmp_path: Path) -> None:
         dest = tmp_path / "photo.jpg"
         client = _streaming_client([b"x" * 600])
-        with (
-            patch("app.services.google_photos._download_client", return_value=client),
-            pytest.raises(DownloadTooLargeError),
-        ):
-            await download_media_to_file(_BASE_URL, _TOKEN, dest, max_bytes=500)
+        with pytest.raises(DownloadTooLargeError):
+            await download_media_to_file(client, _BASE_URL, _TOKEN, dest, max_bytes=500)

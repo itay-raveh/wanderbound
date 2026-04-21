@@ -30,7 +30,7 @@ from app.models.segment import (
 from app.models.step import Step, StepUpdate
 from app.services.mapbox import match_segments
 
-from ..deps import BrowserDep, SessionDep, UserDep, apply_update
+from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +99,11 @@ async def read_segments(
 
 
 @router.get("/{aid}/segments/points")
-async def read_segment_points(
+async def read_segment_points(  # noqa: PLR0913
     aid: str,
     user: UserDep,
     session: SessionDep,
+    http: HttpClientsDep,
     from_time: Annotated[float, Query()],
     to_time: Annotated[float, Query()],
 ) -> Sequence[Segment]:
@@ -122,7 +123,7 @@ async def read_segment_points(
     unmatched = [s for s in segments if s.kind in MATCHABLE_KINDS and s.route is None]
     if unmatched:
         pairs = [([(p.lon, p.lat) for p in s.points], str(s.kind)) for s in unmatched]
-        routes = await match_segments(pairs)
+        routes = await match_segments(http.mapbox, pairs)
         for seg, route in zip(unmatched, routes, strict=True):
             if route:
                 seg.route = route

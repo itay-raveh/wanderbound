@@ -7,21 +7,37 @@ JPEG conversion for photos; H.264 re-encode with HDR tone-mapping for videos.
 import asyncio
 import logging
 import shutil
-import subprocess
-from io import BytesIO
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
+import av
 import imagehash
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
 
-from app.logic.layout.media import Media, delete_thumbnails, extract_frame
+from app.logic.layout.media import (
+    HDR_COLOR_TRC,
+    Media,
+    delete_thumbnails,
+    extract_frame,
+)
 
 logger = logging.getLogger(__name__)
 
 _MAX_LONG_EDGE = 3000
 _JPEG_QUALITY = 85
+
+
+@asynccontextmanager
+async def tmp_file(path: Path) -> AsyncIterator[Path]:
+    """Yield *path*; unlink it (if present) on exit. Safe after shutil.move."""
+    try:
+        yield path
+    finally:
+        await anyio.Path(path).unlink(missing_ok=True)
 
 
 def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
@@ -51,7 +67,6 @@ def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
 # Video processing
 # ---------------------------------------------------------------------------
 
-_FFPROBE_TIMEOUT = 30
 _VIDEO_CRF = "23"
 _VIDEO_PRESET = "medium"
 _AUDIO_BITRATE = "128k"
@@ -67,26 +82,10 @@ _HDR_TONEMAP_FILTER = (
 
 def _detect_hdr(path: Path) -> bool:
     """Check if a video has HDR color transfer characteristics."""
-    result = subprocess.run(  # noqa: S603
-        [  # noqa: S607
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=color_transfer",
-            "-of",
-            "csv=p=0",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=_FFPROBE_TIMEOUT,
-    )
-    transfer = result.stdout.strip()
-    return transfer in ("smpte2084", "arib-std-b67")  # PQ (HDR10) or HLG
+    # stream.color_trc is populated from codec params; no decode needed.
+    # https://pyav.basswood-io.com/docs/stable/api/stream.html
+    with av.open(str(path)) as container:
+        return container.streams.video[0].color_trc in HDR_COLOR_TRC
 
 
 async def process_video(input_path: Path, output: Path) -> None:
@@ -95,6 +94,8 @@ async def process_video(input_path: Path, output: Path) -> None:
     Reads from ``input_path``, writes to ``output``. Does not modify
     ``input_path``; the caller owns its lifecycle.
     """
+    # Full transcoding pipeline (zscale/tonemap/scale, x264 encoder, AAC, faststart)
+    # stays on ffmpeg CLI - PyAV would need a hand-built filter graph + encoder loop.
     is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
 
     scale_filter = (
@@ -149,8 +150,7 @@ async def process_video(input_path: Path, output: Path) -> None:
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
 
-    # -fs stops writing once the cap is reached, producing a truncated file
-    # whose container is typically unreadable. Treat it as an explicit failure.
+    # -fs truncates mid-stream, producing a corrupt container. Treat as failure.
     size = await asyncio.to_thread(lambda: output.stat().st_size)
     if size >= _MAX_OUTPUT_BYTES:
         msg = f"ffmpeg output hit {_MAX_OUTPUT_BYTES}-byte cap"
@@ -162,64 +162,23 @@ async def process_video(input_path: Path, output: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
-_FFMPEG_FRAME_TIMEOUT = 30
-
-
-def _video_duration_sync(path: Path) -> float:
-    """Get video duration via ffprobe (synchronous)."""
-    result = subprocess.run(  # noqa: S603
-        [  # noqa: S607
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=_FFPROBE_TIMEOUT,
-    )
-    try:
-        return float(result.stdout.strip())
-    except ValueError:
-        logger.debug("Could not parse duration for %s, defaulting to 2s", path.name)
-        return 2.0
 
 
 def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
     """Extract frames at 10/30/50/70% of duration and compute pHash for each."""
-    duration = _video_duration_sync(path)
+    # Single container open; seek+decode per sample point.
+    # https://pyav.basswood-io.com/docs/stable/api/container.html#av.container.InputContainer.seek
     hashes: list[imagehash.ImageHash] = []
-    for pct in _VIDEO_SAMPLE_POINTS:
-        ts = duration * pct
-        result = subprocess.run(  # noqa: S603
-            [  # noqa: S607
-                "ffmpeg",
-                "-y",
-                "-v",
-                "error",
-                "-ss",
-                str(ts),
-                "-i",
-                str(path),
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-vcodec",
-                "png",
-                "-",
-            ],
-            capture_output=True,
-            check=True,
-            timeout=_FFMPEG_FRAME_TIMEOUT,
-        )
-        with Image.open(BytesIO(result.stdout)) as img:
-            hashes.append(imagehash.phash(img))
+    with av.open(str(path)) as container:
+        stream = container.streams.video[0]
+        duration = container.duration / av.time_base if container.duration else 2.0
+        for pct in _VIDEO_SAMPLE_POINTS:
+            ts = duration * pct
+            container.seek(int(ts * av.time_base))
+            for frame in container.decode(stream):
+                if frame.time is not None and frame.time >= ts:
+                    hashes.append(imagehash.phash(frame.to_image()))
+                    break
     return hashes
 
 
@@ -247,9 +206,9 @@ async def replace_video(
     name: str, raw_path: Path, tmp_path: Path, target: Path
 ) -> bool:
     """Process and replace a single video. Returns True on success."""
-    try:
-        await process_video(raw_path, tmp_path)
-        new_media = await Media.probe(tmp_path)
+    async with tmp_file(tmp_path) as tmp:
+        await process_video(raw_path, tmp)
+        new_media = await Media.probe(tmp)
 
         try:
             existing = await Media.probe(target)
@@ -261,9 +220,7 @@ async def replace_video(
         ):
             return False
 
-        await asyncio.to_thread(shutil.move, tmp_path, target)
-    finally:
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        await asyncio.to_thread(shutil.move, tmp, target)
 
     # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
     try:
@@ -281,8 +238,8 @@ async def replace_photo(
     name: str, raw_path: Path, tmp_path: Path, target: Path
 ) -> bool:
     """Process and replace a single photo. Returns True on success."""
-    try:
-        width, height = await asyncio.to_thread(process_photo_sync, raw_path, tmp_path)
+    async with tmp_file(tmp_path) as tmp:
+        width, height = await asyncio.to_thread(process_photo_sync, raw_path, tmp)
 
         try:
             existing = await asyncio.to_thread(Media.load, target)
@@ -292,9 +249,7 @@ async def replace_photo(
         if existing and _skip_smaller(name, width, height, existing):
             return False
 
-        await asyncio.to_thread(shutil.move, tmp_path, target)
-    finally:
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
+        await asyncio.to_thread(shutil.move, tmp, target)
 
     await asyncio.to_thread(delete_thumbnails, target)
     return True

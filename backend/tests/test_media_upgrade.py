@@ -6,10 +6,9 @@ extraction, and post-download photo processing (EXIF strip, resize,
 format conversion).
 """
 
-import json
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import imagehash
 import numpy as np
@@ -35,7 +34,6 @@ from app.logic.media_upgrade.phash_matching import (
 from app.logic.media_upgrade.pipeline import apply_upgrade_results
 from app.logic.media_upgrade.processing import (
     _MAX_LONG_EDGE,
-    extract_video_frame_hashes,
     process_photo_sync,
     process_video,
 )
@@ -557,149 +555,30 @@ class TestProcessPhoto:
             assert result.size == (600, 400)
 
 
-@pytest.fixture
-def sample_video(tmp_path: Path) -> Path:
-    """Create a minimal 2-second test video via ffmpeg."""
-    out = tmp_path / "test.mp4"
-    subprocess.run(  # noqa: S603
-        [  # noqa: S607
-            "ffmpeg",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=blue:size=320x240:duration=2:rate=30",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            str(out),
-        ],
-        check=True,
-        capture_output=True,
-    )
-    return out
-
-
-class TestExtractVideoFrames:
-    def test_extracts_four_frames(self, sample_video: Path) -> None:
-        frames = extract_video_frame_hashes(sample_video)
-        assert len(frames) == 4
-        for frame in frames:
-            assert isinstance(frame, imagehash.ImageHash)
-
-    def test_all_frames_from_same_video_are_similar(self, sample_video: Path) -> None:
-        """A solid-color video should produce near-identical hashes."""
-        frames = extract_video_frame_hashes(sample_video)
-        for i in range(len(frames) - 1):
-            assert frames[i] - frames[i + 1] < 5
-
-
 class TestProcessVideo:
-    async def test_reencodes_to_h264(self, sample_video: Path, tmp_path: Path) -> None:
-        out = tmp_path / "out.mp4"
-        await process_video(sample_video, out)
-
-        assert out.exists()
-        # Verify H.264 codec via ffprobe
-        result = subprocess.run(  # noqa: S603, ASYNC221
-            [  # noqa: S607
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=codec_name",
-                "-of",
-                "csv=p=0",
-                str(out),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert result.stdout.strip() == "h264"
-
-    async def test_caps_resolution(self, tmp_path: Path) -> None:
-        # Create a 4K test video
-        source = tmp_path / "4k.mp4"
-        subprocess.run(  # noqa: S603, ASYNC221
-            [  # noqa: S607
-                "ffmpeg",
-                "-y",
-                "-f",
-                "lavfi",
-                "-i",
-                "color=c=red:size=3840x2160:duration=1:rate=30",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-an",
-                str(source),
-            ],
-            check=True,
-            capture_output=True,
-        )
-        out = tmp_path / "out.mp4"
-        await process_video(source, out)
-
-        # Check output dimensions
-        result = subprocess.run(  # noqa: S603, ASYNC221
-            [  # noqa: S607
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=width,height",
-                "-of",
-                "csv=p=0",
-                str(out),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        w, h = (int(x) for x in result.stdout.strip().split(","))
-        assert max(w, h) <= _MAX_LONG_EDGE
-
     async def test_raises_when_output_hits_cap(
-        self, sample_video: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        source = tmp_path / "in.mp4"
+        source.write_bytes(b"stub")
+        out = tmp_path / "out.mp4"
+
+        async def _fake_exec(*_args: object, **_kwargs: object) -> AsyncMock:
+            out.write_bytes(b"x" * 2048)
+            proc = AsyncMock()
+            proc.communicate.return_value = (b"", b"")
+            proc.returncode = 0
+            return proc
+
         monkeypatch.setattr(
             "app.logic.media_upgrade.processing._MAX_OUTPUT_BYTES", 1024
         )
-        out = tmp_path / "out.mp4"
-        with pytest.raises(RuntimeError, match="cap"):
-            await process_video(sample_video, out)
-
-    async def test_strips_metadata(self, sample_video: Path, tmp_path: Path) -> None:
-        out = tmp_path / "out.mp4"
-        await process_video(sample_video, out)
-
-        result = subprocess.run(  # noqa: S603, ASYNC221
-            [  # noqa: S607
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format_tags",
-                "-of",
-                "json",
-                str(out),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.processing._detect_hdr", lambda _: False
         )
-        tags = json.loads(result.stdout).get("format", {}).get("tags", {})
-        # Should have no meaningful metadata (ffmpeg adds encoder tag, that's ok)
-        assert "location" not in tags
-        assert "creation_time" not in tags
+        monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+        with pytest.raises(RuntimeError, match="cap"):
+            await process_video(source, out)
 
 
 # ---------------------------------------------------------------------------

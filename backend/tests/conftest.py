@@ -1,7 +1,9 @@
+import dataclasses
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -10,13 +12,27 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.deps import _get_session
+from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings
+from app.core.http_clients import HttpClients
 from app.logic.media_upgrade.pipeline import _clear_caches
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 
 from .factories import TRIPS_DIR
+
+
+def _mock_http_clients() -> HttpClients:
+    """Provide an HttpClients with AsyncMock clients for tests.
+
+    Tests that need specific client behavior should patch the relevant
+    service function (e.g. match_segments, refresh_access_token) directly.
+    """
+    fields = {
+        f.name: AsyncMock(spec=httpx.AsyncClient)
+        for f in dataclasses.fields(HttpClients)
+    }
+    return HttpClients(**fields)
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -51,6 +67,7 @@ async def client(
         yield session
 
     app.dependency_overrides[_get_session] = _override
+    app.dependency_overrides[_get_http_clients] = _mock_http_clients
     # Disable background eviction - it opens its own DB session, bypassing
     # the test transaction rollback and causing cross-test data leaks.
     with patch("app.api.v1.routes.users.run_eviction"):

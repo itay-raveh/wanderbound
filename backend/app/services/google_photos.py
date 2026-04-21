@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
-from httpx_retries import Retry, RetryTransport
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic.alias_generators import to_camel
 
@@ -83,47 +82,6 @@ def get_oauth() -> OAuth:
         client_kwargs={"scope": _SCOPE},
     )
     return oauth
-
-
-# ---------------------------------------------------------------------------
-# Shared HTTP clients (connection pooling + retries)
-# ---------------------------------------------------------------------------
-
-_RETRY = Retry(total=3, backoff_factor=0.5, status_forcelist={429, 500, 502, 503, 504})
-
-
-@cache
-def _picker_client() -> httpx.AsyncClient:
-    """Shared client for Picker API calls."""
-    return httpx.AsyncClient(
-        transport=RetryTransport(retry=_RETRY),
-        base_url=_PICKER_BASE,
-        timeout=30.0,
-    )
-
-
-@cache
-def _download_client() -> httpx.AsyncClient:
-    """Shared client for photo byte downloads (longer timeout)."""
-    return httpx.AsyncClient(
-        transport=RetryTransport(retry=_RETRY),
-        timeout=60.0,
-        follow_redirects=True,
-    )
-
-
-@cache
-def _token_client() -> httpx.AsyncClient:
-    """Dedicated client for OAuth token exchange - no redirect following."""
-    return httpx.AsyncClient(timeout=30.0)
-
-
-async def close_clients() -> None:
-    """Close shared httpx clients on shutdown."""
-    for factory in (_picker_client, _download_client, _token_client):
-        if factory.cache_info().currsize:
-            await factory().aclose()
-            factory.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -233,10 +191,12 @@ def _to_media_file(raw: _RawMediaFile) -> GoogleMediaFile:
     )
 
 
-async def create_picker_session(access_token: AccessToken) -> PickerSession:
+async def create_picker_session(
+    client: httpx.AsyncClient, access_token: AccessToken
+) -> PickerSession:
     """POST /v1/sessions - create a new Picker session."""
-    resp = await _picker_client().post(
-        "/v1/sessions",
+    resp = await client.post(
+        f"{_PICKER_BASE}/v1/sessions",
         headers=_picker_headers(access_token),
         json={},
     )
@@ -253,11 +213,13 @@ async def create_picker_session(access_token: AccessToken) -> PickerSession:
 
 
 async def poll_picker_session(
-    session_id: PickerSessionId, access_token: AccessToken
+    client: httpx.AsyncClient,
+    session_id: PickerSessionId,
+    access_token: AccessToken,
 ) -> _SessionResponse:
     """GET /v1/sessions/{id} - check if user is done picking."""
-    resp = await _picker_client().get(
-        f"/v1/sessions/{session_id}",
+    resp = await client.get(
+        f"{_PICKER_BASE}/v1/sessions/{session_id}",
         headers=_picker_headers(access_token),
     )
     resp.raise_for_status()
@@ -268,18 +230,19 @@ _MAX_MEDIA_PAGES = 100
 
 
 async def get_media_items(
-    session_id: PickerSessionId, access_token: AccessToken
+    client: httpx.AsyncClient,
+    session_id: PickerSessionId,
+    access_token: AccessToken,
 ) -> list[PickedMediaItem]:
     """GET /v1/mediaItems - retrieve all selected items, handling pagination."""
     items: list[PickedMediaItem] = []
     page_token: str | None = None
-    client = _picker_client()
     for _ in range(_MAX_MEDIA_PAGES):
         params: dict[str, str] = {"sessionId": session_id}
         if page_token:
             params["pageToken"] = page_token
         resp = await client.get(
-            "/v1/mediaItems",
+            f"{_PICKER_BASE}/v1/mediaItems",
             headers=_picker_headers(access_token),
             params=params,
         )
@@ -311,11 +274,13 @@ async def get_media_items(
 
 
 async def delete_picker_session(
-    session_id: PickerSessionId, access_token: AccessToken
+    client: httpx.AsyncClient,
+    session_id: PickerSessionId,
+    access_token: AccessToken,
 ) -> None:
     """DELETE /v1/sessions/{id} - clean up after retrieving items."""
-    resp = await _picker_client().delete(
-        f"/v1/sessions/{session_id}",
+    resp = await client.delete(
+        f"{_PICKER_BASE}/v1/sessions/{session_id}",
         headers=_picker_headers(access_token),
     )
     if resp.status_code not in (200, 204, 404):
@@ -327,6 +292,7 @@ async def delete_picker_session(
 
 
 async def download_media_bytes(
+    client: httpx.AsyncClient,
     base_url: GoogleMediaBaseUrl,
     access_token: AccessToken,
     *,
@@ -339,9 +305,7 @@ async def download_media_bytes(
     """
     url = f"{base_url}{param}"
     limit_mb = max_bytes // (1024 * 1024)
-    async with _download_client().stream(
-        "GET", url, headers=_picker_headers(access_token)
-    ) as resp:
+    async with client.stream("GET", url, headers=_picker_headers(access_token)) as resp:
         resp.raise_for_status()
         declared = resp.headers.get("content-length")
         if declared and int(declared) > max_bytes:
@@ -358,7 +322,8 @@ async def download_media_bytes(
     return b"".join(chunks)
 
 
-async def download_media_to_file(
+async def download_media_to_file(  # noqa: PLR0913
+    client: httpx.AsyncClient,
     base_url: GoogleMediaBaseUrl,
     access_token: AccessToken,
     dest: Path,
@@ -374,9 +339,7 @@ async def download_media_to_file(
     cleaning up a partial file if this function raises.
     """
     url = f"{base_url}{param}"
-    async with _download_client().stream(
-        "GET", url, headers=_picker_headers(access_token)
-    ) as resp:
+    async with client.stream("GET", url, headers=_picker_headers(access_token)) as resp:
         resp.raise_for_status()
         buf = bytearray()
         total_bytes = 0
@@ -408,7 +371,8 @@ class TokenProvider:
 
     _REFRESH_MARGIN = 3000  # refresh after 50 minutes
 
-    def __init__(self, refresh_token: RefreshToken) -> None:
+    def __init__(self, client: httpx.AsyncClient, refresh_token: RefreshToken) -> None:
+        self._client = client
         self._refresh_token = refresh_token
         self._token: AccessToken = ""
         self._fetched_at = 0.0
@@ -423,7 +387,7 @@ class TokenProvider:
             if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
                 return self._token
             try:
-                data = await refresh_access_token(self._refresh_token)
+                data = await refresh_access_token(self._client, self._refresh_token)
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code in (400, 401):
                     self._revoked = True
@@ -433,10 +397,12 @@ class TokenProvider:
             return self._token
 
 
-async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
+async def refresh_access_token(
+    client: httpx.AsyncClient, refresh_token: RefreshToken
+) -> _TokenResponse:
     """Exchange a refresh token for a fresh access token via Google's token endpoint."""
     settings = get_settings()
-    resp = await _token_client().post(
+    resp = await client.post(
         "https://oauth2.googleapis.com/token",
         data={
             "client_id": settings.VITE_GOOGLE_CLIENT_ID,
@@ -449,13 +415,15 @@ async def refresh_access_token(refresh_token: RefreshToken) -> _TokenResponse:
     return _TokenResponse.model_validate_json(resp.content)
 
 
-async def revoke_refresh_token(refresh_token: RefreshToken) -> None:
+async def revoke_refresh_token(
+    client: httpx.AsyncClient, refresh_token: RefreshToken
+) -> None:
     """Best-effort revoke at Google.
 
     https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
     """
     try:
-        resp = await _token_client().post(
+        resp = await client.post(
             "https://oauth2.googleapis.com/revoke",
             data={"token": refresh_token},
         )

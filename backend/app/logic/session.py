@@ -9,6 +9,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
+from app.core.http_clients import HttpClients
 from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ProcessingEvent
 from app.models.user import User
@@ -21,16 +22,16 @@ _SESSION_TTL = 300  # seconds before a completed session is evicted
 class ProcessingSession:
     """Runs processing in a background task; clients subscribe to events."""
 
-    def __init__(self, user: User) -> None:
+    def __init__(self, http: HttpClients, user: User) -> None:
         self._events: list[ProcessingEvent] = []
         self._done = False
         self._notify = asyncio.Event()
         self._uid = user.id
-        self._task = asyncio.create_task(self._run(user))
+        self._task = asyncio.create_task(self._run(http, user))
 
-    async def _run(self, user: User) -> None:
+    async def _run(self, http: HttpClients, user: User) -> None:
         try:
-            async for event in run_processing(user):
+            async for event in run_processing(http, user):
                 self._events.append(event)
                 self._notify.set()
         except Exception:
@@ -93,7 +94,9 @@ def cancel_session(uid: int) -> None:
         logger.info("Cancelled processing session for user %d", uid)
 
 
-async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
+async def process_stream(
+    http: HttpClients, user: User
+) -> AsyncIterator[ProcessingEvent]:
     """Start or reconnect to a user's processing session."""
     session = _sessions.get(user.id)
 
@@ -104,7 +107,7 @@ async def process_stream(user: User) -> AsyncIterator[ProcessingEvent]:
             yield event
         return
 
-    session = ProcessingSession(user)
+    session = ProcessingSession(http, user)
     _sessions[user.id] = session
 
     async for event in session.subscribe():

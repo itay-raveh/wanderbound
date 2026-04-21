@@ -173,5 +173,6 @@ class TestChunkedRoute:
 
 class TestMatchSegment:
     async def test_too_few_points(self) -> None:
-        result = await match_segment([(4.0, 52.0)], "driving")
+        client = MagicMock(spec=httpx.AsyncClient)
+        result = await match_segment(client, [(4.0, 52.0)], "driving")
         assert result is None

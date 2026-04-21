@@ -15,6 +15,7 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
+from app.core.http_clients import HttpClients
 from app.models.user import User
 
 if TYPE_CHECKING:
@@ -99,6 +100,13 @@ async def _get_browser(request: Request) -> Browser:
 
 
 BrowserDep = Annotated[Browser, Depends(_get_browser)]
+
+
+def _get_http_clients(request: Request) -> HttpClients:
+    return request.app.state.http
+
+
+HttpClientsDep = Annotated[HttpClients, Depends(_get_http_clients)]
 
 
 def album_dir(user: User, aid: str) -> Path:

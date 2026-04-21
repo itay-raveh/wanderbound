@@ -1,9 +1,10 @@
 import asyncio
 from collections.abc import AsyncIterator, Iterator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.http_clients import HttpClients
 from app.logic.session import (
     ProcessingSession,
     _sessions,
@@ -16,6 +17,8 @@ from app.logic.trip_processing import (
 )
 from app.models.user import User
 from tests.factories import collect_async
+
+_MOCK_HTTP = MagicMock(spec=HttpClients)
 
 
 def _mock_user(uid: int = 1) -> User:
@@ -32,12 +35,14 @@ class TestProcessingSession:
             PhaseUpdate(phase="layouts", done=5, total=5),
         ]
 
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
             for e in events:
                 yield e
 
         with patch("app.logic.session.run_processing", fake_processing):
-            session = ProcessingSession(_mock_user())
+            session = ProcessingSession(_MOCK_HTTP, _mock_user())
             # Wait for processing to finish
             await session._task
             assert session.is_done
@@ -59,7 +64,9 @@ class TestProcessStream:
         events_before_gate = [TripStart(trip_index=0)]
         events_after_gate = [PhaseUpdate(phase="elevations", done=1, total=5)]
 
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
             for e in events_before_gate:
                 yield e
             await gate.wait()
@@ -69,7 +76,7 @@ class TestProcessStream:
         user = _mock_user(uid=99)
         with patch("app.logic.session.run_processing", fake_processing):
             # Start first subscriber - it will block at gate
-            session = ProcessingSession(user)
+            session = ProcessingSession(_MOCK_HTTP, user)
             _sessions[user.id] = session
 
             # Wait for first event to be produced
@@ -77,7 +84,7 @@ class TestProcessStream:
 
             # Second subscriber (reconnect) should get replayed events
             collected: list[ProcessingEvent] = []
-            async for event in process_stream(user):
+            async for event in process_stream(_MOCK_HTTP, user):
                 collected.append(event)
                 if isinstance(event, TripStart):
                     # After replay, release the gate
@@ -88,15 +95,17 @@ class TestProcessStream:
     async def test_replays_completed_session(self) -> None:
         call_count = 0
 
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
             nonlocal call_count
             call_count += 1
             yield TripStart(trip_index=0)
 
         user = _mock_user(uid=7)
         with patch("app.logic.session.run_processing", fake_processing):
-            first = await collect_async(process_stream(user))
-            second = await collect_async(process_stream(user))
+            first = await collect_async(process_stream(_MOCK_HTTP, user))
+            second = await collect_async(process_stream(_MOCK_HTTP, user))
 
         assert call_count == 1  # Only one processing run
         assert first == second  # Replayed same events
@@ -105,7 +114,9 @@ class TestProcessStream:
         gate = asyncio.Event()
         call_count = 0
 
-        async def fake_processing(_user: User) -> AsyncIterator[ProcessingEvent]:
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
             nonlocal call_count
             call_count += 1
             yield TripStart(trip_index=0)
@@ -114,14 +125,14 @@ class TestProcessStream:
         user = _mock_user(uid=5)
         with patch("app.logic.session.run_processing", fake_processing):
             # Start first stream
-            session = ProcessingSession(user)
+            session = ProcessingSession(_MOCK_HTTP, user)
             _sessions[user.id] = session
 
             await session._notify.wait()
 
             # Start second stream (should reconnect, not create new)
             async def second_stream() -> list[ProcessingEvent]:
-                return await collect_async(process_stream(user))
+                return await collect_async(process_stream(_MOCK_HTTP, user))
 
             task = asyncio.create_task(second_stream())
             await asyncio.sleep(0.05)

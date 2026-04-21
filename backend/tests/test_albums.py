@@ -78,11 +78,12 @@ class TestReadSegmentPoints:
             session, uid, start_time=500.0, end_time=700.0, kind=SegmentKind.hike
         )
 
-        # Request range that only covers the first segment
-        resp = await client.get(
-            f"/api/v1/albums/{AID}/segments/points",
-            params={"from_time": 50.0, "to_time": 400.0},
-        )
+        with patch("app.api.v1.routes.albums.match_segments", return_value=[None]):
+            # Request range that only covers the first segment
+            resp = await client.get(
+                f"/api/v1/albums/{AID}/segments/points",
+                params={"from_time": 50.0, "to_time": 400.0},
+            )
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1

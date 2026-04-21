@@ -46,7 +46,7 @@ from app.services.google_photos import (
     revoke_refresh_token,
 )
 
-from ..deps import SessionDep, UserDep, album_dir as _album_dir
+from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
 
 logger = logging.getLogger(__name__)
 
@@ -122,11 +122,11 @@ def _get_refresh_token(user: UserDep) -> RefreshToken:
     return user.google_photos_refresh_token
 
 
-async def _get_access_token(user: UserDep) -> AccessToken:
+async def _get_access_token(http: HttpClientsDep, user: UserDep) -> AccessToken:
     """Exchange the stored refresh token for a fresh access token."""
     refresh_token = _get_refresh_token(user)
     try:
-        token_data = await refresh_access_token(refresh_token)
+        token_data = await refresh_access_token(http.gphotos_token, refresh_token)
     except httpx.HTTPError as exc:
         # Log without the full traceback: httpx request bodies contain the
         # plaintext refresh token and client secret, which logger.exception
@@ -223,9 +223,9 @@ class PickerSessionResponse(BaseModel):
 
 
 @router.post("/sessions")
-async def create_session(user: UserDep) -> PickerSessionResponse:
-    access_token = await _get_access_token(user)
-    picker = await create_picker_session(access_token)
+async def create_session(user: UserDep, http: HttpClientsDep) -> PickerSessionResponse:
+    access_token = await _get_access_token(http, user)
+    picker = await create_picker_session(http.gphotos_picker, access_token)
     return PickerSessionResponse(
         session_id=picker.id,
         picker_uri=picker.picker_uri,
@@ -238,17 +238,19 @@ class SessionStatusResponse(BaseModel):
 
 @router.get("/sessions/{session_id}")
 async def poll_session(
-    session_id: PickerSessionId, user: UserDep
+    session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
 ) -> SessionStatusResponse:
-    access_token = await _get_access_token(user)
-    data = await poll_picker_session(session_id, access_token)
+    access_token = await _get_access_token(http, user)
+    data = await poll_picker_session(http.gphotos_picker, session_id, access_token)
     return SessionStatusResponse(ready=data.media_items_set)
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
-    access_token = await _get_access_token(user)
-    await delete_picker_session(session_id, access_token)
+async def close_session(
+    session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
+) -> None:
+    access_token = await _get_access_token(http, user)
+    await delete_picker_session(http.gphotos_picker, session_id, access_token)
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +266,7 @@ async def close_session(session_id: PickerSessionId, user: UserDep) -> None:
 async def match_media(
     aid: str,
     user: UserDep,
+    http: HttpClientsDep,
     session_id: Annotated[PickerSessionId, Query()],
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
@@ -273,7 +276,7 @@ async def match_media(
                 status.HTTP_409_CONFLICT,
                 "A matching run is already in progress for this album.",
             )
-        tokens = TokenProvider(_get_refresh_token(user))
+        tokens = TokenProvider(http.gphotos_token, _get_refresh_token(user))
         access_token = await tokens.get()
 
         album, step_rows = await _snapshot_album_and_steps(user.id, aid)
@@ -287,10 +290,11 @@ async def match_media(
             for s in step_rows
         }
 
-        items = await get_media_items(session_id, access_token)
+        items = await get_media_items(http.gphotos_picker, session_id, access_token)
 
         try:
             async for event in run_matching(
+                http,
                 album_dir=album_dir,
                 media_by_step=media_by_step,
                 step_timestamps=step_timestamps,
@@ -324,6 +328,7 @@ async def upgrade_media(
     aid: str,
     body: UpgradeRequest,
     user: UserDep,
+    http: HttpClientsDep,
 ) -> AsyncIterable[UpgradeEvent]:
     # Validate before streaming - HTTPExceptions need uncommitted headers.
     if user.google_photos_connected_at is None:
@@ -345,15 +350,18 @@ async def upgrade_media(
 
         _validate_match_names(body.matches, valid_names)
 
-        tokens = TokenProvider(_get_refresh_token(user))
+        tokens = TokenProvider(http.gphotos_token, _get_refresh_token(user))
         access_token = await tokens.get()
 
         all_items: list[PickedMediaItem] = []
         for sid in body.session_ids:
-            all_items.extend(await get_media_items(sid, access_token))
+            all_items.extend(
+                await get_media_items(http.gphotos_picker, sid, access_token)
+            )
         items_by_id = {item.id: item for item in all_items}
 
         async for event in run_upgrade(
+            clients=http,
             uid=user.id,
             aid=aid,
             album_dir=_album_dir(user, aid),
@@ -372,9 +380,9 @@ async def upgrade_media(
 
 
 @router.delete("/connection", status_code=status.HTTP_204_NO_CONTENT)
-async def disconnect(user: UserDep, session: SessionDep) -> None:
+async def disconnect(user: UserDep, http: HttpClientsDep, session: SessionDep) -> None:
     if user.google_photos_refresh_token:
-        await revoke_refresh_token(user.google_photos_refresh_token)
+        await revoke_refresh_token(http.gphotos_token, user.google_photos_refresh_token)
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None
     session.add(user)
