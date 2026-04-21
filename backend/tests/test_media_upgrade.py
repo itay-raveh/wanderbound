@@ -1,13 +1,15 @@
-"""Unit tests for media matching and processing.
+"""Tests for the media upgrade pipeline.
 
-Tests pure computation: time-window bucketing, distance matrix building,
-Hungarian matching, threshold rejection, cross-step fallback, video frame
-extraction, and post-download photo processing (EXIF strip, resize,
-format conversion).
+Unit tests are scoped to the algorithmic edge cases that motivated the
+code (Hungarian optimality, overlap-margin boundary, cross-step
+fallback dimension cap) plus the real-I/O photo/video processing. A
+single integration test exercises ``run_matching`` end-to-end against
+fixture JPEGs on disk.
 """
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 import imagehash
@@ -16,22 +18,25 @@ import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
+if TYPE_CHECKING:
+    import httpx
+
 from app.logic.layout.media import Media
 from app.logic.media_upgrade.phash_matching import (
-    _CROSS_TYPE_COST,
     _FALLBACK_MAX_DIMENSION,
-    MATCH_THRESHOLD,
     HashedMedia,
     MatchResult,
-    _pairwise_distance,
-    _parse_timestamp,
     bucket_by_window,
-    build_cost_matrix,
     build_step_windows,
     cross_step_fallback,
     match_within_window,
 )
-from app.logic.media_upgrade.pipeline import apply_upgrade_results
+from app.logic.media_upgrade.pipeline import (
+    UpgradeMatching,
+    UpgradeMatchSummary,
+    apply_upgrade_results,
+    run_matching,
+)
 from app.logic.media_upgrade.processing import (
     _MAX_LONG_EDGE,
     process_photo_sync,
@@ -57,103 +62,56 @@ def _hm(
     return HashedMedia(key=key, hash=h, is_video=video)
 
 
-class TestBuildStepWindows:
-    def test_single_step_gets_24h_window(self) -> None:
-        margin = 30 * 60
-        windows = build_step_windows(
-            step_timestamps=[1_700_000_000.0],
-            step_ids=[1],
-        )
-        assert len(windows) == 1
-        assert windows[0].step_id == 1
-        assert windows[0].start == 1_700_000_000.0 - margin
-        assert windows[0].end == 1_700_000_000.0 + 86400 + margin
-
-    def test_first_window_extends_backward(self) -> None:
-        margin = 30 * 60
-        windows = build_step_windows(
-            step_timestamps=[1_700_000_000.0, 1_700_050_000.0],
-            step_ids=[1, 2],
-        )
-        assert windows[0].start == 1_700_000_000.0 - margin
-        assert windows[1].start == 1_700_050_000.0
-
-    def test_two_steps_use_next_start_as_end(self) -> None:
-        margin = 30 * 60
-        windows = build_step_windows(
-            step_timestamps=[1_700_000_000.0, 1_700_050_000.0],
-            step_ids=[1, 2],
-        )
-        assert len(windows) == 2
-        assert windows[0].end == 1_700_050_000.0 + margin
-        assert windows[1].end == 1_700_050_000.0 + 86400 + margin
-
-    def test_overlap_margin_extends_boundaries(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_700_000_000.0, 1_700_050_000.0],
-            step_ids=[1, 2],
-        )
-        margin = 30 * 60  # 30 minutes
-        boundary_time = 1_700_050_000.0
-        assert windows[0].contains(boundary_time - 1)
-        assert windows[0].contains(boundary_time + margin - 1)
+def _make_item(
+    item_id: str,
+    create_time: str,
+    *,
+    item_type: GoogleMediaType = "PHOTO",
+    video_processing_status: str | None = None,
+    base_url: str = "https://lh3.googleusercontent.com/test",
+) -> PickedMediaItem:
+    return PickedMediaItem(
+        id=item_id,
+        create_time=create_time,
+        type=item_type,
+        media_file=GoogleMediaFile(
+            base_url=base_url,
+            mime_type="video/mp4" if item_type == "VIDEO" else "image/jpeg",
+            filename=f"{item_id}.mp4" if item_type == "VIDEO" else f"{item_id}.jpg",
+        ),
+        video_processing_status=video_processing_status,
+    )
 
 
-class TestBuildCostMatrix:
-    def test_identical_hashes_produce_zero_cost(self) -> None:
-        h = _make_hash(0xFF00FF00FF00FF00)
-        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h)])
-        assert matrix[0][0] == 0
-
-    def test_completely_different_hashes_produce_high_cost(self) -> None:
-        h1 = _make_hash(0x0)
-        h2 = _make_hash(0xFFFFFFFFFFFFFFFF)
-        matrix = build_cost_matrix([_hm("a", h1)], [_hm("b", h2)])
-        assert matrix[0][0] == 64  # all bits differ
-
-    def test_matrix_shape_matches_inputs(self) -> None:
-        local_media = [_hm(f"l{i}", _make_hash(i)) for i in range(3)]
-        cands = [_hm(f"c{i}", _make_hash(i + 100)) for i in range(5)]
-        matrix = build_cost_matrix(local_media, cands)
-        assert len(matrix) == 3
-        assert len(matrix[0]) == 5
+def _write_jpeg(
+    path: Path, width: int, height: int, *, exif: bytes | None = None
+) -> None:
+    """Write a JPEG image to *path*, optionally with EXIF data."""
+    img = Image.new("RGB", (width, height), color=(100, 150, 200))
+    kwargs: dict = {"format": "JPEG", "quality": 95}
+    if exif is not None:
+        kwargs["exif"] = exif
+    img.save(path, **kwargs)
 
 
-class TestPairwiseDistance:
-    def test_empty_frame_list_returns_cross_type_cost(self) -> None:
-        candidate = _make_hash(42)
-        assert _pairwise_distance([], candidate) == _CROSS_TYPE_COST
+def _write_png(path: Path, width: int, height: int) -> None:
+    """Write a PNG image to *path*."""
+    img = Image.new("RGBA", (width, height), color=(100, 150, 200, 255))
+    img.save(path, format="PNG")
 
-    def test_single_frame_returns_hamming_distance(self) -> None:
-        local = _make_hash(0xFF)
-        candidate = _make_hash(0xFF)
-        assert _pairwise_distance([local], candidate) == 0
 
-    def test_multi_frame_returns_minimum(self) -> None:
-        close = _make_hash(0xFF00)
-        far = _make_hash(0x0)
-        candidate = _make_hash(0xFF00)
-        assert _pairwise_distance([far, close], candidate) == 0
+# ---------------------------------------------------------------------------
+# Targeted algorithm regression guards
+# ---------------------------------------------------------------------------
 
 
 class TestMatchWithinWindow:
-    def test_perfect_matches_all_paired(self) -> None:
-        h = _make_hash(42)
-        results = match_within_window(
-            [_hm("photo1.jpg", h), _hm("photo2.jpg", h)],
-            [_hm("gp-1", h), _hm("gp-2", h)],
-        )
-        assert len(results) == 2
-        assert all(r.distance == 0 for r in results)
-
-    def test_above_threshold_rejected(self) -> None:
-        h1 = _make_hash(0x0)
-        h2 = _make_hash(0xFFFFFFFFFFFFFFFF)
-        results = match_within_window([_hm("photo1.jpg", h1)], [_hm("gp-1", h2)])
-        assert len(results) == 0
-
     def test_optimal_assignment_not_greedy(self) -> None:
-        """Hungarian algorithm should find global optimum, not greedy local."""
+        """Hungarian must find the global optimum, not a greedy local one.
+
+        Regression guard: a greedy matcher would pair photo1 with the nearest
+        candidate and leave photo2 worse off; the global optimum swaps them.
+        """
         h_base = _make_hash(0)
 
         bits_p1 = np.array([(0 >> i) & 1 for i in range(64)], dtype=bool)
@@ -179,225 +137,27 @@ class TestMatchWithinWindow:
         assert "photo1.jpg" in matched_locals
         assert "photo2.jpg" in matched_locals
 
-    def test_empty_inputs_return_empty(self) -> None:
-        results = match_within_window([], [_hm("gp-1", _make_hash(0))])
-        assert results == []
-
-    def test_more_candidates_than_locals(self) -> None:
-        h = _make_hash(42)
-        results = match_within_window(
-            [_hm("photo1.jpg", h)],
-            [_hm("gp-1", _make_hash(99)), _hm("gp-2", h), _hm("gp-3", _make_hash(88))],
-        )
-        assert len(results) == 1
-        assert results[0].google_id == "gp-2"
-        assert results[0].distance == 0
-
-
-class TestMediaAwareCostMatrix:
-    def test_single_hash_unchanged(self) -> None:
-        """Photo-to-photo matching works as before."""
-        h = _make_hash(0xFF00FF00FF00FF00)
-        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h)])
-        assert matrix[0][0] == 0
-
-    def test_video_uses_minimum_distance(self) -> None:
-        """Video cost is min distance across sampled frames."""
-        h_close = _make_hash(42)
-        h_far = _make_hash(0xFFFFFFFFFFFFFFFF)
-        matrix = build_cost_matrix(
-            [_hm("v", [h_far, h_close, h_far, h_far], video=True)],
-            [_hm("c", _make_hash(42), video=True)],
-        )
-        assert matrix[0][0] == 0  # min of distances, h_close matches exactly
-
-    def test_cross_type_gets_infinite_cost(self) -> None:
-        """Photo-to-video pairs get cost above threshold."""
-        h = _make_hash(42)
-        matrix = build_cost_matrix([_hm("a", h)], [_hm("b", h, video=True)])
-        assert matrix[0][0] > MATCH_THRESHOLD
-
-    def test_video_to_photo_gets_infinite_cost(self) -> None:
-        h = _make_hash(42)
-        matrix = build_cost_matrix([_hm("v", [h, h, h, h], video=True)], [_hm("c", h)])
-        assert matrix[0][0] > MATCH_THRESHOLD
-
-
-# ---------------------------------------------------------------------------
-# Helpers for bucketing / fallback tests
-# ---------------------------------------------------------------------------
-
-
-def _make_item(
-    item_id: str,
-    create_time: str,
-    *,
-    item_type: GoogleMediaType = "PHOTO",
-    video_processing_status: str | None = None,
-) -> PickedMediaItem:
-    return PickedMediaItem(
-        id=item_id,
-        create_time=create_time,
-        type=item_type,
-        media_file=GoogleMediaFile(
-            base_url="https://lh3.googleusercontent.com/test",
-            mime_type="video/mp4" if item_type == "VIDEO" else "image/jpeg",
-            filename=f"{item_id}.mp4" if item_type == "VIDEO" else f"{item_id}.jpg",
-        ),
-        video_processing_status=video_processing_status,
-    )
-
-
-class TestParseTimestamp:
-    def test_iso_utc(self) -> None:
-        ts = _parse_timestamp("2024-01-15T10:30:00+00:00")
-        assert ts is not None
-        assert abs(ts - 1705314600.0) < 1
-
-    def test_iso_with_timezone(self) -> None:
-        ts = _parse_timestamp("2024-01-15T12:30:00+02:00")
-        assert ts is not None
-        # 12:30 UTC+2 = 10:30 UTC
-        assert abs(ts - 1705314600.0) < 1
-
-    def test_invalid_returns_none(self) -> None:
-        assert _parse_timestamp("not-a-date") is None
-        assert _parse_timestamp("") is None
-
 
 class TestBucketByWindow:
-    def test_item_lands_in_correct_window(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0, 1_050_000.0],
-            step_ids=[1, 2],
-        )
-        item = _make_item("g1", "1970-01-12T19:20:00+00:00")  # epoch 1_020_000
-        bucketed = bucket_by_window([item], windows)
-        assert len(bucketed[1]) == 1
-        assert bucketed[1][0].id == "g1"
-
-    def test_video_without_status_accepted(self) -> None:
-        """Videos with no processing status (None) are accepted."""
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0],
-            step_ids=[1],
-        )
-        video = _make_item("v1", "1970-01-12T13:46:40+00:00", item_type="VIDEO")
-        bucketed = bucket_by_window([video], windows)
-        assert len(bucketed[1]) == 1
-
-    def test_ready_video_accepted(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0],
-            step_ids=[1],
-        )
-        video = _make_item(
-            "v1",
-            "1970-01-12T13:46:40+00:00",
-            item_type="VIDEO",
-            video_processing_status="READY",
-        )
-        bucketed = bucket_by_window([video], windows)
-        assert len(bucketed[1]) == 1
-        assert bucketed[1][0].id == "v1"
-
-    def test_processing_video_skipped(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0],
-            step_ids=[1],
-        )
-        video = _make_item(
-            "v1",
-            "1970-01-12T13:46:40+00:00",
-            item_type="VIDEO",
-            video_processing_status="PROCESSING",
-        )
-        bucketed = bucket_by_window([video], windows)
-        assert len(bucketed[1]) == 0
-
-    def test_failed_video_skipped(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0],
-            step_ids=[1],
-        )
-        video = _make_item(
-            "v1",
-            "1970-01-12T13:46:40+00:00",
-            item_type="VIDEO",
-            video_processing_status="FAILED",
-        )
-        bucketed = bucket_by_window([video], windows)
-        assert len(bucketed[1]) == 0
-
-    def test_invalid_timestamp_skipped(self) -> None:
-        windows = build_step_windows(
-            step_timestamps=[1_000_000.0],
-            step_ids=[1],
-        )
-        bad = _make_item("b1", "not-a-timestamp")
-        bucketed = bucket_by_window([bad], windows)
-        assert len(bucketed[1]) == 0
-
     def test_overlap_margin_includes_boundary_items(self) -> None:
-        """Items just past a window boundary should still match via overlap."""
+        """Items just past a window boundary match via overlap.
+
+        Regression guard: an item 10 min past a step boundary must still be
+        considered for the previous step (30-min overlap).
+        """
         windows = build_step_windows(
             step_timestamps=[1_000_000.0, 1_050_000.0],
             step_ids=[1, 2],
         )
-        # Item at exactly 1_050_000 + 10 min (within 30-min overlap of window 1)
         t = 1_050_000.0 + 600
         iso = datetime.fromtimestamp(t, UTC).isoformat()
         item = _make_item("g1", iso)
         bucketed = bucket_by_window([item], windows)
-        # Should land in window 1 (via overlap) and also window 2
         assert any(i.id == "g1" for i in bucketed[1])
         assert any(i.id == "g1" for i in bucketed[2])
 
 
 class TestCrossStepFallback:
-    def test_matches_remaining_unmatched(self) -> None:
-        """Unmatched photos get a second chance across all windows."""
-        h = _make_hash(42)
-        all_matches: list[MatchResult] = []
-        matched_locals: set[str] = set()
-        matched_candidates: set[str] = set()
-
-        local_hashes = {"photo1.jpg": h}
-        candidate_hashes = {"gp-1": h}
-        item = _make_item("gp-1", "2024-01-15T10:00:00Z")
-
-        cross_step_fallback(
-            all_matches,
-            matched_locals,
-            matched_candidates,
-            media_names=["photo1.jpg"],
-            local_hashes=local_hashes,
-            candidate_hashes=candidate_hashes,
-            google_items=[item],
-        )
-
-        assert len(all_matches) == 1
-        assert all_matches[0].local_name == "photo1.jpg"
-        assert all_matches[0].google_id == "gp-1"
-
-    def test_skips_already_matched(self) -> None:
-        h = _make_hash(42)
-        all_matches: list[MatchResult] = []
-        matched_locals = {"photo1.jpg"}
-        matched_candidates = {"gp-1"}
-
-        cross_step_fallback(
-            all_matches,
-            matched_locals,
-            matched_candidates,
-            media_names=["photo1.jpg"],
-            local_hashes={"photo1.jpg": h},
-            candidate_hashes={"gp-1": h},
-            google_items=[_make_item("gp-1", "2024-01-15T10:00:00Z")],
-        )
-
-        assert len(all_matches) == 0
-
     def test_runs_at_exact_dimension_limit(self) -> None:
         """Fallback still runs when both dimensions are exactly at the limit."""
         h = _make_hash(0)
@@ -421,7 +181,7 @@ class TestCrossStepFallback:
         assert len(all_matches) == n
 
     def test_skips_when_exceeding_dimension_limit(self) -> None:
-        """Fallback is skipped when matrix would be too large."""
+        """Fallback is skipped when the matrix would be too large."""
         h = _make_hash(0)
         n = _FALLBACK_MAX_DIMENSION + 1
         names = [f"photo{i}.jpg" for i in range(n)]
@@ -446,23 +206,6 @@ class TestCrossStepFallback:
 # ---------------------------------------------------------------------------
 # Photo processing (EXIF strip, resize, JPEG conversion)
 # ---------------------------------------------------------------------------
-
-
-def _write_jpeg(
-    path: Path, width: int, height: int, *, exif: bytes | None = None
-) -> None:
-    """Write a JPEG image to *path*, optionally with EXIF data."""
-    img = Image.new("RGB", (width, height), color=(100, 150, 200))
-    kwargs: dict = {"format": "JPEG", "quality": 95}
-    if exif is not None:
-        kwargs["exif"] = exif
-    img.save(path, **kwargs)
-
-
-def _write_png(path: Path, width: int, height: int) -> None:
-    """Write a PNG image to *path*."""
-    img = Image.new("RGBA", (width, height), color=(100, 150, 200, 255))
-    img.save(path, format="PNG")
 
 
 class TestProcessPhoto:
@@ -678,3 +421,105 @@ class TestApplyUpgradeResults:
             {"new.jpg"},
         )
         assert new_upgraded == {"old.jpg": "gid-old", "new.jpg": "gid-new"}
+
+
+# ---------------------------------------------------------------------------
+# run_matching end-to-end
+# ---------------------------------------------------------------------------
+
+
+class TestRunMatching:
+    async def test_matches_real_images_end_to_end(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Full matching pipeline against real JPEGs on disk.
+
+        Each Google item's base_url points at its own id; the mocked
+        ``download_media_bytes`` returns the matching local file's bytes so
+        candidate hashes equal local hashes. Exercises bucketing, local
+        hashing, candidate hashing, within-window Hungarian, cross-step
+        fallback, and the terminal summary event.
+        """
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+
+        step_timestamps = [
+            datetime(2024, 1, 15, 10, 0, tzinfo=UTC).timestamp(),
+            datetime(2024, 1, 15, 14, 0, tzinfo=UTC).timestamp(),
+            datetime(2024, 1, 15, 18, 0, tzinfo=UTC).timestamp(),
+        ]
+        step_ids = [1, 2, 3]
+        names = ["step1.jpg", "step2.jpg", "step3.jpg"]
+
+        # Visually distinct images so each pHash is unique.
+        bytes_by_name: dict[str, bytes] = {}
+        for i, name in enumerate(names):
+            img = Image.new("RGB", (400, 300))
+            for y in range(300):
+                for x in range(400):
+                    img.putpixel(
+                        (x, y),
+                        ((x + i * 100) % 256, (y + i * 50) % 256, (i * 80) % 256),
+                    )
+            path = album_dir / name
+            img.save(path, "JPEG", quality=90)
+            bytes_by_name[name] = path.read_bytes()
+
+        # Google items: one per step, base_url encodes the local file.
+        google_items = [
+            _make_item(
+                f"gp-{i}",
+                datetime(2024, 1, 15, 10 + i * 4, 30, tzinfo=UTC).isoformat(),
+                base_url=f"https://lh3.googleusercontent.com/{name}",
+            )
+            for i, name in enumerate(names)
+        ]
+        url_to_bytes = {
+            item.media_file.base_url: bytes_by_name[names[i]]
+            for i, item in enumerate(google_items)
+        }
+
+        async def fake_download(
+            _client: httpx.AsyncClient,
+            base_url: str,
+            _access_token: str,
+            *,
+            param: str = "=d",
+            max_bytes: int = 0,
+        ) -> bytes:
+            return url_to_bytes[base_url]
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.download_media_bytes", fake_download
+        )
+
+        async def fake_token() -> str:
+            return "test-token"
+
+        clients = AsyncMock()
+        events = [
+            event
+            async for event in run_matching(
+                clients=clients,
+                album_dir=album_dir,
+                media_by_step={
+                    sid: [n] for sid, n in zip(step_ids, names, strict=True)
+                },
+                step_timestamps=step_timestamps,
+                step_ids=step_ids,
+                google_items=google_items,
+                tokens=fake_token,
+            )
+        ]
+
+        summary = events[-1]
+        assert isinstance(summary, UpgradeMatchSummary)
+        assert summary.total_picked == 3
+        assert summary.matched == 3
+        assert summary.unmatched == 0
+        assert summary.already_upgraded == 0
+        assert {m.local_name for m in summary.matches} == set(names)
+        assert {m.google_id for m in summary.matches} == {"gp-0", "gp-1", "gp-2"}
+
+        progress = [e for e in events[:-1] if isinstance(e, UpgradeMatching)]
+        assert {e.phase for e in progress} == {"preparing", "matching"}
