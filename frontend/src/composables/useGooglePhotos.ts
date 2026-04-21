@@ -1,5 +1,5 @@
 import { computed } from "vue";
-import { UPGRADE_ERRORS } from "./upgradeErrors";
+import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
 import {
   closeSession as closeSessionApi,
   createSession,

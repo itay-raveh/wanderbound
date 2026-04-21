@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
-import type { UpgradeErrorKey } from "@/composables/upgradeErrors";
+import type { UpgradeErrorKey } from "@/utils/upgradeErrors";
 import { Platform } from "quasar";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import PromptDialog from "@/components/ui/PromptDialog.vue";

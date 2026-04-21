@@ -9,7 +9,7 @@ import {
   type UpgradeMatching,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
-import { UPGRADE_ERRORS } from "./upgradeErrors";
+import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
 import {
   createMatchAccumulator,
   type MatchRound,
