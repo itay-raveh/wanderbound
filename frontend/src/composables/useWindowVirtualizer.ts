@@ -25,6 +25,7 @@ import {
   type VirtualizerOptions,
   type VirtualItem,
 } from "@tanstack/vue-virtual";
+import { useEventListener } from "@vueuse/core";
 import {
   computed,
   onScopeDispose,
@@ -90,8 +91,9 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
   // Without this, virtualizer.scrollToIndex with smooth behavior fights the
   // user for up to 5 seconds.
   const onUserScroll = () => cancelProgrammaticScroll(virtualizer);
-  window.addEventListener("wheel", onUserScroll, { passive: true });
-  window.addEventListener("touchmove", onUserScroll, { passive: true });
+  useEventListener(window, ["wheel", "touchmove"], onUserScroll, {
+    passive: true,
+  });
 
   watch(
     () => unref(options),
@@ -102,11 +104,7 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
     },
   );
 
-  onScopeDispose(() => {
-    cleanup();
-    window.removeEventListener("wheel", onUserScroll);
-    window.removeEventListener("touchmove", onUserScroll);
-  });
+  onScopeDispose(cleanup);
 
   const items = computed<VirtualItem[]>(() => {
     void version.value;

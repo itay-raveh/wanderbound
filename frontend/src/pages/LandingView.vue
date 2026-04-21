@@ -5,6 +5,10 @@ import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
 import { setAuthState, type Provider } from "@/router";
+import {
+  usePreferredReducedMotion,
+  useIntersectionObserver,
+} from "@vueuse/core";
 import { useQuasar } from "quasar";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -76,12 +80,12 @@ const mainRef = ref<HTMLElement>();
 
 /* 3D tilt on hero card fan - tracks cursor across the entire hero section */
 const heroRef = ref<HTMLElement>();
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const reducedMotion = usePreferredReducedMotion();
 let tiltFrame = 0;
 
 function onHeroMouseMove(e: MouseEvent) {
   const el = heroRef.value;
-  if (!el || reducedMotion.matches) return;
+  if (!el || reducedMotion.value === "reduce") return;
   if ((e.target as HTMLElement).closest(".hero-card")) return;
   const { clientX, clientY } = e;
   cancelAnimationFrame(tiltFrame);
@@ -101,32 +105,31 @@ function onHeroMouseLeave() {
 }
 
 /* Scroll-driven feature reveals via IntersectionObserver */
-let revealObserver: IntersectionObserver | undefined;
+const revealTargets = ref<Element[]>([]);
+const { stop: stopReveal } = useIntersectionObserver(
+  revealTargets,
+  (entries, observer) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        (entry.target as HTMLElement).classList.add("revealed");
+        observer.unobserve(entry.target);
+      }
+    }
+  },
+  { threshold: 0.12 },
+);
 
 onMounted(() => {
-  if (reducedMotion.matches) return;
-
-  revealObserver = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          (entry.target as HTMLElement).classList.add("revealed");
-          revealObserver!.unobserve(entry.target);
-        }
-      }
-    },
-    { threshold: 0.12 },
+  if (reducedMotion.value === "reduce") {
+    stopReveal();
+    return;
+  }
+  revealTargets.value = Array.from(
+    mainRef.value?.querySelectorAll(".scroll-reveal") ?? [],
   );
-
-  mainRef.value
-    ?.querySelectorAll(".scroll-reveal")
-    .forEach((el) => revealObserver!.observe(el));
 });
 
-onUnmounted(() => {
-  revealObserver?.disconnect();
-  cancelAnimationFrame(tiltFrame);
-});
+onUnmounted(() => cancelAnimationFrame(tiltFrame));
 </script>
 
 <template>

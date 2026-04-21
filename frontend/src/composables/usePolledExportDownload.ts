@@ -1,3 +1,4 @@
+import { useTimeoutFn } from "@vueuse/core";
 import { onScopeDispose, ref, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
 
@@ -35,7 +36,13 @@ export function usePolledExportDownload<T>(
   const state = ref<ExportState>("idle");
   let controller: AbortController | null = null;
   let lastMsg = "";
-  let resetTimer: ReturnType<typeof setTimeout> | null = null;
+  const { start: armReset, stop: cancelReset } = useTimeoutFn(
+    () => {
+      state.value = "idle";
+    },
+    DONE_RESET_MS,
+    { immediate: false },
+  );
 
   function showLoading(message: string) {
     if (message === lastMsg) return;
@@ -49,10 +56,7 @@ export function usePolledExportDownload<T>(
 
   async function start() {
     if (state.value === "running") return;
-    if (resetTimer !== null) {
-      clearTimeout(resetTimer);
-      resetTimer = null;
-    }
+    cancelReset();
     controller = new AbortController();
     state.value = "running";
     showLoading(resolve(config.initialMessage));
@@ -95,21 +99,13 @@ export function usePolledExportDownload<T>(
     } finally {
       if (!config.headless) Loading.hide();
       lastMsg = "";
-      if (state.value === "done") {
-        resetTimer = setTimeout(() => {
-          state.value = "idle";
-          resetTimer = null;
-        }, DONE_RESET_MS);
-      }
+      if (state.value === "done") armReset();
     }
   }
 
   function abort() {
     controller?.abort();
-    if (resetTimer !== null) {
-      clearTimeout(resetTimer);
-      resetTimer = null;
-    }
+    cancelReset();
     if (state.value === "running" || state.value === "done")
       state.value = "idle";
     if (!config.headless) Loading.hide();
