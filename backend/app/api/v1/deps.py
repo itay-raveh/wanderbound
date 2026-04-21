@@ -11,7 +11,7 @@ from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
@@ -44,7 +44,7 @@ async def _touch_activity(uid: int) -> None:
         async with AsyncSession(get_engine()) as session:
             await session.exec(
                 update(User)
-                .where(User.id == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+                .where(col(User.id) == uid)
                 .values(last_active_at=datetime.now(UTC))
             )
             await session.commit()

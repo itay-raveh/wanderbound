@@ -14,7 +14,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
@@ -81,7 +81,7 @@ async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[Step]
     result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Step.timestamp), col(Step.id))
     )
     return list(result.all())
 
@@ -93,7 +93,7 @@ async def read_segments(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Segment.start_time))
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
@@ -115,7 +115,7 @@ async def read_segment_points(  # noqa: PLR0913
             Segment.start_time >= from_time,
             Segment.end_time <= to_time,
         )
-        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Segment.start_time))
     )
     segments = result.all()
 
@@ -181,10 +181,10 @@ async def adjust_segment_boundary(
     # Find the adjacent segment (nearest non-overlapping on the relevant side)
     if body.handle == "start":
         time_filter = Segment.end_time <= target.start_time
-        ordering = Segment.end_time.desc()  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+        ordering = col(Segment.end_time).desc()
     else:
         time_filter = Segment.start_time >= target.end_time
-        ordering = Segment.start_time.asc()  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+        ordering = col(Segment.start_time).asc()
     result = await session.exec(
         select(Segment)
         .where(
@@ -226,7 +226,7 @@ async def adjust_segment_boundary(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == uid, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Segment.start_time))
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
@@ -245,12 +245,12 @@ async def read_print_bundle(
     steps_result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Step.timestamp), col(Step.id))
     )
     segments_result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]  # ty: ignore[invalid-argument-type]
+        .order_by(col(Segment.start_time))
     )
     steps = list(steps_result.all())
     segments = list(segments_result.all())

@@ -3,7 +3,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -52,7 +52,7 @@ async def run_eviction(skip_uid: int) -> None:
 
     async with AsyncSession(get_engine()) as session:
         result = await session.exec(
-            select(User).order_by(User.last_active_at.asc())  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+            select(User).order_by(col(User.last_active_at).asc())
         )
         candidates = result.all()
 

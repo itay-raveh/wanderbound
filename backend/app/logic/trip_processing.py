@@ -401,13 +401,13 @@ def resolve_international_waters(steps: list[PSStep]) -> None:
                 run.append(step)
             continue
 
-        if run and step.location.country_code != prev_code:
+        if run and prev_code is not None and step.location.country_code != prev_code:
             names = ", ".join(s.name for s in run)
             logger.warning(
                 "International-water steps [%s] attributed to %s, "
                 "but next step '%s' is %s",
                 names,
-                prev_code.upper(),  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                prev_code.upper(),
                 step.name,
                 step.location.country_code.upper(),
             )

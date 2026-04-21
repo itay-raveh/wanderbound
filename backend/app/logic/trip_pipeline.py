@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -144,13 +144,13 @@ async def _save_reupload(
         if reconciled_aids:
             await session.exec(
                 delete(Step)
-                .where(Step.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
-                .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                .where(col(Step.uid) == uid)
+                .where(col(Step.aid).in_(reconciled_aids))
             )
             await session.exec(
                 delete(Segment)
-                .where(Segment.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
-                .where(Segment.aid.in_(reconciled_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                .where(col(Segment.uid) == uid)
+                .where(col(Segment.aid).in_(reconciled_aids))
             )
 
         current_aids = {d.name for d in trip_dirs}
@@ -158,8 +158,8 @@ async def _save_reupload(
         if orphan_aids:
             await session.exec(
                 delete(Album)
-                .where(Album.uid == uid)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
-                .where(Album.id.in_(orphan_aids))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                .where(col(Album.uid) == uid)
+                .where(col(Album.id).in_(orphan_aids))
             )
         await session.flush()
 
