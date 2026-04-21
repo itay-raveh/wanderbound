@@ -1,9 +1,4 @@
-"""Media upgrade orchestration.
-
-SSE event models, matching pipeline, and upgrade execution. Coordinates
-the matching and processing modules, manages concurrency, and yields
-SSE events for progress streaming.
-"""
+"""Media upgrade orchestration: matching, download, replace, SSE events."""
 
 from __future__ import annotations
 
@@ -18,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
 import httpx
+from httpx_oauth.oauth2 import RefreshTokenError
 from pydantic import BaseModel, Field, validate_call
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,12 +26,10 @@ from app.core.http_clients import HttpClients
 from app.core.resources import detect_cpu_count
 from app.logic.layout.media import Media, MediaName, is_video
 from app.models.album import Album
-from app.models.google_photos import GoogleMediaId
+from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
-    PickedMediaItem,
-    PickerSessionId,
-    TokenProvider,
+    AccessTokenGetter,
     delete_picker_session,
     download_media_bytes,
     download_media_to_file,
@@ -64,23 +58,11 @@ logger = logging.getLogger(__name__)
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
 
 
-# ---------------------------------------------------------------------------
-# Bounded concurrency
-# ---------------------------------------------------------------------------
-
-# Created lazily via @cache to avoid binding to the wrong event loop at import time.
-# Download concurrency is capped at the HTTP layer via httpx.Limits on the
-# gphotos_download client, so no semaphore is needed here.
-
-
+# @cache keeps the semaphore lazy so it binds to the running event loop, not
+# import time. (Download concurrency is capped on the httpx client itself.)
 @functools.cache
 def _hash_sem() -> asyncio.Semaphore:
     return asyncio.Semaphore(min(8, detect_cpu_count()))
-
-
-# ---------------------------------------------------------------------------
-# SSE event models
-# ---------------------------------------------------------------------------
 
 
 class UpgradeMatching(BaseModel):
@@ -127,11 +109,6 @@ UpgradeEvent = Annotated[
 ]
 
 
-# ---------------------------------------------------------------------------
-# Hashing helpers (use semaphores + network)
-# ---------------------------------------------------------------------------
-
-
 async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | None]:
     """Hash one local file. Photos: single pHash. Videos: 4 sampled frames."""
     path = album_dir / name
@@ -151,12 +128,12 @@ async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | 
 async def _hash_candidate_one(
     download: httpx.AsyncClient,
     item: PickedMediaItem,
-    tokens: TokenProvider,
+    tokens: AccessTokenGetter,
 ) -> tuple[str, imagehash.ImageHash | None]:
     """Download one Google Photos thumbnail and compute its pHash."""
     try:
         thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
-        access_token = await tokens.get()
+        access_token = await tokens()
         thumb_bytes = await download_media_bytes(
             download, item.media_file.base_url, access_token, param=thumb_param
         )
@@ -170,11 +147,6 @@ async def _hash_candidate_one(
         return item.id, None
 
 
-# ---------------------------------------------------------------------------
-# Full matching pipeline
-# ---------------------------------------------------------------------------
-
-
 async def run_matching(  # noqa: PLR0913
     clients: HttpClients,
     album_dir: Path,
@@ -182,7 +154,7 @@ async def run_matching(  # noqa: PLR0913
     step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
-    tokens: TokenProvider,
+    tokens: AccessTokenGetter,
     already_upgraded: dict[MediaName, GoogleMediaId] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
@@ -264,11 +236,6 @@ async def run_matching(  # noqa: PLR0913
     )
 
 
-# ---------------------------------------------------------------------------
-# Upgrade execution (post-confirmation)
-# ---------------------------------------------------------------------------
-
-
 @validate_call(config={"arbitrary_types_allowed": True})
 async def _download_and_replace(  # noqa: PLR0913
     download: httpx.AsyncClient,
@@ -276,7 +243,7 @@ async def _download_and_replace(  # noqa: PLR0913
     item: PickedMediaItem,
     album_dir: Path,
     tmp_dir: Path,
-    tokens: TokenProvider,
+    tokens: AccessTokenGetter,
 ) -> bool:
     """Download one original, process, and replace the compressed file.
 
@@ -296,7 +263,7 @@ async def _download_and_replace(  # noqa: PLR0913
         param, replace, extra = "=d", replace_photo, {"max_bytes": MAX_PHOTO_BYTES}
 
     async with tmp_file(raw_path) as raw:
-        access_token = await tokens.get()
+        access_token = await tokens()
         await download_media_to_file(
             download,
             item.media_file.base_url,
@@ -366,12 +333,12 @@ async def _persist_upgrade(
 async def _cleanup_picker_sessions(
     picker: httpx.AsyncClient,
     session_ids: list[PickerSessionId],
-    tokens: TokenProvider,
+    tokens: AccessTokenGetter,
 ) -> None:
     """Best-effort deletion of picker sessions after upgrade."""
     try:
-        access_token = await tokens.get()
-    except httpx.HTTPError, RuntimeError:
+        access_token = await tokens()
+    except httpx.HTTPError, RefreshTokenError:
         logger.warning("Skipping picker session cleanup - token unavailable")
         return
     for sid in session_ids:
@@ -390,7 +357,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
     already_upgraded: dict[MediaName, GoogleMediaId],
-    tokens: TokenProvider,
+    tokens: AccessTokenGetter,
     session_ids: list[PickerSessionId],
 ) -> AsyncGenerator[UpgradeEvent]:
     """End-to-end upgrade: download + replace, persist results, release picker sessions.
@@ -475,11 +442,6 @@ async def run_upgrade(  # noqa: PLR0913, C901
     finally:
         await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
-
-
-# ---------------------------------------------------------------------------
-# Post-upgrade DB helpers
-# ---------------------------------------------------------------------------
 
 
 async def apply_upgrade_results(

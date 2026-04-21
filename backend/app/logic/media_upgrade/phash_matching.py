@@ -5,11 +5,11 @@ originals using perceptual hashing (pHash) and the Hungarian algorithm
 for optimal bipartite assignment.
 """
 
-import dataclasses
 import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from typing import NamedTuple
 
 import imagehash
 import numpy as np
@@ -19,8 +19,7 @@ from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
 
 from app.logic.layout.media import MediaName, is_video
-from app.models.google_photos import GoogleMediaId
-from app.services.google_photos import PickedMediaItem
+from app.models.google_photos import GoogleMediaId, PickedMediaItem
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +38,7 @@ _FALLBACK_MAX_DIMENSION = 100
 type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
 
-@dataclasses.dataclass(slots=True)
-class HashedMedia:
+class HashedMedia(NamedTuple):
     """A media item with its perceptual hash, ready for matching.
 
     Used on both sides of the matching problem: ``key`` is either
@@ -48,7 +46,7 @@ class HashedMedia:
     """
 
     key: str
-    hash: imagehash.ImageHash | list[imagehash.ImageHash]
+    hash: LocalHash
     is_video: bool
 
 
@@ -223,6 +221,34 @@ def deduplicate_items(
     return list({item.id: item for item in items}.values())
 
 
+def _hashed_locals(
+    media_names: list[MediaName],
+    local_hashes: dict[MediaName, LocalHash],
+    matched_locals: set[MediaName],
+) -> list[HashedMedia]:
+    return [
+        HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
+        for n in media_names
+        if n in local_hashes and n not in matched_locals
+    ]
+
+
+def _hashed_candidates(
+    items: list[PickedMediaItem],
+    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
+    matched_candidates: set[GoogleMediaId],
+) -> list[HashedMedia]:
+    return [
+        HashedMedia(
+            key=item.id,
+            hash=candidate_hashes[item.id],
+            is_video=item.type == "VIDEO",
+        )
+        for item in items
+        if item.id in candidate_hashes and item.id not in matched_candidates
+    ]
+
+
 def match_across_windows(
     windows: list[StepWindow],
     google_by_window: dict[int, list[PickedMediaItem]],
@@ -236,21 +262,10 @@ def match_across_windows(
     matched_candidates: set[GoogleMediaId] = set()
 
     for window in windows:
-        window_items = google_by_window[window.step_id]
-        hashed_locals = [
-            HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
-            for n in media_names
-            if n in local_hashes and n not in matched_locals
-        ]
-        hashed_cands = [
-            HashedMedia(
-                key=item.id,
-                hash=candidate_hashes[item.id],
-                is_video=item.type == "VIDEO",
-            )
-            for item in window_items
-            if item.id in candidate_hashes and item.id not in matched_candidates
-        ]
+        hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
+        hashed_cands = _hashed_candidates(
+            google_by_window[window.step_id], candidate_hashes, matched_candidates
+        )
         if not hashed_locals or not hashed_cands:
             continue
 
@@ -273,20 +288,10 @@ def cross_step_fallback(  # noqa: PLR0913
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:
     """Try matching remaining unmatched media across all windows."""
-    hashed_locals = [
-        HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
-        for n in media_names
-        if n in local_hashes and n not in matched_locals
-    ]
-    hashed_cands = [
-        HashedMedia(
-            key=item.id,
-            hash=candidate_hashes[item.id],
-            is_video=item.type == "VIDEO",
-        )
-        for item in google_items
-        if item.id in candidate_hashes and item.id not in matched_candidates
-    ]
+    hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
+    hashed_cands = _hashed_candidates(
+        google_items, candidate_hashes, matched_candidates
+    )
 
     if (
         hashed_locals

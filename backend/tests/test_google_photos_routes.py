@@ -7,20 +7,27 @@ E2E. The matching algorithm is covered in test_media_upgrade.py.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
-from authlib.integrations.starlette_client import OAuthError
 from fastapi import HTTPException
+from httpx_oauth.oauth2 import (
+    GetAccessTokenError,
+    OAuth2Token,
+    RefreshTokenError,
+)
+from itsdangerous import URLSafeTimedSerializer
 
+from app.api.v1.deps import _get_http_clients
 from app.api.v1.routes.google_photos import _validate_match_names
 from app.core.config import get_settings
+from app.core.http_clients import HttpClients
 from app.logic.media_upgrade.phash_matching import MatchResult
+from app.main import app
 from app.models.user import User
 
+from .conftest import _mock_http_clients
 from .factories import (
     connect_google_photos,
     sign_in_and_upload,
@@ -29,6 +36,28 @@ from .factories import (
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+def _pin_http_clients() -> HttpClients:
+    """Return (and install) a pinned HttpClients that survives across requests.
+
+    The default conftest override constructs a fresh mock per request, which
+    loses any state the test sets up. Pin one instance so configuring
+    ``http.gphotos_oauth.*`` is visible to the route handler.
+    """
+    http = _mock_http_clients()
+    app.dependency_overrides[_get_http_clients] = lambda: http
+    return http
+
+
+def _build_callback_state(
+    csrf: str = "test-csrf-value",
+    nonce: str = "n-8chars",
+    redirect_uri: str = "http://test/api/v1/google-photos/callback",
+) -> str:
+    return URLSafeTimedSerializer(
+        get_settings().SECRET_KEY, salt="gphotos-oauth-state"
+    ).dumps({"csrf": csrf, "nonce": nonce, "redirect_uri": redirect_uri})
 
 
 class TestRequireGoogleUser:
@@ -64,11 +93,11 @@ class TestDisconnect:
         uid = user_data["id"]
 
         await connect_google_photos(session, uid)
+        _pin_http_clients()  # disconnect calls revoke_token on the mock
 
         resp = await client.delete("/api/v1/google-photos/connection")
         assert resp.status_code == 204
 
-        # Verify tokens cleared in DB
         user = await session.get(User, uid)
         assert user is not None
         assert user.google_photos_refresh_token is None
@@ -86,20 +115,17 @@ class TestPickerSession:
         uid = user_data["id"]
         await connect_google_photos(session, uid)
 
-        mock_token_resp = SimpleNamespace(access_token="fresh-token")  # noqa: S106
+        http = _pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
         mock_picker = AsyncMock()
         mock_picker.return_value.id = "session-abc"
         mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
 
-        with (
-            patch(
-                "app.api.v1.routes.google_photos.refresh_access_token",
-                return_value=mock_token_resp,
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.create_picker_session",
-                mock_picker,
-            ),
+        with patch(
+            "app.api.v1.routes.google_photos.create_picker_session",
+            mock_picker,
         ):
             resp = await client.post("/api/v1/google-photos/sessions")
 
@@ -141,19 +167,21 @@ class TestOAuthCallback:
         user_data = await sign_in_and_upload(client, users_dir, provider="google")
         uid = user_data["id"]
 
-        mock_oauth = MagicMock()
-        mock_oauth.google_photos.authorize_access_token = AsyncMock(
-            return_value={"refresh_token": "rt-new-123", "access_token": "at-xyz"}
+        http = _pin_http_clients()
+        http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
+            {"refresh_token": "rt-new-123", "access_token": "at-xyz"}
         )
 
-        with patch(
-            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
-        ):
-            resp = await client.get(
-                "/api/v1/google-photos/callback", follow_redirects=False
-            )
+        csrf = "test-csrf-value"
+        state = _build_callback_state(csrf=csrf)
+        client.cookies.set("gphotos_oauth_csrf", csrf)
+        resp = await client.get(
+            "/api/v1/google-photos/callback",
+            params={"code": "auth-code", "state": state},
+            follow_redirects=False,
+        )
 
-        assert resp.status_code == 307
+        assert resp.status_code == 303
         assert "?error" not in resp.headers["location"]
 
         user = await session.get(User, uid)
@@ -167,19 +195,21 @@ class TestOAuthCallback:
 
         await sign_in_and_upload(client, users_dir, provider="google")
 
-        mock_oauth = MagicMock()
-        mock_oauth.google_photos.authorize_access_token = AsyncMock(
-            side_effect=OAuthError("access_denied")
+        http = _pin_http_clients()
+        http.gphotos_oauth.get_access_token.side_effect = GetAccessTokenError(
+            "access_denied"
         )
 
-        with patch(
-            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
-        ):
-            resp = await client.get(
-                "/api/v1/google-photos/callback", follow_redirects=False
-            )
+        csrf = "test-csrf-value"
+        state = _build_callback_state(csrf=csrf)
+        client.cookies.set("gphotos_oauth_csrf", csrf)
+        resp = await client.get(
+            "/api/v1/google-photos/callback",
+            params={"code": "auth-code", "state": state},
+            follow_redirects=False,
+        )
 
-        assert resp.status_code == 307
+        assert resp.status_code == 303
         assert "?error" in resp.headers["location"]
 
     async def test_no_refresh_token_redirects_with_error(
@@ -190,19 +220,46 @@ class TestOAuthCallback:
 
         await sign_in_and_upload(client, users_dir, provider="google")
 
-        mock_oauth = MagicMock()
-        mock_oauth.google_photos.authorize_access_token = AsyncMock(
-            return_value={"access_token": "at-xyz"}  # no refresh_token
+        http = _pin_http_clients()
+        http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
+            {"access_token": "at-xyz"}  # no refresh_token
         )
 
-        with patch(
-            "app.api.v1.routes.google_photos.get_oauth", return_value=mock_oauth
-        ):
-            resp = await client.get(
-                "/api/v1/google-photos/callback", follow_redirects=False
-            )
+        csrf = "test-csrf-value"
+        state = _build_callback_state(csrf=csrf)
+        client.cookies.set("gphotos_oauth_csrf", csrf)
+        resp = await client.get(
+            "/api/v1/google-photos/callback",
+            params={"code": "auth-code", "state": state},
+            follow_redirects=False,
+        )
 
-        assert resp.status_code == 307
+        assert resp.status_code == 303
+        assert "?error" in resp.headers["location"]
+
+    async def test_state_csrf_mismatch_redirects_with_error(
+        self, client: AsyncClient
+    ) -> None:
+        """Regression: cookie CSRF that disagrees with the signed state is rejected.
+
+        This is the guarantee of the double-submit pattern - catches an
+        attacker who can forge the state query param but cannot plant the
+        matching HttpOnly cookie.
+        """
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        await sign_in_and_upload(client, users_dir, provider="google")
+
+        client.cookies.set("gphotos_oauth_csrf", "cookie-csrf-A")
+        state = _build_callback_state(csrf="state-csrf-B")  # mismatched
+        resp = await client.get(
+            "/api/v1/google-photos/callback",
+            params={"code": "auth-code", "state": state},
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 303
         assert "?error" in resp.headers["location"]
 
 
@@ -218,14 +275,42 @@ class TestTokenRevocation:
         uid = user_data["id"]
         await connect_google_photos(session, uid)
 
-        with patch(
-            "app.api.v1.routes.google_photos.refresh_access_token",
-            side_effect=httpx.HTTPStatusError(
-                "Unauthorized",
-                request=httpx.Request("POST", "http://test"),
-                response=httpx.Response(401),
-            ),
-        ):
-            resp = await client.post("/api/v1/google-photos/sessions")
+        http = _pin_http_clients()
+        http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError(
+            "invalid_grant"
+        )
+
+        resp = await client.post("/api/v1/google-photos/sessions")
 
         assert resp.status_code == 401
+
+
+class TestTokenLostSelfHeal:
+    async def test_token_lost_collapses_to_disconnected(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """Regression: connected_at set + refresh_token=None heals to disconnected.
+
+        Happens when SECRET_KEY rotates and EncryptedString can no longer
+        decrypt the stored ciphertext. The self-heal lives in ``_get_user``
+        so any authed request collapses the state at a single point.
+        """
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        user_data = await sign_in_and_upload(client, users_dir, provider="google")
+        uid = user_data["id"]
+        await connect_google_photos(session, uid)
+
+        user = await session.get(User, uid)
+        assert user is not None
+        user.google_photos_refresh_token = None
+        session.add(user)
+        await session.flush()
+
+        resp = await client.get("/api/v1/users")
+        assert resp.status_code == 200
+        assert resp.json()["google_photos_connected_at"] is None
+
+        await session.refresh(user)
+        assert user.google_photos_connected_at is None

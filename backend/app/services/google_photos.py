@@ -1,33 +1,41 @@
-"""Google Photos Picker API service.
+"""Google Photos Picker API transport: OAuth2, sessions, downloads."""
 
-Handles OAuth2 (Authlib), Picker session lifecycle, media item retrieval,
-and original photo byte downloads.
-"""
+from __future__ import annotations
 
 import asyncio
 import logging
 import time
-from functools import cache
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Literal
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING
 
-import httpx
-from authlib.integrations.starlette_client import OAuth
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from httpx_oauth.clients.google import GoogleOAuth2
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from app.core.config import get_settings
-from app.models.google_photos import GoogleMediaId
+if TYPE_CHECKING:
+    import httpx
+    from httpx_oauth.oauth2 import OAuth2Token
+
+from app.models.google_photos import (
+    GoogleMediaBaseUrl,
+    GoogleMediaFile,
+    GoogleMediaType,
+    PickedMediaItem,
+    PickerSession,
+    PickerSessionId,
+    VideoProcessingStatus,
+)
 
 logger = logging.getLogger(__name__)
 
 _PICKER_BASE = "https://photospicker.googleapis.com"
 _SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
-_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 _DOWNLOAD_FLUSH_SIZE = 4 * 1024 * 1024  # 4 MB
 _MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB per file (videos)
 MAX_PHOTO_BYTES = 200 * 1024 * 1024  # 200 MB per photo
+_TOKEN_REFRESH_OFFSET_S = 300  # refresh 5 min before expiry
 
 
 class DownloadTooLargeError(RuntimeError):
@@ -40,86 +48,51 @@ def _raise_too_large(max_bytes: int) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Semantic type aliases
-# ---------------------------------------------------------------------------
-
 type AccessToken = str
 type RefreshToken = str
-type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
-type MimeType = str
-_ALLOWED_MEDIA_HOSTS = frozenset({"lh3.googleusercontent.com"})
+type AccessTokenGetter = Callable[[], Awaitable[AccessToken]]
 
 
-def _validate_media_base_url(v: str) -> str:
-    host = urlparse(v).hostname
-    if host not in _ALLOWED_MEDIA_HOSTS:
-        msg = f"Untrusted media host: {host}"
-        raise ValueError(msg)
-    return v
+class GooglePhotosOAuth2(GoogleOAuth2):
+    """GoogleOAuth2 bound to our pre-built httpx client.
+
+    Overriding ``get_httpx_client`` lets the OAuth flows reuse our shared
+    client (cache + retries + rate-limit transports) instead of building
+    a throwaway one per call.
+    """
+
+    def __init__(
+        self, client_id: str, client_secret: str, http: httpx.AsyncClient
+    ) -> None:
+        super().__init__(client_id, client_secret, scopes=[_SCOPE])
+        self._http = http
+
+    @asynccontextmanager
+    async def get_httpx_client(self) -> AsyncIterator[httpx.AsyncClient]:
+        yield self._http
 
 
-type GoogleMediaBaseUrl = Annotated[str, AfterValidator(_validate_media_base_url)]
-type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
-type VideoProcessingStatus = Literal["READY", "PROCESSING", "FAILED"]
+async def ensure_fresh_token(
+    oauth: GoogleOAuth2,
+    refresh_token: RefreshToken,
+    token: OAuth2Token | None,
+) -> OAuth2Token:
+    """Return ``token`` if still fresh, else fetch a new one via refresh grant.
 
-
-# ---------------------------------------------------------------------------
-# OAuth2 client (Authlib)
-# ---------------------------------------------------------------------------
-
-
-@cache
-def get_oauth() -> OAuth:
-    """Return the Authlib OAuth registry for Google Photos (cached)."""
-    settings = get_settings()
-    oauth = OAuth()
-    oauth.register(
-        name="google_photos",
-        server_metadata_url=_DISCOVERY_URL,
-        client_id=settings.VITE_GOOGLE_CLIENT_ID,
-        client_secret=settings.GOOGLE_CLIENT_SECRET,
-        client_kwargs={"scope": _SCOPE},
-    )
-    return oauth
-
-
-# ---------------------------------------------------------------------------
-# Public domain models
-# ---------------------------------------------------------------------------
-
-
-class GoogleMediaFile(BaseModel):
-    base_url: GoogleMediaBaseUrl
-    mime_type: MimeType
-    filename: str
-    width: int | None = None
-    height: int | None = None
-
-
-class PickedMediaItem(BaseModel):
-    id: GoogleMediaId
-    create_time: str
-    type: GoogleMediaType
-    media_file: GoogleMediaFile
-    video_processing_status: VideoProcessingStatus | None = None
-
-
-class PickerSession(BaseModel):
-    id: PickerSessionId
-    picker_uri: str
-    polling_interval: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# Raw API response models (Pydantic-validated, internal)
-#
-# Google APIs return camelCase JSON. The base class handles alias generation
-# so field names stay Pythonic (snake_case) while accepting camelCase input.
-# ---------------------------------------------------------------------------
+    ``OAuth2Token.is_expired()`` has no offset parameter in httpx-oauth 0.16,
+    so we refresh proactively by comparing ``expires_at`` against
+    ``time.time() + offset``. Callers hold the token locally and re-bind the
+    return value each iteration.
+    """
+    if token is not None:
+        expires_at = token.get("expires_at")
+        if expires_at is None or time.time() + _TOKEN_REFRESH_OFFSET_S < expires_at:
+            return token
+    return await oauth.refresh_token(refresh_token)
 
 
 class _GoogleResponse(BaseModel):
+    # Google APIs return camelCase; snake_case fields accept it via alias.
     model_config = ConfigDict(
         extra="allow",
         alias_generator=to_camel,
@@ -167,15 +140,6 @@ class _MediaItemsPage(_GoogleResponse):
     next_page_token: str | None = None
 
 
-class _TokenResponse(_GoogleResponse):
-    access_token: str
-
-
-# ---------------------------------------------------------------------------
-# Picker API helpers
-# ---------------------------------------------------------------------------
-
-
 def _picker_headers(access_token: AccessToken) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
@@ -194,7 +158,6 @@ def _to_media_file(raw: _RawMediaFile) -> GoogleMediaFile:
 async def create_picker_session(
     client: httpx.AsyncClient, access_token: AccessToken
 ) -> PickerSession:
-    """POST /v1/sessions - create a new Picker session."""
     resp = await client.post(
         f"{_PICKER_BASE}/v1/sessions",
         headers=_picker_headers(access_token),
@@ -217,7 +180,6 @@ async def poll_picker_session(
     session_id: PickerSessionId,
     access_token: AccessToken,
 ) -> _SessionResponse:
-    """GET /v1/sessions/{id} - check if user is done picking."""
     resp = await client.get(
         f"{_PICKER_BASE}/v1/sessions/{session_id}",
         headers=_picker_headers(access_token),
@@ -234,7 +196,6 @@ async def get_media_items(
     session_id: PickerSessionId,
     access_token: AccessToken,
 ) -> list[PickedMediaItem]:
-    """GET /v1/mediaItems - retrieve all selected items, handling pagination."""
     items: list[PickedMediaItem] = []
     page_token: str | None = None
     for _ in range(_MAX_MEDIA_PAGES):
@@ -278,7 +239,6 @@ async def delete_picker_session(
     session_id: PickerSessionId,
     access_token: AccessToken,
 ) -> None:
-    """DELETE /v1/sessions/{id} - clean up after retrieving items."""
     resp = await client.delete(
         f"{_PICKER_BASE}/v1/sessions/{session_id}",
         headers=_picker_headers(access_token),
@@ -291,6 +251,30 @@ async def delete_picker_session(
         )
 
 
+async def _stream_sized(  # noqa: PLR0913
+    client: httpx.AsyncClient,
+    base_url: GoogleMediaBaseUrl,
+    access_token: AccessToken,
+    *,
+    param: str,
+    max_bytes: int,
+    chunk_size: int | None = None,
+) -> AsyncIterator[bytes]:
+    """Stream a Google Photos URL, raising ``DownloadTooLargeError`` over limit."""
+    url = f"{base_url}{param}"
+    async with client.stream("GET", url, headers=_picker_headers(access_token)) as resp:
+        resp.raise_for_status()
+        declared = resp.headers.get("content-length")
+        if declared and int(declared) > max_bytes:
+            _raise_too_large(max_bytes)
+        total = 0
+        async for chunk in resp.aiter_bytes(chunk_size=chunk_size):
+            total += len(chunk)
+            if total > max_bytes:
+                _raise_too_large(max_bytes)
+            yield chunk
+
+
 async def download_media_bytes(
     client: httpx.AsyncClient,
     base_url: GoogleMediaBaseUrl,
@@ -299,26 +283,13 @@ async def download_media_bytes(
     param: str = "=d",
     max_bytes: int = MAX_PHOTO_BYTES,
 ) -> bytes:
-    """Download media bytes from a baseUrl with the given parameter suffix.
-
-    param="=d" for originals, "=w400" for thumbnails.
-    """
-    url = f"{base_url}{param}"
-    limit_mb = max_bytes // (1024 * 1024)
-    async with client.stream("GET", url, headers=_picker_headers(access_token)) as resp:
-        resp.raise_for_status()
-        declared = resp.headers.get("content-length")
-        if declared and int(declared) > max_bytes:
-            raise DownloadTooLargeError(f"Photo download exceeds {limit_mb} MB limit")
-        chunks: list[bytes] = []
-        total = 0
-        async for chunk in resp.aiter_bytes():
-            total += len(chunk)
-            if total > max_bytes:
-                raise DownloadTooLargeError(
-                    f"Photo download exceeds {limit_mb} MB limit"
-                )
-            chunks.append(chunk)
+    """param="=d" for originals, "=w400" for thumbnails."""
+    chunks: list[bytes] = [
+        chunk
+        async for chunk in _stream_sized(
+            client, base_url, access_token, param=param, max_bytes=max_bytes
+        )
+    ]
     return b"".join(chunks)
 
 
@@ -331,102 +302,23 @@ async def download_media_to_file(  # noqa: PLR0913
     param: str = "=d",
     max_bytes: int = _MAX_DOWNLOAD_BYTES,
 ) -> None:
-    """Stream media bytes to a file on disk (avoids holding large files in RAM).
+    """Flushes to disk via ``asyncio.to_thread`` so ``write()`` doesn't block.
 
-    Chunks are buffered and flushed to disk via ``asyncio.to_thread`` every
-    4 MB so that synchronous ``write()`` calls don't block the event loop
-    under I/O pressure. The caller owns ``dest`` and is responsible for
-    cleaning up a partial file if this function raises.
+    Caller owns ``dest`` and must clean up a partial file if this raises.
     """
-    url = f"{base_url}{param}"
-    async with client.stream("GET", url, headers=_picker_headers(access_token)) as resp:
-        resp.raise_for_status()
-        buf = bytearray()
-        total_bytes = 0
-        too_large = False
-
-        with dest.open("wb") as f:
-            async for chunk in resp.aiter_bytes(chunk_size=256 * 1024):
-                total_bytes += len(chunk)
-                if total_bytes > max_bytes:
-                    too_large = True
-                    break
-                buf.extend(chunk)
-                if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
-                    await asyncio.to_thread(f.write, bytes(buf))
-                    buf.clear()
-            if not too_large and buf:
+    buf = bytearray()
+    with dest.open("wb") as f:
+        async for chunk in _stream_sized(
+            client,
+            base_url,
+            access_token,
+            param=param,
+            max_bytes=max_bytes,
+            chunk_size=256 * 1024,
+        ):
+            buf.extend(chunk)
+            if len(buf) >= _DOWNLOAD_FLUSH_SIZE:
                 await asyncio.to_thread(f.write, bytes(buf))
-
-    if too_large:
-        _raise_too_large(max_bytes)
-
-
-class TokenProvider:
-    """Lazily refreshes the Google access token when it nears expiry.
-
-    Google access tokens last 3600s. This refreshes proactively at 50min
-    so long-running upgrade streams don't hit 401s mid-download.
-    """
-
-    _REFRESH_MARGIN = 3000  # refresh after 50 minutes
-
-    def __init__(self, client: httpx.AsyncClient, refresh_token: RefreshToken) -> None:
-        self._client = client
-        self._refresh_token = refresh_token
-        self._token: AccessToken = ""
-        self._fetched_at = 0.0
-        self._lock = asyncio.Lock()
-        self._revoked = False
-
-    async def get(self) -> AccessToken:
-        async with self._lock:
-            if self._revoked:
-                raise RuntimeError("Google refresh token has been revoked")
-            now = time.monotonic()
-            if self._token and now - self._fetched_at < self._REFRESH_MARGIN:
-                return self._token
-            try:
-                data = await refresh_access_token(self._client, self._refresh_token)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in (400, 401):
-                    self._revoked = True
-                raise
-            self._token = data.access_token
-            self._fetched_at = now
-            return self._token
-
-
-async def refresh_access_token(
-    client: httpx.AsyncClient, refresh_token: RefreshToken
-) -> _TokenResponse:
-    """Exchange a refresh token for a fresh access token via Google's token endpoint."""
-    settings = get_settings()
-    resp = await client.post(
-        "https://oauth2.googleapis.com/token",
-        data={
-            "client_id": settings.VITE_GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        },
-    )
-    resp.raise_for_status()
-    return _TokenResponse.model_validate_json(resp.content)
-
-
-async def revoke_refresh_token(
-    client: httpx.AsyncClient, refresh_token: RefreshToken
-) -> None:
-    """Best-effort revoke at Google.
-
-    https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
-    """
-    try:
-        resp = await client.post(
-            "https://oauth2.googleapis.com/revoke",
-            data={"token": refresh_token},
-        )
-        resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning("Token revoke failed: %s", type(exc).__name__)
+                buf.clear()
+        if buf:
+            await asyncio.to_thread(f.write, bytes(buf))

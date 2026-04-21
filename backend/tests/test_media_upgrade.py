@@ -37,11 +37,7 @@ from app.logic.media_upgrade.processing import (
     process_photo_sync,
     process_video,
 )
-from app.services.google_photos import (
-    GoogleMediaFile,
-    GoogleMediaType,
-    PickedMediaItem,
-)
+from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
 
 from .factories import create_test_jpeg
 

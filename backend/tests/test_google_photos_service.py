@@ -4,28 +4,28 @@ Tests the API contract boundary: camelCase Google JSON -> domain models.
 Uses real httpx.Response objects so Pydantic parsing runs end-to-end.
 """
 
-import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from httpx_oauth.clients.google import GoogleOAuth2
+from httpx_oauth.oauth2 import OAuth2Token, RefreshTokenError
 
 from app.services.google_photos import (
     DownloadTooLargeError,
     PickedMediaItem,
     PickerSession,
-    TokenProvider,
     _MediaItemsPage,
     _SessionResponse,
-    _TokenResponse,
     create_picker_session,
     download_media_bytes,
     download_media_to_file,
+    ensure_fresh_token,
     get_media_items,
 )
 
@@ -105,12 +105,6 @@ class TestResponseParsing:
         page = _MediaItemsPage.model_validate({})
         assert page.media_items == []
         assert page.next_page_token is None
-
-    def test_token_response_parses_access_token(self) -> None:
-        data = _TokenResponse.model_validate(
-            {"access_token": "ya29.abc", "expires_in": 3599, "token_type": "Bearer"}
-        )
-        assert data.access_token == "ya29.abc"  # noqa: S105
 
     def test_media_item_without_metadata(self) -> None:
         """Some items may lack mediaFileMetadata."""
@@ -242,76 +236,46 @@ class TestVideoMetadataParsing:
 
 
 # ---------------------------------------------------------------------------
-# TokenProvider
+# ensure_fresh_token
 # ---------------------------------------------------------------------------
 
 
-def _mock_refresh(token: str = "fresh-token") -> AsyncMock:  # noqa: S107
-    """Return a mock that resolves to a _TokenResponse with the given token."""
-    mock = AsyncMock()
-    mock.return_value = _TokenResponse.model_validate(
-        {"access_token": token, "expires_in": 3599, "token_type": "Bearer"}
-    )
+def _oauth_mock(refresh_return: OAuth2Token | None = None) -> AsyncMock:
+    mock = AsyncMock(spec=GoogleOAuth2)
+    if refresh_return is not None:
+        mock.refresh_token.return_value = refresh_return
     return mock
 
 
-_DUMMY_CLIENT = AsyncMock(spec=httpx.AsyncClient)
+class TestEnsureFreshToken:
+    async def test_returns_input_when_fresh(self) -> None:
+        """A non-expired token is returned unchanged - no network call."""
+        fresh = OAuth2Token({"access_token": "tok-fresh", "expires_in": 3600})
+        oauth = _oauth_mock()
+        result = await ensure_fresh_token(oauth, "rt-1", fresh)
+        assert result is fresh
+        oauth.refresh_token.assert_not_called()
 
+    async def test_refreshes_when_stale_or_none(self) -> None:
+        """None or near-expiry tokens trigger the refresh grant."""
+        new = OAuth2Token({"access_token": "tok-new", "expires_in": 3600})
+        oauth = _oauth_mock(refresh_return=new)
 
-class TestTokenProvider:
-    async def test_returns_cached_token_within_margin(self) -> None:
-        mock = _mock_refresh("tok-1")
-        with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
-            t1 = await tp.get()
-            t2 = await tp.get()
-        assert t1 == "tok-1"
-        assert t2 == "tok-1"
-        assert mock.call_count == 1  # only one refresh
+        # Case: no prior token.
+        result = await ensure_fresh_token(oauth, "rt-1", None)
+        assert result is new
 
-    async def test_refreshes_when_past_margin(self) -> None:
-        call_count = 0
+        # Case: prior token already expired (expires_in=0 -> past).
+        stale = OAuth2Token({"access_token": "tok-stale", "expires_in": 0})
+        result = await ensure_fresh_token(oauth, "rt-1", stale)
+        assert result is new
+        assert oauth.refresh_token.call_count == 2
 
-        async def _refresh(_client: httpx.AsyncClient, _rt: str) -> _TokenResponse:
-            nonlocal call_count
-            call_count += 1
-            return _TokenResponse.model_validate({"access_token": f"tok-{call_count}"})
-
-        with (
-            patch("app.services.google_photos.refresh_access_token", _refresh),
-            patch.object(TokenProvider, "_REFRESH_MARGIN", 0),  # expire immediately
-        ):
-            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
-            t1 = await tp.get()
-            t2 = await tp.get()
-        assert t1 == "tok-1"
-        assert t2 == "tok-2"
-        assert call_count == 2
-
-    async def test_marks_revoked_on_401(self) -> None:
-        mock = AsyncMock(
-            side_effect=httpx.HTTPStatusError(
-                "Unauthorized",
-                request=httpx.Request("POST", "http://test"),
-                response=httpx.Response(401),
-            )
-        )
-        with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider(_DUMMY_CLIENT, "rt-bad")
-            with pytest.raises(httpx.HTTPStatusError):
-                await tp.get()
-            # Subsequent calls raise RuntimeError, not HTTP error
-            with pytest.raises(RuntimeError, match="revoked"):
-                await tp.get()
-
-    async def test_concurrent_gets_serialize(self) -> None:
-        """Two concurrent .get() calls should only trigger one refresh."""
-        mock = _mock_refresh("tok-shared")
-        with patch("app.services.google_photos.refresh_access_token", mock):
-            tp = TokenProvider(_DUMMY_CLIENT, "rt-1")
-            t1, t2 = await asyncio.gather(tp.get(), tp.get())
-        assert t1 == t2 == "tok-shared"
-        assert mock.call_count == 1
+    async def test_propagates_refresh_token_error(self) -> None:
+        oauth = _oauth_mock()
+        oauth.refresh_token.side_effect = RefreshTokenError("invalid_grant")
+        with pytest.raises(RefreshTokenError):
+            await ensure_fresh_token(oauth, "rt-bad", None)
 
 
 # ---------------------------------------------------------------------------

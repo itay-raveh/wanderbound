@@ -6,15 +6,22 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 from __future__ import annotations
 
 import logging
+import secrets
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
-from authlib.integrations.starlette_client import OAuthError
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.sse import EventSourceResponse
+from httpx_oauth.oauth2 import (
+    GetAccessTokenError,
+    OAuth2Token,
+    RefreshTokenError,
+    RevokeTokenError,
+)
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,25 +37,70 @@ from app.logic.media_upgrade.pipeline import (
     run_upgrade,
 )
 from app.models.album import Album
+from app.models.google_photos import PickedMediaItem, PickerSessionId
 from app.models.step import Step
 from app.services.google_photos import (
     AccessToken,
-    PickedMediaItem,
-    PickerSessionId,
+    AccessTokenGetter,
     RefreshToken,
-    TokenProvider,
     create_picker_session,
     delete_picker_session,
+    ensure_fresh_token,
     get_media_items,
-    get_oauth,
     poll_picker_session,
-    refresh_access_token,
-    revoke_refresh_token,
 )
 
 from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Double-submit CSRF cookie + signed state
+#
+# Pattern: fastapi-users commit 7cf413c + OWASP "Signed Double-Submit Cookie".
+# A random secret is stored in a short-lived, scoped cookie AND embedded in
+# the signed OAuth `state` param. The callback verifies both halves match.
+# ---------------------------------------------------------------------------
+
+_CSRF_COOKIE = "gphotos_oauth_csrf"
+_CSRF_PATH = "/api/v1/google-photos/callback"
+_STATE_TTL_S = 600
+
+
+def _state_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(get_settings().SECRET_KEY, salt="gphotos-oauth-state")
+
+
+def _issue_csrf(response: Response) -> str:
+    csrf = secrets.token_urlsafe(32)
+    response.set_cookie(
+        _CSRF_COOKIE,
+        csrf,
+        max_age=_STATE_TTL_S,
+        httponly=True,
+        secure=get_settings().ENVIRONMENT != "local",
+        samesite="lax",
+        path=_CSRF_PATH,
+    )
+    return csrf
+
+
+def _clear_csrf(response: Response) -> None:
+    response.delete_cookie(_CSRF_COOKIE, path=_CSRF_PATH)
+
+
+def _encode_state(csrf: str, nonce: str, redirect_uri: str) -> str:
+    return _state_serializer().dumps(
+        {"csrf": csrf, "nonce": nonce, "redirect_uri": redirect_uri}
+    )
+
+
+def _decode_state(token: str) -> dict[str, str] | None:
+    try:
+        return _state_serializer().loads(token, max_age=_STATE_TTL_S)
+    except BadSignature, SignatureExpired:
+        return None
 
 
 def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
@@ -103,34 +155,52 @@ router = APIRouter(
 
 
 def _get_refresh_token(user: UserDep) -> RefreshToken:
-    """Return the stored refresh token, raising HTTP errors on failure.
+    """Return the stored refresh token or raise 400 if not connected.
 
-    `connected_at` is the source of truth for whether the user connected;
-    a null `refresh_token` alongside a non-null `connected_at` means the
-    stored ciphertext could not be decrypted (e.g. after SECRET_KEY rotation).
+    ``_get_user`` has already collapsed token-lost state to "disconnected",
+    so a null ``connected_at`` is the single disconnected signal and a null
+    ``refresh_token`` should be impossible at this point.
     """
-    if user.google_photos_connected_at is None:
+    if (
+        user.google_photos_connected_at is None
+        or user.google_photos_refresh_token is None
+    ):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
-    if user.google_photos_refresh_token is None:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Google Photos connection lost. Please reconnect.",
-        )
     return user.google_photos_refresh_token
 
 
-async def _get_access_token(http: HttpClientsDep, user: UserDep) -> AccessToken:
-    """Exchange the stored refresh token for a fresh access token."""
+def _build_token_getter(
+    http: HttpClientsDep, refresh_token: RefreshToken
+) -> AccessTokenGetter:
+    """Return an async callable that yields a fresh access token on demand.
+
+    A closure over a shared ``OAuth2Token`` cache lets many concurrent
+    pipeline tasks reuse the same live token (and refresh it once when it
+    nears expiry) without the ceremony of a dedicated class.
+    """
+    token: OAuth2Token | None = None
+
+    async def get() -> AccessToken:
+        nonlocal token
+        token = await ensure_fresh_token(http.gphotos_oauth, refresh_token, token)
+        return token["access_token"]
+
+    return get
+
+
+async def _ensure_fresh_access_token(
+    http: HttpClientsDep, user: UserDep
+) -> AccessToken:
+    """One-shot fetch for single-request endpoints (no caching needed)."""
     refresh_token = _get_refresh_token(user)
     try:
-        token_data = await refresh_access_token(http.gphotos_token, refresh_token)
-    except httpx.HTTPError as exc:
-        # Log without the full traceback: httpx request bodies contain the
-        # plaintext refresh token and client secret, which logger.exception
-        # would capture and send to Sentry.
+        token = await http.gphotos_oauth.refresh_token(refresh_token)
+    except RefreshTokenError as exc:
+        # Avoid logger.exception: httpx request bodies would leak the
+        # plaintext refresh token and client secret into Sentry.
         logger.error(  # noqa: TRY400
             "Failed to refresh Google Photos access token for user %d: %s",
             user.id,
@@ -140,7 +210,7 @@ async def _get_access_token(http: HttpClientsDep, user: UserDep) -> AccessToken:
             status.HTTP_401_UNAUTHORIZED,
             "Google Photos authorization expired. Please reconnect.",
         ) from None
-    return token_data.access_token
+    return token["access_token"]
 
 
 # ---------------------------------------------------------------------------
@@ -152,21 +222,25 @@ async def _get_access_token(http: HttpClientsDep, user: UserDep) -> AccessToken:
 async def authorize(
     request: Request,
     user: UserDep,
+    http: HttpClientsDep,
     nonce: Annotated[str, Query(min_length=8, max_length=64)],
 ) -> RedirectResponse:
-    oauth = get_oauth()
     redirect_uri = str(request.url_for("google_photos_callback"))
-    rv = await oauth.google_photos.create_authorization_url(
-        redirect_uri, access_type="offline", prompt="consent"
+    # 303 See Other per RFC 9110 §15.4.4 for redirect-after-state-change.
+    resp = RedirectResponse(url="", status_code=status.HTTP_303_SEE_OTHER)
+    csrf = _issue_csrf(resp)
+    state = _encode_state(csrf, nonce, redirect_uri)
+    resp.headers["location"] = await http.gphotos_oauth.get_authorization_url(
+        redirect_uri,
+        state=state,
+        extras_params={"access_type": "offline", "prompt": "consent"},
     )
-    await oauth.google_photos.save_authorize_data(
-        request, redirect_uri=redirect_uri, **rv
-    )
-    request.session["oauth_nonce"] = nonce
-    return RedirectResponse(rv["url"])
+    return resp
 
 
-def _oauth_redirect(nonce: str | None, *, error: bool = False) -> RedirectResponse:
+def _redirect_to_popup_bridge(
+    nonce: str | None, *, error: bool = False
+) -> RedirectResponse:
     url = f"{get_settings().VITE_FRONTEND_URL}/oauth-connected.html"
     params = []
     if error:
@@ -175,36 +249,60 @@ def _oauth_redirect(nonce: str | None, *, error: bool = False) -> RedirectRespon
         params.append(f"nonce={nonce}")
     if params:
         url += "?" + "&".join(params)
-    return RedirectResponse(url)
+    return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/callback", name="google_photos_callback")
-async def callback(
-    request: Request, user: UserDep, session: SessionDep
+async def callback(  # noqa: PLR0913
+    request: Request,
+    user: UserDep,
+    http: HttpClientsDep,
+    session: SessionDep,
+    code: str,
+    state: str,
 ) -> RedirectResponse:
-    nonce = request.session.pop("oauth_nonce", None)
-    oauth = get_oauth()
+    payload = _decode_state(state)
+    cookie_csrf = request.cookies.get(_CSRF_COOKIE)
+    if (
+        payload is None
+        or cookie_csrf is None
+        or not secrets.compare_digest(cookie_csrf, payload["csrf"])
+    ):
+        logger.warning("OAuth state/CSRF mismatch for user %d", user.id)
+        resp = _redirect_to_popup_bridge(
+            payload["nonce"] if payload else None, error=True
+        )
+        _clear_csrf(resp)
+        return resp
+
     try:
-        token = await oauth.google_photos.authorize_access_token(request)
-    except OAuthError as exc:
+        token = await http.gphotos_oauth.get_access_token(code, payload["redirect_uri"])
+    except GetAccessTokenError as exc:
         logger.error(  # noqa: TRY400
             "Google Photos OAuth callback failed for user %d: %s: %s",
             user.id,
             type(exc).__name__,
             exc,
         )
-        return _oauth_redirect(nonce, error=True)
+        resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
+        _clear_csrf(resp)
+        return resp
+
     refresh_token = token.get("refresh_token")
     if not refresh_token:
         logger.warning("No refresh token for user %d", user.id)
-        return _oauth_redirect(nonce, error=True)
+        resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
+        _clear_csrf(resp)
+        return resp
 
     user.google_photos_refresh_token = refresh_token
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
     logger.info("OAuth callback complete: user %d connected", user.id)
-    return _oauth_redirect(nonce)
+    resp = _redirect_to_popup_bridge(payload["nonce"])
+    _clear_csrf(resp)
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -212,8 +310,8 @@ async def callback(
 #
 # Session ownership: Google's Picker API binds each session to the OAuth
 # credentials that created it. Every endpoint below resolves the *current*
-# user's access token via _get_access_token(), so User B cannot interact
-# with User A's session even if they guess the ID.
+# user's access token via _ensure_fresh_access_token(), so User B cannot
+# interact with User A's session even if they guess the ID.
 # ---------------------------------------------------------------------------
 
 
@@ -224,7 +322,7 @@ class PickerSessionResponse(BaseModel):
 
 @router.post("/sessions")
 async def create_session(user: UserDep, http: HttpClientsDep) -> PickerSessionResponse:
-    access_token = await _get_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user)
     picker = await create_picker_session(http.gphotos_picker, access_token)
     return PickerSessionResponse(
         session_id=picker.id,
@@ -240,7 +338,7 @@ class SessionStatusResponse(BaseModel):
 async def poll_session(
     session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
 ) -> SessionStatusResponse:
-    access_token = await _get_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user)
     data = await poll_picker_session(http.gphotos_picker, session_id, access_token)
     return SessionStatusResponse(ready=data.media_items_set)
 
@@ -249,7 +347,7 @@ async def poll_session(
 async def close_session(
     session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
 ) -> None:
-    access_token = await _get_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user)
     await delete_picker_session(http.gphotos_picker, session_id, access_token)
 
 
@@ -276,8 +374,8 @@ async def match_media(
                 status.HTTP_409_CONFLICT,
                 "A matching run is already in progress for this album.",
             )
-        tokens = TokenProvider(http.gphotos_token, _get_refresh_token(user))
-        access_token = await tokens.get()
+        tokens = _build_token_getter(http, _get_refresh_token(user))
+        access_token = await tokens()
 
         album, step_rows = await _snapshot_album_and_steps(user.id, aid)
 
@@ -305,9 +403,9 @@ async def match_media(
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001
-            # logger.exception would capture the full traceback; if TokenProvider
-            # raised httpx.HTTPStatusError the request body contains the plaintext
-            # refresh token and client secret (see _get_access_token for context).
+            # logger.exception would capture the full traceback; a token-refresh
+            # request body contains the plaintext refresh token and client
+            # secret (see _ensure_fresh_access_token for context).
             logger.error(  # noqa: TRY400
                 "Matching failed for album %s: %s: %s", aid, type(exc).__name__, exc
             )
@@ -350,8 +448,8 @@ async def upgrade_media(
 
         _validate_match_names(body.matches, valid_names)
 
-        tokens = TokenProvider(http.gphotos_token, _get_refresh_token(user))
-        access_token = await tokens.get()
+        tokens = _build_token_getter(http, _get_refresh_token(user))
+        access_token = await tokens()
 
         all_items: list[PickedMediaItem] = []
         for sid in body.session_ids:
@@ -382,7 +480,10 @@ async def upgrade_media(
 @router.delete("/connection", status_code=status.HTTP_204_NO_CONTENT)
 async def disconnect(user: UserDep, http: HttpClientsDep, session: SessionDep) -> None:
     if user.google_photos_refresh_token:
-        await revoke_refresh_token(http.gphotos_token, user.google_photos_refresh_token)
+        try:
+            await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
+        except (RevokeTokenError, httpx.HTTPError) as exc:
+            logger.warning("Token revoke failed: %s", type(exc).__name__)
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None
     session.add(user)

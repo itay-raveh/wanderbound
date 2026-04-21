@@ -97,10 +97,7 @@ app.add_middleware(
     secret_key=settings.SECRET_KEY,
     session_cookie="session",
     max_age=30 * 86400,  # 30 days
-    # "lax" (not "strict") so the Google OAuth callback redirect preserves
-    # the session cookie. The callback is a state-changing GET, but it
-    # validates a CSRF `state` parameter to prevent forgery.
-    same_site="lax",
+    same_site="strict",
     https_only=settings.ENVIRONMENT != "local",
 )
 

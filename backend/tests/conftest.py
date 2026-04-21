@@ -18,6 +18,7 @@ from app.core.http_clients import HttpClients
 from app.logic.media_upgrade.pipeline import _clear_caches
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
+from app.services.google_photos import GooglePhotosOAuth2
 
 from .factories import TRIPS_DIR
 
@@ -25,13 +26,15 @@ from .factories import TRIPS_DIR
 def _mock_http_clients() -> HttpClients:
     """Provide an HttpClients with AsyncMock clients for tests.
 
-    Tests that need specific client behavior should patch the relevant
-    service function (e.g. match_segments, refresh_access_token) directly.
+    Tests that need specific client behavior should configure the relevant
+    mock (e.g. ``http.gphotos_oauth.get_access_token.return_value = ...``).
     """
-    fields = {
-        f.name: AsyncMock(spec=httpx.AsyncClient)
-        for f in dataclasses.fields(HttpClients)
-    }
+    fields: dict[str, object] = {}
+    for f in dataclasses.fields(HttpClients):
+        if f.name == "gphotos_oauth":
+            fields[f.name] = AsyncMock(spec=GooglePhotosOAuth2)
+        else:
+            fields[f.name] = AsyncMock(spec=httpx.AsyncClient)
     return HttpClients(**fields)
 
 

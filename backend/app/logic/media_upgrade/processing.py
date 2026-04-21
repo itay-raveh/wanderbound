@@ -1,8 +1,4 @@
-"""Photo and video processing for media upgrade.
-
-Handles normalization of downloaded originals: EXIF transpose, resize,
-JPEG conversion for photos; H.264 re-encode with HDR tone-mapping for videos.
-"""
+"""Normalize downloaded originals: photos to JPEG, videos to H.264 (HDR→SDR)."""
 
 import asyncio
 import logging
@@ -33,7 +29,7 @@ _JPEG_QUALITY = 85
 
 @asynccontextmanager
 async def tmp_file(path: Path) -> AsyncIterator[Path]:
-    """Yield *path*; unlink it (if present) on exit. Safe after shutil.move."""
+    """Yield *path*; unlink on exit (missing_ok, so safe after shutil.move)."""
     try:
         yield path
     finally:
@@ -41,11 +37,7 @@ async def tmp_file(path: Path) -> AsyncIterator[Path]:
 
 
 def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
-    """Normalize a downloaded original: transpose, resize, strip EXIF, save as JPEG.
-
-    Reads from ``raw_path`` and writes the processed JPEG to ``tmp_path``.
-    Returns ``(width, height)``.
-    """
+    """Return (width, height) of the processed JPEG written to ``tmp_path``."""
     with Image.open(raw_path) as raw:
         img = ImageOps.exif_transpose(raw) or raw
         img = img.convert("RGB")
@@ -63,10 +55,6 @@ def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
         return img.size
 
 
-# ---------------------------------------------------------------------------
-# Video processing
-# ---------------------------------------------------------------------------
-
 _VIDEO_CRF = "23"
 _VIDEO_PRESET = "medium"
 _AUDIO_BITRATE = "128k"
@@ -81,21 +69,14 @@ _HDR_TONEMAP_FILTER = (
 
 
 def _detect_hdr(path: Path) -> bool:
-    """Check if a video has HDR color transfer characteristics."""
-    # stream.color_trc is populated from codec params; no decode needed.
-    # https://pyav.basswood-io.com/docs/stable/api/stream.html
+    # color_trc comes from codec params; no decode needed.
     with av.open(str(path)) as container:
         return container.streams.video[0].color_trc in HDR_COLOR_TRC
 
 
 async def process_video(input_path: Path, output: Path) -> None:
-    """Re-encode video: H.264, capped resolution, stripped metadata, HDR tone-mapped.
-
-    Reads from ``input_path``, writes to ``output``. Does not modify
-    ``input_path``; the caller owns its lifecycle.
-    """
-    # Full transcoding pipeline (zscale/tonemap/scale, x264 encoder, AAC, faststart)
-    # stays on ffmpeg CLI - PyAV would need a hand-built filter graph + encoder loop.
+    # Transcoding stays on ffmpeg CLI; PyAV would need a hand-built filter
+    # graph + encoder loop for zscale/tonemap/scale/x264/AAC/faststart.
     is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
 
     scale_filter = (
@@ -157,17 +138,11 @@ async def process_video(input_path: Path, output: Path) -> None:
         raise RuntimeError(msg)
 
 
-# ---------------------------------------------------------------------------
-# Video frame hashing (perceptual hash of sampled frames, for matching)
-# ---------------------------------------------------------------------------
-
 _VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
 
 
 def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
-    """Extract frames at 10/30/50/70% of duration and compute pHash for each."""
-    # Single container open; seek+decode per sample point.
-    # https://pyav.basswood-io.com/docs/stable/api/container.html#av.container.InputContainer.seek
+    """Return a pHash per sampled frame (one container open, seek+decode each)."""
     hashes: list[imagehash.ImageHash] = []
     with av.open(str(path)) as container:
         stream = container.streams.video[0]
@@ -182,13 +157,7 @@ def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
     return hashes
 
 
-# ---------------------------------------------------------------------------
-# Replace helpers
-# ---------------------------------------------------------------------------
-
-
 def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
-    """Log and return True when the new file is not larger than existing."""
     if new_w * new_h <= existing.width * existing.height:
         logger.info(
             "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
@@ -205,7 +174,6 @@ def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
 async def replace_video(
     name: str, raw_path: Path, tmp_path: Path, target: Path
 ) -> bool:
-    """Process and replace a single video. Returns True on success."""
     async with tmp_file(tmp_path) as tmp:
         await process_video(raw_path, tmp)
         new_media = await Media.probe(tmp)
@@ -237,7 +205,6 @@ async def replace_video(
 async def replace_photo(
     name: str, raw_path: Path, tmp_path: Path, target: Path
 ) -> bool:
-    """Process and replace a single photo. Returns True on success."""
     async with tmp_file(tmp_path) as tmp:
         width, height = await asyncio.to_thread(process_photo_sync, raw_path, tmp)
 

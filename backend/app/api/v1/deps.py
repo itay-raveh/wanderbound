@@ -67,6 +67,17 @@ async def _get_user(
 
     sentry_sdk.set_user({"id": str(uid)})
 
+    # Self-heal: if the stored refresh-token ciphertext could not be decrypted
+    # (e.g. after SECRET_KEY rotation), EncryptedString returns None, but
+    # connected_at is still set. Collapse to "disconnected" at a single point.
+    if (
+        user.google_photos_connected_at is not None
+        and user.google_photos_refresh_token is None
+    ):
+        user.google_photos_connected_at = None
+        session.add(user)
+        await session.commit()
+
     # Debounced activity tracking
     now = time.monotonic()
     last = _last_activity_write.get(uid, 0.0)

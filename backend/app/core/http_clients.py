@@ -15,7 +15,9 @@ import httpx
 from aiolimiter import AsyncLimiter
 from httpx import AsyncClient, Request
 
+from app.core.config import get_settings
 from app.core.http import http_client
+from app.services.google_photos import GooglePhotosOAuth2
 
 
 def _elevation_weight(request: Request) -> int:
@@ -32,13 +34,16 @@ class HttpClients:
     gphotos_picker: AsyncClient
     gphotos_download: AsyncClient
     gphotos_token: AsyncClient
+    gphotos_oauth: GooglePhotosOAuth2
 
 
 @asynccontextmanager
 async def lifespan_clients() -> AsyncGenerator[HttpClients]:
     """Build all app-wide httpx clients; close them LIFO on exit."""
+    settings = get_settings()
     async with AsyncExitStack() as stack:
         enter = stack.enter_async_context
+        gphotos_token = await enter(http_client(cache=False))
         yield HttpClients(
             # Mapbox free tier: 300/min (matching), 60/min (directions).
             # Use the stricter shared budget.
@@ -64,5 +69,10 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
                     timeout=300.0,
                 )
             ),
-            gphotos_token=await enter(http_client(cache=False)),
+            gphotos_token=gphotos_token,
+            gphotos_oauth=GooglePhotosOAuth2(
+                settings.VITE_GOOGLE_CLIENT_ID,
+                settings.GOOGLE_CLIENT_SECRET,
+                gphotos_token,
+            ),
         )
