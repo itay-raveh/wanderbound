@@ -25,24 +25,33 @@ export function useGooglePhotos() {
 
   const isConnected = computed(() => state.value === "connected");
 
-  async function authorizeInPopup(popup: Window): Promise<void> {
+  async function authorizeInPopup(
+    popup: Window,
+    signal: AbortSignal,
+  ): Promise<void> {
     const nonce = crypto.randomUUID();
     const baseUrl = client.getConfig().baseUrl ?? "";
     popup.location.href = `${baseUrl}/api/v1/google-photos/authorize?nonce=${encodeURIComponent(nonce)}`;
 
     await new Promise<void>((resolve, reject) => {
-      const channel = new BroadcastChannel(`wanderbound-oauth-${nonce}`);
+      const cleanups: (() => void)[] = [];
+      const cleanup = () => cleanups.splice(0).forEach((fn) => fn());
 
-      function cleanup() {
-        channel.close();
-        clearInterval(closedCheck);
-        clearTimeout(timeout);
+      const channel = new BroadcastChannel(`wanderbound-oauth-${nonce}`);
+      cleanups.push(() => channel.close());
+
+      if (signal.aborted) {
+        cleanup();
+        reject(signal.reason as Error);
+        return;
       }
 
-      channel.onmessage = () => {
+      const onAbort = () => {
         cleanup();
-        resolve();
+        reject(signal.reason as Error);
       };
+      signal.addEventListener("abort", onAbort, { once: true });
+      cleanups.push(() => signal.removeEventListener("abort", onAbort));
 
       const closedCheck = setInterval(() => {
         if (popup.closed) {
@@ -50,12 +59,22 @@ export function useGooglePhotos() {
           reject(new Error(UPGRADE_ERRORS.authCancelled));
         }
       }, 500);
+      cleanups.push(() => clearInterval(closedCheck));
 
-      const timeout = setTimeout(() => {
+      const timeout = setTimeout(
+        () => {
+          cleanup();
+          if (!popup.closed) popup.close();
+          reject(new Error(UPGRADE_ERRORS.authTimeout));
+        },
+        5 * 60 * 1000,
+      );
+      cleanups.push(() => clearTimeout(timeout));
+
+      channel.onmessage = () => {
         cleanup();
-        if (!popup.closed) popup.close();
-        reject(new Error(UPGRADE_ERRORS.authTimeout));
-      }, 5 * 60 * 1000);
+        resolve();
+      };
     });
 
     await cache.invalidateQueries({ key: queryKeys.user() });

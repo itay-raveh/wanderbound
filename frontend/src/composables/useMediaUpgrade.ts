@@ -124,7 +124,7 @@ export function useMediaUpgrade() {
       // Step 2: Authorize if needed (navigates the existing popup)
       if (!gp.isConnected.value) {
         phase.value = "authorizing";
-        await gp.authorize(activePopup);
+        await gp.authorize(activePopup, signal);
         if (signal.aborted) return;
       }
 
