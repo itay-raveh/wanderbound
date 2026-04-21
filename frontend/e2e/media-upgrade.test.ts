@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, mockPopup, blockPopup } from "./fixtures";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "../src/utils/storage-keys";
 import { mockUser, mockMedia } from "../tests/fixtures/mocks";
 import type { Page } from "@playwright/test";
@@ -100,10 +100,7 @@ test.describe("Media Upgrade", () => {
     authedPage: page,
   }) => {
     await setupUpgradeRoutes(page);
-    // Block window.open so Playwright doesn't try to open a real tab
-    await page.addInitScript(() => {
-      window.open = () => null;
-    });
+    await blockPopup(page);
     await page.goto("/editor");
 
     const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
@@ -127,21 +124,7 @@ test.describe("Media Upgrade", () => {
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
 
-    // Return a mock popup so openPopup() doesn't throw "Popup blocked"
-    await page.addInitScript(() => {
-      window.open = () =>
-        ({
-          closed: false,
-          close() {
-            this.closed = true;
-          },
-          location: { href: "" },
-          document: {
-            title: "",
-            body: { style: { cssText: "" }, textContent: "" },
-          },
-        }) as unknown as Window;
-    });
+    await mockPopup(page);
 
     // Upgrade SSE
     await page.route(`${API}/google-photos/upgrade/**`, (route) =>
@@ -189,21 +172,7 @@ test.describe("Media Upgrade", () => {
       ([key]) => localStorage.setItem(key, "1"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
-    // Return a mock popup so openPopup() doesn't throw "Popup blocked"
-    await page.addInitScript(() => {
-      window.open = () =>
-        ({
-          closed: false,
-          close() {
-            this.closed = true;
-          },
-          location: { href: "" },
-          document: {
-            title: "",
-            body: { style: { cssText: "" }, textContent: "" },
-          },
-        }) as unknown as Window;
-    });
+    await mockPopup(page);
 
     // Upgrade SSE with partial failure
     await page.route(`${API}/google-photos/upgrade/**`, (route) =>
@@ -263,9 +232,7 @@ test.describe("Media Upgrade", () => {
     authedPage: page,
   }) => {
     await setupUpgradeRoutes(page);
-    await page.addInitScript(() => {
-      window.open = () => null;
-    });
+    await blockPopup(page);
     await page.goto("/editor");
 
     const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
@@ -293,20 +260,7 @@ test.describe("Media Upgrade", () => {
       ([key]) => localStorage.setItem(key, "1"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
-    await page.addInitScript(() => {
-      window.open = () =>
-        ({
-          closed: false,
-          close() {
-            this.closed = true;
-          },
-          location: { href: "" },
-          document: {
-            title: "",
-            body: { style: { cssText: "" }, textContent: "" },
-          },
-        }) as unknown as Window;
-    });
+    await mockPopup(page);
 
     await page.goto("/editor");
 
@@ -355,20 +309,7 @@ test.describe("Media Upgrade", () => {
       ([key]) => localStorage.setItem(key, "1"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
-    await page.addInitScript(() => {
-      window.open = () =>
-        ({
-          closed: false,
-          close() {
-            this.closed = true;
-          },
-          location: { href: "" },
-          document: {
-            title: "",
-            body: { style: { cssText: "" }, textContent: "" },
-          },
-        }) as unknown as Window;
-    });
+    await mockPopup(page);
 
     await page.goto("/editor");
 
@@ -465,20 +406,7 @@ test.describe("Media Upgrade", () => {
       ([key]) => localStorage.setItem(key, "1"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
-    await page.addInitScript(() => {
-      window.open = () =>
-        ({
-          closed: false,
-          close() {
-            this.closed = true;
-          },
-          location: { href: "" },
-          document: {
-            title: "",
-            body: { style: { cssText: "" }, textContent: "" },
-          },
-        }) as unknown as Window;
-    });
+    await mockPopup(page);
 
     await page.goto("/editor");
 

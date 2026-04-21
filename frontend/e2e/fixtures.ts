@@ -86,6 +86,29 @@ async function initPage(page: Page) {
   );
 }
 
+export async function mockPopup(page: Page) {
+  await page.addInitScript(() => {
+    window.open = () =>
+      ({
+        closed: false,
+        close() {
+          this.closed = true;
+        },
+        location: { href: "" },
+        document: {
+          title: "",
+          body: { style: { cssText: "" }, textContent: "" },
+        },
+      }) as unknown as Window;
+  });
+}
+
+export async function blockPopup(page: Page) {
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+}
+
 export const test = base.extend<{ authedPage: Page; focusPage: Page }>({
   page: async ({ page }, use) => {
     const assertAllMocked = await installStrictMockGuard(page);
