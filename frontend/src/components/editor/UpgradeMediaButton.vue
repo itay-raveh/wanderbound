@@ -67,21 +67,16 @@ const progressMessage = computed(() => {
   }
 });
 
-const showOnboarding = computed({
-  get: () => upgrade.phase.value === "onboarding",
-  set: (v: boolean) => {
-    // Only cancel if the user dismissed the dialog (backdrop/ESC), not
-    // if the phase advanced past onboarding after confirmUpgrade().
-    if (!v && upgrade.phase.value === "onboarding") upgrade.cancel();
-  },
-});
+// q-dialog's v-model write fires on both user-dismissal (ESC/backdrop) and
+// programmatic hide (phase advanced via confirm). Filter on current phase to
+// only treat writes-while-still-in-phase as dismissals.
+function onOnboardingVisibility(v: boolean) {
+  if (!v && upgrade.phase.value === "onboarding") upgrade.cancel();
+}
 
-const showSummary = computed({
-  get: () => upgrade.phase.value === "confirming",
-  set: (v: boolean) => {
-    if (!v && upgrade.phase.value === "confirming") upgrade.cancel();
-  },
-});
+function onSummaryVisibility(v: boolean) {
+  if (!v && upgrade.phase.value === "confirming") upgrade.cancel();
+}
 
 const doneMessage = computed(() => {
   const { done: replaced, total, skipped = 0 } = upgrade.progress.value;
@@ -199,7 +194,7 @@ const { confirmUpgrade } = upgrade;
     </div>
 
     <PromptDialog
-      v-model="showOnboarding"
+      :model-value="upgrade.phase.value === 'onboarding'"
       :icon="symOutlinedUpgrade"
       variant="primary"
       :title="t('upgrade.onboarding.title')"
@@ -207,16 +202,18 @@ const { confirmUpgrade } = upgrade;
       :tip="t('upgrade.onboarding.tip')"
       :confirm-label="t('upgrade.onboarding.continue')"
       :cancel-label="t('common.cancel')"
+      @update:model-value="onOnboardingVisibility"
       @confirm="confirmUpgrade"
     />
 
     <UpgradeMatchDialog
-      v-model="showSummary"
+      :model-value="upgrade.phase.value === 'confirming'"
       :matched="upgrade.matchSummary.value?.matched ?? 0"
       :total="upgrade.matchSummary.value?.totalPicked ?? 0"
       :unmatched="upgrade.matchSummary.value?.unmatched ?? 0"
       :already-upgraded="upgrade.matchSummary.value?.alreadyUpgraded ?? 0"
       :new-this-round="upgrade.matchSummary.value?.newThisRound ?? 0"
+      @update:model-value="onSummaryVisibility"
       @confirm="confirmUpgrade"
       @select-more="upgrade.selectMore()"
     />
