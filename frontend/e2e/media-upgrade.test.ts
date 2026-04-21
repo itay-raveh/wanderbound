@@ -330,6 +330,95 @@ test.describe("Media Upgrade", () => {
     await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
   });
 
+  // -- Error paths -----------------------------------------------------------
+
+  test("popup blocked surfaces error button", async ({ authedPage: page }) => {
+    await setupUpgradeRoutes(page);
+    await blockPopup(page);
+    // Skip onboarding so the start() path opens the popup directly
+    await page.addInitScript(
+      ([key]) => localStorage.setItem(key, "1"),
+      [MEDIA_UPGRADE_ONBOARDED_KEY],
+    );
+
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    // Error state button appears with translated popup-blocked copy inside
+    const errorBtn = page.getByRole("button", {
+      name: /upgrade failed\. try again/i,
+    });
+    await expect(errorBtn).toBeVisible({ timeout: 5_000 });
+    await expect(errorBtn).toContainText(/allow popups and try again/i);
+  });
+
+  test("clicking error button restarts the flow", async ({
+    authedPage: page,
+  }) => {
+    // First match request returns an SSE error; second returns real matches.
+    let matchCall = 0;
+    await page.route(`${API}/users`, (route) =>
+      route.fulfill({ json: connectedUser }),
+    );
+    await page.route(`${API}/google-photos/sessions`, (route) => {
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          json: {
+            session_id: `sess-${matchCall + 1}`,
+            picker_uri: `https://photos.google.com/picker/sess-${matchCall + 1}`,
+          },
+        });
+      }
+      return route.fallback();
+    });
+    await page.route(`${API}/google-photos/sessions/sess-*`, (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: { ready: true } });
+      }
+      return route.fulfill({ status: 204, body: "" });
+    });
+    await page.route(`${API}/google-photos/match/**`, (route) => {
+      matchCall++;
+      if (matchCall === 1) {
+        return route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: sseBody([{ type: "error", detail: "connectionLost" }]),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sseBody(matchEvents),
+      });
+    });
+
+    await page.addInitScript(
+      ([key]) => localStorage.setItem(key, "1"),
+      [MEDIA_UPGRADE_ONBOARDED_KEY],
+    );
+    await mockPopup(page);
+    await page.goto("/editor");
+
+    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
+    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
+    await upgradeBtn.click();
+
+    const errorBtn = page.getByRole("button", {
+      name: /upgrade failed\. try again/i,
+    });
+    await expect(errorBtn).toBeVisible({ timeout: 10_000 });
+    await errorBtn.click();
+
+    // Second attempt reaches match summary
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
   // -- Select more flow ------------------------------------------------------
 
   test("select more accumulates matches across rounds", async ({
