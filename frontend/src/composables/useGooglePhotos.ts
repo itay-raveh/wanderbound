@@ -90,7 +90,7 @@ export function useGooglePhotos() {
     pickerUri: string;
   }> {
     const { data } = await createSession();
-    if (!data) throw new Error("Failed to create picker session");
+    if (!data) throw new Error(UPGRADE_ERRORS.connectionLost);
     return { sessionId: data.session_id, pickerUri: data.picker_uri };
   }
 
@@ -100,7 +100,7 @@ export function useGooglePhotos() {
     const { data } = await pollSessionApi({
       path: { session_id: sessionId },
     });
-    if (!data) throw new Error("Failed to poll session");
+    if (!data) throw new Error(UPGRADE_ERRORS.connectionLost);
     return { ready: data.ready };
   }
 

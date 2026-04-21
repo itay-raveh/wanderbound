@@ -1,4 +1,5 @@
 import { onScopeDispose, ref, watchEffect } from "vue";
+import { t } from "@/i18n";
 import {
   matchMedia,
   upgradeMedia,
@@ -94,7 +95,7 @@ export function useMediaUpgrade() {
     popup.document.title = "Google Photos";
     popup.document.body.style.cssText =
       "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
-    popup.document.body.textContent = "Loading\u2026";
+    popup.document.body.textContent = t("upgrade.authorizing");
     return popup;
   }
 
