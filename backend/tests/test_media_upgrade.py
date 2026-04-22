@@ -34,6 +34,7 @@ from app.logic.media_upgrade.phash_matching import (
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     MatchInProgress,
+    _needs_upgrade,
     refresh_upgraded_media,
     run_matching,
 )
@@ -325,7 +326,7 @@ class TestProcessVideo:
 # ---------------------------------------------------------------------------
 
 
-class TestApplyUpgradeResults:
+class TestRefreshUpgradedMedia:
     async def test_updates_media_for_succeeded_files(self, tmp_path: Path) -> None:
         """Succeeded files are re-probed and added to upgraded_media."""
         create_test_jpeg(tmp_path / "photo1.jpg", 4000, 3000)
@@ -421,6 +422,30 @@ class TestApplyUpgradeResults:
             {"new.jpg"},
         )
         assert new_upgraded == {"old.jpg": "gid-old", "new.jpg": "gid-new"}
+
+
+# ---------------------------------------------------------------------------
+# _needs_upgrade
+# ---------------------------------------------------------------------------
+
+
+class TestNeedsUpgrade:
+    def test_name_absent_needs_upgrade(self) -> None:
+        match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
+        assert _needs_upgrade(match, {}) is True
+
+    def test_same_name_same_google_id_skips(self) -> None:
+        match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
+        assert _needs_upgrade(match, {"photo.jpg": "gid-A"}) is False
+
+    def test_same_name_different_google_id_needs_upgrade(self) -> None:
+        """Regression: user picked a different source than the prior upgrade.
+
+        The name-only filter would skip this; we must re-upgrade because the
+        match summary already advertised it as work to do.
+        """
+        match = MatchResult(local_name="photo.jpg", google_id="gid-B", distance=0)
+        assert _needs_upgrade(match, {"photo.jpg": "gid-A"}) is True
 
 
 # ---------------------------------------------------------------------------

@@ -348,6 +348,20 @@ async def _cleanup_picker_sessions(
             logger.warning("Failed to delete picker session %s", sid)
 
 
+def _needs_upgrade(
+    match: MatchResult,
+    already_upgraded: dict[MediaName, GoogleMediaId],
+) -> bool:
+    """True unless this exact (local_name, google_id) pair is already upgraded.
+
+    A match to a *different* google_id for a previously-upgraded local file
+    is a new upgrade: the user picked a different source than last time, and
+    the summary count (see ``run_matching``) already advertised it as work
+    to do.
+    """
+    return already_upgraded.get(match.local_name) != match.google_id
+
+
 async def run_upgrade(  # noqa: PLR0913, C901
     *,
     clients: HttpClients,
@@ -366,7 +380,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     Exceptions during streaming become ``UpgradeError`` events; persist and
     picker cleanup always run.
     """
-    to_upgrade = [m for m in matches if m.local_name not in already_upgraded]
+    to_upgrade = [m for m in matches if _needs_upgrade(m, already_upgraded)]
     total = len(to_upgrade)
     succeeded: set[MediaName] = set()
     skipped_names: set[MediaName] = set()
