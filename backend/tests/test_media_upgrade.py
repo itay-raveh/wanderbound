@@ -7,6 +7,7 @@ single integration test exercises ``run_matching`` end-to-end against
 fixture JPEGs on disk.
 """
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -34,6 +35,7 @@ from app.logic.media_upgrade.phash_matching import (
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     MatchInProgress,
+    _clear_caches,
     _needs_upgrade,
     refresh_upgraded_media,
     run_matching,
@@ -46,6 +48,13 @@ from app.logic.media_upgrade.processing import (
 from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
 
 from .factories import create_test_jpeg
+
+
+@pytest.fixture(autouse=True)
+def _clear_upgrade_caches_between_tests() -> Iterator[None]:
+    """Reset the event-loop-bound semaphore cache between tests."""
+    yield
+    _clear_caches()
 
 
 def _make_hash(value: int) -> imagehash.ImageHash:

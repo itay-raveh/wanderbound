@@ -1,5 +1,5 @@
 import dataclasses
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -15,7 +15,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
-from app.logic.media_upgrade.pipeline import _clear_caches
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 from app.services.google_photos import GooglePhotosOAuth2
@@ -80,12 +79,6 @@ async def client(
         ) as c:
             yield c
     app.dependency_overrides.clear()
-
-
-@pytest.fixture(autouse=True)
-def _clear_media_upgrade_caches() -> Iterator[None]:
-    yield
-    _clear_caches()
 
 
 @pytest.fixture(scope="module")

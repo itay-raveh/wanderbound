@@ -24,6 +24,7 @@ from app.api.v1.routes.google_photos import _validate_match_names
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.logic.media_upgrade.phash_matching import MatchResult
+from app.logic.media_upgrade.pipeline import _clear_caches
 from app.main import app
 from app.models.user import User
 
@@ -34,8 +35,17 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@pytest.fixture(autouse=True)
+def _clear_upgrade_caches_between_tests() -> Iterator[None]:
+    """Reset the event-loop-bound semaphore cache between tests."""
+    yield
+    _clear_caches()
 
 
 def _pin_http_clients() -> HttpClients:
