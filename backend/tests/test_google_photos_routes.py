@@ -60,6 +60,15 @@ def _build_callback_state(
     ).dumps({"csrf": csrf, "nonce": nonce, "redirect_uri": redirect_uri})
 
 
+def _build_oauth_cookie(
+    csrf: str = "test-csrf-value",
+    verifier: str = "test-verifier-value",
+) -> str:
+    return URLSafeTimedSerializer(
+        get_settings().SECRET_KEY, salt="gphotos-oauth-cookie"
+    ).dumps({"csrf": csrf, "verifier": verifier})
+
+
 class TestRequireGoogleUser:
     async def test_microsoft_user_gets_403(self, client: AsyncClient) -> None:
         """Microsoft-authed users cannot access Google Photos endpoints."""
@@ -174,7 +183,7 @@ class TestOAuthCallback:
 
         csrf = "test-csrf-value"
         state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth_csrf", csrf)
+        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
         resp = await client.get(
             "/api/v1/google-photos/callback",
             params={"code": "auth-code", "state": state},
@@ -202,7 +211,7 @@ class TestOAuthCallback:
 
         csrf = "test-csrf-value"
         state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth_csrf", csrf)
+        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
         resp = await client.get(
             "/api/v1/google-photos/callback",
             params={"code": "auth-code", "state": state},
@@ -227,7 +236,7 @@ class TestOAuthCallback:
 
         csrf = "test-csrf-value"
         state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth_csrf", csrf)
+        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
         resp = await client.get(
             "/api/v1/google-photos/callback",
             params={"code": "auth-code", "state": state},
@@ -251,7 +260,7 @@ class TestOAuthCallback:
 
         await sign_in_and_upload(client, users_dir, provider="google")
 
-        client.cookies.set("gphotos_oauth_csrf", "cookie-csrf-A")
+        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf="cookie-csrf-A"))
         state = _build_callback_state(csrf="state-csrf-B")  # mismatched
         resp = await client.get(
             "/api/v1/google-photos/callback",
@@ -261,6 +270,40 @@ class TestOAuthCallback:
 
         assert resp.status_code == 303
         assert "?error" in resp.headers["location"]
+
+    async def test_passes_pkce_verifier_to_token_exchange(
+        self, client: AsyncClient
+    ) -> None:
+        """Regression: the cookie's PKCE verifier is forwarded to Google.
+
+        Without this, the authorize-side code_challenge has no counterpart
+        at token exchange and Google rejects the flow.
+        """
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        await sign_in_and_upload(client, users_dir, provider="google")
+
+        http = _pin_http_clients()
+        http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
+            {"refresh_token": "rt-x", "access_token": "at-x"}
+        )
+
+        csrf = "test-csrf-value"
+        verifier = "test-verifier-value"
+        state = _build_callback_state(csrf=csrf)
+        client.cookies.set(
+            "gphotos_oauth", _build_oauth_cookie(csrf=csrf, verifier=verifier)
+        )
+        await client.get(
+            "/api/v1/google-photos/callback",
+            params={"code": "auth-code", "state": state},
+            follow_redirects=False,
+        )
+
+        http.gphotos_oauth.get_access_token.assert_awaited_once()
+        call = http.gphotos_oauth.get_access_token.call_args
+        assert call.kwargs.get("code_verifier") == verifier
 
 
 class TestTokenRevocation:

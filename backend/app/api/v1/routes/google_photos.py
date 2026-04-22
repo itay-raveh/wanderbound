@@ -5,6 +5,8 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import secrets
 from collections.abc import AsyncIterable
@@ -56,15 +58,16 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Double-submit CSRF cookie + signed state
+# OAuth transient state: signed cookie (carries csrf + PKCE verifier) +
+# signed state param (carries csrf, nonce, redirect_uri). Callback validates
+# both signatures and double-submits csrf across cookie/state.
 #
-# Pattern: fastapi-users commit 7cf413c + OWASP "Signed Double-Submit Cookie".
-# A random secret is stored in a short-lived, scoped cookie AND embedded in
-# the signed OAuth `state` param. The callback verifies both halves match.
+# Pattern: NextAuth-style separate signed cookie for OAuth state + OWASP
+# signed double-submit. PKCE S256 per RFC 7636.
 # ---------------------------------------------------------------------------
 
-_CSRF_COOKIE = "gphotos_oauth_csrf"
-_CSRF_PATH = "/api/v1/google-photos/callback"
+_OAUTH_COOKIE = "gphotos_oauth"
+_OAUTH_COOKIE_PATH = "/api/v1/google-photos/callback"
 _STATE_TTL_S = 600
 
 
@@ -72,22 +75,51 @@ def _state_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(get_settings().SECRET_KEY, salt="gphotos-oauth-state")
 
 
-def _issue_csrf(response: Response) -> str:
+def _oauth_cookie_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(
+        get_settings().SECRET_KEY, salt="gphotos-oauth-cookie"
+    )
+
+
+def _code_challenge(verifier: str) -> str:
+    """Derive the PKCE S256 challenge from a verifier (RFC 7636)."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def _issue_oauth_cookie(response: Response) -> tuple[str, str]:
+    """Issue the signed OAuth cookie carrying csrf + PKCE verifier.
+
+    Verifier is 86 chars via ``secrets.token_urlsafe(64)`` - within the
+    RFC 7636 [43, 128] range and using the url-safe alphabet (subset of
+    the unreserved chars the RFC permits).
+    """
     csrf = secrets.token_urlsafe(32)
+    verifier = secrets.token_urlsafe(64)
+    signed = _oauth_cookie_serializer().dumps({"csrf": csrf, "verifier": verifier})
     response.set_cookie(
-        _CSRF_COOKIE,
-        csrf,
+        _OAUTH_COOKIE,
+        signed,
         max_age=_STATE_TTL_S,
         httponly=True,
         secure=get_settings().ENVIRONMENT != "local",
         samesite="lax",
-        path=_CSRF_PATH,
+        path=_OAUTH_COOKIE_PATH,
     )
-    return csrf
+    return csrf, verifier
 
 
-def _clear_csrf(response: Response) -> None:
-    response.delete_cookie(_CSRF_COOKIE, path=_CSRF_PATH)
+def _decode_oauth_cookie(raw: str | None) -> dict[str, str] | None:
+    if raw is None:
+        return None
+    try:
+        return _oauth_cookie_serializer().loads(raw, max_age=_STATE_TTL_S)
+    except BadSignature, SignatureExpired:
+        return None
+
+
+def _clear_oauth_cookie(response: Response) -> None:
+    response.delete_cookie(_OAUTH_COOKIE, path=_OAUTH_COOKIE_PATH)
 
 
 def _encode_state(csrf: str, nonce: str, redirect_uri: str) -> str:
@@ -228,11 +260,13 @@ async def authorize(
     redirect_uri = str(request.url_for("google_photos_callback"))
     # 303 See Other per RFC 9110 §15.4.4 for redirect-after-state-change.
     resp = RedirectResponse(url="", status_code=status.HTTP_303_SEE_OTHER)
-    csrf = _issue_csrf(resp)
+    csrf, verifier = _issue_oauth_cookie(resp)
     state = _encode_state(csrf, nonce, redirect_uri)
     resp.headers["location"] = await http.gphotos_oauth.get_authorization_url(
         redirect_uri,
         state=state,
+        code_challenge=_code_challenge(verifier),
+        code_challenge_method="S256",
         extras_params={"access_type": "offline", "prompt": "consent"},
     )
     return resp
@@ -262,21 +296,23 @@ async def callback(  # noqa: PLR0913
     state: str,
 ) -> RedirectResponse:
     payload = _decode_state(state)
-    cookie_csrf = request.cookies.get(_CSRF_COOKIE)
+    cookie_data = _decode_oauth_cookie(request.cookies.get(_OAUTH_COOKIE))
     if (
         payload is None
-        or cookie_csrf is None
-        or not secrets.compare_digest(cookie_csrf, payload["csrf"])
+        or cookie_data is None
+        or not secrets.compare_digest(cookie_data["csrf"], payload["csrf"])
     ):
         logger.warning("OAuth state/CSRF mismatch for user %d", user.id)
         resp = _redirect_to_popup_bridge(
             payload["nonce"] if payload else None, error=True
         )
-        _clear_csrf(resp)
+        _clear_oauth_cookie(resp)
         return resp
 
     try:
-        token = await http.gphotos_oauth.get_access_token(code, payload["redirect_uri"])
+        token = await http.gphotos_oauth.get_access_token(
+            code, payload["redirect_uri"], code_verifier=cookie_data["verifier"]
+        )
     except GetAccessTokenError as exc:
         logger.error(  # noqa: TRY400
             "Google Photos OAuth callback failed for user %d: %s: %s",
@@ -285,14 +321,14 @@ async def callback(  # noqa: PLR0913
             exc,
         )
         resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
-        _clear_csrf(resp)
+        _clear_oauth_cookie(resp)
         return resp
 
     refresh_token = token.get("refresh_token")
     if not refresh_token:
         logger.warning("No refresh token for user %d", user.id)
         resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
-        _clear_csrf(resp)
+        _clear_oauth_cookie(resp)
         return resp
 
     user.google_photos_refresh_token = refresh_token
@@ -301,7 +337,7 @@ async def callback(  # noqa: PLR0913
     await session.commit()
     logger.info("OAuth callback complete: user %d connected", user.id)
     resp = _redirect_to_popup_bridge(payload["nonce"])
-    _clear_csrf(resp)
+    _clear_oauth_cookie(resp)
     return resp
 
 
