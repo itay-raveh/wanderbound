@@ -385,6 +385,5 @@ export function useMediaUpgrade() {
     confirmUpgrade,
     selectMore,
     cancel,
-    disconnect: gp.disconnect,
   };
 }

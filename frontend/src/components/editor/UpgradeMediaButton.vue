@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
+import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import type { UpgradeErrorKey } from "@/utils/upgradeErrors";
 import { Platform } from "quasar";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
@@ -19,6 +20,7 @@ const { t } = useI18n();
 const props = defineProps<{ albumId: string }>();
 
 const upgrade = useMediaUpgrade();
+const googlePhotos = useGooglePhotos();
 const showDisconnectConfirm = ref(false);
 
 const isRunning = computed(() => {
@@ -107,7 +109,7 @@ function handleDisconnect() {
 
 function confirmDisconnect() {
   showDisconnectConfirm.value = false;
-  void upgrade.disconnect();
+  void googlePhotos.disconnect();
 }
 
 const { confirmUpgrade } = upgrade;
