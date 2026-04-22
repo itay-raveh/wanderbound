@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { matWarning } from "@quasar/extras/material-icons";
 import { useI18n } from "vue-i18n";
-import ConfirmDialog from "./ConfirmDialog.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 import { computed } from "vue";
 
 const show = defineModel<boolean>({ required: true });
@@ -30,7 +30,7 @@ const bodyText = computed(() => {
 </script>
 
 <template>
-  <ConfirmDialog
+  <PromptDialog
     v-model="show"
     :icon="matWarning"
     variant="warning"

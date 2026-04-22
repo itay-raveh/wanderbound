@@ -92,6 +92,10 @@ body,
   --photo-gap-sm: 3mm;
   --photo-gap-xs: 2mm;
 
+  /* Text on colored surfaces (theme-independent - button backgrounds don't change) */
+  --text-on-color: #f0f0f5;
+  --text-on-warning: #111827;
+
   /* Transition / animation */
   --duration-fast: 0.15s;
   --duration-normal: 0.3s;
