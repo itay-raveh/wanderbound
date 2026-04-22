@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -42,6 +43,19 @@ if settings.SENTRY_DSN:
         enable_logs=True,
         integrations=[LoggingIntegration(event_level=logging.ERROR)],
         before_breadcrumb=_before_breadcrumb,
+        # send_default_pii=False is required for a custom EventScrubber/denylist.
+        send_default_pii=False,
+        event_scrubber=EventScrubber(
+            denylist=[
+                *DEFAULT_DENYLIST,
+                "access_token",
+                "refresh_token",
+                "code_verifier",
+                "verifier",
+                "credential",
+            ],
+            recursive=True,
+        ),
     )
 
 logger = logging.getLogger(__name__)
