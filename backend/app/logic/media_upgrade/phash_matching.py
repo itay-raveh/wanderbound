@@ -35,7 +35,7 @@ MATCH_THRESHOLD = 12
 # Skip cross-step fallback if the matrix exceeds this size.
 _FALLBACK_MAX_DIMENSION = 100
 
-type LocalHash = imagehash.ImageHash | list[imagehash.ImageHash]
+type MediaHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
 
 class HashedMedia(NamedTuple):
@@ -46,7 +46,7 @@ class HashedMedia(NamedTuple):
     """
 
     key: str
-    hash: LocalHash
+    hash: MediaHash
     is_video: bool
 
 
@@ -124,7 +124,7 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 _CROSS_TYPE_COST = MATCH_THRESHOLD + 1
 
 
-def _pairwise_distance(a: LocalHash, b: LocalHash) -> int:
+def _pairwise_distance(a: MediaHash, b: MediaHash) -> int:
     """Distance between two hashes. Multi-frame hashes use minimum distance."""
     # Flatten both sides to lists for uniform handling.
     frames_a = [a] if isinstance(a, imagehash.ImageHash) else a
@@ -223,7 +223,7 @@ def deduplicate_items(
 
 def _hashed_locals(
     media_names: list[MediaName],
-    local_hashes: dict[MediaName, LocalHash],
+    local_hashes: dict[MediaName, MediaHash],
     matched_locals: set[MediaName],
 ) -> list[HashedMedia]:
     return [
@@ -253,7 +253,7 @@ def match_across_windows(
     windows: list[StepWindow],
     google_by_window: dict[int, list[PickedMediaItem]],
     media_names: list[MediaName],
-    local_hashes: dict[MediaName, LocalHash],
+    local_hashes: dict[MediaName, MediaHash],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> tuple[list[MatchResult], set[MediaName], set[GoogleMediaId]]:
     """Run Hungarian matching within each time window."""
@@ -283,7 +283,7 @@ def cross_step_fallback(  # noqa: PLR0913
     matched_locals: set[MediaName],
     matched_candidates: set[GoogleMediaId],
     media_names: list[MediaName],
-    local_hashes: dict[MediaName, LocalHash],
+    local_hashes: dict[MediaName, MediaHash],
     google_items: list[PickedMediaItem],
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
 ) -> None:

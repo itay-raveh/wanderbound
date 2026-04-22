@@ -36,8 +36,8 @@ from app.services.google_photos import (
 )
 
 from .phash_matching import (
-    LocalHash,
     MatchResult,
+    MediaHash,
     bucket_by_window,
     build_step_windows,
     compute_phash_from_bytes,
@@ -109,7 +109,7 @@ UpgradeEvent = Annotated[
 ]
 
 
-async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, LocalHash | None]:
+async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, MediaHash | None]:
     """Hash one local file. Photos: single pHash. Videos: 4 sampled frames."""
     path = album_dir / name
     if not path.exists():
@@ -182,7 +182,7 @@ async def run_matching(  # noqa: PLR0913
     ]
 
     # Phase 1: Hash local media (separate progress counter)
-    local_hashes: dict[MediaName, LocalHash] = {}
+    local_hashes: dict[MediaName, MediaHash] = {}
     local_total = len(media_names)
     local_tasks = [
         asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
