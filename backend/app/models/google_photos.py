@@ -10,7 +10,9 @@ from urllib.parse import urlparse
 
 from pydantic import AfterValidator, BaseModel, StringConstraints
 
-type GoogleMediaId = Annotated[str, StringConstraints(max_length=256)]
+type GoogleMediaId = Annotated[
+    str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$", max_length=256)
+]
 type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
 type MimeType = str
 type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
