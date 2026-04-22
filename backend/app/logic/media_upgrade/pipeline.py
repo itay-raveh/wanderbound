@@ -307,7 +307,7 @@ async def _persist_upgrade(
     try:
         async with AsyncSession(get_engine(), expire_on_commit=False) as session:
             album = await session.get_one(Album, (uid, aid))
-            album.media, album.upgraded_media = await apply_upgrade_results(
+            album.media, album.upgraded_media = await refresh_upgraded_media(
                 album_dir,
                 matches,
                 album.media,
@@ -444,14 +444,14 @@ async def run_upgrade(  # noqa: PLR0913, C901
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
 
 
-async def apply_upgrade_results(
+async def refresh_upgraded_media(
     album_dir: Path,
     matches: list[MatchResult],
     media: list[Media],
     upgraded_media: dict[MediaName, GoogleMediaId],
     succeeded: set[MediaName],
 ) -> tuple[list[Media], dict[MediaName, GoogleMediaId]]:
-    """Re-probe replaced files and update media list + upgrade map.
+    """Re-read replaced files from disk and update media list + upgrade map.
 
     Only files in *succeeded* are marked as upgraded. Files that failed
     download or were skipped (e.g. not larger) are left untouched so

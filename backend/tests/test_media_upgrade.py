@@ -34,7 +34,7 @@ from app.logic.media_upgrade.phash_matching import (
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     MatchInProgress,
-    apply_upgrade_results,
+    refresh_upgraded_media,
     run_matching,
 )
 from app.logic.media_upgrade.processing import (
@@ -321,7 +321,7 @@ class TestProcessVideo:
 
 
 # ---------------------------------------------------------------------------
-# apply_upgrade_results
+# refresh_upgraded_media
 # ---------------------------------------------------------------------------
 
 
@@ -332,7 +332,7 @@ class TestApplyUpgradeResults:
         old_media = [Media(name="photo1.jpg", width=800, height=600)]
         matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
 
-        new_media, new_upgraded = await apply_upgrade_results(
+        new_media, new_upgraded = await refresh_upgraded_media(
             tmp_path,
             matches,
             old_media,
@@ -350,7 +350,7 @@ class TestApplyUpgradeResults:
         old_media = [Media(name="photo1.jpg", width=800, height=600)]
         matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
 
-        new_media, new_upgraded = await apply_upgrade_results(
+        new_media, new_upgraded = await refresh_upgraded_media(
             tmp_path,
             matches,
             old_media,
@@ -366,7 +366,7 @@ class TestApplyUpgradeResults:
         old_media = [Media(name="photo1.jpg", width=800, height=600)]
         matches = [MatchResult(local_name="orphan.jpg", google_id="gid-1", distance=0)]
 
-        new_media, new_upgraded = await apply_upgrade_results(
+        new_media, new_upgraded = await refresh_upgraded_media(
             tmp_path,
             matches,
             old_media,
@@ -391,7 +391,7 @@ class TestApplyUpgradeResults:
             MatchResult(local_name="good.jpg", google_id="gid-good", distance=0),
         ]
 
-        new_media, new_upgraded = await apply_upgrade_results(
+        new_media, new_upgraded = await refresh_upgraded_media(
             tmp_path,
             matches,
             old_media,
@@ -413,7 +413,7 @@ class TestApplyUpgradeResults:
         matches = [MatchResult(local_name="new.jpg", google_id="gid-new", distance=0)]
         existing_upgraded = {"old.jpg": "gid-old"}
 
-        _, new_upgraded = await apply_upgrade_results(
+        _, new_upgraded = await refresh_upgraded_media(
             tmp_path,
             matches,
             old_media,
