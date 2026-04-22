@@ -18,11 +18,11 @@ const connectedUser = {
 
 /** SSE match events: progress -> summary with 2 of 3 matched. */
 const matchEvents = [
-  { type: "matching", phase: "matching", done: 1, total: 3 },
-  { type: "matching", phase: "matching", done: 2, total: 3 },
-  { type: "matching", phase: "matching", done: 3, total: 3 },
+  { type: "match_in_progress", phase: "matching", done: 1, total: 3 },
+  { type: "match_in_progress", phase: "matching", done: 2, total: 3 },
+  { type: "match_in_progress", phase: "matching", done: 3, total: 3 },
   {
-    type: "match_summary",
+    type: "match_completed",
     total_picked: 3,
     matched: 2,
     already_upgraded: 0,
@@ -34,17 +34,17 @@ const matchEvents = [
   },
 ];
 
-/** SSE upgrade events: progress -> done with all replaced. */
+/** SSE upgrade events: progress -> completed with all replaced. */
 const upgradeEvents = [
-  { type: "downloading", done: 1, total: 2 },
-  { type: "downloading", done: 2, total: 2 },
-  { type: "done", replaced: 2, skipped: 0, failed: 0 },
+  { type: "download_in_progress", done: 1, total: 2 },
+  { type: "download_in_progress", done: 2, total: 2 },
+  { type: "upgrade_completed", replaced: 2, skipped: 0, failed: 0 },
 ];
 
 /** SSE upgrade events where one file fails. */
 const upgradeEventsPartial = [
-  { type: "downloading", done: 1, total: 2 },
-  { type: "done", replaced: 1, skipped: 0, failed: 1 },
+  { type: "download_in_progress", done: 1, total: 2 },
+  { type: "upgrade_completed", replaced: 1, skipped: 0, failed: 1 },
 ];
 
 async function setupUpgradeRoutes(page: Page) {
@@ -386,7 +386,7 @@ test.describe("Media Upgrade", () => {
         return route.fulfill({
           status: 200,
           contentType: "text/event-stream",
-          body: sseBody([{ type: "error", detail: "connectionLost" }]),
+          body: sseBody([{ type: "upgrade_failed", detail: "connectionLost" }]),
         });
       }
       return route.fulfill({
@@ -450,10 +450,10 @@ test.describe("Media Upgrade", () => {
     });
 
     const round2MatchEvents = [
-      { type: "matching", phase: "matching", done: 1, total: 2 },
-      { type: "matching", phase: "matching", done: 2, total: 2 },
+      { type: "match_in_progress", phase: "matching", done: 1, total: 2 },
+      { type: "match_in_progress", phase: "matching", done: 2, total: 2 },
       {
-        type: "match_summary",
+        type: "match_completed",
         total_picked: 2,
         matched: 1,
         already_upgraded: 0,
@@ -479,10 +479,10 @@ test.describe("Media Upgrade", () => {
         status: 200,
         contentType: "text/event-stream",
         body: sseBody([
-          { type: "downloading", done: 1, total: 3 },
-          { type: "downloading", done: 2, total: 3 },
-          { type: "downloading", done: 3, total: 3 },
-          { type: "done", replaced: 3, skipped: 0, failed: 0 },
+          { type: "download_in_progress", done: 1, total: 3 },
+          { type: "download_in_progress", done: 2, total: 3 },
+          { type: "download_in_progress", done: 3, total: 3 },
+          { type: "upgrade_completed", replaced: 3, skipped: 0, failed: 0 },
         ]),
       }),
     );

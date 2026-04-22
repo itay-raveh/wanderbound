@@ -3,11 +3,11 @@ import { t } from "@/i18n";
 import {
   matchMedia,
   upgradeMedia,
-  type UpgradeDownloading,
-  type UpgradeDone,
-  type UpgradeError,
-  type UpgradeMatchSummary,
-  type UpgradeMatching,
+  type DownloadInProgress,
+  type MatchCompleted,
+  type MatchInProgress,
+  type UpgradeCompleted,
+  type UpgradeFailed,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
 import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
@@ -44,11 +44,11 @@ const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
 
 type MatchEvent =
-  | UpgradeMatching
-  | UpgradeDownloading
-  | UpgradeMatchSummary
-  | UpgradeDone
-  | UpgradeError;
+  | MatchInProgress
+  | DownloadInProgress
+  | MatchCompleted
+  | UpgradeCompleted
+  | UpgradeFailed;
 
 type ConfirmAction = "confirm" | "selectMore";
 
@@ -287,19 +287,19 @@ export function useMediaUpgrade() {
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
       switch (event.type) {
-        case "matching":
+        case "match_in_progress":
           if (event.phase === "preparing") phase.value = "preparing";
           else phase.value = "matching";
           progress.value = { done: event.done, total: event.total };
           break;
-        case "match_summary":
+        case "match_completed":
           round = {
             matches: event.matches,
             totalPicked: event.total_picked,
             alreadyUpgraded: event.already_upgraded,
           };
           break;
-        case "error":
+        case "upgrade_failed":
           throw new Error(event.detail);
       }
     }
@@ -326,10 +326,10 @@ export function useMediaUpgrade() {
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
       switch (event.type) {
-        case "downloading":
+        case "download_in_progress":
           progress.value = { done: event.done, total: event.total };
           break;
-        case "done": {
+        case "upgrade_completed": {
           const { replaced, skipped, failed } = event;
           progress.value = {
             done: replaced,
@@ -339,7 +339,7 @@ export function useMediaUpgrade() {
           receivedTerminal = true;
           break;
         }
-        case "error":
+        case "upgrade_failed":
           throw new Error(event.detail);
       }
     }

@@ -32,8 +32,8 @@ from app.logic.media_upgrade.phash_matching import (
     match_within_window,
 )
 from app.logic.media_upgrade.pipeline import (
-    UpgradeMatching,
-    UpgradeMatchSummary,
+    MatchCompleted,
+    MatchInProgress,
     apply_upgrade_results,
     run_matching,
 )
@@ -513,7 +513,7 @@ class TestRunMatching:
         ]
 
         summary = events[-1]
-        assert isinstance(summary, UpgradeMatchSummary)
+        assert isinstance(summary, MatchCompleted)
         assert summary.total_picked == 3
         assert summary.matched == 3
         assert summary.unmatched == 0
@@ -521,5 +521,5 @@ class TestRunMatching:
         assert {m.local_name for m in summary.matches} == set(names)
         assert {m.google_id for m in summary.matches} == {"gp-0", "gp-1", "gp-2"}
 
-        progress = [e for e in events[:-1] if isinstance(e, UpgradeMatching)]
+        progress = [e for e in events[:-1] if isinstance(e, MatchInProgress)]
         assert {e.phase for e in progress} == {"preparing", "matching"}

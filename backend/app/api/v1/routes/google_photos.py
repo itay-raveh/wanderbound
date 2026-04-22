@@ -31,8 +31,8 @@ from app.core.db import get_engine
 from app.core.locks import try_advisory_lock
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
-    UpgradeError,
     UpgradeEvent,
+    UpgradeFailed,
     run_matching,
     run_upgrade,
 )
@@ -409,7 +409,7 @@ async def match_media(
             logger.error(  # noqa: TRY400
                 "Matching failed for album %s: %s: %s", aid, type(exc).__name__, exc
             )
-            yield UpgradeError(detail="Matching failed unexpectedly.")
+            yield UpgradeFailed(detail="Matching failed unexpectedly.")
 
 
 class UpgradeRequest(BaseModel):

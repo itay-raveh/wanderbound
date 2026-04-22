@@ -65,21 +65,21 @@ def _hash_sem() -> asyncio.Semaphore:
     return asyncio.Semaphore(min(8, detect_cpu_count()))
 
 
-class UpgradeMatching(BaseModel):
-    type: Literal["matching"] = "matching"
+class MatchInProgress(BaseModel):
+    type: Literal["match_in_progress"] = "match_in_progress"
     phase: str
     done: int
     total: int
 
 
-class UpgradeDownloading(BaseModel):
-    type: Literal["downloading"] = "downloading"
+class DownloadInProgress(BaseModel):
+    type: Literal["download_in_progress"] = "download_in_progress"
     done: int
     total: int
 
 
-class UpgradeMatchSummary(BaseModel):
-    type: Literal["match_summary"] = "match_summary"
+class MatchCompleted(BaseModel):
+    type: Literal["match_completed"] = "match_completed"
     total_picked: int
     matched: int
     already_upgraded: int
@@ -87,24 +87,24 @@ class UpgradeMatchSummary(BaseModel):
     matches: list[MatchResult]
 
 
-class UpgradeDone(BaseModel):
-    type: Literal["done"] = "done"
+class UpgradeCompleted(BaseModel):
+    type: Literal["upgrade_completed"] = "upgrade_completed"
     replaced: int
     skipped: int
     failed: int
 
 
-class UpgradeError(BaseModel):
-    type: Literal["error"] = "error"
+class UpgradeFailed(BaseModel):
+    type: Literal["upgrade_failed"] = "upgrade_failed"
     detail: str
 
 
 UpgradeEvent = Annotated[
-    UpgradeMatching
-    | UpgradeDownloading
-    | UpgradeMatchSummary
-    | UpgradeDone
-    | UpgradeError,
+    MatchInProgress
+    | DownloadInProgress
+    | MatchCompleted
+    | UpgradeCompleted
+    | UpgradeFailed,
     Field(discriminator="type"),
 ]
 
@@ -191,7 +191,7 @@ async def run_matching(  # noqa: PLR0913
         name, h = await coro
         if h is not None:
             local_hashes[name] = h
-        yield UpgradeMatching(phase="preparing", done=i + 1, total=local_total)
+        yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
 
     # Phase 2: Download thumbnails and hash (progress scoped to picked items)
     candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
@@ -204,7 +204,7 @@ async def run_matching(  # noqa: PLR0913
         item_id, h = await coro
         if h is not None:
             candidate_hashes[item_id] = h
-        yield UpgradeMatching(phase="matching", done=i + 1, total=cand_total)
+        yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
 
     # Phase 3: Hungarian match within windows + cross-step fallback (CPU only)
     all_matches, matched_locals, matched_candidates = match_across_windows(
@@ -227,7 +227,7 @@ async def run_matching(  # noqa: PLR0913
         and already_upgraded[m.local_name] == m.google_id
     )
 
-    yield UpgradeMatchSummary(
+    yield MatchCompleted(
         total_picked=len(google_items),
         matched=len(all_matches),
         already_upgraded=already_upgraded_count,
@@ -373,7 +373,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
 
     try:
         if total == 0:
-            yield UpgradeDone(replaced=0, skipped=0, failed=0)
+            yield UpgradeCompleted(replaced=0, skipped=0, failed=0)
             return
 
         async with _upgrade_tmp(album_dir) as tmp_dir:
@@ -411,7 +411,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     name = await coro
                     if name:
                         succeeded.add(name)
-                    yield UpgradeDownloading(done=i + 1, total=total)
+                    yield DownloadInProgress(done=i + 1, total=total)
             finally:
                 for t in tasks:
                     t.cancel()
@@ -429,7 +429,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
                 len(failed_names),
                 ", ".join(failed_names),
             )
-        yield UpgradeDone(
+        yield UpgradeCompleted(
             replaced=len(succeeded),
             skipped=len(skipped_names),
             failed=len(failed_names),
@@ -438,7 +438,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
         logger.error(  # noqa: TRY400
             "Upgrade failed for album %s: %s: %s", aid, type(exc).__name__, exc
         )
-        yield UpgradeError(detail="Upgrade failed unexpectedly.")
+        yield UpgradeFailed(detail="Upgrade failed unexpectedly.")
     finally:
         await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
