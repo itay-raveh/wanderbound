@@ -149,7 +149,7 @@ try:
             f.write("</svg>\n")
 
     # 5. Export the master dictionary
-    json_path.write_text(json.dumps(bounds_dict, indent=2), encoding="utf-8")
+    json_path.write_text(json.dumps(bounds_dict, indent=2) + "\n", encoding="utf-8")
 
     print("Success! Your frontend assets are fully generated.")
 finally:

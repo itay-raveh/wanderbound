@@ -17,6 +17,7 @@ from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.http_clients import lifespan_clients
 from app.core.logging import SENTRY_IGNORED, setup_logging
+from app.logic.chunked_upload import upload_store
 from app.logic.export import lifespan as export_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
@@ -80,6 +81,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     async with (
         pdf_lifespan() as browser_manager,
         export_lifespan(),
+        upload_store.lifespan(),
         lifespan_clients() as http,
     ):
         app.state.browser_manager = browser_manager

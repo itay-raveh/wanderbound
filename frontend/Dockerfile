@@ -13,7 +13,7 @@ RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
 COPY ./PRIVACY.md ./TERMS.md /app/
-COPY --from=openapi /app/backend/openapi.json ./openapi.json
+COPY ./backend/openapi.json /app/backend/openapi.json
 
 ARG VITE_MAX_UPLOAD_GB
 ARG VITE_MAPBOX_TOKEN
@@ -28,7 +28,13 @@ ARG VITE_MICROSOFT_CLIENT_ID
 ARG APP_VERSION=0.0.0
 ENV APP_VERSION=${APP_VERSION}
 
-RUN bun run build
+ARG SENTRY_ORG
+ARG SENTRY_FRONTEND_PROJECT
+ENV SENTRY_ORG=${SENTRY_ORG}
+ENV SENTRY_FRONTEND_PROJECT=${SENTRY_FRONTEND_PROJECT}
+
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+    bun run build
 
 
 FROM nginx:1

@@ -62,6 +62,10 @@ function onUploaded(data: UploadResult) {
 }
 
 function onRetry() {
+  stream.start();
+}
+
+function onReupload() {
   stream.abort();
   uploadResult.value = null;
 }
@@ -129,6 +133,7 @@ function onDone() {
         :phase-done="stream.phaseDone.value"
         :error-detail="stream.errorDetail.value"
         @retry="onRetry"
+        @reupload="onReupload"
         @done="onDone"
       />
     </div>

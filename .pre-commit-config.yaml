@@ -46,6 +46,14 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: regen-openapi
+        name: regenerate backend/openapi.json
+        entry: scripts/regen-openapi.sh
+        language: script
+        files: ^backend/app/.*\.py$
+        pass_filenames: false
+        require_serial: true
+
       - id: eslint
         name: eslint
         entry: mise run lint:frontend

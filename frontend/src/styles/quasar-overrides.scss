@@ -100,28 +100,6 @@
   transform: scaleX(-1);
 }
 
-// QUploader
-.q-uploader__header {
-  background: transparent;
-  color: var(--text-faint);
-  border-bottom: none;
-  padding: var(--gap-md-lg) var(--gap-lg);
-}
-.q-uploader__subtitle {
-  color: var(--text-faint);
-}
-.q-uploader__title {
-  font-size: var(--type-sm);
-  font-weight: 500;
-}
-.q-uploader__list {
-  padding: var(--gap-md) var(--gap-lg);
-}
-.q-uploader:focus-visible {
-  outline: 0.125rem solid var(--q-primary);
-  outline-offset: 0.125rem;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .q-field--outlined .q-field__control::before {
     transition: none;

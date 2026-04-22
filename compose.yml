@@ -57,10 +57,7 @@ services:
         condition: service_healthy
         restart: true
     environment:
-      POSTGRES_SERVER: db
-      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
-      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY:?Variable not set}
       SECRET_KEY_PREVIOUS: ${SECRET_KEY_PREVIOUS:-}
       VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:-}
@@ -164,8 +161,6 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      additional_contexts:
-        - openapi=service:backend
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}

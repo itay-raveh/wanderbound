@@ -1,0 +1,3417 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Wanderbound",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/{provider}": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Authenticate",
+        "operationId": "authenticate",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "google",
+                "microsoft"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credential"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UserPublic"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Authenticate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/upload": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Upload Data",
+        "operationId": "upload_data",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/upload/init": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Init Chunked Upload",
+        "description": "Start a chunked upload session. Returns an opaque upload_id.",
+        "operationId": "init_chunked_upload",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_init_chunked_upload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Init Chunked Upload"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/upload/{upload_id}/{chunk_index}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Upload Chunk",
+        "description": "Stream a chunk body to disk without loading it into memory.\n\nNo per-request auth: the cryptographic upload_id (256-bit\n``secrets.token_urlsafe``) acts as a bearer token.  Ownership is\nverified when the session is finalized in ``complete_chunked_upload``.",
+        "operationId": "upload_chunk",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "chunk_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Chunk Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/upload/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Complete Chunked Upload",
+        "description": "Assemble chunks and process the ZIP.",
+        "operationId": "complete_chunked_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_complete_chunked_upload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/demo": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Create Demo",
+        "operationId": "create_demo",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Delete Demo",
+        "operationId": "delete_demo",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/users/process": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Process User",
+        "operationId": "process_user",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/TripStart"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PhaseUpdate"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ErrorData"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "trip_start": "#/components/schemas/TripStart",
+                        "phase": "#/components/schemas/PhaseUpdate",
+                        "error": "#/components/schemas/ErrorData"
+                      }
+                    }
+                  },
+                  "type": "array",
+                  "title": "Response 200 Process User"
+                },
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/export": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Export Data",
+        "operationId": "export_data",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ExportProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExportDone"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExportError"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "progress": "#/components/schemas/ExportProgress",
+                        "done": "#/components/schemas/ExportDone",
+                        "error": "#/components/schemas/ExportError"
+                      }
+                    }
+                  },
+                  "type": "array",
+                  "title": "Response 200 Export Data"
+                },
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/export/download/{token}": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Download Export",
+        "operationId": "download_export",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Read User",
+        "operationId": "read_user",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Delete User",
+        "operationId": "delete_user",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update User",
+        "operationId": "update_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/pdf/download/{token}": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Download Pdf",
+        "operationId": "download_pdf",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Album",
+        "operationId": "read_album",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMeta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Update Album",
+        "operationId": "update_album",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMeta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Media",
+        "operationId": "read_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Media"
+                  },
+                  "title": "Response Read Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/steps": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Steps",
+        "operationId": "read_steps",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Step"
+                  },
+                  "title": "Response Read Steps"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/segments": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Segments",
+        "operationId": "read_segments",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SegmentOutline"
+                  },
+                  "title": "Response Read Segments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/segments/points": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Segment Points",
+        "operationId": "read_segment_points",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "from_time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "From Time"
+            }
+          },
+          {
+            "name": "to_time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "To Time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Segment"
+                  },
+                  "title": "Response Read Segment Points"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/steps/{sid}": {
+      "patch": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Update Step",
+        "operationId": "update_step",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Step"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/segments/adjust-boundary": {
+      "patch": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Adjust Segment Boundary",
+        "operationId": "adjust_segment_boundary",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundaryAdjust"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SegmentOutline"
+                  },
+                  "title": "Response Adjust Segment Boundary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/print-bundle": {
+      "get": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Read Print Bundle",
+        "operationId": "read_print_bundle",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintBundle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/pdf/generate": {
+      "post": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Generate Pdf",
+        "operationId": "generate_pdf",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "dark",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Dark"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/PdfQueued"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfDone"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfError"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "queued": "#/components/schemas/PdfQueued",
+                        "progress": "#/components/schemas/PdfProgress",
+                        "done": "#/components/schemas/PdfDone",
+                        "error": "#/components/schemas/PdfError"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Generate Pdf"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media/{name}": {
+      "get": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Get Media",
+        "operationId": "get_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Update Video Frame",
+        "operationId": "update_video_frame",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Timestamp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/authorize": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Authorize",
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "nonce",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "title": "Nonce"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/callback": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Google Photos Callback",
+        "operationId": "google_photos_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/sessions": {
+      "post": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Create Session",
+        "operationId": "create_session",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickerSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Poll Session",
+        "operationId": "poll_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Close Session",
+        "operationId": "close_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/match/{aid}": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Match Media",
+        "operationId": "match_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PickerSessionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/MatchInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DownloadInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/MatchCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "match_in_progress": "#/components/schemas/MatchInProgress",
+                        "download_in_progress": "#/components/schemas/DownloadInProgress",
+                        "match_completed": "#/components/schemas/MatchCompleted",
+                        "upgrade_completed": "#/components/schemas/UpgradeCompleted",
+                        "upgrade_failed": "#/components/schemas/UpgradeFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Match Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/upgrade/{aid}": {
+      "post": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Upgrade Media",
+        "operationId": "upgrade_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/MatchInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DownloadInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/MatchCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "match_in_progress": "#/components/schemas/MatchInProgress",
+                        "download_in_progress": "#/components/schemas/DownloadInProgress",
+                        "match_completed": "#/components/schemas/MatchCompleted",
+                        "upgrade_completed": "#/components/schemas/UpgradeCompleted",
+                        "upgrade_failed": "#/components/schemas/UpgradeFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Upgrade Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/connection": {
+      "delete": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Disconnect",
+        "operationId": "disconnect",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Album": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Subtitle"
+          },
+          "hidden_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hidden Steps"
+          },
+          "hidden_headers": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "cover-front",
+                "cover-back",
+                "overview",
+                "full-map"
+              ]
+            },
+            "type": "array",
+            "title": "Hidden Headers"
+          },
+          "maps_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/DateRange"
+            },
+            "type": "array",
+            "title": "Maps Ranges"
+          },
+          "front_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Back Cover Photo"
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "Assistant"
+          },
+          "body_font": {
+            "type": "string",
+            "title": "Body Font",
+            "default": "Frank Ruhl Libre"
+          },
+          "safe_margin_mm": {
+            "type": "integer",
+            "title": "Safe Margin Mm",
+            "default": 5
+          },
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "colors": {
+            "patternProperties": {
+              "[a-zA-Z]{2}|00": {
+                "type": "string",
+                "pattern": "#[0-9a-fA-F]{6}"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
+          "upgraded_media": {
+            "patternProperties": {
+              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
+                "$ref": "#/components/schemas/GoogleMediaId"
+              }
+            },
+            "type": "object",
+            "title": "Upgraded Media"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            },
+            "type": "array",
+            "title": "Media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "subtitle",
+          "front_cover_photo",
+          "back_cover_photo",
+          "uid",
+          "id",
+          "colors"
+        ],
+        "title": "Album",
+        "description": "Full DB row. Only adds media - no relationships."
+      },
+      "AlbumMeta": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Subtitle"
+          },
+          "hidden_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hidden Steps"
+          },
+          "hidden_headers": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "cover-front",
+                "cover-back",
+                "overview",
+                "full-map"
+              ]
+            },
+            "type": "array",
+            "title": "Hidden Headers"
+          },
+          "maps_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/DateRange"
+            },
+            "type": "array",
+            "title": "Maps Ranges"
+          },
+          "front_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Back Cover Photo"
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "Assistant"
+          },
+          "body_font": {
+            "type": "string",
+            "title": "Body Font",
+            "default": "Frank Ruhl Libre"
+          },
+          "safe_margin_mm": {
+            "type": "integer",
+            "title": "Safe Margin Mm",
+            "default": 5
+          },
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "colors": {
+            "patternProperties": {
+              "[a-zA-Z]{2}|00": {
+                "type": "string",
+                "pattern": "#[0-9a-fA-F]{6}"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
+          "upgraded_media": {
+            "patternProperties": {
+              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
+                "$ref": "#/components/schemas/GoogleMediaId"
+              }
+            },
+            "type": "object",
+            "title": "Upgraded Media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "subtitle",
+          "front_cover_photo",
+          "back_cover_photo",
+          "uid",
+          "id",
+          "colors"
+        ],
+        "title": "AlbumMeta",
+        "description": "GET/PATCH response - everything except media."
+      },
+      "AlbumUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "hidden_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden Steps"
+          },
+          "hidden_headers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "cover-front",
+                    "cover-back",
+                    "overview",
+                    "full-map"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden Headers"
+          },
+          "maps_ranges": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DateRange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maps Ranges"
+          },
+          "front_cover_photo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back Cover Photo"
+          },
+          "font": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Font",
+            "default": "Assistant"
+          },
+          "body_font": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Font",
+            "default": "Frank Ruhl Libre"
+          },
+          "safe_margin_mm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safe Margin Mm",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "title": "AlbumUpdate"
+      },
+      "Body_complete_chunked_upload": {
+        "properties": {
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "google",
+                  "microsoft"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "title": "Body_complete_chunked_upload"
+      },
+      "Body_init_chunked_upload": {
+        "properties": {
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "google",
+                  "microsoft"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "title": "Body_init_chunked_upload"
+      },
+      "Body_upload_data": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "google",
+                  "microsoft"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_data"
+      },
+      "BoundaryAdjust": {
+        "properties": {
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "handle": {
+            "type": "string",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Handle"
+          },
+          "new_boundary_time": {
+            "type": "number",
+            "title": "New Boundary Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time",
+          "handle",
+          "new_boundary_time"
+        ],
+        "title": "BoundaryAdjust"
+      },
+      "Credential": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "Credential"
+      },
+      "DateRange": {
+        "prefixItems": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "string",
+            "format": "date"
+          }
+        ],
+        "type": "array",
+        "maxItems": 2,
+        "minItems": 2
+      },
+      "DownloadInProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "download_in_progress",
+            "title": "Type",
+            "default": "download_in_progress"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "DownloadInProgress"
+      },
+      "ErrorData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error",
+            "title": "Type",
+            "default": "error"
+          }
+        },
+        "type": "object",
+        "title": "ErrorData"
+      },
+      "ExportDone": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "done",
+            "title": "Type",
+            "default": "done"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "ExportDone"
+      },
+      "ExportError": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error",
+            "title": "Type",
+            "default": "error"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "ExportError"
+      },
+      "ExportProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "progress",
+            "title": "Type",
+            "default": "progress"
+          },
+          "files_done": {
+            "type": "integer",
+            "title": "Files Done"
+          },
+          "files_total": {
+            "type": "integer",
+            "title": "Files Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files_done",
+          "files_total"
+        ],
+        "title": "ExportProgress"
+      },
+      "GoogleMediaId": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthStatus": {
+        "properties": {
+          "db": {
+            "type": "boolean",
+            "title": "Db"
+          },
+          "disk": {
+            "type": "boolean",
+            "title": "Disk"
+          },
+          "playwright": {
+            "type": "boolean",
+            "title": "Playwright"
+          }
+        },
+        "type": "object",
+        "required": [
+          "db",
+          "disk",
+          "playwright"
+        ],
+        "title": "HealthStatus"
+      },
+      "Location": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "country_code": {
+            "type": "string",
+            "pattern": "[a-zA-Z]{2}|00",
+            "title": "Country Code"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "detail",
+          "country_code",
+          "lat",
+          "lon"
+        ],
+        "title": "Location"
+      },
+      "MatchCompleted": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "match_completed",
+            "title": "Type",
+            "default": "match_completed"
+          },
+          "total_picked": {
+            "type": "integer",
+            "title": "Total Picked"
+          },
+          "matched": {
+            "type": "integer",
+            "title": "Matched"
+          },
+          "already_upgraded": {
+            "type": "integer",
+            "title": "Already Upgraded"
+          },
+          "unmatched": {
+            "type": "integer",
+            "title": "Unmatched"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResult"
+            },
+            "type": "array",
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_picked",
+          "matched",
+          "already_upgraded",
+          "unmatched",
+          "matches"
+        ],
+        "title": "MatchCompleted"
+      },
+      "MatchInProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "match_in_progress",
+            "title": "Type",
+            "default": "match_in_progress"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done",
+          "total"
+        ],
+        "title": "MatchInProgress"
+      },
+      "MatchResult": {
+        "properties": {
+          "local_name": {
+            "type": "string",
+            "title": "Local Name"
+          },
+          "google_id": {
+            "$ref": "#/components/schemas/GoogleMediaId"
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "local_name",
+          "google_id",
+          "distance"
+        ],
+        "title": "MatchResult"
+      },
+      "Media": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "width",
+          "height"
+        ],
+        "title": "Media"
+      },
+      "PdfDone": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "done",
+            "title": "Type",
+            "default": "done"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PdfDone"
+      },
+      "PdfError": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error",
+            "title": "Type",
+            "default": "error"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "PdfError"
+      },
+      "PdfProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "progress",
+            "title": "Type",
+            "default": "progress"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "loading",
+              "rendering"
+            ],
+            "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done"
+        ],
+        "title": "PdfProgress"
+      },
+      "PdfQueued": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "queued",
+            "title": "Type",
+            "default": "queued"
+          }
+        },
+        "type": "object",
+        "title": "PdfQueued"
+      },
+      "PhaseUpdate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "phase",
+            "title": "Type",
+            "default": "phase"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ProcessingPhase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done",
+          "total"
+        ],
+        "title": "PhaseUpdate"
+      },
+      "PickerSessionId": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "PickerSessionResponse": {
+        "properties": {
+          "session_id": {
+            "$ref": "#/components/schemas/PickerSessionId"
+          },
+          "picker_uri": {
+            "type": "string",
+            "title": "Picker Uri"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "picker_uri"
+        ],
+        "title": "PickerSessionResponse"
+      },
+      "Point": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "time": {
+            "type": "number",
+            "title": "Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "time"
+        ],
+        "title": "Point"
+      },
+      "PrintBundle": {
+        "properties": {
+          "album": {
+            "$ref": "#/components/schemas/Album"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "total_distance_km": {
+            "type": "number",
+            "title": "Total Distance Km"
+          }
+        },
+        "type": "object",
+        "required": [
+          "album",
+          "steps",
+          "segments",
+          "total_distance_km"
+        ],
+        "title": "PrintBundle",
+        "description": "Everything needed for PDF rendering in one response."
+      },
+      "ProcessingPhase": {
+        "type": "string",
+        "enum": [
+          "elevations",
+          "weather",
+          "layouts"
+        ]
+      },
+      "Segment": {
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "aid": {
+            "type": "string",
+            "title": "Aid"
+          },
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SegmentKind"
+          },
+          "timezone_id": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Timezone Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "aid",
+          "start_time",
+          "end_time",
+          "kind",
+          "timezone_id",
+          "points"
+        ],
+        "title": "Segment"
+      },
+      "SegmentKind": {
+        "type": "string",
+        "enum": [
+          "flight",
+          "hike",
+          "walking",
+          "driving"
+        ],
+        "title": "SegmentKind"
+      },
+      "SegmentOutline": {
+        "properties": {
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SegmentKind"
+          },
+          "timezone_id": {
+            "type": "string",
+            "title": "Timezone Id"
+          },
+          "start_coord": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Start Coord"
+          },
+          "end_coord": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "End Coord"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time",
+          "kind",
+          "timezone_id",
+          "start_coord",
+          "end_coord"
+        ],
+        "title": "SegmentOutline",
+        "description": "Lightweight segment projection - no points or route."
+      },
+      "SessionStatusResponse": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready"
+        ],
+        "title": "SessionStatusResponse"
+      },
+      "Step": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover"
+          },
+          "pages": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "unused": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unused"
+          },
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "aid": {
+            "type": "string",
+            "title": "Aid"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "timezone_id": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Timezone Id"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "elevation": {
+            "type": "integer",
+            "title": "Elevation"
+          },
+          "weather": {
+            "$ref": "#/components/schemas/Weather"
+          },
+          "datetime": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Datetime",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "pages",
+          "unused",
+          "uid",
+          "aid",
+          "id",
+          "timestamp",
+          "timezone_id",
+          "location",
+          "elevation",
+          "weather",
+          "datetime"
+        ],
+        "title": "Step"
+      },
+      "StepUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages"
+          },
+          "unused": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unused"
+          }
+        },
+        "type": "object",
+        "title": "StepUpdate"
+      },
+      "TripMeta": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "step_count": {
+            "type": "integer",
+            "title": "Step Count"
+          },
+          "country_codes": {
+            "items": {
+              "type": "string",
+              "pattern": "[a-zA-Z]{2}|00"
+            },
+            "type": "array",
+            "title": "Country Codes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "step_count",
+          "country_codes"
+        ],
+        "title": "TripMeta"
+      },
+      "TripStart": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "trip_start",
+            "title": "Type",
+            "default": "trip_start"
+          },
+          "trip_index": {
+            "type": "integer",
+            "title": "Trip Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_index"
+        ],
+        "title": "TripStart"
+      },
+      "UpgradeCompleted": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "upgrade_completed",
+            "title": "Type",
+            "default": "upgrade_completed"
+          },
+          "replaced": {
+            "type": "integer",
+            "title": "Replaced"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "replaced",
+          "skipped",
+          "failed"
+        ],
+        "title": "UpgradeCompleted"
+      },
+      "UpgradeFailed": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "upgrade_failed",
+            "title": "Type",
+            "default": "upgrade_failed"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "UpgradeFailed"
+      },
+      "UpgradeRequest": {
+        "properties": {
+          "session_ids": {
+            "items": {
+              "$ref": "#/components/schemas/PickerSessionId"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Session Ids"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResult"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_ids",
+          "matches"
+        ],
+        "title": "UpgradeRequest"
+      },
+      "UploadResult": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/TripMeta"
+            },
+            "type": "array",
+            "title": "Trips"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "trips"
+        ],
+        "title": "UploadResult"
+      },
+      "UserPublic": {
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "First Name"
+          },
+          "locale": {
+            "type": "string",
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+            "title": "Locale"
+          },
+          "unit_is_km": {
+            "type": "boolean",
+            "title": "Unit Is Km"
+          },
+          "temperature_is_celsius": {
+            "type": "boolean",
+            "title": "Temperature Is Celsius"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "google_sub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Sub"
+          },
+          "microsoft_sub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Microsoft Sub"
+          },
+          "profile_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Image Url"
+          },
+          "living_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Location"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "album_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Album Ids",
+            "default": []
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "has_data": {
+            "type": "boolean",
+            "title": "Has Data",
+            "default": false
+          },
+          "google_photos_connected_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Photos Connected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first_name",
+          "locale",
+          "unit_is_km",
+          "temperature_is_celsius",
+          "id"
+        ],
+        "title": "UserPublic",
+        "description": "Safe-to-expose fields for API responses.\n\nSibling of User, not a parent. Both inherit from UserBase following\nthe official SQLModel multiple-models pattern."
+      },
+      "UserUpdate": {
+        "properties": {
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 5,
+            "minLength": 2,
+            "title": "Locale"
+          },
+          "unit_is_km": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Is Km"
+          },
+          "temperature_is_celsius": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Is Celsius"
+          }
+        },
+        "type": "object",
+        "title": "UserUpdate"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Weather": {
+        "properties": {
+          "day": {
+            "$ref": "#/components/schemas/WeatherData"
+          },
+          "night": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "day"
+        ],
+        "title": "Weather"
+      },
+      "WeatherData": {
+        "properties": {
+          "temp": {
+            "type": "number",
+            "title": "Temp"
+          },
+          "feels_like": {
+            "type": "number",
+            "title": "Feels Like"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "temp",
+          "feels_like",
+          "icon"
+        ],
+        "title": "WeatherData"
+      }
+    }
+  }
+}

@@ -20,8 +20,16 @@ from app.core.http import http_client
 from app.services.google_photos import GooglePhotosOAuth2
 
 
-def _elevation_weight(request: Request) -> int:
-    """Each coordinate in a batched elevation request counts as one API call."""
+def _open_meteo_weight(request: Request) -> int:
+    """Estimate how many API calls Open-Meteo will charge for this request.
+
+    Elevation is charged per coordinate in the batched lat/lon params.
+    Archive is charged per requested daily variable: the server multiplies each
+    variable into a separate billed call, which is invisible in our HTTP count.
+    """
+    if request.url.path.endswith("/v1/archive"):
+        daily = request.url.params.get("daily", "")
+        return daily.count(",") + 1 if daily else 1
     lat = request.url.params.get("latitude", "")
     return lat.count(",") + 1 if "," in lat else 1
 
@@ -52,7 +60,7 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
             open_meteo=await enter(
                 http_client(
                     limiter=AsyncLimiter(480, 60),
-                    weight_fn=_elevation_weight,
+                    weight_fn=_open_meteo_weight,
                 )
             ),
             # Overpass public endpoint: ~2 req/s fair-use policy.

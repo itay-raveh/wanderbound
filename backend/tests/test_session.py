@@ -11,6 +11,7 @@ from app.logic.session import (
     process_stream,
 )
 from app.logic.trip_processing import (
+    ErrorData,
     PhaseUpdate,
     ProcessingEvent,
     TripStart,
@@ -109,6 +110,28 @@ class TestProcessStream:
 
         assert call_count == 1  # Only one processing run
         assert first == second  # Replayed same events
+
+    async def test_failed_session_retries_with_fresh_run(self) -> None:
+        call_count = 0
+
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield ErrorData()
+            else:
+                yield TripStart(trip_index=0)
+
+        user = _mock_user(uid=11)
+        with patch("app.logic.session.run_processing", fake_processing):
+            first = await collect_async(process_stream(_MOCK_HTTP, user))
+            second = await collect_async(process_stream(_MOCK_HTTP, user))
+
+        assert call_count == 2  # Fresh run after error, not replay
+        assert first == [ErrorData()]
+        assert second == [TripStart(trip_index=0)]
 
     async def test_concurrent_same_user_shares_session(self) -> None:
         gate = asyncio.Event()
