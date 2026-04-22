@@ -1,0 +1,33 @@
+@mixin action-button {
+  .action-btn {
+    font-family: var(--font-ui);
+    font-size: var(--type-sm);
+    font-weight: 500;
+    color: var(--q-primary);
+    border: 1px solid var(--q-primary);
+    padding: var(--gap-sm) var(--gap-md-lg);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-sm);
+    min-height: 2.75rem;
+    white-space: nowrap;
+    transition:
+      background var(--duration-fast),
+      color var(--duration-fast),
+      border-color var(--duration-fast);
+
+    &:hover:not([aria-disabled]):not(.running) {
+      background: var(--q-primary);
+      color: var(--bg);
+    }
+
+    &:focus-visible {
+      outline: 0.125rem solid var(--q-primary);
+      outline-offset: 0.125rem;
+    }
+  }
+}
