@@ -1,4 +1,5 @@
 import { onScopeDispose, ref, watchEffect } from "vue";
+import { useLocalStorage } from "@vueuse/core";
 import { t } from "@/i18n";
 import {
   matchMedia,
@@ -55,6 +56,7 @@ type ConfirmAction = "confirm" | "selectMore";
 export function useMediaUpgrade() {
   const gp = useGooglePhotos();
   const cache = useQueryCache();
+  const onboarded = useLocalStorage<boolean>(MEDIA_UPGRADE_ONBOARDED_KEY, false);
 
   const phase = ref<UpgradePhase>("idle");
   const progress = ref<UpgradeProgress>({ done: 0, total: 0 });
@@ -113,10 +115,10 @@ export function useMediaUpgrade() {
 
     try {
       // Step 1: Onboarding (first time only)
-      if (!localStorage.getItem(MEDIA_UPGRADE_ONBOARDED_KEY)) {
+      if (!onboarded.value) {
         phase.value = "onboarding";
         await waitForConfirmation(signal);
-        localStorage.setItem(MEDIA_UPGRADE_ONBOARDED_KEY, "1");
+        onboarded.value = true;
       }
 
       // For already-onboarded users, open popup from the button click gesture.

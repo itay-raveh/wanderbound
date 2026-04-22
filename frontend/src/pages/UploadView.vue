@@ -1,6 +1,7 @@
 <script lang="ts" setup>
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { useSessionStorage } from "@vueuse/core";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
 import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
@@ -13,11 +14,11 @@ import DataInstructions from "@/components/register/DataInstructions.vue";
 import ZipUploader from "@/components/register/ZipUploader.vue";
 import UnsupportedBanner from "@/components/register/UnsupportedBanner.vue";
 import ProcessingProgress from "@/components/register/ProcessingProgress.vue";
+import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 
 useMeta({ title: "Upload" });
 
 const { t } = useI18n();
-import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 
 const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
@@ -40,7 +41,10 @@ const pageState = computed<UploadState>(() => {
   return "reupload";
 });
 
-const uploadResult = ref<UploadResult | null>(null);
+const uploadResult = useSessionStorage<UploadResult | null>(
+  UPLOAD_RESULT_KEY,
+  null,
+);
 const stream = useTripProcessingStream();
 
 const heroName = computed(
@@ -48,20 +52,11 @@ const heroName = computed(
 );
 
 onMounted(() => {
-  try {
-    const stored = sessionStorage.getItem(UPLOAD_RESULT_KEY);
-    if (stored) {
-      uploadResult.value = JSON.parse(stored) as UploadResult;
-      stream.start();
-    }
-  } catch {
-    sessionStorage.removeItem(UPLOAD_RESULT_KEY);
-  }
+  if (uploadResult.value) stream.start();
 });
 
 function onUploaded(data: UploadResult) {
   uploadResult.value = data;
-  sessionStorage.setItem(UPLOAD_RESULT_KEY, JSON.stringify(data));
   clearAuth();
   stream.start();
 }
@@ -69,11 +64,10 @@ function onUploaded(data: UploadResult) {
 function onRetry() {
   stream.abort();
   uploadResult.value = null;
-  sessionStorage.removeItem(UPLOAD_RESULT_KEY);
 }
 
 function onDone() {
-  sessionStorage.removeItem(UPLOAD_RESULT_KEY);
+  uploadResult.value = null;
   void router.push({ name: "editor" });
 }
 </script>

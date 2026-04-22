@@ -120,7 +120,7 @@ test.describe("Media Upgrade", () => {
 
     // Skip onboarding
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
 
@@ -169,7 +169,7 @@ test.describe("Media Upgrade", () => {
     await setupUpgradeRoutes(page);
 
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
     await mockPopup(page);
@@ -257,7 +257,7 @@ test.describe("Media Upgrade", () => {
   }) => {
     await setupUpgradeRoutes(page);
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
     await mockPopup(page);
@@ -306,7 +306,7 @@ test.describe("Media Upgrade", () => {
     });
 
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
     await mockPopup(page);
@@ -337,7 +337,7 @@ test.describe("Media Upgrade", () => {
     await blockPopup(page);
     // Skip onboarding so the start() path opens the popup directly
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
 
@@ -397,7 +397,7 @@ test.describe("Media Upgrade", () => {
     });
 
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
     await mockPopup(page);
@@ -492,7 +492,7 @@ test.describe("Media Upgrade", () => {
     );
 
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "1"),
+      ([key]) => localStorage.setItem(key, "true"),
       [MEDIA_UPGRADE_ONBOARDED_KEY],
     );
     await mockPopup(page);

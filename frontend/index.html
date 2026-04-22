@@ -27,6 +27,19 @@
     <link rel="preconnect" href="https://tiles.mapbox.com" crossorigin>
   </head>
   <body>
+    <script>
+      // Apply dark mode before Vue hydrates to prevent a white flash.
+      // Mirrors the resolution in `useDarkMode`; Vue takes over reactively after mount.
+      (function () {
+        var pref = localStorage.getItem("dark-mode") || "system";
+        var dark =
+          pref === '"dark"' ||
+          pref === "dark" ||
+          ((pref === '"system"' || pref === "system") &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.body.classList.add(dark ? "body--dark" : "body--light");
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

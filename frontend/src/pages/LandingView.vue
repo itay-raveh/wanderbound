@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { authenticate, createDemo, readUser } from "@/client";
+import type { UploadResult } from "@/client";
 import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
@@ -8,6 +9,7 @@ import { setAuthState, type Provider } from "@/router";
 import {
   usePreferredReducedMotion,
   useIntersectionObserver,
+  useSessionStorage,
 } from "@vueuse/core";
 import { useQuasar } from "quasar";
 import { computed, onMounted, onUnmounted, ref } from "vue";
@@ -63,11 +65,16 @@ async function onMicrosoftLogin() {
 
 const demoLoading = ref(false);
 
+const uploadResult = useSessionStorage<UploadResult | null>(
+  UPLOAD_RESULT_KEY,
+  null,
+);
+
 async function onTryDemo() {
   demoLoading.value = true;
   try {
     const { data } = await createDemo({ throwOnError: true });
-    sessionStorage.setItem(UPLOAD_RESULT_KEY, JSON.stringify(data));
+    uploadResult.value = data ?? null;
     await router.push({ name: "upload" });
   } catch {
     $q.notify({ type: "negative", message: t("login.signInFailed") });

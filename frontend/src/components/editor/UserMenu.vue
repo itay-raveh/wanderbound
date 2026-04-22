@@ -14,15 +14,18 @@ import {
   matPerson,
   matLightMode,
   matDarkMode,
+  matBrightnessAuto,
   matDeleteOutline,
   matDownload,
   matSettings,
   matLogout,
   matUploadFile,
 } from "@quasar/extras/material-icons";
+import { useDarkMode } from "@/composables/useDarkMode";
 import { useDataExport } from "@/composables/useDataExport";
 
 const router = useRouter();
+const darkMode = useDarkMode();
 const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } =
   useUserQuery();
 const { mutate: patch } = useUserMutation();
@@ -118,17 +121,21 @@ async function handleDelete() {
           <!-- Appearance -->
           <section class="card-section">
             <SegmentedControl
-              :model-value="$q.dark.isActive"
+              v-model="darkMode"
               :options="[
                 {
                   label: t('settings.light'),
-                  value: false,
+                  value: 'light',
                   icon: matLightMode,
                 },
-                { label: t('settings.dark'), value: true, icon: matDarkMode },
+                {
+                  label: t('settings.system'),
+                  value: 'system',
+                  icon: matBrightnessAuto,
+                },
+                { label: t('settings.dark'), value: 'dark', icon: matDarkMode },
               ]"
               :aria-label="t('settings.appearance')"
-              @update:model-value="$q.dark.set($event)"
             />
           </section>
 
