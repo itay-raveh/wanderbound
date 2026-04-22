@@ -13,7 +13,9 @@ from pydantic import AfterValidator, BaseModel, StringConstraints
 type GoogleMediaId = Annotated[
     str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$", max_length=256)
 ]
-type PickerSessionId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$")]
+type PickerSessionId = Annotated[
+    str, StringConstraints(pattern=r"^[A-Za-z0-9._-]+$", max_length=256)
+]
 type MimeType = str
 type GoogleMediaType = Literal["TYPE_UNSPECIFIED", "PHOTO", "VIDEO"]
 type VideoProcessingStatus = Literal["READY", "PROCESSING", "FAILED"]
