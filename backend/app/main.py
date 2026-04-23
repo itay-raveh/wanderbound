@@ -113,7 +113,7 @@ app.add_middleware(
     secret_key=settings.SECRET_KEY,
     session_cookie="session",
     max_age=30 * 86400,  # 30 days
-    same_site="strict",
+    same_site="lax",
     https_only=settings.ENVIRONMENT != "local",
 )
 
