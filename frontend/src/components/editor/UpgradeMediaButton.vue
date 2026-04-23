@@ -59,11 +59,11 @@ const progressMessage = computed(() => {
     case "picking":
       return t("upgrade.picking");
     case "preparing":
-      return t("upgrade.preparing", { done, total });
     case "matching":
-      return t("upgrade.matching", { done, total });
-    case "downloading":
-      return t("upgrade.downloading", { done, total });
+    case "downloading": {
+      const base = t(`upgrade.${p}`);
+      return done > 0 ? `${base} ${done}/${total}` : base;
+    }
     default:
       return "";
   }

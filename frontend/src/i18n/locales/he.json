@@ -1,13 +1,11 @@
 {
   "brand": "Wanderbound",
   "tagline": "העלו את הטיול מ-{polarsteps} וקבלו אלבום מוכן להדפסה",
-
   "common": {
     "loadingAlbum": "טוען אלבום...",
     "retry": "נסו שוב.",
     "cancel": "ביטול"
   },
-
   "units": {
     "km": "ק״מ",
     "mi": "מייל",
@@ -16,12 +14,10 @@
     "masl": "מ׳ מעל פני הים",
     "ftAsl": "רגל מעל פני הים"
   },
-
   "duration": {
     "hours": "{n} שעות",
     "days": "{n} ימים"
   },
-
   "phase": {
     "label": {
       "elevations": "ממפה שטח",
@@ -34,7 +30,6 @@
       "layouts": "מסדר את התמונות בעמודים..."
     }
   },
-
   "landing": {
     "autoAlbumTitle": "תמונות מסודרות אוטומטית",
     "autoAlbumBody": "אנחנו מסדרים את כל התמונות שלכם מ-{polarsteps} בעמודים מאוזנים, שלא תצטרכו להתחיל לגרור אחת אחת.",
@@ -48,13 +43,11 @@
     "ctaTitle": "מגיע לטיול שלכם אלבום אמיתי",
     "ctaBody": "התמונות, המסלולים והסיפורים סתם שוכבים ב-{polarsteps}. הפכו אותם לאלבום שתדפדפו בו."
   },
-
   "login": {
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
     "signInFailed": "ההתחברות נכשלה. @:common.retry"
   },
-
   "register": {
     "getDataTitle": "הורידו את המידע מ-Polarsteps",
     "getDataStep1": "נכנסים ל-{link}",
@@ -90,7 +83,6 @@
     "dropZone": "גררו את הקובץ לכאן או לחצו לבחירה",
     "getDataGuide": "למדריך המפורט של Polarsteps"
   },
-
   "editor": {
     "toolbar": "כלים",
     "exportPdf": "הורדת PDF",
@@ -100,7 +92,6 @@
     "safeMargin": "שוליים בטוחים",
     "zoom": "זום"
   },
-
   "settings": {
     "menu": "תפריט",
     "appearance": "מראה",
@@ -116,14 +107,12 @@
     "deleteAll": "מחיקת כל הנתונים",
     "deleteFailed": "לא הצלחנו למחוק את הנתונים. @:common.retry"
   },
-
   "delete": {
     "title": "למחוק הכול?",
     "body": "כל הנתונים והאלבומים יימחקו לצמיתות. תצטרכו להעלות מחדש כדי להמשיך.",
     "confirm": "מחיקת הכול",
     "deleting": "מוחק..."
   },
-
   "album": {
     "day": "יום {n}",
     "stepNamePlaceholder": "שם הצעד...",
@@ -146,12 +135,10 @@
     "tripRouteMap": "מפת מסלול הטיול",
     "playVideo": "הפעלת סרטון"
   },
-
   "hike": {
     "mapLabel": "מפת מסלול טרק",
     "elevationProfile": "פרופיל גובה"
   },
-
   "overview": {
     "title": "סקירת הטיול",
     "coldest": "הכי קר",
@@ -159,16 +146,13 @@
     "highest": "הכי גבוה",
     "furthestFromHome": "הכי רחוק מהבית"
   },
-
   "inspector": {
     "overview": "סיכום"
   },
-
   "export": {
     "preparing": "מכין...",
     "progress": "מייצא... {done} / {total} קבצים"
   },
-
   "error": {
     "loadAlbum": "טעינת האלבום נכשלה:",
     "updatePreference": "לא הצלחנו לשמור את ההעדפה. @:common.retry",
@@ -181,7 +165,6 @@
     "connectionFailed": "החיבור נותק. @:common.retry",
     "adjustBoundary": "לא הצלחנו לשנות את הגבול. @:common.retry"
   },
-
   "pdf": {
     "queued": "ממתין בתור...",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
@@ -190,7 +173,6 @@
     "ready": "מוכן",
     "cancel": "ביטול"
   },
-
   "footer": {
     "privacy": "פרטיות",
     "terms": "תנאים",
@@ -199,7 +181,6 @@
     "disclaimerIndependent": "Wanderbound הוא פרויקט עצמאי, ללא קשר ל-Polarsteps.",
     "disclaimerRecommendation": "אם האלבום הרשמי של Polarsteps מתאים לכם, השתמשו בו."
   },
-
   "shortcuts": {
     "title": "קיצורי מקלדת",
     "navigatePhotos": "ניווט בין תמונות",
@@ -209,7 +190,6 @@
     "undo": "ביטול",
     "redo": "חזרה"
   },
-
   "nav": {
     "steps": "צעדים",
     "cover": "שער",
@@ -231,18 +211,15 @@
     "filterCleared": "הסינון נוקה",
     "inspector": "מאפיינים"
   },
-
   "screen": {
     "title": "צריך מסך גדול יותר",
     "body": "האפליקציה בנויה למחשב או טאבלט לרוחב."
   },
-
   "demo": {
     "tryButton": "נסו עם אלבום דוגמה",
     "bannerText": "אתם מעיינים באלבום דוגמה",
     "bannerCta": "התחברו עם הטיול שלכם"
   },
-
   "quality": {
     "cautionTooltip": "עלולה להיראות מעט רכה בהדפסה (~{dpi} DPI, מומלץ 100+)",
     "warningTooltip": "צפויה להיראות מטושטשת בהדפסה (~{dpi} DPI, מומלץ 100+)",
@@ -253,19 +230,18 @@
     "exportCancel": "חזרה",
     "exportConfirm": "ייצוא בכל זאת"
   },
-
   "upgrade": {
     "button": "שדרוג מדיה",
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
-      "body": "Polarsteps מפקסלים את התמונות והסרטונים שלכם. חברו את Google Photos כדי להחליף אותם במקוריים.",
-      "tip": "כדי לבחור תמונות רבות בקלות, מומלץ ליצור אלבום ב-Google Photos.",
+      "body": "החליפו את התמונות המפוקסלות שלכם מ-Polarsteps.",
+      "tip": "בטיולים גדולים, רכזו את התמונות קודם באלבום ב-Google Photos.",
       "continue": "חיבור Google Photos"
     },
     "authorizing": "מתחבר ל-Google Photos...",
     "picking": "ממתין לבחירה...",
-    "preparing": "מנתח אלבום {done}/{total}",
-    "matching": "מתאים {done}/{total}",
+    "preparing": "מנתח אלבום",
+    "matching": "מתאים",
     "summary": {
       "readyTitle": "קובץ אחד מוכן לשדרוג | {count} קבצים מוכנים לשדרוג",
       "noMatchTitle": "לא נמצאו התאמות",
@@ -278,7 +254,7 @@
       "confirm": "שדרגו קובץ אחד | שדרגו {count} קבצים",
       "selectMore": "בחרו עוד"
     },
-    "downloading": "מוריד {done}/{total}",
+    "downloading": "מוריד",
     "done": "שודרג קובץ אחד לאיכות מקורית | שודרגו {replaced} קבצים לאיכות מקורית",
     "doneSkipped": "שודרג קובץ אחד, {skipped} כבר באיכות מלאה | שודרגו {replaced} קבצים, {skipped} כבר באיכות מלאה",
     "donePartial": "שודרגו {replaced} מתוך קובץ אחד | שודרגו {replaced} מתוך {total} קבצים",
