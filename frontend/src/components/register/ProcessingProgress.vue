@@ -235,17 +235,6 @@ watch(
   animation: scaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
-@keyframes scaleIn {
-  from {
-    transform: scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 .done-btn {
   animation: ctaGlow 0.8s ease-out 0.4s both;
   transition:
