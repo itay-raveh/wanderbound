@@ -39,8 +39,8 @@ defineEmits<{
       <h3 :id="`${id}-title`" class="prompt-title text-weight-semibold text-bright">
         {{ title }}
       </h3>
-      <p v-if="body" :id="`${id}-body`" class="prompt-text text-body2 text-muted">{{ body }}</p>
-      <p v-if="tip" class="prompt-tip text-body2 text-faint">{{ tip }}</p>
+      <p v-if="body" :id="`${id}-body`" class="prompt-text text-muted">{{ body }}</p>
+      <p v-if="tip" class="prompt-tip text-faint">{{ tip }}</p>
       <div class="prompt-actions">
         <q-btn v-close-popup flat no-caps class="text-body2 cancel-btn">{{
           cancelLabel
@@ -75,7 +75,7 @@ defineEmits<{
 <style lang="scss" scoped>
 .prompt-dialog {
   padding: 1.75rem;
-  max-width: 26rem;
+  max-width: 32rem;
 }
 
 .prompt-icon {
@@ -106,13 +106,14 @@ defineEmits<{
 }
 
 .prompt-text {
+  font-size: var(--type-md);
   line-height: 1.5;
   white-space: pre-line;
   margin: 0 0 var(--gap-lg);
 }
 
 .prompt-tip {
-  font-size: var(--type-xs);
+  font-size: var(--type-sm);
   margin: calc(var(--gap-lg) * -1) 0 var(--gap-lg);
 }
 
