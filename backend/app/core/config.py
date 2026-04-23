@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
     VITE_FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = ""
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
@@ -79,6 +80,12 @@ class Settings(BaseSettings):
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
     MAX_STORAGE_BYTES: int = 0
+
+    @model_validator(mode="after")
+    def _default_frontend_url(self) -> Self:
+        if not self.FRONTEND_URL:
+            self.FRONTEND_URL = self.VITE_FRONTEND_URL
+        return self
 
     @model_validator(mode="after")
     def _detect_storage_cap(self) -> Self:
