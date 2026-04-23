@@ -22,6 +22,7 @@ Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
 maps, photo pages - that you can edit in the browser and export to PDF.
 
 - Photo layout algorithm packs images into grids, with drag-and-drop reordering
+- Upgrade low-resolution Polarsteps photos with originals from Google Photos
 - GPS tracks classified into flights, hikes, drives, and walks - add map pages
   with satellite imagery and elevation profiles
 - Videos in albums - scrub frame-by-frame to pick a poster image
@@ -41,7 +42,7 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 | **Backend**       | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
 | **Frontend**      | Vue 3, TypeScript, Quasar, Mapbox GL JS                              |
 | **Database**      | PostgreSQL 18                                                        |
-| **External APIs** | Open-Meteo (elevations + weather), Mapbox (tiles + routing)          |
+| **External APIs** | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
 
 ## Self-Hosting
 
