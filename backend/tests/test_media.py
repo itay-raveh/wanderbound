@@ -6,8 +6,8 @@ from PIL import Image
 
 from app.logic.layout.media import (
     Media,
-    _frame_to_oriented_image,
     delete_thumbnails,
+    frame_to_oriented_image,
     generate_thumbnail,
 )
 from tests.factories import create_test_jpeg
@@ -72,7 +72,7 @@ class TestFrameOrientation:
         original = Image.new("RGB", (100, 50), "red")
         fake_frame = SimpleNamespace(rotation=rotation, to_image=lambda: original)
 
-        out = _frame_to_oriented_image(fake_frame)
+        out = frame_to_oriented_image(fake_frame)
         assert out.size == expected_size
 
 

@@ -18,6 +18,7 @@ from app.logic.layout.media import (
     Media,
     delete_thumbnails,
     extract_frame,
+    frame_to_oriented_image,
     open_oriented,
 )
 
@@ -137,7 +138,9 @@ async def process_video(input_path: Path, output: Path) -> None:
         raise RuntimeError(msg)
 
 
-_VIDEO_SAMPLE_POINTS = (0.10, 0.30, 0.50, 0.70)
+# Frame-to-video matching is a known hard problem. Best-effort based on:
+# https://web.stanford.edu/~bgirod/pdfs/AraujoTransCSVT2018.pdf
+_VIDEO_SAMPLE_POINTS = tuple(i / 21 for i in range(1, 21))
 
 
 def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
@@ -151,7 +154,7 @@ def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
             container.seek(int(ts * av.time_base))
             for frame in container.decode(stream):
                 if frame.time is not None and frame.time >= ts:
-                    hashes.append(imagehash.phash(frame.to_image()))
+                    hashes.append(imagehash.phash(frame_to_oriented_image(frame)))
                     break
     return hashes
 

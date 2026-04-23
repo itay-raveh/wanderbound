@@ -153,7 +153,7 @@ _ROTATION_TRANSPOSE = {
 }
 
 
-def _frame_to_oriented_image(frame: av.VideoFrame) -> Image.Image:
+def frame_to_oriented_image(frame: av.VideoFrame) -> Image.Image:
     # to_image() ignores displaymatrix, so portrait phone videos save sideways.
     # https://github.com/PyAV-Org/PyAV/discussions/1676
     img = frame.to_image()
@@ -170,7 +170,7 @@ def _extract_frame_sync(video: Path, timestamp: float) -> Path:
         container.seek(int(timestamp * av.time_base))
         for frame in container.decode(stream):
             if frame.time is not None and frame.time >= timestamp:
-                _frame_to_oriented_image(frame).save(frame_path, "JPEG", quality=85)
+                frame_to_oriented_image(frame).save(frame_path, "JPEG", quality=85)
                 return frame_path
     # ts beyond duration: fall back to last frame.
     with av.open(str(video)) as container:
@@ -179,7 +179,7 @@ def _extract_frame_sync(video: Path, timestamp: float) -> Path:
             last = frame
         if last is None:
             raise RuntimeError(f"No frames in {video}")
-        _frame_to_oriented_image(last).save(frame_path, "JPEG", quality=85)
+        frame_to_oriented_image(last).save(frame_path, "JPEG", quality=85)
         return frame_path
 
 
