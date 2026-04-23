@@ -202,8 +202,7 @@ export function useMediaUpgrade() {
       try {
         activePopup = openPopup();
       } catch {
-        phase.value = "error";
-        errorDetail.value = UPGRADE_ERRORS.popupBlocked;
+        confirmReject?.(new Error(UPGRADE_ERRORS.popupBlocked));
         return;
       }
     }
@@ -211,12 +210,10 @@ export function useMediaUpgrade() {
   }
 
   function selectMore() {
-    // Open popup from the user's click gesture to avoid popup blockers.
     try {
       activePopup = openPopup();
     } catch {
-      phase.value = "error";
-      errorDetail.value = UPGRADE_ERRORS.popupBlocked;
+      confirmReject?.(new Error(UPGRADE_ERRORS.popupBlocked));
       return;
     }
     confirmResolve?.("selectMore");
