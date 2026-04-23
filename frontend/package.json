@@ -18,7 +18,7 @@
     "test:e2e": "bun run ensure:client && playwright test",
     "test:e2e:headed": "bun run ensure:client && playwright test --headed",
     "test:smoke": "bun run ensure:client && playwright test --config playwright.smoke.config.ts",
-    "lint": "bun run ensure:client && eslint . --fix",
+    "lint": "bun run ensure:client && vue-tsc -b tsconfig.app.json tsconfig.node.json && eslint . --fix",
     "format": "prettier --write src/"
   },
   "dependencies": {
