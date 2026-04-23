@@ -10,6 +10,7 @@ from secrets import randbelow
 from typing import Annotated, Any, cast
 from zipfile import BadZipFile
 
+import httpx
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -22,6 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, Response
 from fastapi.sse import EventSourceResponse
+from httpx_oauth.oauth2 import RevokeTokenError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import ClientDisconnect
@@ -383,9 +385,16 @@ async def create_demo(
     return UploadResult(user=UserPublic.model_validate(user), trips=list(trips))
 
 
-async def _remove_user(user: User, session: SessionDep, request: Request) -> None:
+async def _remove_user(
+    user: User, session: SessionDep, request: Request, http: HttpClientsDep
+) -> None:
     cancel_session(user.id)
     folder = user.folder
+    if user.google_photos_refresh_token:
+        try:
+            await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
+        except (RevokeTokenError, httpx.HTTPError) as exc:
+            logger.warning("Token revoke failed on delete: %s", type(exc).__name__)
     await session.delete(user)
     await session.commit()
     await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
@@ -398,10 +407,11 @@ async def delete_demo(
     user: UserDep,
     session: SessionDep,
     request: Request,
+    http: HttpClientsDep,
 ) -> None:
     if not user.is_demo:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not a demo user")
-    await _remove_user(user, session, request)
+    await _remove_user(user, session, request, http)
 
 
 @router.get(
@@ -454,5 +464,7 @@ async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) ->
 
 
 @router.delete("")
-async def delete_user(user: UserDep, session: SessionDep, request: Request) -> None:
-    await _remove_user(user, session, request)
+async def delete_user(
+    user: UserDep, session: SessionDep, request: Request, http: HttpClientsDep
+) -> None:
+    await _remove_user(user, session, request, http)
