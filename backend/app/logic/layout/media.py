@@ -140,6 +140,21 @@ def _video_duration_sync(path: Path) -> float:
         return container.duration / av.time_base
 
 
+_ROTATION_TRANSPOSE = {
+    90: Image.Transpose.ROTATE_90,
+    180: Image.Transpose.ROTATE_180,
+    270: Image.Transpose.ROTATE_270,
+}
+
+
+def _frame_to_oriented_image(frame: av.VideoFrame) -> Image.Image:
+    # to_image() ignores displaymatrix, so portrait phone videos save sideways.
+    # https://github.com/PyAV-Org/PyAV/discussions/1676
+    img = frame.to_image()
+    t = _ROTATION_TRANSPOSE.get(int(frame.rotation) % 360)
+    return img.transpose(t) if t else img
+
+
 def _extract_frame_sync(video: Path, timestamp: float) -> Path:
     # Seek backward to keyframe, decode forward to reach exact timestamp.
     # https://pyav.basswood-io.com/docs/stable/api/container.html#av.container.InputContainer.seek
@@ -149,7 +164,7 @@ def _extract_frame_sync(video: Path, timestamp: float) -> Path:
         container.seek(int(timestamp * av.time_base))
         for frame in container.decode(stream):
             if frame.time is not None and frame.time >= timestamp:
-                frame.to_image().save(frame_path, "JPEG", quality=85)
+                _frame_to_oriented_image(frame).save(frame_path, "JPEG", quality=85)
                 return frame_path
     # ts beyond duration: fall back to last frame.
     with av.open(str(video)) as container:
@@ -158,7 +173,7 @@ def _extract_frame_sync(video: Path, timestamp: float) -> Path:
             last = frame
         if last is None:
             raise RuntimeError(f"No frames in {video}")
-        last.to_image().save(frame_path, "JPEG", quality=85)
+        _frame_to_oriented_image(last).save(frame_path, "JPEG", quality=85)
         return frame_path
 
 

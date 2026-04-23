@@ -1,9 +1,12 @@
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 from PIL import Image
 
 from app.logic.layout.media import (
     Media,
+    _frame_to_oriented_image,
     delete_thumbnails,
     generate_thumbnail,
 )
@@ -49,6 +52,28 @@ class TestGenerateThumbnailExif:
         assert result is not None
         with Image.open(result) as img:
             assert img.width == 800
+
+
+class TestFrameOrientation:
+    @pytest.mark.parametrize(
+        ("rotation", "expected_size"),
+        [
+            (0, (100, 50)),
+            (90, (50, 100)),
+            (180, (100, 50)),
+            (270, (50, 100)),
+            (-90, (50, 100)),
+            (-180, (100, 50)),
+        ],
+    )
+    def test_applies_frame_rotation(
+        self, rotation: int, expected_size: tuple[int, int]
+    ) -> None:
+        original = Image.new("RGB", (100, 50), "red")
+        fake_frame = SimpleNamespace(rotation=rotation, to_image=lambda: original)
+
+        out = _frame_to_oriented_image(fake_frame)  # ty: ignore[invalid-argument-type]
+        assert out.size == expected_size
 
 
 class TestDeleteThumbnails:
