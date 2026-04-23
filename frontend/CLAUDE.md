@@ -4,6 +4,8 @@ See @mise.toml - relevant tasks: `dev:frontend`, `test:frontend`, `test:e2e`, `l
 
 OpenAPI client (`src/client/`) is generated from `backend/openapi.json` by `bun x openapi-ts`. The `dev`/`build`/`test`/`lint` scripts all run it automatically, so manual regeneration is rarely needed. The spec itself is committed and kept fresh by a pre-commit hook triggered by `backend/app/` changes.
 
+`lint:frontend` runs `vue-tsc -b` + eslint - type errors fail the lint (and therefore the pre-commit hook). Don't assume eslint-only means "skip type checking."
+
 ## Non-Obvious Patterns
 
 - `useWindowVirtualizer`: custom virtualizer replacing @tanstack/vue-virtual due to Vue 3.4 computed dedup bug.
