@@ -63,9 +63,16 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
                     weight_fn=_open_meteo_weight,
                 )
             ),
-            # Overpass public endpoint: ~2 req/s fair-use policy.
+            # Overpass ~2 req/s fair-use, bans default python-httpx UA.
+            # https://community.openstreetmap.org/t/overpass-api-error-406/143198
             overpass=await enter(
-                http_client(use_body_key=True, limiter=AsyncLimiter(2, 1))
+                http_client(
+                    use_body_key=True,
+                    limiter=AsyncLimiter(2, 1),
+                    headers={
+                        "User-Agent": f"Wanderbound (+{settings.VITE_FRONTEND_URL})",
+                    },
+                )
             ),
             gphotos_picker=await enter(http_client(cache=False)),
             # Download concurrency is enforced at the HTTP pool layer.

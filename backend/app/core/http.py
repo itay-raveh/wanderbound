@@ -110,6 +110,7 @@ def http_client(  # noqa: PLR0913
     limits: httpx.Limits = _DEFAULT_LIMITS,
     follow_redirects: bool = False,
     timeout: float = 30.0,
+    headers: dict[str, str] | None = None,
 ) -> AsyncClient:
     """Build an httpx AsyncClient with retries, optional cache, and optional rate limit.
 
@@ -147,4 +148,5 @@ def http_client(  # noqa: PLR0913
         transport=transport,
         follow_redirects=follow_redirects,
         timeout=timeout,
+        headers=headers,
     )
