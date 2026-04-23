@@ -26,7 +26,7 @@ export function mediaThumbUrl(
   albumId: string,
   width: number = THUMB_WIDTHS[0],
 ): string {
-  return `${mediaUrl(name, albumId)}?w=${width}`;
+  return `${mediaUrl(posterPath(name), albumId)}?w=${width}`;
 }
 
 export function mediaSrcset(name: string, albumId: string): string {
