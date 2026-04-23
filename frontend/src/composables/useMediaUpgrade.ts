@@ -285,6 +285,7 @@ export function useMediaUpgrade() {
     });
 
     let round: MatchRound | null = null;
+    let receivedTerminal = false;
 
     for await (const raw of stream) {
       const event = raw as unknown as MatchEvent;
@@ -299,12 +300,14 @@ export function useMediaUpgrade() {
             matches: event.matches,
             totalPicked: event.total_picked,
           };
+          receivedTerminal = true;
           break;
         case "upgrade_failed":
           throw new Error(event.detail);
       }
     }
 
+    if (!receivedTerminal) throw new Error(UPGRADE_ERRORS.connectionLost);
     return round;
   }
 
