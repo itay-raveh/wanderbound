@@ -158,10 +158,15 @@ async def sign_in_and_upload(
     provider: str = "google",
     payload: dict | None = None,
 ) -> dict:
-    with mock_jwt(provider, payload=payload), mock_extract(users_dir):
+    with mock_jwt(provider, payload=payload):
+        auth_resp = await client.post(
+            f"/api/v1/auth/{provider}",
+            json={"credential": "fake"},
+        )
+    assert auth_resp.status_code == 200
+    with mock_extract(users_dir):
         resp = await client.post(
             "/api/v1/users/upload",
-            data={"credential": "fake", "provider": provider},
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
     assert resp.status_code == 200

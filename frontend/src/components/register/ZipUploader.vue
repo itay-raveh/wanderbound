@@ -1,16 +1,10 @@
 <script lang="ts" setup>
 import { client } from "@/client/client.gen";
 import type { UploadResult } from "@/client";
-import type { Provider } from "@/router";
 import { useQuasar } from "quasar";
 import { onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
-
-const props = defineProps<{
-  credential?: string;
-  provider?: Provider;
-}>();
 
 const emit = defineEmits<{
   uploaded: [data: UploadResult];
@@ -38,13 +32,6 @@ const abortController = ref<AbortController | null>(null);
 const chunkProgress = new Map<number, number>();
 
 onUnmounted(() => abortController.value?.abort());
-
-function buildAuthForm(): FormData {
-  const form = new FormData();
-  if (props.credential) form.append("credential", props.credential);
-  if (props.provider) form.append("provider", props.provider);
-  return form;
-}
 
 function pickFiles() {
   fileInputRef.value?.click();
@@ -174,7 +161,6 @@ async function startUpload(selected: File) {
     // 1. Init
     const initRes = await fetch(`${baseUrl}/api/v1/users/upload/init`, {
       method: "POST",
-      body: buildAuthForm(),
       credentials: "include",
       signal: controller.signal,
     });
@@ -214,7 +200,6 @@ async function startUpload(selected: File) {
       `${baseUrl}/api/v1/users/upload/${upload_id}/complete`,
       {
         method: "POST",
-        body: buildAuthForm(),
         credentials: "include",
         signal: controller.signal,
       },

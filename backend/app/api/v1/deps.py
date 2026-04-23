@@ -9,14 +9,15 @@ from typing import TYPE_CHECKING, Annotated
 import sentry_sdk
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import SQLModel, col
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
-from app.models.user import User
+from app.models.album import Album
+from app.models.user import User, UserPublic
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -132,3 +133,13 @@ def login_session(request: Request, uid: int) -> None:
     """Set session to the given user (clear first to prevent fixation)."""
     request.session.clear()
     request.session["uid"] = uid
+
+
+async def to_user_public(user: User, session: AsyncSession) -> UserPublic:
+    """Project a User to UserPublic, deriving is_processed from album DB state."""
+    album_count = await session.scalar(
+        select(func.count()).select_from(Album).where(Album.uid == user.id)
+    )
+    public = UserPublic.model_validate(user)
+    public.is_processed = user.has_data and album_count == len(user.album_ids)
+    return public

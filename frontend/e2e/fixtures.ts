@@ -1,6 +1,7 @@
 import { test as base, type Page } from "@playwright/test";
 import {
   mockUser,
+  mockAuthStateAuthenticated,
   mockAlbum,
   mockMedia,
   mockSteps,
@@ -35,6 +36,9 @@ async function installStrictMockGuard(page: Page) {
 }
 
 async function mockCommonApi(page: Page) {
+  await page.route(`${API}/auth/state`, (route) =>
+    route.fulfill({ json: mockAuthStateAuthenticated }),
+  );
   await page.route(`${API}/users`, (route) =>
     route.fulfill({ json: mockUser }),
   );

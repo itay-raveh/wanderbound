@@ -3,19 +3,16 @@ import io
 import logging
 import shutil
 from collections.abc import AsyncIterable
-from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from secrets import randbelow
-from typing import Annotated, Any, cast
+from typing import cast
 from zipfile import BadZipFile
 
 import httpx
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    Depends,
-    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -42,7 +39,6 @@ from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
 from app.models.user import (
-    AuthProvider,
     OAuthIdentity,
     PSUser,
     User,
@@ -50,18 +46,19 @@ from app.models.user import (
     UserUpdate,
 )
 
-from ..deps import HttpClientsDep, SessionDep, UserDep, apply_update, login_session
-from .auth import verify_credential
+from ..deps import (
+    HttpClientsDep,
+    SessionDep,
+    UserDep,
+    apply_update,
+    login_session,
+    to_user_public,
+)
+from .auth import clear_pending_signup, get_pending_signup
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-@dataclass
-class _AuthForm:
-    credential: Annotated[str | None, Form()] = None
-    provider: Annotated[AuthProvider | None, Form()] = None
 
 
 def _check_upload_size(file: UploadFile) -> int:
@@ -82,13 +79,11 @@ def _check_upload_size(file: UploadFile) -> int:
 
 
 async def _resolve_auth(
-    uid: int | None,
-    credential: str | None,
-    provider: AuthProvider | None,
-    session: SessionDep,
     request: Request,
+    session: SessionDep,
 ) -> tuple[User | None, OAuthIdentity | None]:
-    """Return (existing_user, oauth_identity) or raise 401."""
+    """Return (existing_user, pending_signup_identity) or raise 401."""
+    uid: int | None = request.session.get("uid")
     if uid:
         existing = await session.get(User, uid)
         if existing:
@@ -96,9 +91,10 @@ async def _resolve_auth(
         # Stale session pointing to non-existent user (e.g. fresh DB)
         request.session.clear()
 
-    if not credential or not provider:
+    identity = get_pending_signup(request)
+    if identity is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-    return None, await verify_credential(credential, provider)
+    return None, identity
 
 
 def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
@@ -150,6 +146,7 @@ async def _finalize_upload(  # noqa: PLR0913
             session.add(user)
             await session.commit()
             login_session(request, user.id)
+            clear_pending_signup(request)
             logger.info("New user %d created via upload", user.id)
 
         target = user.folder
@@ -161,7 +158,7 @@ async def _finalize_upload(  # noqa: PLR0913
         raise
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=UserPublic.model_validate(user), trips=trips)
+    return UploadResult(user=await to_user_public(user, session), trips=trips)
 
 
 @router.post("/upload")
@@ -170,12 +167,8 @@ async def upload_data(
     request: Request,
     session: SessionDep,
     background_tasks: BackgroundTasks,
-    auth: Annotated[_AuthForm, Depends()],
 ) -> UploadResult:
-    uid: int | None = request.session.get("uid")
-    existing, identity = await _resolve_auth(
-        uid, auth.credential, auth.provider, session, request
-    )
+    existing, identity = await _resolve_auth(request, session)
 
     size = _check_upload_size(file)
     logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
@@ -206,13 +199,9 @@ async def upload_data(
 async def init_chunked_upload(
     request: Request,
     session: SessionDep,
-    auth: Annotated[_AuthForm, Depends()],
 ) -> dict[str, str]:
     """Start a chunked upload session. Returns an opaque upload_id."""
-    uid: int | None = request.session.get("uid")
-    existing, identity = await _resolve_auth(
-        uid, auth.credential, auth.provider, session, request
-    )
+    existing, identity = await _resolve_auth(request, session)
 
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     owner = _upload_owner(existing, identity)
@@ -258,13 +247,9 @@ async def complete_chunked_upload(
     request: Request,
     session: SessionDep,
     background_tasks: BackgroundTasks,
-    auth: Annotated[_AuthForm, Depends()],
 ) -> UploadResult:
     """Assemble chunks and process the ZIP."""
-    uid: int | None = request.session.get("uid")
-    existing, identity = await _resolve_auth(
-        uid, auth.credential, auth.provider, session, request
-    )
+    existing, identity = await _resolve_auth(request, session)
 
     owner = _upload_owner(existing, identity)
     try:
@@ -382,7 +367,7 @@ async def create_demo(
     login_session(request, user.id)
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=UserPublic.model_validate(user), trips=list(trips))
+    return UploadResult(user=await to_user_public(user, session), trips=list(trips))
 
 
 async def _remove_user(
@@ -453,14 +438,17 @@ async def download_export(
     )
 
 
-@router.get("", response_model=UserPublic)
-async def read_user(user: UserDep) -> Any:
-    return user
+@router.get("")
+async def read_user(user: UserDep, session: SessionDep) -> UserPublic:
+    return await to_user_public(user, session)
 
 
-@router.patch("", response_model=UserPublic)
-async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> Any:
-    return await apply_update(session, user, update, refresh=False)
+@router.patch("")
+async def update_user(
+    update: UserUpdate, user: UserDep, session: SessionDep
+) -> UserPublic:
+    updated = await apply_update(session, user, update, refresh=False)
+    return await to_user_public(updated, session)
 
 
 @router.delete("")

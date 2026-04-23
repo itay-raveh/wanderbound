@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from typing import Any
+from typing import Literal
 
 import jwt
 from fastapi import APIRouter, HTTPException, Request, status
@@ -12,7 +12,9 @@ from sqlmodel import select
 from app.core.config import get_settings
 from app.models.user import AuthProvider, OAuthIdentity, User, UserPublic
 
-from ..deps import SessionDep, login_session
+from ..deps import SessionDep, login_session, to_user_public
+
+PENDING_SIGNUP_KEY = "pending_signup"
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +114,31 @@ async def _lookup_user(identity: OAuthIdentity, session: SessionDep) -> User | N
     return (await session.exec(select(User).where(col == identity.sub))).first()
 
 
+def set_pending_signup(request: Request, identity: OAuthIdentity) -> None:
+    request.session[PENDING_SIGNUP_KEY] = {
+        "provider": identity.provider,
+        "sub": identity.sub,
+        "first_name": identity.first_name,
+        "picture": str(identity.picture) if identity.picture else None,
+    }
+
+
+def clear_pending_signup(request: Request) -> None:
+    request.session.pop(PENDING_SIGNUP_KEY, None)
+
+
+def get_pending_signup(request: Request) -> OAuthIdentity | None:
+    blob = request.session.get(PENDING_SIGNUP_KEY)
+    if not blob:
+        return None
+    return OAuthIdentity(
+        sub=blob["sub"],
+        first_name=blob.get("first_name", ""),
+        picture=blob.get("picture"),
+        provider=blob["provider"],
+    )
+
+
 async def _authenticate(
     credential: str, provider: AuthProvider, request: Request, session: SessionDep
 ) -> User | None:
@@ -119,6 +146,7 @@ async def _authenticate(
     row = await _lookup_user(identity, session)
     if row is None:
         logger.info("New %s identity: sub=%s", provider, identity.sub)
+        set_pending_signup(request, identity)
         return None
     login_session(request, row.id)
     logger.info("Existing user %d signed in via %s", row.id, provider)
@@ -130,8 +158,39 @@ async def logout(request: Request) -> None:
     request.session.clear()
 
 
-@router.post("/{provider}", response_model=UserPublic | None)
+class AuthState(BaseModel):
+    state: Literal["authenticated", "pending_signup", "anonymous"]
+    first_name: str | None = None
+    picture: str | None = None
+    is_processed: bool = False
+
+
+@router.get("/state")
+async def auth_state(request: Request, session: SessionDep) -> AuthState:
+    uid: int | None = request.session.get("uid")
+    if uid:
+        user = await session.get(User, uid)
+        if user:
+            public = await to_user_public(user, session)
+            return AuthState(
+                state="authenticated",
+                first_name=user.first_name,
+                is_processed=public.is_processed,
+            )
+        request.session.clear()
+    pending = get_pending_signup(request)
+    if pending:
+        return AuthState(
+            state="pending_signup",
+            first_name=pending.first_name,
+            picture=str(pending.picture) if pending.picture else None,
+        )
+    return AuthState(state="anonymous")
+
+
+@router.post("/{provider}")
 async def authenticate(
     provider: AuthProvider, body: Credential, request: Request, session: SessionDep
-) -> Any:
-    return await _authenticate(body.credential, provider, request, session)
+) -> UserPublic | None:
+    user = await _authenticate(body.credential, provider, request, session)
+    return await to_user_public(user, session) if user else None

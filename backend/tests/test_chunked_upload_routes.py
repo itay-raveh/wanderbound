@@ -18,13 +18,19 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
 
 
-async def _init(client: AsyncClient) -> str:
-    """POST /upload/init with mocked Google auth, return upload_id."""
-    with mock_jwt("google"):
+async def _sign_in(client: AsyncClient, provider: str = "google") -> None:
+    """Set a pending_signup session cookie via /auth/{provider}."""
+    with mock_jwt(provider):
         resp = await client.post(
-            "/api/v1/users/upload/init",
-            data={"credential": "fake", "provider": "google"},
+            f"/api/v1/auth/{provider}", json={"credential": "fake"}
         )
+    assert resp.status_code == 200
+
+
+async def _init(client: AsyncClient, provider: str = "google") -> str:
+    """Sign in then POST /upload/init, return upload_id."""
+    await _sign_in(client, provider)
+    resp = await client.post("/api/v1/users/upload/init")
     assert resp.status_code == 200
     return resp.json()["upload_id"]
 
@@ -80,10 +86,9 @@ class TestUploadChunk:
 
         users_dir = tmp_path / "users"
         users_dir.mkdir(exist_ok=True)
-        with mock_jwt("google"), mock_extract(users_dir):
+        with mock_extract(users_dir):
             complete = await client.post(
                 f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "google"},
             )
         assert complete.status_code == 200
 
@@ -110,11 +115,8 @@ class TestUploadChunk:
         """Accumulated chunks exceeding max_bytes return 413."""
         # Set a tiny limit so a small chunk triggers overflow
         monkeypatch.setattr(get_settings(), "VITE_MAX_UPLOAD_GB", 0)
-        with mock_jwt("google"):
-            init_resp = await client.post(
-                "/api/v1/users/upload/init",
-                data={"credential": "fake", "provider": "google"},
-            )
+        await _sign_in(client)
+        init_resp = await client.post("/api/v1/users/upload/init")
         upload_id = init_resp.json()["upload_id"]
 
         resp = await client.put(
@@ -139,10 +141,9 @@ class TestCompleteChunkedUpload:
 
         users_dir = tmp_path / "users"
         users_dir.mkdir(exist_ok=True)
-        with mock_jwt("google"), mock_extract(users_dir):
+        with mock_extract(users_dir):
             resp = await client.post(
                 f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "google"},
             )
         assert resp.status_code == 200
         body = resp.json()
@@ -150,28 +151,17 @@ class TestCompleteChunkedUpload:
         assert len(body["trips"]) == 1
 
     async def test_rejects_unknown_session(self, client: AsyncClient) -> None:
-        with mock_jwt("google"):
-            resp = await client.post(
-                "/api/v1/users/upload/nonexistent/complete",
-                data={"credential": "fake", "provider": "google"},
-            )
+        await _sign_in(client)
+        resp = await client.post("/api/v1/users/upload/nonexistent/complete")
         assert resp.status_code == 404
 
     async def test_rejects_empty_upload(self, client: AsyncClient) -> None:
         upload_id = await _init(client)
-        # Complete without uploading any chunks
-        with mock_jwt("google"):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "google"},
-            )
+        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
         assert resp.status_code == 400
 
     async def test_rejects_unauthenticated(self, client: AsyncClient) -> None:
-        upload_id = await _init(client)
-        resp = await client.post(
-            f"/api/v1/users/upload/{upload_id}/complete",
-        )
+        resp = await client.post("/api/v1/users/upload/any-id/complete")
         assert resp.status_code == 401
 
     async def test_bad_zip_returns_406(self, client: AsyncClient) -> None:
@@ -181,11 +171,7 @@ class TestCompleteChunkedUpload:
             f"/api/v1/users/upload/{upload_id}/0",
             content=b"not a zip at all",
         )
-        with mock_jwt("google"):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "google"},
-            )
+        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
         assert resp.status_code == 406
 
     @pytest.mark.parametrize("provider", ["google", "microsoft"])
@@ -193,12 +179,7 @@ class TestCompleteChunkedUpload:
         self, client: AsyncClient, tmp_path: Path, provider: str
     ) -> None:
         """Chunked upload works with both Google and Microsoft auth."""
-        with mock_jwt(provider):
-            init_resp = await client.post(
-                "/api/v1/users/upload/init",
-                data={"credential": "fake", "provider": provider},
-            )
-        upload_id = init_resp.json()["upload_id"]
+        upload_id = await _init(client, provider=provider)
 
         await client.put(
             f"/api/v1/users/upload/{upload_id}/0",
@@ -207,10 +188,9 @@ class TestCompleteChunkedUpload:
 
         users_dir = tmp_path / "users"
         users_dir.mkdir(exist_ok=True)
-        with mock_jwt(provider), mock_extract(users_dir):
+        with mock_extract(users_dir):
             resp = await client.post(
                 f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": provider},
             )
         assert resp.status_code == 200
 
@@ -247,12 +227,8 @@ class TestCompleteChunkedUpload:
             f"/api/v1/users/upload/{upload_id}/0",
             content=b"chunk",
         )
-        # Complete as Microsoft user (owner = "microsoft:microsoft-456")
-        with mock_jwt("microsoft"):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "microsoft"},
-            )
+        await _sign_in(client, provider="microsoft")
+        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
         assert resp.status_code == 403
 
 
@@ -279,9 +255,8 @@ class TestParallelChunkedUpload:
 
         users_dir = tmp_path / "users"
         users_dir.mkdir(exist_ok=True)
-        with mock_jwt("google"), mock_extract(users_dir):
+        with mock_extract(users_dir):
             resp = await client.post(
                 f"/api/v1/users/upload/{upload_id}/complete",
-                data={"credential": "fake", "provider": "google"},
             )
         assert resp.status_code == 200

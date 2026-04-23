@@ -1,9 +1,3 @@
-/** SessionStorage key for passing upload/demo results to the processing view. */
-export const UPLOAD_RESULT_KEY = "upload-result";
-
-/** SessionStorage key for persisting OAuth state across redirects. */
-export const AUTH_STATE_KEY = "auth-state";
-
 /** LocalStorage key for persisting dark mode preference ("system" | "light" | "dark"). */
 export const DARK_MODE_KEY = "dark-mode";
 

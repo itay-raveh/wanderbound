@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 
 defineProps<{
   userName?: string;
+  isReturning?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -19,7 +20,7 @@ const { t } = useI18n();
         {{ t("register.welcomeNew") }}
       </h1>
       <span class="text-subtitle2 text-faint">
-        {{ userName ? t("register.welcomeBack") : t("tagline") }}
+        {{ isReturning ? t("register.welcomeBack") : t("tagline") }}
       </span>
     </div>
   </header>

@@ -1,32 +1,10 @@
-import { readUser } from "@/client";
-import type { BodyUploadData } from "@/client";
+import { authState } from "@/client";
+import type { AuthenticateData } from "@/client";
 import { useQueryCache } from "@pinia/colada";
-import { useSessionStorage } from "@vueuse/core";
 import { createRouter, createWebHistory } from "vue-router";
 import { queryKeys } from "@/queries/keys";
 
-import { AUTH_STATE_KEY } from "@/utils/storage-keys";
-
-export type Provider = NonNullable<BodyUploadData["provider"]>;
-
-interface AuthState {
-  credential: string;
-  provider: Provider;
-}
-
-const authState = useSessionStorage<AuthState | null>(AUTH_STATE_KEY, null);
-
-export function getAuthState(): AuthState | null {
-  return authState.value;
-}
-
-export function setAuthState(credential: string, provider: Provider): void {
-  authState.value = { credential, provider };
-}
-
-export function clearAuthState(): void {
-  authState.value = null;
-}
+export type Provider = AuthenticateData["path"]["provider"];
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -72,37 +50,22 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from) => {
-  // Public routes other than landing skip auth entirely
   if (to.meta.public && to.name !== "landing") return;
-
-  // New user after sign-in: has credential but no session yet
-  if (to.name === "upload" && getAuthState()) return;
-
-  // In-app navigations: session was already verified on initial load
   if (from.name) return;
 
-  // Initial page load: verify session with server
-  let user;
-  try {
-    ({ data: user } = await readUser());
-    useQueryCache().setQueryData(queryKeys.user(), user);
-  } catch {
-    // Not authenticated: landing is fine, everything else → landing
-    if (to.name === "landing") return;
-    return { name: "landing" };
-  }
+  const { data: state } = await authState();
+  useQueryCache().setQueryData(queryKeys.authState(), state);
 
-  // Authenticated user on landing → redirect to editor or upload
-  if (to.name === "landing") {
-    return user.album_ids?.length && user.has_data
-      ? { name: "editor" }
-      : { name: "upload" };
+  if (state?.state === "anonymous") {
+    return to.name === "landing" ? undefined : { name: "landing" };
   }
-
-  // Redirect to upload if user has no albums or was evicted (has albums but no data)
-  if (!user.album_ids?.length || !user.has_data) {
-    return { name: "upload" };
+  if (state?.state === "pending_signup") {
+    return to.name === "upload" ? undefined : { name: "upload" };
   }
+  if (!state?.is_processed) {
+    return to.name === "upload" ? undefined : { name: "upload" };
+  }
+  if (to.name === "landing") return { name: "editor" };
 });
 
 export default router;
