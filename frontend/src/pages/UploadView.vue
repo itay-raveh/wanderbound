@@ -48,11 +48,12 @@ const uploadResult = useSessionStorage<UploadResult | null>(
 const stream = useTripProcessingStream();
 
 const heroName = computed(
-  () => uploadResult.value?.user.first_name ?? user.value?.first_name,
+  () => uploadResult.value?.user?.first_name ?? user.value?.first_name,
 );
 
 onMounted(() => {
-  if (uploadResult.value) stream.start();
+  if (uploadResult.value?.trips) stream.start();
+  else if (uploadResult.value) uploadResult.value = null;
 });
 
 function onUploaded(data: UploadResult) {
@@ -125,9 +126,9 @@ function onDone() {
 
       <!-- Processing view -->
       <ProcessingProgress
-        v-else
+        v-else-if="uploadResult.trips"
         class="upload-card"
-        :trips="uploadResult!.trips"
+        :trips="uploadResult.trips"
         :state="stream.state.value"
         :trip-index="stream.tripIndex.value"
         :phase-done="stream.phaseDone.value"
