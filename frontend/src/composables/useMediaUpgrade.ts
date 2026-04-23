@@ -179,7 +179,7 @@ export function useMediaUpgrade() {
       if (signal.aborted) return;
 
       phase.value = "done";
-      await cache.invalidateQueries({ key: queryKeys.media(albumId) });
+      await cache.invalidateQueries({ key: queryKeys.album(albumId) });
       scheduleDoneReset();
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
