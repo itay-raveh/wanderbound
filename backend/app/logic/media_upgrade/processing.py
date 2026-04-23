@@ -11,7 +11,6 @@ import anyio
 import av
 import imagehash
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
-from PIL import Image, ImageOps
 from PIL.Image import Resampling
 
 from app.logic.layout.media import (
@@ -19,6 +18,7 @@ from app.logic.layout.media import (
     Media,
     delete_thumbnails,
     extract_frame,
+    open_oriented,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,9 +38,8 @@ async def tmp_file(path: Path) -> AsyncIterator[Path]:
 
 def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
     """Return (width, height) of the processed JPEG written to ``tmp_path``."""
-    with Image.open(raw_path) as raw:
-        img = ImageOps.exif_transpose(raw) or raw
-        img = img.convert("RGB")
+    with open_oriented(raw_path) as raw:
+        img = raw.convert("RGB")
 
         long_edge = max(img.size)
         if long_edge > _MAX_LONG_EDGE:

@@ -9,16 +9,18 @@ import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import imagehash
 import numpy as np
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
-from PIL import Image
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from PIL import Image
 from scipy.optimize import linear_sum_assignment
 
-from app.logic.layout.media import MediaName, is_video
+from app.logic.layout.media import MediaName, is_video, open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
 
 logger = logging.getLogger(__name__)
@@ -69,13 +71,7 @@ class StepWindow(BaseModel):
 # Time-window bucketing
 # ---------------------------------------------------------------------------
 
-# Buffer added to each step window boundary. Polarsteps step timestamps can
-# land anywhere within a multi-day step, so windows are primarily defined by
-# adjacent step starts. This margin catches photos with slight clock skew at
-# the boundaries. Photos shared/received later (with download timestamps far
-# from the original event) are handled by cross_step_fallback, which matches
-# all remaining unmatched items globally regardless of time windows.
-_OVERLAP_MARGIN = 30 * 60  # 30 minutes in seconds
+_OVERLAP_MARGIN = 24 * 60 * 60  # 24 hours
 
 
 def build_step_windows(
@@ -85,15 +81,19 @@ def build_step_windows(
     """Build time windows for each step.
 
     Each window runs from the step's start_time to the next step's start_time
-    (or +24h for the last step), plus an overlap margin.
+    (or +24h for the last step), padded by an overlap margin on both sides so
+    neighbor windows share ground.
     """
     windows: list[StepWindow] = []
     for i, (ts, sid) in enumerate(zip(step_timestamps, step_ids, strict=True)):
-        # First window extends backward to catch items with clock skew or
-        # timezone offsets (e.g. photos taken just before departure).
-        start = ts - _OVERLAP_MARGIN if i == 0 else ts
         end = step_timestamps[i + 1] if i + 1 < len(step_timestamps) else ts + 86400
-        windows.append(StepWindow(step_id=sid, start=start, end=end + _OVERLAP_MARGIN))
+        windows.append(
+            StepWindow(
+                step_id=sid,
+                start=ts - _OVERLAP_MARGIN,
+                end=end + _OVERLAP_MARGIN,
+            ),
+        )
     return windows
 
 
@@ -108,12 +108,12 @@ def compute_phash(image: Image.Image) -> imagehash.ImageHash:
 
 
 def compute_phash_from_path(path: Path) -> imagehash.ImageHash:
-    with Image.open(path) as img:
+    with open_oriented(path) as img:
         return compute_phash(img)
 
 
 def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
-    with Image.open(BytesIO(data)) as img:
+    with open_oriented(BytesIO(data)) as img:
         return compute_phash(img)
 
 

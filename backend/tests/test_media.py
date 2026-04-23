@@ -72,7 +72,7 @@ class TestFrameOrientation:
         original = Image.new("RGB", (100, 50), "red")
         fake_frame = SimpleNamespace(rotation=rotation, to_image=lambda: original)
 
-        out = _frame_to_oriented_image(fake_frame)  # ty: ignore[invalid-argument-type]
+        out = _frame_to_oriented_image(fake_frame)
         assert out.size == expected_size
 
 

@@ -1,11 +1,13 @@
 import asyncio
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Self
 
 import av
 from PIL import Image, ImageOps
-from PIL.ExifTags import Base as ExifBase
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
@@ -29,9 +31,15 @@ _media_budget = max(256, detect_memory_mb() - _MEDIA_BASELINE_MB)
 media_sem = asyncio.Semaphore(max(4, min(40, _media_budget // _PER_MEDIA_OP_MB)))
 
 
-def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
+@contextmanager
+def open_oriented(source: Path | BytesIO) -> Iterator[Image.Image]:
+    """Open an image and yield it with EXIF orientation applied."""
     with Image.open(source) as raw:
-        img = ImageOps.exif_transpose(raw) or raw
+        yield ImageOps.exif_transpose(raw) or raw
+
+
+def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
+    with open_oriented(source) as img:
         orig_w, orig_h = img.size
         if width >= orig_w:
             return None
@@ -112,10 +120,8 @@ class Media(BaseModel):
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        with Image.open(path) as img:
+        with open_oriented(path) as img:
             width, height = img.size
-            if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
-                width, height = height, width
         return cls(
             name=normalize_name(path.name),
             width=width,

@@ -29,6 +29,7 @@ from app.logic.media_upgrade.phash_matching import (
     MatchResult,
     bucket_by_window,
     build_step_windows,
+    compute_phash_from_path,
     cross_step_fallback,
     match_within_window,
 )
@@ -113,6 +114,28 @@ def _write_png(path: Path, width: int, height: int) -> None:
 # ---------------------------------------------------------------------------
 # Targeted algorithm regression guards
 # ---------------------------------------------------------------------------
+
+
+class TestComputePhash:
+    def test_orientation_invariant(self, tmp_path: Path) -> None:
+        upright = Image.new("RGB", (100, 200), color="white")
+        for x in range(100):
+            for y in range(80):
+                upright.putpixel((x, y), (0, 0, 0))
+
+        upright_path = tmp_path / "upright.jpg"
+        upright.save(upright_path, "JPEG", quality=95)
+
+        sideways = upright.transpose(Image.Transpose.ROTATE_270)
+        exif = sideways.getexif()
+        exif[ExifBase.Orientation] = 6
+        sideways_path = tmp_path / "sideways.jpg"
+        sideways.save(sideways_path, "JPEG", quality=95, exif=exif.tobytes())
+
+        h_upright = compute_phash_from_path(upright_path)
+        h_sideways = compute_phash_from_path(sideways_path)
+
+        assert h_upright - h_sideways <= 4
 
 
 class TestMatchWithinWindow:
