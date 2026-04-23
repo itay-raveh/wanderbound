@@ -26,7 +26,7 @@ export function mediaThumbUrl(
   albumId: string,
   width: number = THUMB_WIDTHS[0],
 ): string {
-  return `${mediaUrl(name, albumId)}?w=${width}`;
+  return `${mediaUrl(posterPath(name), albumId)}?w=${width}`;
 }
 
 /** Build flagcdn URL for a country code (w160 PNG - crisp at small display sizes). */

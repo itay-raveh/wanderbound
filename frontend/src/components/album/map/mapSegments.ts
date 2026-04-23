@@ -1,6 +1,6 @@
 import type { Segment, Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "../colors";
-import { mediaThumbUrl, posterPath } from "@/utils/media";
+import { mediaThumbUrl } from "@/utils/media";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 import bezierSpline from "@turf/bezier-spline";
@@ -345,8 +345,7 @@ export function drawSegmentsAndMarkers(
     el.setAttribute("role", "img");
     el.setAttribute("aria-label", step.name);
     if (step.cover) {
-      const coverPath = posterPath(step.cover);
-      el.style.backgroundImage = `url(${mediaThumbUrl(coverPath, albumId)})`;
+      el.style.backgroundImage = `url(${mediaThumbUrl(step.cover, albumId)})`;
     }
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }
