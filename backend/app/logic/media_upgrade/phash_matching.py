@@ -56,6 +56,7 @@ class MatchResult(BaseModel):
     local_name: str
     google_id: GoogleMediaId
     distance: int
+    upgraded: bool = False
 
 
 class StepWindow(BaseModel):

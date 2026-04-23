@@ -298,7 +298,6 @@ export function useMediaUpgrade() {
           round = {
             matches: event.matches,
             totalPicked: event.total_picked,
-            alreadyUpgraded: event.already_upgraded,
           };
           break;
         case "upgrade_failed":

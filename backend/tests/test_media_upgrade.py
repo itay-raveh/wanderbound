@@ -574,7 +574,7 @@ class TestRunMatching:
         assert summary.total_picked == 3
         assert summary.matched == 3
         assert summary.unmatched == 0
-        assert summary.already_upgraded == 0
+        assert not any(m.upgraded for m in summary.matches)
         assert {m.local_name for m in summary.matches} == set(names)
         assert {m.google_id for m in summary.matches} == {"gp-0", "gp-1", "gp-2"}
 

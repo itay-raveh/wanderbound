@@ -82,7 +82,6 @@ class MatchCompleted(BaseModel):
     type: Literal["match_completed"] = "match_completed"
     total_picked: int
     matched: int
-    already_upgraded: int
     unmatched: int
     matches: list[MatchResult]
 
@@ -220,17 +219,12 @@ async def run_matching(  # noqa: PLR0913
         candidate_hashes,
     )
 
-    already_upgraded_count = sum(
-        1
-        for m in all_matches
-        if m.local_name in already_upgraded
-        and already_upgraded[m.local_name] == m.google_id
-    )
+    for m in all_matches:
+        m.upgraded = already_upgraded.get(m.local_name) == m.google_id
 
     yield MatchCompleted(
         total_picked=len(google_items),
         matched=len(all_matches),
-        already_upgraded=already_upgraded_count,
         unmatched=len(google_items) - len(all_matches),
         matches=all_matches,
     )

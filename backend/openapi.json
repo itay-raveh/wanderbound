@@ -2399,10 +2399,6 @@
             "type": "integer",
             "title": "Matched"
           },
-          "already_upgraded": {
-            "type": "integer",
-            "title": "Already Upgraded"
-          },
           "unmatched": {
             "type": "integer",
             "title": "Unmatched"
@@ -2419,7 +2415,6 @@
         "required": [
           "total_picked",
           "matched",
-          "already_upgraded",
           "unmatched",
           "matches"
         ],
@@ -2466,6 +2461,11 @@
           "distance": {
             "type": "integer",
             "title": "Distance"
+          },
+          "upgraded": {
+            "type": "boolean",
+            "title": "Upgraded",
+            "default": false
           }
         },
         "type": "object",

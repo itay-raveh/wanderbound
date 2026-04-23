@@ -3,7 +3,6 @@ import type { MatchResult } from "@/client";
 export interface MatchRound {
   matches: MatchResult[];
   totalPicked: number;
-  alreadyUpgraded: number;
 }
 
 export interface MatchSummary {
@@ -18,7 +17,6 @@ export interface MatchSummary {
 export function createMatchAccumulator() {
   let matches: MatchResult[] = [];
   let totalPicked = 0;
-  let alreadyUpgraded = 0;
 
   return {
     get matches() {
@@ -35,7 +33,6 @@ export function createMatchAccumulator() {
       }
       matches = [...byLocalName.values()];
       totalPicked += round.totalPicked;
-      alreadyUpgraded += round.alreadyUpgraded;
       return matches.length - before;
     },
     summary(newThisRound) {
@@ -43,7 +40,7 @@ export function createMatchAccumulator() {
         matches: [...matches],
         totalPicked,
         matched: matches.length,
-        alreadyUpgraded,
+        alreadyUpgraded: matches.filter((m) => m.upgraded).length,
         unmatched: Math.max(0, totalPicked - matches.length),
         newThisRound,
       };
@@ -51,7 +48,6 @@ export function createMatchAccumulator() {
     reset() {
       matches = [];
       totalPicked = 0;
-      alreadyUpgraded = 0;
     },
   };
 }
