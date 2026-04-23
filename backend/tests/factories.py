@@ -6,6 +6,7 @@ import io
 import tempfile
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,7 +21,7 @@ from app.models.album import Album
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
-from app.models.user import PSUser
+from app.models.user import PSUser, User
 from app.models.weather import Weather, WeatherData
 
 if TYPE_CHECKING:
@@ -170,6 +171,19 @@ async def sign_in_and_upload(
 # ---------------------------------------------------------------------------
 # DB insert helpers
 # ---------------------------------------------------------------------------
+
+GOOGLE_REFRESH_TOKEN = "1//0fake-refresh-token-for-tests"  # noqa: S105
+
+
+async def connect_google_photos(session: AsyncSession, uid: int) -> None:
+    """Mark user as Google Photos connected with a refresh token."""
+    user = await session.get(User, uid)
+    assert user is not None
+    user.google_photos_refresh_token = GOOGLE_REFRESH_TOKEN
+    user.google_photos_connected_at = datetime.now(UTC)
+    session.add(user)
+    await session.flush()
+
 
 LOCATION = Location(
     name="Amsterdam", detail="NH", country_code="nl", lat=52.37, lon=4.89

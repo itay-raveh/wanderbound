@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
+from app.core.http_clients import HttpClients
 from app.logic.layout.media import Media
 from app.logic.reconcile import (
     _fix_album_covers,
@@ -17,6 +19,7 @@ from app.models.user import User
 from app.models.weather import Weather, WeatherData
 from tests.factories import collect_async
 
+_MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
 
 _LOC = Location(name="Place", detail="", country_code="nl", lat=52.0, lon=4.0)
@@ -289,7 +292,7 @@ class TestReconcileTripRebuildsSegments:
 
         db_out: list = []
         await collect_async(
-            reconcile_trip(user, trip_dir, album, existing_steps, db_out)
+            reconcile_trip(_MOCK_HTTP, user, trip_dir, album, existing_steps, db_out)
         )
 
         segments = [obj for obj in db_out if isinstance(obj, Segment)]

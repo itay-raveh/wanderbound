@@ -14,6 +14,7 @@ interface AlbumProvide {
   media: ComputedRef<Media[]>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
+  upgradedMedia: ComputedRef<ReadonlySet<string>>;
 }
 
 interface AlbumContext extends AlbumProvide {
@@ -28,7 +29,7 @@ export function provideAlbum(ctx: AlbumProvide): AlbumContext {
     for (const m of ctx.media.value) map.set(m.name, m);
     return map;
   });
-  const albumCtx = { ...ctx, mediaByName };
+  const albumCtx: AlbumContext = { ...ctx, mediaByName };
   provide(KEY, albumCtx);
   return albumCtx;
 }

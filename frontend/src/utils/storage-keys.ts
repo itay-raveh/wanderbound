@@ -1,11 +1,14 @@
 /** SessionStorage key for passing upload/demo results to the processing view. */
-export const UPLOAD_RESULT_KEY = "processing_upload_result";
+export const UPLOAD_RESULT_KEY = "upload-result";
 
 /** SessionStorage key for persisting OAuth state across redirects. */
-export const AUTH_STATE_KEY = "auth_state";
+export const AUTH_STATE_KEY = "auth-state";
 
-/** LocalStorage key for persisting dark mode preference. */
-export const DARK_MODE_KEY = "album-dark-mode";
+/** LocalStorage key for persisting dark mode preference ("system" | "light" | "dark"). */
+export const DARK_MODE_KEY = "dark-mode";
 
 /** LocalStorage key for remembering the last-opened album. */
 export const LAST_ALBUM_KEY = "last-album-id";
+
+/** LocalStorage key for remembering that the media upgrade onboarding was seen. */
+export const MEDIA_UPGRADE_ONBOARDED_KEY = "media-upgrade-onboarded";

@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from secrets import randbelow
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from zipfile import BadZipFile
 
+import httpx
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -22,6 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, Response
 from fastapi.sse import EventSourceResponse
+from httpx_oauth.oauth2 import RevokeTokenError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import ClientDisconnect
@@ -36,12 +38,19 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
-from app.logic.processing import ProcessingEvent
 from app.logic.session import cancel_session, process_stream
+from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
-from app.models.user import AuthProvider, OAuthIdentity, PSUser, User, UserUpdate
+from app.models.user import (
+    AuthProvider,
+    OAuthIdentity,
+    PSUser,
+    User,
+    UserPublic,
+    UserUpdate,
+)
 
-from ..deps import SessionDep, UserDep, apply_update, login_session
+from ..deps import HttpClientsDep, SessionDep, UserDep, apply_update, login_session
 from .auth import verify_credential
 
 logger = logging.getLogger(__name__)
@@ -152,7 +161,7 @@ async def _finalize_upload(  # noqa: PLR0913
         raise
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=user, trips=trips)
+    return UploadResult(user=UserPublic.model_validate(user), trips=trips)
 
 
 @router.post("/upload")
@@ -373,12 +382,19 @@ async def create_demo(
     login_session(request, user.id)
 
     background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=user, trips=list(trips))
+    return UploadResult(user=UserPublic.model_validate(user), trips=list(trips))
 
 
-async def _remove_user(user: User, session: SessionDep, request: Request) -> None:
+async def _remove_user(
+    user: User, session: SessionDep, request: Request, http: HttpClientsDep
+) -> None:
     cancel_session(user.id)
     folder = user.folder
+    if user.google_photos_refresh_token:
+        try:
+            await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
+        except (RevokeTokenError, httpx.HTTPError) as exc:
+            logger.warning("Token revoke failed on delete: %s", type(exc).__name__)
     await session.delete(user)
     await session.commit()
     await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
@@ -391,10 +407,11 @@ async def delete_demo(
     user: UserDep,
     session: SessionDep,
     request: Request,
+    http: HttpClientsDep,
 ) -> None:
     if not user.is_demo:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not a demo user")
-    await _remove_user(user, session, request)
+    await _remove_user(user, session, request, http)
 
 
 @router.get(
@@ -402,8 +419,10 @@ async def delete_demo(
     response_class=EventSourceResponse,
     responses={200: {"model": list[ProcessingEvent]}},
 )
-async def process_user(user: UserDep) -> AsyncIterable[ProcessingEvent]:
-    async for event in process_stream(user):
+async def process_user(
+    user: UserDep, http: HttpClientsDep
+) -> AsyncIterable[ProcessingEvent]:
+    async for event in process_stream(http, user):
         yield event
 
 
@@ -434,16 +453,18 @@ async def download_export(
     )
 
 
-@router.get("")
-async def read_user(user: UserDep) -> User:
+@router.get("", response_model=UserPublic)
+async def read_user(user: UserDep) -> Any:
     return user
 
 
-@router.patch("")
-async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> User:
+@router.patch("", response_model=UserPublic)
+async def update_user(update: UserUpdate, user: UserDep, session: SessionDep) -> Any:
     return await apply_update(session, user, update, refresh=False)
 
 
 @router.delete("")
-async def delete_user(user: UserDep, session: SessionDep, request: Request) -> None:
-    await _remove_user(user, session, request)
+async def delete_user(
+    user: UserDep, session: SessionDep, request: Request, http: HttpClientsDep
+) -> None:
+    await _remove_user(user, session, request, http)

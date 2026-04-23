@@ -190,12 +190,12 @@ const dateStr = computed(() => {
         :aria-label="t('album.day', { n: dayNumber })"
         :style="{ '--progress': `${progressPercent}%` }"
       >
-        <div class="progress-track">
-          <div
-            :style="{ width: `${progressPercent}%` }"
-            class="progress-fill"
-          />
-        </div>
+        <q-linear-progress
+          :value="progressPercent / 100"
+          size="0.375rem"
+          class="progress-q"
+          aria-hidden="true"
+        />
         <div class="badge-rail">
           <div class="badge-group">
             <div class="badge-arrow" />
@@ -355,21 +355,19 @@ const dateStr = computed(() => {
 }
 
 // Progress bar is direction-independent - do not add rtl:ignore or direction overrides.
-.progress-track {
-  display: flex;
-  width: 100%;
-  height: 0.375rem;
+.progress-q {
   border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  overflow: hidden;
-  print-color-adjust: exact;
-}
 
-.progress-fill {
-  height: 100%;
-  border-radius: var(--radius-xs);
-  background: v-bind(countryColor);
-  print-color-adjust: exact;
+  :deep(.q-linear-progress__track) {
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+    opacity: 1;
+    print-color-adjust: exact;
+  }
+
+  :deep(.q-linear-progress__model) {
+    background: v-bind(countryColor);
+    print-color-adjust: exact;
+  }
 }
 
 .badge-rail {

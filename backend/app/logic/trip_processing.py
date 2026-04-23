@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, Field
 
 from app.core.async_helpers import yield_completed
+from app.core.http_clients import HttpClients
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -239,20 +240,28 @@ def build_trip_objects(
 
 
 async def run_elevations(
+    http: HttpClients,
     locs: list[Location],
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> list[float]:
-    raw = await track_iter("elevations", n_steps, elevations(locs), queue)
-    return list(await correct_peaks(locs, raw))
+    raw = await track_iter(
+        "elevations", n_steps, elevations(http.open_meteo, locs), queue
+    )
+    return list(await correct_peaks(http.overpass, locs, raw))
 
 
 async def run_weather(
+    http: HttpClients,
     steps: list[PSStep],
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> dict[int, Weather]:
-    return dict(await track_iter("weather", n_steps, build_weathers(steps), queue))
+    return dict(
+        await track_iter(
+            "weather", n_steps, build_weathers(http.open_meteo, steps), queue
+        )
+    )
 
 
 def _pick_landscape_cover(trip_dir: Path) -> tuple[str, str]:
@@ -392,13 +401,13 @@ def resolve_international_waters(steps: list[PSStep]) -> None:
                 run.append(step)
             continue
 
-        if run and step.location.country_code != prev_code:
+        if run and prev_code is not None and step.location.country_code != prev_code:
             names = ", ".join(s.name for s in run)
             logger.warning(
                 "International-water steps [%s] attributed to %s, "
                 "but next step '%s' is %s",
                 names,
-                prev_code.upper(),  # type: ignore[union-attr]
+                prev_code.upper(),
                 step.name,
                 step.location.country_code.upper(),
             )

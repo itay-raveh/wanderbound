@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.models.polarsteps import CountryCode, PSTrip
-from app.models.user import PSUser, User
+from app.models.user import PSUser, UserPublic
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class TripMeta(BaseModel):
 
 
 class UploadResult(BaseModel):
-    user: User
+    user: UserPublic
     trips: list[TripMeta]
 
 

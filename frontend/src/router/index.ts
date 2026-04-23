@@ -1,6 +1,7 @@
 import { readUser } from "@/client";
 import type { BodyUploadData } from "@/client";
 import { useQueryCache } from "@pinia/colada";
+import { useSessionStorage } from "@vueuse/core";
 import { createRouter, createWebHistory } from "vue-router";
 import { queryKeys } from "@/queries/keys";
 
@@ -8,27 +9,23 @@ import { AUTH_STATE_KEY } from "@/utils/storage-keys";
 
 export type Provider = NonNullable<BodyUploadData["provider"]>;
 
-export function getAuthState(): {
+interface AuthState {
   credential: string;
   provider: Provider;
-} | null {
-  try {
-    const raw = sessionStorage.getItem(AUTH_STATE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+}
+
+const authState = useSessionStorage<AuthState | null>(AUTH_STATE_KEY, null);
+
+export function getAuthState(): AuthState | null {
+  return authState.value;
 }
 
 export function setAuthState(credential: string, provider: Provider): void {
-  sessionStorage.setItem(
-    AUTH_STATE_KEY,
-    JSON.stringify({ credential, provider }),
-  );
+  authState.value = { credential, provider };
 }
 
 export function clearAuthState(): void {
-  sessionStorage.removeItem(AUTH_STATE_KEY);
+  authState.value = null;
 }
 
 const router = createRouter({

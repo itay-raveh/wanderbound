@@ -9,9 +9,10 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from app.core.http_clients import HttpClients
 from app.logic.layout import Layout
 from app.logic.layout.media import Media, media_sem, normalize_name
-from app.logic.processing import (
+from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
     TripResults,
@@ -141,7 +142,8 @@ def _fix_album_covers(
             setattr(album, attr, cover_fallback)
 
 
-async def _process_new_steps(
+async def _process_new_steps(  # noqa: PLR0913
+    http: HttpClients,
     user: User,
     aid: str,
     new_ps_steps: list[PSStep],
@@ -167,8 +169,10 @@ async def _process_new_steps(
     async def _phases() -> TripResults:
         try:
             async with asyncio.TaskGroup() as tg:
-                elev_task = tg.create_task(run_elevations(new_locs, n_new, queue))
-                weather_task = tg.create_task(run_weather(new_ps_steps, n_new, queue))
+                elev_task = tg.create_task(run_elevations(http, new_locs, n_new, queue))
+                weather_task = tg.create_task(
+                    run_weather(http, new_ps_steps, n_new, queue)
+                )
                 layout_task = tg.create_task(_fetch())
         finally:
             await queue.put(None)
@@ -194,7 +198,8 @@ async def _process_new_steps(
     )
 
 
-async def reconcile_trip(
+async def reconcile_trip(  # noqa: PLR0913
+    http: HttpClients,
     user: User,
     trip_dir: Path,
     album: Album,
@@ -235,7 +240,7 @@ async def reconcile_trip(
     new_step_objects: list[Step] = []
     if new_ps_steps:
         async for event in _process_new_steps(
-            user, aid, new_ps_steps, cover_name, new_step_objects
+            http, user, aid, new_ps_steps, cover_name, new_step_objects
         ):
             yield event
 

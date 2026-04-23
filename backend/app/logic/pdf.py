@@ -183,7 +183,7 @@ async def _render_pdf(  # noqa: C901
                 {
                     "name": "session",
                     "value": session_cookie,
-                    "url": settings.VITE_FRONTEND_URL,
+                    "url": settings.FRONTEND_URL,
                 },
             ]
         )
@@ -208,7 +208,7 @@ async def _render_pdf(  # noqa: C901
         page.on("requestfailed", _on_finished)
         await page.emulate_media(media="print")
         dark_param = "true" if dark else "false"
-        url = f"{settings.VITE_FRONTEND_URL}/print/{aid}?dark={dark_param}"
+        url = f"{settings.FRONTEND_URL}/print/{aid}?dark={dark_param}"
         await page.goto(url, wait_until="domcontentloaded")
         logger.info("DOM loaded for album %s", aid)
         loop = asyncio.get_running_loop()

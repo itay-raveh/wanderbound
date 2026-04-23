@@ -8,13 +8,15 @@ from pathlib import Path
 
 from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_engine
+from app.core.http_clients import HttpClients
 from app.logic.demo_i18n import apply_overlay, load_overlay
-from app.logic.processing import (
+from app.logic.reconcile import reconcile_trip
+from app.logic.trip_processing import (
     DbRow,
     ErrorData,
     PhaseUpdate,
@@ -29,7 +31,6 @@ from app.logic.processing import (
     run_elevations,
     run_weather,
 )
-from app.logic.reconcile import reconcile_trip
 from app.models.album import Album
 from app.models.segment import Segment
 from app.models.step import Step
@@ -52,6 +53,7 @@ def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
 
 
 async def _process_trip(
+    http: HttpClients,
     user: User,
     trip_dir: Path,
     db_out: list[DbRow],
@@ -68,8 +70,10 @@ async def _process_trip(
     async def _phases() -> TripResults:
         try:
             async with asyncio.TaskGroup() as tg:
-                elev_task = tg.create_task(run_elevations(locs, n, queue))
-                weather_task = tg.create_task(run_weather(trip.all_steps, n, queue))
+                elev_task = tg.create_task(run_elevations(http, locs, n, queue))
+                weather_task = tg.create_task(
+                    run_weather(http, trip.all_steps, n, queue)
+                )
                 media_task = tg.create_task(
                     _media_pipeline(user, trip, trip_dir, cover_name, queue)
                 )
@@ -140,13 +144,13 @@ async def _save_reupload(
         if reconciled_aids:
             await session.exec(
                 delete(Step)
-                .where(Step.uid == uid)  # type: ignore[arg-type]
-                .where(Step.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+                .where(col(Step.uid) == uid)
+                .where(col(Step.aid).in_(reconciled_aids))
             )
             await session.exec(
                 delete(Segment)
-                .where(Segment.uid == uid)  # type: ignore[arg-type]
-                .where(Segment.aid.in_(reconciled_aids))  # type: ignore[union-attr]
+                .where(col(Segment.uid) == uid)
+                .where(col(Segment.aid).in_(reconciled_aids))
             )
 
         current_aids = {d.name for d in trip_dirs}
@@ -154,8 +158,8 @@ async def _save_reupload(
         if orphan_aids:
             await session.exec(
                 delete(Album)
-                .where(Album.uid == uid)  # type: ignore[arg-type]
-                .where(Album.id.in_(orphan_aids))  # type: ignore[union-attr]
+                .where(col(Album.uid) == uid)
+                .where(col(Album.id).in_(orphan_aids))
             )
         await session.flush()
 
@@ -186,7 +190,9 @@ def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
     logger.info("Applied %s i18n overlay for demo user %d", user.locale, user.id)
 
 
-async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
+async def run_processing(
+    http: HttpClients, user: User
+) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
     existing_albums, existing_steps = await _load_existing(user)
@@ -200,6 +206,7 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
 
             if aid in existing_albums:
                 async for event in reconcile_trip(
+                    http,
                     user,
                     trip_dir,
                     existing_albums[aid],
@@ -209,7 +216,7 @@ async def run_processing(user: User) -> AsyncIterator[ProcessingEvent]:
                     yield event
                 reconciled_aids.add(aid)
             else:
-                async for event in _process_trip(user, trip_dir, all_objects):
+                async for event in _process_trip(http, user, trip_dir, all_objects):
                     yield event
     except Exception:
         logger.exception("Processing failed for user %d", user.id)

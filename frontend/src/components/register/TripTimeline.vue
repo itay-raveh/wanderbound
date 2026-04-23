@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import type { ProcessingPhase, TripMeta } from "@/client";
-import { PHASE_ORDER } from "@/composables/useProcessingStream";
-import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { PHASE_ORDER } from "@/composables/useTripProcessingStream";
+import type {
+  PhaseDone,
+  ProcessingState,
+} from "@/composables/useTripProcessingStream";
 import { useI18n } from "vue-i18n";
 import {
   matCheck,
@@ -15,7 +18,7 @@ import ProgressBar from "@/components/ui/ProgressBar.vue";
 
 const props = defineProps<{
   trips: TripMeta[];
-  state: StreamState;
+  state: ProcessingState;
   tripIndex: number;
   phaseDone: PhaseDone;
 }>();
@@ -147,27 +150,19 @@ const overallPercent = computed(() => {
               {{ phaseDone[p].done }}/{{ phaseDone[p].total }}
             </span>
 
-            <!-- Per-phase mini progress bar (only for multi-item phases) -->
-            <div
+            <q-linear-progress
               v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0"
-              class="phase-track overflow-hidden"
+              :value="phasePercent(p) / 100"
+              color="primary"
+              size="0.125rem"
+              class="phase-bar"
               aria-hidden="true"
-            >
-              <div
-                class="phase-fill"
-                :style="{ transform: `scaleX(${phasePercent(p) / 100})` }"
-              />
-            </div>
+            />
           </div>
 
-          <!-- Overall progress bar -->
           <ProgressBar
             :progress="overallPercent / 100"
             class="overall-progress"
-            role="progressbar"
-            :aria-valuenow="overallPercent"
-            aria-valuemin="0"
-            aria-valuemax="100"
             :aria-label="t('register.overallProgress')"
           />
         </div>
@@ -301,10 +296,10 @@ const overallPercent = computed(() => {
 
 .phase-check {
   opacity: 0.6;
-  animation: scaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: dotScaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
-@keyframes scaleIn {
+@keyframes dotScaleIn {
   from {
     transform: scale(0);
     opacity: 0;
@@ -315,25 +310,10 @@ const overallPercent = computed(() => {
   }
 }
 
-.phase-track {
+.phase-bar {
   flex: 1;
-  height: 0.1875rem;
   border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--q-primary) 12%, transparent);
   min-width: 2rem;
-}
-
-.phase-fill {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-xs);
-  background: var(--q-primary);
-  transform-origin: left;
-  transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:dir(rtl) .phase-fill {
-  transform-origin: right;
 }
 
 .overall-progress {

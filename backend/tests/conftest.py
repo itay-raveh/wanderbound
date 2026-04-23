@@ -1,7 +1,9 @@
+import dataclasses
 from collections.abc import AsyncIterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -10,13 +12,30 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.deps import _get_session
+from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings
+from app.core.http_clients import HttpClients
 from app.logic.chunked_upload import upload_store
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
+from app.services.google_photos import GooglePhotosOAuth2
 
 from .factories import TRIPS_DIR
+
+
+def _mock_http_clients() -> HttpClients:
+    """Provide an HttpClients with AsyncMock clients for tests.
+
+    Tests that need specific client behavior should configure the relevant
+    mock (e.g. ``http.gphotos_oauth.get_access_token.return_value = ...``).
+    """
+    fields: dict[str, object] = {}
+    for f in dataclasses.fields(HttpClients):
+        if f.name == "gphotos_oauth":
+            fields[f.name] = AsyncMock(spec=GooglePhotosOAuth2)
+        else:
+            fields[f.name] = AsyncMock(spec=httpx.AsyncClient)
+    return HttpClients(**fields)
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -51,6 +70,7 @@ async def client(
         yield session
 
     app.dependency_overrides[_get_session] = _override
+    app.dependency_overrides[_get_http_clients] = _mock_http_clients
     # Disable background eviction - it opens its own DB session, bypassing
     # the test transaction rollback and causing cross-test data leaks.
     with patch("app.api.v1.routes.users.run_eviction"):

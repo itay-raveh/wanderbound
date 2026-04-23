@@ -19,7 +19,7 @@ dependencies = [
     "httpx<1",
     "hishel[httpx]~=1.0",
     "httpx-retries<1",
-    "polars~=1.38",
+    "polars~=1.40",
     "playwright~=1.52",
     "coloraide~=8.7",
     "aiolimiter~=1.2",
@@ -29,6 +29,13 @@ dependencies = [
     "puremagic>=2.1.0",
     "sentry-sdk[fastapi]~=2.35",
     "alembic-postgresql-enum>=1.10.0",
+    "httpx-oauth~=0.16",
+    "imagehash~=4.3",
+    "pillow-heif~=1.3",
+    "scipy~=1.15",
+    "sqlalchemy-dlock>=0.8.1",
+    "av~=17.0",
+    "anyio~=4.13",
 ]
 
 [dependency-groups]
@@ -107,6 +114,7 @@ invalid-type-form = "ignore"  # ty false positive on properties named `datetime`
 include = ["tests/**"]
 [tool.ty.overrides.rules]
 invalid-argument-type = "ignore"
+unresolved-attribute = "ignore"  # AsyncMock(spec=...) .return_value / .side_effect
 
 [tool.deptry.per_rule_ignores]
 # DEP002 = "Unused dependency"

@@ -29,11 +29,6 @@ export function mediaThumbUrl(
   return `${mediaUrl(posterPath(name), albumId)}?w=${width}`;
 }
 
-export function mediaSrcset(name: string, albumId: string): string {
-  const base = mediaUrl(name, albumId);
-  return THUMB_WIDTHS.map((w) => `${base}?w=${w} ${w}w`).join(", ");
-}
-
 /** Build flagcdn URL for a country code (w160 PNG - crisp at small display sizes). */
 export function flagUrl(countryCode: string): string {
   return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;

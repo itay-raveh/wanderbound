@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.core.tokens import TokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
@@ -202,8 +202,8 @@ async def export_user_data(
     for step in (
         await session.exec(
             select(Step)
-            .where(Step.uid == user.id, Step.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
-            .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+            .where(Step.uid == user.id, col(Step.aid).in_(album_ids_loaded))
+            .order_by(col(Step.timestamp), col(Step.id))
         )
     ).all():
         steps_by_album[step.aid].append(step)
@@ -212,8 +212,8 @@ async def export_user_data(
     for segment in (
         await session.exec(
             select(Segment)
-            .where(Segment.uid == user.id, Segment.aid.in_(album_ids_loaded))  # type: ignore[union-attr]
-            .order_by(Segment.start_time)  # type: ignore[union-attr]
+            .where(Segment.uid == user.id, col(Segment.aid).in_(album_ids_loaded))
+            .order_by(col(Segment.start_time))
         )
     ).all():
         segments_by_album[segment.aid].append(segment)

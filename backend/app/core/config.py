@@ -47,7 +47,9 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
+    SECRET_KEY_PREVIOUS: str | None = None
     VITE_FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = ""
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
@@ -56,6 +58,7 @@ class Settings(BaseSettings):
 
     VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
     VITE_MAX_UPLOAD_GB: int = 4
 
     BACKEND_CORS_ORIGINS: Annotated[
@@ -79,6 +82,12 @@ class Settings(BaseSettings):
     MAX_STORAGE_BYTES: int = 0
 
     @model_validator(mode="after")
+    def _default_frontend_url(self) -> Self:
+        if not self.FRONTEND_URL:
+            self.FRONTEND_URL = self.VITE_FRONTEND_URL
+        return self
+
+    @model_validator(mode="after")
     def _detect_storage_cap(self) -> Self:
         if not self.MAX_STORAGE_BYTES:
             self.MAX_STORAGE_BYTES = int(
@@ -97,6 +106,8 @@ class Settings(BaseSettings):
             missing.append("VITE_FRONTEND_URL")
         if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:
             missing.append("VITE_GOOGLE_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID")
+        if self.VITE_GOOGLE_CLIENT_ID and not self.GOOGLE_CLIENT_SECRET:
+            missing.append("GOOGLE_CLIENT_SECRET")
         if missing:
             raise ValueError(f"required in production: {', '.join(missing)}")
         return self
@@ -112,4 +123,4 @@ class Settings(BaseSettings):
 
 @cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()  # type: ignore[call-arg]  # ty: ignore[missing-argument]

@@ -6,17 +6,13 @@ sits between the cache and network layers so cache hits bypass it.
 
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
-from functools import cache
 from itertools import batched
 from typing import Protocol
 
 import httpx
-from aiolimiter import AsyncLimiter
-from httpx import Request
 from pydantic import BaseModel
 
 from app.core.async_helpers import yield_completed
-from app.core.http import RateLimitedTransport, cached_client
 from app.models.polarsteps import HasLatLon
 from app.models.weather import Weather, WeatherData
 
@@ -36,33 +32,6 @@ class _StepLike(Protocol):
     def datetime(self) -> datetime: ...
 
 
-def _request_weight(request: Request) -> int:
-    """Estimate how many API calls Open-Meteo will charge for this request.
-
-    Elevation is charged per coordinate in the batched lat/lon params.
-    Archive is charged per requested daily variable: the server multiplies each
-    variable into a separate billed call, which is invisible in our HTTP count.
-    """
-    if request.url.path.endswith("/v1/archive"):
-        daily = request.url.params.get("daily", "")
-        return daily.count(",") + 1 if daily else 1
-    lat = request.url.params.get("latitude", "")
-    return lat.count(",") + 1 if "," in lat else 1
-
-
-# Free tier: 600 calls/min, 5 000/hr.  We stay under with 480/min.
-_limiter = AsyncLimiter(480, 60)
-
-
-@cache
-def _client() -> httpx.AsyncClient:
-    return cached_client(
-        transport=RateLimitedTransport(
-            _limiter, max_concurrent=20, weight_fn=_request_weight
-        )
-    )
-
-
 class _ElevationResult(BaseModel):
     elevation: list[float]
 
@@ -70,9 +39,11 @@ class _ElevationResult(BaseModel):
 OPEN_METEO_MAX_PER_REQUEST = 100
 
 
-async def elevations(locs: Sequence[HasLatLon]) -> AsyncIterator[float]:
+async def elevations(
+    client: httpx.AsyncClient, locs: Sequence[HasLatLon]
+) -> AsyncIterator[float]:
     for batch in batched(locs, OPEN_METEO_MAX_PER_REQUEST, strict=False):
-        response = await _client().get(
+        response = await client.get(
             "https://api.open-meteo.com/v1/elevation",
             params={
                 "latitude": ",".join(str(loc.lat) for loc in batch),
@@ -169,11 +140,11 @@ def _weather_from_result(step: _StepLike, loc: _LocationResult) -> Weather | Non
     )
 
 
-async def _fetch_one(step: _StepLike) -> Weather:
+async def _fetch_one(client: httpx.AsyncClient, step: _StepLike) -> Weather:
     """Fetch weather for a single step.  Raises on failure."""
     date_str = str(step.datetime.date())
     try:
-        response = await _client().get(
+        response = await client.get(
             "https://archive-api.open-meteo.com/v1/archive",
             params={
                 "latitude": round(step.location.lat, 2),
@@ -197,12 +168,13 @@ async def _fetch_one(step: _StepLike) -> Weather:
 
 
 async def build_weathers(
+    client: httpx.AsyncClient,
     steps: Sequence[_StepLike],
 ) -> AsyncIterator[tuple[int, Weather]]:
     """Yield (index, weather) as each completes (concurrent, unordered)."""
 
     async def _one(idx: int, step: _StepLike) -> tuple[int, Weather]:
-        return idx, await _fetch_one(step)
+        return idx, await _fetch_one(client, step)
 
     async for result in yield_completed(_one(i, s) for i, s in enumerate(steps)):
         yield result

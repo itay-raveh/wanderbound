@@ -1,3 +1,5 @@
+// Outlined CTA button shell shared by AsyncActionButton and
+// UpgradeMediaButton's non-shared variants (error, chrome-disabled, split).
 @mixin action-button {
   .action-btn {
     font-family: var(--font-ui);

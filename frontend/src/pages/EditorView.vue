@@ -16,9 +16,10 @@ import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
+import { useLocalStorage } from "@vueuse/core";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
-import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+import { computed, watch, nextTick, onBeforeUnmount } from "vue";
 
 const { t } = useI18n();
 
@@ -27,18 +28,7 @@ useMeta({ title: "Editor" });
 import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
 const DRAWER_WIDTH = 280;
 
-let savedAlbumId: string | null = null;
-try {
-  savedAlbumId = localStorage.getItem(LAST_ALBUM_KEY);
-} catch {}
-const selectedAlbumId = ref<string | null>(savedAlbumId);
-
-watch(selectedAlbumId, (id) => {
-  try {
-    if (id) localStorage.setItem(LAST_ALBUM_KEY, id);
-    else localStorage.removeItem(LAST_ALBUM_KEY);
-  } catch {}
-});
+const selectedAlbumId = useLocalStorage<string | null>(LAST_ALBUM_KEY, null);
 
 const { data: userData, locale, isDemo, exitDemo } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);

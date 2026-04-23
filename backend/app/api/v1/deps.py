@@ -3,6 +3,7 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import sentry_sdk
@@ -10,10 +11,11 @@ from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
+from app.core.http_clients import HttpClients
 from app.models.user import User
 
 if TYPE_CHECKING:
@@ -42,7 +44,7 @@ async def _touch_activity(uid: int) -> None:
         async with AsyncSession(get_engine()) as session:
             await session.exec(
                 update(User)
-                .where(User.id == uid)  # type: ignore[arg-type]
+                .where(col(User.id) == uid)
                 .values(last_active_at=datetime.now(UTC))
             )
             await session.commit()
@@ -64,6 +66,17 @@ async def _get_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
 
     sentry_sdk.set_user({"id": str(uid)})
+
+    # Self-heal: if the stored refresh-token ciphertext could not be decrypted
+    # (e.g. after SECRET_KEY rotation), EncryptedString returns None, but
+    # connected_at is still set. Collapse to "disconnected" at a single point.
+    if (
+        user.google_photos_connected_at is not None
+        and user.google_photos_refresh_token is None
+    ):
+        user.google_photos_connected_at = None
+        session.add(user)
+        await session.commit()
 
     # Debounced activity tracking
     now = time.monotonic()
@@ -98,6 +111,21 @@ async def _get_browser(request: Request) -> Browser:
 
 
 BrowserDep = Annotated[Browser, Depends(_get_browser)]
+
+
+def _get_http_clients(request: Request) -> HttpClients:
+    return request.app.state.http
+
+
+HttpClientsDep = Annotated[HttpClients, Depends(_get_http_clients)]
+
+
+def album_dir(user: User, aid: str) -> Path:
+    """Resolve the album directory, rejecting path traversal in ``aid``."""
+    resolved = (user.trips_folder / aid).resolve()
+    if not resolved.is_relative_to(user.trips_folder):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return resolved
 
 
 def login_session(request: Request, uid: int) -> None:

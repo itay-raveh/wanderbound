@@ -312,10 +312,6 @@ function reset() {
           :value="progress"
           color="primary"
           class="upload-bar"
-          role="progressbar"
-          :aria-valuenow="Math.round(progress * 100)"
-          aria-valuemin="0"
-          aria-valuemax="100"
           :aria-label="t('register.uploadProgress')"
         />
       </div>

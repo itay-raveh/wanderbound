@@ -14,11 +14,11 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.logic.layout.media import Media
-from app.logic.matching import MATCHABLE_KINDS, total_length_km
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
+from app.logic.route_matching import MATCHABLE_KINDS, total_length_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,
@@ -30,7 +30,7 @@ from app.models.segment import (
 from app.models.step import Step, StepUpdate
 from app.services.mapbox import match_segments
 
-from ..deps import BrowserDep, SessionDep, UserDep, apply_update
+from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[Step]
     result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+        .order_by(col(Step.timestamp), col(Step.id))
     )
     return list(result.all())
 
@@ -93,16 +93,17 @@ async def read_segments(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(col(Segment.start_time))
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
 
 @router.get("/{aid}/segments/points")
-async def read_segment_points(
+async def read_segment_points(  # noqa: PLR0913
     aid: str,
     user: UserDep,
     session: SessionDep,
+    http: HttpClientsDep,
     from_time: Annotated[float, Query()],
     to_time: Annotated[float, Query()],
 ) -> Sequence[Segment]:
@@ -114,7 +115,7 @@ async def read_segment_points(
             Segment.start_time >= from_time,
             Segment.end_time <= to_time,
         )
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(col(Segment.start_time))
     )
     segments = result.all()
 
@@ -122,7 +123,7 @@ async def read_segment_points(
     unmatched = [s for s in segments if s.kind in MATCHABLE_KINDS and s.route is None]
     if unmatched:
         pairs = [([(p.lon, p.lat) for p in s.points], str(s.kind)) for s in unmatched]
-        routes = await match_segments(pairs)
+        routes = await match_segments(http.mapbox, pairs)
         for seg, route in zip(unmatched, routes, strict=True):
             if route:
                 seg.route = route
@@ -180,10 +181,10 @@ async def adjust_segment_boundary(
     # Find the adjacent segment (nearest non-overlapping on the relevant side)
     if body.handle == "start":
         time_filter = Segment.end_time <= target.start_time
-        ordering = Segment.end_time.desc()  # type: ignore[union-attr]
+        ordering = col(Segment.end_time).desc()
     else:
         time_filter = Segment.start_time >= target.end_time
-        ordering = Segment.start_time.asc()  # type: ignore[union-attr]
+        ordering = col(Segment.start_time).asc()
     result = await session.exec(
         select(Segment)
         .where(
@@ -225,7 +226,7 @@ async def adjust_segment_boundary(
     result = await session.exec(
         select(Segment)
         .where(Segment.uid == uid, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(col(Segment.start_time))
     )
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
@@ -244,12 +245,12 @@ async def read_print_bundle(
     steps_result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(Step.timestamp, Step.id)  # type: ignore[union-attr]
+        .order_by(col(Step.timestamp), col(Step.id))
     )
     segments_result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
-        .order_by(Segment.start_time)  # type: ignore[union-attr]
+        .order_by(col(Segment.start_time))
     )
     steps = list(steps_result.all())
     segments = list(segments_result.all())

@@ -14,15 +14,18 @@ import {
   matPerson,
   matLightMode,
   matDarkMode,
+  matBrightnessAuto,
   matDeleteOutline,
   matDownload,
   matSettings,
   matLogout,
   matUploadFile,
 } from "@quasar/extras/material-icons";
+import { useDarkMode } from "@/composables/useDarkMode";
 import { useDataExport } from "@/composables/useDataExport";
 
 const router = useRouter();
+const darkMode = useDarkMode();
 const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } =
   useUserQuery();
 const { mutate: patch } = useUserMutation();
@@ -118,17 +121,21 @@ async function handleDelete() {
           <!-- Appearance -->
           <section class="card-section">
             <SegmentedControl
-              :model-value="$q.dark.isActive"
+              v-model="darkMode"
               :options="[
                 {
                   label: t('settings.light'),
-                  value: false,
+                  value: 'light',
                   icon: matLightMode,
                 },
-                { label: t('settings.dark'), value: true, icon: matDarkMode },
+                {
+                  label: t('settings.system'),
+                  value: 'system',
+                  icon: matBrightnessAuto,
+                },
+                { label: t('settings.dark'), value: 'dark', icon: matDarkMode },
               ]"
               :aria-label="t('settings.appearance')"
-              @update:model-value="$q.dark.set($event)"
             />
           </section>
 
@@ -192,7 +199,7 @@ async function handleDelete() {
 
             <button
               v-if="!isDemo"
-              class="action-btn"
+              class="menu-item-btn"
               @click="
                 menuOpen = false;
                 router.push({ name: 'upload' });
@@ -203,7 +210,7 @@ async function handleDelete() {
             </button>
 
             <button
-              class="action-btn"
+              class="menu-item-btn"
               @click="
                 menuOpen = false;
                 exportStream.start();
@@ -221,11 +228,11 @@ async function handleDelete() {
 
           <q-separator class="q-my-sm" />
 
-          <button v-if="isDemo" class="action-btn" @click="exitDemo">
+          <button v-if="isDemo" class="menu-item-btn" @click="exitDemo">
             <q-icon :name="matLogout" size="1rem" />
             {{ t("demo.bannerCta") }}
           </button>
-          <button v-else class="action-btn" @click="handleSignOut">
+          <button v-else class="menu-item-btn" @click="handleSignOut">
             <q-icon :name="matLogout" size="1rem" />
             {{ t("settings.signOut") }}
           </button>
@@ -375,7 +382,7 @@ async function handleDelete() {
   margin-bottom: var(--gap-md-lg);
 }
 
-.action-btn,
+.menu-item-btn,
 .danger-btn {
   all: unset;
   cursor: pointer;
@@ -396,7 +403,7 @@ async function handleDelete() {
   }
 }
 
-.action-btn {
+.menu-item-btn {
   color: var(--text-muted);
 
   &:hover {
@@ -416,7 +423,7 @@ async function handleDelete() {
 @media (prefers-reduced-motion: reduce) {
   .settings-trigger,
   .trigger-gear,
-  .action-btn,
+  .menu-item-btn,
   .danger-btn,
   .account-details > summary::after {
     transition: none;

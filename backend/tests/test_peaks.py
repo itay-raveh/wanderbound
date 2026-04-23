@@ -1,10 +1,8 @@
 """Tests for app.logic.spatial.peaks."""
 
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -32,13 +30,12 @@ def _overpass_json(peaks: list[tuple[float, str]]) -> bytes:
     return json.dumps({"elements": elements}).encode()
 
 
-@contextmanager
-def _mock_overpass(peaks: list[tuple[float, str]]) -> Iterator[None]:
+def _mock_overpass_client(peaks: list[tuple[float, str]]) -> httpx.AsyncClient:
     mock_response = MagicMock(status_code=200)
     mock_response.content = _overpass_json(peaks)
-    with patch("app.logic.spatial.peaks._client") as mock_client:
-        mock_client.return_value.post = AsyncMock(return_value=mock_response)
-        yield
+    client = MagicMock(spec=httpx.AsyncClient)
+    client.post = AsyncMock(return_value=mock_response)
+    return client
 
 
 class TestParseEle:
@@ -84,8 +81,8 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(-16.19, -68.26), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        with _mock_overpass([(5327, "Pico Austria")]):
-            result = await correct_peaks(locs, elevs)
+        client = _mock_overpass_client([(5327, "Pico Austria")])
+        result = await correct_peaks(client, locs, elevs)
 
         assert result[0] == 500.0  # unchanged
         assert result[1] == 5327.0  # corrected
@@ -95,8 +92,8 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5400.0, 500.0]
 
-        with _mock_overpass([(5327, "Pico Austria")]):
-            result = await correct_peaks(locs, elevs)
+        client = _mock_overpass_client([(5327, "Pico Austria")])
+        result = await correct_peaks(client, locs, elevs)
 
         assert result[1] == 5400.0  # unchanged - OSM peak is lower
 
@@ -106,8 +103,8 @@ class TestCorrectPeaks:
         osm_val = dem_val * (1 + PEAK_MAX_DEVIATION)  # exactly 10%
         elevs = [500.0, dem_val, 500.0]
 
-        with _mock_overpass([(osm_val, "Boundary Peak")]):
-            result = await correct_peaks(locs, elevs)
+        client = _mock_overpass_client([(osm_val, "Boundary Peak")])
+        result = await correct_peaks(client, locs, elevs)
 
         assert result[1] == osm_val  # corrected
 
@@ -115,14 +112,14 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        with _mock_overpass(
+        client = _mock_overpass_client(
             [
                 (6088, "Huayna Potosi"),
                 (5327, "Pico Austria"),
                 (5648, "Condoriri"),
             ]
-        ):
-            result = await correct_peaks(locs, elevs)
+        )
+        result = await correct_peaks(client, locs, elevs)
 
         assert result[1] == 5327.0  # closest to 5236
 
@@ -130,10 +127,8 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        with patch("app.logic.spatial.peaks._client") as mock_client:
-            mock_client.return_value.post = AsyncMock(
-                side_effect=httpx.HTTPError("timeout")
-            )
-            result = await correct_peaks(locs, elevs)
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.post = AsyncMock(side_effect=httpx.HTTPError("timeout"))
+        result = await correct_peaks(client, locs, elevs)
 
         assert list(result) == elevs

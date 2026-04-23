@@ -1,19 +1,11 @@
 import logging
 from collections.abc import Iterable, Sequence
-from functools import cache
 from typing import Annotated
 
 import httpx
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
-from app.core.http import cached_client
 from app.models.polarsteps import HasLatLon
-
-
-@cache
-def _client() -> httpx.AsyncClient:
-    return cached_client(use_body_key=True)
-
 
 PEAK_MIN_PROMINENCE = 300
 PEAK_SEARCH_RADIUS = 500
@@ -56,6 +48,7 @@ def _local_peaks(dem_elevs: Sequence[float]) -> Iterable[int]:
 
 
 async def correct_peaks(
+    client: httpx.AsyncClient,
     locs: Sequence[HasLatLon],
     elevs: Sequence[float],
 ) -> Sequence[float]:
@@ -75,7 +68,7 @@ async def correct_peaks(
     query = f"[out:json][timeout:10];({around_clauses});out;"
     logger.debug("Overpass query for %d peaks: %s", len(high_indices), query)
     try:
-        response = await _client().post(
+        response = await client.post(
             "https://overpass-api.de/api/interpreter", data={"data": query}
         )
         response.raise_for_status()

@@ -17,9 +17,8 @@ from app.logic.layout.media import (
     generate_thumbnail,
     is_video,
 )
-from app.models.user import User
 
-from ..deps import UserDep
+from ..deps import UserDep, album_dir as _album_dir
 
 logger = logging.getLogger(__name__)
 
@@ -47,14 +46,6 @@ async def _gen_lock(path: Path) -> AsyncIterator[None]:
         _gen_locks[path] = lock
     async with lock:
         yield
-
-
-def _album_dir(user: User, aid: str) -> Path:
-    """Resolve the album directory, rejecting path traversal in ``aid``."""
-    resolved = (user.trips_folder / aid).resolve()
-    if not resolved.is_relative_to(user.trips_folder):
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return resolved
 
 
 @router.get("/{aid}/media/{name}")

@@ -1,13 +1,11 @@
 {
   "brand": "Wanderbound",
   "tagline": "Upload your {polarsteps} trip and get a print-ready album",
-
   "common": {
     "loadingAlbum": "Loading album...",
     "retry": "Please try again.",
     "cancel": "Cancel"
   },
-
   "units": {
     "km": "km",
     "mi": "mi",
@@ -16,12 +14,10 @@
     "masl": "m asl",
     "ftAsl": "ft asl"
   },
-
   "duration": {
     "hours": "{n}h",
     "days": "{n}d"
   },
-
   "phase": {
     "label": {
       "elevations": "Mapping terrain",
@@ -34,7 +30,6 @@
       "layouts": "Arranging your photos on the page..."
     }
   },
-
   "landing": {
     "autoAlbumTitle": "Your photos, laid out for print",
     "autoAlbumBody": "Upload your {polarsteps} export and we arrange every photo across pages, balanced and print-ready. You pick your favorites.",
@@ -48,13 +43,11 @@
     "ctaTitle": "Your trip deserves a real album",
     "ctaBody": "Your photos, routes, and stories are in {polarsteps}. Turn them into an album you'll flip through."
   },
-
   "login": {
     "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
     "signInFailed": "Sign-in failed. @:common.retry"
   },
-
   "register": {
     "getDataTitle": "Get your data from Polarsteps",
     "getDataStep1": "Log in at {link} on a desktop computer",
@@ -90,7 +83,6 @@
     "dropZone": "Drop your file here or click to browse",
     "getDataGuide": "See Polarsteps' step-by-step guide"
   },
-
   "editor": {
     "toolbar": "Album tools",
     "exportPdf": "Export PDF",
@@ -100,11 +92,11 @@
     "safeMargin": "Safe margin",
     "zoom": "Zoom"
   },
-
   "settings": {
     "menu": "Settings",
     "appearance": "Appearance",
     "light": "Light",
+    "system": "System",
     "dark": "Dark",
     "distance": "Distance",
     "temperature": "Temperature",
@@ -115,14 +107,12 @@
     "deleteAll": "Delete all data",
     "deleteFailed": "Couldn't delete your data. @:common.retry"
   },
-
   "delete": {
     "title": "Delete all data?",
     "body": "This will permanently remove your uploaded data and all albums. You'll need to upload again to continue.",
     "confirm": "Delete everything",
     "deleting": "Deleting..."
   },
-
   "album": {
     "day": "DAY {n}",
     "stepNamePlaceholder": "Step name",
@@ -145,12 +135,10 @@
     "tripRouteMap": "Trip route map",
     "playVideo": "Play video"
   },
-
   "hike": {
     "mapLabel": "Hike route map",
     "elevationProfile": "Elevation profile"
   },
-
   "overview": {
     "title": "Trip overview",
     "coldest": "Coldest",
@@ -158,16 +146,13 @@
     "highest": "Highest",
     "furthestFromHome": "Furthest from home"
   },
-
   "inspector": {
     "overview": "Overview"
   },
-
   "export": {
     "preparing": "Preparing export...",
     "progress": "Exporting data... {done} / {total} files"
   },
-
   "error": {
     "loadAlbum": "Failed to load album:",
     "updatePreference": "Couldn't save your preference. @:common.retry",
@@ -180,7 +165,6 @@
     "connectionFailed": "Connection lost. @:common.retry",
     "adjustBoundary": "Couldn't adjust the boundary. @:common.retry"
   },
-
   "pdf": {
     "queued": "Waiting to start...",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
@@ -189,7 +173,6 @@
     "ready": "Ready",
     "cancel": "Cancel export"
   },
-
   "footer": {
     "privacy": "Privacy",
     "terms": "Terms",
@@ -198,7 +181,6 @@
     "disclaimerIndependent": "Wanderbound is an independent project, not affiliated with Polarsteps.",
     "disclaimerRecommendation": "If the official Polarsteps album works for you, use it."
   },
-
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "navigatePhotos": "Navigate photos",
@@ -208,7 +190,6 @@
     "undo": "Undo",
     "redo": "Redo"
   },
-
   "nav": {
     "steps": "Steps",
     "cover": "Cover",
@@ -230,18 +211,15 @@
     "filterCleared": "Filter cleared",
     "inspector": "Inspector"
   },
-
   "screen": {
     "title": "Larger screen required",
     "body": "This app is designed for desktops and landscape tablets. Use a laptop or desktop computer, or rotate your tablet to landscape."
   },
-
   "demo": {
     "tryButton": "Try with demo data",
     "bannerText": "You're exploring a demo album",
     "bannerCta": "Sign in with your own trip"
   },
-
   "quality": {
     "cautionTooltip": "May appear slightly soft in print (~{dpi} DPI, 100+ recommended)",
     "warningTooltip": "Will likely look blurry in print (~{dpi} DPI, 100+ recommended)",
@@ -251,5 +229,49 @@
     "exportBodyCautionOnly": "Your album has {caution} medium-quality photos that may not look perfectly sharp in print.",
     "exportCancel": "Go back",
     "exportConfirm": "Export anyway"
+  },
+  "upgrade": {
+    "button": "Upgrade Media",
+    "onboarding": {
+      "title": "Upgrade to Original Quality",
+      "body": "Replace your bad Polarsteps photos.",
+      "tip": "For large trips, put them in a Google Photos album first.",
+      "continue": "Connect Google Photos"
+    },
+    "authorizing": "Connecting to Google Photos...",
+    "picking": "Waiting for selection...",
+    "preparing": "Analyzing album",
+    "matching": "Matching",
+    "summary": {
+      "readyTitle": "1 file ready to upgrade | {count} files ready to upgrade",
+      "noMatchTitle": "No matches found",
+      "noNewMatchTitle": "No new matches found",
+      "allUpgradedTitle": "Already at original quality",
+      "noMatchBody": "Make sure you selected photos from your trip.",
+      "noNewMatchBody": "Try selecting different photos.",
+      "allUpgradedBody": "All matched files were already upgraded.",
+      "alreadyUpgraded": "1 already at original quality. | {count} already at original quality.",
+      "confirm": "Upgrade 1 file | Upgrade {count} files",
+      "selectMore": "Select More"
+    },
+    "downloading": "Downloading",
+    "done": "Upgraded 1 file to original quality | Upgraded {replaced} files to original quality",
+    "doneSkipped": "Upgraded 1 file, {skipped} already full quality | Upgraded {replaced} files, {skipped} already full quality",
+    "donePartial": "Upgraded {replaced} of 1 file | Upgraded {replaced} of {total} files",
+    "error": "Upgrade failed. Try again.",
+    "errors": {
+      "popupBlocked": "Popup blocked. Allow popups and try again.",
+      "selectionTimeout": "Selection timed out.",
+      "connectionLost": "Connection lost during upgrade.",
+      "authCancelled": "Authorization cancelled.",
+      "authTimeout": "Authorization timed out."
+    },
+    "options": "Upgrade options",
+    "disconnect": "Disconnect Google Photos",
+    "disconnectConfirm": {
+      "title": "Disconnect Google Photos?",
+      "body": "You can reconnect any time to upgrade more files.",
+      "confirm": "Disconnect"
+    }
   }
 }

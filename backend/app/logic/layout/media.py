@@ -1,15 +1,21 @@
 import asyncio
-import json
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Self
 
+import av
 from PIL import Image, ImageOps
-from PIL.ExifTags import Base as ExifBase
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
 from app.core.resources import detect_memory_mb
+
+# PQ (HDR10) and HLG values of AVColorTransferCharacteristic.
+# https://ffmpeg.org/doxygen/trunk/pixfmt_8h.html
+HDR_COLOR_TRC = frozenset({16, 18})
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +31,15 @@ _media_budget = max(256, detect_memory_mb() - _MEDIA_BASELINE_MB)
 media_sem = asyncio.Semaphore(max(4, min(40, _media_budget // _PER_MEDIA_OP_MB)))
 
 
-def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
+@contextmanager
+def open_oriented(source: Path | BytesIO) -> Iterator[Image.Image]:
+    """Open an image and yield it with EXIF orientation applied."""
     with Image.open(source) as raw:
-        img = ImageOps.exif_transpose(raw) or raw
+        yield ImageOps.exif_transpose(raw) or raw
+
+
+def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
+    with open_oriented(source) as img:
         orig_w, orig_h = img.size
         if width >= orig_w:
             return None
@@ -69,41 +81,24 @@ def is_video(name: str) -> bool:
     return name.endswith(".mp4")
 
 
-async def _video_dimensions(path: Path) -> tuple[int, int]:
-    proc = await asyncio.create_subprocess_exec(
-        "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height:stream_tags=rotate:stream_side_data=rotation",
-        "-of",
-        "json",
-        str(path),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffprobe failed: {stderr.decode()}")
-    streams = json.loads(stdout).get("streams", [])
-    if not streams:
-        raise RuntimeError(f"No video stream found in {path}")
-    stream = streams[0]
-    w, h = stream["width"], stream["height"]
-    # Legacy: rotate tag in stream metadata
-    rotation = abs(int(stream.get("tags", {}).get("rotate", "0")))
-    # Modern: display matrix in side_data_list (newer iOS/Android)
-    if rotation == 0:
-        for sd in stream.get("side_data_list", []):
-            if "rotation" in sd:
-                rotation = abs(int(sd["rotation"]))
-                break
+def _probe_video_dimensions_sync(path: Path) -> tuple[int, int]:
+    # stream.width/height are pre-rotation; rotation lives on decoded frames.
+    # https://github.com/PyAV-Org/PyAV/pull/1675
+    with av.open(str(path)) as container:
+        stream = container.streams.video[0]
+        w, h = stream.width, stream.height
+        rotation = 0
+        for frame in container.decode(stream):
+            rotation = abs(int(frame.rotation))
+            break
     if rotation in (90, 270):
         w, h = h, w
-    logger.debug("ffprobe %s: %dx%d (rotation=%d)", path.name, w, h, rotation)
+    logger.debug("av probe %s: %dx%d (rotation=%d)", path.name, w, h, rotation)
     return w, h
+
+
+async def _video_dimensions(path: Path) -> tuple[int, int]:
+    return await asyncio.to_thread(_probe_video_dimensions_sync, path)
 
 
 class Media(BaseModel):
@@ -125,10 +120,8 @@ class Media(BaseModel):
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        with Image.open(path) as img:
+        with open_oriented(path) as img:
             width, height = img.size
-            if img.getexif().get(ExifBase.Orientation) in (5, 6, 7, 8):
-                width, height = height, width
         return cls(
             name=normalize_name(path.name),
             width=width,
@@ -145,58 +138,54 @@ class Media(BaseModel):
         )
 
 
-async def _video_duration(path: Path) -> float:
-    proc = await asyncio.create_subprocess_exec(
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "csv=p=0",
-        str(path),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    try:
-        return float(stdout.decode().strip())
-    except ValueError:
-        return 2.0  # safe fallback
+def _video_duration_sync(path: Path) -> float:
+    # https://pyav.basswood-io.com/docs/stable/api/time.html
+    with av.open(str(path)) as container:
+        if container.duration is None:
+            return 2.0  # safe fallback for sources without duration metadata
+        return container.duration / av.time_base
+
+
+_ROTATION_TRANSPOSE = {
+    90: Image.Transpose.ROTATE_90,
+    180: Image.Transpose.ROTATE_180,
+    270: Image.Transpose.ROTATE_270,
+}
+
+
+def frame_to_oriented_image(frame: av.VideoFrame) -> Image.Image:
+    # to_image() ignores displaymatrix, so portrait phone videos save sideways.
+    # https://github.com/PyAV-Org/PyAV/discussions/1676
+    img = frame.to_image()
+    t = _ROTATION_TRANSPOSE.get(int(frame.rotation) % 360)
+    return img.transpose(t) if t else img
+
+
+def _extract_frame_sync(video: Path, timestamp: float) -> Path:
+    # Seek backward to keyframe, decode forward to reach exact timestamp.
+    # https://pyav.basswood-io.com/docs/stable/api/container.html#av.container.InputContainer.seek
+    frame_path = video.with_suffix(".jpg")
+    with av.open(str(video)) as container:
+        stream = container.streams.video[0]
+        container.seek(int(timestamp * av.time_base))
+        for frame in container.decode(stream):
+            if frame.time is not None and frame.time >= timestamp:
+                frame_to_oriented_image(frame).save(frame_path, "JPEG", quality=85)
+                return frame_path
+    # ts beyond duration: fall back to last frame.
+    with av.open(str(video)) as container:
+        last = None
+        for frame in container.decode(container.streams.video[0]):
+            last = frame
+        if last is None:
+            raise RuntimeError(f"No frames in {video}")
+        frame_to_oriented_image(last).save(frame_path, "JPEG", quality=85)
+        return frame_path
 
 
 async def extract_frame(video: Path, timestamp: float | None = None) -> Path:
     if timestamp is None:
-        duration = await _video_duration(video)
+        duration = await asyncio.to_thread(_video_duration_sync, video)
         timestamp = duration / 2
-    frame_path = video.with_suffix(".jpg")
-    command = [
-        "ffmpeg",
-        "-y",
-        "-threads",
-        "1",
-        "-loglevel",
-        "error",
-        "-ss",
-        str(timestamp),
-        "-i",
-        str(video),
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        str(frame_path),
-    ]
-
     async with media_sem:
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await process.communicate()
-
-    if process.returncode != 0 or not frame_path.exists():
-        raise RuntimeError(f"Failed to extract: {stderr.decode()}")
-
-    return frame_path
+        return await asyncio.to_thread(_extract_frame_sync, video, timestamp)

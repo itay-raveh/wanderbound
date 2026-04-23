@@ -119,12 +119,16 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1].datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
+const upgradedMedia = computed(
+  () => new Set(Object.keys(props.album.upgraded_media ?? {})),
+);
 const { mediaByName } = provideAlbum({
   albumId,
   colors: albumColors,
   media: albumMedia,
   tripStart,
   totalDays,
+  upgradedMedia,
 });
 
 if (!props.printMode) {
@@ -135,6 +139,7 @@ if (!props.printMode) {
         props.album.front_cover_photo,
         props.album.back_cover_photo,
         mediaByName.value,
+        upgradedMedia.value,
       ),
     );
   });

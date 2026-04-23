@@ -1,10 +1,16 @@
 <script lang="ts" setup>
 import { authenticate, createDemo, readUser } from "@/client";
+import type { UploadResult } from "@/client";
 import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
 import { setAuthState, type Provider } from "@/router";
+import {
+  usePreferredReducedMotion,
+  useIntersectionObserver,
+  useSessionStorage,
+} from "@vueuse/core";
 import { useQuasar } from "quasar";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -59,11 +65,16 @@ async function onMicrosoftLogin() {
 
 const demoLoading = ref(false);
 
+const uploadResult = useSessionStorage<UploadResult | null>(
+  UPLOAD_RESULT_KEY,
+  null,
+);
+
 async function onTryDemo() {
   demoLoading.value = true;
   try {
     const { data } = await createDemo({ throwOnError: true });
-    sessionStorage.setItem(UPLOAD_RESULT_KEY, JSON.stringify(data));
+    uploadResult.value = data ?? null;
     await router.push({ name: "upload" });
   } catch {
     $q.notify({ type: "negative", message: t("login.signInFailed") });
@@ -76,12 +87,12 @@ const mainRef = ref<HTMLElement>();
 
 /* 3D tilt on hero card fan - tracks cursor across the entire hero section */
 const heroRef = ref<HTMLElement>();
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const reducedMotion = usePreferredReducedMotion();
 let tiltFrame = 0;
 
 function onHeroMouseMove(e: MouseEvent) {
   const el = heroRef.value;
-  if (!el || reducedMotion.matches) return;
+  if (!el || reducedMotion.value === "reduce") return;
   if ((e.target as HTMLElement).closest(".hero-card")) return;
   const { clientX, clientY } = e;
   cancelAnimationFrame(tiltFrame);
@@ -101,32 +112,31 @@ function onHeroMouseLeave() {
 }
 
 /* Scroll-driven feature reveals via IntersectionObserver */
-let revealObserver: IntersectionObserver | undefined;
+const revealTargets = ref<HTMLElement[]>([]);
+const { stop: stopReveal } = useIntersectionObserver(
+  revealTargets,
+  (entries, observer) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        (entry.target as HTMLElement).classList.add("revealed");
+        observer.unobserve(entry.target);
+      }
+    }
+  },
+  { threshold: 0.12 },
+);
 
 onMounted(() => {
-  if (reducedMotion.matches) return;
-
-  revealObserver = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          (entry.target as HTMLElement).classList.add("revealed");
-          revealObserver!.unobserve(entry.target);
-        }
-      }
-    },
-    { threshold: 0.12 },
+  if (reducedMotion.value === "reduce") {
+    stopReveal();
+    return;
+  }
+  revealTargets.value = Array.from(
+    mainRef.value?.querySelectorAll<HTMLElement>(".scroll-reveal") ?? [],
   );
-
-  mainRef.value
-    ?.querySelectorAll(".scroll-reveal")
-    .forEach((el) => revealObserver!.observe(el));
 });
 
-onUnmounted(() => {
-  revealObserver?.disconnect();
-  cancelAnimationFrame(tiltFrame);
-});
+onUnmounted(() => cancelAnimationFrame(tiltFrame));
 </script>
 
 <template>

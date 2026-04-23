@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from typing import Any
 
 import jwt
 from fastapi import APIRouter, HTTPException, Request, status
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.core.config import get_settings
-from app.models.user import AuthProvider, OAuthIdentity, User
+from app.models.user import AuthProvider, OAuthIdentity, User, UserPublic
 
 from ..deps import SessionDep, login_session
 
@@ -129,8 +130,8 @@ async def logout(request: Request) -> None:
     request.session.clear()
 
 
-@router.post("/{provider}")
+@router.post("/{provider}", response_model=UserPublic | None)
 async def authenticate(
     provider: AuthProvider, body: Credential, request: Request, session: SessionDep
-) -> User | None:
+) -> Any:
     return await _authenticate(body.credential, provider, request, session)

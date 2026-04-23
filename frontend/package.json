@@ -18,7 +18,7 @@
     "test:e2e": "bun run ensure:client && playwright test",
     "test:e2e:headed": "bun run ensure:client && playwright test --headed",
     "test:smoke": "bun run ensure:client && playwright test --config playwright.smoke.config.ts",
-    "lint": "bun run ensure:client && eslint . --fix",
+    "lint": "bun run ensure:client && vue-tsc -b tsconfig.app.json tsconfig.node.json && eslint . --fix",
     "format": "prettier --write src/"
   },
   "dependencies": {
@@ -35,9 +35,10 @@
     "@turf/helpers": "^7.3.4",
     "@turf/length": "^7.3.4",
     "@turf/nearest-point-on-line": "^7.3.4",
+    "@vueuse/core": "^14.2.1",
     "canvas-confetti": "^1.9.4",
-    "dompurify": "^3.4.0",
     "d3-scale": "^4.0.2",
+    "dompurify": "^3.4.0",
     "mapbox-gl": "^3.20.0",
     "marked": "^18.0.0",
     "pinia": "^3.0.4",

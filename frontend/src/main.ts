@@ -1,15 +1,15 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import * as Sentry from "@sentry/vue";
-import { Dark, Lang, Loading, LoadingBar, Meta, Notify, Quasar } from "quasar";
-import { createApp, watch } from "vue";
+import { Lang, Loading, LoadingBar, Meta, Notify, Quasar } from "quasar";
+import { createApp } from "vue";
 
 import vue3GoogleLogin from "vue3-google-login";
 
 import i18n from "@/i18n";
 import { applyLocale } from "@/composables/useLocale";
 
-// Self-hosted Assistant + Frank Ruhl Libre + JetBrains Mono with font-display: block.
+// Self-hosted fonts with font-display: block.
 // Guarantees fonts are loaded before rendering (critical for PDF generation).
 import "@/styles/fonts.css";
 
@@ -75,16 +75,9 @@ app.use(Quasar, {
   plugins: { Meta, Notify, LoadingBar, Loading },
 });
 
-// Dark mode: restore preference from localStorage, persist changes.
-import { DARK_MODE_KEY } from "@/utils/storage-keys";
-const stored = localStorage.getItem(DARK_MODE_KEY);
-Dark.set(stored === null || stored === "auto" ? "auto" : stored === "true");
-watch(
-  () => Dark.mode,
-  (mode) => {
-    localStorage.setItem(DARK_MODE_KEY, String(mode));
-  },
-);
+// Dark mode: reactive pref bridged to Quasar Dark plugin.
+import { useDarkMode } from "@/composables/useDarkMode";
+useDarkMode();
 
 // Browser locale detection (covers register page before user exists).
 // Awaited so the correct lang pack (incl. RTL direction) is active on first paint.

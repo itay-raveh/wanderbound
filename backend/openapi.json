@@ -85,7 +85,7 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/User"
+                      "$ref": "#/components/schemas/UserPublic"
                     },
                     {
                       "type": "null"
@@ -505,7 +505,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "$ref": "#/components/schemas/UserPublic"
                 }
               }
             }
@@ -551,7 +551,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "$ref": "#/components/schemas/UserPublic"
                 }
               }
             }
@@ -1280,6 +1280,409 @@
           }
         }
       }
+    },
+    "/api/v1/google-photos/authorize": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Authorize",
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "nonce",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64,
+              "title": "Nonce"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/callback": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Google Photos Callback",
+        "operationId": "google_photos_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/sessions": {
+      "post": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Create Session",
+        "operationId": "create_session",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickerSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Poll Session",
+        "operationId": "poll_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Close Session",
+        "operationId": "close_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/match/{aid}": {
+      "get": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Match Media",
+        "operationId": "match_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PickerSessionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/MatchInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DownloadInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/MatchCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "match_in_progress": "#/components/schemas/MatchInProgress",
+                        "download_in_progress": "#/components/schemas/DownloadInProgress",
+                        "match_completed": "#/components/schemas/MatchCompleted",
+                        "upgrade_completed": "#/components/schemas/UpgradeCompleted",
+                        "upgrade_failed": "#/components/schemas/UpgradeFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Match Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/upgrade/{aid}": {
+      "post": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Upgrade Media",
+        "operationId": "upgrade_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/MatchInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DownloadInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/MatchCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UpgradeFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "match_in_progress": "#/components/schemas/MatchInProgress",
+                        "download_in_progress": "#/components/schemas/DownloadInProgress",
+                        "match_completed": "#/components/schemas/MatchCompleted",
+                        "upgrade_completed": "#/components/schemas/UpgradeCompleted",
+                        "upgrade_failed": "#/components/schemas/UpgradeFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Upgrade Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-photos/connection": {
+      "delete": {
+        "tags": [
+          "google-photos"
+        ],
+        "summary": "Disconnect",
+        "operationId": "disconnect",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1365,6 +1768,15 @@
             },
             "type": "object",
             "title": "Colors"
+          },
+          "upgraded_media": {
+            "patternProperties": {
+              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
+                "$ref": "#/components/schemas/GoogleMediaId"
+              }
+            },
+            "type": "object",
+            "title": "Upgraded Media"
           },
           "media": {
             "items": {
@@ -1468,6 +1880,15 @@
             },
             "type": "object",
             "title": "Colors"
+          },
+          "upgraded_media": {
+            "patternProperties": {
+              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
+                "$ref": "#/components/schemas/GoogleMediaId"
+              }
+            },
+            "type": "object",
+            "title": "Upgraded Media"
           }
         },
         "type": "object",
@@ -1785,6 +2206,30 @@
         "maxItems": 2,
         "minItems": 2
       },
+      "DownloadInProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "download_in_progress",
+            "title": "Type",
+            "default": "download_in_progress"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "DownloadInProgress"
+      },
       "ErrorData": {
         "properties": {
           "type": {
@@ -1863,6 +2308,11 @@
         ],
         "title": "ExportProgress"
       },
+      "GoogleMediaId": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1932,6 +2382,99 @@
           "lon"
         ],
         "title": "Location"
+      },
+      "MatchCompleted": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "match_completed",
+            "title": "Type",
+            "default": "match_completed"
+          },
+          "total_picked": {
+            "type": "integer",
+            "title": "Total Picked"
+          },
+          "matched": {
+            "type": "integer",
+            "title": "Matched"
+          },
+          "unmatched": {
+            "type": "integer",
+            "title": "Unmatched"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResult"
+            },
+            "type": "array",
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_picked",
+          "matched",
+          "unmatched",
+          "matches"
+        ],
+        "title": "MatchCompleted"
+      },
+      "MatchInProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "match_in_progress",
+            "title": "Type",
+            "default": "match_in_progress"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done",
+          "total"
+        ],
+        "title": "MatchInProgress"
+      },
+      "MatchResult": {
+        "properties": {
+          "local_name": {
+            "type": "string",
+            "title": "Local Name"
+          },
+          "google_id": {
+            "$ref": "#/components/schemas/GoogleMediaId"
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance"
+          },
+          "upgraded": {
+            "type": "boolean",
+            "title": "Upgraded",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "local_name",
+          "google_id",
+          "distance"
+        ],
+        "title": "MatchResult"
       },
       "Media": {
         "properties": {
@@ -2072,6 +2615,28 @@
           "total"
         ],
         "title": "PhaseUpdate"
+      },
+      "PickerSessionId": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "PickerSessionResponse": {
+        "properties": {
+          "session_id": {
+            "$ref": "#/components/schemas/PickerSessionId"
+          },
+          "picker_uri": {
+            "type": "string",
+            "title": "Picker Uri"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "picker_uri"
+        ],
+        "title": "PickerSessionResponse"
       },
       "Point": {
         "properties": {
@@ -2275,6 +2840,19 @@
         ],
         "title": "SegmentOutline",
         "description": "Lightweight segment projection - no points or route."
+      },
+      "SessionStatusResponse": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready"
+        ],
+        "title": "SessionStatusResponse"
       },
       "Step": {
         "properties": {
@@ -2493,10 +3071,84 @@
         ],
         "title": "TripStart"
       },
+      "UpgradeCompleted": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "upgrade_completed",
+            "title": "Type",
+            "default": "upgrade_completed"
+          },
+          "replaced": {
+            "type": "integer",
+            "title": "Replaced"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "replaced",
+          "skipped",
+          "failed"
+        ],
+        "title": "UpgradeCompleted"
+      },
+      "UpgradeFailed": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "upgrade_failed",
+            "title": "Type",
+            "default": "upgrade_failed"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "UpgradeFailed"
+      },
+      "UpgradeRequest": {
+        "properties": {
+          "session_ids": {
+            "items": {
+              "$ref": "#/components/schemas/PickerSessionId"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Session Ids"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResult"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_ids",
+          "matches"
+        ],
+        "title": "UpgradeRequest"
+      },
       "UploadResult": {
         "properties": {
           "user": {
-            "$ref": "#/components/schemas/User"
+            "$ref": "#/components/schemas/UserPublic"
           },
           "trips": {
             "items": {
@@ -2513,7 +3165,7 @@
         ],
         "title": "UploadResult"
       },
-      "User": {
+      "UserPublic": {
         "properties": {
           "first_name": {
             "type": "string",
@@ -2562,8 +3214,7 @@
           "profile_image_url": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 500
+                "type": "string"
               },
               {
                 "type": "null"
@@ -2586,22 +3237,30 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Album Ids"
+            "title": "Album Ids",
+            "default": []
           },
           "is_demo": {
             "type": "boolean",
             "title": "Is Demo",
             "default": false
           },
-          "last_active_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Last Active At"
-          },
           "has_data": {
             "type": "boolean",
             "title": "Has Data",
-            "readOnly": true
+            "default": false
+          },
+          "google_photos_connected_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Photos Connected At"
           }
         },
         "type": "object",
@@ -2610,10 +3269,10 @@
           "locale",
           "unit_is_km",
           "temperature_is_celsius",
-          "id",
-          "has_data"
+          "id"
         ],
-        "title": "User"
+        "title": "UserPublic",
+        "description": "Safe-to-expose fields for API responses.\n\nSibling of User, not a parent. Both inherit from UserBase following\nthe official SQLModel multiple-models pattern."
       },
       "UserUpdate": {
         "properties": {

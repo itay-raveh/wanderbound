@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import { computed, watch } from "vue";
 import type { TripMeta } from "@/client";
-import { PHASE_ORDER } from "@/composables/useProcessingStream";
-import type { PhaseDone, StreamState } from "@/composables/useProcessingStream";
+import { PHASE_ORDER } from "@/composables/useTripProcessingStream";
+import type {
+  PhaseDone,
+  ProcessingState,
+} from "@/composables/useTripProcessingStream";
 import { useI18n } from "vue-i18n";
 import TripTimeline from "./TripTimeline.vue";
 import {
@@ -20,7 +23,7 @@ import {
 
 const props = defineProps<{
   trips: TripMeta[];
-  state: StreamState;
+  state: ProcessingState;
   tripIndex: number;
   phaseDone: PhaseDone;
   errorDetail: string | null;
@@ -230,17 +233,6 @@ watch(
 
 .done-check {
   animation: scaleIn var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-
-@keyframes scaleIn {
-  from {
-    transform: scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
 
 .done-btn {

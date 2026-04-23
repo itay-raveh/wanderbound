@@ -1,6 +1,10 @@
 import type { Media, Step } from "@/client";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
-import { computeDpi, dpiTier, summarizeQuality } from "@/utils/photoQuality";
+import {
+  computeDpi,
+  dpiTier,
+  summarizeQuality,
+} from "@/utils/photoQuality";
 import {
   photoPageFraction,
   enforceOrientationOrder,
@@ -25,19 +29,34 @@ describe("computeDpi", () => {
 // -- dpiTier --
 
 describe("dpiTier", () => {
-  it("classifies >= 100 as ok", () => {
+  it("classifies >= 100 as ok (default thresholds)", () => {
     expect(dpiTier(100)).toBe("ok");
     expect(dpiTier(300)).toBe("ok");
   });
 
-  it("classifies 75-99 as caution", () => {
+  it("classifies 75-99 as caution (default thresholds)", () => {
     expect(dpiTier(99)).toBe("caution");
     expect(dpiTier(75)).toBe("caution");
   });
 
-  it("classifies < 75 as warning", () => {
+  it("classifies < 75 as warning (default thresholds)", () => {
     expect(dpiTier(74)).toBe("warning");
     expect(dpiTier(50)).toBe("warning");
+  });
+
+  it("classifies >= 150 as ok when upgraded", () => {
+    expect(dpiTier(150, true)).toBe("ok");
+    expect(dpiTier(300, true)).toBe("ok");
+  });
+
+  it("classifies 100-149 as caution when upgraded", () => {
+    expect(dpiTier(149, true)).toBe("caution");
+    expect(dpiTier(100, true)).toBe("caution");
+  });
+
+  it("classifies < 100 as warning when upgraded", () => {
+    expect(dpiTier(99, true)).toBe("warning");
+    expect(dpiTier(50, true)).toBe("warning");
   });
 });
 

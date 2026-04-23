@@ -6,7 +6,7 @@ import EditableText from "../EditableText.vue";
 import MediaItem from "../MediaItem.vue";
 import { computed } from "vue";
 
-const { mediaByName } = useAlbum();
+const { mediaByName, upgradedMedia } = useAlbum();
 
 const props = defineProps<{
   lines: JustifiedLine[];
@@ -20,7 +20,12 @@ const emit = defineEmits<{
 
 const photoQuality = computed(() =>
   props.photo
-    ? mediaQuality(props.photo, PHOTO_PANEL_FRACTION, mediaByName.value)
+    ? mediaQuality(
+        props.photo,
+        PHOTO_PANEL_FRACTION,
+        mediaByName.value,
+        upgradedMedia.value.has(props.photo),
+      )
     : null,
 );
 </script>

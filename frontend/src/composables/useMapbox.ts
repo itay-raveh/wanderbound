@@ -1,6 +1,7 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
+import { useResizeObserver } from "@vueuse/core";
 import {
   onBeforeUnmount,
   onMounted,
@@ -168,23 +169,10 @@ export function useMapbox(options: UseMapboxOptions) {
     if (el) armIdleReady(el, map.value);
   }
 
-  // Auto-resize map when container dimensions change (CSS zoom settling, etc.)
-  let resizeObserver: ResizeObserver | null = null;
+  useResizeObserver(options.container, () => map.value?.resize());
 
-  onMounted(() => {
-    init();
-
-    const el = options.container.value;
-    if (el) {
-      resizeObserver = new ResizeObserver(() => map.value?.resize());
-      resizeObserver.observe(el);
-    }
-  });
-
-  onBeforeUnmount(() => {
-    resizeObserver?.disconnect();
-    destroy();
-  });
+  onMounted(init);
+  onBeforeUnmount(destroy);
 
   return { map, fitBounds };
 }

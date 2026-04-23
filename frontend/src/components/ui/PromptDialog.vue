@@ -8,18 +8,21 @@ const id = useId();
 withDefaults(
   defineProps<{
     icon: string;
-    variant?: "danger" | "warning";
+    variant?: "danger" | "warning" | "primary";
     title: string;
     body: string;
-    confirmLabel: string;
+    tip?: string;
+    confirmLabel?: string;
     cancelLabel: string;
     confirmDisabled?: boolean;
+    secondaryLabel?: string;
   }>(),
   { variant: "danger" },
 );
 
 defineEmits<{
   confirm: [];
+  secondary: [];
 }>();
 </script>
 
@@ -36,12 +39,26 @@ defineEmits<{
       <h3 :id="`${id}-title`" class="prompt-title text-weight-semibold text-bright">
         {{ title }}
       </h3>
-      <p v-if="body" :id="`${id}-body`" class="prompt-text text-body2 text-muted">{{ body }}</p>
+      <p v-if="body" :id="`${id}-body`" class="prompt-text text-muted">{{ body }}</p>
+      <p v-if="tip" class="prompt-tip text-faint">{{ tip }}</p>
       <div class="prompt-actions">
         <q-btn v-close-popup flat no-caps class="text-body2 cancel-btn">{{
           cancelLabel
         }}</q-btn>
         <q-btn
+          v-if="secondaryLabel"
+          flat
+          no-caps
+          :class="[
+            'text-body2',
+            confirmLabel ? 'secondary-btn' : 'confirm-btn primary',
+          ]"
+          @click="$emit('secondary')"
+        >
+          {{ secondaryLabel }}
+        </q-btn>
+        <q-btn
+          v-if="confirmLabel"
           flat
           no-caps
           :disable="confirmDisabled"
@@ -58,7 +75,7 @@ defineEmits<{
 <style lang="scss" scoped>
 .prompt-dialog {
   padding: 1.75rem;
-  max-width: 26rem;
+  max-width: 32rem;
 }
 
 .prompt-icon {
@@ -76,6 +93,11 @@ defineEmits<{
     background: color-mix(in srgb, var(--q-warning) 15%, var(--surface));
     color: var(--q-warning);
   }
+
+  &.primary {
+    background: color-mix(in srgb, var(--q-primary) 15%, var(--surface));
+    color: var(--q-primary);
+  }
 }
 
 .prompt-title {
@@ -84,9 +106,15 @@ defineEmits<{
 }
 
 .prompt-text {
+  font-size: var(--type-md);
   line-height: 1.5;
   white-space: pre-line;
   margin: 0 0 var(--gap-lg);
+}
+
+.prompt-tip {
+  font-size: var(--type-sm);
+  margin: calc(var(--gap-lg) * -1) 0 var(--gap-lg);
 }
 
 .prompt-actions {
@@ -94,12 +122,16 @@ defineEmits<{
   gap: var(--gap-md);
 
   > .q-btn {
-    flex: 1;
+    flex: 1 1 auto;
   }
 }
 
 .cancel-btn {
   background: var(--surface);
+  border: 1px solid var(--border-color);
+}
+
+.secondary-btn {
   border: 1px solid var(--border-color);
 }
 
@@ -112,6 +144,11 @@ defineEmits<{
   &.warning {
     background: var(--q-warning);
     color: var(--text-on-warning);
+  }
+
+  &.primary {
+    background: var(--q-primary);
+    color: var(--text-on-color);
   }
 }
 </style>

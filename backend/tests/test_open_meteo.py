@@ -5,14 +5,14 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 
+from app.core.http_clients import _open_meteo_weight
 from app.services.open_meteo import (
     _LocationResult,
-    _request_weight,
     _weather_from_result,
     _wmo_icon,
     build_weathers,
@@ -95,10 +95,10 @@ class TestElevations:
             "500", request=MagicMock(), response=MagicMock()
         )
 
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=resp)
-            with pytest.raises(httpx.HTTPStatusError):
-                await collect_async(elevations(locs))
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=resp)
+        with pytest.raises(httpx.HTTPStatusError):
+            await collect_async(elevations(client, locs))
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +164,9 @@ class TestBuildWeathers:
         mock_response = MagicMock(status_code=200)
         mock_response.content = json.dumps(resp_data).encode()
 
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
-            result = [w async for w in build_weathers([step])]
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=mock_response)
+        result = [w async for w in build_weathers(client, [step])]
 
         assert len(result) == 1
         idx, w = result[0]
@@ -178,13 +178,11 @@ class TestBuildWeathers:
 
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
-        with patch("app.services.open_meteo._client") as mock_client:
-            mock_client.return_value.get = AsyncMock(
-                side_effect=httpx.HTTPError("fail")
-            )
-            with pytest.raises(RuntimeError, match="Weather API"):
-                async for _ in build_weathers([step]):
-                    pass
+        client = MagicMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
+        with pytest.raises(RuntimeError, match="Weather API"):
+            async for _ in build_weathers(client, [step]):
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -192,19 +190,19 @@ class TestBuildWeathers:
 # ---------------------------------------------------------------------------
 
 
-class TestRequestWeight:
+class TestOpenMeteoWeight:
     def test_elevation_single_coord(self) -> None:
         req = httpx.Request(
             "GET", "https://api.open-meteo.com/v1/elevation?latitude=1.0&longitude=2.0"
         )
-        assert _request_weight(req) == 1
+        assert _open_meteo_weight(req) == 1
 
     def test_elevation_batched_coords(self) -> None:
         req = httpx.Request(
             "GET",
             "https://api.open-meteo.com/v1/elevation?latitude=1,2,3,4&longitude=5,6,7,8",
         )
-        assert _request_weight(req) == 4
+        assert _open_meteo_weight(req) == 4
 
     def test_archive_counts_daily_variables(self) -> None:
         req = httpx.Request(
@@ -214,7 +212,7 @@ class TestRequestWeight:
             "&daily=temperature_2m_max,temperature_2m_min,"
             "apparent_temperature_max,apparent_temperature_min,weather_code",
         )
-        assert _request_weight(req) == 5
+        assert _open_meteo_weight(req) == 5
 
     def test_archive_single_variable(self) -> None:
         req = httpx.Request(
@@ -222,11 +220,11 @@ class TestRequestWeight:
             "https://archive-api.open-meteo.com/v1/archive"
             "?latitude=1&longitude=2&daily=temperature_2m_max",
         )
-        assert _request_weight(req) == 1
+        assert _open_meteo_weight(req) == 1
 
     def test_archive_without_daily_param(self) -> None:
         req = httpx.Request(
             "GET",
             "https://archive-api.open-meteo.com/v1/archive?latitude=1&longitude=2",
         )
-        assert _request_weight(req) == 1
+        assert _open_meteo_weight(req) == 1

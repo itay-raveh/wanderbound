@@ -1,12 +1,13 @@
+import { useTimeoutFn } from "@vueuse/core";
 import { onScopeDispose, ref, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
 
-export type SseStreamState = "idle" | "running" | "done" | "error";
+export type ExportState = "idle" | "running" | "done" | "error";
 
-export interface SseDownloadHandle {
+export interface PolledExportHandle {
   start(): void;
   abort(): void;
-  state: Ref<SseStreamState>;
+  state: Ref<ExportState>;
 }
 
 type EventAction = { loading: string } | { done: string } | { error: string };
@@ -16,7 +17,7 @@ function resolve(v: StringOrGetter): string {
   return typeof v === "function" ? v() : v;
 }
 
-interface SseDownloadConfig<T = unknown> {
+interface PolledExportConfig<T = unknown> {
   connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
   onEvent(event: T): EventAction;
   downloadUrl(token: string): string;
@@ -29,13 +30,19 @@ interface SseDownloadConfig<T = unknown> {
 
 const DONE_RESET_MS = 1500;
 
-export function useSseDownload<T>(
-  config: SseDownloadConfig<T>,
-): SseDownloadHandle {
-  const state = ref<SseStreamState>("idle");
+export function usePolledExportDownload<T>(
+  config: PolledExportConfig<T>,
+): PolledExportHandle {
+  const state = ref<ExportState>("idle");
   let controller: AbortController | null = null;
   let lastMsg = "";
-  let resetTimer: ReturnType<typeof setTimeout> | null = null;
+  const { start: armReset, stop: cancelReset } = useTimeoutFn(
+    () => {
+      state.value = "idle";
+    },
+    DONE_RESET_MS,
+    { immediate: false },
+  );
 
   function showLoading(message: string) {
     if (message === lastMsg) return;
@@ -49,10 +56,7 @@ export function useSseDownload<T>(
 
   async function start() {
     if (state.value === "running") return;
-    if (resetTimer !== null) {
-      clearTimeout(resetTimer);
-      resetTimer = null;
-    }
+    cancelReset();
     controller = new AbortController();
     state.value = "running";
     showLoading(resolve(config.initialMessage));
@@ -95,21 +99,13 @@ export function useSseDownload<T>(
     } finally {
       if (!config.headless) Loading.hide();
       lastMsg = "";
-      if (state.value === "done") {
-        resetTimer = setTimeout(() => {
-          state.value = "idle";
-          resetTimer = null;
-        }, DONE_RESET_MS);
-      }
+      if (state.value === "done") armReset();
     }
   }
 
   function abort() {
     controller?.abort();
-    if (resetTimer !== null) {
-      clearTimeout(resetTimer);
-      resetTimer = null;
-    }
+    cancelReset();
     if (state.value === "running" || state.value === "done")
       state.value = "idle";
     if (!config.headless) Loading.hide();
