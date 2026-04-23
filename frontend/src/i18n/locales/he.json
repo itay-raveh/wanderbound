@@ -264,10 +264,8 @@
       "selectionTimeout": "הבחירה פגה.",
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
-      "authTimeout": "ההרשאה פגה.",
-      "chromeOnly": "לצערנו, זה עובד רק מ-Google Chrome."
+      "authTimeout": "ההרשאה פגה."
     },
-    "chromeOnlySub": "זהו באג ידוע של Google. אנחנו מקווים שהם יתקנו בקרוב.",
     "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",
     "disconnectConfirm": {

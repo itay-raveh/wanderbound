@@ -264,10 +264,8 @@
       "selectionTimeout": "Selection timed out.",
       "connectionLost": "Connection lost during upgrade.",
       "authCancelled": "Authorization cancelled.",
-      "authTimeout": "Authorization timed out.",
-      "chromeOnly": "Unfortunately, this only works from Google Chrome."
+      "authTimeout": "Authorization timed out."
     },
-    "chromeOnlySub": "This is a known Google issue. We hope they fix it soon.",
     "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",
     "disconnectConfirm": {

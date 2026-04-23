@@ -2,7 +2,6 @@
 import { useMediaUpgrade } from "@/composables/useMediaUpgrade";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import type { UpgradeErrorKey } from "@/utils/upgradeErrors";
-import { Platform } from "quasar";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 import UpgradeMatchDialog from "./UpgradeMatchDialog.vue";
@@ -39,7 +38,6 @@ const buttonState = computed<"idle" | "running" | "done" | null>(() => {
   if (p === "done") return "done";
   if (isRunning.value) return "running";
   if (p === "error") return null;
-  if (!Platform.is.chrome) return null;
   if (upgrade.googlePhotosState.value === "connected") return null;
   return "idle";
 });
@@ -146,30 +144,6 @@ const { confirmUpgrade } = upgrade;
       </q-tooltip>
     </button>
 
-    <button
-      v-else-if="!Platform.is.chrome"
-      class="action-btn"
-      aria-disabled="true"
-      :aria-label="t('upgrade.button')"
-    >
-      <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
-      {{ t("upgrade.button") }}
-      <q-tooltip
-        transition-show="scale"
-        transition-hide="scale"
-        class="q-menu"
-      >
-        <div class="chrome-tooltip">
-          <p class="chrome-tooltip-title">
-            {{ t("upgrade.errors.chromeOnly") }}
-          </p>
-          <p class="chrome-tooltip-sub text-faint">
-            {{ t("upgrade.chromeOnlySub") }}
-          </p>
-        </div>
-      </q-tooltip>
-    </button>
-
     <div v-else class="split-btn">
       <button
         class="action-btn"
@@ -248,11 +222,6 @@ const { confirmUpgrade } = upgrade;
   }
 }
 
-.action-btn[aria-disabled="true"] {
-  opacity: 0.6;
-  cursor: help;
-}
-
 .split-btn {
   display: inline-flex;
   align-items: stretch;
@@ -324,19 +293,4 @@ const { confirmUpgrade } = upgrade;
   }
 }
 
-.chrome-tooltip {
-  max-width: 22rem;
-  padding: var(--gap-sm);
-  font-size: var(--type-sm);
-  line-height: 1.4;
-}
-
-.chrome-tooltip-title {
-  margin: 0 0 var(--gap-xs);
-  font-weight: 500;
-}
-
-.chrome-tooltip-sub {
-  margin: 0;
-}
 </style>
