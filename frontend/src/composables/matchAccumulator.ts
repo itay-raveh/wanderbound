@@ -22,7 +22,7 @@ export function createMatchAccumulator() {
     get matches() {
       return matches;
     },
-    merge(round) {
+    merge(round: MatchRound): number {
       const byLocalName = new Map(matches.map((m) => [m.local_name, m]));
       const before = byLocalName.size;
       for (const m of round.matches) {
@@ -35,7 +35,7 @@ export function createMatchAccumulator() {
       totalPicked += round.totalPicked;
       return matches.length - before;
     },
-    summary(newThisRound) {
+    summary(newThisRound: number): MatchSummary {
       return {
         matches: [...matches],
         totalPicked,

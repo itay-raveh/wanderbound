@@ -112,7 +112,7 @@ function onHeroMouseLeave() {
 }
 
 /* Scroll-driven feature reveals via IntersectionObserver */
-const revealTargets = ref<Element[]>([]);
+const revealTargets = ref<HTMLElement[]>([]);
 const { stop: stopReveal } = useIntersectionObserver(
   revealTargets,
   (entries, observer) => {
@@ -132,7 +132,7 @@ onMounted(() => {
     return;
   }
   revealTargets.value = Array.from(
-    mainRef.value?.querySelectorAll(".scroll-reveal") ?? [],
+    mainRef.value?.querySelectorAll<HTMLElement>(".scroll-reveal") ?? [],
   );
 });
 
