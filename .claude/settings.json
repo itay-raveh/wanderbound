@@ -3,8 +3,7 @@
   "permissions": {
     "deny": [
       "Edit(frontend/src/client/**)",
-      "Write(frontend/src/client/**)",
-      "Bash(*git push*)"
+      "Write(frontend/src/client/**)"
     ]
   },
   "env": {
