@@ -53,6 +53,7 @@ from ..deps import (
     apply_update,
     login_session,
     to_user_public,
+    try_load_user,
 )
 from .auth import clear_pending_signup, get_pending_signup
 
@@ -83,14 +84,8 @@ async def _resolve_auth(
     session: SessionDep,
 ) -> tuple[User | None, OAuthIdentity | None]:
     """Return (existing_user, pending_signup_identity) or raise 401."""
-    uid: int | None = request.session.get("uid")
-    if uid:
-        existing = await session.get(User, uid)
-        if existing:
-            return existing, None
-        # Stale session pointing to non-existent user (e.g. fresh DB)
-        request.session.clear()
-
+    if existing := await try_load_user(request, session):
+        return existing, None
     identity = get_pending_signup(request)
     if identity is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)

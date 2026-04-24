@@ -12,7 +12,7 @@ from sqlmodel import select
 from app.core.config import get_settings
 from app.models.user import AuthProvider, OAuthIdentity, User, UserPublic
 
-from ..deps import SessionDep, login_session, to_user_public
+from ..deps import SessionDep, login_session, to_user_public, try_load_user
 
 PENDING_SIGNUP_KEY = "pending_signup"
 
@@ -160,30 +160,22 @@ async def logout(request: Request) -> None:
 
 class AuthState(BaseModel):
     state: Literal["authenticated", "pending_signup", "anonymous"]
-    first_name: str | None = None
-    picture: str | None = None
-    is_processed: bool = False
+    user: UserPublic | None = None
+    pending_first_name: str | None = None
+    pending_picture: str | None = None
 
 
 @router.get("/state")
 async def auth_state(request: Request, session: SessionDep) -> AuthState:
-    uid: int | None = request.session.get("uid")
-    if uid:
-        user = await session.get(User, uid)
-        if user:
-            public = await to_user_public(user, session)
-            return AuthState(
-                state="authenticated",
-                first_name=user.first_name,
-                is_processed=public.is_processed,
-            )
-        request.session.clear()
-    pending = get_pending_signup(request)
-    if pending:
+    if user := await try_load_user(request, session):
+        return AuthState(
+            state="authenticated", user=await to_user_public(user, session)
+        )
+    if pending := get_pending_signup(request):
         return AuthState(
             state="pending_signup",
-            first_name=pending.first_name,
-            picture=str(pending.picture) if pending.picture else None,
+            pending_first_name=pending.first_name,
+            pending_picture=str(pending.picture) if pending.picture else None,
         )
     return AuthState(state="anonymous")
 

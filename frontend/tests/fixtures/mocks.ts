@@ -15,23 +15,23 @@ export const mockUser = {
 
 export const mockAuthStateAuthenticated = {
   state: "authenticated" as const,
-  first_name: "Test",
-  picture: null,
-  is_processed: true,
+  user: mockUser,
+  pending_first_name: null,
+  pending_picture: null,
 };
 
 export const mockAuthStateAnonymous = {
   state: "anonymous" as const,
-  first_name: null,
-  picture: null,
-  is_processed: false,
+  user: null,
+  pending_first_name: null,
+  pending_picture: null,
 };
 
 export const mockAuthStatePending = {
   state: "pending_signup" as const,
-  first_name: "New",
-  picture: null,
-  is_processed: false,
+  user: null,
+  pending_first_name: "New",
+  pending_picture: null,
 };
 
 export const mockAlbum = {

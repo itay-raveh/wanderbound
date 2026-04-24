@@ -53,18 +53,27 @@ async def _touch_activity(uid: int) -> None:
         logger.debug("Activity tracking write failed for uid=%s", uid, exc_info=True)
 
 
+async def try_load_user(request: Request, session: AsyncSession) -> User | None:
+    """Resolve the request's session uid to a User, clearing stale sessions."""
+    uid = request.session.get("uid")
+    if uid is None:
+        return None
+    user = await session.get(User, uid)
+    if user is None:
+        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
+        request.session.clear()
+    return user
+
+
 async def _get_user(
     request: Request,
     session: SessionDep,
     background_tasks: BackgroundTasks,
 ) -> User:
-    uid = request.session.get("uid")
-    if uid is None:
+    user = await try_load_user(request, session)
+    if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-    if (user := await session.get(User, uid)) is None:
-        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
-        request.session.clear()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+    uid = user.id
 
     sentry_sdk.set_user({"id": str(uid)})
 

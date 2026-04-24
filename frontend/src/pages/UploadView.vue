@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useQueryCache } from "@pinia/colada";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
@@ -38,8 +38,8 @@ const pageState = computed<UploadState>(() => {
     return "processing";
   if (authStateData.value?.state === "pending_signup") return "new";
   const u = user.value;
-  if (!u) return "new";
-  if (!u.has_data) return u.album_ids?.length ? "evicted" : "new";
+  if (!u || (!u.has_data && !u.album_ids?.length)) return "new";
+  if (!u.has_data) return "evicted";
   if (!u.is_processed) return "processing";
   return "reupload";
 });
@@ -50,7 +50,7 @@ const heroName = computed(
   () =>
     justUploaded.value?.user?.first_name ??
     user.value?.first_name ??
-    authStateData.value?.first_name ??
+    authStateData.value?.pending_first_name ??
     undefined,
 );
 
@@ -61,13 +61,13 @@ function startProcessing() {
   stream.start();
 }
 
-onMounted(() => {
-  if (pageState.value === "processing") startProcessing();
-});
-
-watch(pageState, (s) => {
-  if (s === "processing") startProcessing();
-});
+watch(
+  pageState,
+  (s) => {
+    if (s === "processing") startProcessing();
+  },
+  { immediate: true },
+);
 
 function onUploaded(data: UploadResult) {
   justUploaded.value = data;

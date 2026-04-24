@@ -16,6 +16,7 @@ from .factories import (
     PS_USER,
     mock_extract,
     mock_jwt,
+    sign_in,
     sign_in_and_upload,
 )
 
@@ -140,11 +141,7 @@ class TestUpload:
         self, client: AsyncClient, tmp_path: Path
     ) -> None:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
-        with mock_jwt(payload=no_name):
-            auth_resp = await client.post(
-                "/api/v1/auth/google", json={"credential": "fake"}
-            )
-        assert auth_resp.status_code == 200
+        await sign_in(client, payload=no_name)
         with mock_extract(tmp_path / "users"):
             resp = await client.post(
                 "/api/v1/users/upload",

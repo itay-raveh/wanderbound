@@ -12,24 +12,15 @@ from starlette.requests import ClientDisconnect
 from app.core.config import get_settings
 from app.logic.chunked_upload import upload_store
 
-from .factories import mock_extract, mock_jwt, sign_in_and_upload
+from .factories import mock_extract, sign_in, sign_in_and_upload
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
 
 
-async def _sign_in(client: AsyncClient, provider: str = "google") -> None:
-    """Set a pending_signup session cookie via /auth/{provider}."""
-    with mock_jwt(provider):
-        resp = await client.post(
-            f"/api/v1/auth/{provider}", json={"credential": "fake"}
-        )
-    assert resp.status_code == 200
-
-
 async def _init(client: AsyncClient, provider: str = "google") -> str:
     """Sign in then POST /upload/init, return upload_id."""
-    await _sign_in(client, provider)
+    await sign_in(client, provider)
     resp = await client.post("/api/v1/users/upload/init")
     assert resp.status_code == 200
     return resp.json()["upload_id"]
@@ -115,7 +106,7 @@ class TestUploadChunk:
         """Accumulated chunks exceeding max_bytes return 413."""
         # Set a tiny limit so a small chunk triggers overflow
         monkeypatch.setattr(get_settings(), "VITE_MAX_UPLOAD_GB", 0)
-        await _sign_in(client)
+        await sign_in(client)
         init_resp = await client.post("/api/v1/users/upload/init")
         upload_id = init_resp.json()["upload_id"]
 
@@ -151,7 +142,7 @@ class TestCompleteChunkedUpload:
         assert len(body["trips"]) == 1
 
     async def test_rejects_unknown_session(self, client: AsyncClient) -> None:
-        await _sign_in(client)
+        await sign_in(client)
         resp = await client.post("/api/v1/users/upload/nonexistent/complete")
         assert resp.status_code == 404
 
@@ -202,7 +193,6 @@ class TestCompleteChunkedUpload:
         users_dir.mkdir(exist_ok=True)
         await sign_in_and_upload(client, users_dir)
 
-        # Init without credential - session cookie provides auth
         init_resp = await client.post("/api/v1/users/upload/init")
         assert init_resp.status_code == 200
         upload_id = init_resp.json()["upload_id"]
@@ -227,7 +217,7 @@ class TestCompleteChunkedUpload:
             f"/api/v1/users/upload/{upload_id}/0",
             content=b"chunk",
         )
-        await _sign_in(client, provider="microsoft")
+        await sign_in(client, provider="microsoft")
         resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
         assert resp.status_code == 403
 

@@ -54,15 +54,16 @@ router.beforeEach(async (to, from) => {
   if (from.name) return;
 
   const { data: state } = await authState();
-  useQueryCache().setQueryData(queryKeys.authState(), state);
+  const cache = useQueryCache();
+  cache.setQueryData(queryKeys.authState(), state);
+  if (state?.user) cache.setQueryData(queryKeys.user(), state.user);
 
   if (state?.state === "anonymous") {
     return to.name === "landing" ? undefined : { name: "landing" };
   }
-  if (state?.state === "pending_signup") {
-    return to.name === "upload" ? undefined : { name: "upload" };
-  }
-  if (!state?.is_processed) {
+  const needsUpload =
+    state?.state === "pending_signup" || !state?.user?.is_processed;
+  if (needsUpload) {
     return to.name === "upload" ? undefined : { name: "upload" };
   }
   if (to.name === "landing") return { name: "editor" };

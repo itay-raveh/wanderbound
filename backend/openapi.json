@@ -2046,7 +2046,17 @@
             ],
             "title": "State"
           },
-          "first_name": {
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_first_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -2055,9 +2065,9 @@
                 "type": "null"
               }
             ],
-            "title": "First Name"
+            "title": "Pending First Name"
           },
-          "picture": {
+          "pending_picture": {
             "anyOf": [
               {
                 "type": "string"
@@ -2066,12 +2076,7 @@
                 "type": "null"
               }
             ],
-            "title": "Picture"
-          },
-          "is_processed": {
-            "type": "boolean",
-            "title": "Is Processed",
-            "default": false
+            "title": "Pending Picture"
           }
         },
         "type": "object",
