@@ -8,7 +8,10 @@ from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON
+from app.logic.spatial.geo import total_length_km
 from app.models.polarsteps import Point
+
+MIN_SPLIT_LENGTH_KM = 0.1
 
 
 class SegmentKind(StrEnum):
@@ -136,6 +139,16 @@ def split_segments(
 
     if len(early_points) < 2 or len(late_points) < 2:
         raise ValueError("Both segments must have >= 2 points after split")
+
+    def _km(pts: list[Point]) -> float:
+        return total_length_km([(p.lon, p.lat) for p in pts])
+
+    if (
+        _km(early_points) < MIN_SPLIT_LENGTH_KM
+        or _km(late_points) < MIN_SPLIT_LENGTH_KM
+    ):
+        min_m = f"{MIN_SPLIT_LENGTH_KM * 1000:.0f}m"
+        raise ValueError(f"Both segments must be at least {min_m} long after split")
 
     new_earlier = Segment(
         uid=earlier_seg.uid,

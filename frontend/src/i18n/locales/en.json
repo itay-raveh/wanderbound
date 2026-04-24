@@ -163,7 +163,8 @@
     "dataExport": "Data export failed. @:common.retry",
     "processingFailed": "Processing failed.",
     "connectionFailed": "Connection lost. @:common.retry",
-    "adjustBoundary": "Couldn't adjust the boundary. @:common.retry"
+    "adjustBoundary": "Couldn't adjust the boundary. @:common.retry",
+    "trimTooShort": "Trim too short"
   },
   "pdf": {
     "queued": "Waiting to start...",

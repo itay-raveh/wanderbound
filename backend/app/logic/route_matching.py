@@ -1,10 +1,8 @@
 import numpy as np
 from simplification.cutil import simplify_coords_idx
 
-from app.logic.spatial.geo import haversine_km
+from app.logic.spatial.geo import Coords, total_length_km
 from app.models.segment import SegmentKind
-
-type Coords = list[tuple[float, float]]  # [lon, lat] GeoJSON order
 
 MATCHABLE_KINDS = frozenset({SegmentKind.driving, SegmentKind.walking})
 
@@ -16,14 +14,6 @@ _RDP_TOLERANCES = [
     (100, 0.0001),  # < 100km: ~10m
     (float("inf"), 0.001),  # >= 100km: ~110m
 ]
-
-
-def total_length_km(coords: Coords) -> float:
-    """Total length of a coordinate list in km. Coords are (lon, lat) GeoJSON order."""
-    return sum(
-        haversine_km(coords[i][1], coords[i][0], coords[i + 1][1], coords[i + 1][0])
-        for i in range(len(coords) - 1)
-    )
 
 
 def is_sparse(coords: Coords) -> bool:

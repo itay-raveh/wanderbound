@@ -92,12 +92,7 @@ const elevationSamples = ref<
 
 const stats = computed(() => {
   const seg = fullHikeSegment.value;
-  if (!seg || seg.points.length < 2)
-    return {
-      distance: "0",
-      duration: t("duration.hours", { n: 0 }),
-      elevGain: 0,
-    };
+  if (!seg || seg.points.length < 2) return null;
 
   const pts = seg.points;
   const startTime = pts[0].time;
@@ -143,6 +138,12 @@ const stats = computed(() => {
     elevGain: Math.round(elev),
   };
 });
+
+const ariaLabel = computed(() =>
+  stats.value
+    ? `${t("hike.mapLabel")} - ${stats.value.distance} ${distanceUnit.value}`
+    : t("hike.mapLabel"),
+);
 
 const totalDistKm = computed(() =>
   elevationSamples.value.length >= 2
@@ -328,10 +329,10 @@ watch(safeMarginMm, () => {
   <div
     ref="hike-map"
     role="img"
-    :aria-label="`${t('hike.mapLabel')} - ${stats.distance} ${distanceUnit}`"
+    :aria-label="ariaLabel"
     class="page-container relative-position overflow-hidden"
   >
-    <div class="stats-block">
+    <div v-if="stats" class="stats-block">
       <div class="stats-bg" aria-hidden="true" />
       <div class="stat-distance" :style="{ color: countryColor }">
         {{ stats.distance }} {{ distanceUnit }}

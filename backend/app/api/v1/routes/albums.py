@@ -18,7 +18,8 @@ from sqlmodel import col, select
 
 from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
-from app.logic.route_matching import MATCHABLE_KINDS, total_length_km
+from app.logic.route_matching import MATCHABLE_KINDS
+from app.logic.spatial.geo import total_length_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
     BoundaryAdjust,
