@@ -111,3 +111,13 @@ class TestBoundarySplit:
 
         with pytest.raises(ValueError, match="gap"):
             split_segments(hike, walking, 35)
+
+    def test_near_zero_length_split_rejected(self) -> None:
+        """Boundary just past start_time leaves the early side at sub-meter length."""
+        # 1deg longitude at equator ~= 111km; the new_boundary_time below
+        # leaves ~11cm in the early polyline.
+        hike = _seg("hike", [(0, 0, 100), (0, 1, 200)])
+        walking = _seg("walking", [(0, 2, 300), (0, 3, 400)])
+
+        with pytest.raises(ValueError, match="100m"):
+            split_segments(hike, walking, 100.000001)

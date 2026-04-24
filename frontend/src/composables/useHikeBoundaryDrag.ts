@@ -5,11 +5,15 @@ import {
   lineFeature,
   removeMapLayer,
 } from "@/components/album/map/mapSegments";
+import { t } from "@/i18n";
 import distance from "@turf/distance";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
 import mapboxgl from "mapbox-gl";
+import { Notify } from "quasar";
 
 const HANDLE_CLASS = "hike-handle";
+
+const MIN_HIKE_LENGTH_KM = 0.1;
 
 /** Concatenate adj + hike arrays in the correct direction. */
 function ordered<T>(adj: T[], hike: T[], isStart: boolean): T[] {
@@ -171,6 +175,8 @@ export function setupBoundaryHandles(
       return coords.length >= 2 ? coords : null;
     }
 
+    const totalExtendedKm = cumDist[cumDist.length - 1];
+
     /** Snap marker to nearest point on the extended line and update state. */
     function applySnap(lngLat: mapboxgl.LngLat): boolean {
       const snapped = nearestPointOnLine(extendedLine, [
@@ -184,6 +190,10 @@ export function setupBoundaryHandles(
       const location = snapped.properties.location ?? 0;
       const hikeCoords = computeHikeCoords(snapIdx, snapCoord);
       if (!hikeCoords) return false;
+
+      const newHikeKm = isStart ? totalExtendedKm - location : location;
+      if (newHikeKm < MIN_HIKE_LENGTH_KM) return false;
+
       marker.setLngLat(snapCoord);
       snappedTime = computeBoundaryTime(location, snapIdx);
       ep.updateLine(hikeCoords);
@@ -239,6 +249,7 @@ export function setupBoundaryHandles(
       // Always snap to the final position to avoid stale snappedTime from prior rAF
       if (!applySnap(marker.getLngLat())) {
         restoreOriginal();
+        Notify.create({ type: "warning", message: t("error.trimTooShort") });
         return;
       }
 
