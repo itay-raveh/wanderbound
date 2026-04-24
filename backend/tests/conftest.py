@@ -64,6 +64,10 @@ async def client(
     session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[AsyncClient]:
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    # Match the test client's base_url so 303 redirects parse cleanly under
+    # httpx 0.28 (whose copy_with mishandles cross-host redirects with ports).
+    monkeypatch.setattr(get_settings(), "VITE_FRONTEND_URL", "http://test")
+    monkeypatch.setattr(get_settings(), "FRONTEND_URL", "http://test")
     (tmp_path / "users").mkdir(exist_ok=True)
 
     async def _override() -> AsyncIterator[AsyncSession]:

@@ -9,7 +9,29 @@ export const mockUser = {
   temperature_is_celsius: true,
   album_ids: ["aid-1"],
   has_data: true,
+  is_processed: true,
   living_location: null,
+};
+
+export const mockAuthStateAuthenticated = {
+  state: "authenticated" as const,
+  user: mockUser,
+  pending_first_name: null,
+  pending_picture: null,
+};
+
+export const mockAuthStateAnonymous = {
+  state: "anonymous" as const,
+  user: null,
+  pending_first_name: null,
+  pending_picture: null,
+};
+
+export const mockAuthStatePending = {
+  state: "pending_signup" as const,
+  user: null,
+  pending_first_name: "New",
+  pending_picture: null,
 };
 
 export const mockAlbum = {

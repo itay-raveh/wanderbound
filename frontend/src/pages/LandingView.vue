@@ -1,35 +1,30 @@
 <script lang="ts" setup>
-import { authenticate, createDemo, readUser } from "@/client";
-import type { UploadResult } from "@/client";
-import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
+import { authenticate, createDemo } from "@/client";
 import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
-import { setAuthState, type Provider } from "@/router";
+import { useAuthStateQuery } from "@/queries/useAuthStateQuery";
+import type { Provider } from "@/router";
 import {
   usePreferredReducedMotion,
   useIntersectionObserver,
-  useSessionStorage,
 } from "@vueuse/core";
+import { useQueryCache } from "@pinia/colada";
 import { useQuasar } from "quasar";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { queryKeys } from "@/queries/keys";
 
 const { t } = useI18n();
 const router = useRouter();
 const $q = useQuasar();
+const cache = useQueryCache();
 
-const authenticated = ref(false);
-
-onMounted(async () => {
-  try {
-    await readUser();
-    authenticated.value = true;
-  } catch {
-    /* not logged in */
-  }
-});
+const { data: authStateData } = useAuthStateQuery();
+const authenticated = computed(
+  () => authStateData.value?.state === "authenticated",
+);
 
 const mode = computed(() => ($q.dark.isActive ? "dark" : "light"));
 
@@ -38,10 +33,10 @@ async function handleLogin(credential: string, provider: Provider) {
     body: { credential },
     path: { provider },
   });
+  void cache.invalidateQueries({ key: queryKeys.authState() });
   if (user) {
     await router.push({ name: "editor" });
   } else {
-    setAuthState(credential, provider);
     await router.push({ name: "upload" });
   }
 }
@@ -65,17 +60,12 @@ async function onMicrosoftLogin() {
 
 const demoLoading = ref(false);
 
-const uploadResult = useSessionStorage<UploadResult | null>(
-  UPLOAD_RESULT_KEY,
-  null,
-);
-
 async function onTryDemo() {
   demoLoading.value = true;
   try {
     const { data } = await createDemo({ throwOnError: true });
-    uploadResult.value = data ?? null;
-    await router.push({ name: "upload" });
+    void cache.invalidateQueries({ key: queryKeys.authState() });
+    await router.push({ name: "upload", state: { uploadResult: data } });
   } catch {
     $q.notify({ type: "negative", message: t("login.signInFailed") });
   } finally {

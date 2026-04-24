@@ -42,10 +42,10 @@ test.describe("Stack smoke tests", () => {
     const { user } = await resp.json();
     expect(user.album_ids.length).toBeGreaterThan(0);
 
-    // Editor loads with real data.
-    await page.goto("/editor");
-    await page.waitForURL(/\/editor/, { timeout: 15_000 });
-    await expect(page.locator("body")).toBeVisible();
+    // /upload is where the route guard sends authenticated users until
+    // is_processed flips true. Going straight to /editor pre-processing
+    // would 404 on album queries.
+    await page.goto("/upload");
 
     const firstEvent = await page.evaluate(async () => {
       return new Promise<string>((resolve, reject) => {
@@ -66,5 +66,19 @@ test.describe("Stack smoke tests", () => {
 
     const event = JSON.parse(firstEvent);
     expect(event).toHaveProperty("type");
+
+    await page.waitForFunction(
+      async () => {
+        const r = await fetch("/api/v1/auth/state", { credentials: "include" });
+        const s = await r.json();
+        return s.state === "authenticated" && s.user?.is_processed === true;
+      },
+      null,
+      { timeout: 60_000 },
+    );
+
+    await page.goto("/editor");
+    await page.waitForURL(/\/editor/, { timeout: 15_000 });
+    await expect(page.locator("body")).toBeVisible();
   });
 });

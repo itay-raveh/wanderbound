@@ -142,4 +142,6 @@ class UserPublic(UserBase):
     album_ids: list[str] = []
     is_demo: bool = False
     has_data: bool = False
+    # Populated only by to_user_public; model_validate alone leaves it False.
+    is_processed: bool = False
     google_photos_connected_at: datetime | None = None

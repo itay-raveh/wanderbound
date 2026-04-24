@@ -9,14 +9,15 @@ from typing import TYPE_CHECKING, Annotated
 import sentry_sdk
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import SQLModel, col
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
-from app.models.user import User
+from app.models.album import Album
+from app.models.user import User, UserPublic
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -52,18 +53,27 @@ async def _touch_activity(uid: int) -> None:
         logger.debug("Activity tracking write failed for uid=%s", uid, exc_info=True)
 
 
+async def try_load_user(request: Request, session: AsyncSession) -> User | None:
+    """Resolve the request's session uid to a User, clearing stale sessions."""
+    uid = request.session.get("uid")
+    if uid is None:
+        return None
+    user = await session.get(User, uid)
+    if user is None:
+        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
+        request.session.clear()
+    return user
+
+
 async def _get_user(
     request: Request,
     session: SessionDep,
     background_tasks: BackgroundTasks,
 ) -> User:
-    uid = request.session.get("uid")
-    if uid is None:
+    user = await try_load_user(request, session)
+    if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-    if (user := await session.get(User, uid)) is None:
-        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
-        request.session.clear()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+    uid = user.id
 
     sentry_sdk.set_user({"id": str(uid)})
 
@@ -132,3 +142,13 @@ def login_session(request: Request, uid: int) -> None:
     """Set session to the given user (clear first to prevent fixation)."""
     request.session.clear()
     request.session["uid"] = uid
+
+
+async def to_user_public(user: User, session: AsyncSession) -> UserPublic:
+    """Project a User to UserPublic, deriving is_processed from album DB state."""
+    album_count = await session.scalar(
+        select(func.count()).select_from(Album).where(Album.uid == user.id)
+    )
+    public = UserPublic.model_validate(user)
+    public.is_processed = user.has_data and album_count == len(user.album_ids)
+    return public

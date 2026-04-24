@@ -1,12 +1,13 @@
 <script lang="ts" setup>
-import { computed, onMounted } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useSessionStorage } from "@vueuse/core";
+import { useQueryCache } from "@pinia/colada";
 import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
 import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { getAuthState, clearAuthState as clearAuth } from "@/router";
+import { useAuthStateQuery } from "@/queries/useAuthStateQuery";
+import { queryKeys } from "@/queries/keys";
 import { useI18n } from "vue-i18n";
 import { useMeta } from "quasar";
 import RegisterHero from "@/components/register/RegisterHero.vue";
@@ -14,7 +15,6 @@ import DataInstructions from "@/components/register/DataInstructions.vue";
 import ZipUploader from "@/components/register/ZipUploader.vue";
 import UnsupportedBanner from "@/components/register/UnsupportedBanner.vue";
 import ProcessingProgress from "@/components/register/ProcessingProgress.vue";
-import { UPLOAD_RESULT_KEY } from "@/utils/storage-keys";
 
 useMeta({ title: "Upload" });
 
@@ -24,42 +24,56 @@ const mapboxSupported = supported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
 const router = useRouter();
-const authState = getAuthState();
-const credential = authState?.credential;
-const provider = authState?.provider;
+const cache = useQueryCache();
 
-// Derive upload page state from user query.
-// For new users (credential present), the query will 401 - user stays undefined.
-const isNewUser = !!credential;
+const { data: authStateData } = useAuthStateQuery();
 const { user } = useUserQuery();
+const stream = useTripProcessingStream();
+const handoff = (history.state ?? {}) as { uploadResult?: UploadResult };
+const justUploaded = ref<UploadResult | null>(handoff.uploadResult ?? null);
 
-type UploadState = "new" | "evicted" | "reupload";
+type UploadState = "new" | "evicted" | "reupload" | "processing";
 const pageState = computed<UploadState>(() => {
-  if (isNewUser) return "new";
+  if (justUploaded.value || stream.state.value === "running")
+    return "processing";
+  if (authStateData.value?.state === "pending_signup") return "new";
   const u = user.value;
-  if (u?.album_ids?.length && !u.has_data) return "evicted";
+  if (!u || (!u.has_data && !u.album_ids?.length)) return "new";
+  if (!u.has_data) return "evicted";
+  if (!u.is_processed) return "processing";
   return "reupload";
 });
 
-const uploadResult = useSessionStorage<UploadResult | null>(
-  UPLOAD_RESULT_KEY,
-  null,
-);
-const stream = useTripProcessingStream();
+const trips = computed(() => justUploaded.value?.trips ?? []);
 
 const heroName = computed(
-  () => uploadResult.value?.user?.first_name ?? user.value?.first_name,
+  () =>
+    justUploaded.value?.user?.first_name ??
+    user.value?.first_name ??
+    authStateData.value?.pending_first_name ??
+    undefined,
 );
 
-onMounted(() => {
-  if (uploadResult.value?.trips) stream.start();
-  else if (uploadResult.value) uploadResult.value = null;
-});
+const isReturning = computed(() => !!user.value);
+
+function startProcessing() {
+  if (stream.state.value === "running") return;
+  stream.start();
+}
+
+watch(
+  pageState,
+  (s) => {
+    if (s === "processing") startProcessing();
+  },
+  { immediate: true },
+);
 
 function onUploaded(data: UploadResult) {
-  uploadResult.value = data;
-  clearAuth();
-  stream.start();
+  justUploaded.value = data;
+  void cache.invalidateQueries({ key: queryKeys.authState() });
+  void cache.invalidateQueries({ key: queryKeys.user() });
+  startProcessing();
 }
 
 function onRetry() {
@@ -68,11 +82,10 @@ function onRetry() {
 
 function onReupload() {
   stream.abort();
-  uploadResult.value = null;
+  justUploaded.value = null;
 }
 
 function onDone() {
-  uploadResult.value = null;
   void router.push({ name: "editor" });
 }
 </script>
@@ -80,11 +93,9 @@ function onDone() {
 <template>
   <q-page class="upload-page flex flex-center no-wrap">
     <div class="upload-content">
-      <RegisterHero :user-name="heroName" />
+      <RegisterHero :user-name="heroName" :is-returning="isReturning" />
 
-      <!-- Upload view -->
-      <q-card v-if="!uploadResult" class="upload-card fade-up">
-        <!-- Evicted user message -->
+      <q-card v-if="pageState !== 'processing'" class="upload-card fade-up">
         <template v-if="pageState === 'evicted'">
           <h2 class="state-title text-h6 text-weight-bold">
             {{ t("register.evictedTitle") }}
@@ -95,7 +106,6 @@ function onDone() {
           <q-separator class="q-my-md" />
         </template>
 
-        <!-- Manual re-upload message -->
         <template v-else-if="pageState === 'reupload'">
           <h2 class="state-title text-h6 text-weight-bold">
             {{ t("register.reuploadTitle") }}
@@ -106,8 +116,7 @@ function onDone() {
           <q-separator class="q-my-md" />
         </template>
 
-        <!-- New user: instructions -->
-        <template v-else>
+        <template v-else-if="pageState === 'new'">
           <h2 class="state-title text-h6 text-weight-bold">
             {{ t("register.getDataTitle") }}
           </h2>
@@ -117,18 +126,15 @@ function onDone() {
 
         <ZipUploader
           v-if="mapboxSupported"
-          :credential="credential"
-          :provider="provider"
           @uploaded="onUploaded"
         />
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
 
-      <!-- Processing view -->
       <ProcessingProgress
-        v-else-if="uploadResult.trips"
+        v-else
         class="upload-card"
-        :trips="uploadResult.trips"
+        :trips="trips"
         :state="stream.state.value"
         :trip-index="stream.tripIndex.value"
         :phase-done="stream.phaseDone.value"

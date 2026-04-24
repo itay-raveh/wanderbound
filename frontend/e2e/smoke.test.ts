@@ -1,13 +1,14 @@
 import { test, expect } from "./fixtures";
+import { mockAuthStateAnonymous } from "../tests/fixtures/mocks";
 
-const UNAUTHENTICATED = async (page: import("@playwright/test").Page) => {
-  await page.route("**/api/v1/users", (route) =>
-    route.fulfill({ status: 401, json: { detail: "Unauthorized" } }),
+const ANONYMOUS = async (page: import("@playwright/test").Page) => {
+  await page.route("**/api/v1/auth/state", (route) =>
+    route.fulfill({ json: mockAuthStateAnonymous }),
   );
 };
 
 test.describe("Landing page", () => {
-  test.beforeEach(async ({ page }) => UNAUTHENTICATED(page));
+  test.beforeEach(async ({ page }) => ANONYMOUS(page));
 
   test("renders the landing page", async ({ page }) => {
     await page.goto("/");
@@ -21,8 +22,8 @@ test.describe("Landing page", () => {
 });
 
 test.describe("Health check redirect", () => {
-  test("unauthenticated user stays on landing", async ({ page }) => {
-    await UNAUTHENTICATED(page);
+  test("anonymous user stays on landing", async ({ page }) => {
+    await ANONYMOUS(page);
     await page.goto("/editor");
     await page.waitForURL("/", { timeout: 15_000 });
   });

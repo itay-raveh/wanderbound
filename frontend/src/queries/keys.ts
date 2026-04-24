@@ -16,4 +16,5 @@ export const queryKeys = {
   printBundle: (aid: string | null) =>
     [...queryKeys.album(aid), "print-bundle"] as const,
   user: () => ["user"] as const,
+  authState: () => ["auth-state"] as const,
 };

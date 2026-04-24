@@ -152,16 +152,27 @@ def mock_extract(users_dir: Path) -> patch:
     )
 
 
+async def sign_in(
+    client: AsyncClient, provider: str = "google", payload: dict | None = None
+) -> None:
+    """Set a pending_signup session cookie via /auth/{provider}."""
+    with mock_jwt(provider, payload=payload):
+        resp = await client.post(
+            f"/api/v1/auth/{provider}", json={"credential": "fake"}
+        )
+    assert resp.status_code == 200
+
+
 async def sign_in_and_upload(
     client: AsyncClient,
     users_dir: Path,
     provider: str = "google",
     payload: dict | None = None,
 ) -> dict:
-    with mock_jwt(provider, payload=payload), mock_extract(users_dir):
+    await sign_in(client, provider, payload)
+    with mock_extract(users_dir):
         resp = await client.post(
             "/api/v1/users/upload",
-            data={"credential": "fake", "provider": provider},
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
     assert resp.status_code == 200
