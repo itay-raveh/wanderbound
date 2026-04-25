@@ -24,7 +24,14 @@ import "@/styles/animations.css";
 import App from "./App.vue";
 import router from "./router";
 
+import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
+
+const PRELOAD_ERROR_PATTERNS = [
+  "Failed to fetch dynamically imported module",
+  "error loading dynamically imported module",
+  "Importing a module script failed",
+];
 
 client.setConfig({
   baseUrl: "",
@@ -43,6 +50,11 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     integrations: [Sentry.replayIntegration()],
     tracesSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    beforeSend(event) {
+      const message = event.exception?.values?.[0]?.value ?? "";
+      if (PRELOAD_ERROR_PATTERNS.some((p) => message.includes(p))) return null;
+      return event;
+    },
   });
   pinia.use(Sentry.createSentryPiniaPlugin());
 }
@@ -50,6 +62,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 app.use(pinia);
 app.use(PiniaColada);
 app.use(router);
+useChunkErrorRecovery(router);
 app.use(i18n);
 app.use(vue3GoogleLogin, {
   clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,

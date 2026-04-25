@@ -2,7 +2,7 @@ import { useTimeoutFn } from "@vueuse/core";
 import { onScopeDispose, ref, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
 
-export type ExportState = "idle" | "running" | "done" | "error";
+type ExportState = "idle" | "running" | "done" | "error";
 
 export interface PolledExportHandle {
   start(): void;
