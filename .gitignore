@@ -28,6 +28,11 @@ frontend/src/client/
 # Claude Code
 .superpowers
 
+# Codex sandbox artifact: empty file created by Linux/bubblewrap sandbox.
+.codex
+!.codex/
+!.codex/**
+
 # Personal
 .todo
 
