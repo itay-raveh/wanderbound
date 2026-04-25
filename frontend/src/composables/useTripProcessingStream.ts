@@ -8,10 +8,9 @@ import {
 } from "@/client";
 import { t } from "@/i18n";
 
-export type { ProcessingPhase };
 export type ProcessingState = "idle" | "running" | "done" | "error";
 
-export interface PhaseProgress {
+interface PhaseProgress {
   done: number;
   total: number;
 }

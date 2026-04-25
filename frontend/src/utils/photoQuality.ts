@@ -14,7 +14,7 @@ import {
 } from "@/utils/photoLayout";
 import { isPortraitByName } from "@/utils/media";
 
-export type QualityTier = "ok" | "caution" | "warning";
+type QualityTier = "ok" | "caution" | "warning";
 
 export interface QualitySummary {
   caution: number;
