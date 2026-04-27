@@ -49,6 +49,24 @@ test.describe("Undo & redo", () => {
     await expect(unusedBadge(page)).toHaveText("0", { timeout: 3_000 });
   });
 
+  test("Ctrl+Z after sendToUnused restores focus to the moved photo", async ({
+    focusPage: page,
+  }) => {
+    const photo = photos(page).first();
+    await photo.click();
+    const originalMedia = await photo.getAttribute("data-media");
+
+    await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
+    await expect(unusedBadge(page)).toHaveText("1", { timeout: 3_000 });
+
+    await page.keyboard.press("Control+z");
+    await expect(unusedBadge(page)).toHaveText("0", { timeout: 3_000 });
+
+    await expect(
+      page.locator(`[data-media="${originalMedia}"]`),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("Ctrl+Shift+Z re-applies the undone action", async ({
     focusPage: page,
   }) => {

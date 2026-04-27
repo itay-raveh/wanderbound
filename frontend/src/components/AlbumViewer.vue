@@ -276,7 +276,7 @@ if (props.printMode) {
   const photoFocus = usePhotoFocus();
   photoFocus.init({
     steps: () => visibleSteps.value,
-    mutate: (sid, update) => stepMut.mutate({ sid, update }),
+    mutate: (sid, update, focus) => stepMut.mutate({ sid, update, focus }),
     scrollToStep: (id) => scrollToStep(id, "smooth"),
   });
   onUnmounted(() => photoFocus.dispose());

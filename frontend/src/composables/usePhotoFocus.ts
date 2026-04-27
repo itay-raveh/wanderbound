@@ -4,12 +4,22 @@ import { coverUpdatePayload, unusedUpdatePayload } from "./useStepLayout";
 
 export const STEP_ID_KEY: InjectionKey<number> = Symbol("step-id");
 
+export interface PhotoFocusSnapshot {
+  stepId: number | null;
+  photoId: string | null;
+}
+
 const focusedStepId = ref<number | null>(null);
 const focusedPhotoId = ref<string | null>(null);
 
 let getSteps: () => Step[] = () => [];
-let mutateFn: ((sid: number, update: Partial<StepUpdate>) => void) | null =
-  null;
+let mutateFn:
+  | ((
+      sid: number,
+      update: Partial<StepUpdate>,
+      focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
+    ) => void)
+  | null = null;
 let scrollToStepFn: ((stepId: number) => void) | null = null;
 let scrollRafId = 0;
 let awaitingStepTransition = false;
@@ -38,7 +48,11 @@ function advanceFocus(photos: string[], removedIdx: number) {
 
 function init(config: {
   steps: () => Step[];
-  mutate: (sid: number, update: Partial<StepUpdate>) => void;
+  mutate: (
+    sid: number,
+    update: Partial<StepUpdate>,
+    focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
+  ) => void;
   scrollToStep: (stepId: number) => void;
 }) {
   getSteps = config.steps;
@@ -78,6 +92,7 @@ function scrollFocusedIntoView() {
       scrollRafId = 0;
       awaitingStepTransition = false;
       el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus({ preventScroll: true });
       return;
     }
     if (++attempts < 60) {
@@ -93,6 +108,16 @@ function scrollFocusedIntoView() {
 function focus(stepId: number, photoId: string) {
   focusedStepId.value = stepId;
   focusedPhotoId.value = photoId;
+}
+
+function snapshot(): PhotoFocusSnapshot {
+  return { stepId: focusedStepId.value, photoId: focusedPhotoId.value };
+}
+
+function restore(snapshot: PhotoFocusSnapshot) {
+  focusedStepId.value = snapshot.stepId;
+  focusedPhotoId.value = snapshot.photoId;
+  scrollFocusedIntoView();
 }
 
 function blur() {
@@ -172,9 +197,13 @@ function sendToUnused(): boolean {
   const photoId = focusedPhotoId.value;
   if (!step || !photoId) return false;
 
+  const focusBefore = snapshot();
   const photos = pagedPhotos(step);
   advanceFocus(photos, photos.indexOf(photoId));
-  mutateFn?.(step.id, unusedUpdatePayload(step, [...step.unused, photoId]));
+  mutateFn?.(step.id, unusedUpdatePayload(step, [...step.unused, photoId]), {
+    before: focusBefore,
+    after: snapshot(),
+  });
   return true;
 }
 
@@ -184,9 +213,13 @@ function setAsCover(): boolean {
   const photoId = focusedPhotoId.value;
   if (!step || !photoId) return false;
 
+  const focusBefore = snapshot();
   const photos = pagedPhotos(step);
   advanceFocus(photos, photos.indexOf(photoId));
-  mutateFn?.(step.id, coverUpdatePayload(step, photoId));
+  mutateFn?.(step.id, coverUpdatePayload(step, photoId), {
+    before: focusBefore,
+    after: snapshot(),
+  });
   return true;
 }
 
@@ -196,6 +229,7 @@ const api = {
   init,
   dispose,
   focus,
+  restore,
   blur,
   move,
   sendToUnused,

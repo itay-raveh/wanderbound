@@ -2,16 +2,23 @@ import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep } from "@/client";
 import type { Step, StepUpdate } from "@/client";
 import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
+import type { PhotoFocusSnapshot } from "@/composables/usePhotoFocus";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
 import { queryKeys } from "./keys";
+
+interface StepMutationPayload {
+  sid: number;
+  update: StepUpdate;
+  focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot };
+}
 
 export function useStepMutation(aid: () => string) {
   const cache = useQueryCache();
   const undoStack = useUndoStack();
 
   return useMutation({
-    mutation: async (payload: { sid: number; update: StepUpdate }) => {
+    mutation: async (payload: StepMutationPayload) => {
       const { data } = await updateStep({
         path: { aid: aid(), sid: payload.sid },
         body: payload.update,
@@ -41,6 +48,7 @@ export function useStepMutation(aid: () => string) {
               Object.keys(payload.update) as (keyof StepUpdate)[],
             ),
             after: { ...payload.update },
+            focus: payload.focus,
           });
         }
       }

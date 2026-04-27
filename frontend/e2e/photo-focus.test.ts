@@ -84,6 +84,28 @@ test.describe("Photo focus & arrow navigation", () => {
     await expect(selected(page)).toHaveCount(1);
   });
 
+  test("ArrowRight moves DOM focus to the selected photo", async ({
+    focusPage: page,
+  }) => {
+    await scrollToStep(page, "Argentina", "Buenos Aires");
+    const first = photos(page).first();
+    await first.click();
+    await expect(first).toHaveAttribute("aria-pressed", "true");
+
+    await page.keyboard.press("ArrowRight");
+    await expect(selected(page)).toHaveCount(1);
+
+    await expect
+      .poll(async () =>
+        selected(page).evaluate(
+          (el) =>
+            document.activeElement?.getAttribute("data-media") ===
+            el.getAttribute("data-media"),
+        ),
+      )
+      .toBe(true);
+  });
+
   test("ArrowLeft moves selection to previous photo", async ({
     focusPage: page,
   }) => {
@@ -171,9 +193,7 @@ test.describe("Photo focus & arrow navigation", () => {
     expect(unique.size).toBe(indices.length);
   });
 
-  test("forward then backward is a round trip", async ({
-    focusPage: page,
-  }) => {
+  test("forward then backward is a round trip", async ({ focusPage: page }) => {
     await scrollToStep(page, "Argentina", "Buenos Aires");
     await photos(page).first().click();
 
@@ -229,7 +249,9 @@ test.describe("Send to unused & set as cover", () => {
     await openEditor(page);
   });
 
-  test("sendToUnused removes photo and advances focus", async ({ focusPage: page }) => {
+  test("sendToUnused removes photo and advances focus", async ({
+    focusPage: page,
+  }) => {
     await scrollToStep(page, "Argentina", "Buenos Aires");
     await photos(page).first().click();
     await expect(selected(page)).toHaveCount(1);
@@ -286,7 +308,9 @@ test.describe("Send to unused & set as cover", () => {
     await expect(selected(page)).toHaveCount(0, { timeout: 3_000 });
   });
 
-  test("setAsCover advances focus to next photo", async ({ focusPage: page }) => {
+  test("setAsCover advances focus to next photo", async ({
+    focusPage: page,
+  }) => {
     await scrollToStep(page, "Argentina", "Buenos Aires");
     const first = photos(page).first();
     await first.click();
@@ -297,5 +321,19 @@ test.describe("Send to unused & set as cover", () => {
     // Focus should advance - the photo became cover, so it's no longer navigable.
     await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
     await expect(first).not.toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("empty unused tray keeps a usable drop target", async ({
+    focusPage: page,
+  }) => {
+    await scrollToStep(page, "Argentina", "Buenos Aires");
+    const track = page.locator(".unused-drawer .drawer-track");
+
+    await expect
+      .poll(async () => {
+        const box = await track.boundingBox();
+        return box?.height ?? 0;
+      })
+      .toBeGreaterThan(40);
   });
 });

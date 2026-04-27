@@ -1,8 +1,16 @@
 import type { AlbumUpdate, StepUpdate } from "@/client";
+import type { PhotoFocusSnapshot } from "@/composables/usePhotoFocus";
+import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { ref } from "vue";
 
 type UndoEntry =
-  | { type: "step"; sid: number; before: StepUpdate; after: StepUpdate }
+  | {
+      type: "step";
+      sid: number;
+      before: StepUpdate;
+      after: StepUpdate;
+      focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot };
+    }
   | { type: "album"; before: AlbumUpdate; after: AlbumUpdate };
 
 export function pickSnapshot<T extends object>(
@@ -31,11 +39,16 @@ function syncFlags() {
 let stepMutator: ((sid: number, update: StepUpdate) => void) | null = null;
 let albumMutator: ((update: AlbumUpdate) => void) | null = null;
 
-function replay(entry: UndoEntry, snapshot: StepUpdate | AlbumUpdate) {
+function replay(
+  entry: UndoEntry,
+  snapshot: StepUpdate | AlbumUpdate,
+  focus?: PhotoFocusSnapshot,
+) {
   replaying = true;
   try {
     if (entry.type === "step") {
       stepMutator?.(entry.sid, snapshot as StepUpdate);
+      if (focus) usePhotoFocus().restore(focus);
     } else {
       albumMutator?.(snapshot as AlbumUpdate);
     }
@@ -57,7 +70,11 @@ function undo() {
   if (!entry) return;
   redoEntries.push(entry);
   syncFlags();
-  replay(entry, entry.before);
+  replay(
+    entry,
+    entry.before,
+    entry.type === "step" ? entry.focus?.before : undefined,
+  );
 }
 
 function redo() {
@@ -66,7 +83,11 @@ function redo() {
   if (undoEntries.length >= MAX_STACK) undoEntries.shift();
   undoEntries.push(entry);
   syncFlags();
-  replay(entry, entry.after);
+  replay(
+    entry,
+    entry.after,
+    entry.type === "step" ? entry.focus?.after : undefined,
+  );
 }
 
 function clear() {
