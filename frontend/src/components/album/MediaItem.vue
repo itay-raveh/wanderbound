@@ -53,6 +53,11 @@ function handleClick() {
   photoFocus.focus(stepId!, props.media);
 }
 
+function handleEnter() {
+  if (isVideo.value) togglePlay();
+  else handleClick();
+}
+
 function handleSpace() {
   if (isVideo.value && (playing.value || isFocused.value)) togglePlay();
   else handleClick();
@@ -98,15 +103,22 @@ const imgSizes = computed(() => {
 });
 
 const playing = ref(false);
+const rootRef = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 
 const frameMutation = useVideoFrameMutation();
+
+async function returnToFramePicker() {
+  playing.value = false;
+  await nextTick();
+  rootRef.value?.focus();
+}
 
 function togglePlay() {
   if (!videoRef.value) return;
   if (playing.value) {
     videoRef.value.pause();
-    playing.value = false;
+    void returnToFramePicker();
   } else {
     void videoRef.value.play();
     playing.value = true;
@@ -122,7 +134,7 @@ async function setFrame() {
   });
   posterCacheBust.value = Date.now();
   videoRef.value.pause();
-  playing.value = false;
+  await returnToFramePicker();
 }
 
 const FRAME_STEP = 1 / 30; // ~1 frame at 30fps
@@ -149,6 +161,7 @@ function onVideoKey(e: KeyboardEvent) {
 
 <template>
   <div
+    ref="rootRef"
     :class="['media-item', { focused: isFocused }]"
     class="relative-position overflow-hidden non-selectable"
     :data-media="media"
@@ -157,7 +170,7 @@ function onVideoKey(e: KeyboardEvent) {
     :aria-label="canFocus ? alt || t('album.selectPhoto') : undefined"
     :aria-pressed="canFocus ? isFocused : undefined"
     @click="handleClick"
-    @keydown.enter="handleClick"
+    @keydown.enter.prevent="handleEnter"
     @keydown.space.prevent="handleSpace"
   >
     <template v-if="isVideo && !printMode">
@@ -177,15 +190,16 @@ function onVideoKey(e: KeyboardEvent) {
         :src="src"
         class="fit video-playing"
         controls
+        playsinline
         preload="none"
-        @ended="playing = false"
+        @ended="returnToFramePicker"
         @keydown="onVideoKey"
       />
       <button
         v-if="!playing"
         class="play-overlay absolute-full cursor-pointer flex flex-center"
         :aria-label="t('album.playVideo')"
-        @click="togglePlay"
+        @click.stop="togglePlay"
       >
         <div class="play-icon flex flex-center">
           <q-icon :name="matPlayArrow" />

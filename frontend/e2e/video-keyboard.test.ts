@@ -66,18 +66,21 @@ test.describe("Video keyboard controls", () => {
     focusPage: page,
   }) => {
     await scrollToVideo(page);
+    const previousPhoto = page.locator('[data-media="focus-photo-10.jpg"]');
+    await previousPhoto.click();
+    await expect(previousPhoto).toHaveAttribute("aria-pressed", "true");
 
-    // Start video via play overlay
     await playOverlay(page).click();
     await expect(playOverlay(page)).toBeHidden({ timeout: 3_000 });
-    await expect(videoItem(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(videoItem(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(previousPhoto).toHaveAttribute("aria-pressed", "true");
 
     await page.waitForTimeout(200);
 
-    // Arrow keys should not change selection while video is playing
     await page.keyboard.press("ArrowRight");
 
-    await expect(videoItem(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(videoItem(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(previousPhoto).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[aria-pressed="true"]')).toHaveCount(1);
   });
 });
