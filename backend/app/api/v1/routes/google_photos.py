@@ -275,7 +275,8 @@ async def authorize(
 def _redirect_to_popup_bridge(
     nonce: str | None, *, error: bool = False
 ) -> RedirectResponse:
-    url = f"{get_settings().VITE_FRONTEND_URL}/oauth-connected.html"
+    frontend_url = str(get_settings().VITE_FRONTEND_URL).rstrip("/")
+    url = f"{frontend_url}/oauth-connected.html"
     params = []
     if error:
         params.append("error")
