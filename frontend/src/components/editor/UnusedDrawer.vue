@@ -43,6 +43,7 @@ const trackRef = ref<HTMLElement | null>(null);
 useDraggable(trackRef, localUnused, {
   group: "photos",
   animation: 200,
+  draggable: ".media-item",
   onUpdate() {
     save();
   },
@@ -64,9 +65,9 @@ useDraggable(trackRef, localUnused, {
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
       <MediaItem v-for="photo in localUnused" :key="photo" :media="photo" />
-    </div>
-    <div v-if="localUnused.length === 0" class="drawer-empty">
-      {{ t("album.dropPhotosHere") }}
+      <div v-if="localUnused.length === 0" class="drawer-empty">
+        {{ t("album.dropPhotosHere") }}
+      </div>
     </div>
   </div>
 </template>
@@ -87,6 +88,8 @@ useDraggable(trackRef, localUnused, {
 }
 
 .drawer-empty {
+  grid-column: 1 / -1;
+  min-height: 8rem;
   flex: 1;
   display: flex;
   align-items: center;
@@ -100,11 +103,6 @@ useDraggable(trackRef, localUnused, {
   transition:
     border-color var(--duration-fast),
     color var(--duration-fast);
-}
-
-// When empty, collapse the track so the empty state fills the drawer
-.unused-drawer:has(.drawer-empty) .drawer-track {
-  flex: none;
 }
 
 // Highlight empty state when dragging over
