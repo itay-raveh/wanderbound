@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AnyHttpUrl,
     AnyUrl,
     BeforeValidator,
     Field,
@@ -48,8 +49,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
-    VITE_FRONTEND_URL: str = "http://localhost:5173"
-    FRONTEND_URL: str = ""
+    VITE_FRONTEND_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:5173")
+    FRONTEND_URL: AnyHttpUrl | None = None
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
@@ -69,7 +70,7 @@ class Settings(BaseSettings):
     @property
     def all_cors_origins(self) -> list[str]:
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.VITE_FRONTEND_URL
+            str(self.VITE_FRONTEND_URL).rstrip("/")
         ]
 
     SQLALCHEMY_DATABASE_URI: Annotated[
@@ -83,7 +84,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _default_frontend_url(self) -> Self:
-        if not self.FRONTEND_URL:
+        if self.FRONTEND_URL is None:
             self.FRONTEND_URL = self.VITE_FRONTEND_URL
         return self
 
@@ -102,7 +103,7 @@ class Settings(BaseSettings):
         missing: list[str] = []
         if not self.VITE_MAPBOX_TOKEN:
             missing.append("VITE_MAPBOX_TOKEN")
-        if "localhost" in self.VITE_FRONTEND_URL:
+        if "localhost" in str(self.VITE_FRONTEND_URL):
             missing.append("VITE_FRONTEND_URL")
         if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:
             missing.append("VITE_GOOGLE_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID")
