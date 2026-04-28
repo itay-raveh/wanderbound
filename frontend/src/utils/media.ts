@@ -29,9 +29,8 @@ export function mediaThumbUrl(
   return `${mediaUrl(posterPath(name), albumId)}?w=${width}`;
 }
 
-/** Build flagcdn URL for a country code (w160 PNG - crisp at small display sizes). */
 export function flagUrl(countryCode: string): string {
-  return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
+  return `/flags/${countryCode.toLowerCase()}.png`;
 }
 
 /** Portrait: aspect ratio < 9:10 (taller than wide). Must match backend layout/media.py. */
@@ -48,7 +47,6 @@ export function isPortraitByName(
   return m ? isPortrait(m) : false;
 }
 
-/** Build Basmilius weather icon URL for a WMO icon name. */
 export function weatherIconUrl(iconName: string): string {
-  return `https://basmilius.github.io/meteocons/production/fill/svg/${iconName}.svg`;
+  return `/weather-icons/${iconName}.svg`;
 }
