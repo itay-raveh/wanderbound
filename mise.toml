@@ -173,6 +173,30 @@ outputs = [
 ]
 run = "uv run scripts/generate_countries.py"
 
+[tasks."generate:flags"]
+description = "Download small PNG country flags"
+sources = [
+    "scripts/generate_flags.py",
+    "backend/app/logic/country_colors.json",
+]
+outputs = [
+    "frontend/public/flags/*.png",
+    "frontend/public/flags/manifest.json",
+]
+run = "uv run scripts/generate_flags.py"
+
+[tasks."generate:weather-icons"]
+description = "Download local Meteocons SVG weather icons"
+sources = [
+    "scripts/generate_weather_icons.py",
+    "backend/app/services/open_meteo.py",
+]
+outputs = [
+    "frontend/public/weather-icons/*.svg",
+    "frontend/public/weather-icons/manifest.json",
+]
+run = "uv run scripts/generate_weather_icons.py"
+
 [tasks."generate:fonts"]
 description = "Download Google Fonts and generate @font-face CSS from fonts.json"
 sources = ["scripts/generate_fonts.py", "frontend/fonts.json"]
@@ -215,8 +239,10 @@ run = "bun scripts/generate-landing.ts"
 description = "Regenerate all derived assets (except landing - needs live servers)"
 depends = [
     "generate:countries",
+    "generate:flags",
     "generate:fonts",
     "generate:topo",
+    "generate:weather-icons",
     "generate:og-image",
     "generate:openapi",
 ]

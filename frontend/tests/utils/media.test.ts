@@ -4,7 +4,7 @@ vi.mock("@/client/client.gen", () => ({
   client: { getConfig: () => ({ baseUrl: "" }) },
 }));
 
-import { mediaThumbUrl } from "@/utils/media";
+import { flagUrl, mediaThumbUrl, weatherIconUrl } from "@/utils/media";
 
 describe("mediaThumbUrl", () => {
   it("returns the poster .jpg for a video, not the .mp4", () => {
@@ -15,5 +15,19 @@ describe("mediaThumbUrl", () => {
   it("passes through .jpg paths unchanged", () => {
     const url = mediaThumbUrl("photo.jpg", "aid-1", 800);
     expect(url).toBe("/api/v1/albums/aid-1/media/photo.jpg?w=800");
+  });
+});
+
+describe("flagUrl", () => {
+  it("returns a local PNG flag path for a country code", () => {
+    expect(flagUrl("AR")).toBe("/flags/ar.png");
+  });
+});
+
+describe("weatherIconUrl", () => {
+  it("returns a local SVG weather icon path for an icon name", () => {
+    expect(weatherIconUrl("partly-cloudy-day-rain")).toBe(
+      "/weather-icons/partly-cloudy-day-rain.svg",
+    );
   });
 });

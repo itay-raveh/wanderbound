@@ -1,0 +1,30 @@
+{
+  "source": "https://basmilius.github.io/meteocons/production/fill/svg/{name}.svg",
+  "files": [
+    "clear-day.svg",
+    "clear-night.svg",
+    "drizzle.svg",
+    "fog-day.svg",
+    "fog-night.svg",
+    "not-available.svg",
+    "overcast-day.svg",
+    "overcast-night.svg",
+    "partly-cloudy-day.svg",
+    "partly-cloudy-day-drizzle.svg",
+    "partly-cloudy-day-rain.svg",
+    "partly-cloudy-day-sleet.svg",
+    "partly-cloudy-day-snow.svg",
+    "partly-cloudy-night.svg",
+    "partly-cloudy-night-drizzle.svg",
+    "partly-cloudy-night-rain.svg",
+    "partly-cloudy-night-sleet.svg",
+    "partly-cloudy-night-snow.svg",
+    "rain.svg",
+    "sleet.svg",
+    "snow.svg",
+    "thunderstorms-day.svg",
+    "thunderstorms-day-rain.svg",
+    "thunderstorms-night.svg",
+    "thunderstorms-night-rain.svg"
+  ]
+}
