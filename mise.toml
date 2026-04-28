@@ -157,11 +157,6 @@ run = [
     "mise run db:migrate",
 ]
 
-[tasks."db:restore"]
-description = "Restore database or data from backups (list|db|data)"
-run = "bash scripts/restore.sh"
-raw = true
-
 # -- Generated -----------------------------------------------------
 
 [tasks."generate:countries"]
@@ -234,6 +229,50 @@ run = "uv run python ../scripts/generate_openapi.py"
 [tasks."generate:landing"]
 description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
 run = "bun scripts/generate-landing.ts"
+
+[tasks."check:generated:countries"]
+description = "Check country generated assets"
+run = "scripts/check-generated.sh countries generate:countries frontend/public/countries frontend/src/countries/bounds.json"
+
+[tasks."check:generated:flags"]
+description = "Check flag generated assets"
+run = "scripts/check-generated.sh flags generate:flags frontend/public/flags"
+
+[tasks."check:generated:weather-icons"]
+description = "Check weather icon generated assets"
+run = "scripts/check-generated.sh weather-icons generate:weather-icons frontend/public/weather-icons"
+
+[tasks."check:generated:fonts"]
+description = "Check font generated assets"
+run = "scripts/check-generated.sh fonts generate:fonts frontend/public/fonts frontend/src/styles/fonts.css"
+
+[tasks."check:generated:topo"]
+description = "Check topographic contour generated assets"
+run = "scripts/check-generated.sh topo generate:topo frontend/public/topo-contours.svg"
+
+[tasks."check:generated:og-image"]
+description = "Check OG image generated asset"
+run = "scripts/check-generated.sh og-image generate:og-image frontend/public/og-image.png"
+
+[tasks."check:generated:openapi"]
+description = "Check OpenAPI generated asset"
+run = "scripts/check-generated.sh openapi generate:openapi backend/openapi.json"
+
+[tasks."check:generated:landing"]
+description = "Check landing screenshot generated assets"
+run = "scripts/check-generated.sh landing generate:landing frontend/public/landing"
+
+[tasks."check:generated"]
+description = "Run hook-safe generated asset drift checks"
+run = [
+    "mise run check:generated:countries",
+    "mise run check:generated:flags",
+    "mise run check:generated:weather-icons",
+    "mise run check:generated:fonts",
+    "mise run check:generated:topo",
+    "mise run check:generated:og-image",
+    "mise run check:generated:openapi",
+]
 
 [tasks.generate]
 description = "Regenerate all derived assets (except landing - needs live servers)"
