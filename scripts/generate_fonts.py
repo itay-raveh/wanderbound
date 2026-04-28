@@ -14,6 +14,8 @@ from pathlib import Path
 
 import httpx
 
+from lib.downloads import download_atomic
+
 ROOT = Path(__file__).resolve().parent.parent
 FONTS_JSON = ROOT / "frontend" / "fonts.json"
 FONTS_DIR = ROOT / "frontend" / "public" / "fonts"
@@ -102,13 +104,9 @@ def fetch_faces(
     return faces
 
 
-def download_font(client: httpx.Client, url: str, dest: Path, *, clean: bool) -> None:
+def download_font(_client: httpx.Client, url: str, dest: Path, *, clean: bool) -> None:
     """Download a woff2 file if it doesn't already exist (or --clean was passed)."""
-    if not clean and dest.exists() and dest.stat().st_size > 0:
-        return
-    tmp = dest.with_suffix(".tmp")
-    tmp.write_bytes(client.get(url).raise_for_status().content)
-    tmp.rename(dest)
+    download_atomic(url, dest, skip_existing=not clean)
 
 
 def generate_css(all_faces: list[dict]) -> str:

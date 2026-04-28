@@ -84,10 +84,10 @@ repos:
         stages: [commit-msg]
         always_run: true
 
-      - id: check-staleness
-        name: check generated asset freshness
-        entry: scripts/check-staleness.sh
-        language: script
+      - id: check-generated
+        name: check generated asset drift
+        entry: mise run check:generated
+        language: system
         stages: [pre-push]
         pass_filenames: false
         always_run: true
