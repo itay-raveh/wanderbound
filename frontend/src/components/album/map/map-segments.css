@@ -26,6 +26,7 @@
 
 .map-step-marker {
   /* width/height set inline by drawSegmentsAndMarkers (scales with step count) */
+  pointer-events: none;
   border-radius: 50%;
   border: 0.125rem solid rgba(255, 255, 255, 0.9);
   background-color: #333;

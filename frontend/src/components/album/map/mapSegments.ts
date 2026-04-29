@@ -38,6 +38,18 @@ function cleanup(m: mapboxgl.Map) {
     .forEach((el) => el.remove());
 }
 
+function withTerrainDetached<T>(m: mapboxgl.Map, fn: () => T): T {
+  const terrain = m.getTerrain();
+  if (!terrain) return fn();
+
+  m.setTerrain(null);
+  try {
+    return fn();
+  } finally {
+    m.setTerrain(terrain);
+  }
+}
+
 export function addLine(
   m: mapboxgl.Map,
   id: string,
@@ -284,6 +296,15 @@ interface DrawResult {
 
 /** Draw segments and step markers. Returns all coords for fitBounds + hike endpoint info. */
 export function drawSegmentsAndMarkers(
+  m: mapboxgl.Map,
+  options: DrawOptions,
+): DrawResult {
+  return options.skipCleanup
+    ? drawSegmentsAndMarkersInner(m, options)
+    : withTerrainDetached(m, () => drawSegmentsAndMarkersInner(m, options));
+}
+
+function drawSegmentsAndMarkersInner(
   m: mapboxgl.Map,
   options: DrawOptions,
 ): DrawResult {
