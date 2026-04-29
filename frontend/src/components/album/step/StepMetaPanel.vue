@@ -154,7 +154,7 @@ const dateStr = computed(() => {
               :alt="weatherAlt(step.weather.night.icon)"
             />
             <span class="stat-label text-muted">{{
-              formatTemp(step.weather.night.temp)
+              formatTemp(step.weather.night.feels_like)
             }}</span>
           </div>
           <div class="weather-row">
@@ -164,7 +164,7 @@ const dateStr = computed(() => {
               :alt="weatherAlt(step.weather.day.icon)"
             />
             <span class="stat-value text-bright">{{
-              formatTemp(step.weather.day.temp)
+              formatTemp(step.weather.day.feels_like)
             }}</span>
           </div>
         </div>
