@@ -26,6 +26,7 @@ const props = defineProps<{
   steps: Step[];
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
+  lazyRoot?: HTMLElement | null;
 }>();
 
 const emit = defineEmits<{
@@ -114,6 +115,7 @@ const allHidden = computed(() =>
         :color="entry.item.color"
         :active="activeStepId === entry.item.id"
         :hidden="hiddenSet.has(entry.item.id)"
+        :lazy-root="lazyRoot"
         @click="emit('scrollToStep', entry.item.id)"
         @toggle="emit('toggleStep', entry.item.id)"
       />

@@ -12,6 +12,22 @@ const FLIGHT_ICON_CLASS = "map-flight-icon";
 const FAINT_OPACITY = 0.9;
 const FAINT_COLOR = "rgba(255, 255, 255, 0.8)";
 
+function setLazyBackground(el: HTMLElement, url: string) {
+  if (!("IntersectionObserver" in window)) {
+    el.style.backgroundImage = `url(${url})`;
+    return;
+  }
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry?.isIntersecting) return;
+      el.style.backgroundImage = `url(${url})`;
+      observer.disconnect();
+    },
+    { rootMargin: "300px" },
+  );
+  observer.observe(el);
+}
+
 function cleanup(m: mapboxgl.Map) {
   for (const layer of m.getStyle()?.layers ?? []) {
     if (layer.id.startsWith(LAYER_PREFIX)) removeMapLayer(m, layer.id);
@@ -345,7 +361,7 @@ export function drawSegmentsAndMarkers(
     el.setAttribute("role", "img");
     el.setAttribute("aria-label", step.name);
     if (step.cover) {
-      el.style.backgroundImage = `url(${mediaThumbUrl(step.cover, albumId)})`;
+      setLazyBackground(el, mediaThumbUrl(step.cover, albumId));
     }
     new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(m);
   }

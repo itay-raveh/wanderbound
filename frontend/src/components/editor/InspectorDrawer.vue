@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { Album, Step, Media } from "@/client";
 import AlbumProperties from "./AlbumProperties.vue";
+import CoverCell from "./CoverCell.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
 import { useI18n } from "vue-i18n";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { matImage } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
@@ -58,6 +59,8 @@ const landscapePhotos = computed(() =>
     .map((m) => m.name),
 );
 
+const coverGridRef = ref<HTMLElement | null>(null);
+
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
 }
@@ -90,26 +93,20 @@ const panelLabel = computed(() =>
         <q-icon :name="panelIcon" size="var(--type-md)" />
         <span>{{ panelLabel }}</span>
       </div>
-      <div v-if="landscapePhotos.length" class="cover-grid">
-        <img
+      <div v-if="landscapePhotos.length" ref="coverGridRef" class="cover-grid">
+        <CoverCell
           v-for="(photo, index) in landscapePhotos"
           :key="photo"
           :src="mediaThumbUrl(photo, album.id)"
-          class="cover-cell"
-          :class="{ selected: photo === activeCoverPhoto }"
-          :aria-label="
+          :selected="photo === activeCoverPhoto"
+          :lazy-root="coverGridRef"
+          :label="
             t('album.selectCoverPhoto', {
               index: index + 1,
               total: landscapePhotos.length,
             })
           "
-          role="button"
-          tabindex="0"
-          loading="lazy"
-          alt=""
-          @click="selectCoverPhoto(photo)"
-          @keydown.enter="selectCoverPhoto(photo)"
-          @keydown.space.prevent="selectCoverPhoto(photo)"
+          @select="selectCoverPhoto(photo)"
         />
       </div>
       <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>

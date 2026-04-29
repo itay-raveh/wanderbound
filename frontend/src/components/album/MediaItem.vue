@@ -3,7 +3,9 @@ import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { usePrintMode } from "@/composables/usePrintReady";
+import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
+import { useElementVisibility } from "@vueuse/core";
 import {
   isVideo as checkVideo,
   mediaUrl,
@@ -12,7 +14,7 @@ import {
   SIZES_HALF,
   THUMB_WIDTHS,
 } from "@/utils/media";
-import { computed, inject, nextTick, ref } from "vue";
+import { computed, inject, nextTick, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   matPlayArrow,
@@ -32,12 +34,29 @@ const props = withDefaults(
     focusable?: boolean;
     alt?: string;
     quality?: PhotoQuality | null;
+    lazyRoot?: HTMLElement | null;
   }>(),
   { focusable: true, alt: "" },
 );
 
 const { albumId, mediaByName } = useAlbum();
 const printMode = usePrintMode();
+
+const programmaticScroll = inject(PROGRAMMATIC_SCROLL_KEY, ref(false));
+const rootRef = ref<HTMLElement | null>(null);
+const visible = useElementVisibility(rootRef, {
+  scrollTarget: computed(() => props.lazyRoot ?? null),
+  rootMargin: "300px",
+  once: true,
+  initialValue:
+    typeof window !== "undefined" && !("IntersectionObserver" in window),
+});
+const loadImg = ref(printMode || !("IntersectionObserver" in window));
+watchEffect(() => {
+  if (printMode || (visible.value && !programmaticScroll.value)) {
+    loadImg.value = true;
+  }
+});
 
 const stepId = inject(STEP_ID_KEY, null);
 const photoFocus = usePhotoFocus();
@@ -103,7 +122,6 @@ const imgSizes = computed(() => {
 });
 
 const playing = ref(false);
-const rootRef = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 
 const frameMutation = useVideoFrameMutation();
@@ -176,12 +194,12 @@ function onVideoKey(e: KeyboardEvent) {
     <template v-if="isVideo && !printMode">
       <img
         v-show="!playing"
-        :src="posterSrc"
-        :srcset="imgSrcset"
+        :src="loadImg ? posterSrc : undefined"
+        :srcset="loadImg ? imgSrcset : undefined"
         :sizes="imgSizes"
         :alt="alt"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
-        loading="eager"
+        :loading="printMode ? 'eager' : 'lazy'"
         decoding="async"
       />
       <video
@@ -231,11 +249,11 @@ function onVideoKey(e: KeyboardEvent) {
     </template>
     <template v-else>
       <img
-        :src="isVideo ? posterSrc : src"
-        :srcset="imgSrcset"
+        :src="loadImg ? (isVideo ? posterSrc : src) : undefined"
+        :srcset="loadImg ? imgSrcset : undefined"
         :sizes="imgSizes"
         :alt="alt"
-        loading="eager"
+        :loading="printMode ? 'eager' : 'lazy'"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
       />

@@ -26,6 +26,7 @@ import {
 } from "./album/albumSections";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
+import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import {
   computed,
   defineAsyncComponent,
@@ -34,6 +35,8 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  provide,
+  readonly,
   ref,
   watch,
   watchEffect,
@@ -232,7 +235,39 @@ if (props.printMode) {
     setScrollOverride,
     setActive,
     scrollBehavior: getScrollBehavior,
+    programmaticScrolling,
   } = useActiveSection();
+
+  // Suppress photo fetches in steps the smooth scroll passes through.
+  // MediaItem injects this and skips src/srcset while it's true.
+  provide(PROGRAMMATIC_SCROLL_KEY, readonly(programmaticScrolling));
+
+  let scrollClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearProgrammaticScroll() {
+    programmaticScrolling.value = false;
+    if (scrollClearTimer) {
+      clearTimeout(scrollClearTimer);
+      scrollClearTimer = null;
+    }
+    window.removeEventListener("wheel", clearProgrammaticScroll, true);
+    window.removeEventListener("touchstart", clearProgrammaticScroll, true);
+    window.removeEventListener("keydown", onCancelKey, true);
+  }
+
+  function onCancelKey(e: KeyboardEvent) {
+    if (
+      e.key === "PageUp" ||
+      e.key === "PageDown" ||
+      e.key === "Home" ||
+      e.key === "End" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === " "
+    ) {
+      clearProgrammaticScroll();
+    }
+  }
 
   const stepIdToVIdx = computed(() => {
     const hc = headerCount.value;
@@ -251,11 +286,23 @@ if (props.printMode) {
   });
 
   function scrollToVIdx(idx: number, behavior?: ScrollBehavior) {
-    virtualizer.scrollToIndex(idx, {
-      align: "start",
-      behavior:
-        behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto"),
-    });
+    const b =
+      behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto");
+    if (b === "smooth") {
+      programmaticScrolling.value = true;
+      window.addEventListener("wheel", clearProgrammaticScroll, {
+        capture: true,
+        once: true,
+      });
+      window.addEventListener("touchstart", clearProgrammaticScroll, {
+        capture: true,
+        once: true,
+      });
+      window.addEventListener("keydown", onCancelKey, { capture: true });
+      if (scrollClearTimer) clearTimeout(scrollClearTimer);
+      scrollClearTimer = setTimeout(clearProgrammaticScroll, 1500);
+    }
+    virtualizer.scrollToIndex(idx, { align: "start", behavior: b });
   }
 
   function scrollToStep(id: number, behavior?: ScrollBehavior) {
@@ -313,6 +360,7 @@ if (props.printMode) {
   });
   onUnmounted(() => {
     setScrollOverride(null);
+    clearProgrammaticScroll();
   });
 }
 </script>

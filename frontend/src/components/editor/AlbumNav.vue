@@ -388,6 +388,7 @@ watch(activeSectionKey, (key) => {
         :steps="steps"
         :colors="albumColors"
         :format-map-range="formatMapRange"
+        :lazy-root="listRef ?? null"
         @toggle-open="
           openGroupKey = openGroupKey === group.key ? null : group.key
         "
