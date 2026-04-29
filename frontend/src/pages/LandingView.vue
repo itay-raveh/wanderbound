@@ -270,36 +270,6 @@ onUnmounted(() => cancelAnimationFrame(tiltFrame));
       </div>
     </div>
 
-    <!-- Bottom CTA -->
-    <section
-      class="cta column no-wrap flex-center"
-      aria-labelledby="cta-heading"
-    >
-      <h2
-        id="cta-heading"
-        class="feature-title feature-title--lg scroll-reveal"
-      >
-        {{ t("landing.ctaTitle") }}
-      </h2>
-      <i18n-t
-        keypath="landing.ctaBody"
-        tag="p"
-        class="cta-subtitle scroll-reveal"
-      >
-        <template #polarsteps
-          ><span class="polarsteps">Polarsteps</span></template
-        >
-      </i18n-t>
-      <div class="cta-button scroll-reveal">
-        <AuthActions
-          :authenticated="authenticated"
-          :demo-loading="demoLoading"
-          @google="onGoogleLogin"
-          @microsoft="onMicrosoftLogin"
-          @demo="onTryDemo"
-        />
-      </div>
-    </section>
   </main>
 </template>
 
@@ -584,32 +554,6 @@ onUnmounted(() => cancelAnimationFrame(tiltFrame));
   line-height: 1.65;
 }
 
-/* Bottom CTA */
-.cta {
-  background:
-    radial-gradient(
-      ellipse at center 60%,
-      color-mix(in srgb, var(--q-primary) 6%, transparent) 0%,
-      transparent 70%
-    ),
-    var(--bg-deep);
-  padding: 3rem 1.5rem;
-  text-align: center;
-}
-
-.cta-subtitle {
-  margin: var(--gap-lg) 0 0;
-  font-size: var(--type-md);
-  color: var(--text-muted);
-  max-width: 28rem;
-  line-height: 1.65;
-  text-wrap: pretty;
-}
-
-.cta-button {
-  margin-top: 2.5rem;
-}
-
 /* Tablet - hero scales up, features stay single-column */
 @media (min-width: 768px) {
   .hero-content {
@@ -682,9 +626,6 @@ onUnmounted(() => cancelAnimationFrame(tiltFrame));
     font-size: var(--type-2xl);
   }
 
-  .cta {
-    padding: 4.5rem 1.5rem;
-  }
 }
 
 /* Desktop - multi-column features, full-size hero fan */
@@ -752,9 +693,6 @@ onUnmounted(() => cancelAnimationFrame(tiltFrame));
     gap: 3rem;
   }
 
-  .cta {
-    padding: 6rem 2rem;
-  }
 }
 
 /* ─── Scroll-driven feature reveals ─── */
@@ -774,15 +712,6 @@ onUnmounted(() => cancelAnimationFrame(tiltFrame));
 /* Stagger the second item in paired features */
 .feature-pair-item.scroll-reveal:nth-child(2) {
   transition-delay: 0.15s;
-}
-
-/* Cascade the CTA elements */
-.cta-subtitle.scroll-reveal {
-  transition-delay: 0.1s;
-}
-
-.cta-button.scroll-reveal {
-  transition-delay: 0.2s;
 }
 
 @media (prefers-reduced-motion: reduce) {
