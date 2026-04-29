@@ -39,9 +39,7 @@
     "overviewBody": "Highest point, coldest night, hottest day, furthest from home. Your trip on a single page with the countries you visited.",
     "localizationTitle": "Your language, your direction",
     "localizationBody": "Unlike the {polarsteps}' album, we handle Hebrew, Arabic, Japanese and right-to-left layouts. Your album matches your language.",
-    "openEditor": "Open editor",
-    "ctaTitle": "Your trip deserves a real album",
-    "ctaBody": "Your photos, routes, and stories are in {polarsteps}. Turn them into an album you'll flip through."
+    "openEditor": "Open editor"
   },
   "login": {
     "signInGoogle": "Sign in with Google",
