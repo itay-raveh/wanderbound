@@ -16,7 +16,14 @@ import { getCountryColor, ensureSatelliteContrast } from "../colors";
 import along from "@turf/along";
 import { lineString } from "@turf/helpers";
 import turfLength from "@turf/length";
-import { useId, useTemplateRef, computed, ref, watch, onUnmounted } from "vue";
+import {
+  useId,
+  useTemplateRef,
+  computed,
+  ref,
+  watch,
+  onBeforeUnmount,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import mapboxgl from "mapbox-gl";
 import ElevationProfile from "./ElevationProfile.vue";
@@ -70,7 +77,7 @@ const fullHikeSegment = computed(() =>
 let cleanupHandles: (() => void) | null = null;
 let pendingIdleHandler: (() => void) | null = null;
 let lastAllCoords: [number, number][] = [];
-onUnmounted(() => {
+onBeforeUnmount(() => {
   cleanupHandles?.();
   if (pendingIdleHandler && map.value) {
     map.value.off("idle", pendingIdleHandler);
@@ -327,11 +334,11 @@ watch(safeMarginMm, () => {
 
 <template>
   <div
-    ref="hike-map"
     role="img"
     :aria-label="ariaLabel"
     class="page-container relative-position overflow-hidden"
   >
+    <div ref="hike-map" class="hike-map-canvas" aria-hidden="true" />
     <div v-if="stats" class="stats-block">
       <div class="stats-bg" aria-hidden="true" />
       <div class="stat-distance" :style="{ color: countryColor }">
@@ -377,6 +384,11 @@ watch(safeMarginMm, () => {
 </template>
 
 <style lang="scss" scoped>
+.hike-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
 // SVG gradient overlay pinned to the bottom of the page, extending past
 // the page edge to eliminate satellite slivers. Uses SVG stop-opacity
 // instead of CSS alpha functions - Skia's PDF backend renders CSS alpha
