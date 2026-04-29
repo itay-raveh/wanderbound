@@ -18,8 +18,6 @@ Never conditionally alter album page visuals between editor preview and print mo
 - mix-blend-mode / background-blend-mode → unreliable, use solid colors
 - mask-image (CSS masks) → dropped by Skia; use clip-path instead
 - position: fixed → repeats on every page (use absolute or static)
-- color-mix() → Skia can't resolve it in the PDF paint path; produces wrong colors
-- rgb(from …) (relative color syntax) → same issue as color-mix; broken in PDF
 - `transparent` keyword in gradients → resolves to transparent black rgba(0,0,0,0);
   interpolating from a non-black color toward transparent black shifts the hue
 - rgb(var(--XX-rgb) / alpha) → Skia renders this pink; the space-separated
@@ -81,23 +79,5 @@ the content. CSS `opacity` is native PDF graphics state and works correctly.
   <div class="content">...</div>
 </div>
 ```
-
-### Hardcoded rgba()
-
-`rgba(0,0,0,0.5)` works for theme-independent colors (black/white overlays).
-Only use when the color is constant across themes.
-
-## Prerequisites (required for all of the above)
-
-- `print-color-adjust: exact` on elements with background colors/images/gradients
-- `printBackground: true` in Playwright `page.pdf()` options
-- Disable animations: `@media print { * { animation: none !important; transition: none !important; } }`
-
-## WebGL / Mapbox GL maps
-
-Canvas content from WebGL is blank in headless PDF by default. Our pipeline
-captures map tiles via CDP and composites them as static images before print.
-Any new map rendering must go through this pipeline - never rely on live WebGL
-canvas for PDF output.
 
 Test PDF output after any visual changes to album components.
