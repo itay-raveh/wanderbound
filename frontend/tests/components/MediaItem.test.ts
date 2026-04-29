@@ -1,11 +1,32 @@
-import { defineComponent, h, ref } from "vue";
+import { defineComponent, h, nextTick, ref, readonly } from "vue";
 import { mountWithPlugins } from "../helpers";
 import MediaItem from "@/components/album/MediaItem.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { STEP_ID_KEY, usePhotoFocus } from "@/composables/usePhotoFocus";
+import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
+
+class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+
+  readonly callback: IntersectionObserverCallback;
+  readonly observe = vi.fn();
+  readonly disconnect = vi.fn();
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  trigger(isIntersecting: boolean) {
+    this.callback(
+      [{ isIntersecting, time: performance.now() } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
 
 vi.mock("@/queries/useVideoFrameMutation", () => ({
   useVideoFrameMutation: () => ({ mutateAsync }),
@@ -43,6 +64,32 @@ function mountVideoItem() {
   });
 }
 
+function mountPhotoItem(programmaticScrolling = ref(false)) {
+  const Wrapper = defineComponent({
+    setup() {
+      provideAlbum({
+        albumId: ref("album-1"),
+        colors: ref({}),
+        media: ref([{ name: "photo.jpg", width: 1920, height: 1080 }]),
+        tripStart: ref("2024-01-01"),
+        totalDays: ref(1),
+        upgradedMedia: ref(new Set<string>()),
+      });
+      return () => h(MediaItem, { media: "photo.jpg", alt: "Photo" });
+    },
+  });
+
+  return mountWithPlugins(Wrapper, {
+    global: {
+      provide: {
+        [STEP_ID_KEY as symbol]: 7,
+        [PROGRAMMATIC_SCROLL_KEY as symbol]: readonly(programmaticScrolling),
+      },
+    },
+    attachTo: document.body,
+  });
+}
+
 describe("MediaItem video controls", () => {
   beforeEach(() => {
     mutateAsync.mockResolvedValue(undefined);
@@ -55,6 +102,7 @@ describe("MediaItem video controls", () => {
   afterEach(() => {
     usePhotoFocus().blur();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   test("renders inline mobile video playback", () => {
@@ -114,5 +162,28 @@ describe("MediaItem video controls", () => {
       timestamp: 0,
     });
     expect(document.activeElement).toBe(root);
+  });
+
+  test("keeps an already assigned image src during programmatic scroll", async () => {
+    MockIntersectionObserver.instances = [];
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    const programmaticScrolling = ref(false);
+    const wrapper = mountPhotoItem(programmaticScrolling);
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve));
+    MockIntersectionObserver.instances.at(-1)?.trigger(true);
+    await nextTick();
+    const img = wrapper.get("img");
+
+    expect(img.attributes("src")).toBe(
+      "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=1920x1080",
+    );
+
+    programmaticScrolling.value = true;
+    await nextTick();
+
+    expect(img.attributes("src")).toBe(
+      "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=1920x1080",
+    );
   });
 });

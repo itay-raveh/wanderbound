@@ -28,6 +28,7 @@ export function pickBestItem<T extends VirtualItem>(
 
 const activeStepId = ref<number | null>(null);
 const activeSectionKey = ref<string | null>(null);
+const programmaticScrolling = ref(false);
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -72,6 +73,7 @@ function setScrollOverride(override: typeof scrollOverride) {
 function resetActiveSection() {
   activeStepId.value = null;
   activeSectionKey.value = null;
+  programmaticScrolling.value = false;
   scrollOverride = null;
 }
 
@@ -79,6 +81,7 @@ export function useActiveSection() {
   return {
     activeStepId,
     activeSectionKey,
+    programmaticScrolling,
     setActive,
     scrollTo,
     scrollToSection,

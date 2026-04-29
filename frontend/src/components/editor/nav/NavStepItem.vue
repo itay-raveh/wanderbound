@@ -1,25 +1,45 @@
 <script lang="ts" setup>
+import { computed, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   symOutlinedVisibility,
   symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
+import { useActiveSection } from "@/composables/useActiveSection";
+import { useElementVisibility } from "@vueuse/core";
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   name: string;
   date: string;
   thumb: string | null;
   color: string;
   active: boolean;
   hidden: boolean;
+  lazyRoot?: HTMLElement | null;
 }>();
 
 defineEmits<{
   click: [];
   toggle: [];
 }>();
+
+const thumbRef = ref<HTMLElement | null>(null);
+const thumbVisible = useElementVisibility(thumbRef, {
+  scrollTarget: computed(() => props.lazyRoot ?? null),
+  rootMargin: "0px",
+  once: true,
+  initialValue:
+    typeof window !== "undefined" && !("IntersectionObserver" in window),
+});
+const { programmaticScrolling } = useActiveSection();
+const loadThumb = ref(false);
+watchEffect(() => {
+  if (thumbVisible.value && !programmaticScrolling.value) {
+    loadThumb.value = true;
+  }
+});
 </script>
 
 <template>
@@ -31,10 +51,10 @@ defineEmits<{
     @click="$emit('click')"
     @keydown.enter="$emit('click')"
   >
-    <div class="item-thumb">
+    <div ref="thumbRef" class="item-thumb">
       <img
         v-if="thumb"
-        :src="thumb"
+        :src="loadThumb ? thumb : undefined"
         alt=""
         width="36"
         height="28"

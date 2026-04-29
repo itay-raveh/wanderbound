@@ -64,7 +64,12 @@ useDraggable(trackRef, localUnused, {
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
-      <MediaItem v-for="photo in localUnused" :key="photo" :media="photo" />
+      <MediaItem
+        v-for="photo in localUnused"
+        :key="photo"
+        :media="photo"
+        :lazy-root="trackRef"
+      />
       <div v-if="localUnused.length === 0" class="drawer-empty">
         {{ t("album.dropPhotosHere") }}
       </div>
