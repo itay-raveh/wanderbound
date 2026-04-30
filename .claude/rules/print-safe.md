@@ -47,8 +47,8 @@ elements; avoid on large areas or text-heavy containers.
 
 ## Semi-transparent colors in album components
 
-Skia's PDF backend breaks ALL CSS-level alpha in gradients (color-mix, relative
-color syntax, rgb(var(--XX-rgb) / alpha)). Two PDF-safe alternatives:
+Skia's PDF backend breaks CSS-level alpha in gradients (relative color syntax,
+rgb(var(--XX-rgb) / alpha)). Two PDF-safe alternatives:
 
 ### SVG stop-opacity (for gradients)
 
