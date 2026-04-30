@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -6,12 +5,14 @@ from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Self
 
+import anyio
 import av
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
 
 from app.core.resources import detect_memory_mb
+from app.core.worker_threads import run_sync
 
 # PQ (HDR10) and HLG values of AVColorTransferCharacteristic.
 # https://ffmpeg.org/doxygen/trunk/pixfmt_8h.html
@@ -28,7 +29,9 @@ THUMB_QUALITY = 80
 _MEDIA_BASELINE_MB = 400  # Python process + other services sharing the container
 _PER_MEDIA_OP_MB = 80  # Pillow load + resize + save
 _media_budget = max(256, detect_memory_mb() - _MEDIA_BASELINE_MB)
-media_sem = asyncio.Semaphore(max(4, min(40, _media_budget // _PER_MEDIA_OP_MB)))
+media_limiter = anyio.CapacityLimiter(
+    max(4, min(40, _media_budget // _PER_MEDIA_OP_MB))
+)
 
 
 @contextmanager
@@ -53,8 +56,9 @@ def _generate_thumbnail_sync(source: Path, width: int) -> Path | None:
 
 
 async def generate_thumbnail(source: Path, width: int) -> Path | None:
-    async with media_sem:
-        return await asyncio.to_thread(_generate_thumbnail_sync, source, width)
+    return await run_sync(
+        _generate_thumbnail_sync, source, width, limiter=media_limiter
+    )
 
 
 def delete_thumbnails(path: Path) -> None:
@@ -98,7 +102,7 @@ def _probe_video_dimensions_sync(path: Path) -> tuple[int, int]:
 
 
 async def _video_dimensions(path: Path) -> tuple[int, int]:
-    return await asyncio.to_thread(_probe_video_dimensions_sync, path)
+    return await run_sync(_probe_video_dimensions_sync, path, limiter=media_limiter)
 
 
 class Media(BaseModel):
@@ -185,7 +189,6 @@ def _extract_frame_sync(video: Path, timestamp: float) -> Path:
 
 async def extract_frame(video: Path, timestamp: float | None = None) -> Path:
     if timestamp is None:
-        duration = await asyncio.to_thread(_video_duration_sync, video)
+        duration = await run_sync(_video_duration_sync, video, limiter=media_limiter)
         timestamp = duration / 2
-    async with media_sem:
-        return await asyncio.to_thread(_extract_frame_sync, video, timestamp)
+    return await run_sync(_extract_frame_sync, video, timestamp, limiter=media_limiter)
