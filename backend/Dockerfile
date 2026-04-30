@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-workspace --package app
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
-RUN playwright install chromium --with-deps
+RUN playwright install --with-deps --only-shell chromium
 
 COPY ./backend/pyproject.toml ./backend/alembic.ini /app/backend/
 

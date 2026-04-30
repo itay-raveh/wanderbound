@@ -88,18 +88,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: frontend
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-      - run: bunx playwright install-deps chromium
-        working-directory: frontend
-      - if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: bunx playwright install chromium
+      - run: bunx playwright install --with-deps --only-shell chromium
         working-directory: frontend
       - run: bun run test:e2e
         working-directory: frontend
@@ -161,18 +150,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: frontend
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-      - run: bunx playwright install-deps chromium
-        working-directory: frontend
-      - if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: bunx playwright install chromium
+      - run: bunx playwright install --with-deps --only-shell chromium
         working-directory: frontend
       - uses: docker/setup-buildx-action@v4
       - name: Build images with GHA layer cache
