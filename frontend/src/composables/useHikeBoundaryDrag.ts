@@ -93,6 +93,10 @@ export function setupBoundaryHandles(
 
     const el = document.createElement("div");
     el.className = HANDLE_CLASS;
+    el.setAttribute(
+      "aria-label",
+      t(ep.handle === "start" ? "hike.adjustStart" : "hike.adjustEnd"),
+    );
     if (!adjacentOutline) el.classList.add("static");
 
     const marker = new mapboxgl.Marker({

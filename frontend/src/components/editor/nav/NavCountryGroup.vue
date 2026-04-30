@@ -89,37 +89,39 @@ const allHidden = computed(() =>
       </q-item-section>
     </template>
 
-    <template
-      v-for="entry in group.entries"
-      :key="entry.type === 'step' ? entry.item.id : entry.key"
-    >
-      <NavMapItem
-        v-if="entry.type === 'map'"
-        :data-nav-section="entry.key"
-        :date-range="entry.dateRange"
-        :range-idx="entry.rangeIdx"
-        :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
-        :steps="steps"
-        :colors="colors"
-        :format-map-range="formatMapRange"
-        @click="emit('scrollToMap', entry.dateRange)"
-        @delete="emit('deleteMap', entry.rangeIdx)"
-        @date-change="(idx, range) => emit('mapDateChange', idx, range)"
-      />
-      <NavStepItem
-        v-else
-        :data-nav-step="entry.item.id"
-        :name="entry.item.name"
-        :date="formatDate(entry.item.date, SHORT_DATE)"
-        :thumb="entry.item.thumb"
-        :color="entry.item.color"
-        :active="activeStepId === entry.item.id"
-        :hidden="hiddenSet.has(entry.item.id)"
-        :lazy-root="lazyRoot"
-        @click="emit('scrollToStep', entry.item.id)"
-        @toggle="emit('toggleStep', entry.item.id)"
-      />
-    </template>
+    <div :inert="!open">
+      <template
+        v-for="entry in group.entries"
+        :key="entry.type === 'step' ? entry.item.id : entry.key"
+      >
+        <NavMapItem
+          v-if="entry.type === 'map'"
+          :data-nav-section="entry.key"
+          :date-range="entry.dateRange"
+          :range-idx="entry.rangeIdx"
+          :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
+          :steps="steps"
+          :colors="colors"
+          :format-map-range="formatMapRange"
+          @click="emit('scrollToMap', entry.dateRange)"
+          @delete="emit('deleteMap', entry.rangeIdx)"
+          @date-change="(idx, range) => emit('mapDateChange', idx, range)"
+        />
+        <NavStepItem
+          v-else
+          :data-nav-step="entry.item.id"
+          :name="entry.item.name"
+          :date="formatDate(entry.item.date, SHORT_DATE)"
+          :thumb="entry.item.thumb"
+          :color="entry.item.color"
+          :active="activeStepId === entry.item.id"
+          :hidden="hiddenSet.has(entry.item.id)"
+          :lazy-root="lazyRoot"
+          @click="emit('scrollToStep', entry.item.id)"
+          @toggle="emit('toggleStep', entry.item.id)"
+        />
+      </template>
+    </div>
   </q-expansion-item>
 </template>
 
