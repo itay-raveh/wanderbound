@@ -84,7 +84,7 @@ async function handleDelete() {
       type="button"
       class="settings-trigger"
       :class="{ open: menuOpen }"
-      :aria-label="t('settings.menu')"
+      :aria-label="`${user.first_name} - ${t('settings.menu')}`"
       :aria-expanded="menuOpen"
       aria-haspopup="menu"
     >

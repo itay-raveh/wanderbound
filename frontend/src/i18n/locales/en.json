@@ -135,7 +135,9 @@
   },
   "hike": {
     "mapLabel": "Hike route map",
-    "elevationProfile": "Elevation profile"
+    "elevationProfile": "Elevation profile",
+    "adjustStart": "Adjust hike start",
+    "adjustEnd": "Adjust hike end"
   },
   "overview": {
     "title": "Trip overview",

@@ -334,11 +334,11 @@ watch(safeMarginMm, () => {
 
 <template>
   <div
-    role="img"
+    role="region"
     :aria-label="ariaLabel"
     class="page-container relative-position overflow-hidden"
   >
-    <div ref="hike-map" class="hike-map-canvas" aria-hidden="true" />
+    <div ref="hike-map" class="hike-map-canvas" />
     <div v-if="stats" class="stats-block">
       <div class="stats-bg" aria-hidden="true" />
       <div class="stat-distance" :style="{ color: countryColor }">

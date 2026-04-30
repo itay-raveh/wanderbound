@@ -115,6 +115,7 @@ function clearFilter() {
     class="nav-chip"
     :aria-label="t('nav.dateFilter')"
     aria-haspopup="dialog"
+    :aria-expanded="isOpen"
     @click.stop
   >
     <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />

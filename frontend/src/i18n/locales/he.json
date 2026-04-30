@@ -135,7 +135,9 @@
   },
   "hike": {
     "mapLabel": "מפת מסלול טרק",
-    "elevationProfile": "פרופיל גובה"
+    "elevationProfile": "פרופיל גובה",
+    "adjustStart": "התאמת תחילת הטרק",
+    "adjustEnd": "התאמת סיום הטרק"
   },
   "overview": {
     "title": "סקירת הטיול",

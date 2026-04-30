@@ -64,7 +64,7 @@ function toDMS(decimal: number, isLat: boolean): string {
   const dStr = String(d).padStart(3, " ");
   const mStr = String(m).padStart(2, " ");
   const sStr = String(s).padStart(2, " ");
-  return `${dStr}° ${mStr}' ${sStr}" ${hemisphere}`;
+  return `${dStr}° ${mStr}′ ${sStr}″ ${hemisphere}`;
 }
 
 const coords = computed(() => ({

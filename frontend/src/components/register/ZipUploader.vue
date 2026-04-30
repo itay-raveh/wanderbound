@@ -288,7 +288,7 @@ function reset() {
         @drop.prevent="onDrop"
       >
         <q-icon :name="symOutlinedLuggage" size="3rem" class="drop-zone-icon" />
-        <span class="text-body2 text-muted">{{ t("register.dropZone") }}</span>
+        <span class="text-body2">{{ t("register.dropZone") }}</span>
       </div>
 
       <!-- Progress bar (uploading) -->
