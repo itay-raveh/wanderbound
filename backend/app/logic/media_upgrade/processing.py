@@ -13,12 +13,14 @@ import imagehash
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 from PIL.Image import Resampling
 
+from app.core.worker_threads import run_sync
 from app.logic.layout.media import (
     HDR_COLOR_TRC,
     Media,
     delete_thumbnails,
     extract_frame,
     frame_to_oriented_image,
+    media_limiter,
     open_oriented,
 )
 
@@ -77,7 +79,7 @@ def _detect_hdr(path: Path) -> bool:
 async def process_video(input_path: Path, output: Path) -> None:
     # Transcoding stays on ffmpeg CLI; PyAV would need a hand-built filter
     # graph + encoder loop for zscale/tonemap/scale/x264/AAC/faststart.
-    is_hdr = await asyncio.to_thread(_detect_hdr, input_path)
+    is_hdr = await run_sync(_detect_hdr, input_path, limiter=media_limiter)
 
     scale_filter = (
         f"scale='min({_MAX_LONG_EDGE},iw)':'min({_MAX_LONG_EDGE},ih)'"
@@ -132,7 +134,7 @@ async def process_video(input_path: Path, output: Path) -> None:
         raise RuntimeError(f"ffmpeg re-encode failed: {stderr.decode()}")
 
     # -fs truncates mid-stream, producing a corrupt container. Treat as failure.
-    size = await asyncio.to_thread(lambda: output.stat().st_size)
+    size = (await run_sync(output.stat)).st_size
     if size >= _MAX_OUTPUT_BYTES:
         msg = f"ffmpeg output hit {_MAX_OUTPUT_BYTES}-byte cap"
         raise RuntimeError(msg)
@@ -190,14 +192,14 @@ async def replace_video(
         ):
             return False
 
-        await asyncio.to_thread(shutil.move, tmp, target)
+        await run_sync(shutil.move, tmp, target)
 
     # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
     try:
-        await asyncio.to_thread(delete_thumbnails, target)
+        await run_sync(delete_thumbnails, target)
         poster = target.with_suffix(".jpg")
-        if await asyncio.to_thread(poster.exists):
-            await asyncio.to_thread(delete_thumbnails, poster)
+        if await run_sync(poster.exists):
+            await run_sync(delete_thumbnails, poster)
         await extract_frame(target)
     except OSError:
         logger.warning("Thumbnail cleanup failed for %s", name, exc_info=True)
@@ -208,17 +210,19 @@ async def replace_photo(
     name: str, raw_path: Path, tmp_path: Path, target: Path
 ) -> bool:
     async with tmp_file(tmp_path) as tmp:
-        width, height = await asyncio.to_thread(process_photo_sync, raw_path, tmp)
+        width, height = await run_sync(
+            process_photo_sync, raw_path, tmp, limiter=media_limiter
+        )
 
         try:
-            existing = await asyncio.to_thread(Media.load, target)
+            existing = await run_sync(Media.load, target, limiter=media_limiter)
         except OSError, SyntaxError:
             logger.debug("Could not load existing photo %s", name, exc_info=True)
             existing = None
         if existing and _skip_smaller(name, width, height, existing):
             return False
 
-        await asyncio.to_thread(shutil.move, tmp, target)
+        await run_sync(shutil.move, tmp, target)
 
-    await asyncio.to_thread(delete_thumbnails, target)
+    await run_sync(delete_thumbnails, target)
     return True

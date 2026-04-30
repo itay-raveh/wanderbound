@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from collections.abc import AsyncIterable, Iterable, Sequence
 from itertools import batched
@@ -7,10 +6,11 @@ from pathlib import Path
 from typing import NamedTuple
 
 from app.core.async_helpers import yield_completed
+from app.core.worker_threads import run_sync
 from app.models.polarsteps import PSStep
 from app.models.user import User
 
-from .media import Media, MediaName, media_sem
+from .media import Media, MediaName, media_limiter
 
 
 class Layout(NamedTuple):
@@ -120,15 +120,14 @@ def _load_photos(folder: Path) -> list[Media]:
 async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
     photo_folder = step_dir / "photos"
     if photo_folder.exists():
-        for photo in await asyncio.to_thread(_load_photos, photo_folder):
+        for photo in await run_sync(_load_photos, photo_folder, limiter=media_limiter):
             yield photo
 
     video_folder = step_dir / "videos"
     if video_folder.exists():
 
         async def _probe(p: Path) -> Media:
-            async with media_sem:
-                return await Media.probe(p)
+            return await Media.probe(p)
 
         async for result in yield_completed(
             _probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"

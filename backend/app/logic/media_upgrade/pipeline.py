@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
+import anyio
 import httpx
 from httpx_oauth.oauth2 import RefreshTokenError
 from pydantic import BaseModel, Field, validate_call
@@ -24,7 +25,8 @@ if TYPE_CHECKING:
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.resources import detect_cpu_count
-from app.logic.layout.media import Media, MediaName, is_video
+from app.core.worker_threads import run_sync
+from app.logic.layout.media import Media, MediaName, is_video, media_limiter
 from app.models.album import Album
 from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
@@ -58,11 +60,9 @@ logger = logging.getLogger(__name__)
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
 
 
-# @cache keeps the semaphore lazy so it binds to the running event loop, not
-# import time. (Download concurrency is capped on the httpx client itself.)
 @functools.cache
-def _hash_sem() -> asyncio.Semaphore:
-    return asyncio.Semaphore(min(8, detect_cpu_count()))
+def _hash_limiter() -> anyio.CapacityLimiter:
+    return anyio.CapacityLimiter(min(8, detect_cpu_count()))
 
 
 class MatchInProgress(BaseModel):
@@ -114,10 +114,13 @@ async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, MediaHash | 
     if not path.exists():
         return name, None
     try:
-        async with _hash_sem():
-            if is_video(name):
-                return name, await asyncio.to_thread(extract_video_frame_hashes, path)
-            return name, await asyncio.to_thread(compute_phash_from_path, path)
+        if is_video(name):
+            return name, await run_sync(
+                extract_video_frame_hashes, path, limiter=_hash_limiter()
+            )
+        return name, await run_sync(
+            compute_phash_from_path, path, limiter=_hash_limiter()
+        )
     # Pillow raises SyntaxError on corrupt/truncated image headers.
     except OSError, SyntaxError, subprocess.SubprocessError:
         logger.warning("Failed to hash %s", name, exc_info=True)
@@ -136,7 +139,9 @@ async def _hash_candidate_one(
         thumb_bytes = await download_media_bytes(
             download, item.media_file.base_url, access_token, param=thumb_param
         )
-        return item.id, await asyncio.to_thread(compute_phash_from_bytes, thumb_bytes)
+        return item.id, await run_sync(
+            compute_phash_from_bytes, thumb_bytes, limiter=_hash_limiter()
+        )
     except OSError, SyntaxError, httpx.HTTPError:
         logger.warning(
             "Failed to download/hash thumbnail for %s",
@@ -273,11 +278,11 @@ async def _download_and_replace(  # noqa: PLR0913
 async def _upgrade_tmp(album_dir: Path) -> AsyncIterator[Path]:
     """Create and clean up the per-album tmp dir used during upgrade."""
     tmp_dir = album_dir / _UPGRADE_TMP_DIR
-    await asyncio.to_thread(functools.partial(tmp_dir.mkdir, exist_ok=True))
+    await run_sync(tmp_dir.mkdir, exist_ok=True)
     try:
         yield tmp_dir
     finally:
-        await asyncio.to_thread(shutil.rmtree, tmp_dir, ignore_errors=True)
+        await run_sync(shutil.rmtree, tmp_dir, ignore_errors=True)
 
 
 async def _persist_upgrade(
@@ -477,7 +482,7 @@ async def refresh_upgraded_media(
             if is_video(match.local_name):
                 updated = await Media.probe(target)
             else:
-                updated = await asyncio.to_thread(Media.load, target)
+                updated = await run_sync(Media.load, target, limiter=media_limiter)
             media_by_name[match.local_name] = updated
         except OSError, SyntaxError, RuntimeError:
             logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
@@ -496,11 +501,11 @@ async def cleanup_orphaned_tmp(users_folder: Path) -> None:
             count += 1
         return count
 
-    removed = await asyncio.to_thread(_scan_and_remove)
+    removed = await run_sync(_scan_and_remove)
     if removed:
         logger.info("Cleaned up %d orphaned upgrade-tmp dirs", removed)
 
 
 def _clear_caches() -> None:
-    """Reset cached semaphores (for test isolation across event loops)."""
-    _hash_sem.cache_clear()
+    """Reset cached limiters (for test isolation across event loops)."""
+    _hash_limiter.cache_clear()

@@ -10,8 +10,9 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from app.core.http_clients import HttpClients
+from app.core.worker_threads import run_sync
 from app.logic.layout import Layout
-from app.logic.layout.media import Media, media_sem, normalize_name
+from app.logic.layout.media import Media, media_limiter, normalize_name
 from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
@@ -111,11 +112,10 @@ async def _probe_media(
         to_probe.update(f for f in step_obj.unused if f not in known)
 
     async def _probe(name: str) -> Media:
-        async with media_sem:
-            try:
-                return await asyncio.to_thread(Media.load, trip_dir / name)
-            except OSError, ValueError:
-                return Media(name=name, width=1920, height=1080)
+        try:
+            return await run_sync(Media.load, trip_dir / name, limiter=media_limiter)
+        except OSError, ValueError:
+            return Media(name=name, width=1920, height=1080)
 
     probed = await asyncio.gather(*[_probe(f) for f in to_probe])
     merged = dict(known)
