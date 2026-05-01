@@ -11,6 +11,7 @@ from app.logic.reconcile import (
     _scan_step_media,
     reconcile_trip,
 )
+from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
@@ -291,11 +292,28 @@ class TestReconcileTripRebuildsSegments:
         )
 
         db_out: list = []
-        await collect_async(
+        events = await collect_async(
             reconcile_trip(_MOCK_HTTP, user, trip_dir, album, existing_steps, db_out)
         )
 
         segments = [obj for obj in db_out if isinstance(obj, Segment)]
+        segment_events = [
+            event
+            for event in events
+            if isinstance(event, PhaseUpdate) and event.phase == "segments"
+        ]
+        assert segment_events == [
+            PhaseUpdate(phase="segments", done=0, total=1),
+            PhaseUpdate(phase="segments", done=1, total=1),
+        ]
+        assert any(
+            isinstance(event, SegmentsFound)
+            and (
+                event.hikes + event.walks + event.drives + event.flights
+                == len(segments)
+            )
+            for event in events
+        )
         assert len(segments) > 0, (
             "reconcile_trip must rebuild segments from GPS data; "
             "got 0 segments in db_out (route lines would be missing)"
