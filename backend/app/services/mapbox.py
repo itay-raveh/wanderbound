@@ -7,6 +7,7 @@ Rate-limited to stay under Mapbox free-tier limits (60 req/min).
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from typing import Literal
 
 import httpx
@@ -24,11 +25,28 @@ from app.logic.route_matching import (
 logger = logging.getLogger(__name__)
 
 type Profile = str  # "driving" or "walking"
+type MapboxClient = httpx.AsyncClient
 
 MATCH_MAX_COORDS = 100
 
 _MATCHING_URL = "https://api.mapbox.com/matching/v5/mapbox"
 _DIRECTIONS_URL = "https://api.mapbox.com/directions/v5/mapbox"
+
+
+@dataclass
+class RouteMatchStats:
+    matching_requests: int = 0
+    directions_requests: int = 0
+
+    @property
+    def requests(self) -> int:
+        return self.matching_requests + self.directions_requests
+
+
+@dataclass(frozen=True)
+class MapboxRouteClients:
+    matching: MapboxClient
+    directions: MapboxClient
 
 
 class _GeoJSONLineString(BaseModel):
@@ -68,7 +86,10 @@ async def _fetch_matching(
     coords: Coords,
     profile: Profile,
     token: str,
+    stats: RouteMatchStats | None = None,
 ) -> Coords | None:
+    if stats is not None:
+        stats.matching_requests += 1
     reduced = reduce_coords(coords, MATCH_MAX_COORDS)
     try:
         resp = await client.get(
@@ -99,7 +120,10 @@ async def _fetch_directions(
     coords: Coords,
     profile: Profile,
     token: str,
+    stats: RouteMatchStats | None = None,
 ) -> Coords | None:
+    if stats is not None:
+        stats.directions_requests += 1
     try:
         resp = await client.get(
             f"{_DIRECTIONS_URL}/{profile}/{_encode_coords(coords)}",
@@ -146,10 +170,11 @@ async def _chunked_route(
 
 
 async def _match_one(
-    client: httpx.AsyncClient,
+    clients: MapboxRouteClients,
     points_lonlat: Coords,
     profile: Profile,
     token: str,
+    stats: RouteMatchStats | None = None,
 ) -> Coords | None:
     """Match a single segment's GPS points to roads via Mapbox APIs."""
     if len(points_lonlat) < 2:
@@ -157,22 +182,28 @@ async def _match_one(
 
     if is_sparse(points_lonlat):
         if len(points_lonlat) <= 25:
-            raw = await _fetch_directions(client, points_lonlat, profile, token)
+            raw = await _fetch_directions(
+                clients.directions, points_lonlat, profile, token, stats
+            )
         else:
             raw = await _chunked_route(
                 points_lonlat,
                 20,
                 1,
-                lambda c: _fetch_directions(client, c, profile, token),
+                lambda c: _fetch_directions(
+                    clients.directions, c, profile, token, stats
+                ),
             )
     elif len(points_lonlat) <= MATCH_MAX_COORDS:
-        raw = await _fetch_matching(client, points_lonlat, profile, token)
+        raw = await _fetch_matching(
+            clients.matching, points_lonlat, profile, token, stats
+        )
     else:
         raw = await _chunked_route(
             points_lonlat,
             90,
             10,
-            lambda c: _fetch_matching(client, c, profile, token),
+            lambda c: _fetch_matching(clients.matching, c, profile, token, stats),
         )
 
     if raw is None:
@@ -197,7 +228,7 @@ async def _match_one(
 
 
 async def match_segment(
-    client: httpx.AsyncClient,
+    client: MapboxClient,
     points_lonlat: Coords,
     profile: Profile,
 ) -> Coords | None:
@@ -210,21 +241,48 @@ async def match_segment(
     if not token:
         return None
 
-    return await _match_one(client, points_lonlat, profile, token)
+    return await _match_one(
+        MapboxRouteClients(matching=client, directions=client),
+        points_lonlat,
+        profile,
+        token,
+    )
 
 
 async def match_segments(
-    client: httpx.AsyncClient,
+    client: MapboxClient,
     pairs: list[tuple[Coords, Profile]],
 ) -> list[Coords | None]:
     """Match multiple segments concurrently, sharing one HTTP connection pool."""
+    routes, _stats = await match_segments_with_stats(client, client, pairs)
+    return routes
+
+
+async def match_segments_with_stats(
+    matching_client: MapboxClient,
+    directions_client: MapboxClient,
+    pairs: list[tuple[Coords, Profile]],
+) -> tuple[list[Coords | None], RouteMatchStats]:
+    """Match multiple segments, returning route results and HTTP request counts."""
+    stats = RouteMatchStats()
     if not pairs:
-        return []
+        return [], stats
 
     token = _token()
     if not token:
-        return [None] * len(pairs)
+        return [None] * len(pairs), stats
 
-    return await asyncio.gather(
-        *(_match_one(client, coords, profile, token) for coords, profile in pairs)
+    clients = MapboxRouteClients(matching=matching_client, directions=directions_client)
+    routes = await asyncio.gather(
+        *(
+            _match_one(
+                clients,
+                coords,
+                profile,
+                token,
+                stats,
+            )
+            for coords, profile in pairs
+        )
     )
+    return routes, stats

@@ -27,7 +27,7 @@ async def _lock(*, acquired: bool = True) -> AsyncIterator[bool]:
 
 
 def _http() -> SimpleNamespace:
-    return SimpleNamespace(mapbox=object())
+    return SimpleNamespace(mapbox_matching=object(), mapbox_directions=object())
 
 
 def test_enqueue_album_route_enrichment_adds_background_task() -> None:
@@ -80,15 +80,25 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
         )
         await session.commit()
 
+    http = _http()
     with (
         patch("app.logic.segment_routes.get_engine", return_value=engine),
         patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
         patch(
-            "app.logic.segment_routes.match_segments",
-            new=AsyncMock(return_value=[driving_route, walking_route]),
+            "app.logic.segment_routes.match_segments_with_stats",
+            new=AsyncMock(
+                return_value=(
+                    [driving_route, walking_route],
+                    SimpleNamespace(
+                        requests=2,
+                        matching_requests=1,
+                        directions_requests=1,
+                    ),
+                )
+            ),
         ) as match_segments,
     ):
-        await match_album_segment_routes(_http(), uid, AID)
+        await match_album_segment_routes(http, uid, AID)
 
     assert (
         await _route_for(engine, uid, start_time=100.0, end_time=200.0) == driving_route
@@ -97,7 +107,11 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
         await _route_for(engine, uid, start_time=300.0, end_time=400.0) == walking_route
     )
     match_segments.assert_awaited_once()
-    assert [profile for _, profile in match_segments.await_args.args[1]] == [
+    assert match_segments.await_args.args[:2] == (
+        http.mapbox_matching,
+        http.mapbox_directions,
+    )
+    assert [profile for _, profile in match_segments.await_args.args[2]] == [
         "driving",
         "walking",
     ]
@@ -127,7 +141,7 @@ async def test_hike_and_flight_segments_are_skipped(engine: AsyncEngine) -> None
         patch("app.logic.segment_routes.get_engine", return_value=engine),
         patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
         patch(
-            "app.logic.segment_routes.match_segments", new=AsyncMock()
+            "app.logic.segment_routes.match_segments_with_stats", new=AsyncMock()
         ) as match_segments,
     ):
         await match_album_segment_routes(_http(), uid, AID)
@@ -151,19 +165,25 @@ async def test_rows_deleted_before_write_are_skipped(engine: AsyncEngine) -> Non
         )
         await session.commit()
 
-    async def delete_then_match(*_args: object) -> list[list[tuple[float, float]]]:
+    async def delete_then_match(
+        *_args: object,
+    ) -> tuple[list[list[tuple[float, float]]], SimpleNamespace]:
         async with AsyncSession(engine) as session:
             seg = await session.get(Segment, (uid, AID, 100.0, 200.0))
             assert seg is not None
             await session.delete(seg)
             await session.commit()
-        return [route]
+        return [route], SimpleNamespace(
+            requests=1,
+            matching_requests=1,
+            directions_requests=0,
+        )
 
     with (
         patch("app.logic.segment_routes.get_engine", return_value=engine),
         patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
         patch(
-            "app.logic.segment_routes.match_segments",
+            "app.logic.segment_routes.match_segments_with_stats",
             new=AsyncMock(side_effect=delete_then_match),
         ),
     ):
@@ -190,8 +210,17 @@ async def test_none_route_leaves_row_unchanged(engine: AsyncEngine) -> None:
         patch("app.logic.segment_routes.get_engine", return_value=engine),
         patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
         patch(
-            "app.logic.segment_routes.match_segments",
-            new=AsyncMock(return_value=[None]),
+            "app.logic.segment_routes.match_segments_with_stats",
+            new=AsyncMock(
+                return_value=(
+                    [None],
+                    SimpleNamespace(
+                        requests=1,
+                        matching_requests=1,
+                        directions_requests=0,
+                    ),
+                )
+            ),
         ),
     ):
         await match_album_segment_routes(_http(), uid, AID)
@@ -213,7 +242,7 @@ async def test_advisory_lock_already_held_skips_run(engine: AsyncEngine) -> None
             return_value=_lock(acquired=False),
         ),
         patch(
-            "app.logic.segment_routes.match_segments", new=AsyncMock()
+            "app.logic.segment_routes.match_segments_with_stats", new=AsyncMock()
         ) as match_segments,
     ):
         await match_album_segment_routes(_http(), uid, AID)
