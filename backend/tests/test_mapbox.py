@@ -1,7 +1,7 @@
 """Tests for app.services.mapbox - Mapbox Map Matching & Directions API client."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -201,14 +201,15 @@ class TestMatchSegmentsWithStats:
             ).encode()
         )
 
-        routes, stats = await match_segments_with_stats(
-            matching_client,
-            directions_client,
-            [
-                ([(4.0 + i * 0.0001, 52.0) for i in range(3)], "driving"),
-                ([(5.0, 53.0), (5.1, 53.1)], "walking"),
-            ],
-        )
+        with patch("app.services.mapbox._token", return_value="tok"):
+            routes, stats = await match_segments_with_stats(
+                matching_client,
+                directions_client,
+                [
+                    ([(4.0 + i * 0.0001, 52.0) for i in range(3)], "driving"),
+                    ([(5.0, 53.0), (5.1, 53.1)], "walking"),
+                ],
+            )
 
         assert len(routes) == 2
         assert stats.matching_requests == 1
