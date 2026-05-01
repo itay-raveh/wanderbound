@@ -138,6 +138,7 @@ function onDone() {
         :state="stream.state.value"
         :trip-index="stream.tripIndex.value"
         :phase-done="stream.phaseDone.value"
+        :segment-summary="stream.segmentSummary.value"
         :error-detail="stream.errorDetail.value"
         @retry="onRetry"
         @reupload="onReupload"

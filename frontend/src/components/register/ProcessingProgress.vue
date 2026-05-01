@@ -5,6 +5,7 @@ import { PHASE_ORDER } from "@/composables/useTripProcessingStream";
 import type {
   PhaseDone,
   ProcessingState,
+  SegmentSummary,
 } from "@/composables/useTripProcessingStream";
 import { useI18n } from "vue-i18n";
 import TripTimeline from "./TripTimeline.vue";
@@ -19,6 +20,10 @@ import {
   matRefresh,
   matArrowForward,
   matUploadFile,
+  matDirectionsCar,
+  matDirectionsWalk,
+  matFlight,
+  matHiking,
 } from "@quasar/extras/material-icons";
 
 const props = defineProps<{
@@ -26,6 +31,7 @@ const props = defineProps<{
   state: ProcessingState;
   tripIndex: number;
   phaseDone: PhaseDone;
+  segmentSummary: SegmentSummary;
   errorDetail: string | null;
 }>();
 
@@ -53,6 +59,31 @@ const statusMessage = computed(() => {
   }
   return t("register.statusBuilding");
 });
+
+const segmentStats = computed(() =>
+  [
+    {
+      key: "hikes",
+      count: props.segmentSummary.hikes,
+      icon: matHiking,
+    },
+    {
+      key: "walks",
+      count: props.segmentSummary.walks,
+      icon: matDirectionsWalk,
+    },
+    {
+      key: "drives",
+      count: props.segmentSummary.drives,
+      icon: matDirectionsCar,
+    },
+    {
+      key: "flights",
+      count: props.segmentSummary.flights,
+      icon: matFlight,
+    },
+  ].filter((item) => item.count > 0),
+);
 
 watch(
   () => props.state,
@@ -126,6 +157,21 @@ watch(
           {{ t("register.countries", totalCountries) }}
         </span>
       </div>
+
+      <div
+        v-if="segmentStats.length > 0"
+        class="segment-summary row items-center wrap q-gutter-x-sm text-overline text-faint"
+      >
+        <span>{{ t("register.segmentsFound") }}</span>
+        <span
+          v-for="item in segmentStats"
+          :key="item.key"
+          class="segment-stat row inline no-wrap items-center q-gutter-x-xs"
+        >
+          <q-icon :name="item.icon" size="0.875rem" />
+          {{ t(`register.segmentSummary.${item.key}`, item.count) }}
+        </span>
+      </div>
     </div>
 
     <q-separator class="q-my-md" />
@@ -194,6 +240,10 @@ watch(
 .status-building {
   display: inline-flex;
   align-items: center;
+}
+
+.segment-summary {
+  text-transform: none;
 }
 
 .error-banner {

@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { ProcessingPhase, TripMeta } from "@/client";
+import type { TripMeta } from "@/client";
 import { PHASE_ORDER } from "@/composables/useTripProcessingStream";
 import type {
   PhaseDone,
+  ProcessingPhase,
   ProcessingState,
 } from "@/composables/useTripProcessingStream";
 import { useI18n } from "vue-i18n";
@@ -13,6 +14,7 @@ import {
   matTerrain,
   matThermostat,
   matPhotoLibrary,
+  matRoute,
 } from "@quasar/extras/material-icons";
 import ProgressBar from "@/components/ui/ProgressBar.vue";
 
@@ -28,6 +30,7 @@ const { t } = useI18n();
 const PHASE_ICONS: Record<ProcessingPhase, string> = {
   elevations: matTerrain,
   weather: matThermostat,
+  segments: matRoute,
   layouts: matPhotoLibrary,
 };
 
@@ -143,7 +146,9 @@ const overallPercent = computed(() => {
             />
             <span
               v-else-if="
-                phaseStatuses[p] === 'active' && phaseDone[p].total > 0
+                phaseStatuses[p] === 'active' &&
+                phaseDone[p].total > 0 &&
+                phaseDone[p].done > 0
               "
               class="phase-count text-overline text-faint"
             >
@@ -153,6 +158,7 @@ const overallPercent = computed(() => {
             <q-linear-progress
               v-if="phaseStatuses[p] === 'active' && phaseDone[p].total > 0"
               :value="phasePercent(p) / 100"
+              :indeterminate="phaseDone[p].done === 0"
               color="primary"
               size="0.125rem"
               class="phase-bar"

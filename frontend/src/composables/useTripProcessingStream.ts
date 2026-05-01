@@ -1,14 +1,20 @@
 import { ref, type Ref } from "vue";
 import {
   processUser,
-  type ErrorData,
-  type PhaseUpdate,
+  type ProcessUserResponse,
   type ProcessingPhase,
-  type TripStart,
 } from "@/client";
 import { t } from "@/i18n";
 
 export type ProcessingState = "idle" | "running" | "done" | "error";
+export type { ProcessingPhase };
+
+export interface SegmentSummary {
+  hikes: number;
+  walks: number;
+  drives: number;
+  flights: number;
+}
 
 interface PhaseProgress {
   done: number;
@@ -20,6 +26,7 @@ export type PhaseDone = Record<ProcessingPhase, PhaseProgress>;
 export const PHASE_ORDER: ProcessingPhase[] = [
   "elevations",
   "weather",
+  "segments",
   "layouts",
 ];
 
@@ -29,14 +36,12 @@ interface UseTripProcessingStream {
   state: Ref<ProcessingState>;
   tripIndex: Ref<number>;
   phaseDone: Ref<PhaseDone>;
+  segmentSummary: Ref<SegmentSummary>;
   errorDetail: Ref<string | null>;
 }
 
-/** hey-api types SSE stream items as Array<union>, but yields individual events. */
-type ProcessingEvent =
-  | ({ type: "trip_start" } & TripStart)
-  | ({ type: "phase" } & PhaseUpdate)
-  | ({ type: "error" } & ErrorData);
+/** hey-api types SSE stream items as an array union, but yields individual events. */
+type ProcessingEvent = ProcessUserResponse[number];
 
 function freshPhaseDone(): PhaseDone {
   return Object.fromEntries(
@@ -44,10 +49,15 @@ function freshPhaseDone(): PhaseDone {
   ) as PhaseDone;
 }
 
+function freshSegmentSummary(): SegmentSummary {
+  return { hikes: 0, walks: 0, drives: 0, flights: 0 };
+}
+
 export function useTripProcessingStream(): UseTripProcessingStream {
   const state = ref<ProcessingState>("idle");
   const tripIndex = ref(0);
   const phaseDone = ref<PhaseDone>(freshPhaseDone());
+  const segmentSummary = ref<SegmentSummary>(freshSegmentSummary());
   const errorDetail = ref<string | null>(null);
   let controller: AbortController | null = null;
 
@@ -56,6 +66,7 @@ export function useTripProcessingStream(): UseTripProcessingStream {
     state.value = "running";
     tripIndex.value = 0;
     phaseDone.value = freshPhaseDone();
+    segmentSummary.value = freshSegmentSummary();
     errorDetail.value = null;
 
     try {
@@ -78,6 +89,14 @@ export function useTripProcessingStream(): UseTripProcessingStream {
               total: event.total,
             };
             break;
+          case "segments_found":
+            segmentSummary.value = {
+              hikes: segmentSummary.value.hikes + event.hikes,
+              walks: segmentSummary.value.walks + event.walks,
+              drives: segmentSummary.value.drives + event.drives,
+              flights: segmentSummary.value.flights + event.flights,
+            };
+            break;
           case "error":
             state.value = "error";
             errorDetail.value = t("error.processingFailed");
@@ -98,6 +117,7 @@ export function useTripProcessingStream(): UseTripProcessingStream {
     state.value = "idle";
     tripIndex.value = 0;
     phaseDone.value = freshPhaseDone();
+    segmentSummary.value = freshSegmentSummary();
     errorDetail.value = null;
   }
 
@@ -107,6 +127,7 @@ export function useTripProcessingStream(): UseTripProcessingStream {
     state,
     tripIndex,
     phaseDone,
+    segmentSummary,
     errorDetail,
   };
 }
