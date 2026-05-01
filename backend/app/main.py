@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 import sentry_sdk
+from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from fastapi.routing import APIRoute
 
 settings = get_settings()
-setup_logging(use_rich=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
+setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
 
 if settings.SENTRY_DSN:
 
@@ -99,6 +100,8 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
+
+app.add_middleware(CorrelationIdMiddleware)
 
 if settings.all_cors_origins:
     app.add_middleware(
