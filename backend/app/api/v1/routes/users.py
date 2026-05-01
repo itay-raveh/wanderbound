@@ -35,8 +35,9 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.logic.segment_routes import enqueue_album_route_enrichment
 from app.logic.session import cancel_session, process_stream
-from app.logic.trip_processing import ProcessingEvent
+from app.logic.trip_processing import ErrorData, ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
 from app.models.user import (
     OAuthIdentity,
@@ -400,10 +401,16 @@ async def delete_demo(
     responses={200: {"model": list[ProcessingEvent]}},
 )
 async def process_user(
-    user: UserDep, http: HttpClientsDep
+    user: UserDep, http: HttpClientsDep, background_tasks: BackgroundTasks
 ) -> AsyncIterable[ProcessingEvent]:
+    saw_error = False
     async for event in process_stream(http, user):
+        if isinstance(event, ErrorData):
+            saw_error = True
         yield event
+    if not saw_error:
+        for aid in user.album_ids:
+            enqueue_album_route_enrichment(background_tasks, http, user.id, aid)
 
 
 @router.get(

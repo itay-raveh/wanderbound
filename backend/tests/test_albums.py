@@ -78,12 +78,15 @@ class TestReadSegmentPoints:
             session, uid, start_time=500.0, end_time=700.0, kind=SegmentKind.hike
         )
 
-        with patch("app.api.v1.routes.albums.match_segments", return_value=[None]):
+        with patch(
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+        ) as mock_enqueue:
             # Request range that only covers the first segment
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
                 params={"from_time": 50.0, "to_time": 400.0},
             )
+        mock_enqueue.assert_not_called()
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
@@ -91,8 +94,8 @@ class TestReadSegmentPoints:
         assert len(data[0]["points"]) == 3
 
 
-class TestSegmentPointsAutoMatch:
-    async def test_driving_segment_gets_matched(
+class TestSegmentPointsReadOnly:
+    async def test_unmatched_driving_segment_returns_stored_null_route(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
     ) -> None:
         uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
@@ -101,23 +104,21 @@ class TestSegmentPointsAutoMatch:
             session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
         )
 
-        matched_route = [(4.0, 52.0), (4.01, 52.01), (4.02, 52.02)]
         with patch(
-            "app.api.v1.routes.albums.match_segments",
-            return_value=[matched_route],
-        ):
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+        ) as mock_enqueue:
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
                 params={"from_time": 0.0, "to_time": 1000.0},
             )
 
+        mock_enqueue.assert_not_called()
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
-        # JSON serializes tuples as arrays
-        assert data[0]["route"] == [[4.0, 52.0], [4.01, 52.01], [4.02, 52.02]]
+        assert data[0]["route"] is None
 
-    async def test_hike_segment_not_matched(
+    async def test_hike_segment_returns_stored_null_route(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
     ) -> None:
         uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
@@ -127,18 +128,18 @@ class TestSegmentPointsAutoMatch:
         )
 
         with patch(
-            "app.api.v1.routes.albums.match_segments",
-        ) as mock_match:
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+        ) as mock_enqueue:
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
                 params={"from_time": 0.0, "to_time": 1000.0},
             )
 
-        mock_match.assert_not_called()
+        mock_enqueue.assert_not_called()
         data = resp.json()
         assert data[0]["route"] is None
 
-    async def test_already_matched_not_re_matched(
+    async def test_already_matched_route_returned_as_stored(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
     ) -> None:
         uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
@@ -151,14 +152,14 @@ class TestSegmentPointsAutoMatch:
         await session.flush()
 
         with patch(
-            "app.api.v1.routes.albums.match_segments",
-        ) as mock_match:
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+        ) as mock_enqueue:
             resp = await client.get(
                 f"/api/v1/albums/{AID}/segments/points",
                 params={"from_time": 0.0, "to_time": 1000.0},
             )
 
-        mock_match.assert_not_called()
+        mock_enqueue.assert_not_called()
         assert resp.json()[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
 
 
@@ -253,17 +254,22 @@ class TestAdjustSegmentBoundary:
             session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.flight
         )
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
+        with patch(
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+            create=True,
+        ) as mock_enqueue:
+            resp = await client.patch(
+                f"/api/v1/albums/{AID}/segments/adjust-boundary",
+                json={
+                    "start_time": 100.0,
+                    "end_time": 300.0,
+                    "new_boundary_time": 200.0,
+                    "handle": "end",
+                },
+            )
         assert resp.status_code == 400
         assert "flight" in resp.json()["detail"].lower()
+        mock_enqueue.assert_not_called()
 
     async def test_adjust_end_handle_success(
         self, client: AsyncClient, session: AsyncSession, tmp_path: Path
@@ -272,16 +278,23 @@ class TestAdjustSegmentBoundary:
         await insert_album(session, uid)
         await self._setup_adjacent_segments(session, uid)
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
+        with patch(
+            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+            create=True,
+        ) as mock_enqueue:
+            resp = await client.patch(
+                f"/api/v1/albums/{AID}/segments/adjust-boundary",
+                json={
+                    "start_time": 100.0,
+                    "end_time": 300.0,
+                    "new_boundary_time": 200.0,
+                    "handle": "end",
+                },
+            )
         assert resp.status_code == 200
+        mock_enqueue.assert_called_once()
+        _, _, called_uid, called_aid = mock_enqueue.call_args.args
+        assert (called_uid, called_aid) == (uid, AID)
         data = resp.json()
         # Response is now a flat list of SegmentOutline objects
         assert isinstance(data, list)
@@ -411,3 +424,4 @@ class TestDownloadPdf:
         assert resp.headers["content-type"] == "application/pdf"
         assert "my-album.pdf" in resp.headers.get("content-disposition", "")
         assert resp.content == b"%PDF-1.4 fake content"
+        assert not pdf_path.exists()

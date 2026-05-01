@@ -18,7 +18,7 @@ from sqlmodel import col, select
 
 from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
-from app.logic.route_matching import MATCHABLE_KINDS
+from app.logic.segment_routes import enqueue_album_route_enrichment
 from app.logic.spatial.geo import total_length_km
 from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.segment import (
@@ -29,7 +29,6 @@ from app.models.segment import (
     split_segments,
 )
 from app.models.step import Step, StepUpdate
-from app.services.mapbox import match_segments
 
 from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
@@ -100,11 +99,10 @@ async def read_segments(
 
 
 @router.get("/{aid}/segments/points")
-async def read_segment_points(  # noqa: PLR0913
+async def read_segment_points(
     aid: str,
     user: UserDep,
     session: SessionDep,
-    http: HttpClientsDep,
     from_time: Annotated[float, Query()],
     to_time: Annotated[float, Query()],
 ) -> Sequence[Segment]:
@@ -118,20 +116,7 @@ async def read_segment_points(  # noqa: PLR0913
         )
         .order_by(col(Segment.start_time))
     )
-    segments = result.all()
-
-    # Auto-match driving/walking segments that don't have a route yet
-    unmatched = [s for s in segments if s.kind in MATCHABLE_KINDS and s.route is None]
-    if unmatched:
-        pairs = [([(p.lon, p.lat) for p in s.points], str(s.kind)) for s in unmatched]
-        routes = await match_segments(http.mapbox, pairs)
-        for seg, route in zip(unmatched, routes, strict=True):
-            if route:
-                seg.route = route
-                session.add(seg)
-        await session.commit()
-
-    return segments
+    return result.all()
 
 
 @router.patch("/{aid}")
@@ -158,11 +143,13 @@ async def update_step(
 
 
 @router.patch("/{aid}/segments/adjust-boundary")
-async def adjust_segment_boundary(
+async def adjust_segment_boundary(  # noqa: PLR0913
     aid: str,
     body: BoundaryAdjust,
     user: UserDep,
     session: SessionDep,
+    http: HttpClientsDep,
+    background_tasks: BackgroundTasks,
 ) -> list[SegmentOutline]:
     uid = user.id
 
@@ -218,6 +205,7 @@ async def adjust_segment_boundary(
     session.add(new_earlier)
     session.add(new_later)
     await session.commit()
+    enqueue_album_route_enrichment(background_tasks, http, uid, aid)
 
     logger.info(
         "Adjusted segment boundary",
