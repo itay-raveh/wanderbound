@@ -22,11 +22,13 @@
     "label": {
       "elevations": "Mapping terrain",
       "weather": "Checking weather",
+      "segments": "Finding routes",
       "layouts": "Arranging photos"
     },
     "status": {
       "elevations": "Tracing the terrain you crossed...",
       "weather": "Recalling the weather along the way...",
+      "segments": "Finding hikes, drives, walks, and flights...",
       "layouts": "Arranging your photos on the page..."
     }
   },
@@ -71,6 +73,13 @@
     "trips": "no trips | {n} trip | {n} trips",
     "steps": "no steps | {n} step | {n} steps",
     "countries": "no countries | {n} country | {n} countries",
+    "segmentsFound": "Found routes:",
+    "segmentSummary": {
+      "hikes": "no hikes | {n} hike | {n} hikes",
+      "walks": "no walks | {n} walk | {n} walks",
+      "drives": "no drives | {n} drive | {n} drives",
+      "flights": "no flights | {n} flight | {n} flights"
+    },
     "tryAgain": "Try again",
     "uploadAgain": "Upload a different file",
     "openAlbum": "Open your album",

@@ -25,6 +25,7 @@ from app.logic.trip_processing import (
     TripStart,
     _media_pipeline,
     build_trip_objects,
+    count_segments,
     cover_name_from_trip,
     drain_queue,
     load_trip_data,
@@ -57,7 +58,7 @@ async def _process_trip(
     user: User,
     trip_dir: Path,
     db_out: list[DbRow],
-) -> AsyncIterator[PhaseUpdate]:
+) -> AsyncIterator[ProcessingEvent]:
     aid = trip_dir.name
     trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
     logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
@@ -92,9 +93,13 @@ async def _process_trip(
         yield event
 
     results = await runner
+    yield PhaseUpdate(phase="segments", done=0, total=1)
     objects = await asyncio.to_thread(
         build_trip_objects, user, aid, trip, locations, results
     )
+    segments = [obj for obj in objects if isinstance(obj, Segment)]
+    yield PhaseUpdate(phase="segments", done=1, total=1)
+    yield count_segments(segments)
     db_out.extend(objects)
 
 

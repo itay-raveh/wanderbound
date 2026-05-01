@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import AsyncIterator, Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
@@ -32,7 +32,7 @@ from app.services.open_meteo import build_weathers, elevations
 
 logger = logging.getLogger(__name__)
 
-type ProcessingPhase = Literal["elevations", "weather", "layouts"]
+type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
 type DbRow = Album | Step | Segment
 
 
@@ -66,8 +66,16 @@ class ErrorData(BaseModel):
     type: Literal["error"] = "error"
 
 
+class SegmentsFound(BaseModel):
+    type: Literal["segments_found"] = "segments_found"
+    hikes: int
+    walks: int
+    drives: int
+    flights: int
+
+
 ProcessingEvent = Annotated[
-    TripStart | PhaseUpdate | ErrorData,
+    TripStart | PhaseUpdate | SegmentsFound | ErrorData,
     Field(discriminator="type"),
 ]
 
@@ -168,6 +176,16 @@ def multi_day_hike_ranges(
             ranges.append((active_days[0], active_days[-1]))
 
     return _merge_date_ranges(ranges)
+
+
+def count_segments(segments: Iterable[Segment]) -> SegmentsFound:
+    counts = Counter(seg.kind for seg in segments)
+    return SegmentsFound(
+        hikes=counts[SegmentKind.hike],
+        walks=counts[SegmentKind.walking],
+        drives=counts[SegmentKind.driving],
+        flights=counts[SegmentKind.flight],
+    )
 
 
 def build_segment_objects(

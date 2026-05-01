@@ -345,6 +345,9 @@
                         "$ref": "#/components/schemas/PhaseUpdate"
                       },
                       {
+                        "$ref": "#/components/schemas/SegmentsFound"
+                      },
+                      {
                         "$ref": "#/components/schemas/ErrorData"
                       }
                     ],
@@ -353,6 +356,7 @@
                       "mapping": {
                         "trip_start": "#/components/schemas/TripStart",
                         "phase": "#/components/schemas/PhaseUpdate",
+                        "segments_found": "#/components/schemas/SegmentsFound",
                         "error": "#/components/schemas/ErrorData"
                       }
                     }
@@ -2653,7 +2657,8 @@
         "enum": [
           "elevations",
           "weather",
-          "layouts"
+          "layouts",
+          "segments"
         ]
       },
       "Segment": {
@@ -2793,6 +2798,40 @@
         ],
         "title": "SegmentOutline",
         "description": "Lightweight segment projection - no points or route."
+      },
+      "SegmentsFound": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "segments_found",
+            "title": "Type",
+            "default": "segments_found"
+          },
+          "hikes": {
+            "type": "integer",
+            "title": "Hikes"
+          },
+          "walks": {
+            "type": "integer",
+            "title": "Walks"
+          },
+          "drives": {
+            "type": "integer",
+            "title": "Drives"
+          },
+          "flights": {
+            "type": "integer",
+            "title": "Flights"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hikes",
+          "walks",
+          "drives",
+          "flights"
+        ],
+        "title": "SegmentsFound"
       },
       "SessionStatusResponse": {
         "properties": {

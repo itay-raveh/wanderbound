@@ -10,6 +10,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from app.core.http_clients import HttpClients
+from app.logic.segment_routes import schedule_album_route_enrichment
 from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ErrorData, ProcessingEvent
 from app.models.user import User
@@ -30,10 +31,16 @@ class ProcessingSession:
         self._task = asyncio.create_task(self._run(http, user))
 
     async def _run(self, http: HttpClients, user: User) -> None:
+        saw_error = False
         try:
             async for event in run_processing(http, user):
+                if isinstance(event, ErrorData):
+                    saw_error = True
                 self._events.append(event)
                 self._notify.set()
+            if not saw_error:
+                for aid in user.album_ids:
+                    schedule_album_route_enrichment(http, self._uid, aid)
         except Exception:
             logger.exception("Processing task crashed for user %d", self._uid)
             # Surface the crash to subscribers; without this the stream ends

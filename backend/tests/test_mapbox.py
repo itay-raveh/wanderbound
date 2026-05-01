@@ -1,7 +1,7 @@
 """Tests for app.services.mapbox - Mapbox Map Matching & Directions API client."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -10,6 +10,7 @@ from app.services.mapbox import (
     _fetch_directions,
     _fetch_matching,
     match_segment,
+    match_segments_with_stats,
 )
 
 type Coords = list[tuple[float, float]]
@@ -176,3 +177,43 @@ class TestMatchSegment:
         client = MagicMock(spec=httpx.AsyncClient)
         result = await match_segment(client, [(4.0, 52.0)], "driving")
         assert result is None
+
+
+class TestMatchSegmentsWithStats:
+    async def test_counts_matching_and_directions_requests(self) -> None:
+        matching_client = AsyncMock()
+        directions_client = AsyncMock()
+        matching_client.get.return_value = _ok_response(
+            _matching_json([[4.0, 52.0], [4.1, 52.1]])
+        )
+        directions_client.get.return_value = _ok_response(
+            json.dumps(
+                {
+                    "routes": [
+                        {
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": [[5.0, 53.0], [5.1, 53.1]],
+                            }
+                        }
+                    ]
+                }
+            ).encode()
+        )
+
+        with patch("app.services.mapbox._token", return_value="tok"):
+            routes, stats = await match_segments_with_stats(
+                matching_client,
+                directions_client,
+                [
+                    ([(4.0 + i * 0.0001, 52.0) for i in range(3)], "driving"),
+                    ([(5.0, 53.0), (5.1, 53.1)], "walking"),
+                ],
+            )
+
+        assert len(routes) == 2
+        assert stats.matching_requests == 1
+        assert stats.directions_requests == 1
+        assert stats.requests == 2
+        matching_client.get.assert_awaited_once()
+        directions_client.get.assert_awaited_once()

@@ -16,9 +16,11 @@ from app.logic.layout.media import Media, media_limiter, normalize_name
 from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
+    ProcessingEvent,
     TripResults,
     build_segment_objects,
     build_step,
+    count_segments,
     cover_name_from_trip,
     drain_queue,
     fetch_layouts,
@@ -205,7 +207,7 @@ async def reconcile_trip(  # noqa: PLR0913
     album: Album,
     existing_steps: list[Step],
     db_out: list[DbRow],
-) -> AsyncIterator[PhaseUpdate]:
+) -> AsyncIterator[ProcessingEvent]:
     """Reconcile an existing album with re-uploaded data.
 
     Preserves user edits (page layouts, covers) while adapting to
@@ -279,6 +281,7 @@ async def reconcile_trip(  # noqa: PLR0913
     # re-uploads; always rebuild from GPS locations).
     all_steps = [*reconciled_steps, *new_step_objects]
     all_steps.sort(key=lambda s: s.timestamp)
+    yield PhaseUpdate(phase="segments", done=0, total=1)
     segments = await asyncio.to_thread(
         build_segment_objects,
         user.id,
@@ -287,6 +290,8 @@ async def reconcile_trip(  # noqa: PLR0913
         locations,
         trip.all_steps,
     )
+    yield PhaseUpdate(phase="segments", done=1, total=1)
+    yield count_segments(segments)
     album.maps_ranges = multi_day_hike_ranges(segments)
 
     db_out.append(album)

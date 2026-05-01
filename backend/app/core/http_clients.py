@@ -36,7 +36,8 @@ def _open_meteo_weight(request: Request) -> int:
 
 @dataclass(frozen=True, slots=True)
 class HttpClients:
-    mapbox: AsyncClient
+    mapbox_matching: AsyncClient
+    mapbox_directions: AsyncClient
     open_meteo: AsyncClient
     overpass: AsyncClient
     gphotos_picker: AsyncClient
@@ -53,9 +54,10 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
         enter = stack.enter_async_context
         gphotos_token = await enter(http_client(cache=False))
         yield HttpClients(
-            # Mapbox free tier: 300/min (matching), 60/min (directions).
-            # Use the stricter shared budget.
-            mapbox=await enter(http_client(limiter=AsyncLimiter(50, 60))),
+            # Mapbox documents 300/min for both matching and directions.
+            # Keep headroom for retries and concurrent album jobs.
+            mapbox_matching=await enter(http_client(limiter=AsyncLimiter(250, 60))),
+            mapbox_directions=await enter(http_client(limiter=AsyncLimiter(250, 60))),
             # Open-Meteo free tier: 600/min, 5000/hr. Stay under at 480/min.
             open_meteo=await enter(
                 http_client(
