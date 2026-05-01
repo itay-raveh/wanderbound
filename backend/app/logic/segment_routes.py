@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 type SegmentKey = tuple[int, str, float, float]
 type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float]], str]
 
+_route_tasks: set[asyncio.Task[None]] = set()
+
 
 def _route_missing() -> ColumnElement[bool]:
     return or_(col(Segment.route).is_(None), cast(col(Segment.route), String) == "null")
@@ -36,6 +39,12 @@ def enqueue_album_route_enrichment(
     aid: str,
 ) -> None:
     background_tasks.add_task(match_album_segment_routes, http, uid, aid)
+
+
+def schedule_album_route_enrichment(http: HttpClients, uid: int, aid: str) -> None:
+    task = asyncio.create_task(match_album_segment_routes(http, uid, aid))
+    _route_tasks.add(task)
+    task.add_done_callback(_route_tasks.discard)
 
 
 async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> None:
