@@ -121,7 +121,6 @@ jobs:
     env:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-      SENTRY_PROJECTS: ${{ vars.SENTRY_FRONTEND_PROJECT }} ${{ vars.SENTRY_BACKEND_PROJECT }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -129,14 +128,37 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - id: app-version
         run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+      - id: sentry-projects
+        run: |
+          projects=()
+          if [ -n "$SENTRY_FRONTEND_PROJECT" ]; then
+            projects+=("$SENTRY_FRONTEND_PROJECT")
+          fi
+          if [ -n "$SENTRY_BACKEND_PROJECT" ]; then
+            projects+=("$SENTRY_BACKEND_PROJECT")
+          fi
+          echo "value=${projects[*]}" >> "$GITHUB_OUTPUT"
+        env:
+          SENTRY_FRONTEND_PROJECT: ${{ vars.SENTRY_FRONTEND_PROJECT }}
+          SENTRY_BACKEND_PROJECT: ${{ vars.SENTRY_BACKEND_PROJECT }}
+      - name: Skip Sentry release
+        if: >-
+          env.SENTRY_AUTH_TOKEN == '' ||
+          env.SENTRY_ORG == '' ||
+          steps.sentry-projects.outputs.value == ''
+        run: echo "Skipping Sentry release because Sentry is not fully configured."
       - uses: getsentry/action-release@v3
+        if: >-
+          env.SENTRY_AUTH_TOKEN != '' &&
+          env.SENTRY_ORG != '' &&
+          steps.sentry-projects.outputs.value != ''
         env:
           SENTRY_AUTH_TOKEN: ${{ env.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ env.SENTRY_ORG }}
         with:
           environment: production
           release: ${{ steps.app-version.outputs.value }}
-          projects: ${{ env.SENTRY_PROJECTS }}
+          projects: ${{ steps.sentry-projects.outputs.value }}
           set_commits: auto
           ignore_missing: true
           ignore_empty: true
