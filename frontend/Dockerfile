@@ -1,7 +1,11 @@
 # check=skip=SecretsUsedInArgOrEnv (all ARGs are public frontend config, not secrets)
-FROM oven/bun:1 AS build-stage
+FROM oven/bun:1-debian AS build-stage
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock /app/
 
@@ -23,7 +27,8 @@ ARG VITE_GITHUB_URL
 ARG VITE_AUTHOR_NAME
 ARG VITE_AUTHOR_URL
 ARG VITE_SENTRY_DSN
-ARG VITE_FRONTEND_URL
+ARG VITE_SENTRY_TRACES_SAMPLE_RATE
+ARG VITE_FRONTEND_URL=http://localhost
 ARG VITE_MICROSOFT_CLIENT_ID
 ARG APP_VERSION=0.0.0
 ENV APP_VERSION=${APP_VERSION}

@@ -7,6 +7,7 @@ import { defineConfig } from "vite";
 import { version as packageVersion } from "./package.json";
 
 const version = process.env.APP_VERSION || packageVersion;
+const sentryApplicationKey = "wanderbound";
 
 export default defineConfig({
   define: {
@@ -34,6 +35,11 @@ export default defineConfig({
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_FRONTEND_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
+      applicationKey: sentryApplicationKey,
+      release: {
+        name: version,
+        setCommits: false,
+      },
       telemetry: false,
       sourcemaps: {
         filesToDeleteAfterUpload: ["./dist/**/*.map"],
