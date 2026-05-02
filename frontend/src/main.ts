@@ -1,6 +1,5 @@
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
-import * as Sentry from "@sentry/vue";
 import { Lang, Loading, LoadingBar, Meta, Notify, Quasar } from "quasar";
 import { createApp } from "vue";
 
@@ -26,12 +25,7 @@ import router from "./router";
 
 import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
-
-const PRELOAD_ERROR_PATTERNS = [
-  "Failed to fetch dynamically imported module",
-  "error loading dynamically imported module",
-  "Importing a module script failed",
-];
+import { setupSentry } from "@/plugins/sentry";
 
 client.setConfig({
   baseUrl: "",
@@ -41,23 +35,7 @@ client.setConfig({
 const app = createApp(App);
 const pinia = createPinia();
 
-if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    app,
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.MODE,
-    release: __APP_VERSION__,
-    integrations: [Sentry.replayIntegration()],
-    tracesSampleRate: 0,
-    replaysOnErrorSampleRate: 1.0,
-    beforeSend(event) {
-      const message = event.exception?.values?.[0]?.value ?? "";
-      if (PRELOAD_ERROR_PATTERNS.some((p) => message.includes(p))) return null;
-      return event;
-    },
-  });
-  pinia.use(Sentry.createSentryPiniaPlugin());
-}
+setupSentry(app, router, pinia);
 
 app.use(pinia);
 app.use(PiniaColada);

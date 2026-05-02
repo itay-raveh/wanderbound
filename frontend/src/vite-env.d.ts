@@ -6,7 +6,7 @@ declare module "*.vue" {
   export default component;
 }
 
-declare const __APP_VERSION__: string;
+declare const APP_VERSION: string | undefined;
 
 interface ImportMetaEnv {
   readonly VITE_MAX_UPLOAD_GB: string;
@@ -18,6 +18,7 @@ interface ImportMetaEnv {
   readonly VITE_AUTHOR_NAME?: string;
   readonly VITE_AUTHOR_URL?: string;
   readonly VITE_SENTRY_DSN?: string;
+  readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
 }
 
 interface ImportMeta {

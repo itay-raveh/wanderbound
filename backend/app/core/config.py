@@ -53,9 +53,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: AnyHttpUrl | None = None
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    APP_VERSION: str | None = None
 
     SENTRY_DSN: str | None = None
-    SENTRY_RELEASE: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
 
     VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
