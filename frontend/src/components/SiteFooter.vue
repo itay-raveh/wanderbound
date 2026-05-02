@@ -7,10 +7,10 @@ const contactEmail = import.meta.env.VITE_CONTACT_EMAIL;
 const githubUrl = import.meta.env.VITE_GITHUB_URL;
 const authorName = import.meta.env.VITE_AUTHOR_NAME;
 const authorUrl = import.meta.env.VITE_AUTHOR_URL;
-const version = __APP_VERSION__ !== "0.0.0" ? __APP_VERSION__ : undefined;
+const appVersion = APP_VERSION;
 const year = new Date().getFullYear();
 
-const hasMeta = !!(authorName || version);
+const hasMeta = !!(authorName || appVersion);
 </script>
 
 <template>
@@ -64,12 +64,12 @@ const hasMeta = !!(authorName || version);
         <template v-else>{{ authorName }}</template>
       </span>
       <span
-        v-if="authorName && version"
+        v-if="authorName && appVersion"
         class="site-footer-sep"
         aria-hidden="true"
         >&middot;</span
       >
-      <span v-if="version">{{ version }}</span>
+      <span v-if="appVersion">{{ appVersion }}</span>
     </div>
     <p class="site-footer-disclaimer">
       {{ t("footer.disclaimerIndependent") }}<br />

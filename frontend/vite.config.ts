@@ -4,14 +4,13 @@ import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 import { defineConfig } from "vite";
-import { version as packageVersion } from "./package.json";
 
-const version = process.env.APP_VERSION || packageVersion;
+const version = process.env.APP_VERSION;
 const sentryApplicationKey = "wanderbound";
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(version),
+    APP_VERSION: JSON.stringify(version),
   },
   envDir: path.resolve(__dirname, ".."),
   server: {

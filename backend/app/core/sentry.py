@@ -51,7 +51,7 @@ def setup_sentry(settings: Settings) -> None:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
-        release=settings.SENTRY_RELEASE,
+        release=settings.APP_VERSION,
         traces_sampler=_traces_sampler(settings),
         trace_propagation_targets=[],
         trace_ignore_status_codes={404},

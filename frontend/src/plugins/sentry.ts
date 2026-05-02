@@ -20,7 +20,7 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
     app,
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    release: __APP_VERSION__,
+    release: APP_VERSION,
     integrations: [
       Sentry.replayIntegration({
         maskAllText: true,
