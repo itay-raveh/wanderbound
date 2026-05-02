@@ -39,6 +39,7 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
       return tracesSampleRate;
     },
     tracePropagationTargets: SENTRY_TRACE_PROPAGATION_TARGETS,
+    replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
     beforeSend(event) {
       const message = event.exception?.values?.[0]?.value ?? "";
