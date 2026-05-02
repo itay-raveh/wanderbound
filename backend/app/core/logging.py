@@ -15,9 +15,6 @@ _NOISY = (
     "playwright",
 )
 
-# Loggers that should print to terminal but not propagate to Sentry.
-# Sentry's LoggingIntegration is configured to skip these in main.py.
-SENTRY_IGNORED = ("uvicorn.access",)
 _ACCESS_LOG_HEALTH_PATHS = {"/api/v1/health"}
 
 

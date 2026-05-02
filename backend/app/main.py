@@ -4,20 +4,18 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.http_clients import lifespan_clients
-from app.core.logging import SENTRY_IGNORED, setup_logging
+from app.core.logging import setup_logging
+from app.core.sentry import setup_sentry
 from app.logic.chunked_upload import upload_store
 from app.logic.export import lifespan as export_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
@@ -29,36 +27,7 @@ if TYPE_CHECKING:
 
 settings = get_settings()
 setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
-
-if settings.SENTRY_DSN:
-
-    def _before_breadcrumb(crumb: dict, _hint: dict) -> dict | None:
-        if crumb.get("category") in SENTRY_IGNORED:
-            return None
-        return crumb
-
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.ENVIRONMENT,
-        release=settings.SENTRY_RELEASE,
-        traces_sample_rate=0,
-        enable_logs=True,
-        integrations=[LoggingIntegration(event_level=logging.ERROR)],
-        before_breadcrumb=_before_breadcrumb,
-        # send_default_pii=False is required for a custom EventScrubber/denylist.
-        send_default_pii=False,
-        event_scrubber=EventScrubber(
-            denylist=[
-                *DEFAULT_DENYLIST,
-                "access_token",
-                "refresh_token",
-                "code_verifier",
-                "verifier",
-                "credential",
-            ],
-            recursive=True,
-        ),
-    )
+setup_sentry(settings)
 
 logger = logging.getLogger(__name__)
 
