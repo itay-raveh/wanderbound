@@ -6,16 +6,16 @@ re-encrypted before the previous key is dropped simply trip a reconnect.
 """
 
 import base64
-import logging
 from functools import cache
 
+import structlog
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Salt and info are not secret: https://datatracker.ietf.org/doc/html/rfc5869#section-3.1
 _SALT = b"wanderbound-hkdf-v1"
@@ -54,5 +54,5 @@ def try_decrypt_token(ciphertext: str) -> str | None:
     try:
         return decrypt_token(ciphertext)
     except InvalidToken:
-        logger.warning("Failed to decrypt token - SECRET_KEY may have rotated")
+        logger.warning("token.decrypt_failed")
         return None

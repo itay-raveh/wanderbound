@@ -1,11 +1,11 @@
 import asyncio
 import base64
-import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing, asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
+import structlog
 from playwright.async_api import Browser, Page, Playwright, async_playwright
 from pydantic import BaseModel, Field
 
@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.core.resources import MiB, detect_memory_mb
 from app.core.tokens import TokenStore
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _PDF_BASELINE_MB = 512
 _PER_RENDER_MB = 768
@@ -78,16 +78,16 @@ class BrowserManager:
 
     async def launch(self) -> None:
         self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
-        logger.info("Playwright browser launched")
+        logger.info("playwright.browser_launched")
 
     async def get(self) -> Browser:
         if self._browser is not None and self._browser.is_connected():
             return self._browser
         async with self._lock:
             if self._browser is None or not self._browser.is_connected():
-                logger.warning("Playwright browser disconnected, relaunching")
+                logger.warning("playwright.browser_disconnected")
                 self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
-                logger.info("Playwright browser relaunched")
+                logger.info("playwright.browser_relaunched")
         return self._browser
 
     @property
@@ -111,7 +111,7 @@ async def lifespan() -> AsyncGenerator[BrowserManager]:
         finally:
             await manager.close()
             await pw.stop()
-            logger.info("Playwright browser closed")
+            logger.info("playwright.browser_closed")
 
 
 def store_pdf_token(path: Path, aid: str) -> str:
@@ -189,10 +189,13 @@ async def _render_pdf(  # noqa: C901
             ]
         )
         page = await context.new_page()
-        page.on("console", lambda msg: logger.debug("Browser: %s", msg.text))
+        page.on("console", lambda msg: logger.debug("browser.console", text=msg.text))
         page.on(
             "pageerror",
-            lambda err: logger.warning("Browser page error during PDF render: %s", err),
+            lambda err: logger.warning(
+                "pdf.browser_page_error",
+                error_type=type(err).__name__,
+            ),
         )
         started, finished = 0, 0
 
@@ -211,7 +214,7 @@ async def _render_pdf(  # noqa: C901
         dark_param = "true" if dark else "false"
         url = f"{frontend_url}/print/{aid}?dark={dark_param}"
         await page.goto(url, wait_until="domcontentloaded")
-        logger.info("DOM loaded for album %s", aid)
+        logger.info("pdf.dom_loaded", album_id=aid)
         loop = asyncio.get_running_loop()
         deadline = loop.time() + 60
         last_counts = (-1, -1)
@@ -240,7 +243,7 @@ async def _render_pdf(  # noqa: C901
                     yield PdfProgress(phase="rendering", done=size)
                     last_reported = size
         yield PdfProgress(phase="rendering", done=size)
-        logger.info("PDF generated for album %s: %d bytes", aid, size)
+        logger.info("pdf.generated", album_id=aid, size_bytes=size)
 
     finally:
         await context.close()
@@ -254,14 +257,18 @@ async def render_album_pdf_stream(
     dark: bool = True,
 ) -> AsyncIterator[PdfEvent]:
     """Top-level SSE generator: queued -> loading -> rendering -> done/error."""
-    logger.info("PDF render queued for album %s", aid)
+    logger.info("pdf.render_queued", album_id=aid)
     yield PdfQueued()
 
     try:
         async with asyncio.timeout(_QUEUE_TIMEOUT):
             await _render_sem.acquire()
     except TimeoutError:
-        logger.warning("PDF queue timeout for album %s after %ds", aid, _QUEUE_TIMEOUT)
+        logger.warning(
+            "pdf.queue_timeout",
+            album_id=aid,
+            timeout_s=_QUEUE_TIMEOUT,
+        )
         yield PdfError(
             detail="Timed out waiting for a PDF render slot. Please try again."
         )
@@ -295,11 +302,13 @@ async def render_album_pdf_stream(
 
     except TimeoutError:
         logger.warning(
-            "PDF render timeout for album %s after %ds", aid, _RENDER_TIMEOUT
+            "pdf.render_timeout",
+            album_id=aid,
+            timeout_s=_RENDER_TIMEOUT,
         )
         yield PdfError(detail="PDF rendering timed out. Please try again.")
     except Exception:
-        logger.exception("PDF generation failed for album %s", aid)
+        logger.exception("pdf.generation_failed", album_id=aid)
         yield PdfError(detail="PDF generation failed. Please try again.")
     finally:
         if not owned:

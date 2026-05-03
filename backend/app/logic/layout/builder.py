@@ -1,9 +1,10 @@
-import logging
 from collections.abc import AsyncIterable, Iterable, Sequence
 from itertools import batched
 from math import ceil
 from pathlib import Path
 from typing import NamedTuple
+
+import structlog
 
 from app.core.async_helpers import yield_completed
 from app.core.worker_threads import run_sync
@@ -19,7 +20,7 @@ class Layout(NamedTuple):
     media: list[Media]
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _portrait_page_count(n: int) -> int:
@@ -159,7 +160,7 @@ async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None
     ]
 
     if not portraits and not landscapes:
-        logger.debug("Step '%s' has no media files, skipping layout", step.name)
+        logger.debug("layout.no_media", step_name=step.name)
         return None
 
     cover = portraits[0] if portraits else landscapes[0]

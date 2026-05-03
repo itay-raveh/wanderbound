@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import logging
 import shutil
 import subprocess
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -14,6 +13,7 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 import anyio
 import httpx
+import structlog
 from httpx_oauth.oauth2 import RefreshTokenError
 from pydantic import BaseModel, Field, validate_call
 from sqlalchemy.exc import SQLAlchemyError
@@ -55,7 +55,7 @@ from .processing import (
     tmp_file,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
 
@@ -123,7 +123,10 @@ async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, MediaHash | 
         )
     # Pillow raises SyntaxError on corrupt/truncated image headers.
     except OSError, SyntaxError, subprocess.SubprocessError:
-        logger.warning("Failed to hash %s", name, exc_info=True)
+        logger.warning(
+            "media_upgrade.local_hash_failed",
+            exc_info=True,
+        )
         return name, None
 
 
@@ -144,8 +147,7 @@ async def _hash_candidate_one(
         )
     except OSError, SyntaxError, httpx.HTTPError:
         logger.warning(
-            "Failed to download/hash thumbnail for %s",
-            item.id,
+            "media_upgrade.candidate_hash_failed",
             exc_info=True,
         )
         return item.id, None
@@ -317,15 +319,18 @@ async def _persist_upgrade(
             await session.commit()
     except SQLAlchemyError:
         logger.warning(
-            "Failed to persist upgrade results - filesystem ahead of DB, "
-            "will self-heal on next upgrade attempt",
+            "media_upgrade.persist_failed",
             exc_info=True,
-            extra={"uid": uid, "aid": aid, "replaced": replaced},
+            user_id=uid,
+            album_id=aid,
+            replaced=replaced,
         )
         return
     logger.info(
-        "Persisted upgrade results",
-        extra={"uid": uid, "aid": aid, "replaced": replaced},
+        "google_photos.upgrade.completed",
+        user_id=uid,
+        album_id=aid,
+        replaced=replaced,
     )
 
 
@@ -338,13 +343,13 @@ async def _cleanup_picker_sessions(
     try:
         access_token = await tokens()
     except httpx.HTTPError, RefreshTokenError:
-        logger.warning("Skipping picker session cleanup - token unavailable")
+        logger.warning("google_photos.picker_cleanup_token_unavailable")
         return
     for sid in session_ids:
         try:
             await delete_picker_session(picker, sid, access_token)
         except httpx.HTTPError:
-            logger.warning("Failed to delete picker session %s", sid)
+            logger.warning("google_photos.picker_session_delete_failed")
 
 
 def _needs_upgrade(
@@ -411,7 +416,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     RuntimeError,
                     subprocess.SubprocessError,
                 ):
-                    logger.exception("Failed to upgrade %s", match.local_name)
+                    logger.exception("media_upgrade.item_failed")
                     return None
                 if replaced:
                     return match.local_name
@@ -438,9 +443,8 @@ async def run_upgrade(  # noqa: PLR0913, C901
         ]
         if failed_names:
             logger.warning(
-                "Upgrade completed with %d failures: %s",
-                len(failed_names),
-                ", ".join(failed_names),
+                "media_upgrade.completed_with_failures",
+                failed=len(failed_names),
             )
         yield UpgradeCompleted(
             replaced=len(succeeded),
@@ -449,7 +453,9 @@ async def run_upgrade(  # noqa: PLR0913, C901
         )
     except Exception as exc:  # noqa: BLE001
         logger.error(  # noqa: TRY400
-            "Upgrade failed for album %s: %s: %s", aid, type(exc).__name__, exc
+            "media_upgrade.failed",
+            album_id=aid,
+            error_type=type(exc).__name__,
         )
         yield UpgradeFailed(detail="Upgrade failed unexpectedly.")
     finally:
@@ -485,7 +491,10 @@ async def refresh_upgraded_media(
                 updated = await run_sync(Media.load, target, limiter=media_limiter)
             media_by_name[match.local_name] = updated
         except OSError, SyntaxError, RuntimeError:
-            logger.warning("Failed to re-probe %s", match.local_name, exc_info=True)
+            logger.warning(
+                "media_upgrade.reprobe_failed",
+                exc_info=True,
+            )
             continue
         new_upgraded[match.local_name] = match.google_id
     return list(media_by_name.values()), new_upgraded
@@ -503,7 +512,7 @@ async def cleanup_orphaned_tmp(users_folder: Path) -> None:
 
     removed = await run_sync(_scan_and_remove)
     if removed:
-        logger.info("Cleaned up %d orphaned upgrade-tmp dirs", removed)
+        logger.info("media_upgrade.orphan_tmp_cleaned", removed=removed)
 
 
 def _clear_caches() -> None:

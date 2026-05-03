@@ -6,8 +6,9 @@ enabling reconnection without restarting work.
 """
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
+
+import structlog
 
 from app.core.http_clients import HttpClients
 from app.logic.segment_routes import schedule_album_route_enrichment
@@ -15,7 +16,7 @@ from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ErrorData, ProcessingEvent
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _SESSION_TTL = 300  # seconds before a completed session is evicted
 
@@ -42,7 +43,7 @@ class ProcessingSession:
                 for aid in user.album_ids:
                     schedule_album_route_enrichment(http, self._uid, aid)
         except Exception:
-            logger.exception("Processing task crashed for user %d", self._uid)
+            logger.exception("processing.task_crashed", user_id=self._uid)
             # Surface the crash to subscribers; without this the stream ends
             # silently and the UI can't distinguish success from failure.
             self._events.append(ErrorData())
@@ -105,7 +106,7 @@ def cancel_session(uid: int) -> None:
     session = _sessions.pop(uid, None)
     if session is not None and not session.is_done:
         session.cancel()
-        logger.info("Cancelled processing session for user %d", uid)
+        logger.info("processing.session_cancelled", user_id=uid)
 
 
 async def process_stream(
@@ -121,13 +122,13 @@ async def process_stream(
 
     if session is not None and not (session.is_done and session.had_error):
         if not session.is_done:
-            logger.info("User %d reconnecting to active processing session", user.id)
+            logger.info("processing.session_reconnected", user_id=user.id)
         async for event in session.subscribe():
             yield event
         return
 
     if session is not None:
-        logger.info("User %d retrying after failed processing session", user.id)
+        logger.info("processing.session_retried", user_id=user.id)
 
     session = ProcessingSession(http, user)
     _sessions[user.id] = session

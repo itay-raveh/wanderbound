@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import secrets
 import shutil
 import tempfile
@@ -7,7 +6,9 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class TokenStore[T]:
@@ -66,4 +67,8 @@ class TokenStore[T]:
             data, _ = entry
             if self._on_evict:
                 self._on_evict(data)
-            logger.debug("Expired %s token %s", self._label, token[:8])
+            logger.debug(
+                "token.expired",
+                token_label=self._label,
+                token_prefix=token[:8],
+            )

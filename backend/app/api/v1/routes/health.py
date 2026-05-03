@@ -1,6 +1,6 @@
-import logging
 import shutil
 
+import structlog
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.resources import MiB
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 _MIN_DISK_FREE_MB = 256
@@ -32,11 +32,11 @@ async def health_check(request: Request) -> JSONResponse:
     healthy = db_ok and disk_ok and pw_ok
     if not healthy:
         logger.warning(
-            "Health check degraded: db=%s disk=%s (%sMB free) playwright=%s",
-            db_ok,
-            disk_ok,
-            disk_free_mb,
-            pw_ok,
+            "health.degraded",
+            db=db_ok,
+            disk=disk_ok,
+            disk_free_mb=disk_free_mb,
+            playwright=pw_ok,
         )
 
     body = HealthStatus(db=db_ok, disk=disk_ok, playwright=pw_ok)
@@ -49,7 +49,7 @@ async def _check_db() -> bool:
         async with AsyncSession(get_engine()) as session:
             await session.execute(text("SELECT 1"))
     except Exception:
-        logger.exception("DB health check failed")
+        logger.exception("health.db_failed")
         return False
     else:
         return True

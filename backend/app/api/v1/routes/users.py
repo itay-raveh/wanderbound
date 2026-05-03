@@ -1,6 +1,5 @@
 import asyncio
 import io
-import logging
 import shutil
 from collections.abc import AsyncIterable
 from functools import cache
@@ -10,6 +9,7 @@ from typing import cast
 from zipfile import BadZipFile
 
 import httpx
+import structlog
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -57,7 +57,7 @@ from ..deps import (
 )
 from .auth import clear_pending_signup, get_pending_signup
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -71,9 +71,9 @@ def _check_upload_size(file: UploadFile) -> int:
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     if size > max_bytes:
         logger.warning(
-            "Upload rejected: %d MB exceeds %d MB limit",
-            size // MiB,
-            max_bytes // MiB,
+            "upload.rejected_too_large",
+            size_mb=size // MiB,
+            max_mb=max_bytes // MiB,
         )
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large")
     return size
@@ -123,7 +123,12 @@ async def _finalize_upload(  # noqa: PLR0913
             session.add(existing)
             await session.commit()
             user = existing
-            logger.info("User %d re-uploaded ZIP", user.id)
+            logger.info(
+                "upload.completed",
+                user_id=user.id,
+                album_count=len(album_ids),
+                new_user=False,
+            )
         else:
             oauth = cast("OAuthIdentity", identity)
             user = User(
@@ -142,7 +147,12 @@ async def _finalize_upload(  # noqa: PLR0913
             await session.commit()
             login_session(request, user.id)
             clear_pending_signup(request)
-            logger.info("New user %d created via upload", user.id)
+            logger.info(
+                "upload.completed",
+                user_id=user.id,
+                album_count=len(album_ids),
+                new_user=True,
+            )
 
         target = user.folder
         if target.exists():
@@ -166,13 +176,13 @@ async def upload_data(
     existing, identity = await _resolve_auth(request, session)
 
     size = _check_upload_size(file)
-    logger.info("Extracting '%s' (%d MB)", file.filename, size // MiB)
+    logger.info("upload.extracting", size_mb=size // MiB)
     try:
         temp_folder, ps_user, trips = await asyncio.to_thread(
             extract_and_scan, file.file
         )
     except (BadZipFile, OSError, ValidationError) as e:
-        logger.warning("Bad ZIP upload '%s': %s", file.filename, e)
+        logger.warning("upload.bad_zip", error_type=type(e).__name__)
         raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
 
     return await _finalize_upload(
@@ -220,7 +230,9 @@ async def upload_chunk(
         await upload_store.write_chunk_stream(upload_id, chunk_index, request.stream())
     except ClientDisconnect:
         logger.info(
-            "Client disconnected during chunk %d of %s", chunk_index, upload_id[:8]
+            "upload.chunk_client_disconnected",
+            chunk_index=chunk_index,
+            upload_id_prefix=upload_id[:8],
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except KeyError:
@@ -267,7 +279,10 @@ async def complete_chunked_upload(
             extract_and_scan, assembled
         )
     except (BadZipFile, OSError, ValidationError) as e:
-        logger.warning("Bad ZIP from chunked upload %s: %s", upload_id[:8], e)
+        logger.warning(
+            "upload.bad_zip",
+            error_type=type(e).__name__,
+        )
         raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
     finally:
         assembled.close()
@@ -351,7 +366,7 @@ async def create_demo(
                 copy_function=_link_or_copy,
             )
         except OSError:
-            logger.exception("Demo copytree failed for user %d", uid)
+            logger.exception("demo.copy_failed", user_id=uid)
             await session.delete(user)
             await session.commit()
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE) from None
@@ -374,12 +389,12 @@ async def _remove_user(
         try:
             await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
         except (RevokeTokenError, httpx.HTTPError) as exc:
-            logger.warning("Token revoke failed on delete: %s", type(exc).__name__)
+            logger.warning("oauth.token_revoke_failed", error_type=type(exc).__name__)
     await session.delete(user)
     await session.commit()
     await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
     request.session.clear()
-    logger.info("User %d deleted", user.id)
+    logger.info("user.deleted", user_id=user.id, is_demo=user.is_demo)
 
 
 @router.delete("/demo", status_code=status.HTTP_204_NO_CONTENT)

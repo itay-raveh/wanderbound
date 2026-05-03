@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import logging
 import secrets
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.sse import EventSourceResponse
@@ -54,7 +54,7 @@ from app.services.google_photos import (
 
 from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -234,9 +234,9 @@ async def _ensure_fresh_access_token(
         # Avoid logger.exception: httpx request bodies would leak the
         # plaintext refresh token and client secret into Sentry.
         logger.error(  # noqa: TRY400
-            "Failed to refresh Google Photos access token for user %d: %s",
-            user.id,
-            type(exc).__name__,
+            "google_photos.token_refresh_failed",
+            user_id=user.id,
+            error_type=type(exc).__name__,
         )
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
@@ -303,7 +303,7 @@ async def callback(  # noqa: PLR0913
         or cookie_data is None
         or not secrets.compare_digest(cookie_data["csrf"], payload["csrf"])
     ):
-        logger.warning("OAuth state/CSRF mismatch for user %d", user.id)
+        logger.warning("google_photos.oauth_state_mismatch", user_id=user.id)
         resp = _redirect_to_popup_bridge(
             payload["nonce"] if payload else None, error=True
         )
@@ -316,10 +316,9 @@ async def callback(  # noqa: PLR0913
         )
     except GetAccessTokenError as exc:
         logger.error(  # noqa: TRY400
-            "Google Photos OAuth callback failed for user %d: %s: %s",
-            user.id,
-            type(exc).__name__,
-            exc,
+            "google_photos.callback_failed",
+            user_id=user.id,
+            error_type=type(exc).__name__,
         )
         resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
         _clear_oauth_cookie(resp)
@@ -327,7 +326,7 @@ async def callback(  # noqa: PLR0913
 
     refresh_token = token.get("refresh_token")
     if not refresh_token:
-        logger.warning("No refresh token for user %d", user.id)
+        logger.warning("google_photos.no_refresh_token", user_id=user.id)
         resp = _redirect_to_popup_bridge(payload["nonce"], error=True)
         _clear_oauth_cookie(resp)
         return resp
@@ -336,7 +335,7 @@ async def callback(  # noqa: PLR0913
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
-    logger.info("OAuth callback complete: user %d connected", user.id)
+    logger.info("google_photos.connected", user_id=user.id)
     resp = _redirect_to_popup_bridge(payload["nonce"])
     _clear_oauth_cookie(resp)
     return resp
@@ -444,7 +443,10 @@ async def match_media(
             # request body contains the plaintext refresh token and client
             # secret (see _ensure_fresh_access_token for context).
             logger.error(  # noqa: TRY400
-                "Matching failed for album %s: %s: %s", aid, type(exc).__name__, exc
+                "google_photos.matching.failed",
+                user_id=user.id,
+                album_id=aid,
+                error_type=type(exc).__name__,
             )
             yield UpgradeFailed(detail="Matching failed unexpectedly.")
 
@@ -520,7 +522,11 @@ async def disconnect(user: UserDep, http: HttpClientsDep, session: SessionDep) -
         try:
             await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
         except (RevokeTokenError, httpx.HTTPError) as exc:
-            logger.warning("Token revoke failed: %s", type(exc).__name__)
+            logger.warning(
+                "google_photos.token_revoke_failed",
+                user_id=user.id,
+                error_type=type(exc).__name__,
+            )
     user.google_photos_refresh_token = None
     user.google_photos_connected_at = None
     session.add(user)

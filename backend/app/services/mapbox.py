@@ -5,12 +5,12 @@ Rate-limited to stay under Mapbox free-tier limits (60 req/min).
 """
 
 import asyncio
-import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Literal
 
 import httpx
+import structlog
 from pydantic import BaseModel
 
 from app.core.config import get_settings
@@ -22,7 +22,7 @@ from app.logic.route_matching import (
     total_length_km,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 type Profile = str  # "driving" or "walking"
 type MapboxClient = httpx.AsyncClient
@@ -77,7 +77,7 @@ def _encode_coords(coords: Coords) -> str:
 def _token() -> str | None:
     token = get_settings().VITE_MAPBOX_TOKEN
     if not token:
-        logger.warning("No VITE_MAPBOX_TOKEN configured, skipping matching")
+        logger.warning("mapbox.token_missing")
     return token
 
 
@@ -103,7 +103,10 @@ async def _fetch_matching(
         )
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        logger.warning("Matching API error: %s", e.response.status_code)
+        logger.warning(
+            "mapbox.matching_api_error",
+            status_code=e.response.status_code,
+        )
         return None
     data = _MatchingResponse.model_validate_json(resp.content)
     if not data.matchings:
@@ -135,7 +138,10 @@ async def _fetch_directions(
         )
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        logger.warning("Directions API error: %s", e.response.status_code)
+        logger.warning(
+            "mapbox.directions_api_error",
+            status_code=e.response.status_code,
+        )
         return None
     data = _DirectionsResponse.model_validate_json(resp.content)
     if not data.routes:
@@ -208,21 +214,21 @@ async def _match_one(
 
     if raw is None:
         logger.debug(
-            "Matching failed for %s segment (%d pts)",
-            profile,
-            len(points_lonlat),
+            "mapbox.segment_match_failed",
+            profile=profile,
+            point_count=len(points_lonlat),
         )
         return None
 
     span = total_length_km(points_lonlat)
     simplified = simplify_route(raw, span)
     logger.debug(
-        "Matched %s segment: %d GPS → %d matched → %d simplified (%.1f km)",
-        profile,
-        len(points_lonlat),
-        len(raw),
-        len(simplified),
-        span,
+        "mapbox.segment_matched",
+        profile=profile,
+        point_count=len(points_lonlat),
+        matched_point_count=len(raw),
+        simplified_point_count=len(simplified),
+        length_km=span,
     )
     return simplified
 

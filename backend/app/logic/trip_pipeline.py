@@ -1,11 +1,11 @@
 import asyncio
-import logging
 import shutil
 import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import structlog
 from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
@@ -37,7 +37,7 @@ from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _POLARSTEPS_METADATA = {"trip.json", "locations.json"}
 
@@ -50,7 +50,7 @@ def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
 
     shutil.rmtree(user_folder / "user", ignore_errors=True)
 
-    logger.debug("Cleaned up Polarsteps metadata for %s", user_folder.name)
+    logger.debug("processing.metadata_cleaned", user_folder=user_folder.name)
 
 
 async def _process_trip(
@@ -61,7 +61,11 @@ async def _process_trip(
 ) -> AsyncIterator[ProcessingEvent]:
     aid = trip_dir.name
     trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
-    logger.info("Processing '%s' with %d steps...", trip.title, trip.step_count)
+    logger.info(
+        "processing.trip_started",
+        album_id=aid,
+        step_count=trip.step_count,
+    )
     locs = [s.location for s in trip.all_steps]
 
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
@@ -135,7 +139,12 @@ async def _save_new(
     async with AsyncSession(get_engine()) as session:
         session.add_all(objects)
         await session.commit()
-    logger.info("Saved %d objects for new user %d", len(objects), uid)
+    logger.info(
+        "processing.db_saved",
+        user_id=uid,
+        object_count=len(objects),
+        new_user=True,
+    )
 
 
 async def _save_reupload(
@@ -171,7 +180,12 @@ async def _save_reupload(
         for obj in objects:
             await session.merge(obj)
         await session.commit()
-    logger.info("Saved %d objects for re-upload user %d", len(objects), uid)
+    logger.info(
+        "processing.db_saved",
+        user_id=uid,
+        object_count=len(objects),
+        new_user=False,
+    )
 
 
 def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
@@ -192,7 +206,7 @@ def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
     for album in albums:
         apply_overlay(overlay, album, steps_by_aid.get(album.id, []))
 
-    logger.info("Applied %s i18n overlay for demo user %d", user.locale, user.id)
+    logger.info("demo.i18n_overlay_applied", user_id=user.id, locale=user.locale)
 
 
 async def run_processing(
@@ -224,7 +238,7 @@ async def run_processing(
                 async for event in _process_trip(http, user, trip_dir, all_objects):
                     yield event
     except Exception:
-        logger.exception("Processing failed for user %d", user.id)
+        logger.exception("processing.failed", user_id=user.id)
         yield ErrorData()
         return
 
@@ -238,13 +252,13 @@ async def run_processing(
         else:
             await _save_new(user.id, all_objects)
     except SQLAlchemyError:
-        logger.exception("DB save failed for user %d", user.id)
+        logger.exception("processing.db_save_failed", user_id=user.id)
         yield ErrorData()
         return
     await asyncio.to_thread(_cleanup_metadata, user.folder, trip_dirs)
     logger.info(
-        "Processing complete for user %d: %d trips in %.1fs",
-        user.id,
-        len(trip_dirs),
-        time.monotonic() - t0,
+        "processing.completed",
+        user_id=user.id,
+        trip_count=len(trip_dirs),
+        duration_s=time.monotonic() - t0,
     )

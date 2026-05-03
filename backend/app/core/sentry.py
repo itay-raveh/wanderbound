@@ -35,6 +35,7 @@ SENTRY_INFO_LOG_EVENTS = {
     "google_photos.upgrade.completed",
     "pdf.generated",
     "processing.completed",
+    "route_enrichment.completed",
     "upload.completed",
 }
 
@@ -104,7 +105,7 @@ def _before_send_log(log: Log, _hint: Hint) -> Log | None:
     severity = log.get("severity_text")
     if severity in {"warn", "error", "fatal"}:
         return log
-    if severity == "info" and attrs.get("event") in SENTRY_INFO_LOG_EVENTS:
+    if severity == "info" and log.get("body") in SENTRY_INFO_LOG_EVENTS:
         return log
     return None
 

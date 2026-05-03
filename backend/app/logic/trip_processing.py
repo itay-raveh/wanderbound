@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import logging
 from collections import Counter, defaultdict
 from collections.abc import AsyncIterator, Iterable, Sequence
 from datetime import date, datetime
@@ -8,6 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
 from zoneinfo import ZoneInfo
 
+import structlog
 from pydantic import BaseModel, Field
 
 from app.core.async_helpers import yield_completed
@@ -30,7 +30,7 @@ from app.models.user import User
 from app.models.weather import Weather
 from app.services.open_meteo import build_weathers, elevations
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
 type DbRow = Album | Step | Segment
@@ -420,14 +420,11 @@ def resolve_international_waters(steps: list[PSStep]) -> None:
             continue
 
         if run and prev_code is not None and step.location.country_code != prev_code:
-            names = ", ".join(s.name for s in run)
             logger.warning(
-                "International-water steps [%s] attributed to %s, "
-                "but next step '%s' is %s",
-                names,
-                prev_code.upper(),
-                step.name,
-                step.location.country_code.upper(),
+                "segments.international_water_attribution_ambiguous",
+                step_count=len(run),
+                attributed_country=prev_code.upper(),
+                next_country=step.location.country_code.upper(),
             )
         run.clear()
         prev_code = step.location.country_code

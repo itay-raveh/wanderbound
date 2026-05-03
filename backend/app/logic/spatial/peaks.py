@@ -1,8 +1,8 @@
-import logging
 from collections.abc import Iterable, Sequence
 from typing import Annotated
 
 import httpx
+import structlog
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
 from app.models.polarsteps import HasLatLon
@@ -11,7 +11,7 @@ PEAK_MIN_PROMINENCE = 300
 PEAK_SEARCH_RADIUS = 500
 PEAK_MAX_DEVIATION = 0.1
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _parse_ele(v: str | float) -> float:
@@ -66,7 +66,7 @@ async def correct_peaks(
         for loc in high_locs
     )
     query = f"[out:json][timeout:10];({around_clauses});out;"
-    logger.debug("Overpass query for %d peaks: %s", len(high_indices), query)
+    logger.debug("overpass.peak_query", peak_count=len(high_indices))
     try:
         response = await client.post(
             "https://overpass-api.de/api/interpreter", data={"data": query}
@@ -74,13 +74,13 @@ async def correct_peaks(
         response.raise_for_status()
         osm = OverpassResponse.model_validate_json(response.content)
     except (httpx.HTTPError, ValidationError) as exc:
-        logger.warning("Overpass peak query failed: %s", exc)
+        logger.warning("overpass.peak_query_failed", error_type=type(exc).__name__)
         return elevs
 
     logger.debug(
-        "Overpass returned %d elements for %d local peaks",
-        len(osm.elements),
-        len(high_indices),
+        "overpass.peak_query_returned",
+        element_count=len(osm.elements),
+        peak_count=len(high_indices),
     )
     if not osm.elements:
         return elevs
@@ -95,10 +95,9 @@ async def correct_peaks(
         deviation = (best.tags.ele - dem) / dem
         if deviation <= PEAK_MAX_DEVIATION:
             logger.debug(
-                "Corrected step %s: %dm -> %dm",
-                best.tags.name or locs[i],
-                int(dem),
-                int(best.tags.ele),
+                "overpass.elevation_corrected",
+                old_elevation_m=int(dem),
+                new_elevation_m=int(best.tags.ele),
             )
             result[i] = best.tags.ele
 

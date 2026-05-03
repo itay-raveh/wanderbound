@@ -5,7 +5,6 @@ originals using perceptual hashing (pHash) and the Hungarian algorithm
 for optimal bipartite assignment.
 """
 
-import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -22,8 +21,6 @@ from scipy.optimize import linear_sum_assignment
 
 from app.logic.layout.media import MediaName, is_video, open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
-
-logger = logging.getLogger(__name__)
 
 # Hamming distance threshold for accepting a pHash match.
 # pHash produces a 64-bit hash; distance 0 = identical, 64 = maximally different.

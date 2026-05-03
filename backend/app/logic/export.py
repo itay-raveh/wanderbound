@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import logging
 import threading
 import zipfile
 from collections.abc import AsyncGenerator, Callable
@@ -11,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
+import structlog
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
@@ -24,7 +24,7 @@ from app.models.user import AuthProvider, User
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _EXPORT_NAME = "wanderbound-export"
 EXPORT_FILENAME = f"{_EXPORT_NAME}.zip"
@@ -174,10 +174,10 @@ async def _run_zip_thread(
             yield event
 
         token = _tokens.store(spec.dest)
-        logger.info("Data export ready: %d files", files_total)
+        logger.info("export.ready", files_total=files_total)
         yield ExportDone(token=token)
     except Exception:
-        logger.exception("Export failed")
+        logger.exception("export.failed")
         stop.set()
         spec.dest.unlink(missing_ok=True)
         yield ExportError()
@@ -193,7 +193,7 @@ async def export_user_data(
     user: User,
     session: AsyncSession,
 ) -> AsyncGenerator[ExportEvent]:
-    logger.info("Starting data export for user %d", user.id)
+    logger.info("export.started", user_id=user.id)
 
     albums = list((await session.exec(select(Album).where(Album.uid == user.id))).all())
     album_ids_loaded = [a.id for a in albums]

@@ -1,9 +1,9 @@
 import asyncio
-import logging
 import re
 from typing import Literal
 
 import jwt
+import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from jwt import PyJWKClient
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from ..deps import SessionDep, login_session, to_user_public, try_load_user
 
 PENDING_SIGNUP_KEY = "pending_signup"
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,7 +57,7 @@ async def _verify_oidc_token(
     try:
         return await asyncio.to_thread(_decode)
     except jwt.InvalidTokenError as e:
-        logger.warning("OIDC JWT verification failed: %s", e)
+        logger.warning("auth.oidc_verification_failed", error_type=type(e).__name__)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED) from None
 
 
@@ -90,7 +90,7 @@ async def _verify_microsoft(credential: str) -> OAuthIdentity:
     # /common issues tenant-specific issuers - pattern-match manually.
     iss = payload.get("iss", "")
     if not _MS_ISSUER_RE.match(iss):
-        logger.warning("Microsoft token has unexpected issuer: %s", iss)
+        logger.warning("auth.microsoft_unexpected_issuer")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
     return OAuthIdentity(
         sub=payload["sub"],
@@ -145,11 +145,11 @@ async def _authenticate(
     identity = await verify_credential(credential, provider)
     row = await _lookup_user(identity, session)
     if row is None:
-        logger.info("New %s identity: sub=%s", provider, identity.sub)
+        logger.info("auth.identity_created", provider=provider)
         set_pending_signup(request, identity)
         return None
     login_session(request, row.id)
-    logger.info("Existing user %d signed in via %s", row.id, provider)
+    logger.info("auth.sign_in", user_id=row.id, provider=provider)
     return row
 
 

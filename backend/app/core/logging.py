@@ -80,7 +80,7 @@ def setup_logging(*, use_console: bool, log_level: str = "INFO") -> None:
             structlog.stdlib.filter_by_level,
             *shared_processors,
             *exception_processors,
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+            structlog.stdlib.render_to_log_kwargs,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,

@@ -1,9 +1,9 @@
-import logging
 import shutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +29,7 @@ settings = get_settings()
 setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
 setup_sentry(settings)
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -45,9 +45,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Probing moved to PyAV; ffprobe is no longer needed.
     path = shutil.which("ffmpeg")
     if path:
-        logger.info("ffmpeg available at %s", path)
+        logger.info("ffmpeg.available", path=path)
     else:
-        logger.warning("ffmpeg not found on PATH - video features will fail")
+        logger.warning("ffmpeg.missing")
 
     async with (
         pdf_lifespan() as browser_manager,
@@ -95,11 +95,15 @@ app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 @app.exception_handler(NoResultFound)
 async def _not_found(request: Request, _exc: NoResultFound) -> JSONResponse:
-    logger.debug("Not found: %s %s", request.method, request.url.path)
+    logger.debug("request.not_found", method=request.method, path=request.url.path)
     return JSONResponse({"detail": "Not found"}, status_code=404)
 
 
 @app.exception_handler(Exception)
 async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    logger.exception(
+        "request.unhandled_exception",
+        method=request.method,
+        path=request.url.path,
+    )
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
