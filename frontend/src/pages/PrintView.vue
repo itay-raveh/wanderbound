@@ -57,7 +57,6 @@ async function loadFonts(): Promise<void> {
   }
   if (faces.length) {
     await Promise.all(faces);
-    console.log("[print] loaded", faces.length, "font faces");
   } else {
     console.warn(
       "[print] no self-hosted font faces found - falling back to document.fonts.ready",
@@ -105,7 +104,6 @@ function waitForPrintReady() {
     const expected = parseInt(container.dataset.expectedPages || "0", 10);
     const actual = container.querySelectorAll(".page-container").length;
     if (actual < expected) {
-      console.log("[print] pages:", actual, "/", expected);
       schedulePoll(500);
       return;
     }
@@ -114,7 +112,6 @@ function waitForPrintReady() {
       document.querySelectorAll<HTMLImageElement>("[data-media] img"),
     ).filter((img) => !img.complete);
     if (pending.length > 0) {
-      console.log("[print]", pending.length, "images still loading");
       schedulePoll(300);
       return;
     }
@@ -124,17 +121,14 @@ function waitForPrintReady() {
       "[data-map]:not([data-map-ready])",
     );
     if (unreadyMaps.length > 0) {
-      console.log("[print]", unreadyMaps.length, "maps still rendering");
       schedulePoll(300);
       return;
     }
 
     // All DOM content + maps ready - wait for fonts before signaling
     waiting = true;
-    console.log("[print] content ready,", actual, "pages - waiting for fonts");
     fontsReady
       .then(() => {
-        console.log("[print] fonts confirmed");
         setReady();
       })
       .catch(() => {

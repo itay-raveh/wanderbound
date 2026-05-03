@@ -1,4 +1,3 @@
-import logging
 import shutil
 import tempfile
 import zipfile
@@ -11,8 +10,6 @@ from pydantic import BaseModel
 from app.core.config import get_settings
 from app.models.polarsteps import CountryCode, PSTrip
 from app.models.user import PSUser, UserPublic
-
-logger = logging.getLogger(__name__)
 
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.

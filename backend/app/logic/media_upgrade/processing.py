@@ -1,7 +1,6 @@
 """Normalize downloaded originals: photos to JPEG, videos to H.264 (HDR→SDR)."""
 
 import asyncio
-import logging
 import shutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -11,6 +10,7 @@ import anyio
 import av
 import imagehash
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
+import structlog
 from PIL.Image import Resampling
 
 from app.core.worker_threads import run_sync
@@ -24,7 +24,7 @@ from app.logic.layout.media import (
     open_oriented,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _MAX_LONG_EDGE = 3000
 _JPEG_QUALITY = 85
@@ -164,12 +164,12 @@ def extract_video_frame_hashes(path: Path) -> list[imagehash.ImageHash]:
 def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
     if new_w * new_h <= existing.width * existing.height:
         logger.info(
-            "Skipping %s: original (%dx%d) not larger than existing (%dx%d)",
-            name,
-            new_w,
-            new_h,
-            existing.width,
-            existing.height,
+            "media_upgrade.skipped_smaller",
+            media_name=name,
+            new_width=new_w,
+            new_height=new_h,
+            existing_width=existing.width,
+            existing_height=existing.height,
         )
         return True
     return False
@@ -185,7 +185,11 @@ async def replace_video(
         try:
             existing = await Media.probe(target)
         except RuntimeError, OSError:
-            logger.debug("Could not probe existing video %s", name, exc_info=True)
+            logger.debug(
+                "media_upgrade.existing_video_probe_failed",
+                media_name=name,
+                exc_info=True,
+            )
             existing = None
         if existing and _skip_smaller(
             name, new_media.width, new_media.height, existing
@@ -202,7 +206,10 @@ async def replace_video(
             await run_sync(delete_thumbnails, poster)
         await extract_frame(target)
     except OSError:
-        logger.warning("Thumbnail cleanup failed for %s", name, exc_info=True)
+        logger.warning(
+            "media_upgrade.thumbnail_cleanup_failed",
+            exc_info=True,
+        )
     return True
 
 
@@ -217,7 +224,11 @@ async def replace_photo(
         try:
             existing = await run_sync(Media.load, target, limiter=media_limiter)
         except OSError, SyntaxError:
-            logger.debug("Could not load existing photo %s", name, exc_info=True)
+            logger.debug(
+                "media_upgrade.existing_photo_load_failed",
+                media_name=name,
+                exc_info=True,
+            )
             existing = None
         if existing and _skip_smaller(name, width, height, existing):
             return False

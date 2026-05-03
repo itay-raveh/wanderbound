@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import logging
 import secrets
 import shutil
 import threading
@@ -11,10 +10,11 @@ from pathlib import Path
 from typing import BinaryIO
 
 import anyio
+import structlog
 
 from app.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _UPLOAD_TTL = 3600  # 1 hour
 _CHUNK_LIMIT = 80 * 1024 * 1024 + 1024  # 80 MiB + 1 KiB margin
@@ -95,7 +95,7 @@ class UploadStore:
             max_chunks=max_chunks,
             owner=owner,
         )
-        logger.info("Upload session %s created", upload_id[:8])
+        logger.info("upload.session_created", upload_id_prefix=upload_id[:8])
         return upload_id
 
     async def write_chunk_stream(
@@ -205,7 +205,7 @@ class UploadStore:
         asyncio.get_running_loop().run_in_executor(
             None, lambda: shutil.rmtree(session.dir, ignore_errors=True)
         )
-        logger.info("Expired upload session %s", upload_id[:8])
+        logger.info("upload.session_expired", upload_id_prefix=upload_id[:8])
 
 
 upload_store = UploadStore()

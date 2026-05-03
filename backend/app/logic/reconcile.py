@@ -5,9 +5,10 @@ with potentially changed media on disk after a re-upload.
 """
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
+
+import structlog
 
 from app.core.http_clients import HttpClients
 from app.core.worker_threads import run_sync
@@ -36,7 +37,7 @@ from app.models.polarsteps import PSStep
 from app.models.step import Step
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _scan_step_media(trip_dir: Path, ps_step: PSStep) -> set[str]:
@@ -153,7 +154,11 @@ async def _process_new_steps(  # noqa: PLR0913
     step_out: list[Step],
 ) -> AsyncIterator[PhaseUpdate]:
     """Run full processing (elevations, weather, layouts) for new steps."""
-    logger.info("Processing %d new steps for album %s", len(new_ps_steps), aid)
+    logger.info(
+        "processing.reconcile_new_steps",
+        album_id=aid,
+        step_count=len(new_ps_steps),
+    )
     queue: asyncio.Queue[PhaseUpdate | None] = asyncio.Queue()
     n_new = len(new_ps_steps)
     new_locs = [s.location for s in new_ps_steps]
@@ -217,10 +222,10 @@ async def reconcile_trip(  # noqa: PLR0913
     aid = trip_dir.name
     trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
     logger.info(
-        "Reconciling '%s' with %d steps (%d existing)",
-        trip.title,
-        trip.step_count,
-        len(existing_steps),
+        "processing.reconcile_started",
+        album_id=aid,
+        step_count=trip.step_count,
+        existing_step_count=len(existing_steps),
     )
 
     # Phase 1: Build step->media map BEFORE flattening (concurrent scans)

@@ -1,4 +1,3 @@
-import logging
 import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator
@@ -7,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import sentry_sdk
+import structlog
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import func, update
@@ -22,7 +22,7 @@ from app.models.user import User, UserPublic
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Debounce activity tracking: only write to DB if >1 hour since last write.
 # Bounded to 1024 entries to prevent unbounded memory growth.
@@ -50,7 +50,7 @@ async def _touch_activity(uid: int) -> None:
             )
             await session.commit()
     except SQLAlchemyError, OSError:
-        logger.debug("Activity tracking write failed for uid=%s", uid, exc_info=True)
+        logger.debug("activity_tracking.write_failed", user_id=uid, exc_info=True)
 
 
 async def try_load_user(request: Request, session: AsyncSession) -> User | None:
@@ -60,7 +60,7 @@ async def try_load_user(request: Request, session: AsyncSession) -> User | None:
         return None
     user = await session.get(User, uid)
     if user is None:
-        logger.warning("Auth failed: unknown uid=%s, clearing stale session", uid)
+        logger.warning("auth.unknown_session_user", user_id=uid)
         request.session.clear()
     return user
 

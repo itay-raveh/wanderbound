@@ -1,7 +1,7 @@
-import logging
 from collections.abc import AsyncIterable, Sequence
 from typing import Annotated
 
+import structlog
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -32,7 +32,7 @@ from app.models.step import Step, StepUpdate
 
 from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def _get_album(
@@ -208,8 +208,10 @@ async def adjust_segment_boundary(  # noqa: PLR0913
     enqueue_album_route_enrichment(background_tasks, http, uid, aid)
 
     logger.info(
-        "Adjusted segment boundary",
-        extra={"uid": uid, "aid": aid, "handle": body.handle},
+        "segment.boundary_adjusted",
+        user_id=uid,
+        album_id=aid,
+        handle=body.handle,
     )
 
     result = await session.exec(

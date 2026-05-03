@@ -23,7 +23,6 @@ DataFrame columns through the pipeline::
     output_id        RLE group ID on final_mode
 """
 
-import logging
 import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -32,6 +31,7 @@ from typing import Protocol, cast
 
 import numpy as np
 import polars as pl
+import structlog
 from simplification.cutil import simplify_coords_idx
 
 from app.logic.spatial.geo import EARTH_RADIUS_KM
@@ -48,7 +48,7 @@ class _StepLike(Protocol):
     def datetime(self) -> datetime: ...
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Edge classification
 # GPS underreports speed on winding trails (~6.5 km/h vs ~8 km/h actual).
@@ -573,14 +573,14 @@ def build_segments(
         return iter([])
 
     logger.info(
-        "build_segments: %d step(s), window %s -> %s",
-        len(steps),
-        steps[0].datetime.strftime("%Y-%m-%d"),
-        steps[-1].datetime.strftime("%Y-%m-%d"),
+        "segments.build_started",
+        step_count=len(steps),
+        start_date=steps[0].datetime.strftime("%Y-%m-%d"),
+        end_date=steps[-1].datetime.strftime("%Y-%m-%d"),
     )
 
     df = _ingest(steps, locations)
-    logger.debug("Ingested %d points after noise removal", df.height)
+    logger.debug("segments.points_ingested", point_count=df.height)
 
     if df.is_empty():
         return iter([])
@@ -591,8 +591,6 @@ def build_segments(
     segments = list(_emit_segments(df, steps))
 
     counts = Counter(seg.kind for seg in segments)
-    logger.debug(
-        "Segments: %s", ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
-    )
+    logger.debug("segments.built", counts=dict(sorted(counts.items())))
 
     return segments

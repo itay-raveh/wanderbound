@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from io import BytesIO
@@ -7,6 +6,7 @@ from typing import Annotated, Self
 
 import anyio
 import av
+import structlog
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
 from pydantic import BaseModel, StringConstraints
@@ -18,7 +18,7 @@ from app.core.worker_threads import run_sync
 # https://ffmpeg.org/doxygen/trunk/pixfmt_8h.html
 HDR_COLOR_TRC = frozenset({16, 18})
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 MEDIA_EXTENSIONS = frozenset({".jpg", ".mp4"})
 # Must match frontend utils/media.ts THUMB_WIDTHS - frontend builds srcset from these.
@@ -97,7 +97,13 @@ def _probe_video_dimensions_sync(path: Path) -> tuple[int, int]:
             break
     if rotation in (90, 270):
         w, h = h, w
-    logger.debug("av probe %s: %dx%d (rotation=%d)", path.name, w, h, rotation)
+    logger.debug(
+        "media.video_probed",
+        media_name=path.name,
+        width=w,
+        height=h,
+        rotation=rotation,
+    )
     return w, h
 
 

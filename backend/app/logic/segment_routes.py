@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import structlog
 from sqlalchemy import String, cast, or_, update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from fastapi import BackgroundTasks
     from sqlalchemy.sql.elements import ColumnElement
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 type SegmentKey = tuple[int, str, float, float]
 type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float]], str]
@@ -74,7 +74,9 @@ async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> N
         async with try_advisory_lock(lock_key) as acquired:
             if not acquired:
                 logger.info(
-                    "Route enrichment already running for uid=%s aid=%s", uid, aid
+                    "route_enrichment.already_running",
+                    user_id=uid,
+                    album_id=aid,
                 )
                 return
 
@@ -103,10 +105,10 @@ async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> N
                 _log_complete(uid, aid, started, stats)
     except Exception:
         logger.exception(
-            "Route enrichment failed for uid=%s aid=%s duration_ms=%d",
-            uid,
-            aid,
-            _duration_ms(started),
+            "route_enrichment.failed",
+            user_id=uid,
+            album_id=aid,
+            duration_ms=_duration_ms(started),
         )
 
 
@@ -121,20 +123,18 @@ def _log_complete(
     stats: RouteEnrichmentStats,
 ) -> None:
     logger.info(
-        "Route enrichment complete uid=%s aid=%s candidates=%d matched=%d "
-        "updated=%d skipped=%d stale=%d route_requests=%d "
-        "matching_requests=%d directions_requests=%d duration_ms=%d",
-        uid,
-        aid,
-        stats.candidates,
-        stats.matched,
-        stats.updated,
-        stats.skipped,
-        stats.stale,
-        stats.route_requests,
-        stats.matching_requests,
-        stats.directions_requests,
-        _duration_ms(started),
+        "route_enrichment.completed",
+        user_id=uid,
+        album_id=aid,
+        candidates=stats.candidates,
+        matched=stats.matched,
+        updated=stats.updated,
+        skipped=stats.skipped,
+        stale=stats.stale,
+        route_requests=stats.route_requests,
+        matching_requests=stats.matching_requests,
+        directions_requests=stats.directions_requests,
+        duration_ms=_duration_ms(started),
     )
 
 

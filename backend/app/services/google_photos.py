@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import structlog
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -28,7 +28,7 @@ from app.models.google_photos import (
     VideoProcessingStatus,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _PICKER_BASE = "https://photospicker.googleapis.com"
 _SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
@@ -226,10 +226,9 @@ async def get_media_items(
         page_token = page.next_page_token
     else:
         logger.warning(
-            "Hit %d-page limit for session %s (%d items fetched)",
-            _MAX_MEDIA_PAGES,
-            session_id,
-            len(items),
+            "google_photos.media_page_limit_hit",
+            max_pages=_MAX_MEDIA_PAGES,
+            item_count=len(items),
         )
     return items
 
@@ -245,9 +244,8 @@ async def delete_picker_session(
     )
     if resp.status_code not in (200, 204, 404):
         logger.warning(
-            "Failed to delete Picker session %s: %d",
-            session_id,
-            resp.status_code,
+            "google_photos.picker_session_delete_failed",
+            status_code=resp.status_code,
         )
 
 

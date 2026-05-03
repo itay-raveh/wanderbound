@@ -1,11 +1,11 @@
 import asyncio
-import logging
 import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
@@ -20,7 +20,7 @@ from app.logic.layout.media import (
 
 from ..deps import UserDep, album_dir as _album_dir
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/albums", tags=["assets"])
 
@@ -68,7 +68,7 @@ async def get_media(
         async with _gen_lock(source):
             if not source.is_file():
                 await extract_frame(video)
-                logger.debug("Lazy-extracted poster for %s", name)
+                logger.debug("asset.poster_extracted", media_name=name)
 
     if not source.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -111,4 +111,4 @@ async def update_video_frame(
     poster.unlink(missing_ok=True)
     delete_thumbnails(poster)
     await extract_frame(video, timestamp)
-    logger.debug("Re-extracted frame for %s at t=%.1fs", name, timestamp)
+    logger.debug("asset.frame_reextracted", media_name=name, timestamp_s=timestamp)

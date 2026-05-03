@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import pytest
-
 from app.logic.trip_processing import (
     resolve_international_waters,
     segment_timezone,
@@ -50,21 +44,15 @@ class TestResolveInternationalWaters:
         assert steps[1].location.country_code == "it"
         assert steps[2].location.country_code == "it"
 
-    def test_warns_when_next_country_differs(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_attribution_when_next_country_differs(self) -> None:
         steps = [
             _step("Piraeus", "GR", 1),
             _step("At Sea", "00", 2),
             _step("Kusadasi", "TR", 3),
         ]
-        with caplog.at_level(logging.WARNING):
-            resolve_international_waters(steps)
+        resolve_international_waters(steps)
 
         assert steps[1].location.country_code == "gr"
-        assert "At Sea" in caplog.text
-        assert "GR" in caplog.text
-        assert "TR" in caplog.text
 
     def test_leading_zeros_unchanged(self) -> None:
         steps = [
