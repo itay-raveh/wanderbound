@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.requests import ClientDisconnect
 
 from app.core.config import get_settings
+from app.core.observability import start_span
 from app.core.resources import MiB
 from app.logic.chunked_upload import upload_store
 from app.logic.eviction import run_eviction
@@ -114,50 +115,60 @@ async def _finalize_upload(  # noqa: PLR0913
     album_ids = [t.id for t in trips]
 
     try:
-        cancel_session(ps_user.id)
+        with start_span(
+            "upload.finalize",
+            "Finalize upload",
+            **{
+                "app.workflow": "upload",
+                "album.count": len(album_ids),
+                "new_user": existing is None,
+                "user.id": ps_user.id,
+            },
+        ):
+            cancel_session(ps_user.id)
 
-        if existing is not None:
-            existing.album_ids = album_ids
-            existing.living_location = ps_user.living_location
-            existing.first_name = existing.first_name or ps_user.first_name
-            session.add(existing)
-            await session.commit()
-            user = existing
-            logger.info(
-                "upload.completed",
-                user_id=user.id,
-                album_count=len(album_ids),
-                new_user=False,
-            )
-        else:
-            oauth = cast("OAuthIdentity", identity)
-            user = User(
-                id=ps_user.id,
-                first_name=oauth.first_name or ps_user.first_name or "Anonymous",
-                locale=ps_user.locale,
-                unit_is_km=ps_user.unit_is_km,
-                temperature_is_celsius=ps_user.temperature_is_celsius,
-                google_sub=oauth.sub if oauth.provider == "google" else None,
-                microsoft_sub=oauth.sub if oauth.provider == "microsoft" else None,
-                profile_image_url=(str(oauth.picture) if oauth.picture else None),
-                living_location=ps_user.living_location,
-                album_ids=album_ids,
-            )
-            session.add(user)
-            await session.commit()
-            login_session(request, user.id)
-            clear_pending_signup(request)
-            logger.info(
-                "upload.completed",
-                user_id=user.id,
-                album_count=len(album_ids),
-                new_user=True,
-            )
+            if existing is not None:
+                existing.album_ids = album_ids
+                existing.living_location = ps_user.living_location
+                existing.first_name = existing.first_name or ps_user.first_name
+                session.add(existing)
+                await session.commit()
+                user = existing
+                logger.info(
+                    "upload.completed",
+                    user_id=user.id,
+                    album_count=len(album_ids),
+                    new_user=False,
+                )
+            else:
+                oauth = cast("OAuthIdentity", identity)
+                user = User(
+                    id=ps_user.id,
+                    first_name=oauth.first_name or ps_user.first_name or "Anonymous",
+                    locale=ps_user.locale,
+                    unit_is_km=ps_user.unit_is_km,
+                    temperature_is_celsius=ps_user.temperature_is_celsius,
+                    google_sub=oauth.sub if oauth.provider == "google" else None,
+                    microsoft_sub=oauth.sub if oauth.provider == "microsoft" else None,
+                    profile_image_url=(str(oauth.picture) if oauth.picture else None),
+                    living_location=ps_user.living_location,
+                    album_ids=album_ids,
+                )
+                session.add(user)
+                await session.commit()
+                login_session(request, user.id)
+                clear_pending_signup(request)
+                logger.info(
+                    "upload.completed",
+                    user_id=user.id,
+                    album_count=len(album_ids),
+                    new_user=True,
+                )
 
-        target = user.folder
-        if target.exists():
-            await asyncio.to_thread(shutil.rmtree, target)
-        await asyncio.to_thread(temp_folder.rename, target)
+            target = user.folder
+            if target.exists():
+                await asyncio.to_thread(shutil.rmtree, target)
+            await asyncio.to_thread(temp_folder.rename, target)
     except Exception:
         await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
         raise
@@ -178,9 +189,14 @@ async def upload_data(
     size = _check_upload_size(file)
     logger.info("upload.extracting", size_mb=size // MiB)
     try:
-        temp_folder, ps_user, trips = await asyncio.to_thread(
-            extract_and_scan, file.file
-        )
+        with start_span(
+            "upload.extract",
+            "Extract Polarsteps ZIP",
+            **{"app.workflow": "upload", "size.bytes": size},
+        ):
+            temp_folder, ps_user, trips = await asyncio.to_thread(
+                extract_and_scan, file.file
+            )
     except (BadZipFile, OSError, ValidationError) as e:
         logger.warning("upload.bad_zip", error_type=type(e).__name__)
         raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
@@ -275,9 +291,14 @@ async def complete_chunked_upload(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
 
     try:
-        temp_folder, ps_user, trips = await asyncio.to_thread(
-            extract_and_scan, assembled
-        )
+        with start_span(
+            "upload.extract",
+            "Extract Polarsteps ZIP",
+            **{"app.workflow": "upload"},
+        ):
+            temp_folder, ps_user, trips = await asyncio.to_thread(
+                extract_and_scan, assembled
+            )
     except (BadZipFile, OSError, ValidationError) as e:
         logger.warning(
             "upload.bad_zip",
@@ -383,18 +404,25 @@ async def create_demo(
 async def _remove_user(
     user: User, session: SessionDep, request: Request, http: HttpClientsDep
 ) -> None:
-    cancel_session(user.id)
-    folder = user.folder
-    if user.google_photos_refresh_token:
-        try:
-            await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
-        except (RevokeTokenError, httpx.HTTPError) as exc:
-            logger.warning("oauth.token_revoke_failed", error_type=type(exc).__name__)
-    await session.delete(user)
-    await session.commit()
-    await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
-    request.session.clear()
-    logger.info("user.deleted", user_id=user.id, is_demo=user.is_demo)
+    with start_span(
+        "user.delete",
+        "Delete user",
+        **{"app.workflow": "user_delete", "user.id": user.id, "is_demo": user.is_demo},
+    ):
+        cancel_session(user.id)
+        folder = user.folder
+        if user.google_photos_refresh_token:
+            try:
+                await http.gphotos_oauth.revoke_token(user.google_photos_refresh_token)
+            except (RevokeTokenError, httpx.HTTPError) as exc:
+                logger.warning(
+                    "oauth.token_revoke_failed", error_type=type(exc).__name__
+                )
+        await session.delete(user)
+        await session.commit()
+        await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
+        request.session.clear()
+        logger.info("user.deleted", user_id=user.id, is_demo=user.is_demo)
 
 
 @router.delete("/demo", status_code=status.HTTP_204_NO_CONTENT)

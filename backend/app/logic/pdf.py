@@ -10,6 +10,7 @@ from playwright.async_api import Browser, Page, Playwright, async_playwright
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.core.observability import set_span_data, start_span
 from app.core.resources import MiB, detect_memory_mb
 from app.core.tokens import TokenStore
 
@@ -161,7 +162,7 @@ async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
             await cdp.detach()
 
 
-async def _render_pdf(  # noqa: C901
+async def _render_pdf(  # noqa: C901, PLR0915
     browser: Browser,
     aid: str,
     dest: Path,
@@ -173,11 +174,16 @@ async def _render_pdf(  # noqa: C901
     frontend_url = str(settings.FRONTEND_URL or settings.VITE_FRONTEND_URL).rstrip("/")
     yield PdfProgress(phase="loading", done=0)
 
-    context = await browser.new_context(
-        viewport={"width": 1920, "height": 1080},
-        device_scale_factor=2,
-        bypass_csp=True,
-    )
+    with start_span(
+        "pdf.browser_context",
+        "Create PDF browser context",
+        **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
+    ):
+        context = await browser.new_context(
+            viewport={"width": 1920, "height": 1080},
+            device_scale_factor=2,
+            bypass_csp=True,
+        )
     try:
         await context.add_cookies(
             [
@@ -213,35 +219,53 @@ async def _render_pdf(  # noqa: C901
         await page.emulate_media(media="print")
         dark_param = "true" if dark else "false"
         url = f"{frontend_url}/print/{aid}?dark={dark_param}"
-        await page.goto(url, wait_until="domcontentloaded")
-        logger.info("pdf.dom_loaded", album_id=aid)
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + 60
-        last_counts = (-1, -1)
-        while True:
-            ready = await page.evaluate("window.__PRINT_READY__ === true")
-            counts = (finished, started)
-            if counts != last_counts or ready:
-                last_counts = counts
-                yield PdfProgress(
-                    phase="loading",
-                    done=finished,
-                    total=started,
-                )
-            if ready:
-                break
-            if loop.time() > deadline:
-                raise TimeoutError("Timed out waiting for album to load")
-            await asyncio.sleep(0.5)
+        with start_span(
+            "pdf.load_page",
+            "Load print page",
+            **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
+        ) as span:
+            await page.goto(url, wait_until="domcontentloaded")
+            logger.info("pdf.dom_loaded", album_id=aid)
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 60
+            last_counts = (-1, -1)
+            while True:
+                ready = await page.evaluate("window.__PRINT_READY__ === true")
+                counts = (finished, started)
+                if counts != last_counts or ready:
+                    last_counts = counts
+                    yield PdfProgress(
+                        phase="loading",
+                        done=finished,
+                        total=started,
+                    )
+                if ready:
+                    break
+                if loop.time() > deadline:
+                    raise TimeoutError("Timed out waiting for album to load")
+                await asyncio.sleep(0.5)
+            set_span_data(
+                span,
+                **{
+                    "browser.request.started": started,
+                    "browser.request.finished": finished,
+                },
+            )
 
         yield PdfProgress(phase="rendering", done=0)
         size = 0
         last_reported = 0
-        async with aclosing(_stream_pdf_to_file(page, dest)) as stream:
-            async for size in stream:
-                if size - last_reported >= _PROGRESS_CHUNK_BYTES:
-                    yield PdfProgress(phase="rendering", done=size)
-                    last_reported = size
+        with start_span(
+            "pdf.print",
+            "Print PDF",
+            **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
+        ) as span:
+            async with aclosing(_stream_pdf_to_file(page, dest)) as stream:
+                async for size in stream:
+                    if size - last_reported >= _PROGRESS_CHUNK_BYTES:
+                        yield PdfProgress(phase="rendering", done=size)
+                        last_reported = size
+            set_span_data(span, **{"pdf.size_bytes": size})
         yield PdfProgress(phase="rendering", done=size)
         logger.info("pdf.generated", album_id=aid, size_bytes=size)
 
@@ -261,8 +285,13 @@ async def render_album_pdf_stream(
     yield PdfQueued()
 
     try:
-        async with asyncio.timeout(_QUEUE_TIMEOUT):
-            await _render_sem.acquire()
+        with start_span(
+            "pdf.queue_wait",
+            "Wait for PDF render slot",
+            **{"app.workflow": "pdf", "album.id": aid},
+        ):
+            async with asyncio.timeout(_QUEUE_TIMEOUT):
+                await _render_sem.acquire()
     except TimeoutError:
         logger.warning(
             "pdf.queue_timeout",
@@ -278,20 +307,29 @@ async def render_album_pdf_stream(
     size = 0
     owned = False
     try:
-        async with asyncio.timeout(_RENDER_TIMEOUT):
-            async with aclosing(
-                _render_pdf(
-                    browser,
-                    aid,
-                    dest,
-                    session_cookie=session_cookie,
-                    dark=dark,
-                )
-            ) as events:
-                async for event in events:
-                    if isinstance(event, PdfProgress) and event.phase == "rendering":
-                        size = event.done
-                    yield event
+        with start_span(
+            "pdf.render",
+            "Render album PDF",
+            **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
+        ) as span:
+            async with asyncio.timeout(_RENDER_TIMEOUT):
+                async with aclosing(
+                    _render_pdf(
+                        browser,
+                        aid,
+                        dest,
+                        session_cookie=session_cookie,
+                        dark=dark,
+                    )
+                ) as events:
+                    async for event in events:
+                        if (
+                            isinstance(event, PdfProgress)
+                            and event.phase == "rendering"
+                        ):
+                            size = event.done
+                        yield event
+            set_span_data(span, **{"pdf.size_bytes": size})
 
         if size == 0:
             yield PdfError(detail="PDF generation produced no output.")

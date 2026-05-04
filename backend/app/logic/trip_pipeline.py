@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
+from app.core.observability import start_span
 from app.logic.demo_i18n import apply_overlay, load_overlay
 from app.logic.reconcile import reconcile_trip
 from app.logic.trip_processing import (
@@ -60,7 +61,12 @@ async def _process_trip(
     db_out: list[DbRow],
 ) -> AsyncIterator[ProcessingEvent]:
     aid = trip_dir.name
-    trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
+    with start_span(
+        "processing.load_trip",
+        "Load trip data",
+        **{"app.workflow": "processing", "album.id": aid},
+    ):
+        trip, locations = await asyncio.to_thread(load_trip_data, trip_dir)
     logger.info(
         "processing.trip_started",
         album_id=aid,
@@ -92,19 +98,40 @@ async def _process_trip(
             cover_name=final_cover_name,
         )
 
-    runner = asyncio.create_task(_phases())
-    async for event in drain_queue(runner, queue):
-        yield event
+    with start_span(
+        "processing.trip",
+        "Process trip",
+        **{
+            "app.workflow": "processing",
+            "user.id": user.id,
+            "album.id": aid,
+            "step.count": n,
+        },
+    ):
+        runner = asyncio.create_task(_phases())
+        async for event in drain_queue(runner, queue):
+            yield event
 
-    results = await runner
-    yield PhaseUpdate(phase="segments", done=0, total=1)
-    objects = await asyncio.to_thread(
-        build_trip_objects, user, aid, trip, locations, results
-    )
-    segments = [obj for obj in objects if isinstance(obj, Segment)]
-    yield PhaseUpdate(phase="segments", done=1, total=1)
-    yield count_segments(segments)
-    db_out.extend(objects)
+        results = await runner
+        yield PhaseUpdate(phase="segments", done=0, total=1)
+        with start_span(
+            "processing.build_objects",
+            "Build trip objects",
+            **{
+                "app.workflow": "processing",
+                "user.id": user.id,
+                "album.id": aid,
+                "step.count": n,
+                "location.count": len(locations),
+            },
+        ):
+            objects = await asyncio.to_thread(
+                build_trip_objects, user, aid, trip, locations, results
+            )
+        segments = [obj for obj in objects if isinstance(obj, Segment)]
+        yield PhaseUpdate(phase="segments", done=1, total=1)
+        yield count_segments(segments)
+        db_out.extend(objects)
 
 
 async def _load_existing(
@@ -117,17 +144,24 @@ async def _load_existing(
     if not user.album_ids:
         return {}, {}
 
-    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        albums = {
-            a.id: a
-            for a in (
-                await session.exec(select(Album).where(Album.uid == user.id))
-            ).all()
-        }
+    with start_span(
+        "processing.load_existing",
+        "Load existing albums",
+        **{"app.workflow": "processing", "user.id": user.id},
+    ):
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+            albums = {
+                a.id: a
+                for a in (
+                    await session.exec(select(Album).where(Album.uid == user.id))
+                ).all()
+            }
 
-        steps_by_aid: dict[str, list[Step]] = defaultdict(list)
-        for s in (await session.exec(select(Step).where(Step.uid == user.id))).all():
-            steps_by_aid[s.aid].append(s)
+            steps_by_aid: dict[str, list[Step]] = defaultdict(list)
+            for s in (
+                await session.exec(select(Step).where(Step.uid == user.id))
+            ).all():
+                steps_by_aid[s.aid].append(s)
 
     return albums, dict(steps_by_aid)
 
@@ -136,9 +170,19 @@ async def _save_new(
     uid: int,
     objects: list[DbRow],
 ) -> None:
-    async with AsyncSession(get_engine()) as session:
-        session.add_all(objects)
-        await session.commit()
+    with start_span(
+        "processing.db_save",
+        "Save processing results",
+        **{
+            "app.workflow": "processing",
+            "user.id": uid,
+            "object.count": len(objects),
+            "new_user": True,
+        },
+    ):
+        async with AsyncSession(get_engine()) as session:
+            session.add_all(objects)
+            await session.commit()
     logger.info(
         "processing.db_saved",
         user_id=uid,
@@ -154,32 +198,44 @@ async def _save_reupload(
     existing_albums: dict[str, Album],
     trip_dirs: list[Path],
 ) -> None:
-    async with AsyncSession(get_engine()) as session:
-        if reconciled_aids:
-            await session.exec(
-                delete(Step)
-                .where(col(Step.uid) == uid)
-                .where(col(Step.aid).in_(reconciled_aids))
-            )
-            await session.exec(
-                delete(Segment)
-                .where(col(Segment.uid) == uid)
-                .where(col(Segment.aid).in_(reconciled_aids))
-            )
+    with start_span(
+        "processing.db_save",
+        "Save processing results",
+        **{
+            "app.workflow": "processing",
+            "user.id": uid,
+            "object.count": len(objects),
+            "album.count": len(trip_dirs),
+            "reconciled_album.count": len(reconciled_aids),
+            "new_user": False,
+        },
+    ):
+        async with AsyncSession(get_engine()) as session:
+            if reconciled_aids:
+                await session.exec(
+                    delete(Step)
+                    .where(col(Step.uid) == uid)
+                    .where(col(Step.aid).in_(reconciled_aids))
+                )
+                await session.exec(
+                    delete(Segment)
+                    .where(col(Segment.uid) == uid)
+                    .where(col(Segment.aid).in_(reconciled_aids))
+                )
 
-        current_aids = {d.name for d in trip_dirs}
-        orphan_aids = set(existing_albums) - current_aids
-        if orphan_aids:
-            await session.exec(
-                delete(Album)
-                .where(col(Album.uid) == uid)
-                .where(col(Album.id).in_(orphan_aids))
-            )
-        await session.flush()
+            current_aids = {d.name for d in trip_dirs}
+            orphan_aids = set(existing_albums) - current_aids
+            if orphan_aids:
+                await session.exec(
+                    delete(Album)
+                    .where(col(Album.uid) == uid)
+                    .where(col(Album.id).in_(orphan_aids))
+                )
+            await session.flush()
 
-        for obj in objects:
-            await session.merge(obj)
-        await session.commit()
+            for obj in objects:
+                await session.merge(obj)
+            await session.commit()
     logger.info(
         "processing.db_saved",
         user_id=uid,
@@ -214,51 +270,79 @@ async def run_processing(
 ) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
-    existing_albums, existing_steps = await _load_existing(user)
 
     all_objects: list[DbRow] = []
     reconciled_aids: set[str] = set()
-    try:
-        for trip_idx, trip_dir in enumerate(trip_dirs):
-            aid = trip_dir.name
-            yield TripStart(trip_index=trip_idx)
+    with start_span(
+        "processing.run",
+        "Run processing",
+        **{
+            "app.workflow": "processing",
+            "user.id": user.id,
+            "album.count": len(trip_dirs),
+        },
+    ):
+        existing_albums, existing_steps = await _load_existing(user)
+        try:
+            for trip_idx, trip_dir in enumerate(trip_dirs):
+                aid = trip_dir.name
+                yield TripStart(trip_index=trip_idx)
 
-            if aid in existing_albums:
-                async for event in reconcile_trip(
-                    http,
-                    user,
-                    trip_dir,
-                    existing_albums[aid],
-                    existing_steps.get(aid, []),
-                    all_objects,
-                ):
-                    yield event
-                reconciled_aids.add(aid)
+                if aid in existing_albums:
+                    with start_span(
+                        "processing.reconcile_trip",
+                        "Reconcile trip",
+                        **{
+                            "app.workflow": "processing",
+                            "user.id": user.id,
+                            "album.id": aid,
+                            "existing_step.count": len(existing_steps.get(aid, [])),
+                        },
+                    ):
+                        async for event in reconcile_trip(
+                            http,
+                            user,
+                            trip_dir,
+                            existing_albums[aid],
+                            existing_steps.get(aid, []),
+                            all_objects,
+                        ):
+                            yield event
+                    reconciled_aids.add(aid)
+                else:
+                    async for event in _process_trip(http, user, trip_dir, all_objects):
+                        yield event
+        except Exception:
+            logger.exception("processing.failed", user_id=user.id)
+            yield ErrorData()
+            return
+
+        _apply_demo_i18n(user, all_objects)
+
+        try:
+            if existing_albums:
+                await _save_reupload(
+                    user.id, all_objects, reconciled_aids, existing_albums, trip_dirs
+                )
             else:
-                async for event in _process_trip(http, user, trip_dir, all_objects):
-                    yield event
-    except Exception:
-        logger.exception("processing.failed", user_id=user.id)
-        yield ErrorData()
-        return
-
-    _apply_demo_i18n(user, all_objects)
-
-    try:
-        if existing_albums:
-            await _save_reupload(
-                user.id, all_objects, reconciled_aids, existing_albums, trip_dirs
-            )
-        else:
-            await _save_new(user.id, all_objects)
-    except SQLAlchemyError:
-        logger.exception("processing.db_save_failed", user_id=user.id)
-        yield ErrorData()
-        return
-    await asyncio.to_thread(_cleanup_metadata, user.folder, trip_dirs)
-    logger.info(
-        "processing.completed",
-        user_id=user.id,
-        trip_count=len(trip_dirs),
-        duration_s=time.monotonic() - t0,
-    )
+                await _save_new(user.id, all_objects)
+        except SQLAlchemyError:
+            logger.exception("processing.db_save_failed", user_id=user.id)
+            yield ErrorData()
+            return
+        with start_span(
+            "processing.cleanup",
+            "Clean processing metadata",
+            **{
+                "app.workflow": "processing",
+                "user.id": user.id,
+                "album.count": len(trip_dirs),
+            },
+        ):
+            await asyncio.to_thread(_cleanup_metadata, user.folder, trip_dirs)
+        logger.info(
+            "processing.completed",
+            user_id=user.id,
+            trip_count=len(trip_dirs),
+            duration_s=time.monotonic() - t0,
+        )
