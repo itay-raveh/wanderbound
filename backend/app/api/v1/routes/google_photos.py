@@ -31,6 +31,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.locks import try_advisory_lock
+from app.core.observability import start_span
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
     UpgradeEvent,
@@ -413,7 +414,12 @@ async def match_media(
         tokens = _build_token_getter(http, _get_refresh_token(user))
         access_token = await tokens()
 
-        album, step_rows = await _snapshot_album_and_steps(user.id, aid)
+        with start_span(
+            "google_photos.load_album",
+            "Load album for media matching",
+            **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
+        ):
+            album, step_rows = await _snapshot_album_and_steps(user.id, aid)
 
         album_dir = _album_dir(user, aid)
         already_upgraded = dict(album.upgraded_media)
@@ -424,7 +430,12 @@ async def match_media(
             for s in step_rows
         }
 
-        items = await get_media_items(http.gphotos_picker, session_id, access_token)
+        with start_span(
+            "google_photos.fetch_picked_media",
+            "Fetch picked Google Photos media",
+            **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
+        ):
+            items = await get_media_items(http.gphotos_picker, session_id, access_token)
 
         try:
             async for event in run_matching(
@@ -481,7 +492,12 @@ async def upgrade_media(
                 "An upgrade is already running for this album.",
             )
 
-        album = await _snapshot_album(user.id, aid)
+        with start_span(
+            "google_photos.load_album",
+            "Load album for media upgrade",
+            **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
+        ):
+            album = await _snapshot_album(user.id, aid)
         valid_names = {m.name for m in album.media}
         already_upgraded = dict(album.upgraded_media)
 
@@ -491,10 +507,20 @@ async def upgrade_media(
         access_token = await tokens()
 
         all_items: list[PickedMediaItem] = []
-        for sid in body.session_ids:
-            all_items.extend(
-                await get_media_items(http.gphotos_picker, sid, access_token)
-            )
+        with start_span(
+            "google_photos.fetch_picked_media",
+            "Fetch picked Google Photos media",
+            **{
+                "app.workflow": "google_photos",
+                "user.id": user.id,
+                "album.id": aid,
+                "session.count": len(body.session_ids),
+            },
+        ):
+            for sid in body.session_ids:
+                all_items.extend(
+                    await get_media_items(http.gphotos_picker, sid, access_token)
+                )
         items_by_id = {item.id: item for item in all_items}
 
         async for event in run_upgrade(

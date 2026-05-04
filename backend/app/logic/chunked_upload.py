@@ -13,6 +13,7 @@ import anyio
 import structlog
 
 from app.core.config import get_settings
+from app.core.observability import start_span
 
 logger = structlog.get_logger(__name__)
 
@@ -182,13 +183,22 @@ class UploadStore:
 
         chunks = sorted(session.dir.glob("[0-9][0-9][0-9][0-9]"))
         assembled = session.dir / "assembled.zip"
-        with assembled.open("wb") as out:
-            for chunk_path in chunks:
-                with chunk_path.open("rb") as src:
-                    shutil.copyfileobj(src, out)
+        with start_span(
+            "upload.assemble",
+            "Assemble chunked upload",
+            **{
+                "app.workflow": "upload",
+                "chunk.count": len(chunks),
+                "size.bytes": session.accumulated_bytes,
+            },
+        ):
+            with assembled.open("wb") as out:
+                for chunk_path in chunks:
+                    with chunk_path.open("rb") as src:
+                        shutil.copyfileobj(src, out)
 
-        for chunk_path in chunks:
-            chunk_path.unlink()
+            for chunk_path in chunks:
+                chunk_path.unlink()
 
         try:
             return assembled.open("rb"), session.dir

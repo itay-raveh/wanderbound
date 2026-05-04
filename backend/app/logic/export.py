@@ -14,6 +14,7 @@ import structlog
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
+from app.core.observability import start_span
 from app.core.tokens import TokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.models.album import Album
@@ -68,19 +69,24 @@ lifespan = _tokens.lifespan
 
 
 def _scan_media(trips_folder: Path, album_ids: list[str]) -> dict[str, list[Path]]:
-    result: dict[str, list[Path]] = {}
-    for aid in album_ids:
-        try:
-            paths = [
-                p
-                for p in (trips_folder / aid).iterdir()
-                if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS
-            ]
-        except OSError:
-            continue
-        if paths:
-            result[aid] = paths
-    return result
+    with start_span(
+        "export.scan_media",
+        "Scan export media",
+        **{"app.workflow": "export", "album.count": len(album_ids)},
+    ):
+        result: dict[str, list[Path]] = {}
+        for aid in album_ids:
+            try:
+                paths = [
+                    p
+                    for p in (trips_folder / aid).iterdir()
+                    if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS
+                ]
+            except OSError:
+                continue
+            if paths:
+                result[aid] = paths
+        return result
 
 
 def _write_json(zf: zipfile.ZipFile, arcname: str, data: Any) -> None:
@@ -100,39 +106,46 @@ def _build_zip(
     progress_callback: Callable[[int], None],
     stop: threading.Event,
 ) -> None:
-    files_done = 0
+    with start_span(
+        "export.build_zip",
+        "Build export ZIP",
+        **{"app.workflow": "export", "file.count": len(spec.albums_data)},
+    ):
+        files_done = 0
 
-    def tick() -> None:
-        nonlocal files_done
-        files_done += 1
-        if files_done % _PROGRESS_EVERY_N_FILES == 0:
-            progress_callback(files_done)
+        def tick() -> None:
+            nonlocal files_done
+            files_done += 1
+            if files_done % _PROGRESS_EVERY_N_FILES == 0:
+                progress_callback(files_done)
 
-    with zipfile.ZipFile(spec.dest, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        _write_json(zf, f"{_EXPORT_NAME}/account.json", spec.account_data)
-        tick()
-
-        for album in spec.albums_data:
-            if stop.is_set():
-                return
-            aid: str = album["album"]["id"]
-            prefix = f"{_EXPORT_NAME}/albums/{aid}"
-
-            _write_json(zf, f"{prefix}/album.json", album["album"])
-            tick()
-            _write_json(zf, f"{prefix}/steps.json", album["steps"])
-            tick()
-            _write_json(zf, f"{prefix}/segments.json", album["segments"])
+        with zipfile.ZipFile(
+            spec.dest, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+        ) as zf:
+            _write_json(zf, f"{_EXPORT_NAME}/account.json", spec.account_data)
             tick()
 
-            for fpath in spec.media_by_album.get(aid, ()):
+            for album in spec.albums_data:
                 if stop.is_set():
                     return
-                zf.write(fpath, f"{prefix}/media/{fpath.name}", zipfile.ZIP_STORED)
+                aid: str = album["album"]["id"]
+                prefix = f"{_EXPORT_NAME}/albums/{aid}"
+
+                _write_json(zf, f"{prefix}/album.json", album["album"])
+                tick()
+                _write_json(zf, f"{prefix}/steps.json", album["steps"])
+                tick()
+                _write_json(zf, f"{prefix}/segments.json", album["segments"])
                 tick()
 
-    if files_done % _PROGRESS_EVERY_N_FILES != 0:
-        progress_callback(files_done)
+                for fpath in spec.media_by_album.get(aid, ()):
+                    if stop.is_set():
+                        return
+                    zf.write(fpath, f"{prefix}/media/{fpath.name}", zipfile.ZIP_STORED)
+                    tick()
+
+        if files_done % _PROGRESS_EVERY_N_FILES != 0:
+            progress_callback(files_done)
 
 
 async def _drain_queue(
@@ -195,28 +208,37 @@ async def export_user_data(
 ) -> AsyncGenerator[ExportEvent]:
     logger.info("export.started", user_id=user.id)
 
-    albums = list((await session.exec(select(Album).where(Album.uid == user.id))).all())
-    album_ids_loaded = [a.id for a in albums]
-
-    steps_by_album: dict[str, list[Step]] = {aid: [] for aid in album_ids_loaded}
-    for step in (
-        await session.exec(
-            select(Step)
-            .where(Step.uid == user.id, col(Step.aid).in_(album_ids_loaded))
-            .order_by(col(Step.timestamp), col(Step.id))
+    with start_span(
+        "export.load_data",
+        "Load export data",
+        **{"app.workflow": "export", "user.id": user.id},
+    ):
+        albums = list(
+            (await session.exec(select(Album).where(Album.uid == user.id))).all()
         )
-    ).all():
-        steps_by_album[step.aid].append(step)
+        album_ids_loaded = [a.id for a in albums]
 
-    segments_by_album: dict[str, list[Segment]] = {aid: [] for aid in album_ids_loaded}
-    for segment in (
-        await session.exec(
-            select(Segment)
-            .where(Segment.uid == user.id, col(Segment.aid).in_(album_ids_loaded))
-            .order_by(col(Segment.start_time))
-        )
-    ).all():
-        segments_by_album[segment.aid].append(segment)
+        steps_by_album: dict[str, list[Step]] = {aid: [] for aid in album_ids_loaded}
+        for step in (
+            await session.exec(
+                select(Step)
+                .where(Step.uid == user.id, col(Step.aid).in_(album_ids_loaded))
+                .order_by(col(Step.timestamp), col(Step.id))
+            )
+        ).all():
+            steps_by_album[step.aid].append(step)
+
+        segments_by_album: dict[str, list[Segment]] = {
+            aid: [] for aid in album_ids_loaded
+        }
+        for segment in (
+            await session.exec(
+                select(Segment)
+                .where(Segment.uid == user.id, col(Segment.aid).in_(album_ids_loaded))
+                .order_by(col(Segment.start_time))
+            )
+        ).all():
+            segments_by_album[segment.aid].append(segment)
 
     # Serialize on the event loop - model_dump touches SQLAlchemy descriptors
     # which are not thread-safe, and there's no I/O here (data is pre-loaded).

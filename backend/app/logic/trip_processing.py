@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.async_helpers import yield_completed
 from app.core.http_clients import HttpClients
+from app.core.observability import start_span
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -263,10 +264,19 @@ async def run_elevations(
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> list[float]:
-    raw = await track_iter(
-        "elevations", n_steps, elevations(http.open_meteo, locs), queue
-    )
-    return list(await correct_peaks(http.overpass, locs, raw))
+    with start_span(
+        "processing.phase",
+        "Run elevations",
+        **{
+            "app.workflow": "processing",
+            "app.operation": "elevations",
+            "step.count": n_steps,
+        },
+    ):
+        raw = await track_iter(
+            "elevations", n_steps, elevations(http.open_meteo, locs), queue
+        )
+        return list(await correct_peaks(http.overpass, locs, raw))
 
 
 async def run_weather(
@@ -275,11 +285,20 @@ async def run_weather(
     n_steps: int,
     queue: asyncio.Queue[PhaseUpdate | None],
 ) -> dict[int, Weather]:
-    return dict(
-        await track_iter(
-            "weather", n_steps, build_weathers(http.open_meteo, steps), queue
+    with start_span(
+        "processing.phase",
+        "Run weather",
+        **{
+            "app.workflow": "processing",
+            "app.operation": "weather",
+            "step.count": n_steps,
+        },
+    ):
+        return dict(
+            await track_iter(
+                "weather", n_steps, build_weathers(http.open_meteo, steps), queue
+            )
         )
-    )
 
 
 def _pick_landscape_cover(trip_dir: Path) -> tuple[str, str]:
@@ -311,21 +330,26 @@ async def prepare_media(
     Polarsteps export isn't found locally, picks a landscape photo instead.
     Video posters and thumbnails are generated lazily on first request.
     """
-    await asyncio.to_thread(flatten_media, trip_dir)
+    with start_span(
+        "processing.prepare_media",
+        "Prepare media",
+        **{"app.workflow": "processing", "album.id": trip_dir.name},
+    ):
+        await asyncio.to_thread(flatten_media, trip_dir)
 
-    cover_dest = trip_dir / cover_name
-    if cover_dest.exists():
-        try:
-            cover_photo = await asyncio.to_thread(Media.load, cover_dest)
-            cover_orientation = cover_photo.orientation
-        except OSError, ValueError:
-            cover_orientation = "l"
-    else:
-        cover_name, cover_orientation = await asyncio.to_thread(
-            _pick_landscape_cover, trip_dir
-        )
+        cover_dest = trip_dir / cover_name
+        if cover_dest.exists():
+            try:
+                cover_photo = await asyncio.to_thread(Media.load, cover_dest)
+                cover_orientation = cover_photo.orientation
+            except OSError, ValueError:
+                cover_orientation = "l"
+        else:
+            cover_name, cover_orientation = await asyncio.to_thread(
+                _pick_landscape_cover, trip_dir
+            )
 
-    return cover_name, cover_orientation
+        return cover_name, cover_orientation
 
 
 async def drain_queue(
@@ -391,11 +415,22 @@ async def _media_pipeline(
     """
     aid = trip_dir.name
     n_steps = len(trip.all_steps)
-    layout_by_idx = dict(
-        await track_iter(
-            "layouts", n_steps, fetch_layouts(user, aid, trip.all_steps), queue
+    with start_span(
+        "processing.phase",
+        "Build layouts",
+        **{
+            "app.workflow": "processing",
+            "app.operation": "layouts",
+            "user.id": user.id,
+            "album.id": aid,
+            "step.count": n_steps,
+        },
+    ):
+        layout_by_idx = dict(
+            await track_iter(
+                "layouts", n_steps, fetch_layouts(user, aid, trip.all_steps), queue
+            )
         )
-    )
 
     cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 

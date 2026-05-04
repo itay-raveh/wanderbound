@@ -14,6 +14,7 @@ import structlog
 from pydantic import BaseModel
 
 from app.core.config import get_settings
+from app.core.observability import set_span_data, start_span
 from app.logic.route_matching import (
     Coords,
     is_sparse,
@@ -91,23 +92,34 @@ async def _fetch_matching(
     if stats is not None:
         stats.matching_requests += 1
     reduced = reduce_coords(coords, MATCH_MAX_COORDS)
-    try:
-        resp = await client.get(
-            f"{_MATCHING_URL}/{profile}/{_encode_coords(reduced)}",
-            params={
-                "geometries": "geojson",
-                "overview": "full",
-                "tidy": "true",
-                "access_token": token,
-            },
-        )
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        logger.warning(
-            "mapbox.matching_api_error",
-            status_code=e.response.status_code,
-        )
-        return None
+    with start_span(
+        "mapbox.matching",
+        "Mapbox Map Matching API",
+        **{
+            "app.workflow": "route_enrichment",
+            "route.profile": profile,
+            "point.count": len(coords),
+            "reduced_point.count": len(reduced),
+        },
+    ) as span:
+        try:
+            resp = await client.get(
+                f"{_MATCHING_URL}/{profile}/{_encode_coords(reduced)}",
+                params={
+                    "geometries": "geojson",
+                    "overview": "full",
+                    "tidy": "true",
+                    "access_token": token,
+                },
+            )
+            set_span_data(span, **{"http.status_code": resp.status_code})
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "mapbox.matching_api_error",
+                status_code=e.response.status_code,
+            )
+            return None
     data = _MatchingResponse.model_validate_json(resp.content)
     if not data.matchings:
         return None
@@ -127,22 +139,32 @@ async def _fetch_directions(
 ) -> Coords | None:
     if stats is not None:
         stats.directions_requests += 1
-    try:
-        resp = await client.get(
-            f"{_DIRECTIONS_URL}/{profile}/{_encode_coords(coords)}",
-            params={
-                "geometries": "geojson",
-                "overview": "full",
-                "access_token": token,
-            },
-        )
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        logger.warning(
-            "mapbox.directions_api_error",
-            status_code=e.response.status_code,
-        )
-        return None
+    with start_span(
+        "mapbox.directions",
+        "Mapbox Directions API",
+        **{
+            "app.workflow": "route_enrichment",
+            "route.profile": profile,
+            "point.count": len(coords),
+        },
+    ) as span:
+        try:
+            resp = await client.get(
+                f"{_DIRECTIONS_URL}/{profile}/{_encode_coords(coords)}",
+                params={
+                    "geometries": "geojson",
+                    "overview": "full",
+                    "access_token": token,
+                },
+            )
+            set_span_data(span, **{"http.status_code": resp.status_code})
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "mapbox.directions_api_error",
+                status_code=e.response.status_code,
+            )
+            return None
     data = _DirectionsResponse.model_validate_json(resp.content)
     if not data.routes:
         return None

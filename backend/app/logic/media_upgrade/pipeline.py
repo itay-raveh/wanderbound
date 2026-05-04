@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
+from app.core.observability import set_span_data, start_span
 from app.core.resources import detect_cpu_count
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
@@ -172,69 +173,110 @@ async def run_matching(  # noqa: PLR0913
     if already_upgraded is None:
         already_upgraded = {}
 
-    # Bucket Google items by step windows (fast, no I/O)
-    windows = build_step_windows(step_timestamps, step_ids)
-    google_by_window = bucket_by_window(google_items, windows)
-    all_window_items = [item for items in google_by_window.values() for item in items]
-    unique_items = deduplicate_items(all_window_items)
+    with start_span(
+        "google_photos.matching",
+        "Match Google Photos media",
+        **{
+            "app.workflow": "google_photos",
+            "picked_media.count": len(google_items),
+            "step.count": len(step_ids),
+        },
+    ) as span:
+        windows = build_step_windows(step_timestamps, step_ids)
+        google_by_window = bucket_by_window(google_items, windows)
+        all_window_items = [
+            item for items in google_by_window.values() for item in items
+        ]
+        unique_items = deduplicate_items(all_window_items)
 
-    # Only hash local media from steps that have picked Google items.
-    populated_steps = {sid for sid, items in google_by_window.items() if items}
-    media_names = [
-        name
-        for sid in step_ids
-        if sid in populated_steps
-        for name in media_by_step.get(sid, [])
-    ]
+        populated_steps = {sid for sid, items in google_by_window.items() if items}
+        media_names = [
+            name
+            for sid in step_ids
+            if sid in populated_steps
+            for name in media_by_step.get(sid, [])
+        ]
+        set_span_data(
+            span,
+            **{
+                "local_media.count": len(media_names),
+                "unique_google_media.count": len(unique_items),
+            },
+        )
 
-    # Phase 1: Hash local media (separate progress counter)
-    local_hashes: dict[MediaName, MediaHash] = {}
-    local_total = len(media_names)
-    local_tasks = [
-        asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
-    ]
-    for i, coro in enumerate(asyncio.as_completed(local_tasks)):
-        name, h = await coro
-        if h is not None:
-            local_hashes[name] = h
-        yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
+        local_hashes: dict[MediaName, MediaHash] = {}
+        local_total = len(media_names)
+        with start_span(
+            "google_photos.hash_local",
+            "Hash local media",
+            **{"app.workflow": "google_photos", "local_media.count": local_total},
+        ):
+            local_tasks = [
+                asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
+            ]
+            for i, coro in enumerate(asyncio.as_completed(local_tasks)):
+                name, h = await coro
+                if h is not None:
+                    local_hashes[name] = h
+                yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
 
-    # Phase 2: Download thumbnails and hash (progress scoped to picked items)
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
-    cand_total = len(unique_items)
-    cand_tasks = [
-        asyncio.create_task(_hash_candidate_one(clients.gphotos_download, item, tokens))
-        for item in unique_items
-    ]
-    for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
-        item_id, h = await coro
-        if h is not None:
-            candidate_hashes[item_id] = h
-        yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
+        candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
+        cand_total = len(unique_items)
+        with start_span(
+            "google_photos.hash_candidates",
+            "Hash Google Photos candidates",
+            **{"app.workflow": "google_photos", "picked_media.count": cand_total},
+        ):
+            cand_tasks = [
+                asyncio.create_task(
+                    _hash_candidate_one(clients.gphotos_download, item, tokens)
+                )
+                for item in unique_items
+            ]
+            for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
+                item_id, h = await coro
+                if h is not None:
+                    candidate_hashes[item_id] = h
+                yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
 
-    # Phase 3: Hungarian match within windows + cross-step fallback (CPU only)
-    all_matches, matched_locals, matched_candidates = match_across_windows(
-        windows, google_by_window, media_names, local_hashes, candidate_hashes
-    )
-    cross_step_fallback(
-        all_matches,
-        matched_locals,
-        matched_candidates,
-        media_names,
-        local_hashes,
-        google_items,
-        candidate_hashes,
-    )
+        with start_span(
+            "google_photos.match_candidates",
+            "Match media candidates",
+            **{
+                "app.workflow": "google_photos",
+                "local_media.count": len(local_hashes),
+                "candidate_hash.count": len(candidate_hashes),
+            },
+        ):
+            all_matches, matched_locals, matched_candidates = match_across_windows(
+                windows, google_by_window, media_names, local_hashes, candidate_hashes
+            )
+            cross_step_fallback(
+                all_matches,
+                matched_locals,
+                matched_candidates,
+                media_names,
+                local_hashes,
+                google_items,
+                candidate_hashes,
+            )
 
-    for m in all_matches:
-        m.upgraded = already_upgraded.get(m.local_name) == m.google_id
+        for m in all_matches:
+            m.upgraded = already_upgraded.get(m.local_name) == m.google_id
+        set_span_data(
+            span,
+            **{
+                "matched.count": len(all_matches),
+                "unmatched.count": len(google_items) - len(all_matches),
+            },
+        )
 
-    yield MatchCompleted(
-        total_picked=len(google_items),
-        matched=len(all_matches),
-        unmatched=len(google_items) - len(all_matches),
-        matches=all_matches,
-    )
+        yield MatchCompleted(
+            total_picked=len(google_items),
+            matched=len(all_matches),
+            unmatched=len(google_items) - len(all_matches),
+            matches=all_matches,
+        )
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
@@ -306,17 +348,27 @@ async def _persist_upgrade(
         return
     replaced = len(succeeded)
     try:
-        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-            album = await session.get_one(Album, (uid, aid))
-            album.media, album.upgraded_media = await refresh_upgraded_media(
-                album_dir,
-                matches,
-                album.media,
-                album.upgraded_media,
-                succeeded,
-            )
-            session.add(album)
-            await session.commit()
+        with start_span(
+            "google_photos.persist_upgrade",
+            "Persist Google Photos upgrade",
+            **{
+                "app.workflow": "google_photos",
+                "user.id": uid,
+                "album.id": aid,
+                "replaced.count": replaced,
+            },
+        ):
+            async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+                album = await session.get_one(Album, (uid, aid))
+                album.media, album.upgraded_media = await refresh_upgraded_media(
+                    album_dir,
+                    matches,
+                    album.media,
+                    album.upgraded_media,
+                    succeeded,
+                )
+                session.add(album)
+                await session.commit()
     except SQLAlchemyError:
         logger.warning(
             "media_upgrade.persist_failed",
@@ -340,16 +392,21 @@ async def _cleanup_picker_sessions(
     tokens: AccessTokenGetter,
 ) -> None:
     """Best-effort deletion of picker sessions after upgrade."""
-    try:
-        access_token = await tokens()
-    except httpx.HTTPError, RefreshTokenError:
-        logger.warning("google_photos.picker_cleanup_token_unavailable")
-        return
-    for sid in session_ids:
+    with start_span(
+        "google_photos.cleanup_picker_sessions",
+        "Clean up picker sessions",
+        **{"app.workflow": "google_photos", "session.count": len(session_ids)},
+    ):
         try:
-            await delete_picker_session(picker, sid, access_token)
-        except httpx.HTTPError:
-            logger.warning("google_photos.picker_session_delete_failed")
+            access_token = await tokens()
+        except httpx.HTTPError, RefreshTokenError:
+            logger.warning("google_photos.picker_cleanup_token_unavailable")
+            return
+        for sid in session_ids:
+            try:
+                await delete_picker_session(picker, sid, access_token)
+            except httpx.HTTPError:
+                logger.warning("google_photos.picker_session_delete_failed")
 
 
 def _needs_upgrade(
@@ -390,67 +447,93 @@ async def run_upgrade(  # noqa: PLR0913, C901
     skipped_names: set[MediaName] = set()
 
     try:
-        if total == 0:
-            yield UpgradeCompleted(replaced=0, skipped=0, failed=0)
-            return
+        with start_span(
+            "google_photos.upgrade",
+            "Upgrade Google Photos media",
+            **{
+                "app.workflow": "google_photos",
+                "user.id": uid,
+                "album.id": aid,
+                "match.count": len(matches),
+                "upgrade.count": total,
+            },
+        ) as span:
+            if total == 0:
+                set_span_data(span, result="empty")
+                yield UpgradeCompleted(replaced=0, skipped=0, failed=0)
+                return
 
-        async with _upgrade_tmp(album_dir) as tmp_dir:
+            async with _upgrade_tmp(album_dir) as tmp_dir:
 
-            async def _upgrade_one(match: MatchResult) -> MediaName | None:
-                item = google_items_by_id.get(match.google_id)
-                if not item:
+                async def _upgrade_one(match: MatchResult) -> MediaName | None:
+                    item = google_items_by_id.get(match.google_id)
+                    if not item:
+                        return None
+                    try:
+                        replaced = await _download_and_replace(
+                            clients.gphotos_download,
+                            match.local_name,
+                            item,
+                            album_dir,
+                            tmp_dir,
+                            tokens,
+                        )
+                    except (
+                        OSError,
+                        SyntaxError,
+                        httpx.HTTPError,
+                        RuntimeError,
+                        subprocess.SubprocessError,
+                    ):
+                        logger.exception("media_upgrade.item_failed")
+                        return None
+                    if replaced:
+                        return match.local_name
+                    skipped_names.add(match.local_name)
                     return None
-                try:
-                    replaced = await _download_and_replace(
-                        clients.gphotos_download,
-                        match.local_name,
-                        item,
-                        album_dir,
-                        tmp_dir,
-                        tokens,
-                    )
-                except (
-                    OSError,
-                    SyntaxError,
-                    httpx.HTTPError,
-                    RuntimeError,
-                    subprocess.SubprocessError,
+
+                with start_span(
+                    "google_photos.download_replace",
+                    "Download and replace media",
+                    **{"app.workflow": "google_photos", "upgrade.count": total},
                 ):
-                    logger.exception("media_upgrade.item_failed")
-                    return None
-                if replaced:
-                    return match.local_name
-                skipped_names.add(match.local_name)
-                return None
+                    tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
+                    try:
+                        for i, coro in enumerate(asyncio.as_completed(tasks)):
+                            name = await coro
+                            if name:
+                                succeeded.add(name)
+                            yield DownloadInProgress(done=i + 1, total=total)
+                    finally:
+                        for t in tasks:
+                            t.cancel()
+                        # Wait for cancelled tasks before tmp cleanup runs.
+                        await asyncio.gather(*tasks, return_exceptions=True)
 
-            tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
-            try:
-                for i, coro in enumerate(asyncio.as_completed(tasks)):
-                    name = await coro
-                    if name:
-                        succeeded.add(name)
-                    yield DownloadInProgress(done=i + 1, total=total)
-            finally:
-                for t in tasks:
-                    t.cancel()
-                # Wait for cancelled tasks before tmp cleanup runs.
-                await asyncio.gather(*tasks, return_exceptions=True)
-
-        failed_names = [
-            m.local_name
-            for m in to_upgrade
-            if m.local_name not in succeeded and m.local_name not in skipped_names
-        ]
-        if failed_names:
-            logger.warning(
-                "media_upgrade.completed_with_failures",
+            failed_names = [
+                m.local_name
+                for m in to_upgrade
+                if m.local_name not in succeeded and m.local_name not in skipped_names
+            ]
+            if failed_names:
+                logger.warning(
+                    "media_upgrade.completed_with_failures",
+                    failed=len(failed_names),
+                )
+            set_span_data(
+                span,
+                result="completed",
+                **{
+                    "replaced.count": len(succeeded),
+                    "skipped.count": len(skipped_names),
+                    "failed.count": len(failed_names),
+                },
+            )
+            yield UpgradeCompleted(
+                replaced=len(succeeded),
+                skipped=len(skipped_names),
                 failed=len(failed_names),
             )
-        yield UpgradeCompleted(
-            replaced=len(succeeded),
-            skipped=len(skipped_names),
-            failed=len(failed_names),
-        )
     except Exception as exc:  # noqa: BLE001
         logger.error(  # noqa: TRY400
             "media_upgrade.failed",
