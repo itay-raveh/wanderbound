@@ -148,6 +148,7 @@ jobs:
       needs.changes.outputs.frontend == 'true' ||
       needs.changes.outputs.ci == 'true'
     env:
+      VITE_ENVIRONMENT: local
       VITE_FRONTEND_URL: http://localhost
     steps:
       - uses: actions/checkout@v6
@@ -217,6 +218,7 @@ jobs:
       POSTGRES_DB: ci
       SECRET_KEY: ci
       DOMAIN: localhost
+      ENVIRONMENT: local
     steps:
       - uses: actions/checkout@v6
         with:
