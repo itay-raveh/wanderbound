@@ -282,13 +282,15 @@ const { map, fitBounds } = useMapbox({
   onReady: (m) => {
     m.resize();
     try {
-      m.addSource("mapbox-dem", {
-        type: "raster-dem",
-        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-        tileSize: 512,
-        maxzoom: 14,
-      });
-      m.setTerrain({ source: "mapbox-dem" });
+      if (!m.getSource("mapbox-dem")) {
+        m.addSource("mapbox-dem", {
+          type: "raster-dem",
+          url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+          tileSize: 512,
+          maxzoom: 14,
+        });
+      }
+      if (m.getSource("mapbox-dem")) m.setTerrain({ source: "mapbox-dem" });
     } catch (e) {
       console.warn("[hike-map] terrain setup failed:", e);
     }
