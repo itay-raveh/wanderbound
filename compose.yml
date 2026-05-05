@@ -74,7 +74,7 @@ services:
       MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:-}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
       VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
+      ENVIRONMENT: ${ENVIRONMENT:?Variable not set}
       APP_VERSION: ${APP_VERSION:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
     healthcheck:
@@ -166,6 +166,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
+        - VITE_ENVIRONMENT=${ENVIRONMENT:?Variable not set}
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
         - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
         - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}

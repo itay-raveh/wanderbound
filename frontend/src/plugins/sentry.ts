@@ -19,9 +19,18 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
   Sentry.init({
     app,
     dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.MODE,
+    environment: import.meta.env.VITE_ENVIRONMENT,
     release: APP_VERSION,
     integrations: [
+      Sentry.feedbackIntegration({
+        autoInject: true,
+        colorScheme: "system",
+        showBranding: true,
+        showName: false,
+        showEmail: true,
+        isEmailRequired: false,
+        enableScreenshot: true,
+      }),
       Sentry.replayIntegration({
         maskAllText: true,
         blockAllMedia: true,
@@ -51,7 +60,10 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
 }
 
 function sentryEnabled(): boolean {
-  return import.meta.env.PROD && Boolean(import.meta.env.VITE_SENTRY_DSN);
+  return (
+    import.meta.env.VITE_ENVIRONMENT === "production" &&
+    Boolean(import.meta.env.VITE_SENTRY_DSN)
+  );
 }
 
 function sentryTracesSampleRate(): number {

@@ -206,4 +206,11 @@ body,
     text-decoration: none;
   }
 }
+
+/* rtl:ignore */
+#sentry-feedback {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
 </style>

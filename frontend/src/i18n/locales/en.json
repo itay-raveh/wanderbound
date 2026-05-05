@@ -108,6 +108,7 @@
     "distance": "Distance",
     "temperature": "Temperature",
     "account": "Account",
+    "userId": "User ID {id}",
     "signOut": "Sign out",
     "reuploadData": "Re-upload data",
     "exportData": "Export my data",

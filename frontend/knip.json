@@ -1,5 +1,9 @@
 {
+  "entry": ["vite.config.ts"],
   "project": ["src/**/*.{ts,vue}", "!src/client/**"],
+  "vite": {
+    "config": []
+  },
   "ignoreDependencies": ["postcss-rtlcss", "@hey-api/client-fetch"],
   "ignoreBinaries": ["uv", "scripts/generate-og-image.ts"]
 }

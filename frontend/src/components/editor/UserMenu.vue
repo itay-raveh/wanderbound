@@ -196,6 +196,9 @@ async function handleDelete() {
           <!-- Account (collapsible) -->
           <details class="card-section account-details">
             <summary class="section-title">{{ t("settings.account") }}</summary>
+            <div class="account-meta">
+              {{ t("settings.userId", { id: user.id }) }}
+            </div>
 
             <button
               v-if="!isDemo"
@@ -363,6 +366,13 @@ async function handleDelete() {
   > :not(summary) {
     margin-top: var(--gap-sm-md);
   }
+}
+
+.account-meta {
+  padding: 0 var(--gap-xs);
+  color: var(--text-faint);
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .unit-row {

@@ -108,6 +108,7 @@
     "distance": "מרחק",
     "temperature": "טמפרטורה",
     "account": "חשבון",
+    "userId": "מזהה משתמש {id}",
     "signOut": "התנתקות",
     "reuploadData": "העלאה מחדש",
     "exportData": "ייצוא כל הנתונים",
