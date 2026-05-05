@@ -212,5 +212,9 @@ body,
   direction: ltr;
   text-align: left;
   unicode-bidi: isolate;
+
+  @media print {
+    display: none !important;
+  }
 }
 </style>
