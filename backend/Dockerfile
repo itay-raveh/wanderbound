@@ -9,6 +9,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
+ARG APP_VERSION
+ENV APP_VERSION=${APP_VERSION}
 
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /uvx /bin/
 
