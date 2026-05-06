@@ -15,6 +15,7 @@ import {
 import { isPortraitByName } from "@/utils/media";
 
 type QualityTier = "ok" | "caution" | "warning";
+export type MediaResolutionWarningPreset = "off" | "relaxed" | "print";
 
 export interface QualitySummary {
   caution: number;
@@ -28,15 +29,20 @@ export interface PhotoQuality {
 
 const DPI_CAUTION_DEFAULT = 100;
 const DPI_WARNING_DEFAULT = 75;
-const DPI_CAUTION_UPGRADED = 150;
-const DPI_WARNING_UPGRADED = 100;
+const DPI_CAUTION_PRINT = 300;
+const DPI_WARNING_PRINT = 150;
 
-function dpiCautionThreshold(upgraded: boolean): number {
-  return upgraded ? DPI_CAUTION_UPGRADED : DPI_CAUTION_DEFAULT;
+export const DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset =
+  "relaxed";
+export const DEMO_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset =
+  "off";
+
+function dpiCautionThreshold(preset: MediaResolutionWarningPreset): number {
+  return preset === "print" ? DPI_CAUTION_PRINT : DPI_CAUTION_DEFAULT;
 }
 
-function dpiWarningThreshold(upgraded: boolean): number {
-  return upgraded ? DPI_WARNING_UPGRADED : DPI_WARNING_DEFAULT;
+function dpiWarningThreshold(preset: MediaResolutionWarningPreset): number {
+  return preset === "print" ? DPI_WARNING_PRINT : DPI_WARNING_DEFAULT;
 }
 
 export const COVER_FRACTION: PageFraction = FULL_PAGE_FRACTION;
@@ -55,9 +61,13 @@ export function computeDpi(
   return Math.min(widthPx / cellWidthInches, heightPx / cellHeightInches);
 }
 
-export function dpiTier(dpi: number, upgraded = false): QualityTier {
-  if (dpi < dpiWarningThreshold(upgraded)) return "warning";
-  if (dpi < dpiCautionThreshold(upgraded)) return "caution";
+export function dpiTier(
+  dpi: number,
+  preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+): QualityTier {
+  if (preset === "off") return "ok";
+  if (dpi < dpiWarningThreshold(preset)) return "warning";
+  if (dpi < dpiCautionThreshold(preset)) return "caution";
   return "ok";
 }
 
@@ -65,12 +75,12 @@ export function mediaQuality(
   name: string,
   cell: PageFraction,
   mediaByName: ReadonlyMap<string, Media>,
-  upgraded = false,
+  preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
   const dpi = computeDpi(m.width, m.height, cell);
-  return { tier: dpiTier(dpi, upgraded), dpi: Math.round(dpi) };
+  return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }
 
 export function summarizeQuality(
@@ -78,7 +88,7 @@ export function summarizeQuality(
   frontCover: string | undefined,
   backCover: string | undefined,
   mediaByName: ReadonlyMap<string, Media>,
-  upgradedMedia: ReadonlySet<string> = new Set(),
+  preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): QualitySummary {
   const summary: QualitySummary = { caution: 0, warning: 0 };
 
@@ -90,21 +100,13 @@ export function summarizeQuality(
   // Cover photos
   if (frontCover)
     count(
-      mediaQuality(
-        frontCover,
-        COVER_FRACTION,
-        mediaByName,
-        upgradedMedia.has(frontCover),
-      )?.tier ?? "ok",
+      mediaQuality(frontCover, COVER_FRACTION, mediaByName, preset)?.tier ??
+        "ok",
     );
   if (backCover)
     count(
-      mediaQuality(
-        backCover,
-        COVER_FRACTION,
-        mediaByName,
-        upgradedMedia.has(backCover),
-      )?.tier ?? "ok",
+      mediaQuality(backCover, COVER_FRACTION, mediaByName, preset)?.tier ??
+        "ok",
     );
 
   const isP = (name: string) => isPortraitByName(name, mediaByName);
@@ -113,12 +115,8 @@ export function summarizeQuality(
     // Step cover (right panel of StepMainPage)
     if (step.cover)
       count(
-        mediaQuality(
-          step.cover,
-          PHOTO_PANEL_FRACTION,
-          mediaByName,
-          upgradedMedia.has(step.cover),
-        )?.tier ?? "ok",
+        mediaQuality(step.cover, PHOTO_PANEL_FRACTION, mediaByName, preset)
+          ?.tier ?? "ok",
       );
 
     // Photo pages
@@ -132,12 +130,7 @@ export function summarizeQuality(
       for (let i = 0; i < ordered.length; i++) {
         const cell = photoPageFraction(layoutClass, i);
         count(
-          mediaQuality(
-            ordered[i],
-            cell,
-            mediaByName,
-            upgradedMedia.has(ordered[i]),
-          )?.tier ?? "ok",
+          mediaQuality(ordered[i], cell, mediaByName, preset)?.tier ?? "ok",
         );
       }
     }

@@ -97,6 +97,10 @@
     "bodyFont": "Body font",
     "properties": "Properties",
     "safeMargin": "Safe margin",
+    "resolutionWarnings": "Resolution warnings",
+    "resolutionWarningsOff": "Off",
+    "resolutionWarningsRelaxed": "Relaxed",
+    "resolutionWarningsPrint": "Print",
     "zoom": "Zoom"
   },
   "settings": {
@@ -232,8 +236,8 @@
     "bannerCta": "Sign in with your own trip"
   },
   "quality": {
-    "cautionTooltip": "May appear slightly soft in print (~{dpi} DPI, 100+ recommended)",
-    "warningTooltip": "Will likely look blurry in print (~{dpi} DPI, 100+ recommended)",
+    "cautionTooltip": "May appear slightly soft in print (~{dpi} effective PPI)",
+    "warningTooltip": "Will likely look blurry in print (~{dpi} effective PPI)",
     "exportTitle": "Some photos may print poorly",
     "exportBody": "Your album has {warning} low-quality and {caution} medium-quality photos that may not look sharp in print.",
     "exportBodyWarningOnly": "Your album has {warning} low-quality photos that may not look sharp in print.",

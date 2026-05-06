@@ -13,7 +13,10 @@ import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { PAGE_HEIGHT_MM, MM_PX } from "@/utils/pageSize";
-import { summarizeQuality } from "@/utils/photoQuality";
+import {
+  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  summarizeQuality,
+} from "@/utils/photoQuality";
 import { setSafeMargin } from "@/composables/useSafeMargin";
 import { setQualitySummary } from "@/composables/usePhotoQuality";
 import {
@@ -122,8 +125,10 @@ const totalDays = computed(() => {
   const last = parseLocalDate(s[s.length - 1].datetime);
   return Math.max(1, daysBetween(first, last) + 1);
 });
-const upgradedMedia = computed(
-  () => new Set(Object.keys(props.album.upgraded_media ?? {})),
+const mediaResolutionWarningPreset = computed(
+  () =>
+    props.album.media_resolution_warning_preset ??
+    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 );
 const { mediaByName } = provideAlbum({
   albumId,
@@ -131,7 +136,7 @@ const { mediaByName } = provideAlbum({
   media: albumMedia,
   tripStart,
   totalDays,
-  upgradedMedia,
+  mediaResolutionWarningPreset,
 });
 
 if (!props.printMode) {
@@ -142,7 +147,7 @@ if (!props.printMode) {
         props.album.front_cover_photo,
         props.album.back_cover_photo,
         mediaByName.value,
-        upgradedMedia.value,
+        mediaResolutionWarningPreset.value,
       ),
     );
   });

@@ -1748,6 +1748,16 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "media_resolution_warning_preset": {
+            "type": "string",
+            "enum": [
+              "off",
+              "relaxed",
+              "print"
+            ],
+            "title": "Media Resolution Warning Preset",
+            "default": "relaxed"
+          },
           "uid": {
             "type": "integer",
             "title": "Uid"
@@ -1859,6 +1869,16 @@
             "type": "integer",
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "media_resolution_warning_preset": {
+            "type": "string",
+            "enum": [
+              "off",
+              "relaxed",
+              "print"
+            ],
+            "title": "Media Resolution Warning Preset",
+            "default": "relaxed"
           },
           "uid": {
             "type": "integer",
@@ -2034,6 +2054,23 @@
             ],
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "media_resolution_warning_preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "relaxed",
+                  "print"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Resolution Warning Preset",
+            "default": "relaxed"
           }
         },
         "type": "object",

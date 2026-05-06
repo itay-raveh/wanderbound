@@ -6,6 +6,7 @@ import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
+import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
 import { matImage } from "@quasar/extras/material-icons";
@@ -27,7 +28,11 @@ provideAlbum({
   media: computed(() => props.media),
   tripStart: computed(() => ""),
   totalDays: computed(() => 1),
-  upgradedMedia: computed(() => new Set(Object.keys(props.album.upgraded_media ?? {}))),
+  mediaResolutionWarningPreset: computed(
+    () =>
+      props.album.media_resolution_warning_preset ??
+      DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  ),
 });
 
 type Context = "step" | "cover" | "map" | "overview" | "empty";

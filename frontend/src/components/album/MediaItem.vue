@@ -260,19 +260,17 @@ function onVideoKey(e: KeyboardEvent) {
     </template>
     <div
       v-if="!printMode && quality && quality.tier !== 'ok'"
-      :class="['quality-overlay', quality.tier]"
+      :class="['quality-badge', quality.tier, 'flex', 'flex-center']"
     >
-      <div class="quality-badge flex flex-center">
-        <q-icon :name="matWarning" />
-        <q-tooltip>{{
-          t(
-            quality.tier === "warning"
-              ? "quality.warningTooltip"
-              : "quality.cautionTooltip",
-            { dpi: quality.dpi },
-          )
-        }}</q-tooltip>
-      </div>
+      <q-icon :name="matWarning" />
+      <q-tooltip>{{
+        t(
+          quality.tier === "warning"
+            ? "quality.warningTooltip"
+            : "quality.cautionTooltip",
+          { dpi: quality.dpi },
+        )
+      }}</q-tooltip>
     </div>
   </div>
 </template>
@@ -415,37 +413,23 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
-// Quality warning overlay - editor-only tint + badge
-.quality-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-
-  &.caution {
-    background: color-mix(in srgb, var(--q-warning) 12%, transparent);
-  }
-
-  &.warning {
-    background: color-mix(in srgb, var(--danger) 15%, transparent);
-  }
-}
-
 .quality-badge {
-  --size: min(2rem, 30cqmin);
+  --size: min(2.25rem, 34cqmin);
   position: absolute;
-  bottom: var(--gap-sm);
-  right: var(--gap-sm);
+  bottom: var(--gap-md);
+  right: var(--gap-md);
   width: var(--size);
   height: var(--size);
   border-radius: 50%;
   pointer-events: auto;
+  z-index: 2;
+  box-shadow: 0 0.125rem 0.5rem color-mix(in srgb, black 35%, transparent);
 
-  .caution & {
+  &.caution {
     background: color-mix(in srgb, var(--q-warning) 80%, black);
   }
 
-  .warning & {
+  &.warning {
     background: color-mix(in srgb, var(--danger) 80%, black);
   }
 
@@ -458,7 +442,7 @@ function onVideoKey(e: KeyboardEvent) {
 @media print {
   .play-overlay,
   .frame-bar,
-  .quality-overlay {
+  .quality-badge {
     display: none !important;
   }
 }

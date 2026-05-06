@@ -14,8 +14,12 @@ import {
   useSegmentPointsQuery,
 } from "@/queries/useSegmentPointsQuery";
 import type { Segment } from "@/client";
+import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
-function mountQuery(fromTime: Ref<number> = ref(0), toTime: Ref<number> = ref(100)) {
+function mountQuery(
+  fromTime: Ref<number> = ref(0),
+  toTime: Ref<number> = ref(100),
+) {
   let result!: ReturnType<typeof useSegmentPointsQuery>;
   const Child = defineComponent({
     setup() {
@@ -31,7 +35,9 @@ function mountQuery(fromTime: Ref<number> = ref(0), toTime: Ref<number> = ref(10
         media: computed(() => []),
         tripStart: computed(() => "2024-01-01T00:00:00Z"),
         totalDays: computed(() => 1),
-        upgradedMedia: computed(() => new Set<string>()),
+        mediaResolutionWarningPreset: computed(
+          () => DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+        ),
       });
       return () => h(Child);
     },
