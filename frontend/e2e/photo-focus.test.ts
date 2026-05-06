@@ -13,7 +13,7 @@ function photos(page: Page): Locator {
 
 /** The currently selected photo (exactly 0 or 1 expected). */
 function selected(page: Page): Locator {
-  return page.locator('[aria-pressed="true"]');
+  return page.locator('[role="button"][aria-pressed="true"]');
 }
 
 /** Navigate to the editor and wait for it to load. */
@@ -176,7 +176,9 @@ test.describe("Photo focus & arrow navigation", () => {
     // among all [aria-pressed] elements in the document.
     async function selectedIndex(): Promise<number> {
       return selected(page).evaluate((el) => {
-        const all = [...document.querySelectorAll("[aria-pressed]")];
+        const all = [
+          ...document.querySelectorAll('[role="button"][aria-pressed]'),
+        ];
         return all.indexOf(el);
       });
     }
@@ -199,7 +201,9 @@ test.describe("Photo focus & arrow navigation", () => {
 
     async function selectedIndex(): Promise<number> {
       return selected(page).evaluate((el) => {
-        const all = [...document.querySelectorAll("[aria-pressed]")];
+        const all = [
+          ...document.querySelectorAll('[role="button"][aria-pressed]'),
+        ];
         return all.indexOf(el);
       });
     }
@@ -277,7 +281,9 @@ test.describe("Send to unused & set as cover", () => {
     // Track which DOM element is selected by its index among all focusable photos.
     async function selectedIndex(): Promise<number> {
       return selected(page).evaluate((el) => {
-        const all = [...document.querySelectorAll("[aria-pressed]")];
+        const all = [
+          ...document.querySelectorAll('[role="button"][aria-pressed]'),
+        ];
         return all.indexOf(el);
       });
     }
