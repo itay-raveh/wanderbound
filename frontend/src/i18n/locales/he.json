@@ -97,6 +97,10 @@
     "bodyFont": "גופן גוף",
     "properties": "מאפיינים",
     "safeMargin": "שוליים בטוחים",
+    "resolutionWarnings": "אזהרות רזולוציה",
+    "resolutionWarningsOff": "כבוי",
+    "resolutionWarningsRelaxed": "רגוע",
+    "resolutionWarningsPrint": "דפוס",
     "zoom": "זום"
   },
   "settings": {
@@ -232,8 +236,8 @@
     "bannerCta": "התחברו עם הטיול שלכם"
   },
   "quality": {
-    "cautionTooltip": "עלולה להיראות מעט רכה בהדפסה (~{dpi} DPI, מומלץ 100+)",
-    "warningTooltip": "צפויה להיראות מטושטשת בהדפסה (~{dpi} DPI, מומלץ 100+)",
+    "cautionTooltip": "עלולה להיראות מעט רכה בהדפסה (~{dpi} PPI אפקטיבי)",
+    "warningTooltip": "צפויה להיראות מטושטשת בהדפסה (~{dpi} PPI אפקטיבי)",
     "exportTitle": "חלק מהתמונות באיכות נמוכה",
     "exportBody": "באלבום {warning} תמונות באיכות נמוכה ו-{caution} באיכות בינונית. יכול להיות שלא ייראו חדות בדפוס.",
     "exportBodyWarningOnly": "באלבום {warning} תמונות באיכות נמוכה שעלולות להיראות מטושטשות בדפוס.",

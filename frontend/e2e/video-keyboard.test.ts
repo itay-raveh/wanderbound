@@ -81,6 +81,8 @@ test.describe("Video keyboard controls", () => {
 
     await expect(videoItem(page)).toHaveAttribute("aria-pressed", "false");
     await expect(previousPhoto).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator('[aria-pressed="true"]')).toHaveCount(1);
+    await expect(
+      page.locator('[role="button"][aria-pressed="true"]'),
+    ).toHaveCount(1);
   });
 });

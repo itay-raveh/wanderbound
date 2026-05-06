@@ -1,6 +1,8 @@
 import type { Media, Step } from "@/client";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
+  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  DEMO_MEDIA_RESOLUTION_WARNING_PRESET,
   computeDpi,
   dpiTier,
   summarizeQuality,
@@ -23,12 +25,16 @@ describe("computeDpi", () => {
     const heightDpi = 1000 / (PAGE_HEIGHT_MM / MM_PER_INCH);
     expect(dpi).toBeCloseTo(heightDpi, 1);
   });
-
 });
 
 // -- dpiTier --
 
 describe("dpiTier", () => {
+  it("defaults normal albums to relaxed warnings and demo albums to off", () => {
+    expect(DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET).toBe("relaxed");
+    expect(DEMO_MEDIA_RESOLUTION_WARNING_PRESET).toBe("off");
+  });
+
   it("classifies >= 100 as ok (default thresholds)", () => {
     expect(dpiTier(100)).toBe("ok");
     expect(dpiTier(300)).toBe("ok");
@@ -44,19 +50,24 @@ describe("dpiTier", () => {
     expect(dpiTier(50)).toBe("warning");
   });
 
-  it("classifies >= 150 as ok when upgraded", () => {
-    expect(dpiTier(150, true)).toBe("ok");
-    expect(dpiTier(300, true)).toBe("ok");
+  it("classifies all photos as ok when warnings are off", () => {
+    expect(dpiTier(1, "off")).toBe("ok");
+    expect(dpiTier(50, "off")).toBe("ok");
   });
 
-  it("classifies 100-149 as caution when upgraded", () => {
-    expect(dpiTier(149, true)).toBe("caution");
-    expect(dpiTier(100, true)).toBe("caution");
+  it("classifies >= 300 as ok with print-quality thresholds", () => {
+    expect(dpiTier(300, "print")).toBe("ok");
+    expect(dpiTier(450, "print")).toBe("ok");
   });
 
-  it("classifies < 100 as warning when upgraded", () => {
-    expect(dpiTier(99, true)).toBe("warning");
-    expect(dpiTier(50, true)).toBe("warning");
+  it("classifies 150-299 as caution with print-quality thresholds", () => {
+    expect(dpiTier(299, "print")).toBe("caution");
+    expect(dpiTier(150, "print")).toBe("caution");
+  });
+
+  it("classifies < 150 as warning with print-quality thresholds", () => {
+    expect(dpiTier(149, "print")).toBe("warning");
+    expect(dpiTier(50, "print")).toBe("warning");
   });
 });
 
@@ -78,8 +89,14 @@ describe("photoPageFraction", () => {
   });
 
   it("handles 2p-1l mixed layout (portraits quarter, landscape full-width half)", () => {
-    expect(photoPageFraction("layout-2p-1l", 0)).toEqual({ widthFrac: 0.5, heightFrac: 0.5 });
-    expect(photoPageFraction("layout-2p-1l", 2)).toEqual({ widthFrac: 1, heightFrac: 0.5 });
+    expect(photoPageFraction("layout-2p-1l", 0)).toEqual({
+      widthFrac: 0.5,
+      heightFrac: 0.5,
+    });
+    expect(photoPageFraction("layout-2p-1l", 2)).toEqual({
+      widthFrac: 1,
+      heightFrac: 0.5,
+    });
   });
 
   it("handles layout-5 (2/3 hero + 1/3 small)", () => {
@@ -98,11 +115,19 @@ describe("enforceOrientationOrder", () => {
   const isP = (name: string) => name.startsWith("p");
 
   it("moves the single portrait to front for 1P+2L", () => {
-    expect(enforceOrientationOrder(["l1", "p1", "l2"], isP)).toEqual(["p1", "l1", "l2"]);
+    expect(enforceOrientationOrder(["l1", "p1", "l2"], isP)).toEqual([
+      "p1",
+      "l1",
+      "l2",
+    ]);
   });
 
   it("keeps portraits first and landscape last for 2P+1L", () => {
-    expect(enforceOrientationOrder(["l1", "p1", "p2"], isP)).toEqual(["p1", "p2", "l1"]);
+    expect(enforceOrientationOrder(["l1", "p1", "p2"], isP)).toEqual([
+      "p1",
+      "p2",
+      "l1",
+    ]);
   });
 });
 
@@ -126,7 +151,13 @@ describe("summarizeQuality", () => {
       timezone_id: "UTC",
       location: { city: "", country: "", country_code: "US" },
       elevation: 0,
-      weather: { icon: "clear-day", high: 20, low: 10, code: 0, condition: "Clear" },
+      weather: {
+        icon: "clear-day",
+        high: 20,
+        low: 10,
+        code: 0,
+        condition: "Clear",
+      },
       datetime: "2024-01-01T00:00:00Z",
       ...overrides,
     };
@@ -137,6 +168,24 @@ describe("summarizeQuality", () => {
     const mediaMap = new Map([["lo.jpg", media("lo.jpg", 500, 400)]]);
     const result = summarizeQuality([], "lo.jpg", undefined, mediaMap);
     expect(result.warning).toBe(1);
+  });
+
+  it("does not count warnings when warnings are off", () => {
+    const mediaMap = new Map([["lo.jpg", media("lo.jpg", 500, 400)]]);
+    const result = summarizeQuality([], "lo.jpg", undefined, mediaMap, "off");
+    expect(result).toEqual({ caution: 0, warning: 0 });
+  });
+
+  it("uses print-quality thresholds when requested", () => {
+    const mediaMap = new Map([["medium.jpg", media("medium.jpg", 1800, 1800)]]);
+    const result = summarizeQuality(
+      [],
+      "medium.jpg",
+      undefined,
+      mediaMap,
+      "print",
+    );
+    expect(result).toEqual({ caution: 1, warning: 0 });
   });
 
   it("handles cover photo appearing in both cover and step.cover", () => {
@@ -162,7 +211,12 @@ describe("summarizeQuality", () => {
     ]);
     // Raw order: landscape first - without enforceOrientationOrder this assigns
     // the landscape the portrait's full-height cell (inflating its DPI).
-    const steps = [step({ id: 1, pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]] })];
+    const steps = [
+      step({
+        id: 1,
+        pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]],
+      }),
+    ];
     const result = summarizeQuality(steps, undefined, undefined, mediaMap);
     // After reordering: [portrait, landscape, landscape] in layout-1p-2l.
     // Portrait (600×900) in cell {0.5, 1}: min(600/(148.5/25.4), 900/(210/25.4)) ≈ min(103, 109) = 103 → ok

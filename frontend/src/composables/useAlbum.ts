@@ -7,6 +7,7 @@ import {
   type Ref,
 } from "vue";
 import type { Media } from "@/client";
+import type { MediaResolutionWarningPreset } from "@/utils/photoQuality";
 
 interface AlbumProvide {
   albumId: Ref<string>;
@@ -14,7 +15,7 @@ interface AlbumProvide {
   media: ComputedRef<Media[]>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
-  upgradedMedia: ComputedRef<ReadonlySet<string>>;
+  mediaResolutionWarningPreset: ComputedRef<MediaResolutionWarningPreset>;
 }
 
 interface AlbumContext extends AlbumProvide {

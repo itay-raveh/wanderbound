@@ -7,7 +7,7 @@ import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
 import { computed } from "vue";
 
-const { mediaByName, upgradedMedia } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
   step: Step;
@@ -25,7 +25,7 @@ const coverQuality = computed(() =>
         props.step.cover,
         PHOTO_PANEL_FRACTION,
         mediaByName.value,
-        upgradedMedia.value.has(props.step.cover),
+        mediaResolutionWarningPreset.value,
       )
     : null,
 );

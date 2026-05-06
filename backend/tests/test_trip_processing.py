@@ -3,10 +3,38 @@
 from __future__ import annotations
 
 from app.logic.trip_processing import (
+    default_media_resolution_warning_preset,
     resolve_international_waters,
     segment_timezone,
 )
 from app.models.polarsteps import Location, PSStep
+from app.models.user import User
+
+
+class TestDefaultMediaResolutionWarningPreset:
+    def test_uses_relaxed_warnings_for_normal_users(self) -> None:
+        user = User(
+            id=1,
+            first_name="Test",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            google_sub="test-sub",
+        )
+
+        assert default_media_resolution_warning_preset(user) == "relaxed"
+
+    def test_disables_warnings_for_demo_users(self) -> None:
+        user = User(
+            id=1,
+            first_name="Demo",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            is_demo=True,
+        )
+
+        assert default_media_resolution_warning_preset(user) == "off"
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:

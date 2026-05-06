@@ -17,9 +17,12 @@ from app.models.step import Step
 type DateRange = tuple[date, date]
 
 HeaderKey = Literal["cover-front", "cover-back", "overview", "full-map"]
+MediaResolutionWarningPreset = Literal["off", "relaxed", "print"]
 
 DEFAULT_FONT = "Assistant"
 DEFAULT_BODY_FONT = "Frank Ruhl Libre"
+DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset = "relaxed"
+DEMO_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset = "off"
 
 
 class AlbumBase(SQLModel):
@@ -50,6 +53,14 @@ class AlbumBase(SQLModel):
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
     safe_margin_mm: int = Field(default=5)
+    media_resolution_warning_preset: MediaResolutionWarningPreset = Field(
+        default=DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+        sa_column=Column(
+            String(20),
+            nullable=False,
+            default=DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+        ),
+    )
 
 
 @all_optional

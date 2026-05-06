@@ -23,7 +23,14 @@ from app.logic.layout.media import (
 from app.logic.spatial.geo import haversine_km
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
-from app.models.album import DEFAULT_BODY_FONT, DEFAULT_FONT, Album
+from app.models.album import (
+    DEFAULT_BODY_FONT,
+    DEFAULT_FONT,
+    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+    DEMO_MEDIA_RESOLUTION_WARNING_PRESET,
+    Album,
+    MediaResolutionWarningPreset,
+)
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -115,6 +122,12 @@ class TripResults(NamedTuple):
     weather_by_idx: dict[int, Weather]
     layout_by_idx: dict[int, Layout | None]
     cover_name: str
+
+
+def default_media_resolution_warning_preset(user: User) -> MediaResolutionWarningPreset:
+    if user.is_demo:
+        return DEMO_MEDIA_RESOLUTION_WARNING_PRESET
+    return DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET
 
 
 def segment_timezone(seg_start: float, all_steps: list[PSStep]) -> str:
@@ -254,6 +267,7 @@ def build_trip_objects(
         media=merged_media,
         font=DEFAULT_FONT,
         body_font=DEFAULT_FONT if user.locale.startswith("he") else DEFAULT_BODY_FONT,
+        media_resolution_warning_preset=default_media_resolution_warning_preset(user),
     )
     return [album, *steps, *segments]
 

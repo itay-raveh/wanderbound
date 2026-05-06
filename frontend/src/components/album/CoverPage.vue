@@ -10,7 +10,7 @@ import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
 
 const { formatDateRange } = useUserQuery();
-const { mediaByName, upgradedMedia } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
   album: Album;
@@ -30,7 +30,7 @@ const coverQuality = computed(() =>
         coverMedia.value,
         COVER_FRACTION,
         mediaByName.value,
-        upgradedMedia.value.has(coverMedia.value),
+        mediaResolutionWarningPreset.value,
       )
     : null,
 );

@@ -4,6 +4,7 @@ import MediaItem from "@/components/album/MediaItem.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { STEP_ID_KEY, usePhotoFocus } from "@/composables/usePhotoFocus";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
+import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
@@ -22,7 +23,12 @@ class MockIntersectionObserver {
 
   trigger(isIntersecting: boolean) {
     this.callback(
-      [{ isIntersecting, time: performance.now() } as IntersectionObserverEntry],
+      [
+        {
+          isIntersecting,
+          time: performance.now(),
+        } as IntersectionObserverEntry,
+      ],
       this as unknown as IntersectionObserver,
     );
   }
@@ -48,7 +54,9 @@ function mountVideoItem() {
         ]),
         tripStart: ref("2024-01-01"),
         totalDays: ref(1),
-        upgradedMedia: ref(new Set<string>()),
+        mediaResolutionWarningPreset: ref(
+          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+        ),
       });
       return () => h(MediaItem, { media: "clip.mp4", alt: "Clip" });
     },
@@ -64,7 +72,10 @@ function mountVideoItem() {
   });
 }
 
-function mountPhotoItem(programmaticScrolling = ref(false)) {
+function mountPhotoItem(
+  programmaticScrolling = ref(false),
+  props: Record<string, unknown> = {},
+) {
   const Wrapper = defineComponent({
     setup() {
       provideAlbum({
@@ -73,9 +84,11 @@ function mountPhotoItem(programmaticScrolling = ref(false)) {
         media: ref([{ name: "photo.jpg", width: 1920, height: 1080 }]),
         tripStart: ref("2024-01-01"),
         totalDays: ref(1),
-        upgradedMedia: ref(new Set<string>()),
+        mediaResolutionWarningPreset: ref(
+          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+        ),
       });
-      return () => h(MediaItem, { media: "photo.jpg", alt: "Photo" });
+      return () => h(MediaItem, { media: "photo.jpg", alt: "Photo", ...props });
     },
   });
 
@@ -185,5 +198,14 @@ describe("MediaItem video controls", () => {
     expect(img.attributes("src")).toBe(
       "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=1920x1080",
     );
+  });
+
+  test("renders resolution warnings as an icon badge without a tint overlay", () => {
+    const wrapper = mountPhotoItem(ref(false), {
+      quality: { tier: "warning", dpi: 72 },
+    });
+
+    expect(wrapper.find(".quality-overlay").exists()).toBe(false);
+    expect(wrapper.find(".quality-badge.warning").exists()).toBe(true);
   });
 });
