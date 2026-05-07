@@ -4,7 +4,8 @@
   "common": {
     "loadingAlbum": "טוען אלבום...",
     "retry": "נסו שוב.",
-    "cancel": "ביטול"
+    "cancel": "ביטול",
+    "close": "סגירה"
   },
   "units": {
     "km": "ק״מ",
@@ -162,6 +163,26 @@
   },
   "inspector": {
     "overview": "סיכום"
+  },
+  "mediaImport": {
+    "addMedia": "הוספת מדיה",
+    "device": "מכשיר",
+    "googlePhotos": "Google Photos",
+    "authorizing": "מתחבר ל-Google Photos...",
+    "picking": "ממתין לבחירה...",
+    "uploading": "מעלה מדיה...",
+    "processing": "מעבד מדיה...",
+    "done": "נוסף פריט אחד | נוספו {count} פריטים",
+    "error": "ייבוא המדיה נכשל. נסו שוב.",
+    "errors": {
+      "badFile": "הקובץ הזה לא נתמך.",
+      "googleUnavailable": "Google Photos לא זמין לחשבון הזה.",
+      "network": "שגיאת רשת. @:common.retry",
+      "popupBlocked": "חלון קופץ נחסם. אפשרו חלונות קופצים ונסו שוב.",
+      "selectionTimeout": "זמן הבחירה פג.",
+      "tooLarge": "המדיה שנבחרה גדולה מדי.",
+      "tooMany": "בחרו עד 50 פריטים."
+    }
   },
   "export": {
     "preparing": "מכין...",

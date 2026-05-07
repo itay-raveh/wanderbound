@@ -4,7 +4,8 @@
   "common": {
     "loadingAlbum": "Loading album...",
     "retry": "Please try again.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "units": {
     "km": "km",
@@ -162,6 +163,26 @@
   },
   "inspector": {
     "overview": "Overview"
+  },
+  "mediaImport": {
+    "addMedia": "Add media",
+    "device": "Device",
+    "googlePhotos": "Google Photos",
+    "authorizing": "Connecting to Google Photos...",
+    "picking": "Waiting for selection...",
+    "uploading": "Uploading media...",
+    "processing": "Processing media...",
+    "done": "Added 1 item | Added {count} items",
+    "error": "Media import failed. Try again.",
+    "errors": {
+      "badFile": "This file is not supported.",
+      "googleUnavailable": "Google Photos is not available for this account.",
+      "network": "Network error. @:common.retry",
+      "popupBlocked": "Popup blocked. Allow popups and try again.",
+      "selectionTimeout": "Selection timed out.",
+      "tooLarge": "Selected media is too large.",
+      "tooMany": "Select 50 items or fewer."
+    }
   },
   "export": {
     "preparing": "Preparing export...",
