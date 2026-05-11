@@ -3,8 +3,9 @@ import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
 import { queryKeys } from "@/queries/keys";
 import { sleep } from "@/utils/async";
+import type { Step } from "@/client";
 import { useQueryCache } from "@pinia/colada";
-import { computed, onScopeDispose, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 
 type ImportContext = "step" | "cover";
 type ImportPhase =
@@ -102,13 +103,35 @@ export function useMediaImport(albumId: () => string) {
     return popup;
   }
 
-  async function invalidateAlbumQueries() {
+  async function invalidateAlbumQueries(target: ImportTarget) {
     const aid = albumId();
-    await Promise.all([
+    const invalidations = [
       cache.invalidateQueries({ key: queryKeys.album(aid) }),
       cache.invalidateQueries({ key: queryKeys.media(aid) }),
-      cache.invalidateQueries({ key: queryKeys.steps(aid) }),
-    ]);
+    ];
+    if (target.context !== "step") {
+      invalidations.push(
+        cache.invalidateQueries({ key: queryKeys.steps(aid) }),
+      );
+    }
+    await Promise.all(invalidations);
+  }
+
+  function applyImportResult(result: ImportCompleted, target: ImportTarget) {
+    if (target.context !== "step" || target.stepId == null) return;
+    const key = queryKeys.steps(albumId());
+    const steps = cache.getQueryData<Step[]>(key);
+    if (!steps) return;
+    const imported = result.names.filter((name) =>
+      steps.every((step) => !step.unused.includes(name)),
+    );
+    if (imported.length === 0) return;
+    const next = steps.map((step) =>
+      step.id === target.stepId
+        ? { ...step, unused: [...imported, ...step.unused] }
+        : step,
+    );
+    cache.setQueryData(key, next);
   }
 
   function finish(count: number) {
@@ -124,10 +147,15 @@ export function useMediaImport(albumId: () => string) {
   function fail(err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") return;
     phase.value = "error";
-    errorDetail.value = err instanceof Error ? err.message : t("mediaImport.error");
+    errorDetail.value =
+      err instanceof Error ? err.message : t("mediaImport.error");
   }
 
-  async function importDevice(files: FileList | File[], target: ImportTarget) {
+  async function importDevice(
+    files: FileList | File[],
+    target: ImportTarget,
+    onCompleted?: (result: ImportCompleted) => void,
+  ): Promise<ImportCompleted | undefined> {
     const selected = Array.from(files);
     if (selected.length === 0) return;
     if (selected.length > MAX_ITEMS) {
@@ -143,10 +171,18 @@ export function useMediaImport(albumId: () => string) {
     controller = new AbortController();
 
     try {
-      const result = await uploadDeviceFiles(selected, target, controller.signal);
+      const result = await uploadDeviceFiles(
+        selected,
+        target,
+        controller.signal,
+      );
       phase.value = "processing";
-      await invalidateAlbumQueries();
+      onCompleted?.(result);
+      applyImportResult(result, target);
+      await nextTick();
+      await invalidateAlbumQueries(target);
       finish(result.names.length);
+      return result;
     } catch (err) {
       fail(err);
     }
@@ -162,40 +198,22 @@ export function useMediaImport(albumId: () => string) {
     if (target.stepId != null) form.set("step_id", String(target.stepId));
     for (const file of files) form.append("files", file);
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const baseUrl = client.getConfig().baseUrl ?? "";
-      xhr.open("POST", `${baseUrl}/api/v1/albums/${albumId()}/media-imports/device`);
-      xhr.withCredentials = true;
-
-      const onAbort = () => {
-        xhr.abort();
-        reject(new DOMException("Aborted", "AbortError"));
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          progress.value = { done: event.loaded, total: event.total };
-        }
-      };
-      xhr.onload = () => {
-        signal.removeEventListener("abort", onAbort);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText) as ImportCompleted);
-          return;
-        }
-        reject(new Error(statusMessage(xhr.status)));
-      };
-      xhr.onerror = () => {
-        signal.removeEventListener("abort", onAbort);
-        reject(new Error(t("mediaImport.errors.network")));
-      };
-      xhr.send(form);
+    const baseUrl = client.getConfig().baseUrl ?? "";
+    return fetch(`${baseUrl}/api/v1/albums/${albumId()}/media-imports/device`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+      signal,
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(statusMessage(res.status));
+      return (await res.json()) as ImportCompleted;
     });
   }
 
-  async function importGoogle(target: ImportTarget) {
+  async function importGoogle(
+    target: ImportTarget,
+    onCompleted?: (result: ImportCompleted) => void,
+  ): Promise<ImportCompleted | undefined> {
     if (resetTimer !== null) clearTimeout(resetTimer);
     reset();
     controller = new AbortController();
@@ -214,10 +232,18 @@ export function useMediaImport(albumId: () => string) {
       await pollUntilReady(session.session_id, signal);
 
       phase.value = "processing";
-      const count = await runGoogleImportStream(session.session_id, target, signal);
+      const result = await runGoogleImportStream(
+        session.session_id,
+        target,
+        signal,
+      );
       googlePhotos.closeSession(session.session_id).catch(() => {});
-      await invalidateAlbumQueries();
-      finish(count);
+      onCompleted?.(result);
+      applyImportResult(result, target);
+      await nextTick();
+      await invalidateAlbumQueries(target);
+      finish(result.names.length);
+      return result;
     } catch (err) {
       fail(err);
     } finally {
@@ -261,7 +287,7 @@ export function useMediaImport(albumId: () => string) {
     sessionId: string,
     target: ImportTarget,
     signal: AbortSignal,
-  ): Promise<number> {
+  ): Promise<ImportCompleted> {
     const baseUrl = client.getConfig().baseUrl ?? "";
     const res = await fetch(
       `${baseUrl}/api/v1/albums/${albumId()}/media-imports/google`,
@@ -279,14 +305,14 @@ export function useMediaImport(albumId: () => string) {
     );
     if (!res.ok || !res.body) throw new Error(statusMessage(res.status));
 
-    let completed = 0;
+    let completed: ImportCompleted = { type: "import_completed", names: [] };
     for await (const event of parseSse(res.body)) {
       if (event.type === "import_in_progress") {
         progress.value = { done: event.done, total: event.total };
       } else if (event.type === "import_failed") {
         throw new Error(event.detail);
       } else {
-        completed = event.names.length;
+        completed = event;
       }
     }
     return completed;
@@ -319,8 +345,6 @@ export function useMediaImport(albumId: () => string) {
     phase.value = "idle";
     reset();
   }
-
-  onScopeDispose(cancel);
 
   return {
     phase,

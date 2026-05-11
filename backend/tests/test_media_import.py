@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
@@ -11,6 +13,7 @@ from pydantic import TypeAdapter
 from app.api.v1.deps import _get_http_clients
 from app.core.config import get_settings
 from app.logic.layout.media import MediaName
+from app.logic.media_import import SavedInput
 from app.main import app
 from app.models.album import Album
 from app.models.step import Step
@@ -25,8 +28,6 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -154,3 +155,36 @@ class TestGoogleMediaImport:
             "fresh-token",
             max_item_count=50,
         )
+
+    async def test_google_import_stream_emits_completion(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        uid = await _signed_in_album(client, session, users_dir)
+        await connect_google_photos(session, uid)
+
+        http = _mock_http_clients()
+        app.dependency_overrides[_get_http_clients] = lambda: http
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+
+        async def fake_download(**kwargs: object) -> AsyncIterator[SavedInput]:
+            path = Path(kwargs["temp_dir"]) / "google-source"
+            data = _jpeg_bytes()
+            path.write_bytes(data)
+            yield SavedInput(path=path, size=len(data))
+
+        with patch(
+            "app.api.v1.routes.media_imports._download_google_items",
+            fake_download,
+        ):
+            resp = await client.post(
+                f"/api/v1/albums/{AID}/media-imports/google",
+                json={"context": "cover", "session_id": "session-abc"},
+            )
+
+        assert resp.status_code == 200
+        assert "import_in_progress" in resp.text
+        assert "import_completed" in resp.text
+        assert ".jpg" in resp.text

@@ -155,37 +155,34 @@ async def import_google_media(
     _require_google_import_available(user)
     access_token = await _ensure_fresh_access_token(http, user)
 
-    async def _events() -> AsyncIterator[ImportEvent]:
-        try:
-            with tempfile.TemporaryDirectory(
-                dir=album_dir(user, aid), prefix=".import-google-"
-            ) as tmp:
-                temp_dir = Path(tmp)
-                saved: list[SavedInput] = []
-                async for item in _download_google_items(
-                    http=http,
-                    access_token=access_token,
-                    session_id=body.session_id,
-                    temp_dir=temp_dir,
-                ):
-                    saved.append(item)
-                    yield ImportInProgress(
-                        phase="downloading",
-                        done=len(saved),
-                        total=0,
-                    )
-
-                names = await import_saved_media(
-                    session,
-                    album=album,
-                    album_dir=album_dir(user, aid),
-                    request=body,
-                    saved=saved,
+    try:
+        with tempfile.TemporaryDirectory(
+            dir=album_dir(user, aid), prefix=".import-google-"
+        ) as tmp:
+            temp_dir = Path(tmp)
+            saved: list[SavedInput] = []
+            async for item in _download_google_items(
+                http=http,
+                access_token=access_token,
+                session_id=body.session_id,
+                temp_dir=temp_dir,
+            ):
+                saved.append(item)
+                yield ImportInProgress(
+                    phase="downloading",
+                    done=len(saved),
+                    total=0,
                 )
-                yield ImportCompleted(names=names)
-        except OverflowError as exc:
-            yield ImportFailed(detail=str(exc))
-        except Exception:  # noqa: BLE001
-            yield ImportFailed(detail="Media import failed unexpectedly.")
 
-    return _events()
+            names = await import_saved_media(
+                session,
+                album=album,
+                album_dir=album_dir(user, aid),
+                request=body,
+                saved=saved,
+            )
+            yield ImportCompleted(names=names)
+    except OverflowError as exc:
+        yield ImportFailed(detail=str(exc))
+    except Exception:  # noqa: BLE001
+        yield ImportFailed(detail="Media import failed unexpectedly.")

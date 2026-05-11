@@ -19,7 +19,7 @@ import { useActiveSection } from "@/composables/useActiveSection";
 import { useLocalStorage } from "@vueuse/core";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
-import { computed, watch, nextTick, onBeforeUnmount } from "vue";
+import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
 
 const { t } = useI18n();
 
@@ -51,6 +51,7 @@ const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
 const { data: steps } = useStepsQuery(selectedAlbumId);
 const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
+const importedUnusedByStep = ref<Record<number, string[]>>({});
 
 useLocale(locale);
 
@@ -66,11 +67,35 @@ watch(selectedAlbumId, () => {
 const { activeStepId, activeSectionKey, resetActiveSection } =
   useActiveSection();
 onBeforeUnmount(resetActiveSection);
+const displayedSteps = computed(() =>
+  steps.value?.map((step) => {
+    const imported = (importedUnusedByStep.value[step.id] ?? []).filter(
+      (name) => !step.unused.includes(name),
+    );
+    return imported.length
+      ? { ...step, unused: [...imported, ...step.unused] }
+      : step;
+  }),
+);
 const activeStep = computed(() =>
   activeStepId.value != null
-    ? steps.value?.find((s) => s.id === activeStepId.value)
+    ? displayedSteps.value?.find((s) => s.id === activeStepId.value)
     : undefined,
 );
+
+function onImportedStepMedia({
+  stepId,
+  names,
+}: {
+  stepId: number;
+  names: string[];
+}) {
+  const current = importedUnusedByStep.value[stepId] ?? [];
+  importedUnusedByStep.value = {
+    ...importedUnusedByStep.value,
+    [stepId]: [...names, ...current.filter((name) => !names.includes(name))],
+  };
+}
 </script>
 
 <template>
@@ -101,10 +126,10 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <AlbumNav
-      v-if="album && steps"
+      v-if="album && displayedSteps"
       v-model:album-id="selectedAlbumId"
       :album-ids="albumIds ?? undefined"
-      :steps="steps"
+      :steps="displayedSteps"
       :hidden-steps="album.hidden_steps ?? undefined"
       :hidden-headers="album.hidden_headers ?? undefined"
       :colors="album.colors ?? undefined"
@@ -135,15 +160,16 @@ const activeStep = computed(() =>
       :media="media"
       :step="activeStep"
       :section-key="activeSectionKey"
+      @imported-step-media="onImportedStepMedia"
     />
   </q-drawer>
 
   <q-page class="editor-page">
     <AlbumViewer
-      v-if="album && steps && media && segmentOutlines"
+      v-if="album && displayedSteps && media && segmentOutlines"
       :album="album"
       :media="media"
-      :steps="steps"
+      :steps="displayedSteps"
       :segment-outlines="segmentOutlines"
     />
   </q-page>

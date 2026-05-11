@@ -1,6 +1,10 @@
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import type { VirtualItem } from "@tanstack/vue-virtual";
-import { activeSectionId, HEADER_KEYS, type Section } from "@/components/album/albumSections";
+import {
+  activeSectionId,
+  HEADER_KEYS,
+  type Section,
+} from "@/components/album/albumSections";
 import { makeStep } from "../helpers";
 import type { DateRange } from "@/client";
 
@@ -28,7 +32,12 @@ describe("active section highlighting", () => {
     return { index, start, size };
   }
   const PAGE = 800;
-  const headers = [item(0, 0), item(1, PAGE), item(2, PAGE * 2), item(3, PAGE * 3)];
+  const headers = [
+    item(0, 0),
+    item(1, PAGE),
+    item(2, PAGE * 2),
+    item(3, PAGE * 3),
+  ];
   const sectionStart = PAGE * 4; // where content sections begin
 
   const stepSection = (id: number): Section => ({
@@ -52,7 +61,8 @@ describe("active section highlighting", () => {
     scrollY: number,
     viewportHeight = 800,
   ) {
-    const { setActive, activeStepId, activeSectionKey, resetActiveSection } = useActiveSection();
+    const { setActive, activeStepId, activeSectionKey, resetActiveSection } =
+      useActiveSection();
     const best = pickBestItem(vItems, scrollY, 0, viewportHeight / 2);
     let id: number | string | null = null;
     if (best) {
@@ -60,7 +70,10 @@ describe("active section highlighting", () => {
       else id = activeSectionId(sections, best.index - HEADER_COUNT) ?? null;
     }
     setActive(id);
-    const result = { stepId: activeStepId.value, sectionKey: activeSectionKey.value };
+    const result = {
+      stepId: activeStepId.value,
+      sectionKey: activeSectionKey.value,
+    };
     resetActiveSection();
     return result;
   }
@@ -69,6 +82,12 @@ describe("active section highlighting", () => {
     const vItems = [...headers, item(4, sectionStart)];
     const result = activeAt(vItems, [stepSection(42)], sectionStart - 100);
     expect(result.stepId).toBe(42);
+  });
+
+  it("does not double-count window virtualizer scrollMargin", () => {
+    const vItems = [item(0, 100), item(1, 900)];
+    const best = pickBestItem(vItems, 550, 100, 400);
+    expect(best?.index).toBe(1);
   });
 
   it("section barely visible at top does not steal highlight from section filling the viewport", () => {
@@ -101,7 +120,9 @@ describe("active section highlighting", () => {
     const sections = [stepSection(55)];
 
     expect(activeAt(vItems, sections, 0).sectionKey).toBe("cover-front");
-    expect(activeAt(vItems, sections, PAGE * 2 + 100).sectionKey).toBe("overview");
+    expect(activeAt(vItems, sections, PAGE * 2 + 100).sectionKey).toBe(
+      "overview",
+    );
     expect(activeAt(vItems, sections, sectionStart - 100).stepId).toBe(55);
   });
 });

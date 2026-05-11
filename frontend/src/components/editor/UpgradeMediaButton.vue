@@ -9,7 +9,6 @@ import {
   symOutlinedError,
   symOutlinedKeyboardArrowDown,
   symOutlinedLinkOff,
-  symOutlinedUpgrade,
 } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -21,6 +20,8 @@ const props = defineProps<{ albumId: string }>();
 const upgrade = useMediaUpgrade();
 const googlePhotos = useGooglePhotos();
 const showDisconnectConfirm = ref(false);
+const googlePhotosIcon = "img:/google-photos.svg";
+const googlePhotosButtonIconSize = "1rem";
 
 const isRunning = computed(() => {
   const p = upgrade.phase.value;
@@ -118,7 +119,8 @@ const { confirmUpgrade } = upgrade;
     <AsyncActionButton
       v-if="buttonState"
       :state="buttonState"
-      :idle-icon="symOutlinedUpgrade"
+      :idle-icon="googlePhotosIcon"
+      :idle-icon-size="googlePhotosButtonIconSize"
       :idle-label="t('upgrade.button')"
       :progress-fraction="progressFraction"
       :progress-message="progressMessage"
@@ -135,11 +137,7 @@ const { confirmUpgrade } = upgrade;
     >
       <q-icon :name="symOutlinedError" size="var(--type-lg)" />
       {{ errorMessage }}
-      <q-tooltip
-        transition-show="scale"
-        transition-hide="scale"
-        class="q-menu"
-      >
+      <q-tooltip transition-show="scale" transition-hide="scale" class="q-menu">
         {{ errorTooltip }}
       </q-tooltip>
     </button>
@@ -150,7 +148,7 @@ const { confirmUpgrade } = upgrade;
         :aria-label="t('upgrade.button')"
         @click="upgrade.start(props.albumId)"
       >
-        <q-icon :name="symOutlinedUpgrade" size="var(--type-lg)" />
+        <q-icon :name="googlePhotosIcon" :size="googlePhotosButtonIconSize" />
         {{ t("upgrade.button") }}
       </button>
       <button
@@ -172,7 +170,7 @@ const { confirmUpgrade } = upgrade;
 
     <PromptDialog
       :model-value="upgrade.phase.value === 'onboarding'"
-      :icon="symOutlinedUpgrade"
+      :icon="googlePhotosIcon"
       variant="primary"
       :title="t('upgrade.onboarding.title')"
       :body="t('upgrade.onboarding.body')"
@@ -292,5 +290,4 @@ const { confirmUpgrade } = upgrade;
     outline-offset: -1px;
   }
 }
-
 </style>

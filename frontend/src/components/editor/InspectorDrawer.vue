@@ -14,7 +14,6 @@ import {
   matAddPhotoAlternate,
   matComputer,
   matImage,
-  matPhotoLibrary,
 } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
@@ -24,6 +23,10 @@ const props = defineProps<{
   media: Media[];
   step?: Step;
   sectionKey?: string | null;
+}>();
+
+const emit = defineEmits<{
+  importedStepMedia: [payload: { stepId: number; names: string[] }];
 }>();
 
 // Provide album context so child components (MediaItem in UnusedDrawer)
@@ -72,16 +75,29 @@ const landscapePhotos = computed(() =>
 
 const coverGridRef = ref<HTMLElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const pendingDeviceTarget = ref<{ context: "step" | "cover"; stepId?: number } | null>(
-  null,
-);
+const showImportMenu = ref(false);
+const pendingDeviceTarget = ref<{
+  context: "step" | "cover";
+  stepId?: number;
+} | null>(null);
 const mediaImport = useMediaImport(() => props.album.id);
+const googlePhotosIcon = "img:/google-photos.svg";
+
+function applyVisibleImport(
+  result: { names: string[] } | undefined,
+  target: { context: "step" | "cover"; stepId?: number },
+) {
+  if (!result || target.context !== "step" || target.stepId == null) return;
+  emit("importedStepMedia", { stepId: target.stepId, names: result.names });
+}
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
 }
 
-const canImportMedia = computed(() => context.value === "step" || context.value === "cover");
+const canImportMedia = computed(
+  () => context.value === "step" || context.value === "cover",
+);
 const importTarget = computed(() => {
   if (context.value === "step" && props.step) {
     return { context: "step" as const, stepId: props.step.id };
@@ -93,24 +109,31 @@ const importTarget = computed(() => {
 function pickDeviceFiles() {
   const target = importTarget.value;
   if (!target) return;
+  showImportMenu.value = false;
   pendingDeviceTarget.value = target;
   fileInputRef.value?.click();
 }
 
 function onDeviceFilesSelected(event: Event) {
   const input = event.target as HTMLInputElement;
-  const files = input.files;
+  const files = Array.from(input.files ?? []);
   const target = pendingDeviceTarget.value;
   input.value = "";
   pendingDeviceTarget.value = null;
-  if (!files?.length || !target) return;
-  void mediaImport.importDevice(files, target);
+  showImportMenu.value = false;
+  if (files.length === 0 || !target) return;
+  void mediaImport.importDevice(files, target, (result) =>
+    applyVisibleImport(result, target),
+  );
 }
 
 function importFromGoogle() {
   const target = importTarget.value;
   if (!target || mediaImport.googlePhotosState.value === "unavailable") return;
-  void mediaImport.importGoogle(target);
+  showImportMenu.value = false;
+  void mediaImport.importGoogle(target, (result) =>
+    applyVisibleImport(result, target),
+  );
 }
 
 // ── Panel metadata ─────────────────────────────────────────────────────
@@ -162,43 +185,47 @@ const importDialogTitle = computed(() => {
     />
 
     <div v-if="canImportMedia" class="import-bar">
-      <q-btn
-        dense
-        no-caps
-        unelevated
-        color="primary"
+      <button
+        type="button"
         class="import-btn"
-        :disable="mediaImport.isBusy.value"
-        :icon="matAddPhotoAlternate"
-        :label="t('mediaImport.addMedia')"
+        :disabled="mediaImport.isBusy.value"
+        aria-haspopup="menu"
+        @click="showImportMenu = true"
       >
-        <q-menu anchor="bottom start" self="top start">
-          <q-list dense class="import-menu">
-            <q-item v-close-popup clickable @click="pickDeviceFiles">
-              <q-item-section avatar>
-                <q-icon :name="matComputer" />
-              </q-item-section>
-              <q-item-section>{{ t("mediaImport.device") }}</q-item-section>
-            </q-item>
-            <q-item
-              v-close-popup
-              clickable
-              :disable="mediaImport.googlePhotosState.value === 'unavailable'"
-              @click="importFromGoogle"
-            >
-              <q-item-section avatar>
-                <q-icon :name="matPhotoLibrary" />
-              </q-item-section>
-              <q-item-section>{{ t("mediaImport.googlePhotos") }}</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
-      </q-btn>
+        <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
+        <span>{{ t("mediaImport.addMedia") }}</span>
+      </button>
+      <div v-if="showImportMenu" class="import-menu" role="menu">
+        <button
+          type="button"
+          class="import-menu-item"
+          role="menuitem"
+          @click="pickDeviceFiles"
+        >
+          <q-icon :name="matComputer" size="var(--type-md)" />
+          <span>{{ t("mediaImport.device") }}</span>
+        </button>
+        <button
+          type="button"
+          class="import-menu-item"
+          role="menuitem"
+          :disabled="mediaImport.googlePhotosState.value === 'unavailable'"
+          @click="importFromGoogle"
+        >
+          <q-icon :name="googlePhotosIcon" size="var(--type-md)" />
+          <span>{{ t("mediaImport.googlePhotos") }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Step: unused photos tray -->
     <div v-if="context === 'step'" class="context-section">
-      <UnusedDrawer :step="step!" :album-id="album.id" class="unused-section" />
+      <UnusedDrawer
+        :key="step!.unused.join('|')"
+        :step="step!"
+        :album-id="album.id"
+        class="unused-section"
+      />
     </div>
 
     <!-- Cover: photo picker grid -->
@@ -292,16 +319,74 @@ const importDialogTitle = computed(() => {
 }
 
 .import-bar {
+  position: relative;
   padding: var(--gap-md) var(--gap-md) 0;
 }
 
 .import-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-sm);
   width: 100%;
+  min-height: 2.25rem;
+  border: 1px solid var(--q-primary);
   border-radius: var(--radius-sm);
+  background: var(--q-primary);
+  color: var(--bg);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.125rem;
+  }
 }
 
 .import-menu {
+  position: absolute;
+  z-index: 10;
+  inset-block-start: calc(100% + var(--gap-xs));
+  inset-inline: var(--gap-md);
+  padding: var(--gap-xs);
   min-width: 13rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: var(--shadow-md);
+}
+
+.import-menu-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0 var(--gap-sm);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
 }
 
 .context-section {

@@ -8,14 +8,14 @@ import { ref } from "vue";
 export function pickBestItem<T extends VirtualItem>(
   items: readonly T[],
   scrollY: number,
-  scrollMargin: number,
+  _scrollMargin: number,
   viewportCenter: number,
 ): T | null {
   let best: T | null = null;
   let bestDist = Infinity;
 
   for (const vi of items) {
-    const top = vi.start + scrollMargin - scrollY;
+    const top = vi.start - scrollY;
     const center = top + vi.size / 2;
     const dist = Math.abs(center - viewportCenter);
     if (dist < bestDist) {
