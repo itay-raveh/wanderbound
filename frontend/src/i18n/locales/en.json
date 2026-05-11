@@ -177,6 +177,7 @@
     "errors": {
       "badFile": "This file is not supported.",
       "googleUnavailable": "Google Photos is not available for this account.",
+      "incompleteStream": "Import connection closed before completion.",
       "network": "Network error. @:common.retry",
       "popupBlocked": "Popup blocked. Allow popups and try again.",
       "selectionTimeout": "Selection timed out.",

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterable, AsyncIterator
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
 
@@ -64,6 +64,20 @@ def _require_google_import_available(user: UserDep) -> None:
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
+
+
+GoogleImportAlbumDep = Annotated[Album, Depends(_get_album_or_404)]
+
+
+async def _get_google_import_access_token(
+    user: UserDep,
+    http: HttpClientsDep,
+) -> str:
+    _require_google_import_available(user)
+    return await _ensure_fresh_access_token(http, user)
+
+
+GoogleImportAccessTokenDep = Annotated[str, Depends(_get_google_import_access_token)]
 
 
 @router.post("/device")
@@ -144,17 +158,15 @@ async def _download_google_items(
     response_class=EventSourceResponse,
     responses={200: {"model": list[ImportEvent]}},
 )
-async def import_google_media(
+async def import_google_media(  # noqa: PLR0913
     aid: str,
     body: GoogleImportRequest,
     user: UserDep,
     session: SessionDep,
     http: HttpClientsDep,
+    album: GoogleImportAlbumDep,
+    access_token: GoogleImportAccessTokenDep,
 ) -> AsyncIterable[ImportEvent]:
-    album = await _get_album_or_404(aid, user, session)
-    _require_google_import_available(user)
-    access_token = await _ensure_fresh_access_token(http, user)
-
     try:
         with tempfile.TemporaryDirectory(
             dir=album_dir(user, aid), prefix=".import-google-"

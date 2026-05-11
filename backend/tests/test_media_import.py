@@ -188,3 +188,16 @@ class TestGoogleMediaImport:
         assert "import_in_progress" in resp.text
         assert "import_completed" in resp.text
         assert ".jpg" in resp.text
+
+    async def test_google_import_validation_returns_http_error_before_stream(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await _signed_in_album(client, session, get_settings().USERS_FOLDER)
+
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/media-imports/google",
+            json={"context": "cover", "session_id": "session-abc"},
+        )
+
+        assert resp.status_code == 400
+        assert "text/event-stream" not in resp.headers.get("content-type", "")

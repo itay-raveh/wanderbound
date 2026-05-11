@@ -177,6 +177,7 @@
     "errors": {
       "badFile": "הקובץ הזה לא נתמך.",
       "googleUnavailable": "Google Photos לא זמין לחשבון הזה.",
+      "incompleteStream": "חיבור הייבוא נסגר לפני שהסתיים.",
       "network": "שגיאת רשת. @:common.retry",
       "popupBlocked": "חלון קופץ נחסם. אפשרו חלונות קופצים ונסו שוב.",
       "selectionTimeout": "זמן הבחירה פג.",
