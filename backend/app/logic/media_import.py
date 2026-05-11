@@ -144,6 +144,28 @@ async def import_saved_media(
     if request.context == "step" and request.step_id is None:
         raise ValueError("step_id is required for step imports")
 
+    written: list[Path] = []
+    try:
+        imported, written = await process_saved_media(
+            album_dir=album_dir,
+            saved=saved,
+        )
+        return await persist_imported_media(
+            session,
+            album=album,
+            request=request,
+            imported=imported,
+        )
+    except Exception:
+        await cleanup_imported_paths(written)
+        raise
+
+
+async def process_saved_media(
+    *,
+    album_dir: Path,
+    saved: list[SavedInput],
+) -> tuple[list[Media], list[Path]]:
     imported: list[Media] = []
     written: list[Path] = []
     try:
@@ -151,25 +173,40 @@ async def import_saved_media(
             media, path = await _import_one(item, album_dir)
             imported.append(media)
             written.append(path)
-
-        names = [m.name for m in imported]
-        album.media = [*album.media, *imported]
-        session.add(album)
-
-        if request.context == "step":
-            step = await session.get_one(Step, (album.uid, album.id, request.step_id))
-            step.unused = [*names, *step.unused]
-            session.add(step)
-
-        await session.commit()
     except Exception:
-        for path in written:
-            await run_sync(path.unlink, missing_ok=True)
-            if path.suffix == ".mp4":
-                await run_sync(path.with_suffix(".jpg").unlink, missing_ok=True)
+        await cleanup_imported_paths(written)
         raise
-    else:
-        return names
+    return imported, written
+
+
+async def persist_imported_media(
+    session: AsyncSession,
+    *,
+    album: Album,
+    request: ImportRequest,
+    imported: list[Media],
+) -> list[MediaName]:
+    if request.context == "step" and request.step_id is None:
+        raise ValueError("step_id is required for step imports")
+
+    names = [m.name for m in imported]
+    album.media = [*album.media, *imported]
+    session.add(album)
+
+    if request.context == "step":
+        step = await session.get_one(Step, (album.uid, album.id, request.step_id))
+        step.unused = [*names, *step.unused]
+        session.add(step)
+
+    await session.commit()
+    return names
+
+
+async def cleanup_imported_paths(written: list[Path]) -> None:
+    for path in written:
+        await run_sync(path.unlink, missing_ok=True)
+        if path.suffix == ".mp4":
+            await run_sync(path.with_suffix(".jpg").unlink, missing_ok=True)
 
 
 async def import_upload_files(

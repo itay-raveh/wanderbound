@@ -59,6 +59,7 @@ useEditorKeyboard();
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => {
+  importedUnusedByStep.value = {};
   undoStack.clear();
   photoFocus.blur();
   resetActiveSection();

@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import inspect
 import io
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from httpx_oauth.oauth2 import OAuth2Token
 from PIL import Image
 from pydantic import TypeAdapter
 
 from app.api.v1.deps import _get_http_clients
+from app.api.v1.routes.media_imports import _download_google_items, import_google_media
 from app.core.config import get_settings
 from app.logic.layout.media import MediaName
 from app.logic.media_import import SavedInput
 from app.main import app
 from app.models.album import Album
+from app.models.google_photos import GoogleMediaFile, PickedMediaItem
 from app.models.step import Step
 
 from .conftest import _mock_http_clients
@@ -29,6 +33,7 @@ from .factories import (
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 _media_name_adapter = TypeAdapter(MediaName)
@@ -125,6 +130,14 @@ class TestDeviceMediaImport:
 
 
 class TestGoogleMediaImport:
+    @pytest.fixture(autouse=True)
+    def _pin_route_engine(self, engine: AsyncEngine) -> Iterator[None]:
+        with patch("app.api.v1.routes.media_imports.get_engine", return_value=engine):
+            yield
+
+    def test_google_import_stream_does_not_request_route_session(self) -> None:
+        assert "session" not in inspect.signature(import_google_media).parameters
+
     async def test_import_session_uses_fifty_item_picker_limit(
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
@@ -175,9 +188,20 @@ class TestGoogleMediaImport:
             path.write_bytes(data)
             yield SavedInput(path=path, size=len(data))
 
-        with patch(
-            "app.api.v1.routes.media_imports._download_google_items",
-            fake_download,
+        with (
+            patch(
+                "app.api.v1.routes.media_imports._download_google_items",
+                fake_download,
+            ),
+            patch(
+                "app.api.v1.routes.media_imports._persist_google_import",
+                AsyncMock(
+                    return_value=[
+                        "11111111-1111-4111-8111-111111111111_"
+                        "22222222-2222-4222-8222-222222222222.jpg"
+                    ]
+                ),
+            ),
         ):
             resp = await client.post(
                 f"/api/v1/albums/{AID}/media-imports/google",
@@ -201,3 +225,47 @@ class TestGoogleMediaImport:
 
         assert resp.status_code == 400
         assert "text/event-stream" not in resp.headers.get("content-type", "")
+
+    async def test_google_video_import_downloads_video_variant(
+        self, tmp_path: Path
+    ) -> None:
+        http = _mock_http_clients()
+        item = PickedMediaItem(
+            id="video-1",
+            create_time="2024-01-01T00:00:00Z",
+            type="VIDEO",
+            media_file=GoogleMediaFile(
+                base_url="https://lh3.googleusercontent.com/video",
+                mime_type="video/mp4",
+                filename="video.mp4",
+            ),
+        )
+
+        async def fake_download(*args: object, **kwargs: object) -> None:
+            dest = args[3]
+            assert isinstance(dest, Path)
+            dest.write_bytes(b"video")
+
+        with (
+            patch(
+                "app.api.v1.routes.media_imports.get_media_items",
+                AsyncMock(return_value=[item]),
+            ),
+            patch(
+                "app.api.v1.routes.media_imports.download_media_to_file",
+                AsyncMock(side_effect=fake_download),
+            ) as download,
+        ):
+            access = "fresh-token"
+            saved = [
+                item
+                async for item in _download_google_items(
+                    http=http,
+                    access_token=access,
+                    session_id="session-abc",
+                    temp_dir=tmp_path,
+                )
+            ]
+
+        assert len(saved) == 1
+        assert download.await_args.kwargs["param"] == "=dv"

@@ -8,7 +8,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.db import get_engine
+from app.logic.layout.media import Media, MediaName
 from app.logic.media_import import (
     MAX_IMPORT_ITEMS,
     MAX_PHOTO_BYTES,
@@ -20,8 +23,10 @@ from app.logic.media_import import (
     ImportInProgress,
     ImportRequest,
     SavedInput,
-    import_saved_media,
+    cleanup_imported_paths,
     import_upload_files,
+    persist_imported_media,
+    process_saved_media,
 )
 from app.models.album import Album
 from app.models.google_photos import PickerSessionId
@@ -67,6 +72,17 @@ def _require_google_import_available(user: UserDep) -> None:
 
 
 GoogleImportAlbumDep = Annotated[Album, Depends(_get_album_or_404)]
+
+
+async def _snapshot_google_import_album(aid: str, user: UserDep) -> Album:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        album = await session.get(Album, (user.id, aid))
+        if album is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Album not found")
+        return album
+
+
+GoogleImportStreamAlbumDep = Annotated[Album, Depends(_snapshot_google_import_album)]
 
 
 async def _get_google_import_access_token(
@@ -139,18 +155,36 @@ async def _download_google_items(
     for index, item in enumerate(items):
         path = temp_dir / f"google-{index}"
         max_bytes = MAX_VIDEO_BYTES if item.type == "VIDEO" else MAX_PHOTO_BYTES
+        param = "=dv" if item.type == "VIDEO" else "=d"
         await download_media_to_file(
             http.gphotos_picker,
             item.media_file.base_url,
             access_token,
             path,
             max_bytes=max_bytes,
+            param=param,
         )
         size = path.stat().st_size
         total += size
         if total > MAX_VIDEO_BYTES:
             raise OverflowError("Import is too large")
         yield SavedInput(path=path, size=size)
+
+
+async def _persist_google_import(
+    uid: int,
+    aid: str,
+    request: GoogleImportRequest,
+    imported: list[Media],
+) -> list[MediaName]:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        album = await session.get_one(Album, (uid, aid))
+        return await persist_imported_media(
+            session,
+            album=album,
+            request=request,
+            imported=imported,
+        )
 
 
 @router.post(
@@ -162,11 +196,16 @@ async def import_google_media(  # noqa: PLR0913
     aid: str,
     body: GoogleImportRequest,
     user: UserDep,
-    session: SessionDep,
     http: HttpClientsDep,
-    album: GoogleImportAlbumDep,
+    album: GoogleImportStreamAlbumDep,
     access_token: GoogleImportAccessTokenDep,
 ) -> AsyncIterable[ImportEvent]:
+    aid = album.id
+    if body.context == "step" and body.step_id is None:
+        yield ImportFailed(detail="step_id is required for step imports")
+        return
+
+    written: list[Path] = []
     try:
         with tempfile.TemporaryDirectory(
             dir=album_dir(user, aid), prefix=".import-google-"
@@ -186,15 +225,15 @@ async def import_google_media(  # noqa: PLR0913
                     total=0,
                 )
 
-            names = await import_saved_media(
-                session,
-                album=album,
+            imported, written = await process_saved_media(
                 album_dir=album_dir(user, aid),
-                request=body,
                 saved=saved,
             )
+            names = await _persist_google_import(user.id, aid, body, imported)
             yield ImportCompleted(names=names)
     except OverflowError as exc:
+        await cleanup_imported_paths(written)
         yield ImportFailed(detail=str(exc))
     except Exception:  # noqa: BLE001
+        await cleanup_imported_paths(written)
         yield ImportFailed(detail="Media import failed unexpectedly.")
