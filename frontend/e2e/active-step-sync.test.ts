@@ -12,6 +12,9 @@ test.describe("Active step sync", () => {
     const nav = page.getByRole("navigation");
     await nav.getByText("Argentina").click();
     await nav.locator('[data-nav-step="102"]').click();
+    await expect(
+      page.getByLabel("Inspector").getByText("Unused"),
+    ).toBeVisible();
 
     let importedStepId: string | null = null;
     await page.route(
