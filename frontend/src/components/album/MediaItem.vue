@@ -35,12 +35,18 @@ const props = withDefaults(
     alt?: string;
     quality?: PhotoQuality | null;
     lazyRoot?: HTMLElement | null;
+    lazy?: boolean;
   }>(),
-  { focusable: true, alt: "" },
+  { focusable: true, alt: "", lazy: true },
 );
 
 const { albumId, mediaByName } = useAlbum();
 const printMode = usePrintMode();
+const supportsIntersectionObserver =
+  typeof window !== "undefined" && "IntersectionObserver" in window;
+const shouldLoadImmediately = computed(
+  () => printMode || !props.lazy || !supportsIntersectionObserver,
+);
 
 const programmaticScroll = inject(PROGRAMMATIC_SCROLL_KEY, ref(false));
 const rootRef = ref<HTMLElement | null>(null);
@@ -48,12 +54,14 @@ const visible = useElementVisibility(rootRef, {
   scrollTarget: computed(() => props.lazyRoot ?? null),
   rootMargin: "300px",
   once: true,
-  initialValue:
-    typeof window !== "undefined" && !("IntersectionObserver" in window),
+  initialValue: shouldLoadImmediately.value,
 });
-const loadImg = ref(printMode || !("IntersectionObserver" in window));
+const loadImg = ref(shouldLoadImmediately.value);
 watchEffect(() => {
-  if (printMode || (visible.value && !programmaticScroll.value)) {
+  if (
+    shouldLoadImmediately.value ||
+    (visible.value && !programmaticScroll.value)
+  ) {
     loadImg.value = true;
   }
 });
@@ -199,7 +207,7 @@ function onVideoKey(e: KeyboardEvent) {
         :sizes="imgSizes"
         :alt="alt"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
-        :loading="printMode ? 'eager' : 'lazy'"
+        :loading="shouldLoadImmediately ? 'eager' : 'lazy'"
         decoding="async"
       />
       <video
@@ -253,7 +261,7 @@ function onVideoKey(e: KeyboardEvent) {
         :srcset="loadImg ? imgSrcset : undefined"
         :sizes="imgSizes"
         :alt="alt"
-        :loading="printMode ? 'eager' : 'lazy'"
+        :loading="shouldLoadImmediately ? 'eager' : 'lazy'"
         :class="['fit', fitCover ? 'fit-cover' : 'fit-contain']"
         decoding="async"
       />

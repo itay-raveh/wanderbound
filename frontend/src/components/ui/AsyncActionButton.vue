@@ -5,14 +5,20 @@ import {
   symOutlinedCheck,
 } from "@quasar/extras/material-symbols-outlined";
 
-defineProps<{
-  state: "idle" | "running" | "done";
-  idleIcon: string;
-  idleLabel: string;
-  progressFraction: number;
-  progressMessage: string;
-  doneMessage: string;
-}>();
+withDefaults(
+  defineProps<{
+    state: "idle" | "running" | "done";
+    idleIcon: string;
+    idleIconSize?: string;
+    idleLabel: string;
+    progressFraction: number;
+    progressMessage: string;
+    doneMessage: string;
+  }>(),
+  {
+    idleIconSize: "var(--type-lg)",
+  },
+);
 
 defineEmits<{ start: []; cancel: [] }>();
 </script>
@@ -42,7 +48,9 @@ defineEmits<{ start: []; cancel: [] }>();
         size="var(--type-md)"
         class="cancel-icon"
       />
-      <span class="progress-text" aria-live="polite">{{ progressMessage }}</span>
+      <span class="progress-text" aria-live="polite">{{
+        progressMessage
+      }}</span>
     </div>
     <ProgressBar :progress="progressFraction" />
   </button>
@@ -53,7 +61,7 @@ defineEmits<{ start: []; cancel: [] }>();
     :aria-label="idleLabel"
     @click="$emit('start')"
   >
-    <q-icon :name="idleIcon" size="var(--type-lg)" />
+    <q-icon :name="idleIcon" :size="idleIconSize" />
     {{ idleLabel }}
   </button>
 </template>

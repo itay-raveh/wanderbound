@@ -69,6 +69,7 @@ useDraggable(trackRef, localUnused, {
         :key="photo"
         :media="photo"
         :lazy-root="trackRef"
+        :lazy="false"
       />
       <div v-if="localUnused.length === 0" class="drawer-empty">
         {{ t("album.dropPhotosHere") }}

@@ -1155,6 +1155,192 @@
         }
       }
     },
+    "/api/v1/albums/{aid}/media-imports/device": {
+      "post": {
+        "tags": [
+          "media-imports"
+        ],
+        "summary": "Import Device Media",
+        "operationId": "import_device_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_device_media"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCompleted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media-imports/google/session": {
+      "post": {
+        "tags": [
+          "media-imports"
+        ],
+        "summary": "Create Google Import Session",
+        "operationId": "create_google_import_session",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickerSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media-imports/google": {
+      "post": {
+        "tags": [
+          "media-imports"
+        ],
+        "summary": "Import Google Media",
+        "operationId": "import_google_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ImportInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ImportCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ImportFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "import_in_progress": "#/components/schemas/ImportInProgress",
+                        "import_completed": "#/components/schemas/ImportCompleted",
+                        "import_failed": "#/components/schemas/ImportFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Import Google Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/albums/{aid}/media/{name}": {
       "get": {
         "tags": [
@@ -2126,6 +2312,43 @@
         ],
         "title": "AuthState"
       },
+      "Body_import_device_media": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "enum": [
+              "step",
+              "cover"
+            ],
+            "title": "Context"
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "context",
+          "files"
+        ],
+        "title": "Body_import_device_media"
+      },
       "Body_upload_data": {
         "properties": {
           "file": {
@@ -2302,6 +2525,38 @@
         ],
         "title": "ExportProgress"
       },
+      "GoogleImportRequest": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "enum": [
+              "step",
+              "cover"
+            ],
+            "title": "Context"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/PickerSessionId"
+          }
+        },
+        "type": "object",
+        "required": [
+          "context",
+          "session_id"
+        ],
+        "title": "GoogleImportRequest"
+      },
       "GoogleMediaId": {
         "type": "string",
         "maxLength": 256,
@@ -2342,6 +2597,77 @@
           "playwright"
         ],
         "title": "HealthStatus"
+      },
+      "ImportCompleted": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "import_completed",
+            "title": "Type",
+            "default": "import_completed"
+          },
+          "names": {
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$"
+            },
+            "type": "array",
+            "title": "Names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "names"
+        ],
+        "title": "ImportCompleted"
+      },
+      "ImportFailed": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "import_failed",
+            "title": "Type",
+            "default": "import_failed"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ImportFailed"
+      },
+      "ImportInProgress": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "import_in_progress",
+            "title": "Type",
+            "default": "import_in_progress"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done",
+          "total"
+        ],
+        "title": "ImportInProgress"
       },
       "Location": {
         "properties": {

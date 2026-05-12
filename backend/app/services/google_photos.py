@@ -156,12 +156,18 @@ def _to_media_file(raw: _RawMediaFile) -> GoogleMediaFile:
 
 
 async def create_picker_session(
-    client: httpx.AsyncClient, access_token: AccessToken
+    client: httpx.AsyncClient,
+    access_token: AccessToken,
+    *,
+    max_item_count: int | None = None,
 ) -> PickerSession:
+    body: dict[str, object] = {}
+    if max_item_count is not None:
+        body["pickingConfig"] = {"maxItemCount": str(max_item_count)}
     resp = await client.post(
         f"{_PICKER_BASE}/v1/sessions",
         headers=_picker_headers(access_token),
-        json={},
+        json=body,
     )
     resp.raise_for_status()
     data = _SessionResponse.model_validate_json(resp.content)

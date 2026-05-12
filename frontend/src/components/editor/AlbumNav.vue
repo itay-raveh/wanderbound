@@ -54,6 +54,7 @@ const selectedAlbumId = defineModel<string | null>("albumId");
 const {
   activeStepId,
   activeSectionKey,
+  setActive,
   scrollTo,
   scrollToSection,
   scrollBehavior,
@@ -221,9 +222,24 @@ function mapDateChange(rangeIdx: number, range: DateRange) {
 }
 
 function scrollToMap(dateRange: DateRange) {
-  if (!scrollToSection(rangeSectionKey("map", dateRange))) {
-    scrollToSection(rangeSectionKey("hike", dateRange));
+  const mapKey = rangeSectionKey("map", dateRange);
+  if (scrollToSection(mapKey)) {
+    setActive(mapKey);
+    return;
   }
+  const hikeKey = rangeSectionKey("hike", dateRange);
+  if (scrollToSection(hikeKey)) {
+    setActive(hikeKey);
+  }
+}
+
+function scrollToStep(id: number) {
+  setActive(id);
+  scrollTo(id);
+}
+
+function scrollToHeader(key: HeaderKey) {
+  if (scrollToSection(key)) setActive(key);
 }
 
 // ── Header nav items ──────────────────────────────────────────────────
@@ -350,8 +366,8 @@ watch(activeSectionKey, (key) => {
               'nav-hidden': hiddenHeaderSet.has(item.key),
             },
           ]"
-          @click="scrollToSection(item.key)"
-          @keydown.enter="scrollToSection(item.key)"
+          @click="scrollToHeader(item.key)"
+          @keydown.enter="scrollToHeader(item.key)"
         >
           <q-icon :name="item.icon" size="var(--type-sm)" />
           <span>{{ item.label }}</span>
@@ -392,7 +408,7 @@ watch(activeSectionKey, (key) => {
         @toggle-open="
           openGroupKey = openGroupKey === group.key ? null : group.key
         "
-        @scroll-to-step="scrollTo"
+        @scroll-to-step="scrollToStep"
         @scroll-to-map="scrollToMap"
         @toggle-step="toggleStep"
         @toggle-country="toggleCountry(group)"
