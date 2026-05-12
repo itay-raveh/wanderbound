@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PIL import Image
@@ -91,3 +92,56 @@ async def test_device_add_to_cover_does_not_select_cover(
     row = await session.get_one(AlbumMedia, (uid, AID, imported))
     assert row.width == 900
     assert row.height == 600
+
+
+async def test_device_replace_updates_existing_media(
+    client: AsyncClient,
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    media_name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
+    Image.new("RGB", (640, 480), color="red").save(album_dir / media_name, "JPEG")
+
+    resp = await client.post(
+        f"/api/v1/albums/{AID}/external-media/replace/device",
+        data={"media_name": media_name},
+        files={"file": ("replacement.jpg", _jpeg_bytes(1200, 800), "image/jpeg")},
+    )
+
+    assert resp.status_code == 200
+    row = await session.get_one(AlbumMedia, (uid, AID, media_name))
+    assert row.width == 1200
+    assert row.height == 800
+
+
+async def test_undo_replacement_restores_previous_dimensions(
+    client: AsyncClient,
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    media_name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
+    Image.new("RGB", (640, 480), color="red").save(album_dir / media_name, "JPEG")
+
+    replace_resp = await client.post(
+        f"/api/v1/albums/{AID}/external-media/replace/device",
+        data={"media_name": media_name},
+        files={"file": ("replacement.jpg", _jpeg_bytes(1200, 800), "image/jpeg")},
+    )
+    assert replace_resp.status_code == 200
+
+    undo_resp = await client.post(
+        f"/api/v1/albums/{AID}/external-media/undo/{media_name}",
+    )
+
+    assert undo_resp.status_code == 200
+    row = await session.get_one(AlbumMedia, (uid, AID, media_name))
+    assert row.width == 640
+    assert row.height == 480
