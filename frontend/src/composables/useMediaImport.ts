@@ -218,6 +218,7 @@ export function useMediaImport(albumId: () => string) {
     reset();
     controller = new AbortController();
     const signal = controller.signal;
+    let sessionId: string | null = null;
 
     try {
       activePopup = openPopup();
@@ -228,16 +229,12 @@ export function useMediaImport(albumId: () => string) {
 
       phase.value = "picking";
       const session = await createImportSession(signal);
+      sessionId = session.session_id;
       activePopup.location.href = `${session.picker_uri}/autoclose`;
-      await pollUntilReady(session.session_id, signal);
+      await pollUntilReady(sessionId, signal);
 
       phase.value = "processing";
-      const result = await runGoogleImportStream(
-        session.session_id,
-        target,
-        signal,
-      );
-      googlePhotos.closeSession(session.session_id).catch(() => {});
+      const result = await runGoogleImportStream(sessionId, target, signal);
       onCompleted?.(result);
       applyImportResult(result, target);
       await nextTick();
@@ -253,6 +250,7 @@ export function useMediaImport(albumId: () => string) {
         /* Cross-origin opener policy can block this. */
       }
       activePopup = null;
+      if (sessionId) googlePhotos.closeSession(sessionId).catch(() => {});
     }
   }
 
@@ -278,6 +276,7 @@ export function useMediaImport(albumId: () => string) {
       if (Date.now() > deadline)
         throw new Error(t("mediaImport.errors.selectionTimeout"));
       const result = await googlePhotos.pollSession(sessionId);
+      signal.throwIfAborted();
       if (result.ready) return;
       await sleep(POLL_INTERVAL_MS, signal);
     }
