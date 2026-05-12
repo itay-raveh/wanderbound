@@ -27,10 +27,12 @@ from app.logic.media_import import (
     import_upload_files,
     persist_imported_media,
     process_saved_media,
+    validate_import_target,
 )
 from app.models.album import Album
 from app.models.google_photos import PickerSessionId
 from app.services.google_photos import (
+    DownloadTooLargeError,
     create_picker_session,
     download_media_to_file,
     get_media_items,
@@ -187,6 +189,16 @@ async def _persist_google_import(
         )
 
 
+async def _validate_google_import_target(
+    uid: int,
+    aid: str,
+    request: GoogleImportRequest,
+) -> None:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        album = await session.get_one(Album, (uid, aid))
+        await validate_import_target(session, album=album, request=request)
+
+
 @router.post(
     "/google",
     response_class=EventSourceResponse,
@@ -207,6 +219,7 @@ async def import_google_media(  # noqa: PLR0913
 
     written: list[Path] = []
     try:
+        await _validate_google_import_target(user.id, aid, body)
         with tempfile.TemporaryDirectory(
             dir=album_dir(user, aid), prefix=".import-google-"
         ) as tmp:
@@ -230,10 +243,17 @@ async def import_google_media(  # noqa: PLR0913
                 saved=saved,
             )
             names = await _persist_google_import(user.id, aid, body, imported)
+            written = []
             yield ImportCompleted(names=names)
-    except OverflowError as exc:
+    except (OverflowError, DownloadTooLargeError) as exc:
+        await cleanup_imported_paths(written)
+        yield ImportFailed(detail=str(exc))
+    except ValueError as exc:
         await cleanup_imported_paths(written)
         yield ImportFailed(detail=str(exc))
     except Exception:  # noqa: BLE001
         await cleanup_imported_paths(written)
         yield ImportFailed(detail="Media import failed unexpectedly.")
+    except BaseException:
+        await cleanup_imported_paths(written)
+        raise

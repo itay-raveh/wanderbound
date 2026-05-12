@@ -11,6 +11,7 @@ import anyio
 import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
+from sqlmodel import select
 
 from app.core.resources import MiB
 from app.core.worker_threads import run_sync
@@ -105,10 +106,6 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
         width, height = await run_sync(
             _process_photo, raw.path, output, limiter=media_limiter
         )
-        if raw.size > MAX_PHOTO_BYTES:
-            output.unlink(missing_ok=True)
-            raise OverflowError("Photo exceeds maximum size")
-        return Media(name=name, width=width, height=height), output
     except (
         UnidentifiedImageError,
         Image.DecompressionBombError,
@@ -117,6 +114,14 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
         SyntaxError,
     ):
         output.unlink(missing_ok=True)
+    except BaseException:
+        output.unlink(missing_ok=True)
+        raise
+    else:
+        if raw.size > MAX_PHOTO_BYTES:
+            output.unlink(missing_ok=True)
+            raise OverflowError("Photo exceeds maximum size")
+        return Media(name=name, width=width, height=height), output
 
     name = _generated_name(".mp4")
     output = album_dir / name
@@ -129,6 +134,10 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
         output.unlink(missing_ok=True)
         output.with_suffix(".jpg").unlink(missing_ok=True)
         raise ValueError("Unsupported or corrupt media") from None
+    except BaseException:
+        output.unlink(missing_ok=True)
+        output.with_suffix(".jpg").unlink(missing_ok=True)
+        raise
     else:
         return media, output
 
@@ -141,8 +150,7 @@ async def import_saved_media(
     request: ImportRequest,
     saved: list[SavedInput],
 ) -> list[MediaName]:
-    if request.context == "step" and request.step_id is None:
-        raise ValueError("step_id is required for step imports")
+    await validate_import_target(session, album=album, request=request)
 
     written: list[Path] = []
     try:
@@ -150,15 +158,18 @@ async def import_saved_media(
             album_dir=album_dir,
             saved=saved,
         )
-        return await persist_imported_media(
+        names = await persist_imported_media(
             session,
             album=album,
             request=request,
             imported=imported,
         )
-    except Exception:
+        written = []
+    except BaseException:
         await cleanup_imported_paths(written)
         raise
+    else:
+        return names
 
 
 async def process_saved_media(
@@ -173,7 +184,7 @@ async def process_saved_media(
             media, path = await _import_one(item, album_dir)
             imported.append(media)
             written.append(path)
-    except Exception:
+    except BaseException:
         await cleanup_imported_paths(written)
         raise
     return imported, written
@@ -186,27 +197,61 @@ async def persist_imported_media(
     request: ImportRequest,
     imported: list[Media],
 ) -> list[MediaName]:
-    if request.context == "step" and request.step_id is None:
-        raise ValueError("step_id is required for step imports")
+    await validate_import_target(session, album=album, request=request)
 
+    album = await session.get_one(
+        Album,
+        (album.uid, album.id),
+        with_for_update=True,
+        populate_existing=True,
+    )
     names = [m.name for m in imported]
     album.media = [*album.media, *imported]
     session.add(album)
 
     if request.context == "step":
-        step = await session.get_one(Step, (album.uid, album.id, request.step_id))
+        result = await session.exec(
+            select(Step)
+            .where(
+                Step.uid == album.uid,
+                Step.aid == album.id,
+                Step.id == request.step_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        step = result.one_or_none()
+        if step is None:
+            raise ValueError("Step not found")
         step.unused = [*names, *step.unused]
         session.add(step)
 
-    await session.commit()
+    with anyio.CancelScope(shield=True):
+        await session.commit()
     return names
 
 
 async def cleanup_imported_paths(written: list[Path]) -> None:
-    for path in written:
-        await run_sync(path.unlink, missing_ok=True)
-        if path.suffix == ".mp4":
-            await run_sync(path.with_suffix(".jpg").unlink, missing_ok=True)
+    with anyio.CancelScope(shield=True):
+        for path in written:
+            await run_sync(path.unlink, missing_ok=True)
+            if path.suffix == ".mp4":
+                await run_sync(path.with_suffix(".jpg").unlink, missing_ok=True)
+
+
+async def validate_import_target(
+    session: AsyncSession,
+    *,
+    album: Album,
+    request: ImportRequest,
+) -> None:
+    if request.context != "step":
+        return
+    if request.step_id is None:
+        raise ValueError("step_id is required for step imports")
+    step = await session.get(Step, (album.uid, album.id, request.step_id))
+    if step is None:
+        raise ValueError("Step not found")
 
 
 async def import_upload_files(
@@ -217,6 +262,7 @@ async def import_upload_files(
     request: ImportRequest,
     files: list[UploadFile],
 ) -> list[MediaName]:
+    await validate_import_target(session, album=album, request=request)
     await run_sync(album_dir.mkdir, parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=album_dir, prefix=".import-") as tmp:
         temp_dir = Path(tmp)
