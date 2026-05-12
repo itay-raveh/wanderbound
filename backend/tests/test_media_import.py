@@ -13,6 +13,7 @@ import pytest
 from httpx_oauth.oauth2 import OAuth2Token
 from PIL import Image
 from pydantic import TypeAdapter
+from sqlmodel import col, select
 
 from app.api.v1.deps import _get_http_clients
 from app.api.v1.routes.media_imports import _download_google_items, import_google_media
@@ -28,6 +29,7 @@ from app.logic.media_import import (
 )
 from app.main import app
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.google_photos import GoogleMediaFile, PickedMediaItem
 from app.models.step import Step
 from app.services.google_photos import DownloadTooLargeError
@@ -37,6 +39,7 @@ from .factories import (
     AID,
     connect_google_photos,
     insert_album,
+    insert_album_media,
     insert_step,
     sign_in_and_upload,
 )
@@ -65,6 +68,7 @@ async def _signed_in_album(
     album = await insert_album(session, uid)
     album.front_cover_photo = "photo1.jpg"
     album.back_cover_photo = "photo1.jpg"
+    await insert_album_media(session, uid, name="photo1.jpg")
     await insert_step(session, uid)
     album_dir = users_dir / str(uid) / "trip" / AID
     album_dir.mkdir(parents=True, exist_ok=True)
@@ -102,8 +106,14 @@ class TestDeviceMediaImport:
         assert step.unused[:2] == imported
         assert step.unused[2:] == ["photo2.jpg"]
 
-        album = await session.get_one(Album, (uid, AID))
-        assert [m.name for m in album.media][-2:] == imported
+        media_rows = (
+            await session.exec(
+                select(AlbumMedia)
+                .where(AlbumMedia.uid == uid, AlbumMedia.aid == AID)
+                .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
+            )
+        ).all()
+        assert [row.name for row in media_rows][-2:] == imported
 
     async def test_cover_import_does_not_select_cover(
         self, client: AsyncClient, session: AsyncSession
@@ -123,7 +133,8 @@ class TestDeviceMediaImport:
         album = await session.get_one(Album, (uid, AID))
         assert album.front_cover_photo == "photo1.jpg"
         assert album.back_cover_photo == "photo1.jpg"
-        assert album.media[-1].name == imported[0]
+        row = await session.get_one(AlbumMedia, (uid, AID, imported[0]))
+        assert row.name == imported[0]
 
         step = await session.get_one(Step, (uid, AID, 1))
         assert step.unused == ["photo2.jpg"]
@@ -507,15 +518,20 @@ class TestPersistImportedMedia:
         uid = await _signed_in_album(client, session, get_settings().USERS_FOLDER)
         stale_album = await session.get_one(Album, (uid, AID))
 
-        other = Media(name="other.jpg", width=640, height=480)
         with session.no_autoflush:
-            fresh_album = await session.get_one(
-                Album,
-                (uid, AID),
-                populate_existing=True,
+            session.add(
+                AlbumMedia(
+                    uid=uid,
+                    aid=AID,
+                    name="other.jpg",
+                    kind="photo",
+                    storage_path="other.jpg",
+                    width=640,
+                    height=480,
+                    byte_size=1,
+                    source_ref_id=None,
+                )
             )
-            fresh_album.media = [*fresh_album.media, other]
-            session.add(fresh_album)
             await session.flush()
 
             imported = Media(name="imported.jpg", width=640, height=480)
@@ -526,8 +542,14 @@ class TestPersistImportedMedia:
                 imported=[imported],
             )
 
-        album = await session.get_one(Album, (uid, AID), populate_existing=True)
-        assert [m.name for m in album.media][-2:] == ["other.jpg", "imported.jpg"]
+        media_rows = (
+            await session.exec(
+                select(AlbumMedia)
+                .where(AlbumMedia.uid == uid, AlbumMedia.aid == AID)
+                .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
+            )
+        ).all()
+        assert [row.name for row in media_rows][-2:] == ["other.jpg", "imported.jpg"]
 
     async def test_refetches_step_before_prepending_unused_media(
         self, client: AsyncClient, session: AsyncSession

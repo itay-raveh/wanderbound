@@ -18,6 +18,7 @@ from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, extract_frame, media_limiter
 from app.logic.media_upgrade.processing import process_photo_sync, process_video
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.step import Step
 
 if TYPE_CHECKING:
@@ -196,25 +197,40 @@ async def persist_imported_media(
     album: Album,
     request: ImportRequest,
     imported: list[Media],
+    album_dir: Path | None = None,
 ) -> list[MediaName]:
     await validate_import_target(session, album=album, request=request)
 
-    album = await session.get_one(
+    fresh_album = await session.get_one(
         Album,
         (album.uid, album.id),
         with_for_update=True,
         populate_existing=True,
     )
     names = [m.name for m in imported]
-    album.media = [*album.media, *imported]
-    session.add(album)
+    session.add_all(
+        [
+            AlbumMedia(
+                uid=fresh_album.uid,
+                aid=fresh_album.id,
+                name=media.name,
+                kind="video" if media.name.endswith(".mp4") else "photo",
+                storage_path=media.name,
+                width=media.width,
+                height=media.height,
+                byte_size=_imported_byte_size(media.name, album_dir),
+                source_ref_id=None,
+            )
+            for media in imported
+        ]
+    )
 
     if request.context == "step":
         result = await session.exec(
             select(Step)
             .where(
-                Step.uid == album.uid,
-                Step.aid == album.id,
+                Step.uid == fresh_album.uid,
+                Step.aid == fresh_album.id,
                 Step.id == request.step_id,
             )
             .with_for_update()
@@ -274,3 +290,12 @@ async def import_upload_files(
             request=request,
             saved=saved,
         )
+
+
+def _imported_byte_size(name: str, album_dir: Path | None) -> int:
+    if album_dir is None:
+        return 0
+    try:
+        return (album_dir / name).stat().st_size
+    except OSError:
+        return 0

@@ -31,6 +31,7 @@ from app.models.album import (
     Album,
     MediaResolutionWarningPreset,
 )
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -41,7 +42,7 @@ from app.services.open_meteo import build_weathers, elevations
 logger = structlog.get_logger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
-type DbRow = Album | Step | Segment
+type DbRow = Album | AlbumMedia | Step | Segment
 
 
 async def track_iter[T](
@@ -224,10 +225,40 @@ def build_segment_objects(
     ]
 
 
-def build_trip_objects(
+def build_album_media_rows(
+    uid: int,
+    aid: str,
+    trip_dir: Path,
+    media: Iterable[Media],
+) -> list[AlbumMedia]:
+    rows: list[AlbumMedia] = []
+    for item in media:
+        path = trip_dir / item.name
+        try:
+            byte_size = path.stat().st_size
+        except OSError:
+            byte_size = 0
+        rows.append(
+            AlbumMedia(
+                uid=uid,
+                aid=aid,
+                name=item.name,
+                kind="video" if item.name.endswith(".mp4") else "photo",
+                storage_path=item.name,
+                width=item.width,
+                height=item.height,
+                byte_size=byte_size,
+                source_ref_id=None,
+            )
+        )
+    return rows
+
+
+def build_trip_objects(  # noqa: PLR0913
     user: User,
     aid: str,
     trip: PSTrip,
+    trip_dir: Path,
     locations: list[Point],
     results: TripResults,
 ) -> list[DbRow]:
@@ -251,6 +282,7 @@ def build_trip_objects(
         )
     ]
     segments = build_segment_objects(user.id, aid, steps, locations, trip.all_steps)
+    album_media = build_album_media_rows(user.id, aid, trip_dir, merged_media)
 
     album = Album(
         uid=user.id,
@@ -264,12 +296,11 @@ def build_trip_objects(
         subtitle=trip.subtitle,
         front_cover_photo=results.cover_name,
         back_cover_photo=results.cover_name,
-        media=merged_media,
         font=DEFAULT_FONT,
         body_font=DEFAULT_FONT if user.locale.startswith("he") else DEFAULT_BODY_FONT,
         media_resolution_warning_preset=default_media_resolution_warning_preset(user),
     )
-    return [album, *steps, *segments]
+    return [album, *album_media, *steps, *segments]
 
 
 async def run_elevations(

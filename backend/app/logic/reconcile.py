@@ -19,6 +19,7 @@ from app.logic.trip_processing import (
     PhaseUpdate,
     ProcessingEvent,
     TripResults,
+    build_album_media_rows,
     build_segment_objects,
     build_step,
     count_segments,
@@ -33,6 +34,7 @@ from app.logic.trip_processing import (
     track_iter,
 )
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import PSStep
 from app.models.step import Step
 from app.models.user import User
@@ -212,6 +214,7 @@ async def reconcile_trip(  # noqa: PLR0913
     album: Album,
     existing_steps: list[Step],
     db_out: list[DbRow],
+    existing_media_rows: list[AlbumMedia] | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     """Reconcile an existing album with re-uploaded data.
 
@@ -252,12 +255,17 @@ async def reconcile_trip(  # noqa: PLR0913
             yield event
 
     # Phase 4: Reconcile existing steps
+    if existing_media_rows is None:
+        existing_media_rows = []
     all_on_disk = {
         normalize_name(f.name)
         for f in trip_dir.iterdir()  # noqa: ASYNC240
         if f.is_file()
     }
-    media_by_name: dict[str, Media] = {m.name: m for m in album.media}
+    media_by_name: dict[str, Media] = {
+        row.name: Media(name=row.name, width=row.width, height=row.height)
+        for row in existing_media_rows
+    }
     reconciled_steps = [
         _reconcile_step(
             db_by_step_id[ps.id],
@@ -272,10 +280,17 @@ async def reconcile_trip(  # noqa: PLR0913
 
     # Phase 5: Probe media dimensions for any new/unknown files
     known_media: dict[str, Media] = {
-        m.name: m for m in album.media if m.name in all_on_disk
+        row.name: Media(name=row.name, width=row.width, height=row.height)
+        for row in existing_media_rows
+        if row.name in all_on_disk
     }
-    album.media = await _probe_media(
-        trip_dir, [*new_step_objects, *reconciled_steps], known_media
+    album_media = build_album_media_rows(
+        user.id,
+        aid,
+        trip_dir,
+        await _probe_media(
+            trip_dir, [*new_step_objects, *reconciled_steps], known_media
+        ),
     )
 
     _fix_album_covers(album, all_on_disk, cover_name, reconciled_steps)
@@ -300,5 +315,6 @@ async def reconcile_trip(  # noqa: PLR0913
     album.maps_ranges = multi_day_hike_ranges(segments)
 
     db_out.append(album)
+    db_out.extend(album_media)
     db_out.extend(all_steps)
     db_out.extend(segments)

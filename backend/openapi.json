@@ -724,7 +724,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Media"
+                    "$ref": "#/components/schemas/AlbumMedia"
                   },
                   "title": "Response Read Media"
                 }
@@ -1138,6 +1138,58 @@
                     }
                   },
                   "title": "Response 200 Generate Pdf"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/external-media/add/device": {
+      "post": {
+        "tags": [
+          "external-media"
+        ],
+        "summary": "Add Device",
+        "operationId": "add_device",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_device"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCompleted"
                 }
               }
             }
@@ -1870,127 +1922,76 @@
   },
   "components": {
     "schemas": {
-      "Album": {
+      "AlbumMedia": {
         "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Title"
-          },
-          "subtitle": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Subtitle"
-          },
-          "hidden_steps": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Hidden Steps"
-          },
-          "hidden_headers": {
-            "items": {
-              "type": "string",
-              "enum": [
-                "cover-front",
-                "cover-back",
-                "overview",
-                "full-map"
-              ]
-            },
-            "type": "array",
-            "title": "Hidden Headers"
-          },
-          "maps_ranges": {
-            "items": {
-              "$ref": "#/components/schemas/DateRange"
-            },
-            "type": "array",
-            "title": "Maps Ranges"
-          },
-          "front_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Front Cover Photo"
-          },
-          "back_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Back Cover Photo"
-          },
-          "font": {
-            "type": "string",
-            "title": "Font",
-            "default": "Assistant"
-          },
-          "body_font": {
-            "type": "string",
-            "title": "Body Font",
-            "default": "Frank Ruhl Libre"
-          },
-          "safe_margin_mm": {
-            "type": "integer",
-            "title": "Safe Margin Mm",
-            "default": 5
-          },
-          "media_resolution_warning_preset": {
-            "type": "string",
-            "enum": [
-              "off",
-              "relaxed",
-              "print"
-            ],
-            "title": "Media Resolution Warning Preset",
-            "default": "relaxed"
-          },
           "uid": {
             "type": "integer",
             "title": "Uid"
           },
-          "id": {
+          "aid": {
             "type": "string",
-            "title": "Id"
+            "title": "Aid"
           },
-          "colors": {
-            "patternProperties": {
-              "[a-zA-Z]{2}|00": {
-                "type": "string",
-                "pattern": "#[0-9a-fA-F]{6}"
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "storage_path": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Storage Path"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "source_ref_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
               }
-            },
-            "type": "object",
-            "title": "Colors"
+            ],
+            "title": "Source Ref Id"
           },
-          "upgraded_media": {
-            "patternProperties": {
-              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
-                "$ref": "#/components/schemas/GoogleMediaId"
-              }
-            },
-            "type": "object",
-            "title": "Upgraded Media"
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
           },
-          "media": {
-            "items": {
-              "$ref": "#/components/schemas/Media"
-            },
-            "type": "array",
-            "title": "Media"
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
           }
         },
         "type": "object",
         "required": [
-          "title",
-          "subtitle",
-          "front_cover_photo",
-          "back_cover_photo",
           "uid",
-          "id",
-          "colors"
+          "aid",
+          "name",
+          "kind",
+          "storage_path",
+          "width",
+          "height",
+          "byte_size"
         ],
-        "title": "Album",
-        "description": "Full DB row. Only adds media - no relationships."
+        "title": "AlbumMedia"
       },
       "AlbumMeta": {
         "properties": {
@@ -2083,15 +2084,6 @@
             },
             "type": "object",
             "title": "Colors"
-          },
-          "upgraded_media": {
-            "patternProperties": {
-              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
-                "$ref": "#/components/schemas/GoogleMediaId"
-              }
-            },
-            "type": "object",
-            "title": "Upgraded Media"
           }
         },
         "type": "object",
@@ -2262,6 +2254,118 @@
         "type": "object",
         "title": "AlbumUpdate"
       },
+      "AlbumWithMedia": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Subtitle"
+          },
+          "hidden_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hidden Steps"
+          },
+          "hidden_headers": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "cover-front",
+                "cover-back",
+                "overview",
+                "full-map"
+              ]
+            },
+            "type": "array",
+            "title": "Hidden Headers"
+          },
+          "maps_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/DateRange"
+            },
+            "type": "array",
+            "title": "Maps Ranges"
+          },
+          "front_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Back Cover Photo"
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "Assistant"
+          },
+          "body_font": {
+            "type": "string",
+            "title": "Body Font",
+            "default": "Frank Ruhl Libre"
+          },
+          "safe_margin_mm": {
+            "type": "integer",
+            "title": "Safe Margin Mm",
+            "default": 5
+          },
+          "media_resolution_warning_preset": {
+            "type": "string",
+            "enum": [
+              "off",
+              "relaxed",
+              "print"
+            ],
+            "title": "Media Resolution Warning Preset",
+            "default": "relaxed"
+          },
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "colors": {
+            "patternProperties": {
+              "[a-zA-Z]{2}|00": {
+                "type": "string",
+                "pattern": "#[0-9a-fA-F]{6}"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            },
+            "type": "array",
+            "title": "Media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "subtitle",
+          "front_cover_photo",
+          "back_cover_photo",
+          "uid",
+          "id",
+          "colors"
+        ],
+        "title": "AlbumWithMedia"
+      },
       "AuthState": {
         "properties": {
           "state": {
@@ -2311,6 +2415,43 @@
           "state"
         ],
         "title": "AuthState"
+      },
+      "Body_add_device": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "enum": [
+              "step",
+              "cover"
+            ],
+            "title": "Context"
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "context",
+          "files"
+        ],
+        "title": "Body_add_device"
       },
       "Body_import_device_media": {
         "properties": {
@@ -2984,7 +3125,7 @@
       "PrintBundle": {
         "properties": {
           "album": {
-            "$ref": "#/components/schemas/Album"
+            "$ref": "#/components/schemas/AlbumWithMedia"
           },
           "steps": {
             "items": {

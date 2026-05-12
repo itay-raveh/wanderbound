@@ -15,9 +15,9 @@ import jwt as jwt_module
 from PIL import Image
 
 from app.core.config import get_settings
-from app.logic.layout.media import Media
 from app.logic.upload import TripMeta
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -226,13 +226,38 @@ async def insert_album(
         front_cover_photo="photo1.jpg",
         back_cover_photo="photo2.jpg",
         colors={"nl": "#0000ff"},
-        media=[Media(name="photo1.jpg", width=1920, height=1080)],
         font="Assistant",
         body_font="Frank Ruhl Libre",
     )
     session.add(album)
     await session.flush()
     return album
+
+
+async def insert_album_media(
+    session: AsyncSession,
+    uid: int,
+    aid: str = AID,
+    name: str = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    ),
+    width: int = 1920,
+    height: int = 1080,
+) -> AlbumMedia:
+    media = AlbumMedia(
+        uid=uid,
+        aid=aid,
+        name=name,
+        kind="video" if name.endswith(".mp4") else "photo",
+        storage_path=name,
+        width=width,
+        height=height,
+        byte_size=1234,
+        source_ref_id=None,
+    )
+    session.add(media)
+    await session.flush()
+    return media
 
 
 async def insert_step(

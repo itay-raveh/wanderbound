@@ -40,6 +40,7 @@ from app.logic.media_upgrade.pipeline import (
     run_upgrade,
 )
 from app.models.album import Album
+from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
 from app.models.google_photos import PickedMediaItem, PickerSessionId
 from app.models.step import Step
 from app.services.google_photos import (
@@ -155,21 +156,73 @@ def _require_google_user(user: UserDep) -> None:
         )
 
 
-async def _snapshot_album(uid: int, aid: str) -> Album:
-    """Read the album in a short-lived session and release the connection.
-
-    Used before SSE streams so the DB connection is not held for the full
-    duration of the stream. ``expire_on_commit=False`` keeps already-loaded
-    attributes accessible after the session closes.
-    """
+async def _snapshot_upgrade_state(
+    uid: int,
+    aid: str,
+) -> tuple[set[str], dict[str, str]]:
+    """Read album media names and Google-source mappings in a short-lived session."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        return await session.get_one(Album, (uid, aid))
+        await session.get_one(Album, (uid, aid))
+        media_rows = (
+            await session.exec(
+                select(AlbumMedia).where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
+            )
+        ).all()
+        ref_ids = [
+            row.source_ref_id for row in media_rows if row.source_ref_id is not None
+        ]
+        refs = (
+            (
+                await session.exec(
+                    select(AlbumMediaSourceRef).where(
+                        col(AlbumMediaSourceRef.id).in_(ref_ids)
+                    )
+                )
+            ).all()
+            if ref_ids
+            else []
+        )
+    refs_by_id = {ref.id: ref for ref in refs if ref.id is not None}
+    valid_names: set[str] = set()
+    already_upgraded: dict[str, str] = {}
+    for row in media_rows:
+        valid_names.add(row.name)
+        ref = refs_by_id.get(row.source_ref_id)
+        if (
+            ref is not None
+            and ref.source_kind == AlbumMediaSourceKind.google_photos
+            and ref.google_media_id is not None
+        ):
+            already_upgraded[row.name] = ref.google_media_id
+    return valid_names, already_upgraded
 
 
-async def _snapshot_album_and_steps(uid: int, aid: str) -> tuple[Album, list[Step]]:
-    """Read album + its steps in a short-lived session."""
+async def _snapshot_steps_and_upgrade_state(
+    uid: int,
+    aid: str,
+) -> tuple[list[Step], dict[str, str]]:
+    """Read steps plus Google-source mappings in a short-lived session."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        album = await session.get_one(Album, (uid, aid))
+        await session.get_one(Album, (uid, aid))
+        media_rows = (
+            await session.exec(
+                select(AlbumMedia).where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
+            )
+        ).all()
+        ref_ids = [
+            row.source_ref_id for row in media_rows if row.source_ref_id is not None
+        ]
+        refs = (
+            (
+                await session.exec(
+                    select(AlbumMediaSourceRef).where(
+                        col(AlbumMediaSourceRef.id).in_(ref_ids)
+                    )
+                )
+            ).all()
+            if ref_ids
+            else []
+        )
         step_rows = (
             await session.exec(
                 select(Step)
@@ -177,7 +230,17 @@ async def _snapshot_album_and_steps(uid: int, aid: str) -> tuple[Album, list[Ste
                 .order_by(col(Step.timestamp))
             )
         ).all()
-    return album, list(step_rows)
+    refs_by_id = {ref.id: ref for ref in refs if ref.id is not None}
+    already_upgraded: dict[str, str] = {}
+    for row in media_rows:
+        ref = refs_by_id.get(row.source_ref_id)
+        if (
+            ref is not None
+            and ref.source_kind == AlbumMediaSourceKind.google_photos
+            and ref.google_media_id is not None
+        ):
+            already_upgraded[row.name] = ref.google_media_id
+    return list(step_rows), already_upgraded
 
 
 router = APIRouter(
@@ -419,10 +482,12 @@ async def match_media(
             "Load album for media matching",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            album, step_rows = await _snapshot_album_and_steps(user.id, aid)
+            step_rows, already_upgraded = await _snapshot_steps_and_upgrade_state(
+                user.id,
+                aid,
+            )
 
         album_dir = _album_dir(user, aid)
-        already_upgraded = dict(album.upgraded_media)
         step_timestamps = [s.timestamp for s in step_rows]
         step_ids = [s.id for s in step_rows]
         media_by_step = {
@@ -497,9 +562,10 @@ async def upgrade_media(
             "Load album for media upgrade",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            album = await _snapshot_album(user.id, aid)
-        valid_names = {m.name for m in album.media}
-        already_upgraded = dict(album.upgraded_media)
+            valid_names, already_upgraded = await _snapshot_upgrade_state(
+                user.id,
+                aid,
+            )
 
         _validate_match_names(body.matches, valid_names)
 

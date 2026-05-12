@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -17,6 +18,7 @@ import structlog
 from httpx_oauth.oauth2 import RefreshTokenError
 from pydantic import BaseModel, Field, validate_call
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -28,7 +30,7 @@ from app.core.observability import set_span_data, start_span
 from app.core.resources import detect_cpu_count
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
-from app.models.album import Album
+from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
 from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
@@ -329,12 +331,13 @@ async def _upgrade_tmp(album_dir: Path) -> AsyncIterator[Path]:
         await run_sync(shutil.rmtree, tmp_dir, ignore_errors=True)
 
 
-async def _persist_upgrade(
+async def _persist_upgrade(  # noqa: PLR0913
     uid: int,
     aid: str,
     album_dir: Path,
     matches: list[MatchResult],
     succeeded: set[MediaName],
+    google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
 ) -> None:
     """Write upgrade results to DB after a successful disk replace.
 
@@ -359,15 +362,78 @@ async def _persist_upgrade(
             },
         ):
             async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-                album = await session.get_one(Album, (uid, aid))
-                album.media, album.upgraded_media = await refresh_upgraded_media(
-                    album_dir,
-                    matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
-                )
-                session.add(album)
+                rows = {
+                    row.name: row
+                    for row in (
+                        await session.exec(
+                            select(AlbumMedia).where(
+                                AlbumMedia.uid == uid,
+                                AlbumMedia.aid == aid,
+                                col(AlbumMedia.name).in_(tuple(succeeded)),
+                            )
+                        )
+                    ).all()
+                }
+                existing_refs = {
+                    ref.google_media_id: ref
+                    for ref in (
+                        await session.exec(
+                            select(AlbumMediaSourceRef).where(
+                                AlbumMediaSourceRef.uid == uid,
+                                AlbumMediaSourceRef.aid == aid,
+                                AlbumMediaSourceRef.source_kind
+                                == AlbumMediaSourceKind.google_photos,
+                            )
+                        )
+                    ).all()
+                    if ref.google_media_id is not None
+                }
+                now = datetime.now(UTC)
+                for match in matches:
+                    if match.local_name not in succeeded:
+                        continue
+                    row = rows.get(match.local_name)
+                    if row is None:
+                        continue
+                    target = album_dir / match.local_name
+                    try:
+                        updated = (
+                            await Media.probe(target)
+                            if is_video(match.local_name)
+                            else await run_sync(
+                                Media.load,
+                                target,
+                                limiter=media_limiter,
+                            )
+                        )
+                    except OSError, SyntaxError, RuntimeError:
+                        logger.warning(
+                            "media_upgrade.reprobe_failed",
+                            exc_info=True,
+                        )
+                        continue
+                    item = google_items_by_id.get(match.google_id)
+                    ref = existing_refs.get(match.google_id)
+                    if ref is None:
+                        ref = AlbumMediaSourceRef(
+                            uid=uid,
+                            aid=aid,
+                            source_kind=AlbumMediaSourceKind.google_photos,
+                            google_media_id=match.google_id,
+                            mime_type=item.media_file.mime_type if item else None,
+                            width=item.media_file.width if item else None,
+                            height=item.media_file.height if item else None,
+                            captured_at=_captured_at(item),
+                        )
+                        session.add(ref)
+                        await session.flush()
+                        existing_refs[match.google_id] = ref
+                    row.width = updated.width
+                    row.height = updated.height
+                    row.storage_path = row.name
+                    row.source_ref_id = ref.id
+                    row.updated_at = now
+                    session.add(row)
                 await session.commit()
     except SQLAlchemyError:
         logger.warning(
@@ -542,8 +608,24 @@ async def run_upgrade(  # noqa: PLR0913, C901
         )
         yield UpgradeFailed(detail="Upgrade failed unexpectedly.")
     finally:
-        await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
+        await _persist_upgrade(
+            uid,
+            aid,
+            album_dir,
+            matches,
+            succeeded,
+            google_items_by_id,
+        )
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
+
+
+def _captured_at(item: PickedMediaItem | None) -> datetime | None:
+    if item is None:
+        return None
+    try:
+        return datetime.fromisoformat(item.create_time)
+    except ValueError:
+        return None
 
 
 async def refresh_upgraded_media(

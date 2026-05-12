@@ -72,7 +72,6 @@ def _album(
     *,
     front_cover_photo: str = "front.jpg",
     back_cover_photo: str = "back.jpg",
-    media: list[Media] | None = None,
 ) -> Album:
     return Album(
         uid=1,
@@ -81,7 +80,6 @@ def _album(
         subtitle="Sub",
         front_cover_photo=front_cover_photo,
         back_cover_photo=back_cover_photo,
-        media=media or [],
         colors={},
         hidden_steps=[],
         maps_ranges=[],

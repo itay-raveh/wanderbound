@@ -34,6 +34,7 @@ from app.logic.trip_processing import (
     run_weather,
 )
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.segment import Segment
 from app.models.step import Step
 from app.models.user import User
@@ -126,7 +127,7 @@ async def _process_trip(
             },
         ):
             objects = await asyncio.to_thread(
-                build_trip_objects, user, aid, trip, locations, results
+                build_trip_objects, user, aid, trip, trip_dir, locations, results
             )
         segments = [obj for obj in objects if isinstance(obj, Segment)]
         yield PhaseUpdate(phase="segments", done=1, total=1)
@@ -136,13 +137,13 @@ async def _process_trip(
 
 async def _load_existing(
     user: User,
-) -> tuple[dict[str, Album], dict[str, list[Step]]]:
+) -> tuple[dict[str, Album], dict[str, list[AlbumMedia]], dict[str, list[Step]]]:
     """Load existing albums and steps for reconciliation.
 
     Returns empty dicts for new users (no albums yet).
     """
     if not user.album_ids:
-        return {}, {}
+        return {}, {}, {}
 
     with start_span(
         "processing.load_existing",
@@ -157,13 +158,19 @@ async def _load_existing(
                 ).all()
             }
 
+            media_by_aid: dict[str, list[AlbumMedia]] = defaultdict(list)
+            for media in (
+                await session.exec(select(AlbumMedia).where(AlbumMedia.uid == user.id))
+            ).all():
+                media_by_aid[media.aid].append(media)
+
             steps_by_aid: dict[str, list[Step]] = defaultdict(list)
             for s in (
                 await session.exec(select(Step).where(Step.uid == user.id))
             ).all():
                 steps_by_aid[s.aid].append(s)
 
-    return albums, dict(steps_by_aid)
+    return albums, dict(media_by_aid), dict(steps_by_aid)
 
 
 async def _save_new(
@@ -212,6 +219,11 @@ async def _save_reupload(
     ):
         async with AsyncSession(get_engine()) as session:
             if reconciled_aids:
+                await session.exec(
+                    delete(AlbumMedia)
+                    .where(col(AlbumMedia.uid) == uid)
+                    .where(col(AlbumMedia.aid).in_(reconciled_aids))
+                )
                 await session.exec(
                     delete(Step)
                     .where(col(Step.uid) == uid)
@@ -282,7 +294,7 @@ async def run_processing(
             "album.count": len(trip_dirs),
         },
     ):
-        existing_albums, existing_steps = await _load_existing(user)
+        existing_albums, existing_media, existing_steps = await _load_existing(user)
         try:
             for trip_idx, trip_dir in enumerate(trip_dirs):
                 aid = trip_dir.name
@@ -306,6 +318,7 @@ async def run_processing(
                             existing_albums[aid],
                             existing_steps.get(aid, []),
                             all_objects,
+                            existing_media.get(aid, []),
                         ):
                             yield event
                     reconciled_aids.add(aid)

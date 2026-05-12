@@ -20,7 +20,8 @@ from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.logic.segment_routes import enqueue_album_route_enrichment
 from app.logic.spatial.geo import total_length_km
-from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
+from app.models.album import Album, AlbumMeta, AlbumUpdate, AlbumWithMedia, PrintBundle
+from app.models.album_media import AlbumMedia
 from app.models.segment import (
     BoundaryAdjust,
     Segment,
@@ -44,6 +45,10 @@ async def _get_album(
 AlbumDep = Annotated[Album, Depends(_get_album)]
 
 router = APIRouter(prefix="/albums", tags=["albums"])
+
+
+def _media_row_to_media(row: AlbumMedia) -> Media:
+    return Media(name=row.name, width=row.width, height=row.height)
 
 
 # Static-prefix routes must be declared before /{aid} to avoid shadowing.
@@ -72,8 +77,15 @@ async def read_album(aid: str, album: AlbumDep) -> AlbumMeta:
 
 
 @router.get("/{aid}/media")
-async def read_media(aid: str, album: AlbumDep) -> list[Media]:
-    return album.media
+async def read_media(
+    aid: str, album: AlbumDep, session: SessionDep
+) -> list[AlbumMedia]:
+    result = await session.exec(
+        select(AlbumMedia)
+        .where(AlbumMedia.uid == album.uid, AlbumMedia.aid == aid)
+        .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
+    )
+    return list(result.all())
 
 
 @router.get("/{aid}/steps")
@@ -233,6 +245,11 @@ def _total_distance_km(segments: list[Segment]) -> float:
 async def read_print_bundle(
     aid: str, album: AlbumDep, user: UserDep, session: SessionDep
 ) -> PrintBundle:
+    media_result = await session.exec(
+        select(AlbumMedia)
+        .where(AlbumMedia.uid == user.id, AlbumMedia.aid == aid)
+        .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
+    )
     steps_result = await session.exec(
         select(Step)
         .where(Step.uid == user.id, Step.aid == aid)
@@ -243,10 +260,14 @@ async def read_print_bundle(
         .where(Segment.uid == user.id, Segment.aid == aid)
         .order_by(col(Segment.start_time))
     )
+    media_rows = list(media_result.all())
     steps = list(steps_result.all())
     segments = list(segments_result.all())
     return PrintBundle(
-        album=album,
+        album=AlbumWithMedia(
+            **album.model_dump(),
+            media=[_media_row_to_media(row) for row in media_rows],
+        ),
         steps=steps,
         segments=segments,
         total_distance_km=_total_distance_km(segments),
