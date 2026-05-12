@@ -1311,6 +1311,150 @@
         }
       }
     },
+    "/api/v1/albums/{aid}/external-media/add/google": {
+      "post": {
+        "tags": [
+          "external-media"
+        ],
+        "summary": "Add Google Media",
+        "operationId": "add_google_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ImportInProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ImportCompleted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ImportFailed"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "import_in_progress": "#/components/schemas/ImportInProgress",
+                        "import_completed": "#/components/schemas/ImportCompleted",
+                        "import_failed": "#/components/schemas/ImportFailed"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Add Google Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/external-media/replace/google": {
+      "post": {
+        "tags": [
+          "external-media"
+        ],
+        "summary": "Replace Google Media",
+        "operationId": "replace_google_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleReplaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/albums/{aid}/media-imports/device": {
       "post": {
         "tags": [
@@ -2826,6 +2970,24 @@
         "type": "string",
         "maxLength": 256,
         "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "GoogleReplaceRequest": {
+        "properties": {
+          "media_name": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+            "title": "Media Name"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/PickerSessionId"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_name",
+          "session_id"
+        ],
+        "title": "GoogleReplaceRequest"
       },
       "HTTPValidationError": {
         "properties": {
