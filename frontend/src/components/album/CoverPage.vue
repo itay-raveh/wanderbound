@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { parseLocalDate } from "@/utils/date";
-import type { Album, Step } from "@/client";
+import type { AlbumMeta, Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useAlbum } from "@/composables/useAlbum";
@@ -13,7 +13,7 @@ const { formatDateRange } = useUserQuery();
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
-  album: Album;
+  album: AlbumMeta;
   steps: Step[];
   isBack?: boolean;
 }>();
@@ -112,6 +112,7 @@ function saveText(field: "title" | "subtitle", value: string) {
     rgba(0, 0, 0, 0.35) 0%,
     transparent 70%
   );
+  pointer-events: none;
 }
 
 .front-date {
@@ -131,6 +132,7 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 85%;
+  pointer-events: auto;
 }
 
 .front-subtitle {
@@ -141,6 +143,7 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 70%;
+  pointer-events: auto;
 }
 
 // -- Shared --

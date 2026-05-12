@@ -628,43 +628,6 @@ def _captured_at(item: PickedMediaItem | None) -> datetime | None:
         return None
 
 
-async def refresh_upgraded_media(
-    album_dir: Path,
-    matches: list[MatchResult],
-    media: list[Media],
-    upgraded_media: dict[MediaName, GoogleMediaId],
-    succeeded: set[MediaName],
-) -> tuple[list[Media], dict[MediaName, GoogleMediaId]]:
-    """Re-read replaced files from disk and update media list + upgrade map.
-
-    Only files in *succeeded* are marked as upgraded. Files that failed
-    download or were skipped (e.g. not larger) are left untouched so
-    the user can retry.
-    """
-    media_by_name = {m.name: m for m in media}
-    new_upgraded = dict(upgraded_media)
-    for match in matches:
-        if match.local_name not in succeeded:
-            continue
-        target = album_dir / match.local_name
-        if match.local_name not in media_by_name:
-            continue
-        try:
-            if is_video(match.local_name):
-                updated = await Media.probe(target)
-            else:
-                updated = await run_sync(Media.load, target, limiter=media_limiter)
-            media_by_name[match.local_name] = updated
-        except OSError, SyntaxError, RuntimeError:
-            logger.warning(
-                "media_upgrade.reprobe_failed",
-                exc_info=True,
-            )
-            continue
-        new_upgraded[match.local_name] = match.google_id
-    return list(media_by_name.values()), new_upgraded
-
-
 async def cleanup_orphaned_tmp(users_folder: Path) -> None:
     """Remove leftover .upgrade-tmp dirs from interrupted upgrades."""
 

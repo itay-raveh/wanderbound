@@ -1,4 +1,4 @@
-import type { Album, DateRange, SegmentOutline, Step } from "@/client";
+import type { AlbumMeta, DateRange, SegmentOutline, Step } from "@/client";
 import { layoutDescription } from "@/composables/useTextLayout";
 import { inDateRange, isoDate } from "@/utils/date";
 
@@ -8,7 +8,7 @@ export const HEADER_KEYS = [
   "cover-back",
   "overview",
   "full-map",
-] as const satisfies readonly NonNullable<Album["hidden_headers"]>[number][];
+] as const satisfies readonly NonNullable<AlbumMeta["hidden_headers"]>[number][];
 
 export type HeaderKey = (typeof HEADER_KEYS)[number];
 

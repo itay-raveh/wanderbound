@@ -1,32 +1,24 @@
 <script lang="ts" setup>
-import type { Album, Step, Media } from "@/client";
+import type { AlbumMeta, Step, Media } from "@/client";
 import AlbumProperties from "./AlbumProperties.vue";
 import CoverCell from "./CoverCell.vue";
+import MediaPanel from "./MediaPanel.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
-import { useMediaImport } from "@/composables/useMediaImport";
 import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
 import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
-import {
-  matAddPhotoAlternate,
-  matComputer,
-  matImage,
-} from "@quasar/extras/material-icons";
+import { computed, ref, watch } from "vue";
+import { matImage } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
 const props = defineProps<{
-  album: Album;
+  album: AlbumMeta;
   media: Media[];
   step?: Step;
   sectionKey?: string | null;
-}>();
-
-const emit = defineEmits<{
-  importedStepMedia: [payload: { stepId: number; names: string[] }];
 }>();
 
 // Provide album context so child components (MediaItem in UnusedDrawer)
@@ -74,66 +66,22 @@ const landscapePhotos = computed(() =>
 );
 
 const coverGridRef = ref<HTMLElement | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const showImportMenu = ref(false);
-const pendingDeviceTarget = ref<{
-  context: "step" | "cover";
-  stepId?: number;
-} | null>(null);
-const mediaImport = useMediaImport(() => props.album.id);
-const googlePhotosIcon = "img:/google-photos.svg";
+const externalMediaOpen = ref(true);
+const unusedOpen = ref(true);
+const coverOpen = ref(true);
 
-function applyVisibleImport(
-  result: { names: string[] } | undefined,
-  target: { context: "step" | "cover"; stepId?: number },
-) {
-  if (!result || target.context !== "step" || target.stepId == null) return;
-  emit("importedStepMedia", { stepId: target.stepId, names: result.names });
-}
+watch(
+  context,
+  (next, prev) => {
+    if (next === prev) return;
+    if (next === "step") unusedOpen.value = true;
+    if (next === "cover") coverOpen.value = true;
+  },
+  { immediate: true },
+);
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
-}
-
-const canImportMedia = computed(
-  () => context.value === "step" || context.value === "cover",
-);
-const importTarget = computed(() => {
-  if (context.value === "step" && props.step) {
-    return { context: "step" as const, stepId: props.step.id };
-  }
-  if (context.value === "cover") return { context: "cover" as const };
-  return null;
-});
-
-function pickDeviceFiles() {
-  const target = importTarget.value;
-  if (!target) return;
-  showImportMenu.value = false;
-  pendingDeviceTarget.value = target;
-  fileInputRef.value?.click();
-}
-
-function onDeviceFilesSelected(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
-  const target = pendingDeviceTarget.value;
-  input.value = "";
-  pendingDeviceTarget.value = null;
-  showImportMenu.value = false;
-  if (files.length === 0 || !target) return;
-  void mediaImport.importDevice(files, target, (result) =>
-    applyVisibleImport(result, target),
-  );
-}
-
-function importFromGoogle() {
-  const target = importTarget.value;
-  if (!target || mediaImport.googlePhotosState.value === "unavailable") return;
-  showImportMenu.value = false;
-  void mediaImport.importGoogle(target, (result) =>
-    applyVisibleImport(result, target),
-  );
 }
 
 // ── Panel metadata ─────────────────────────────────────────────────────
@@ -141,159 +89,81 @@ const panelIcon = matImage;
 const panelLabel = computed(() =>
   isCoverBack.value ? t("album.backCover") : t("album.frontCover"),
 );
-
-const importProgressFraction = computed(() => {
-  const { done, total } = mediaImport.progress.value;
-  return total > 0 ? done / total : 0;
-});
-
-const importDialogTitle = computed(() => {
-  switch (mediaImport.phase.value) {
-    case "authorizing":
-      return t("mediaImport.authorizing");
-    case "picking":
-      return t("mediaImport.picking");
-    case "uploading":
-      return t("mediaImport.uploading");
-    case "processing":
-      return t("mediaImport.processing");
-    case "done":
-      return t(
-        "mediaImport.done",
-        { count: mediaImport.importedCount.value },
-        mediaImport.importedCount.value,
-      );
-    case "error":
-      return mediaImport.errorDetail.value ?? t("mediaImport.error");
-    default:
-      return "";
-  }
-});
 </script>
 
 <template>
   <div class="inspector-panel">
     <AlbumProperties :album="album" />
     <q-separator class="properties-separator" />
-    <input
-      ref="fileInputRef"
-      type="file"
-      class="hidden-input"
-      accept="image/*,video/*"
-      multiple
-      @change="onDeviceFilesSelected"
-    />
 
-    <div v-if="canImportMedia" class="import-bar">
-      <button
-        type="button"
-        class="import-btn"
-        :disabled="mediaImport.isBusy.value"
-        aria-haspopup="menu"
-        @click="showImportMenu = true"
-      >
-        <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
-        <span>{{ t("mediaImport.addMedia") }}</span>
-      </button>
-      <div v-if="showImportMenu" class="import-menu" role="menu">
-        <button
-          type="button"
-          class="import-menu-item"
-          role="menuitem"
-          @click="pickDeviceFiles"
-        >
-          <q-icon :name="matComputer" size="var(--type-md)" />
-          <span>{{ t("mediaImport.device") }}</span>
-        </button>
-        <button
-          type="button"
-          class="import-menu-item"
-          role="menuitem"
-          :disabled="mediaImport.googlePhotosState.value === 'unavailable'"
-          @click="importFromGoogle"
-        >
-          <q-icon :name="googlePhotosIcon" size="var(--type-md)" />
-          <span>{{ t("mediaImport.googlePhotos") }}</span>
-        </button>
-      </div>
-    </div>
+    <q-expansion-item
+      v-model="externalMediaOpen"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-faint"
+      :label="t('externalMedia.section')"
+    >
+      <MediaPanel
+        :album-id="album.id"
+        :context="context"
+        :step-id="step?.id"
+      />
+    </q-expansion-item>
 
     <!-- Step: unused photos tray -->
-    <div v-if="context === 'step'" class="context-section">
-      <UnusedDrawer
-        :key="step!.unused.join('|')"
-        :step="step!"
-        :album-id="album.id"
-        class="unused-section"
-      />
-    </div>
-
-    <!-- Cover: photo picker grid -->
-    <div v-else-if="context === 'cover'" class="context-section">
-      <div
-        class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted"
-      >
-        <q-icon :name="panelIcon" size="var(--type-md)" />
-        <span>{{ panelLabel }}</span>
-      </div>
-      <div v-if="landscapePhotos.length" ref="coverGridRef" class="cover-grid">
-        <CoverCell
-          v-for="(photo, index) in landscapePhotos"
-          :key="photo"
-          :src="mediaThumbUrl(photo, album.id)"
-          :selected="photo === activeCoverPhoto"
-          :lazy-root="coverGridRef"
-          :label="
-            t('album.selectCoverPhoto', {
-              index: index + 1,
-              total: landscapePhotos.length,
-            })
-          "
-          @select="selectCoverPhoto(photo)"
+    <q-expansion-item
+      v-if="context === 'step'"
+      v-model="unusedOpen"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-faint"
+      label="Unused"
+    >
+      <div class="context-section">
+        <UnusedDrawer
+          :key="step!.unused.join('|')"
+          :step="step!"
+          :album-id="album.id"
+          class="unused-section"
         />
       </div>
-      <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
-    </div>
+    </q-expansion-item>
 
-    <q-dialog
-      :model-value="mediaImport.phase.value !== 'idle'"
-      persistent
-      @hide="mediaImport.cancel"
+    <!-- Cover: photo picker grid -->
+    <q-expansion-item
+      v-else-if="context === 'cover'"
+      v-model="coverOpen"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-faint"
+      :label="panelLabel"
     >
-      <q-card class="import-dialog">
-        <q-card-section class="row no-wrap items-center dialog-header">
-          <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
-          <div class="text-subtitle1 text-weight-semibold">
-            {{ importDialogTitle }}
-          </div>
-        </q-card-section>
-        <q-card-section v-if="mediaImport.isBusy.value">
-          <q-linear-progress
-            :value="importProgressFraction"
-            :indeterminate="importProgressFraction === 0"
-            color="primary"
-            rounded
+      <div class="context-section">
+        <div
+          class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted"
+        >
+          <q-icon :name="panelIcon" size="var(--type-md)" />
+          <span>{{ panelLabel }}</span>
+        </div>
+        <div v-if="landscapePhotos.length" ref="coverGridRef" class="cover-grid">
+          <CoverCell
+            v-for="(photo, index) in landscapePhotos"
+            :key="photo"
+            :src="mediaThumbUrl(photo, album.id)"
+            :selected="photo === activeCoverPhoto"
+            :lazy-root="coverGridRef"
+            :label="
+              t('album.selectCoverPhoto', {
+                index: index + 1,
+                total: landscapePhotos.length,
+              })
+            "
+            @select="selectCoverPhoto(photo)"
           />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            v-if="mediaImport.isBusy.value"
-            flat
-            no-caps
-            :label="t('common.cancel')"
-            @click="mediaImport.cancel"
-          />
-          <q-btn
-            v-else-if="mediaImport.phase.value === 'error'"
-            flat
-            no-caps
-            color="primary"
-            :label="t('common.close')"
-            @click="mediaImport.cancel"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </div>
+        <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
+      </div>
+    </q-expansion-item>
   </div>
 </template>
 
@@ -310,83 +180,8 @@ const importDialogTitle = computed(() => {
   margin-inline: var(--gap-md);
 }
 
-.hidden-input {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.import-bar {
-  position: relative;
-  padding: var(--gap-md) var(--gap-md) 0;
-}
-
-.import-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--gap-sm);
-  width: 100%;
-  min-height: 2.25rem;
-  border: 1px solid var(--q-primary);
-  border-radius: var(--radius-sm);
-  background: var(--q-primary);
-  color: var(--bg);
-  font-family: var(--font-ui);
-  font-size: var(--type-sm);
-  font-weight: 600;
-  cursor: pointer;
-
-  &:disabled {
-    cursor: default;
-    opacity: 0.6;
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 0.125rem;
-  }
-}
-
-.import-menu {
-  position: absolute;
-  z-index: 10;
-  inset-block-start: calc(100% + var(--gap-xs));
-  inset-inline: var(--gap-md);
-  padding: var(--gap-xs);
-  min-width: 13rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  box-shadow: var(--shadow-md);
-}
-
-.import-menu-item {
-  all: unset;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: var(--gap-sm);
-  width: 100%;
-  min-height: 2.25rem;
-  padding: 0 var(--gap-sm);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: var(--type-sm);
-
-  &:hover:not(:disabled),
-  &:focus-visible {
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  }
-
-  &:disabled {
-    cursor: default;
-    opacity: 0.45;
-  }
+.panel-section {
+  border-top: 1px solid var(--border-color);
 }
 
 .context-section {
@@ -412,6 +207,16 @@ const importDialogTitle = computed(() => {
   font-size: var(--type-xs);
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+:deep(.panel-section-header) {
+  min-height: 2.75rem;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  font-size: var(--type-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 // ── Cover photo grid ──
@@ -463,14 +268,5 @@ const importDialogTitle = computed(() => {
   .cover-cell {
     transition: none;
   }
-}
-
-.dialog-header {
-  gap: var(--gap-sm);
-}
-
-.import-dialog {
-  width: min(24rem, 90vw);
-  border-radius: var(--radius-sm);
 }
 </style>

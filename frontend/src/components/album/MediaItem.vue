@@ -68,16 +68,20 @@ watchEffect(() => {
 
 const stepId = inject(STEP_ID_KEY, null);
 const photoFocus = usePhotoFocus();
-const canFocus = computed(
-  () => props.focusable && !printMode && stepId != null,
-);
+const canSelect = computed(() => props.focusable && !printMode);
+const keyboardNavigable = computed(() => canSelect.value && stepId != null);
 const isFocused = computed(
-  () => canFocus.value && photoFocus.focusedPhotoId.value === props.media,
+  () => canSelect.value && photoFocus.focusedPhotoId.value === props.media,
 );
 
 function handleClick() {
-  if (!canFocus.value) return;
-  photoFocus.focus(stepId!, props.media);
+  if (!canSelect.value) return;
+  photoFocus.focus(stepId, props.media);
+}
+
+function focusForReplacement() {
+  handleClick();
+  rootRef.value?.focus();
 }
 
 function handleEnter() {
@@ -191,13 +195,13 @@ function onVideoKey(e: KeyboardEvent) {
     :class="['media-item', { focused: isFocused }]"
     class="relative-position overflow-hidden non-selectable"
     :data-media="media"
-    :tabindex="canFocus ? 0 : undefined"
-    :role="canFocus ? 'button' : undefined"
-    :aria-label="canFocus ? alt || t('album.selectPhoto') : undefined"
-    :aria-pressed="canFocus ? isFocused : undefined"
+    :tabindex="keyboardNavigable ? 0 : undefined"
+    :role="keyboardNavigable ? 'button' : undefined"
+    :aria-label="keyboardNavigable ? alt || t('album.selectPhoto') : undefined"
+    :aria-pressed="keyboardNavigable ? isFocused : undefined"
     @click="handleClick"
-    @keydown.enter.prevent="handleEnter"
-    @keydown.space.prevent="handleSpace"
+    @keydown.enter.prevent="keyboardNavigable && handleEnter()"
+    @keydown.space.prevent="keyboardNavigable && handleSpace()"
   >
     <template v-if="isVideo && !printMode">
       <img
@@ -266,20 +270,27 @@ function onVideoKey(e: KeyboardEvent) {
         decoding="async"
       />
     </template>
-    <div
+    <button
       v-if="!printMode && quality && quality.tier !== 'ok'"
+      type="button"
       :class="['quality-badge', quality.tier, 'flex', 'flex-center']"
+      :aria-label="t('externalMedia.replaceQuality')"
+      @click.stop="focusForReplacement"
     >
       <q-icon :name="matWarning" />
-      <q-tooltip>{{
-        t(
-          quality.tier === "warning"
-            ? "quality.warningTooltip"
-            : "quality.cautionTooltip",
-          { dpi: quality.dpi },
-        )
-      }}</q-tooltip>
-    </div>
+      <q-tooltip>
+        {{
+          t(
+            quality.tier === "warning"
+              ? "quality.warningTooltip"
+              : "quality.cautionTooltip",
+            { dpi: quality.dpi },
+          )
+        }}
+        <br />
+        {{ t("externalMedia.replaceQuality") }}
+      </q-tooltip>
+    </button>
   </div>
 </template>
 
@@ -428,9 +439,11 @@ function onVideoKey(e: KeyboardEvent) {
   right: var(--gap-md);
   width: var(--size);
   height: var(--size);
+  border: none;
   border-radius: 50%;
   pointer-events: auto;
   z-index: 2;
+  cursor: pointer;
   box-shadow: 0 0.125rem 0.5rem color-mix(in srgb, black 35%, transparent);
 
   &.caution {
@@ -444,6 +457,11 @@ function onVideoKey(e: KeyboardEvent) {
   :deep(.q-icon) {
     font-size: calc(var(--size) * 0.55);
     color: white;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid white;
+    outline-offset: 0.125rem;
   }
 }
 

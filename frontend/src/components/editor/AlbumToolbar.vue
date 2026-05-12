@@ -1,10 +1,9 @@
 <script lang="ts" setup>
-import type { Album } from "@/client";
+import type { AlbumMeta } from "@/client";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { KEY_LABELS } from "@/composables/shortcutKeys";
 import ShortcutsPopup from "./ShortcutsPopup.vue";
 import PdfExportButton from "./PdfExportButton.vue";
-import UpgradeMediaButton from "./UpgradeMediaButton.vue";
 
 import {
   editorZoom,
@@ -24,7 +23,7 @@ import { useI18n } from "vue-i18n";
 const { t } = useI18n();
 
 defineProps<{
-  album?: Album;
+  album?: AlbumMeta;
 }>();
 
 const undoStack = useUndoStack();
@@ -99,7 +98,6 @@ const undoStack = useUndoStack();
         >
       </div>
       <q-separator vertical class="action-divider" />
-      <UpgradeMediaButton v-if="album" :album-id="album.id" />
       <PdfExportButton v-if="album" :album-id="album.id" />
     </div>
   </div>

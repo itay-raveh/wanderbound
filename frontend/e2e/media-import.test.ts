@@ -3,6 +3,7 @@ import {
   mockAlbum,
   mockMedia,
   mockStep,
+  TINY_JPEG_BASE64,
   mockUser,
 } from "../tests/fixtures/mocks";
 
@@ -14,13 +15,51 @@ function unusedDrawer(page: import("@playwright/test").Page) {
   return page.getByLabel("Inspector").filter({ hasText: "Unused" });
 }
 
+async function ensureUnusedOpen(page: import("@playwright/test").Page) {
+  const inspector = page.getByLabel("Inspector");
+  const drawer = unusedDrawer(page);
+  const count = drawer.getByText(/^\d+$/);
+  if (!(await count.isVisible())) {
+    const toggle = inspector.getByRole("button", { name: /Unused/ });
+    await expect(toggle).toHaveCount(1);
+    await toggle.click();
+  }
+  await expect(count).toBeVisible();
+}
+
+async function ensureExternalMediaOpen(
+  page: import("@playwright/test").Page,
+) {
+  const importButton = page.getByRole("button", {
+    name: "Import external media",
+  });
+  const toggle = page.getByRole("button", { name: /External media/ });
+  if (!(await importButton.isVisible())) {
+    await toggle.click();
+  }
+  if (!(await importButton.isVisible())) {
+    await toggle.click();
+  }
+  await expect(importButton).toBeVisible();
+}
+
+async function selectImportStep(
+  page: import("@playwright/test").Page,
+  stepId: number,
+) {
+  await page.locator(`[data-nav-step="${stepId}"]`).click();
+  await expect(
+    page.getByLabel("Inspector").getByText(`Import to Step ${stepId} unused`),
+  ).toBeVisible();
+}
+
 test.describe("Media import", () => {
   test("device import into a step appears in the unused tray", async ({
     authedPage: page,
   }) => {
     let imported = false;
 
-    await page.route(`${API}/albums/*/media-imports/device`, async (route) => {
+    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
       const headers = {
         "access-control-allow-credentials": "true",
         "access-control-allow-headers": "*",
@@ -59,29 +98,28 @@ test.describe("Media import", () => {
       timeout: 15_000,
     });
     await page.getByRole("button", { name: "Expand", exact: true }).click();
-    await page.locator('[data-nav-step="1"]').click();
-    await expect(
-      unusedDrawer(page).getByText("0", { exact: true }),
-    ).toBeVisible();
+    await selectImportStep(page, 1);
+    await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Add media" }).click();
+    await page.getByRole("button", { name: "Import external media" }).click();
     await page.getByRole("menuitem", { name: "Device" }).click();
     const importResponse = page.waitForResponse(
       (res) =>
         res.url().includes("/api/v1/albums/") &&
-        res.url().endsWith("/media-imports/device") &&
+        res.url().endsWith("/external-media/add/device") &&
         res.request().method() === "POST",
     );
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",
       mimeType: "image/jpeg",
-      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      buffer: Buffer.from(TINY_JPEG_BASE64, "base64"),
     });
     expect((await importResponse).ok()).toBeTruthy();
     expect(imported).toBe(true);
 
+    await ensureUnusedOpen(page);
     await expect(
       unusedDrawer(page).getByText("1", { exact: true }),
     ).toBeVisible({
@@ -119,9 +157,16 @@ test.describe("Media import", () => {
         },
       });
     });
-    await page.route(`${API}/albums/*/steps`, (route) =>
-      route.fulfill({ json: [mockStep] }),
-    );
+    await page.route(`${API}/albums/*/steps`, (route) => {
+      const aid = new URL(route.request().url()).pathname
+        .split("/albums/")[1]
+        ?.split("/")[0];
+      const steps =
+        imported && aid === "aid-1"
+          ? [{ ...mockStep, unused: [IMPORTED, ...mockStep.unused] }]
+          : [mockStep];
+      return route.fulfill({ json: steps });
+    });
     await page.route(`${API}/albums/*/media`, (route) => {
       const aid = new URL(route.request().url()).pathname
         .split("/albums/")[1]
@@ -132,7 +177,7 @@ test.describe("Media import", () => {
           : mockMedia;
       return route.fulfill({ json: media });
     });
-    await page.route(`${API}/albums/*/media-imports/device`, async (route) => {
+    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
       const headers = {
         "access-control-allow-credentials": "true",
         "access-control-allow-headers": "*",
@@ -159,23 +204,20 @@ test.describe("Media import", () => {
       timeout: 15_000,
     });
     await page.getByRole("button", { name: "Expand", exact: true }).click();
-    await page.locator('[data-nav-step="1"]').click();
-    await expect(
-      unusedDrawer(page).getByText("0", { exact: true }),
-    ).toBeVisible();
+    await selectImportStep(page, 1);
+    await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page
-      .getByRole("button", { name: "Add media" })
-      .click({ force: true });
+    await page.getByRole("button", { name: "Import external media" }).click();
     await expect(page.getByRole("menuitem", { name: "Device" })).toBeVisible();
     await page.getByRole("menuitem", { name: "Device" }).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",
       mimeType: "image/jpeg",
-      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      buffer: Buffer.from(TINY_JPEG_BASE64, "base64"),
     });
+    await ensureUnusedOpen(page);
     await expect(
       unusedDrawer(page).getByText("1", { exact: true }),
     ).toBeVisible({
@@ -185,7 +227,8 @@ test.describe("Media import", () => {
     await page.getByLabel("Select album").click();
     await page.getByRole("option", { name: "Aid 2" }).click();
     await page.getByRole("button", { name: "Expand", exact: true }).click();
-    await page.locator('[data-nav-step="1"]').click();
+    await selectImportStep(page, 1);
+    await ensureExternalMediaOpen(page);
 
     await expect(
       unusedDrawer(page).getByText("0", { exact: true }),

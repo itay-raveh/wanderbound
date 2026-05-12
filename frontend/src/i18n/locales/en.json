@@ -164,6 +164,62 @@
   "inspector": {
     "overview": "Overview"
   },
+  "externalMedia": {
+    "section": "External media",
+    "replaceQuality": "Replace with better quality",
+    "google": {
+      "title": "Google Photos",
+      "connected": "Connected and ready for upgrades or replacements.",
+      "disconnected": "Available after you connect Google Photos.",
+      "unavailable": "Not available for this account."
+    },
+    "quality": {
+      "allGood": "No photo quality warnings right now.",
+      "needsAttention": "{warning} low-quality and {caution} medium-quality photos still need attention."
+    },
+    "targets": {
+      "stepUnused": "Import to Step {stepId} unused",
+      "coverCandidates": "Import to cover candidates",
+      "mapUnavailable": "Import is unavailable while a map section is selected.",
+      "overviewUnavailable": "Import is unavailable in the overview section.",
+      "none": "Select a step or cover section to import media."
+    },
+    "import": {
+      "label": "Import target",
+      "action": "Import external media"
+    },
+    "replace": {
+      "label": "Selected media",
+      "action": "Replace selected media",
+      "noneSelected": "No media selected",
+      "noSelection": "Select a photo or video first.",
+      "invalid": "This replacement could not be applied.",
+      "error": "Replacement failed. Try again."
+    },
+    "review": {
+      "title": "Review replacement",
+      "body": "This will replace this media everywhere it appears in the album.",
+      "current": "Current media",
+      "replacement": "Replacement",
+      "confirm": "Replace everywhere",
+      "errors": {
+        "previewFailed": "Couldn't read the selected file preview.",
+        "typeMismatch": "A photo can only replace a photo, and a video can only replace a video."
+      },
+      "warnings": {
+        "lowerResolution": "The replacement has lower resolution than the current media.",
+        "aspectRatio": "The replacement aspect ratio is noticeably different.",
+        "orientation": "The replacement flips between portrait and landscape."
+      }
+    },
+    "undo": {
+      "label": "Quick undo",
+      "action": "Undo",
+      "toast": "Media replaced. Undo is available for 5 minutes.",
+      "done": "Replacement undone.",
+      "failed": "Undo failed. Try again."
+    }
+  },
   "mediaImport": {
     "addMedia": "Add media",
     "device": "Device",

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Album } from "@/client";
+import type { AlbumMeta } from "@/client";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import {
@@ -25,7 +25,7 @@ import {
 const { t } = useI18n();
 
 const props = defineProps<{
-  album: Album;
+  album: AlbumMeta;
 }>();
 
 const albumMutation = useAlbumMutation(() => props.album.id);

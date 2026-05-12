@@ -105,7 +105,7 @@ function scrollFocusedIntoView() {
   scrollRafId = requestAnimationFrame(tryScroll);
 }
 
-function focus(stepId: number, photoId: string) {
+function focus(stepId: number | null, photoId: string) {
   focusedStepId.value = stepId;
   focusedPhotoId.value = photoId;
 }
