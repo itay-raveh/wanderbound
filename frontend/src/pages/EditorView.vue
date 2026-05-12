@@ -17,6 +17,7 @@ import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { useLocalStorage } from "@vueuse/core";
+import { mergeImportedUnused } from "@/utils/stepImportedUnused";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
 import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
@@ -70,12 +71,7 @@ const { activeStepId, activeSectionKey, resetActiveSection } =
 onBeforeUnmount(resetActiveSection);
 const displayedSteps = computed(() =>
   steps.value?.map((step) => {
-    const imported = (importedUnusedByStep.value[step.id] ?? []).filter(
-      (name) => !step.unused.includes(name),
-    );
-    return imported.length
-      ? { ...step, unused: [...imported, ...step.unused] }
-      : step;
+    return mergeImportedUnused(step, importedUnusedByStep.value[step.id] ?? []);
   }),
 );
 const activeStep = computed(() =>
