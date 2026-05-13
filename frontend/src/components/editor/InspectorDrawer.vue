@@ -177,6 +177,8 @@ const panelLabel = computed(() =>
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
   background: var(--bg-secondary);
 }
 

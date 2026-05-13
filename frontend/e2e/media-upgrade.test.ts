@@ -11,14 +11,23 @@ function sseBody(events: object[]): string {
 }
 
 async function ensureExternalMediaOpen(page: Page) {
-  const upgradeButton = upgradeMediaButton(page);
   const toggle = page.getByRole("button", {
     name: /Expand "External media"|Collapse "External media"/,
   });
-  if (!(await upgradeButton.isVisible())) {
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
   }
-  await expect(upgradeButton).toBeVisible({ timeout: 15_000 });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
+}
+
+async function expectUpgradeDone(page: Page, message: RegExp) {
+  await expect(page.locator(".media-panel .action-btn.done")).toHaveAttribute(
+    "aria-label",
+    message,
+    { timeout: 10_000 },
+  );
 }
 
 function upgradeMediaButton(page: Page) {
@@ -28,10 +37,9 @@ function upgradeMediaButton(page: Page) {
 }
 
 async function clickUpgradeMedia(page: Page) {
+  await ensureExternalMediaOpen(page);
   const button = upgradeMediaButton(page);
-  await button.evaluate((el) =>
-    el.scrollIntoView({ block: "center", inline: "nearest" }),
-  );
+  await button.scrollIntoViewIfNeeded();
   await expect(button).toBeVisible({ timeout: 15_000 });
   await button.click();
 }
@@ -183,9 +191,7 @@ test.describe("Media Upgrade", () => {
     await confirmBtn.click();
 
     // Done state should show "Upgraded 2 files"
-    await expect(page.getByText(/upgraded 2 files/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 2 files/i);
   });
 
   test("partial failure shows count in done message", async ({
@@ -224,9 +230,7 @@ test.describe("Media Upgrade", () => {
     await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
 
     // Partial failure: "Upgraded 1 of 2 files"
-    await expect(page.getByText(/upgraded 1 of 2/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 1 of 2/i);
   });
 
   test("disconnect option visible in dropdown when connected", async ({
@@ -345,12 +349,13 @@ test.describe("Media Upgrade", () => {
     await clickUpgradeMedia(page);
 
     // Should enter picking phase with running button
-    const runningBtn = page.getByRole("button", {
-      name: /waiting for selection/i,
-    });
+    const runningBtn = page
+      .locator(".media-panel")
+      .getByRole("button", { name: /waiting for selection/i });
     await expect(runningBtn).toBeVisible({ timeout: 5_000 });
 
     // Click running button to cancel
+    await runningBtn.scrollIntoViewIfNeeded();
     await runningBtn.click();
 
     // Should return to idle
@@ -542,8 +547,6 @@ test.describe("Media Upgrade", () => {
     await page.getByRole("button", { name: /upgrade 3 files/i }).click();
 
     // Done
-    await expect(page.getByText(/upgraded 3 files/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 3 files/i);
   });
 });
