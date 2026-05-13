@@ -21,6 +21,8 @@ from PIL.ExifTags import Base as ExifBase
 
 if TYPE_CHECKING:
     import httpx
+    from sqlalchemy.ext.asyncio import AsyncEngine
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.media_upgrade.phash_matching import (
     _FALLBACK_MAX_DIMENSION,
@@ -37,6 +39,7 @@ from app.logic.media_upgrade.pipeline import (
     MatchInProgress,
     _clear_caches,
     _needs_upgrade,
+    _persist_upgrade,
     run_matching,
 )
 from app.logic.media_upgrade.processing import (
@@ -44,7 +47,10 @@ from app.logic.media_upgrade.processing import (
     process_photo_sync,
     process_video,
 )
+from app.models.album_media import AlbumMediaSourceRef
 from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
+
+from .factories import AID, create_test_jpeg, insert_album, insert_album_media
 
 
 @pytest.fixture(autouse=True)
@@ -371,6 +377,42 @@ class TestNeedsUpgrade:
         """
         match = MatchResult(local_name="photo.jpg", google_id="gid-B", distance=0)
         assert _needs_upgrade(match, {"photo.jpg": "gid-A"}) is True
+
+
+class TestPersistUpgrade:
+    async def test_updates_album_media_byte_size(
+        self,
+        session: AsyncSession,
+        engine: AsyncEngine,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.get_engine", lambda: engine
+        )
+        uid = 1
+        await insert_album(session, uid)
+        media = await insert_album_media(session, uid, name="photo.jpg")
+        media.byte_size = 1
+        session.add(media)
+        target = create_test_jpeg(tmp_path / "photo.jpg", 1200, 800)
+        await session.commit()
+
+        item = _make_item("google-1", "2024-01-15T10:00:00Z")
+        await _persist_upgrade(
+            uid,
+            AID,
+            tmp_path,
+            [MatchResult(local_name="photo.jpg", google_id="google-1", distance=0)],
+            {"photo.jpg"},
+            {"google-1": item},
+        )
+        await session.refresh(media)
+
+        assert media.byte_size == target.stat().st_size
+        assert media.source_ref_id is not None
+        ref = await session.get_one(AlbumMediaSourceRef, media.source_ref_id)
+        assert ref.google_media_id == "google-1"
 
 
 # ---------------------------------------------------------------------------

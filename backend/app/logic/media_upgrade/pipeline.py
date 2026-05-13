@@ -430,6 +430,7 @@ async def _persist_upgrade(  # noqa: PLR0913
                         existing_refs[match.google_id] = ref
                     row.width = updated.width
                     row.height = updated.height
+                    row.byte_size = target.stat().st_size
                     row.storage_path = row.name
                     row.source_ref_id = ref.id
                     row.updated_at = now
