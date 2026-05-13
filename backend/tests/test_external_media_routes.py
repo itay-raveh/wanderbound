@@ -142,6 +142,32 @@ async def test_device_replace_updates_existing_media(
     assert row.height == 800
 
 
+async def test_device_replace_schedules_undo_snapshot_prune(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    media_name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
+    Image.new("RGB", (640, 480), color="red").save(album_dir / media_name, "JPEG")
+
+    with patch(
+        "app.api.v1.routes.external_media.enqueue_undo_snapshot_prune",
+    ) as enqueue_prune:
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/replace/device",
+            data={"media_name": media_name},
+            files={"file": ("replacement.jpg", _jpeg_bytes(1200, 800), "image/jpeg")},
+        )
+
+    assert resp.status_code == 200
+    enqueue_prune.assert_called_once()
+    _, scheduled_uid, scheduled_aid, scheduled_dir = enqueue_prune.call_args.args
+    assert (scheduled_uid, scheduled_aid, scheduled_dir) == (uid, AID, album_dir)
+
+
 async def test_device_replace_oversized_upload_returns_413(
     client: AsyncClient,
     session: AsyncSession,

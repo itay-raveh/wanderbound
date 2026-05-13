@@ -30,7 +30,10 @@ from app.logic.external_media.operations import (
     download_google_items_to_saved,
     list_google_picker_items,
 )
-from app.logic.external_media.undo import restore_undo_snapshot
+from app.logic.external_media.undo import (
+    enqueue_undo_snapshot_prune,
+    restore_undo_snapshot,
+)
 from app.logic.layout.media import MediaName
 from app.logic.media_import import (
     ImportCompleted,
@@ -147,18 +150,20 @@ async def add_device(  # noqa: PLR0913
 
 
 @router.post("/replace/device")
-async def replace_device(
+async def replace_device(  # noqa: PLR0913
     aid: str,
     user: UserDep,
     session: SessionDep,
+    background_tasks: BackgroundTasks,
     media_name: Annotated[MediaName, Form()],
     file: Annotated[UploadFile, File()],
 ) -> AlbumMedia:
     album = await _get_album_or_404(aid, user, session)
     if await session.get(AlbumMedia, (user.id, aid, media_name)) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
+    target_album_dir = album_dir(user, aid)
     with tempfile.TemporaryDirectory(
-        dir=album_dir(user, aid),
+        dir=target_album_dir,
         prefix=".replace-device-",
     ) as tmp:
         try:
@@ -171,7 +176,7 @@ async def replace_device(
             row = await replace_album_media_from_saved(
                 session,
                 album=album,
-                album_dir=album_dir(user, aid),
+                album_dir=target_album_dir,
                 media_name=media_name,
                 saved=saved[0],
             )
@@ -182,6 +187,7 @@ async def replace_device(
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
     await session.commit()
+    enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row
 
 
@@ -278,11 +284,12 @@ async def _stream_google_import(
 
 
 @router.post("/replace/google")
-async def replace_google_media(
+async def replace_google_media(  # noqa: PLR0913
     aid: str,
     body: GoogleReplaceRequest,
     user: UserDep,
     session: SessionDep,
+    background_tasks: BackgroundTasks,
     http: HttpClientsDep,
 ) -> AlbumMedia:
     album = await _get_album_or_404(aid, user, session)
@@ -290,9 +297,10 @@ async def replace_google_media(
     access_token = await _ensure_fresh_access_token(http, user)
     if await session.get(AlbumMedia, (user.id, aid, body.media_name)) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
+    target_album_dir = album_dir(user, aid)
 
     with tempfile.TemporaryDirectory(
-        dir=album_dir(user, aid),
+        dir=target_album_dir,
         prefix=".replace-google-",
     ) as tmp:
         picked_items = await list_google_picker_items(
@@ -318,7 +326,7 @@ async def replace_google_media(
             row = await replace_album_media_from_saved(
                 session,
                 album=album,
-                album_dir=album_dir(user, aid),
+                album_dir=target_album_dir,
                 media_name=body.media_name,
                 saved=saved,
             )
@@ -327,4 +335,5 @@ async def replace_google_media(
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
     await session.commit()
+    enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row
