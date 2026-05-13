@@ -31,6 +31,16 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def _video_poster(path: Path) -> Path:
+    return path.with_suffix(".jpg")
+
+
+async def _unlink_snapshot(path: Path) -> None:
+    await run_sync(path.unlink, missing_ok=True)
+    if is_video(path.name):
+        await run_sync(_video_poster(path).unlink, missing_ok=True)
+
+
 def enqueue_undo_snapshot_prune(
     background_tasks: BackgroundTasks,
     uid: int,
@@ -116,10 +126,13 @@ async def create_undo_snapshot(
     row = await session.get(AlbumMedia, (uid, aid, media_name))
     existing = await session.get(AlbumMediaUndoSnapshot, (uid, aid, media_name))
     if existing is not None:
-        await run_sync((album_dir / existing.snapshot_path).unlink, missing_ok=True)
+        await _unlink_snapshot(album_dir / existing.snapshot_path)
         await session.delete(existing)
         await session.flush()
     await run_sync(shutil.copy2, source, snapshot_path)
+    source_poster = _video_poster(source)
+    if is_video(media_name) and source_poster.exists():
+        await run_sync(shutil.copy2, source_poster, _video_poster(snapshot_path))
     snap = AlbumMediaUndoSnapshot(
         uid=uid,
         aid=aid,
@@ -160,7 +173,12 @@ async def restore_undo_snapshot(
     await run_sync(shutil.move, snapshot_path, target)
     await run_sync(delete_thumbnails, target)
     if is_video(media_name):
-        await extract_frame(target)
+        snapshot_poster = _video_poster(snapshot_path)
+        target_poster = _video_poster(target)
+        if snapshot_poster.exists():
+            await run_sync(shutil.move, snapshot_poster, target_poster)
+        else:
+            await extract_frame(target)
     restored = (
         await Media.probe(target)
         if is_video(media_name)
@@ -196,7 +214,7 @@ async def prune_expired_undo_snapshots(
         )
     ).all()
     for row in rows:
-        await run_sync((album_dir / row.snapshot_path).unlink, missing_ok=True)
+        await _unlink_snapshot(album_dir / row.snapshot_path)
         await session.delete(row)
     await session.flush()
     return len(rows)

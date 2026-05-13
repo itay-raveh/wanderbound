@@ -148,6 +148,7 @@ export function useReplaceExternalMedia() {
             albumId.value,
             selectedMediaName.value,
             selectedKind.value,
+            selectedMedia.value.updated_at,
           ),
         },
         replacement,
@@ -314,8 +315,10 @@ function currentPreviewUrl(
   aid: string,
   mediaName: string,
   kind: "photo" | "video",
+  updatedAt: string | undefined,
 ): string {
-  return mediaUrl(kind === "video" ? posterPath(mediaName) : mediaName, aid);
+  const base = mediaUrl(kind === "video" ? posterPath(mediaName) : mediaName, aid);
+  return updatedAt ? `${base}?d=${encodeURIComponent(updatedAt)}` : base;
 }
 
 function buildWarnings(media: MediaDimensions, replacement: PreviewInfo): string[] {

@@ -21,7 +21,7 @@ function isLayoutUpdate(update: StepMutationUpdate): boolean {
 
 function mediaLayout(step: Step, update: StepMutationUpdate): StepMediaLayout {
   return {
-    cover: update.cover ?? step.cover,
+    cover: update.cover !== undefined ? update.cover : step.cover,
     pages: update.pages ?? step.pages,
     unused: update.unused ?? step.unused,
   };

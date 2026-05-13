@@ -86,6 +86,31 @@ describe("useStepMutation", () => {
       expect(result.query.data.value?.[1]?.name).toBe("Berlin");
     });
 
+    it("sends explicit null cover in layout updates", async () => {
+      const aid = ref<string | null>(defaultAlbum.id);
+      let body: unknown;
+
+      server.use(
+        http.put(`${BASE}/albums/:aid/steps/:sid/media-layout`, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ ...defaultStep, cover: null });
+        }),
+      );
+
+      const result = withSetup(() => {
+        const query = useStepsQuery(aid);
+        const mutation = useStepMutation(() => aid.value!);
+        return { query, mutation };
+      });
+
+      await flushPromises();
+
+      result.mutation.mutate({ sid: 1, update: { cover: null } });
+      await flushPromises();
+
+      expect(body).toMatchObject({ cover: null });
+    });
+
 });
 
   // ---------------------------------------------------------------------------
