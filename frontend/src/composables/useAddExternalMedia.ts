@@ -8,7 +8,7 @@ import { useQueryCache } from "@pinia/colada";
 import { computed, nextTick, ref } from "vue";
 import { readImportStream } from "./useMediaImport";
 
-export type ExternalImportContext = "step" | "cover";
+type ExternalImportContext = "step" | "cover";
 type AddPhase =
   | "idle"
   | "authorizing"
