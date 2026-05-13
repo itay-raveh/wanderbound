@@ -231,7 +231,72 @@ async def test_google_replace_requires_one_selected_item(
             },
         )
 
-    assert resp.status_code in {400, 502}
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Select exactly one replacement"
+
+
+async def test_google_replace_rejects_multiple_items_before_download(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    await connect_google_photos(session, uid)
+
+    http = _pin_http_clients()
+    http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+        {"access_token": "fresh-token", "expires_in": 3600}
+    )
+    items = [
+        PickedMediaItem(
+            id="google-1",
+            create_time="2024-01-01T00:00:00Z",
+            type="PHOTO",
+            media_file=GoogleMediaFile(
+                base_url="https://lh3.googleusercontent.com/one",
+                mime_type="image/jpeg",
+                filename="one.jpg",
+                width=1200,
+                height=800,
+            ),
+        ),
+        PickedMediaItem(
+            id="google-2",
+            create_time="2024-01-02T00:00:00Z",
+            type="PHOTO",
+            media_file=GoogleMediaFile(
+                base_url="https://lh3.googleusercontent.com/two",
+                mime_type="image/jpeg",
+                filename="two.jpg",
+                width=1200,
+                height=800,
+            ),
+        ),
+    ]
+
+    with (
+        patch(
+            "app.logic.external_media.operations.get_media_items",
+            AsyncMock(return_value=items),
+        ),
+        patch(
+            "app.logic.external_media.operations.download_media_to_file",
+            AsyncMock(),
+        ) as download,
+    ):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/replace/google",
+            json={
+                "media_name": (
+                    "11111111-1111-4111-8111-111111111111_"
+                    "22222222-2222-4222-8222-222222222222.jpg"
+                ),
+                "session_id": "session-abc",
+            },
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Select exactly one replacement"
+    download.assert_not_awaited()
 
 
 async def test_google_add_validates_step_before_download(

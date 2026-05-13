@@ -46,25 +46,55 @@ async def download_google_items_to_saved(
     session_id: PickerSessionId,
     temp_dir: Path,
 ) -> AsyncIterator[tuple[PickedMediaItem, SavedInput]]:
-    items = await get_media_items(http.gphotos_picker, session_id, access_token)
+    items = await list_google_picker_items(
+        http=http,
+        access_token=access_token,
+        session_id=session_id,
+    )
     if len(items) > MAX_IMPORT_ITEMS:
         raise OverflowError("Too many files")
 
     total = 0
     for index, item in enumerate(items):
-        path = temp_dir / f"google-{index}"
-        max_bytes = MAX_VIDEO_BYTES if item.type == "VIDEO" else MAX_PHOTO_BYTES
-        param = "=dv" if item.type == "VIDEO" else "=d"
-        await download_media_to_file(
-            http.gphotos_picker,
-            item.media_file.base_url,
-            access_token,
-            path,
-            max_bytes=max_bytes,
-            param=param,
+        saved = await download_google_item_to_saved(
+            http=http,
+            access_token=access_token,
+            item=item,
+            temp_dir=temp_dir,
+            index=index,
         )
-        size = path.stat().st_size
-        total += size
+        total += saved.size
         if total > MAX_VIDEO_BYTES:
             raise OverflowError("Import is too large")
-        yield item, SavedInput(path=path, size=size)
+        yield item, saved
+
+
+async def list_google_picker_items(
+    *,
+    http: HttpClients,
+    access_token: str,
+    session_id: PickerSessionId,
+) -> list[PickedMediaItem]:
+    return await get_media_items(http.gphotos_picker, session_id, access_token)
+
+
+async def download_google_item_to_saved(
+    *,
+    http: HttpClients,
+    access_token: str,
+    item: PickedMediaItem,
+    temp_dir: Path,
+    index: int = 0,
+) -> SavedInput:
+    path = temp_dir / f"google-{index}"
+    max_bytes = MAX_VIDEO_BYTES if item.type == "VIDEO" else MAX_PHOTO_BYTES
+    param = "=dv" if item.type == "VIDEO" else "=d"
+    await download_media_to_file(
+        http.gphotos_picker,
+        item.media_file.base_url,
+        access_token,
+        path,
+        max_bytes=max_bytes,
+        param=param,
+    )
+    return SavedInput(path=path, size=path.stat().st_size)

@@ -12,7 +12,9 @@ from sqlmodel import select
 from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.operations import (
     add_device_media,
+    download_google_item_to_saved,
     download_google_items_to_saved,
+    list_google_picker_items,
 )
 from app.logic.external_media.undo import restore_undo_snapshot
 from app.logic.layout.media import MediaName
@@ -277,21 +279,26 @@ async def replace_google_media(
         dir=album_dir(user, aid),
         prefix=".replace-google-",
     ) as tmp:
-        saved_items = [
-            item
-            async for item in download_google_items_to_saved(
-                http=http,
-                access_token=access_token,
-                session_id=body.session_id,
-                temp_dir=Path(tmp),
-            )
-        ]
-        if len(saved_items) != 1:
+        picked_items = await list_google_picker_items(
+            http=http,
+            access_token=access_token,
+            session_id=body.session_id,
+        )
+        if len(picked_items) != 1:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 "Select exactly one replacement",
             )
-        picked_item, saved = saved_items[0]
+        picked_item = picked_items[0]
+        try:
+            saved = await download_google_item_to_saved(
+                http=http,
+                access_token=access_token,
+                item=picked_item,
+                temp_dir=Path(tmp),
+            )
+        except (OverflowError, DownloadTooLargeError) as exc:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
         source_ref = await _ensure_google_source_ref(
             session,
             uid=user.id,
