@@ -347,6 +347,7 @@ async def reconcile_trip(  # noqa: PLR0913
         await _probe_media(
             trip_dir, [*new_step_objects, *reconciled_steps], known_media
         ),
+        {row.name: row.upgrade_candidate for row in existing_media_rows},
     )
 
     _fix_album_covers(album, all_on_disk, cover_name, reconciled_steps)

@@ -13,6 +13,7 @@ from app.logic.reconcile import (
 )
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
 from app.models.step import StepRead
@@ -320,3 +321,58 @@ class TestReconcileTripRebuildsSegments:
             assert seg.uid == _UID
             assert seg.aid == _RECONCILE_AID
             assert len(seg.points) >= 2
+
+    async def test_preserves_existing_media_upgrade_candidate_flags(
+        self, tmp_path: Path
+    ) -> None:
+        ps_steps = [_ps_step(1, slug="start")]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+        media_name = (
+            "11111111-1111-4111-8111-111111111111_"
+            "22222222-2222-4222-8222-222222222222.jpg"
+        )
+        (trip_dir / media_name).write_bytes(b"\xff\xd8")
+
+        existing_steps = [_step(1, pages=[[media_name]], cover=media_name)]
+        for step in existing_steps:
+            step.uid = _UID
+            step.aid = _RECONCILE_AID
+
+        album = _album(front_cover_photo=media_name, back_cover_photo=media_name)
+        album.uid = _UID
+        album.id = _RECONCILE_AID
+        user = User(
+            id=_UID,
+            first_name="Test",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            google_sub="test",
+        )
+        existing_media = AlbumMedia(
+            uid=_UID,
+            aid=_RECONCILE_AID,
+            name=media_name,
+            kind="photo",
+            width=640,
+            height=480,
+            byte_size=123,
+            upgrade_candidate=False,
+        )
+
+        db_out: list = []
+        await collect_async(
+            reconcile_trip(
+                _MOCK_HTTP,
+                user,
+                trip_dir,
+                album,
+                existing_steps,
+                db_out,
+                existing_media_rows=[existing_media],
+            )
+        )
+
+        media_rows = [obj for obj in db_out if isinstance(obj, AlbumMedia)]
+        row = next(obj for obj in media_rows if obj.name == media_name)
+        assert row.upgrade_candidate is False

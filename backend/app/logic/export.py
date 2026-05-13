@@ -17,9 +17,10 @@ from sqlmodel import col, select
 from app.core.observability import start_span
 from app.core.tokens import TokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
+from app.logic.step_media import read_steps_with_media
 from app.models.album import Album
 from app.models.segment import Segment
-from app.models.step import Step
+from app.models.step import StepRead
 from app.models.user import AuthProvider, User
 
 if TYPE_CHECKING:
@@ -218,15 +219,10 @@ async def export_user_data(
         )
         album_ids_loaded = [a.id for a in albums]
 
-        steps_by_album: dict[str, list[Step]] = {aid: [] for aid in album_ids_loaded}
-        for step in (
-            await session.exec(
-                select(Step)
-                .where(Step.uid == user.id, col(Step.aid).in_(album_ids_loaded))
-                .order_by(col(Step.timestamp), col(Step.id))
-            )
-        ).all():
-            steps_by_album[step.aid].append(step)
+        steps_by_album: dict[str, list[StepRead]] = {
+            aid: await read_steps_with_media(session, user.id, aid)
+            for aid in album_ids_loaded
+        }
 
         segments_by_album: dict[str, list[Segment]] = {
             aid: [] for aid in album_ids_loaded

@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
@@ -13,6 +14,7 @@ from app.core.http_clients import HttpClients
 from app.logic.trip_pipeline import _process_trip, _save_reupload
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -230,3 +232,125 @@ class TestSaveReuploadDeletesSegments:
         assert steps[0].name == "New Step"
         assert len(albums) == 1
         assert albums[0].title == "Reconciled Trip"
+
+    async def test_reupload_deletes_steps_before_cover_media(
+        self, tmp_path: Path
+    ) -> None:
+        engine = create_async_engine(
+            "sqlite+aiosqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        event.listen(
+            engine.sync_engine,
+            "connect",
+            lambda dbapi_connection, _connection_record: dbapi_connection.execute(
+                "PRAGMA foreign_keys=ON"
+            ),
+        )
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+
+        async with AsyncSession(engine) as session:
+            user = User(
+                id=UID,
+                first_name="Test",
+                locale="en-US",
+                unit_is_km=True,
+                temperature_is_celsius=True,
+                google_sub="test-sub",
+            )
+            album = Album(
+                uid=UID,
+                id=AID,
+                title="Old Trip",
+                subtitle="",
+                hidden_steps=[],
+                maps_ranges=[],
+                front_cover_photo="a.jpg",
+                back_cover_photo="b.jpg",
+                colors={},
+                font="Assistant",
+                body_font="Frank Ruhl Libre",
+            )
+            media = AlbumMedia(
+                uid=UID,
+                aid=AID,
+                name="cover.jpg",
+                kind="photo",
+                width=640,
+                height=480,
+                byte_size=10,
+                upgrade_candidate=True,
+            )
+            step = Step(
+                uid=UID,
+                aid=AID,
+                id=1,
+                name="Old Step",
+                description="",
+                cover_media_name="cover.jpg",
+                timestamp=1_000_000.0,
+                timezone_id="UTC",
+                location=None,
+                elevation=0,
+                weather=Weather(
+                    day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"),
+                    night=None,
+                ),
+            )
+            session.add(user)
+            await session.flush()
+            session.add(album)
+            await session.flush()
+            session.add(media)
+            await session.flush()
+            session.add(step)
+            await session.commit()
+
+        new_album = Album(
+            uid=UID,
+            id=AID,
+            title="Reconciled Trip",
+            subtitle="",
+            hidden_steps=[],
+            maps_ranges=[],
+            front_cover_photo="c.jpg",
+            back_cover_photo="d.jpg",
+            colors={},
+            body_font="Frank Ruhl Libre",
+        )
+        new_step = Step(
+            uid=UID,
+            aid=AID,
+            id=2,
+            name="New Step",
+            description="",
+            cover_media_name=None,
+            timestamp=2_000_000.0,
+            timezone_id="UTC",
+            location=None,
+            elevation=0,
+            weather=Weather(
+                day=WeatherData(temp=25.0, feels_like=23.0, icon="cloud"),
+                night=None,
+            ),
+        )
+        trip_dir = tmp_path / AID
+        trip_dir.mkdir()
+
+        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+            await _save_reupload(
+                uid=UID,
+                objects=[new_album, new_step],
+                reconciled_aids={AID},
+                existing_albums={AID: album},
+                trip_dirs=[trip_dir],
+            )
+
+        async with AsyncSession(engine) as session:
+            steps = (await session.exec(select(Step))).all()
+            media_rows = (await session.exec(select(AlbumMedia))).all()
+
+        assert [s.name for s in steps] == ["New Step"]
+        assert media_rows == []

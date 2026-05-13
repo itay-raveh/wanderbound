@@ -2459,7 +2459,7 @@
           },
           "media": {
             "items": {
-              "$ref": "#/components/schemas/Media"
+              "$ref": "#/components/schemas/AlbumMedia"
             },
             "type": "array",
             "title": "Media"
@@ -3048,29 +3048,6 @@
           "distance"
         ],
         "title": "MatchResult"
-      },
-      "Media": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "width": {
-            "type": "integer",
-            "title": "Width"
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "width",
-          "height"
-        ],
-        "title": "Media"
       },
       "PdfDone": {
         "properties": {

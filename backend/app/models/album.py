@@ -8,7 +8,7 @@ from sqlalchemy import String
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.logic.layout.media import Media
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
 from app.models.step import StepRead
@@ -82,7 +82,7 @@ class Album(AlbumMeta, table=True):
 
 
 class AlbumWithMedia(AlbumMeta):
-    media: list[Media] = Field(default_factory=list)
+    media: list[AlbumMedia] = Field(default_factory=list)
 
 
 class PrintBundle(BaseModel):

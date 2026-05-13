@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import AsyncIterator
+from inspect import signature
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -10,11 +11,13 @@ from httpx_oauth.oauth2 import OAuth2Token
 from PIL import Image
 
 from app.api.v1.deps import _get_http_clients
+from app.api.v1.routes.external_media import add_google_media
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.main import app
 from app.models.album_media import AlbumMedia, StepUnusedMedia
 from app.models.google_photos import GoogleMediaFile, PickedMediaItem
+from app.models.user import User
 
 from .conftest import _mock_http_clients
 from .factories import (
@@ -87,6 +90,13 @@ async def test_device_add_to_step_prepends_unused(
     row = await session.get_one(AlbumMedia, (uid, AID, imported[0]))
     assert row.kind == "photo"
     assert row.upgrade_candidate is False
+    assert row.byte_size > 0
+
+
+def test_google_add_stream_route_does_not_depend_on_request_db_session() -> None:
+    params = signature(add_google_media).parameters
+    assert "session" not in params
+    assert "user" not in params
 
 
 async def test_device_add_to_cover_does_not_select_cover(
@@ -130,6 +140,53 @@ async def test_device_replace_updates_existing_media(
     row = await session.get_one(AlbumMedia, (uid, AID, media_name))
     assert row.width == 1200
     assert row.height == 800
+
+
+async def test_device_replace_oversized_upload_returns_413(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    await _signed_in_album(client, session)
+    media_name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+
+    with patch(
+        "app.api.v1.routes.external_media.save_uploads",
+        AsyncMock(side_effect=OverflowError("Import is too large")),
+    ):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/replace/device",
+            data={"media_name": media_name},
+            files={"file": ("replacement.jpg", b"too large", "image/jpeg")},
+        )
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "Import is too large"
+
+
+async def test_device_replace_missing_media_returns_404(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    await _signed_in_album(client, session)
+    save_uploads = AsyncMock(side_effect=AssertionError("should not save upload"))
+
+    with patch("app.api.v1.routes.external_media.save_uploads", save_uploads):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/replace/device",
+            data={
+                "media_name": (
+                    "33333333-3333-4333-8333-333333333333_"
+                    "44444444-4444-4444-8444-444444444444.jpg"
+                )
+            },
+            files={"file": ("replacement.jpg", _jpeg_bytes(1200, 800), "image/jpeg")},
+        )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Media not found"
+    save_uploads.assert_not_awaited()
 
 
 async def test_undo_replacement_restores_previous_dimensions(
@@ -345,9 +402,12 @@ async def test_google_add_validates_step_before_download(
         for item in ():
             yield item
 
-    with patch(
-        "app.api.v1.routes.external_media.download_google_items_to_saved",
-        fail_if_downloaded,
+    with (
+        patch(
+            "app.api.v1.routes.external_media.download_google_items_to_saved",
+            fail_if_downloaded,
+        ),
+        patch("app.api.v1.routes.external_media.get_engine", return_value=session.bind),
     ):
         resp = await client.post(
             f"/api/v1/albums/{AID}/external-media/add/google",
@@ -357,6 +417,31 @@ async def test_google_add_validates_step_before_download(
     assert resp.status_code == 200
     assert "Step not found" in resp.text
     assert not downloaded
+
+
+async def test_google_add_collapses_lost_token_to_disconnected(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    await connect_google_photos(session, uid)
+    user = await session.get_one(User, uid)
+    user.google_photos_refresh_token = None
+    session.add(user)
+    await session.commit()
+
+    with patch(
+        "app.api.v1.routes.external_media.get_engine", return_value=session.bind
+    ):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/add/google",
+            json={"context": "cover", "session_id": "session-abc"},
+        )
+
+    assert resp.status_code == 400
+    assert "Google Photos not connected" in resp.text
+    await session.refresh(user)
+    assert user.google_photos_connected_at is None
 
 
 async def test_google_replace_validates_media_before_download(

@@ -96,16 +96,14 @@ function handleSpace() {
 
 const isVideo = computed(() => checkVideo(props.media));
 
-// Dimensions string from the media query. Changes after upgrade (new file has
-// different resolution), which busts the immutable-cache URLs.
-const mediaDims = computed(() => {
+const mediaCacheKey = computed(() => {
   const m = mediaByName.value.get(props.media);
-  return m ? `${m.width}x${m.height}` : undefined;
+  return m ? encodeURIComponent(m.updated_at!) : undefined;
 });
 
 const src = computed(() => {
   const base = mediaUrl(props.media, albumId.value);
-  return mediaDims.value ? `${base}?d=${mediaDims.value}` : base;
+  return mediaCacheKey.value ? `${base}?d=${mediaCacheKey.value}` : base;
 });
 
 const posterCacheBust = ref<number>();
@@ -113,7 +111,7 @@ const posterSrc = computed(() => {
   if (!isVideo.value) return "";
   const base = mediaUrl(posterPath(props.media), albumId.value);
   const params: string[] = [];
-  if (mediaDims.value) params.push(`d=${mediaDims.value}`);
+  if (mediaCacheKey.value) params.push(`d=${mediaCacheKey.value}`);
   if (posterCacheBust.value != null) params.push(`v=${posterCacheBust.value}`);
   return params.length ? `${base}?${params.join("&")}` : base;
 });
@@ -123,7 +121,7 @@ const imgSrcset = computed(() => {
   const name = isVideo.value ? posterPath(props.media) : props.media;
   const base = mediaUrl(name, albumId.value);
   const extra: string[] = [];
-  if (mediaDims.value) extra.push(`d=${mediaDims.value}`);
+  if (mediaCacheKey.value) extra.push(`d=${mediaCacheKey.value}`);
   if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
   const suffix = extra.length ? `&${extra.join("&")}` : "";
   return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");

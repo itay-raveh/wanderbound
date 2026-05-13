@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.worker_threads import run_sync
-from app.logic.layout.media import Media, delete_thumbnails, is_video
+from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
 
@@ -84,6 +84,8 @@ async def restore_undo_snapshot(
     target = album_dir / media_name
     await run_sync(shutil.move, snapshot_path, target)
     await run_sync(delete_thumbnails, target)
+    if is_video(media_name):
+        await extract_frame(target)
     restored = (
         await Media.probe(target)
         if is_video(media_name)

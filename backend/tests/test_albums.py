@@ -452,6 +452,10 @@ class TestPrintBundle:
         assert "total_distance_km" in data
         # Album should include media (full Album, not AlbumMeta)
         assert "media" in data["album"]
+        assert data["album"]["media"][0]["uid"] == uid
+        assert data["album"]["media"][0]["aid"] == AID
+        assert data["album"]["media"][0]["byte_size"] == 1234
+        assert "updated_at" in data["album"]["media"][0]
         assert len(data["steps"]) == 1
         assert len(data["segments"]) == 1
         assert isinstance(data["total_distance_km"], float)

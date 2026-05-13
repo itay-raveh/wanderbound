@@ -230,7 +230,9 @@ def build_album_media_rows(
     aid: str,
     trip_dir: Path,
     media: Iterable[Media],
+    upgrade_candidate_by_name: dict[str, bool] | None = None,
 ) -> list[AlbumMedia]:
+    upgrade_candidate_by_name = upgrade_candidate_by_name or {}
     rows: list[AlbumMedia] = []
     for item in media:
         path = trip_dir / item.name
@@ -247,7 +249,7 @@ def build_album_media_rows(
                 width=item.width,
                 height=item.height,
                 byte_size=byte_size,
-                upgrade_candidate=True,
+                upgrade_candidate=upgrade_candidate_by_name.get(item.name, True),
             )
         )
     return rows

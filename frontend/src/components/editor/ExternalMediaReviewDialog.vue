@@ -35,21 +35,10 @@ const hasWarnings = computed(() => (props.review?.warnings.length ?? 0) > 0);
 
       <q-card-section class="review-grid">
         <div class="preview-panel">
-          <div class="preview-label">{{ t("externalMedia.review.current") }}</div>
-          <img
-            v-if="review.current.kind === 'photo'"
-            :src="review.current.previewUrl"
-            alt=""
-            class="preview-media"
-          />
-          <video
-            v-else
-            :src="review.current.previewUrl"
-            class="preview-media"
-            muted
-            playsinline
-            preload="metadata"
-          />
+          <div class="preview-label">
+            {{ t("externalMedia.review.current") }}
+          </div>
+          <img :src="review.current.previewUrl" alt="" class="preview-media" />
           <div class="preview-meta">
             {{ review.current.width }} × {{ review.current.height }}
           </div>
@@ -79,7 +68,10 @@ const hasWarnings = computed(() => (props.review?.warnings.length ?? 0) > 0);
         </div>
       </q-card-section>
 
-      <q-card-section v-if="hasWarnings || review.blockedReason" class="review-alerts">
+      <q-card-section
+        v-if="hasWarnings || review.blockedReason"
+        class="review-alerts"
+      >
         <div v-if="review.blockedReason" class="alert alert-error">
           {{ review.blockedReason }}
         </div>

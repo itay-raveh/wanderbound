@@ -404,6 +404,55 @@ class TestPersistUpgrade:
 
 
 class TestRunMatching:
+    async def test_marks_matches_outside_upgrade_candidates_as_upgraded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "photo.jpg").write_bytes(b"fake")
+        h = _make_hash(0)
+
+        async def fake_local(
+            _album_dir: Path, name: str
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, h
+
+        async def fake_candidate(*_args: object) -> tuple[str, imagehash.ImageHash]:
+            return "gp-1", h
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+
+        async def fake_token() -> str:
+            return "test-token"
+
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=album_dir,
+                media_by_step={1: ["photo.jpg"]},
+                step_timestamps=[datetime(2024, 1, 15, 10, 0, tzinfo=UTC).timestamp()],
+                step_ids=[1],
+                google_items=[
+                    _make_item(
+                        "gp-1",
+                        datetime(2024, 1, 15, 10, 5, tzinfo=UTC).isoformat(),
+                    )
+                ],
+                tokens=fake_token,
+                upgrade_candidates=set(),
+            )
+        ]
+
+        summary = events[-1]
+        assert isinstance(summary, MatchCompleted)
+        assert summary.matches[0].upgraded is True
+
     async def test_matches_real_images_end_to_end(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

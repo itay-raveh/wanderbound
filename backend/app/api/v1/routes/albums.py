@@ -16,7 +16,6 @@ from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
-from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.logic.segment_routes import enqueue_album_route_enrichment
 from app.logic.spatial.geo import total_length_km
@@ -50,10 +49,6 @@ async def _get_album(
 AlbumDep = Annotated[Album, Depends(_get_album)]
 
 router = APIRouter(prefix="/albums", tags=["albums"])
-
-
-def _media_row_to_media(row: AlbumMedia) -> Media:
-    return Media(name=row.name, width=row.width, height=row.height)
 
 
 # Static-prefix routes must be declared before /{aid} to avoid shadowing.
@@ -276,7 +271,7 @@ async def read_print_bundle(
     return PrintBundle(
         album=AlbumWithMedia(
             **album.model_dump(),
-            media=[_media_row_to_media(row) for row in media_rows],
+            media=media_rows,
         ),
         steps=steps,
         segments=segments,

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AlbumMeta, Media, StepRead as Step } from "@/client";
+import type { AlbumMedia, AlbumMeta, StepRead as Step } from "@/client";
 import AlbumProperties from "./AlbumProperties.vue";
 import CoverCell from "./CoverCell.vue";
 import MediaPanel from "./MediaPanel.vue";
@@ -16,7 +16,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   album: AlbumMeta;
-  media: Media[];
+  media: AlbumMedia[];
   step?: Step;
   sectionKey?: string | null;
 }>();

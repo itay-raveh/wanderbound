@@ -1,4 +1,4 @@
-import type { Media, StepRead as Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -134,7 +134,7 @@ describe("enforceOrientationOrder", () => {
 // -- summarizeQuality --
 
 describe("summarizeQuality", () => {
-  function media(name: string, width: number, height: number): Media {
+  function media(name: string, width: number, height: number) {
     return { name, width, height };
   }
 

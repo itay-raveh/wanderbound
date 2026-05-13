@@ -439,11 +439,7 @@ async def match_media(
         step_timestamps = [s.timestamp for s in step_rows]
         step_ids = [s.id for s in step_rows]
         media_by_step = {
-            s.id: [
-                name
-                for name in [*(name for page in s.pages for name in page), *s.unused]
-                if name in upgrade_candidates
-            ]
+            s.id: [name for page in s.pages for name in page] + s.unused
             for s in step_rows
         }
 
@@ -463,6 +459,7 @@ async def match_media(
                 step_ids=step_ids,
                 google_items=items,
                 tokens=tokens,
+                upgrade_candidates=upgrade_candidates,
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001

@@ -1,13 +1,29 @@
 import tempfile
 from collections.abc import AsyncIterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.logic.external_media.album_media import replace_album_media_from_saved
+from app.core.db import get_engine
+from app.logic.external_media.album_media import (
+    MediaNotFoundError,
+    replace_album_media_from_saved,
+)
 from app.logic.external_media.operations import (
     add_device_media,
     download_google_item_to_saved,
@@ -34,7 +50,7 @@ from app.models.album_media import AlbumMedia
 from app.models.google_photos import PickerSessionId
 from app.services.google_photos import DownloadTooLargeError
 
-from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir
+from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir, require_loaded_user
 from .google_photos import _ensure_fresh_access_token
 
 router = APIRouter(prefix="/albums/{aid}/external-media", tags=["external-media"])
@@ -47,6 +63,15 @@ class GoogleImportRequest(ImportRequest):
 class GoogleReplaceRequest(BaseModel):
     media_name: MediaName
     session_id: PickerSessionId
+
+
+@dataclass(frozen=True)
+class GoogleImportContext:
+    body: GoogleImportRequest
+    album: Album
+    album_dir: Path
+    access_token: str
+    validation_error: str | None = None
 
 
 async def _get_album_or_404(aid: str, user: UserDep, session: SessionDep) -> Album:
@@ -67,6 +92,33 @@ def _require_google_available(user: UserDep) -> None:
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
+
+
+async def _load_google_import_context(
+    request: Request,
+    *,
+    aid: str,
+    body: GoogleImportRequest,
+    background_tasks: BackgroundTasks,
+    http: HttpClientsDep,
+) -> GoogleImportContext:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        user = await require_loaded_user(request, session, background_tasks)
+        album = await _get_album_or_404(aid, user, session)
+        _require_google_available(user)
+        validation_error = None
+        try:
+            await validate_import_target(session, album=album, request=body)
+        except ValueError as exc:
+            validation_error = str(exc)
+    access_token = await _ensure_fresh_access_token(http, user)
+    return GoogleImportContext(
+        body=body,
+        album=album,
+        album_dir=album_dir(user, aid),
+        access_token=access_token,
+        validation_error=validation_error,
+    )
 
 
 @router.post("/add/device")
@@ -103,17 +155,19 @@ async def replace_device(
     file: Annotated[UploadFile, File()],
 ) -> AlbumMedia:
     album = await _get_album_or_404(aid, user, session)
+    if await session.get(AlbumMedia, (user.id, aid, media_name)) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
     with tempfile.TemporaryDirectory(
         dir=album_dir(user, aid),
         prefix=".replace-device-",
     ) as tmp:
-        saved = await save_uploads([file], Path(tmp))
-        if len(saved) != 1:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                "Select exactly one replacement",
-            )
         try:
+            saved = await save_uploads([file], Path(tmp))
+            if len(saved) != 1:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Select exactly one replacement",
+                )
             row = await replace_album_media_from_saved(
                 session,
                 album=album,
@@ -121,6 +175,10 @@ async def replace_device(
                 media_name=media_name,
                 saved=saved[0],
             )
+        except MediaNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
+        except OverflowError as exc:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
     await session.commit()
@@ -154,31 +212,32 @@ async def undo_replacement(
     responses={200: {"model": list[ImportEvent]}},
 )
 async def add_google_media(
-    aid: str,
-    body: GoogleImportRequest,
-    user: UserDep,
-    session: SessionDep,
+    context: Annotated[GoogleImportContext, Depends(_load_google_import_context)],
     http: HttpClientsDep,
 ) -> AsyncIterable[ImportEvent]:
-    album = await _get_album_or_404(aid, user, session)
-    _require_google_available(user)
-    access_token = await _ensure_fresh_access_token(http, user)
-    try:
-        await validate_import_target(session, album=album, request=body)
-    except ValueError as exc:
-        yield ImportFailed(detail=str(exc))
+    if context.validation_error is not None:
+        yield ImportFailed(detail=context.validation_error)
         return
+    async for event in _stream_google_import(context, context.body, http):
+        yield event
+
+
+async def _stream_google_import(
+    context: GoogleImportContext,
+    body: GoogleImportRequest,
+    http: HttpClientsDep,
+) -> AsyncIterable[ImportEvent]:
     written: list[Path] = []
     try:
         with tempfile.TemporaryDirectory(
-            dir=album_dir(user, aid),
+            dir=context.album_dir,
             prefix=".import-google-",
         ) as tmp:
             temp_dir = Path(tmp)
             saved = []
             async for item, saved_input in download_google_items_to_saved(
                 http=http,
-                access_token=access_token,
+                access_token=context.access_token,
                 session_id=body.session_id,
                 temp_dir=temp_dir,
             ):
@@ -190,16 +249,17 @@ async def add_google_media(
                     total=0,
                 )
             imported, written = await process_saved_media(
-                album_dir=album_dir(user, aid),
+                album_dir=context.album_dir,
                 saved=saved,
             )
-            names = await persist_imported_media(
-                session,
-                album=album,
-                request=body,
-                imported=imported,
-                album_dir=album_dir(user, aid),
-            )
+            async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+                names = await persist_imported_media(
+                    session,
+                    album=context.album,
+                    request=body,
+                    imported=imported,
+                    album_dir=context.album_dir,
+                )
             written = []
             yield ImportCompleted(names=names)
     except (OverflowError, DownloadTooLargeError) as exc:
@@ -262,6 +322,8 @@ async def replace_google_media(
                 media_name=body.media_name,
                 saved=saved,
             )
+        except MediaNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
     await session.commit()

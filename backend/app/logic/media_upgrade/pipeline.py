@@ -164,6 +164,7 @@ async def run_matching(  # noqa: PLR0913
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     tokens: AccessTokenGetter,
+    upgrade_candidates: set[MediaName] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
@@ -258,6 +259,9 @@ async def run_matching(  # noqa: PLR0913
                 google_items,
                 candidate_hashes,
             )
+            if upgrade_candidates is not None:
+                for match in all_matches:
+                    match.upgraded = match.local_name not in upgrade_candidates
 
         set_span_data(
             span,

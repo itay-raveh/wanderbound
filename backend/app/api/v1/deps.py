@@ -70,6 +70,14 @@ async def _get_user(
     session: SessionDep,
     background_tasks: BackgroundTasks,
 ) -> User:
+    return await require_loaded_user(request, session, background_tasks)
+
+
+async def require_loaded_user(
+    request: Request,
+    session: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> User:
     user = await try_load_user(request, session)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)

@@ -56,7 +56,10 @@ type ConfirmAction = "confirm" | "selectMore";
 export function useMediaUpgrade() {
   const gp = useGooglePhotos();
   const cache = useQueryCache();
-  const onboarded = useLocalStorage<boolean>(MEDIA_UPGRADE_ONBOARDED_KEY, false);
+  const onboarded = useLocalStorage<boolean>(
+    MEDIA_UPGRADE_ONBOARDED_KEY,
+    false,
+  );
 
   const phase = ref<UpgradePhase>("idle");
   const progress = ref<UpgradeProgress>({ done: 0, total: 0 });
@@ -86,8 +89,12 @@ export function useMediaUpgrade() {
   function openPopup(): Window {
     const width = Math.min(screen.availWidth - 100, 1200);
     const height = Math.min(screen.availHeight - 100, 900);
-    const left = ((screen as { availLeft?: number }).availLeft ?? 0) + (screen.availWidth - width) / 2;
-    const top = ((screen as { availTop?: number }).availTop ?? 0) + (screen.availHeight - height) / 2;
+    const left =
+      ((screen as { availLeft?: number }).availLeft ?? 0) +
+      (screen.availWidth - width) / 2;
+    const top =
+      ((screen as { availTop?: number }).availTop ?? 0) +
+      (screen.availHeight - height) / 2;
     const popup = window.open(
       "about:blank",
       "google-photos",
@@ -102,7 +109,11 @@ export function useMediaUpgrade() {
   }
 
   async function start(albumId: string) {
-    if (phase.value !== "idle" && phase.value !== "done" && phase.value !== "error")
+    if (
+      phase.value !== "idle" &&
+      phase.value !== "done" &&
+      phase.value !== "error"
+    )
       return;
 
     if (resetTimer !== null) {
@@ -148,7 +159,11 @@ export function useMediaUpgrade() {
         phase.value = "preparing";
         progress.value = { done: 0, total: 0 };
 
-        const roundSummary = await runMatchStream(albumId, currentSessionId, signal);
+        const roundSummary = await runMatchStream(
+          albumId,
+          currentSessionId,
+          signal,
+        );
         if (signal.aborted) return;
 
         const newThisRound = roundSummary ? accumulator.merge(roundSummary) : 0;
@@ -172,21 +187,30 @@ export function useMediaUpgrade() {
       }
 
       // Step 7: Upgrade
-      const toUpgrade = matchSummary.value.matched - matchSummary.value.alreadyUpgraded;
+      const toUpgrade =
+        matchSummary.value.matched - matchSummary.value.alreadyUpgraded;
       phase.value = "downloading";
       progress.value = { done: 0, total: toUpgrade };
       await runUpgradeStream(albumId, signal);
       if (signal.aborted) return;
 
       phase.value = "done";
-      await cache.invalidateQueries({ key: queryKeys.album(albumId) });
+      await Promise.all(
+        mediaUpgradeInvalidationKeys(albumId).map((key) =>
+          cache.invalidateQueries({ key, exact: true }),
+        ),
+      );
       scheduleDoneReset();
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       phase.value = "error";
       errorDetail.value = (err as Error).message;
     } finally {
-      try { activePopup?.close(); } catch { /* COOP may block */ }
+      try {
+        activePopup?.close();
+      } catch {
+        /* COOP may block */
+      }
       activePopup = null;
       for (const sid of sessionIds) {
         gp.closeSession(sid).catch(() => {});
@@ -222,7 +246,11 @@ export function useMediaUpgrade() {
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
-    try { activePopup?.close(); } catch { /* COOP may block */ }
+    try {
+      activePopup?.close();
+    } catch {
+      /* COOP may block */
+    }
     for (const sid of sessionIds) {
       gp.closeSession(sid).catch(() => {});
     }
@@ -387,4 +415,8 @@ export function useMediaUpgrade() {
     selectMore,
     cancel,
   };
+}
+
+export function mediaUpgradeInvalidationKeys(aid: string) {
+  return [queryKeys.album(aid), queryKeys.media(aid)];
 }

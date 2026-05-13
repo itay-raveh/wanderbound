@@ -165,6 +165,7 @@ async def import_saved_media(
             album=album,
             request=request,
             imported=imported,
+            album_dir=album_dir,
         )
         written = []
     except BaseException:

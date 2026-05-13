@@ -220,11 +220,6 @@ async def _save_reupload(
         async with AsyncSession(get_engine()) as session:
             if reconciled_aids:
                 await session.exec(
-                    delete(AlbumMedia)
-                    .where(col(AlbumMedia.uid) == uid)
-                    .where(col(AlbumMedia.aid).in_(reconciled_aids))
-                )
-                await session.exec(
                     delete(StepPageMedia)
                     .where(col(StepPageMedia.uid) == uid)
                     .where(col(StepPageMedia.aid).in_(reconciled_aids))
@@ -243,6 +238,11 @@ async def _save_reupload(
                     delete(Segment)
                     .where(col(Segment.uid) == uid)
                     .where(col(Segment.aid).in_(reconciled_aids))
+                )
+                await session.exec(
+                    delete(AlbumMedia)
+                    .where(col(AlbumMedia.uid) == uid)
+                    .where(col(AlbumMedia.aid).in_(reconciled_aids))
                 )
 
             current_aids = {d.name for d in trip_dirs}

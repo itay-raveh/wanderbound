@@ -1,4 +1,3 @@
-import type { Media } from "@/client";
 import { client } from "@/client/client.gen";
 import { useAlbum } from "@/composables/useAlbum";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
@@ -27,6 +26,8 @@ interface PreviewInfo {
   height: number;
   previewUrl: string;
 }
+
+type MediaDimensions = { width: number; height: number };
 
 export interface ReplacementReviewState {
   mediaName: string;
@@ -317,7 +318,7 @@ function currentPreviewUrl(
   return mediaUrl(kind === "video" ? posterPath(mediaName) : mediaName, aid);
 }
 
-function buildWarnings(media: Media, replacement: PreviewInfo): string[] {
+function buildWarnings(media: MediaDimensions, replacement: PreviewInfo): string[] {
   const warnings: string[] = [];
   if (replacement.width * replacement.height < media.width * media.height) {
     warnings.push(t("externalMedia.review.warnings.lowerResolution"));

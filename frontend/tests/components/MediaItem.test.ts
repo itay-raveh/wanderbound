@@ -8,6 +8,8 @@ import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
+const MEDIA_UPDATED_AT = "2026-05-13T12:34:56Z";
+const MEDIA_UPDATED_AT_PARAM = "2026-05-13T12%3A34%3A56Z";
 
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = [];
@@ -46,10 +48,16 @@ function mountVideoItem() {
         colors: ref({}),
         media: ref([
           {
+            uid: 1,
+            aid: "album-1",
             name: "clip.mp4",
+            kind: "video",
             width: 1920,
             height: 1080,
-            type: "video/mp4",
+            byte_size: 1234,
+            upgrade_candidate: false,
+            created_at: "2026-05-13T12:00:00Z",
+            updated_at: MEDIA_UPDATED_AT,
           },
         ]),
         tripStart: ref("2024-01-01"),
@@ -75,13 +83,28 @@ function mountVideoItem() {
 function mountPhotoItem(
   programmaticScrolling = ref(false),
   props: Record<string, unknown> = {},
+  mediaOverrides: Record<string, unknown> = {},
 ) {
   const Wrapper = defineComponent({
     setup() {
       provideAlbum({
         albumId: ref("album-1"),
         colors: ref({}),
-        media: ref([{ name: "photo.jpg", width: 1920, height: 1080 }]),
+        media: ref([
+          {
+            uid: 1,
+            aid: "album-1",
+            name: "photo.jpg",
+            kind: "photo",
+            width: 1920,
+            height: 1080,
+            byte_size: 1234,
+            upgrade_candidate: false,
+            created_at: "2026-05-13T12:00:00Z",
+            updated_at: MEDIA_UPDATED_AT,
+            ...mediaOverrides,
+          },
+        ]),
         tripStart: ref("2024-01-01"),
         totalDays: ref(1),
         mediaResolutionWarningPreset: ref(
@@ -189,14 +212,26 @@ describe("MediaItem video controls", () => {
     const img = wrapper.get("img");
 
     expect(img.attributes("src")).toBe(
-      "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=1920x1080",
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
     );
 
     programmaticScrolling.value = true;
     await nextTick();
 
     expect(img.attributes("src")).toBe(
-      "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=1920x1080",
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
+    );
+  });
+
+  test("uses updated_at to bust immutable media URLs after same-size replacements", () => {
+    const wrapper = mountPhotoItem(
+      ref(false),
+      { lazy: false },
+      { updated_at: "2026-05-13T12:34:56Z" },
+    );
+
+    expect(wrapper.get("img").attributes("src")).toBe(
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
     );
   });
 

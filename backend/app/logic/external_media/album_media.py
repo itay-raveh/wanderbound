@@ -21,6 +21,10 @@ from app.models.album_media import AlbumMedia
 from .undo import create_undo_snapshot
 
 
+class MediaNotFoundError(ValueError):
+    pass
+
+
 def _unpack_replacement(
     imported: list[Media],
     written: list[Path],
@@ -45,11 +49,13 @@ async def replace_album_media_from_saved(
     media_name: str,
     saved: SavedInput,
 ) -> AlbumMedia:
-    row = await session.get_one(
+    row = await session.get(
         AlbumMedia,
         (album.uid, album.id, media_name),
         with_for_update=True,
     )
+    if row is None:
+        raise MediaNotFoundError("Media not found")
     written: list[Path] = []
     try:
         imported, written = await process_saved_media(
@@ -68,6 +74,8 @@ async def replace_album_media_from_saved(
         )
         target = album_dir / media_name
         await run_sync(shutil.move, replacement_path, target)
+        if replacement_path.suffix == ".mp4":
+            await run_sync(replacement_path.with_suffix(".jpg").unlink, missing_ok=True)
         written = []
         await run_sync(delete_thumbnails, target)
         if row.kind == "video":

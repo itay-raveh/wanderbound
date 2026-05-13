@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type {
+  AlbumMedia,
   AlbumMeta,
-  Media,
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
@@ -75,7 +75,7 @@ const OverviewPage = defineAsyncComponent({
 
 const props = defineProps<{
   album: AlbumMeta;
-  media: Media[];
+  media: AlbumMedia[];
   steps: Step[];
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
