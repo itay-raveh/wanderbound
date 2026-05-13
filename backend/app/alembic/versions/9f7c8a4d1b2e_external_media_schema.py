@@ -249,8 +249,10 @@ def upgrade() -> None:
             sqlmodel.sql.sqltypes.AutoString(length=255),
             nullable=False,
         ),
+        sa.Column("source_ref_id", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["source_ref_id"], ["album_media_source_ref.id"]),
         sa.ForeignKeyConstraint(
             ["uid", "aid", "media_name"],
             ["album_media.uid", "album_media.aid", "album_media.name"],

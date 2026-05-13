@@ -39,6 +39,7 @@ async def create_undo_snapshot(
     snapshot_path = undo_dir / media_name
     await run_sync(shutil.copy2, source, snapshot_path)
     now = datetime.now(UTC)
+    row = await session.get(AlbumMedia, (uid, aid, media_name))
     existing = await session.get(AlbumMediaUndoSnapshot, (uid, aid, media_name))
     if existing is not None:
         await run_sync((album_dir / existing.snapshot_path).unlink, missing_ok=True)
@@ -49,6 +50,7 @@ async def create_undo_snapshot(
         aid=aid,
         media_name=media_name,
         snapshot_path=str(Path(UNDO_DIR) / media_name),
+        source_ref_id=row.source_ref_id if row else None,
         created_at=now,
         expires_at=now + UNDO_TTL,
     )
@@ -90,7 +92,7 @@ async def restore_undo_snapshot(
     row.width = restored.width
     row.height = restored.height
     row.byte_size = target.stat().st_size
-    row.source_ref_id = None
+    row.source_ref_id = snap.source_ref_id
     row.updated_at = datetime.now(UTC)
     session.add(row)
     await session.delete(snap)

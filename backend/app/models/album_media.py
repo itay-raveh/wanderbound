@@ -89,6 +89,10 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
     aid: str = Field(primary_key=True)
     media_name: str = Field(primary_key=True, max_length=255)
     snapshot_path: str = Field(max_length=255)
+    source_ref_id: int | None = Field(
+        default=None,
+        foreign_key="album_media_source_ref.id",
+    )
     created_at: datetime = Field(
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False)
     )
