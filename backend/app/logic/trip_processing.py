@@ -31,10 +31,10 @@ from app.models.album import (
     Album,
     MediaResolutionWarningPreset,
 )
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step
+from app.models.step import Step, StepRead
 from app.models.user import User
 from app.models.weather import Weather
 from app.services.open_meteo import build_weathers, elevations
@@ -42,7 +42,7 @@ from app.services.open_meteo import build_weathers, elevations
 logger = structlog.get_logger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
-type DbRow = Album | AlbumMedia | Step | Segment
+type DbRow = Album | AlbumMedia | Step | StepPageMedia | StepUnusedMedia | Segment
 
 
 async def track_iter[T](
@@ -206,7 +206,7 @@ def count_segments(segments: Iterable[Segment]) -> SegmentsFound:
 def build_segment_objects(
     uid: int,
     aid: str,
-    steps: Sequence[Step],
+    steps: Sequence[Step | StepRead],
     locations: Iterable[Point],
     all_ps_steps: list[PSStep],
 ) -> list[Segment]:
@@ -244,11 +244,10 @@ def build_album_media_rows(
                 aid=aid,
                 name=item.name,
                 kind="video" if item.name.endswith(".mp4") else "photo",
-                storage_path=item.name,
                 width=item.width,
                 height=item.height,
                 byte_size=byte_size,
-                source_ref_id=None,
+                upgrade_candidate=True,
             )
         )
     return rows
@@ -283,6 +282,12 @@ def build_trip_objects(  # noqa: PLR0913
     ]
     segments = build_segment_objects(user.id, aid, steps, locations, trip.all_steps)
     album_media = build_album_media_rows(user.id, aid, trip_dir, merged_media)
+    step_media = [
+        placement
+        for step, layout in zip(steps, layouts, strict=True)
+        if layout is not None
+        for placement in build_step_page_media_rows(user.id, aid, step.id, layout)
+    ]
 
     album = Album(
         uid=user.id,
@@ -300,7 +305,7 @@ def build_trip_objects(  # noqa: PLR0913
         body_font=DEFAULT_FONT if user.locale.startswith("he") else DEFAULT_BODY_FONT,
         media_resolution_warning_preset=default_media_resolution_warning_preset(user),
     )
-    return [album, *album_media, *steps, *segments]
+    return [album, *album_media, *steps, *step_media, *segments]
 
 
 async def run_elevations(
@@ -434,10 +439,28 @@ def build_step(  # noqa: PLR0913
         location=ps.location,
         elevation=round(elev),
         weather=wthr,
-        cover=layout.cover if layout else None,
-        pages=layout.pages if layout else [],
-        unused=[],
+        cover_media_name=layout.cover if layout else None,
     )
+
+
+def build_step_page_media_rows(
+    uid: int,
+    aid: str,
+    step_id: int,
+    layout: Layout,
+) -> list[StepPageMedia]:
+    return [
+        StepPageMedia(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            page_index=page_index,
+            position_index=position_index,
+            media_name=media_name,
+        )
+        for page_index, page in enumerate(layout.pages)
+        for position_index, media_name in enumerate(page)
+    ]
 
 
 def cover_name_from_trip(trip: PSTrip) -> str:

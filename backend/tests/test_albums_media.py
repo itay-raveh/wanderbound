@@ -34,11 +34,10 @@ async def test_read_media_returns_album_media_rows(
             "aid": AID,
             "name": media.name,
             "kind": "photo",
-            "storage_path": media.storage_path,
             "width": 1920,
             "height": 1080,
             "byte_size": 1234,
-            "source_ref_id": None,
+            "upgrade_candidate": True,
             "created_at": media.created_at.isoformat().replace("+00:00", "Z"),
             "updated_at": media.updated_at.isoformat().replace("+00:00", "Z"),
         }

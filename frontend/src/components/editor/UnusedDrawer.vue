@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../album/MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";

@@ -1,13 +1,11 @@
 import tempfile
 from collections.abc import AsyncIterable
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
-from sqlmodel import select
 
 from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.operations import (
@@ -32,8 +30,8 @@ from app.logic.media_import import (
     validate_import_target,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
-from app.models.google_photos import PickedMediaItem, PickerSessionId
+from app.models.album_media import AlbumMedia
+from app.models.google_photos import PickerSessionId
 from app.services.google_photos import DownloadTooLargeError
 
 from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir
@@ -69,47 +67,6 @@ def _require_google_available(user: UserDep) -> None:
             status.HTTP_400_BAD_REQUEST,
             "Google Photos not connected. Please authorize first.",
         )
-
-
-async def _ensure_google_source_ref(
-    session: SessionDep,
-    *,
-    uid: int,
-    aid: str,
-    item: PickedMediaItem,
-) -> AlbumMediaSourceRef:
-    existing = (
-        await session.exec(
-            select(AlbumMediaSourceRef).where(
-                AlbumMediaSourceRef.uid == uid,
-                AlbumMediaSourceRef.aid == aid,
-                AlbumMediaSourceRef.source_kind == AlbumMediaSourceKind.google_photos,
-                AlbumMediaSourceRef.google_media_id == item.id,
-            )
-        )
-    ).first()
-    if existing is not None:
-        return existing
-    ref = AlbumMediaSourceRef(
-        uid=uid,
-        aid=aid,
-        source_kind=AlbumMediaSourceKind.google_photos,
-        google_media_id=item.id,
-        mime_type=item.media_file.mime_type,
-        width=item.media_file.width,
-        height=item.media_file.height,
-        captured_at=_captured_at(item),
-    )
-    session.add(ref)
-    await session.flush()
-    return ref
-
-
-def _captured_at(item: PickedMediaItem) -> datetime | None:
-    try:
-        return datetime.fromisoformat(item.create_time)
-    except ValueError:
-        return None
 
 
 @router.post("/add/device")
@@ -163,7 +120,6 @@ async def replace_device(
                 album_dir=album_dir(user, aid),
                 media_name=media_name,
                 saved=saved[0],
-                source_ref_id=None,
             )
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
@@ -289,22 +245,15 @@ async def replace_google_media(
                 status.HTTP_400_BAD_REQUEST,
                 "Select exactly one replacement",
             )
-        picked_item = picked_items[0]
         try:
             saved = await download_google_item_to_saved(
                 http=http,
                 access_token=access_token,
-                item=picked_item,
+                item=picked_items[0],
                 temp_dir=Path(tmp),
             )
         except (OverflowError, DownloadTooLargeError) as exc:
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
-        source_ref = await _ensure_google_source_ref(
-            session,
-            uid=user.id,
-            aid=aid,
-            item=picked_item,
-        )
         try:
             row = await replace_album_media_from_saved(
                 session,
@@ -312,7 +261,6 @@ async def replace_google_media(
                 album_dir=album_dir(user, aid),
                 media_name=body.media_name,
                 saved=saved,
-                source_ref_id=source_ref.id,
             )
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None

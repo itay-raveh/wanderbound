@@ -30,7 +30,7 @@ from app.core.observability import set_span_data, start_span
 from app.core.resources import detect_cpu_count
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
-from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
+from app.models.album_media import AlbumMedia
 from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
@@ -164,7 +164,6 @@ async def run_matching(  # noqa: PLR0913
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     tokens: AccessTokenGetter,
-    already_upgraded: dict[MediaName, GoogleMediaId] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
@@ -172,9 +171,6 @@ async def run_matching(  # noqa: PLR0913
     "preparing" hashes local media, "matching" hashes picked Google items.
     Only media from steps that have picked Google items are hashed.
     """
-    if already_upgraded is None:
-        already_upgraded = {}
-
     with start_span(
         "google_photos.matching",
         "Match Google Photos media",
@@ -263,8 +259,6 @@ async def run_matching(  # noqa: PLR0913
                 candidate_hashes,
             )
 
-        for m in all_matches:
-            m.upgraded = already_upgraded.get(m.local_name) == m.google_id
         set_span_data(
             span,
             **{
@@ -331,13 +325,12 @@ async def _upgrade_tmp(album_dir: Path) -> AsyncIterator[Path]:
         await run_sync(shutil.rmtree, tmp_dir, ignore_errors=True)
 
 
-async def _persist_upgrade(  # noqa: PLR0913
+async def _persist_upgrade(
     uid: int,
     aid: str,
     album_dir: Path,
     matches: list[MatchResult],
     succeeded: set[MediaName],
-    google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
 ) -> None:
     """Write upgrade results to DB after a successful disk replace.
 
@@ -369,7 +362,6 @@ async def _persist_upgrade(  # noqa: PLR0913
                     album_dir=album_dir,
                     matches=matches,
                     succeeded=succeeded,
-                    google_items_by_id=google_items_by_id,
                 )
     except SQLAlchemyError:
         logger.warning(
@@ -396,7 +388,6 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
     album_dir: Path,
     matches: list[MatchResult],
     succeeded: set[MediaName],
-    google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
 ) -> None:
     rows = {
         row.name: row
@@ -409,20 +400,6 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
                 )
             )
         ).all()
-    }
-    existing_refs = {
-        ref.google_media_id: ref
-        for ref in (
-            await session.exec(
-                select(AlbumMediaSourceRef).where(
-                    AlbumMediaSourceRef.uid == uid,
-                    AlbumMediaSourceRef.aid == aid,
-                    AlbumMediaSourceRef.source_kind
-                    == AlbumMediaSourceKind.google_photos,
-                )
-            )
-        ).all()
-        if ref.google_media_id is not None
     }
     now = datetime.now(UTC)
     for match in matches:
@@ -448,27 +425,10 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
                 exc_info=True,
             )
             continue
-        item = google_items_by_id.get(match.google_id)
-        ref = existing_refs.get(match.google_id)
-        if ref is None:
-            ref = AlbumMediaSourceRef(
-                uid=uid,
-                aid=aid,
-                source_kind=AlbumMediaSourceKind.google_photos,
-                google_media_id=match.google_id,
-                mime_type=item.media_file.mime_type if item else None,
-                width=item.media_file.width if item else None,
-                height=item.media_file.height if item else None,
-                captured_at=_captured_at(item),
-            )
-            session.add(ref)
-            await session.flush()
-            existing_refs[match.google_id] = ref
         row.width = updated.width
         row.height = updated.height
         row.byte_size = target.stat().st_size
-        row.storage_path = row.name
-        row.source_ref_id = ref.id
+        row.upgrade_candidate = False
         row.updated_at = now
         session.add(row)
     await session.commit()
@@ -499,16 +459,9 @@ async def _cleanup_picker_sessions(
 
 def _needs_upgrade(
     match: MatchResult,
-    already_upgraded: dict[MediaName, GoogleMediaId],
+    upgrade_candidates: set[MediaName],
 ) -> bool:
-    """True unless this exact (local_name, google_id) pair is already upgraded.
-
-    A match to a *different* google_id for a previously-upgraded local file
-    is a new upgrade: the user picked a different source than last time, and
-    the summary count (see ``run_matching``) already advertised it as work
-    to do.
-    """
-    return already_upgraded.get(match.local_name) != match.google_id
+    return match.local_name in upgrade_candidates
 
 
 async def run_upgrade(  # noqa: PLR0913, C901
@@ -519,7 +472,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     album_dir: Path,
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
-    already_upgraded: dict[MediaName, GoogleMediaId],
+    upgrade_candidates: set[MediaName],
     tokens: AccessTokenGetter,
     session_ids: list[PickerSessionId],
 ) -> AsyncGenerator[UpgradeEvent]:
@@ -529,7 +482,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     Exceptions during streaming become ``UpgradeError`` events; persist and
     picker cleanup always run.
     """
-    to_upgrade = [m for m in matches if _needs_upgrade(m, already_upgraded)]
+    to_upgrade = [m for m in matches if _needs_upgrade(m, upgrade_candidates)]
     total = len(to_upgrade)
     succeeded: set[MediaName] = set()
     skipped_names: set[MediaName] = set()
@@ -636,18 +589,8 @@ async def run_upgrade(  # noqa: PLR0913, C901
             album_dir,
             matches,
             succeeded,
-            google_items_by_id,
         )
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
-
-
-def _captured_at(item: PickedMediaItem | None) -> datetime | None:
-    if item is None:
-        return None
-    try:
-        return datetime.fromisoformat(item.create_time)
-    except ValueError:
-        return None
 
 
 async def cleanup_orphaned_tmp(users_folder: Path) -> None:

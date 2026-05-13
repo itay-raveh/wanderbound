@@ -25,7 +25,7 @@ from httpx_oauth.oauth2 import (
 )
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
-from sqlmodel import col, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -39,10 +39,11 @@ from app.logic.media_upgrade.pipeline import (
     run_matching,
     run_upgrade,
 )
+from app.logic.step_media import read_steps_with_media
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
+from app.models.album_media import AlbumMedia
 from app.models.google_photos import PickedMediaItem, PickerSessionId
-from app.models.step import Step
+from app.models.step import StepRead
 from app.services.google_photos import (
     AccessToken,
     AccessTokenGetter,
@@ -159,8 +160,8 @@ def _require_google_user(user: UserDep) -> None:
 async def _snapshot_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[set[str], dict[str, str]]:
-    """Read album media names and Google-source mappings in a short-lived session."""
+) -> tuple[set[str], set[str]]:
+    """Read album media names and remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
         media_rows = (
@@ -168,40 +169,17 @@ async def _snapshot_upgrade_state(
                 select(AlbumMedia).where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
             )
         ).all()
-        ref_ids = [
-            row.source_ref_id for row in media_rows if row.source_ref_id is not None
-        ]
-        refs = (
-            (
-                await session.exec(
-                    select(AlbumMediaSourceRef).where(
-                        col(AlbumMediaSourceRef.id).in_(ref_ids)
-                    )
-                )
-            ).all()
-            if ref_ids
-            else []
-        )
-    refs_by_id = {ref.id: ref for ref in refs if ref.id is not None}
-    valid_names: set[str] = set()
-    already_upgraded: dict[str, str] = {}
-    for row in media_rows:
-        valid_names.add(row.name)
-        ref = refs_by_id.get(row.source_ref_id)
-        if (
-            ref is not None
-            and ref.source_kind == AlbumMediaSourceKind.google_photos
-            and ref.google_media_id is not None
-        ):
-            already_upgraded[row.name] = ref.google_media_id
-    return valid_names, already_upgraded
+    return (
+        {row.name for row in media_rows},
+        {row.name for row in media_rows if row.upgrade_candidate},
+    )
 
 
 async def _snapshot_steps_and_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[list[Step], dict[str, str]]:
-    """Read steps plus Google-source mappings in a short-lived session."""
+) -> tuple[list[StepRead], set[str]]:
+    """Read step layouts plus remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
         media_rows = (
@@ -209,38 +187,8 @@ async def _snapshot_steps_and_upgrade_state(
                 select(AlbumMedia).where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
             )
         ).all()
-        ref_ids = [
-            row.source_ref_id for row in media_rows if row.source_ref_id is not None
-        ]
-        refs = (
-            (
-                await session.exec(
-                    select(AlbumMediaSourceRef).where(
-                        col(AlbumMediaSourceRef.id).in_(ref_ids)
-                    )
-                )
-            ).all()
-            if ref_ids
-            else []
-        )
-        step_rows = (
-            await session.exec(
-                select(Step)
-                .where(Step.uid == uid, Step.aid == aid)
-                .order_by(col(Step.timestamp))
-            )
-        ).all()
-    refs_by_id = {ref.id: ref for ref in refs if ref.id is not None}
-    already_upgraded: dict[str, str] = {}
-    for row in media_rows:
-        ref = refs_by_id.get(row.source_ref_id)
-        if (
-            ref is not None
-            and ref.source_kind == AlbumMediaSourceKind.google_photos
-            and ref.google_media_id is not None
-        ):
-            already_upgraded[row.name] = ref.google_media_id
-    return list(step_rows), already_upgraded
+        step_rows = await read_steps_with_media(session, uid, aid)
+    return step_rows, {row.name for row in media_rows if row.upgrade_candidate}
 
 
 router = APIRouter(
@@ -482,7 +430,7 @@ async def match_media(
             "Load album for media matching",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            step_rows, already_upgraded = await _snapshot_steps_and_upgrade_state(
+            step_rows, upgrade_candidates = await _snapshot_steps_and_upgrade_state(
                 user.id,
                 aid,
             )
@@ -491,7 +439,11 @@ async def match_media(
         step_timestamps = [s.timestamp for s in step_rows]
         step_ids = [s.id for s in step_rows]
         media_by_step = {
-            s.id: [name for page in s.pages for name in page] + s.unused
+            s.id: [
+                name
+                for name in [*(name for page in s.pages for name in page), *s.unused]
+                if name in upgrade_candidates
+            ]
             for s in step_rows
         }
 
@@ -511,7 +463,6 @@ async def match_media(
                 step_ids=step_ids,
                 google_items=items,
                 tokens=tokens,
-                already_upgraded=already_upgraded,
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001
@@ -562,7 +513,7 @@ async def upgrade_media(
             "Load album for media upgrade",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            valid_names, already_upgraded = await _snapshot_upgrade_state(
+            valid_names, upgrade_candidates = await _snapshot_upgrade_state(
                 user.id,
                 aid,
             )
@@ -596,7 +547,7 @@ async def upgrade_media(
             album_dir=_album_dir(user, aid),
             matches=body.matches,
             google_items_by_id=items_by_id,
-            already_upgraded=already_upgraded,
+            upgrade_candidates=upgrade_candidates,
             tokens=tokens,
             session_ids=body.session_ids,
         ):

@@ -17,6 +17,7 @@ from app.core.http_clients import HttpClients
 from app.core.observability import start_span
 from app.logic.demo_i18n import apply_overlay, load_overlay
 from app.logic.reconcile import reconcile_trip
+from app.logic.step_media import read_steps_with_media
 from app.logic.trip_processing import (
     DbRow,
     ErrorData,
@@ -34,9 +35,9 @@ from app.logic.trip_processing import (
     run_weather,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.segment import Segment
-from app.models.step import Step
+from app.models.step import Step, StepRead
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -137,7 +138,7 @@ async def _process_trip(
 
 async def _load_existing(
     user: User,
-) -> tuple[dict[str, Album], dict[str, list[AlbumMedia]], dict[str, list[Step]]]:
+) -> tuple[dict[str, Album], dict[str, list[AlbumMedia]], dict[str, list[StepRead]]]:
     """Load existing albums and steps for reconciliation.
 
     Returns empty dicts for new users (no albums yet).
@@ -164,11 +165,10 @@ async def _load_existing(
             ).all():
                 media_by_aid[media.aid].append(media)
 
-            steps_by_aid: dict[str, list[Step]] = defaultdict(list)
-            for s in (
-                await session.exec(select(Step).where(Step.uid == user.id))
-            ).all():
-                steps_by_aid[s.aid].append(s)
+            steps_by_aid = {
+                aid: await read_steps_with_media(session, user.id, aid)
+                for aid in albums
+            }
 
     return albums, dict(media_by_aid), dict(steps_by_aid)
 
@@ -223,6 +223,16 @@ async def _save_reupload(
                     delete(AlbumMedia)
                     .where(col(AlbumMedia.uid) == uid)
                     .where(col(AlbumMedia.aid).in_(reconciled_aids))
+                )
+                await session.exec(
+                    delete(StepPageMedia)
+                    .where(col(StepPageMedia.uid) == uid)
+                    .where(col(StepPageMedia.aid).in_(reconciled_aids))
+                )
+                await session.exec(
+                    delete(StepUnusedMedia)
+                    .where(col(StepUnusedMedia.uid) == uid)
+                    .where(col(StepUnusedMedia.aid).in_(reconciled_aids))
                 )
                 await session.exec(
                     delete(Step)

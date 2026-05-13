@@ -1,4 +1,4 @@
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import { client } from "@/client/client.gen";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
@@ -67,7 +67,8 @@ export function useAddExternalMedia(albumId: () => string) {
       /* Cross-origin opener policy can block this. */
     }
     activePopup = null;
-    if (activeSessionId) googlePhotos.closeSession(activeSessionId).catch(() => {});
+    if (activeSessionId)
+      googlePhotos.closeSession(activeSessionId).catch(() => {});
     activeSessionId = null;
   }
 
@@ -221,7 +222,11 @@ export function useAddExternalMedia(albumId: () => string) {
       await pollUntilReady(session.sessionId, signal);
 
       phase.value = "processing";
-      const result = await runGoogleImportStream(session.sessionId, target, signal);
+      const result = await runGoogleImportStream(
+        session.sessionId,
+        target,
+        signal,
+      );
       applyImportResult(result, target);
       await nextTick();
       await invalidateAlbumQueries(target);
@@ -236,7 +241,8 @@ export function useAddExternalMedia(albumId: () => string) {
         /* Cross-origin opener policy can block this. */
       }
       activePopup = null;
-      if (activeSessionId) googlePhotos.closeSession(activeSessionId).catch(() => {});
+      if (activeSessionId)
+        googlePhotos.closeSession(activeSessionId).catch(() => {});
       activeSessionId = null;
     }
   }

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
 import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";

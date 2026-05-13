@@ -46,7 +46,6 @@ from app.logic.media_upgrade.processing import (
     process_photo_sync,
     process_video,
 )
-from app.models.album_media import AlbumMediaSourceRef
 from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
 
 from .factories import AID, create_test_jpeg, insert_album, insert_album_media
@@ -360,22 +359,13 @@ class TestProcessVideo:
 
 
 class TestNeedsUpgrade:
-    def test_name_absent_needs_upgrade(self) -> None:
+    def test_candidate_needs_upgrade(self) -> None:
         match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
-        assert _needs_upgrade(match, {}) is True
+        assert _needs_upgrade(match, {"photo.jpg"}) is True
 
-    def test_same_name_same_google_id_skips(self) -> None:
+    def test_non_candidate_skips(self) -> None:
         match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
-        assert _needs_upgrade(match, {"photo.jpg": "gid-A"}) is False
-
-    def test_same_name_different_google_id_needs_upgrade(self) -> None:
-        """Regression: user picked a different source than the prior upgrade.
-
-        The name-only filter would skip this; we must re-upgrade because the
-        match summary already advertised it as work to do.
-        """
-        match = MatchResult(local_name="photo.jpg", google_id="gid-B", distance=0)
-        assert _needs_upgrade(match, {"photo.jpg": "gid-A"}) is True
+        assert _needs_upgrade(match, set()) is False
 
 
 class TestPersistUpgrade:
@@ -392,7 +382,6 @@ class TestPersistUpgrade:
         target = create_test_jpeg(tmp_path / "photo.jpg", 1200, 800)
         await session.commit()
 
-        item = _make_item("google-1", "2024-01-15T10:00:00Z")
         await _persist_upgrade_in_session(
             session,
             uid=uid,
@@ -402,14 +391,11 @@ class TestPersistUpgrade:
                 MatchResult(local_name="photo.jpg", google_id="google-1", distance=0)
             ],
             succeeded={"photo.jpg"},
-            google_items_by_id={"google-1": item},
         )
         await session.refresh(media)
 
         assert media.byte_size == target.stat().st_size
-        assert media.source_ref_id is not None
-        ref = await session.get_one(AlbumMediaSourceRef, media.source_ref_id)
-        assert ref.google_media_id == "google-1"
+        assert media.upgrade_candidate is False
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { parseLocalDate } from "@/utils/date";
-import type { AlbumMeta, Step } from "@/client";
+import type { AlbumMeta, StepRead as Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useAlbum } from "@/composables/useAlbum";

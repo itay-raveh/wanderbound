@@ -44,13 +44,13 @@ async def test_replace_preserves_media_name_and_creates_undo(
         album_dir=album_dir,
         media_name=VALID_NAME,
         saved=SavedInput(path=replacement, size=replacement.stat().st_size),
-        source_ref_id=None,
     )
 
     assert result.name == VALID_NAME
     row = await session.get_one(AlbumMedia, (uid, AID, VALID_NAME))
     assert row.width == 1600
     assert row.height == 1200
+    assert row.upgrade_candidate is False
     snap = await session.get_one(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME))
     assert snap.expires_at > snap.created_at
 
@@ -80,5 +80,4 @@ async def test_replace_rejects_photo_video_mismatch(
             album_dir=tmp_path,
             media_name=VALID_NAME,
             saved=SavedInput(path=replacement, size=replacement.stat().st_size),
-            source_ref_id=None,
         )

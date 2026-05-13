@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import type { AlbumMeta, Media, Step, SegmentOutline } from "@/client";
+import type {
+  AlbumMeta,
+  Media,
+  SegmentOutline,
+  StepRead as Step,
+} from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";

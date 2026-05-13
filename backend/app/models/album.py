@@ -11,7 +11,7 @@ from app.core.db import PydanticJSON, all_optional
 from app.logic.layout.media import Media
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
-from app.models.step import Step
+from app.models.step import StepRead
 
 type DateRange = tuple[date, date]
 
@@ -89,7 +89,7 @@ class PrintBundle(BaseModel):
     """Everything needed for PDF rendering in one response."""
 
     album: AlbumWithMedia
-    steps: list[Step]
+    steps: list[StepRead]
     segments: list[Segment]
     total_distance_km: float
 

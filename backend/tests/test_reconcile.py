@@ -15,7 +15,7 @@ from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
-from app.models.step import Step
+from app.models.step import StepRead
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
 from tests.factories import collect_async
@@ -50,21 +50,21 @@ def _step(
     cover: str | None = None,
     name: str = "Old Name",
     description: str = "Old desc",
-) -> Step:
-    return Step(
+) -> StepRead:
+    return StepRead(
         uid=1,
         aid="trip-1",
         id=step_id,
         name=name,
         description=description,
-        cover=cover,
-        pages=pages or [],
-        unused=unused or [],
         timestamp=1_700_000_000.0,
         timezone_id="Europe/Amsterdam",
         location=_LOC,
         elevation=0,
         weather=_WEATHER,
+        cover=cover,
+        pages=pages or [],
+        unused=unused or [],
     )
 
 

@@ -1,4 +1,4 @@
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 
 export function mergeImportedUnused(
   step: Step,

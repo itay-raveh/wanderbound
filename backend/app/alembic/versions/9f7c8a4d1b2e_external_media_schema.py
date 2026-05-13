@@ -29,18 +29,15 @@ album = sa.table(
     sa.column("media", sa.JSON()),
     sa.column("upgraded_media", sa.JSON()),
 )
-album_media_source_ref = sa.table(
-    "album_media_source_ref",
-    sa.column("id", sa.Integer()),
+step = sa.table(
+    "step",
     sa.column("uid", sa.Integer()),
     sa.column("aid", sqlmodel.sql.sqltypes.AutoString()),
-    sa.column("source_kind", sa.String(32)),
-    sa.column("google_media_id", sqlmodel.sql.sqltypes.AutoString(length=256)),
-    sa.column("mime_type", sqlmodel.sql.sqltypes.AutoString(length=255)),
-    sa.column("width", sa.Integer()),
-    sa.column("height", sa.Integer()),
-    sa.column("captured_at", sa.DateTime(timezone=True)),
-    sa.column("created_at", sa.DateTime(timezone=True)),
+    sa.column("id", sa.Integer()),
+    sa.column("cover", sqlmodel.sql.sqltypes.AutoString(length=255)),
+    sa.column("cover_media_name", sqlmodel.sql.sqltypes.AutoString(length=255)),
+    sa.column("pages", sa.JSON()),
+    sa.column("unused", sa.JSON()),
 )
 album_media = sa.table(
     "album_media",
@@ -48,13 +45,29 @@ album_media = sa.table(
     sa.column("aid", sqlmodel.sql.sqltypes.AutoString()),
     sa.column("name", sqlmodel.sql.sqltypes.AutoString(length=255)),
     sa.column("kind", sa.String(16)),
-    sa.column("storage_path", sqlmodel.sql.sqltypes.AutoString(length=255)),
     sa.column("width", sa.Integer()),
     sa.column("height", sa.Integer()),
     sa.column("byte_size", sa.BigInteger()),
-    sa.column("source_ref_id", sa.Integer()),
+    sa.column("upgrade_candidate", sa.Boolean()),
     sa.column("created_at", sa.DateTime(timezone=True)),
     sa.column("updated_at", sa.DateTime(timezone=True)),
+)
+step_page_media = sa.table(
+    "step_page_media",
+    sa.column("uid", sa.Integer()),
+    sa.column("aid", sqlmodel.sql.sqltypes.AutoString()),
+    sa.column("step_id", sa.Integer()),
+    sa.column("page_index", sa.Integer()),
+    sa.column("position_index", sa.Integer()),
+    sa.column("media_name", sqlmodel.sql.sqltypes.AutoString(length=255)),
+)
+step_unused_media = sa.table(
+    "step_unused_media",
+    sa.column("uid", sa.Integer()),
+    sa.column("aid", sqlmodel.sql.sqltypes.AutoString()),
+    sa.column("step_id", sa.Integer()),
+    sa.column("position_index", sa.Integer()),
+    sa.column("media_name", sqlmodel.sql.sqltypes.AutoString(length=255)),
 )
 
 
@@ -79,40 +92,22 @@ def _media_rows(media_value: object) -> list[dict[str, object]]:
     return rows
 
 
-def _upgraded_map(value: object) -> dict[str, str]:
+def _upgraded_names(value: object) -> set[str]:
     if not isinstance(value, dict):
-        return {}
-    return {
-        str(name): str(google_id)
-        for name, google_id in value.items()
-        if name and google_id
-    }
+        return set()
+    return {str(name) for name, google_id in value.items() if name and google_id}
 
 
-def _insert_source_ref(
-    connection: sa.Connection,
-    *,
-    uid: int,
-    aid: str,
-    google_media_id: str,
-    created_at: datetime,
-) -> int | None:
-    result = connection.execute(
-        album_media_source_ref.insert()
-        .values(
-            uid=uid,
-            aid=aid,
-            source_kind="google_photos",
-            google_media_id=google_media_id,
-            mime_type=None,
-            width=None,
-            height=None,
-            captured_at=None,
-            created_at=created_at,
-        )
-        .returning(album_media_source_ref.c.id)
-    )
-    return result.scalar_one_or_none()
+def _list_of_strings(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item]
+
+
+def _pages(value: object) -> list[list[str]]:
+    if not isinstance(value, list):
+        return []
+    return [_list_of_strings(page) for page in value]
 
 
 def _migrate_album_json_to_media_rows() -> None:
@@ -121,28 +116,17 @@ def _migrate_album_json_to_media_rows() -> None:
     for row in connection.execute(
         sa.select(album.c.uid, album.c.id, album.c.media, album.c.upgraded_media)
     ).mappings():
-        upgraded = _upgraded_map(row["upgraded_media"])
-        source_ids = {
-            name: _insert_source_ref(
-                connection,
-                uid=row["uid"],
-                aid=row["id"],
-                google_media_id=google_id,
-                created_at=now,
-            )
-            for name, google_id in upgraded.items()
-        }
+        upgraded = _upgraded_names(row["upgraded_media"])
         media_rows = [
             {
                 "uid": row["uid"],
                 "aid": row["id"],
                 "name": item["name"],
                 "kind": "video" if str(item["name"]).endswith(".mp4") else "photo",
-                "storage_path": item["name"],
                 "width": item.get("width", 0),
                 "height": item.get("height", 0),
                 "byte_size": 0,
-                "source_ref_id": source_ids.get(str(item["name"])),
+                "upgrade_candidate": str(item["name"]) not in upgraded,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -152,14 +136,61 @@ def _migrate_album_json_to_media_rows() -> None:
             connection.execute(album_media.insert(), media_rows)
 
 
+def _migrate_step_json_to_media_rows() -> None:
+    connection = op.get_bind()
+    page_rows: list[dict[str, object]] = []
+    unused_rows: list[dict[str, object]] = []
+    for row in connection.execute(
+        sa.select(
+            step.c.uid,
+            step.c.aid,
+            step.c.id,
+            step.c.cover,
+            step.c.pages,
+            step.c.unused,
+        )
+    ).mappings():
+        connection.execute(
+            step.update()
+            .where(
+                step.c.uid == row["uid"],
+                step.c.aid == row["aid"],
+                step.c.id == row["id"],
+            )
+            .values(cover_media_name=row["cover"])
+        )
+        for page_index, page in enumerate(_pages(row["pages"])):
+            for position_index, media_name in enumerate(page):
+                page_rows.append(
+                    {
+                        "uid": row["uid"],
+                        "aid": row["aid"],
+                        "step_id": row["id"],
+                        "page_index": page_index,
+                        "position_index": position_index,
+                        "media_name": media_name,
+                    }
+                )
+        for position_index, media_name in enumerate(_list_of_strings(row["unused"])):
+            unused_rows.append(
+                {
+                    "uid": row["uid"],
+                    "aid": row["aid"],
+                    "step_id": row["id"],
+                    "position_index": position_index,
+                    "media_name": media_name,
+                }
+            )
+    if page_rows:
+        connection.execute(step_page_media.insert(), page_rows)
+    if unused_rows:
+        connection.execute(step_unused_media.insert(), unused_rows)
+
+
 def _migrate_media_rows_to_album_json() -> None:
     connection = op.get_bind()
     media_by_album: dict[tuple[int, str], list[dict[str, object]]] = {}
     upgraded_by_album: dict[tuple[int, str], dict[str, str]] = {}
-    ref_rows = {
-        ref["id"]: ref
-        for ref in connection.execute(sa.select(album_media_source_ref)).mappings()
-    }
     for row in connection.execute(
         sa.select(album_media).order_by(album_media.c.created_at, album_media.c.name)
     ).mappings():
@@ -171,9 +202,8 @@ def _migrate_media_rows_to_album_json() -> None:
                 "height": row["height"],
             }
         )
-        ref = ref_rows.get(row["source_ref_id"])
-        if ref and ref["source_kind"] == "google_photos" and ref["google_media_id"]:
-            upgraded_by_album.setdefault(key, {})[row["name"]] = ref["google_media_id"]
+        if not row["upgrade_candidate"]:
+            upgraded_by_album.setdefault(key, {})[row["name"]] = "upgraded"
 
     for row in connection.execute(sa.select(album.c.uid, album.c.id)).mappings():
         key = (row["uid"], row["id"])
@@ -187,53 +217,125 @@ def _migrate_media_rows_to_album_json() -> None:
         )
 
 
+def _migrate_step_media_rows_to_json() -> None:
+    connection = op.get_bind()
+    pages_by_step: dict[tuple[int, str, int], list[list[str]]] = {}
+    for row in connection.execute(
+        sa.select(step_page_media).order_by(
+            step_page_media.c.page_index,
+            step_page_media.c.position_index,
+        )
+    ).mappings():
+        key = (row["uid"], row["aid"], row["step_id"])
+        pages = pages_by_step.setdefault(key, [])
+        while len(pages) <= row["page_index"]:
+            pages.append([])
+        pages[row["page_index"]].append(row["media_name"])
+
+    unused_by_step: dict[tuple[int, str, int], list[str]] = {}
+    for row in connection.execute(
+        sa.select(step_unused_media).order_by(step_unused_media.c.position_index)
+    ).mappings():
+        key = (row["uid"], row["aid"], row["step_id"])
+        unused_by_step.setdefault(key, []).append(row["media_name"])
+
+    for row in connection.execute(sa.select(step)).mappings():
+        key = (row["uid"], row["aid"], row["id"])
+        connection.execute(
+            step.update()
+            .where(
+                step.c.uid == row["uid"],
+                step.c.aid == row["aid"],
+                step.c.id == row["id"],
+            )
+            .values(
+                cover=row["cover_media_name"],
+                pages=pages_by_step.get(key, []),
+                unused=unused_by_step.get(key, []),
+            )
+        )
+
+
 def upgrade() -> None:
-    op.create_table(
-        "album_media_source_ref",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("uid", sa.Integer(), nullable=False),
-        sa.Column("aid", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("source_kind", sa.String(length=32), nullable=False),
-        sa.Column(
-            "google_media_id",
-            sqlmodel.sql.sqltypes.AutoString(length=256),
-            nullable=True,
-        ),
-        sa.Column(
-            "mime_type",
-            sqlmodel.sql.sqltypes.AutoString(length=255),
-            nullable=True,
-        ),
-        sa.Column("width", sa.Integer(), nullable=True),
-        sa.Column("height", sa.Integer(), nullable=True),
-        sa.Column("captured_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["uid"], ["user.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
     op.create_table(
         "album_media",
         sa.Column("uid", sa.Integer(), nullable=False),
         sa.Column("aid", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False),
         sa.Column("kind", sa.String(length=16), nullable=False),
-        sa.Column(
-            "storage_path",
-            sqlmodel.sql.sqltypes.AutoString(length=255),
-            nullable=False,
-        ),
         sa.Column("width", sa.Integer(), nullable=False),
         sa.Column("height", sa.Integer(), nullable=False),
         sa.Column("byte_size", sa.BigInteger(), nullable=False),
-        sa.Column("source_ref_id", sa.Integer(), nullable=True),
+        sa.Column("upgrade_candidate", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["source_ref_id"], ["album_media_source_ref.id"]),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid"], ["album.uid", "album.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["uid"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("uid", "aid", "name"),
-        sa.UniqueConstraint("uid", "aid", "name", name="uq_album_media_name"),
+    )
+    op.add_column(
+        "step",
+        sa.Column(
+            "cover_media_name",
+            sqlmodel.sql.sqltypes.AutoString(length=255),
+            nullable=True,
+        ),
+    )
+    op.create_foreign_key(
+        "fk_step_cover_album_media",
+        "step",
+        "album_media",
+        ["uid", "aid", "cover_media_name"],
+        ["uid", "aid", "name"],
+    )
+    op.create_table(
+        "step_page_media",
+        sa.Column("uid", sa.Integer(), nullable=False),
+        sa.Column("aid", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("step_id", sa.Integer(), nullable=False),
+        sa.Column("page_index", sa.Integer(), nullable=False),
+        sa.Column("position_index", sa.Integer(), nullable=False),
+        sa.Column(
+            "media_name",
+            sqlmodel.sql.sqltypes.AutoString(length=255),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "media_name"],
+            ["album_media.uid", "album_media.aid", "album_media.name"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id"],
+            ["step.uid", "step.aid", "step.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("uid", "aid", "step_id", "page_index", "position_index"),
+    )
+    op.create_table(
+        "step_unused_media",
+        sa.Column("uid", sa.Integer(), nullable=False),
+        sa.Column("aid", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("step_id", sa.Integer(), nullable=False),
+        sa.Column("position_index", sa.Integer(), nullable=False),
+        sa.Column(
+            "media_name",
+            sqlmodel.sql.sqltypes.AutoString(length=255),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "media_name"],
+            ["album_media.uid", "album_media.aid", "album_media.name"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id"],
+            ["step.uid", "step.aid", "step.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("uid", "aid", "step_id", "position_index"),
     )
     op.create_table(
         "album_media_undo_snapshot",
@@ -249,10 +351,9 @@ def upgrade() -> None:
             sqlmodel.sql.sqltypes.AutoString(length=255),
             nullable=False,
         ),
-        sa.Column("source_ref_id", sa.Integer(), nullable=True),
+        sa.Column("upgrade_candidate", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["source_ref_id"], ["album_media_source_ref.id"]),
         sa.ForeignKeyConstraint(
             ["uid", "aid", "media_name"],
             ["album_media.uid", "album_media.aid", "album_media.name"],
@@ -261,6 +362,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("uid", "aid", "media_name"),
     )
     _migrate_album_json_to_media_rows()
+    _migrate_step_json_to_media_rows()
+    op.drop_column("step", "unused")
+    op.drop_column("step", "pages")
+    op.drop_column("step", "cover")
     op.drop_column("album", "upgraded_media")
     op.drop_column("album", "media")
 
@@ -274,7 +379,18 @@ def downgrade() -> None:
         "album",
         sa.Column("upgraded_media", sa.JSON(), nullable=False, server_default="{}"),
     )
+    op.add_column("step", sa.Column("cover", sqlmodel.sql.sqltypes.AutoString()))
+    op.add_column(
+        "step", sa.Column("pages", sa.JSON(), nullable=False, server_default="[]")
+    )
+    op.add_column(
+        "step", sa.Column("unused", sa.JSON(), nullable=False, server_default="[]")
+    )
     _migrate_media_rows_to_album_json()
+    _migrate_step_media_rows_to_json()
     op.drop_table("album_media_undo_snapshot")
+    op.drop_table("step_unused_media")
+    op.drop_table("step_page_media")
+    op.drop_constraint("fk_step_cover_album_media", "step", type_="foreignkey")
+    op.drop_column("step", "cover_media_name")
     op.drop_table("album_media")
-    op.drop_table("album_media_source_ref")

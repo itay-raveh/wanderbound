@@ -1,4 +1,4 @@
-import type { Media, Step } from "@/client";
+import type { Media, StepRead as Step } from "@/client";
 import type { PageFraction } from "@/utils/photoLayout";
 import {
   PAGE_WIDTH_MM,

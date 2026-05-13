@@ -17,6 +17,7 @@ from app.core.resources import MiB
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, extract_frame, media_limiter
 from app.logic.media_upgrade.processing import process_photo_sync, process_video
+from app.logic.step_media import prepend_step_unused_media
 from app.models.album import Album
 from app.models.album_media import AlbumMedia
 from app.models.step import Step
@@ -215,11 +216,10 @@ async def persist_imported_media(
                 aid=fresh_album.id,
                 name=media.name,
                 kind="video" if media.name.endswith(".mp4") else "photo",
-                storage_path=media.name,
                 width=media.width,
                 height=media.height,
                 byte_size=_imported_byte_size(media.name, album_dir),
-                source_ref_id=None,
+                upgrade_candidate=False,
             )
             for media in imported
         ]
@@ -239,8 +239,13 @@ async def persist_imported_media(
         step = result.one_or_none()
         if step is None:
             raise ValueError("Step not found")
-        step.unused = [*names, *step.unused]
-        session.add(step)
+        await prepend_step_unused_media(
+            session,
+            fresh_album.uid,
+            fresh_album.id,
+            step.id,
+            names,
+        )
 
     with anyio.CancelScope(shield=True):
         await session.commit()

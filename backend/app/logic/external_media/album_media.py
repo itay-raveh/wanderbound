@@ -37,14 +37,13 @@ def _validate_replacement_kind(row: AlbumMedia, replacement_name: str) -> None:
         raise ValueError("Cannot replace video with photo")
 
 
-async def replace_album_media_from_saved(  # noqa: PLR0913
+async def replace_album_media_from_saved(
     session: AsyncSession,
     *,
     album: Album,
     album_dir: Path,
     media_name: str,
     saved: SavedInput,
-    source_ref_id: int | None,
 ) -> AlbumMedia:
     row = await session.get_one(
         AlbumMedia,
@@ -77,7 +76,7 @@ async def replace_album_media_from_saved(  # noqa: PLR0913
         row.width = replacement.width
         row.height = replacement.height
         row.byte_size = target.stat().st_size
-        row.source_ref_id = source_ref_id
+        row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)
         session.add(row)
         await session.flush()

@@ -770,7 +770,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Step"
+                    "$ref": "#/components/schemas/StepRead"
                   },
                   "title": "Response Read Steps"
                 }
@@ -943,7 +943,68 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Step"
+                  "$ref": "#/components/schemas/StepRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/steps/{sid}/media-layout": {
+      "put": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Update Step Media Layout",
+        "operationId": "update_step_media_layout",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepMediaLayout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepRead"
                 }
               }
             }
@@ -2003,11 +2064,6 @@
             "type": "string",
             "title": "Kind"
           },
-          "storage_path": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Storage Path"
-          },
           "width": {
             "type": "integer",
             "title": "Width"
@@ -2020,16 +2076,10 @@
             "type": "integer",
             "title": "Byte Size"
           },
-          "source_ref_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Ref Id"
+          "upgrade_candidate": {
+            "type": "boolean",
+            "title": "Upgrade Candidate",
+            "default": true
           },
           "created_at": {
             "type": "string",
@@ -2048,7 +2098,6 @@
           "aid",
           "name",
           "kind",
-          "storage_path",
           "width",
           "height",
           "byte_size"
@@ -3192,7 +3241,7 @@
           },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/Step"
+              "$ref": "#/components/schemas/StepRead"
             },
             "type": "array",
             "title": "Steps"
@@ -3413,21 +3462,53 @@
         ],
         "title": "SessionStatusResponse"
       },
-      "Step": {
+      "StepMediaLayout": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
           "cover": {
             "anyOf": [
               {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover"
+          },
+          "pages": {
+            "items": {
+              "items": {
                 "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "unused": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cover",
+          "pages",
+          "unused"
+        ],
+        "title": "StepMediaLayout"
+      },
+      "StepRead": {
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
               },
               {
                 "type": "null"
@@ -3452,6 +3533,15 @@
             "type": "array",
             "title": "Unused"
           },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
           "uid": {
             "type": "integer",
             "title": "Uid"
@@ -3470,7 +3560,6 @@
           },
           "timezone_id": {
             "type": "string",
-            "maxLength": 255,
             "title": "Timezone Id"
           },
           "location": {
@@ -3492,10 +3581,11 @@
         },
         "type": "object",
         "required": [
-          "name",
-          "description",
+          "cover",
           "pages",
           "unused",
+          "name",
+          "description",
           "uid",
           "aid",
           "id",
@@ -3506,7 +3596,7 @@
           "weather",
           "datetime"
         ],
-        "title": "Step"
+        "title": "StepRead"
       },
       "StepUpdate": {
         "properties": {
@@ -3532,48 +3622,6 @@
               }
             ],
             "title": "Description"
-          },
-          "cover": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cover"
-          },
-          "pages": {
-            "anyOf": [
-              {
-                "items": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pages"
-          },
-          "unused": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unused"
           }
         },
         "type": "object",

@@ -13,9 +13,8 @@ from app.api.v1.deps import _get_http_clients
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.main import app
-from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
+from app.models.album_media import AlbumMedia, StepUnusedMedia
 from app.models.google_photos import GoogleMediaFile, PickedMediaItem
-from app.models.step import Step
 
 from .conftest import _mock_http_clients
 from .factories import (
@@ -82,12 +81,12 @@ async def test_device_add_to_step_prepends_unused(
     imported = resp.json()["names"]
     assert len(imported) == 1
 
-    step = await session.get_one(Step, (uid, AID, 1))
-    assert step.unused[0] == imported[0]
+    unused = await session.get_one(StepUnusedMedia, (uid, AID, 1, 0))
+    assert unused.media_name == imported[0]
 
     row = await session.get_one(AlbumMedia, (uid, AID, imported[0]))
     assert row.kind == "photo"
-    assert row.storage_path == imported[0]
+    assert row.upgrade_candidate is False
 
 
 async def test_device_add_to_cover_does_not_select_cover(
@@ -198,7 +197,7 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
     assert row.height == 800
 
 
-async def test_undo_replacement_restores_previous_source_ref(
+async def test_undo_replacement_restores_previous_upgrade_candidate(
     client: AsyncClient,
     session: AsyncSession,
     tmp_path: Path,
@@ -209,16 +208,8 @@ async def test_undo_replacement_restores_previous_source_ref(
     )
     album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
     Image.new("RGB", (640, 480), color="red").save(album_dir / media_name, "JPEG")
-    ref = AlbumMediaSourceRef(
-        uid=uid,
-        aid=AID,
-        source_kind=AlbumMediaSourceKind.google_photos,
-        google_media_id="google-original",
-    )
-    session.add(ref)
-    await session.flush()
     row = await session.get_one(AlbumMedia, (uid, AID, media_name))
-    row.source_ref_id = ref.id
+    row.upgrade_candidate = True
     session.add(row)
     await session.commit()
 
@@ -229,7 +220,7 @@ async def test_undo_replacement_restores_previous_source_ref(
     )
     assert replace_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (uid, AID, media_name))
-    assert row.source_ref_id is None
+    assert row.upgrade_candidate is False
 
     undo_resp = await client.post(
         f"/api/v1/albums/{AID}/external-media/undo/{media_name}",
@@ -237,7 +228,7 @@ async def test_undo_replacement_restores_previous_source_ref(
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (uid, AID, media_name))
-    assert row.source_ref_id == ref.id
+    assert row.upgrade_candidate is True
 
 
 async def test_google_replace_requires_one_selected_item(
@@ -406,7 +397,7 @@ async def test_google_replace_validates_media_before_download(
     assert not downloaded
 
 
-async def test_google_replace_sets_source_ref(
+async def test_google_replace_marks_media_upgraded(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
@@ -457,6 +448,4 @@ async def test_google_replace_sets_source_ref(
 
     assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (uid, AID, media_name))
-    assert row.source_ref_id is not None
-    ref = await session.get_one(AlbumMediaSourceRef, row.source_ref_id)
-    assert ref.google_media_id == "google-1"
+    assert row.upgrade_candidate is False

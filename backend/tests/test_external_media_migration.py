@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from importlib import import_module
 from typing import TYPE_CHECKING
 
@@ -13,7 +12,7 @@ external_media_schema = import_module(
 )
 
 
-def _legacy_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table]:
+def _legacy_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table, sa.Table]:
     user = sa.Table(
         "user",
         metadata,
@@ -27,24 +26,21 @@ def _legacy_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table]:
         sa.Column("media", sa.JSON, nullable=False),
         sa.Column("upgraded_media", sa.JSON, nullable=False),
     )
-    return user, album
-
-
-def _new_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table]:
-    source_ref = sa.Table(
-        "album_media_source_ref",
+    step = sa.Table(
+        "step",
         metadata,
+        sa.Column("uid", sa.Integer, primary_key=True),
+        sa.Column("aid", sa.String, primary_key=True),
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("uid", sa.Integer, nullable=False),
-        sa.Column("aid", sa.String, nullable=False),
-        sa.Column("source_kind", sa.String, nullable=False),
-        sa.Column("google_media_id", sa.String),
-        sa.Column("mime_type", sa.String),
-        sa.Column("width", sa.Integer),
-        sa.Column("height", sa.Integer),
-        sa.Column("captured_at", sa.DateTime(timezone=True)),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("cover", sa.String),
+        sa.Column("cover_media_name", sa.String),
+        sa.Column("pages", sa.JSON, nullable=False),
+        sa.Column("unused", sa.JSON, nullable=False),
     )
+    return user, album, step
+
+
+def _new_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table, sa.Table]:
     media = sa.Table(
         "album_media",
         metadata,
@@ -52,24 +48,42 @@ def _new_tables(metadata: sa.MetaData) -> tuple[sa.Table, sa.Table]:
         sa.Column("aid", sa.String, primary_key=True),
         sa.Column("name", sa.String, primary_key=True),
         sa.Column("kind", sa.String, nullable=False),
-        sa.Column("storage_path", sa.String, nullable=False),
         sa.Column("width", sa.Integer, nullable=False),
         sa.Column("height", sa.Integer, nullable=False),
         sa.Column("byte_size", sa.BigInteger, nullable=False),
-        sa.Column("source_ref_id", sa.Integer),
+        sa.Column("upgrade_candidate", sa.Boolean, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
-    return source_ref, media
+    page_media = sa.Table(
+        "step_page_media",
+        metadata,
+        sa.Column("uid", sa.Integer, primary_key=True),
+        sa.Column("aid", sa.String, primary_key=True),
+        sa.Column("step_id", sa.Integer, primary_key=True),
+        sa.Column("page_index", sa.Integer, primary_key=True),
+        sa.Column("position_index", sa.Integer, primary_key=True),
+        sa.Column("media_name", sa.String, nullable=False),
+    )
+    unused_media = sa.Table(
+        "step_unused_media",
+        metadata,
+        sa.Column("uid", sa.Integer, primary_key=True),
+        sa.Column("aid", sa.String, primary_key=True),
+        sa.Column("step_id", sa.Integer, primary_key=True),
+        sa.Column("position_index", sa.Integer, primary_key=True),
+        sa.Column("media_name", sa.String, nullable=False),
+    )
+    return media, page_media, unused_media
 
 
-def test_upgrade_copies_album_media_and_google_upgrade_map(
+def test_upgrade_copies_album_media_and_upgrade_candidate_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite://")
     metadata = sa.MetaData()
-    user, album = _legacy_tables(metadata)
-    source_ref, media = _new_tables(metadata)
+    user, album, _step = _legacy_tables(metadata)
+    media, _page_media, _unused_media = _new_tables(metadata)
     metadata.create_all(engine)
 
     with engine.begin() as conn:
@@ -92,68 +106,63 @@ def test_upgrade_copies_album_media_and_google_upgrade_map(
         media_rows = (
             conn.execute(sa.select(media).order_by(media.c.name)).mappings().all()
         )
-        refs = conn.execute(sa.select(source_ref)).mappings().all()
 
     assert [
-        (row["name"], row["kind"], row["width"], row["height"]) for row in media_rows
+        (
+            row["name"],
+            row["kind"],
+            row["width"],
+            row["height"],
+            row["upgrade_candidate"],
+        )
+        for row in media_rows
     ] == [
-        ("clip.mp4", "video", 1920, 1080),
-        ("photo.jpg", "photo", 1200, 800),
+        ("clip.mp4", "video", 1920, 1080, True),
+        ("photo.jpg", "photo", 1200, 800, False),
     ]
-    assert refs[0]["google_media_id"] == "google-1"
-    photo_row = next(row for row in media_rows if row["name"] == "photo.jpg")
-    assert photo_row["source_ref_id"] == refs[0]["id"]
 
 
-def test_downgrade_rebuilds_album_json_columns(
+def test_upgrade_copies_step_layout_to_relationship_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite://")
     metadata = sa.MetaData()
-    user, album = _legacy_tables(metadata)
-    source_ref, media = _new_tables(metadata)
+    user, album, step = _legacy_tables(metadata)
+    _media, page_media, unused_media = _new_tables(metadata)
     metadata.create_all(engine)
-    now = datetime.now(UTC)
 
     with engine.begin() as conn:
         conn.execute(user.insert().values(id=1))
         conn.execute(
             album.insert().values(uid=1, id="aid-1", media=[], upgraded_media={})
         )
-        ref_id = conn.execute(
-            source_ref.insert()
-            .values(
+        conn.execute(
+            step.insert().values(
                 uid=1,
                 aid="aid-1",
-                source_kind="google_photos",
-                google_media_id="google-1",
-                created_at=now,
+                id=7,
+                cover="cover.jpg",
+                pages=[["a.jpg", "b.jpg"], ["c.jpg"]],
+                unused=["u.jpg"],
             )
-            .returning(source_ref.c.id)
-        ).scalar_one()
-        conn.execute(
-            media.insert(),
-            [
-                {
-                    "uid": 1,
-                    "aid": "aid-1",
-                    "name": "photo.jpg",
-                    "kind": "photo",
-                    "storage_path": "photo.jpg",
-                    "width": 1200,
-                    "height": 800,
-                    "byte_size": 0,
-                    "source_ref_id": ref_id,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-            ],
         )
         monkeypatch.setattr(external_media_schema.op, "get_bind", lambda: conn)
 
-        external_media_schema._migrate_media_rows_to_album_json()
+        external_media_schema._migrate_step_json_to_media_rows()
 
-        migrated = conn.execute(sa.select(album)).mappings().one()
+        migrated_step = conn.execute(sa.select(step)).mappings().one()
+        page_rows = (
+            conn.execute(sa.select(page_media).order_by(page_media.c.media_name))
+            .mappings()
+            .all()
+        )
+        unused_rows = conn.execute(sa.select(unused_media)).mappings().all()
 
-    assert migrated["media"] == [{"name": "photo.jpg", "width": 1200, "height": 800}]
-    assert migrated["upgraded_media"] == {"photo.jpg": "google-1"}
+    assert migrated_step["cover_media_name"] == "cover.jpg"
+    assert [
+        (row["media_name"], row["page_index"], row["position_index"])
+        for row in page_rows
+    ] == [("a.jpg", 0, 0), ("b.jpg", 0, 1), ("c.jpg", 1, 0)]
+    assert [(row["media_name"], row["position_index"]) for row in unused_rows] == [
+        ("u.jpg", 0)
+    ]

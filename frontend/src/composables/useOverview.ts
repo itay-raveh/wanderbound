@@ -1,4 +1,4 @@
-import type { Step, SegmentOutline } from "@/client";
+import type { SegmentOutline, StepRead as Step } from "@/client";
 import { haversineKm } from "@/utils/geo";
 
 const CIRCUITY: Record<string, number> = {

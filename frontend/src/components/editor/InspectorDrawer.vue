@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AlbumMeta, Step, Media } from "@/client";
+import type { AlbumMeta, Media, StepRead as Step } from "@/client";
 import AlbumProperties from "./AlbumProperties.vue";
 import CoverCell from "./CoverCell.vue";
 import MediaPanel from "./MediaPanel.vue";
@@ -103,11 +103,7 @@ const panelLabel = computed(() =>
       expand-icon-class="text-faint"
       :label="t('externalMedia.section')"
     >
-      <MediaPanel
-        :album-id="album.id"
-        :context="context"
-        :step-id="step?.id"
-      />
+      <MediaPanel :album-id="album.id" :context="context" :step-id="step?.id" />
     </q-expansion-item>
 
     <!-- Step: unused photos tray -->
@@ -145,7 +141,11 @@ const panelLabel = computed(() =>
           <q-icon :name="panelIcon" size="var(--type-md)" />
           <span>{{ panelLabel }}</span>
         </div>
-        <div v-if="landscapePhotos.length" ref="coverGridRef" class="cover-grid">
+        <div
+          v-if="landscapePhotos.length"
+          ref="coverGridRef"
+          class="cover-grid"
+        >
           <CoverCell
             v-for="(photo, index) in landscapePhotos"
             :key="photo"

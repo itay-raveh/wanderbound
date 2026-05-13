@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, Step } from "@/client";
+import type { DateRange, StepRead as Step } from "@/client";
 import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";

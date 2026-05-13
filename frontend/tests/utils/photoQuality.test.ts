@@ -1,4 +1,4 @@
-import type { Media, Step } from "@/client";
+import type { Media, StepRead as Step } from "@/client";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
