@@ -37,7 +37,6 @@ async def create_undo_snapshot(
     undo_dir = album_dir / UNDO_DIR
     await run_sync(undo_dir.mkdir, parents=True, exist_ok=True)
     snapshot_path = undo_dir / media_name
-    await run_sync(shutil.copy2, source, snapshot_path)
     now = datetime.now(UTC)
     row = await session.get(AlbumMedia, (uid, aid, media_name))
     existing = await session.get(AlbumMediaUndoSnapshot, (uid, aid, media_name))
@@ -45,6 +44,7 @@ async def create_undo_snapshot(
         await run_sync((album_dir / existing.snapshot_path).unlink, missing_ok=True)
         await session.delete(existing)
         await session.flush()
+    await run_sync(shutil.copy2, source, snapshot_path)
     snap = AlbumMediaUndoSnapshot(
         uid=uid,
         aid=aid,
