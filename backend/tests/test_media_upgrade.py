@@ -21,7 +21,6 @@ from PIL.ExifTags import Base as ExifBase
 
 if TYPE_CHECKING:
     import httpx
-    from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.media_upgrade.phash_matching import (
@@ -39,7 +38,7 @@ from app.logic.media_upgrade.pipeline import (
     MatchInProgress,
     _clear_caches,
     _needs_upgrade,
-    _persist_upgrade,
+    _persist_upgrade_in_session,
     run_matching,
 )
 from app.logic.media_upgrade.processing import (
@@ -383,13 +382,8 @@ class TestPersistUpgrade:
     async def test_updates_album_media_byte_size(
         self,
         session: AsyncSession,
-        engine: AsyncEngine,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.get_engine", lambda: engine
-        )
         uid = 1
         await insert_album(session, uid)
         media = await insert_album_media(session, uid, name="photo.jpg")
@@ -399,13 +393,16 @@ class TestPersistUpgrade:
         await session.commit()
 
         item = _make_item("google-1", "2024-01-15T10:00:00Z")
-        await _persist_upgrade(
-            uid,
-            AID,
-            tmp_path,
-            [MatchResult(local_name="photo.jpg", google_id="google-1", distance=0)],
-            {"photo.jpg"},
-            {"google-1": item},
+        await _persist_upgrade_in_session(
+            session,
+            uid=uid,
+            aid=AID,
+            album_dir=tmp_path,
+            matches=[
+                MatchResult(local_name="photo.jpg", google_id="google-1", distance=0)
+            ],
+            succeeded={"photo.jpg"},
+            google_items_by_id={"google-1": item},
         )
         await session.refresh(media)
 

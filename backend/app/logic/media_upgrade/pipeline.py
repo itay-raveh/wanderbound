@@ -362,80 +362,15 @@ async def _persist_upgrade(  # noqa: PLR0913
             },
         ):
             async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-                rows = {
-                    row.name: row
-                    for row in (
-                        await session.exec(
-                            select(AlbumMedia).where(
-                                AlbumMedia.uid == uid,
-                                AlbumMedia.aid == aid,
-                                col(AlbumMedia.name).in_(tuple(succeeded)),
-                            )
-                        )
-                    ).all()
-                }
-                existing_refs = {
-                    ref.google_media_id: ref
-                    for ref in (
-                        await session.exec(
-                            select(AlbumMediaSourceRef).where(
-                                AlbumMediaSourceRef.uid == uid,
-                                AlbumMediaSourceRef.aid == aid,
-                                AlbumMediaSourceRef.source_kind
-                                == AlbumMediaSourceKind.google_photos,
-                            )
-                        )
-                    ).all()
-                    if ref.google_media_id is not None
-                }
-                now = datetime.now(UTC)
-                for match in matches:
-                    if match.local_name not in succeeded:
-                        continue
-                    row = rows.get(match.local_name)
-                    if row is None:
-                        continue
-                    target = album_dir / match.local_name
-                    try:
-                        updated = (
-                            await Media.probe(target)
-                            if is_video(match.local_name)
-                            else await run_sync(
-                                Media.load,
-                                target,
-                                limiter=media_limiter,
-                            )
-                        )
-                    except OSError, SyntaxError, RuntimeError:
-                        logger.warning(
-                            "media_upgrade.reprobe_failed",
-                            exc_info=True,
-                        )
-                        continue
-                    item = google_items_by_id.get(match.google_id)
-                    ref = existing_refs.get(match.google_id)
-                    if ref is None:
-                        ref = AlbumMediaSourceRef(
-                            uid=uid,
-                            aid=aid,
-                            source_kind=AlbumMediaSourceKind.google_photos,
-                            google_media_id=match.google_id,
-                            mime_type=item.media_file.mime_type if item else None,
-                            width=item.media_file.width if item else None,
-                            height=item.media_file.height if item else None,
-                            captured_at=_captured_at(item),
-                        )
-                        session.add(ref)
-                        await session.flush()
-                        existing_refs[match.google_id] = ref
-                    row.width = updated.width
-                    row.height = updated.height
-                    row.byte_size = target.stat().st_size
-                    row.storage_path = row.name
-                    row.source_ref_id = ref.id
-                    row.updated_at = now
-                    session.add(row)
-                await session.commit()
+                await _persist_upgrade_in_session(
+                    session,
+                    uid=uid,
+                    aid=aid,
+                    album_dir=album_dir,
+                    matches=matches,
+                    succeeded=succeeded,
+                    google_items_by_id=google_items_by_id,
+                )
     except SQLAlchemyError:
         logger.warning(
             "media_upgrade.persist_failed",
@@ -451,6 +386,92 @@ async def _persist_upgrade(  # noqa: PLR0913
         album_id=aid,
         replaced=replaced,
     )
+
+
+async def _persist_upgrade_in_session(  # noqa: PLR0913
+    session: AsyncSession,
+    *,
+    uid: int,
+    aid: str,
+    album_dir: Path,
+    matches: list[MatchResult],
+    succeeded: set[MediaName],
+    google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
+) -> None:
+    rows = {
+        row.name: row
+        for row in (
+            await session.exec(
+                select(AlbumMedia).where(
+                    AlbumMedia.uid == uid,
+                    AlbumMedia.aid == aid,
+                    col(AlbumMedia.name).in_(tuple(succeeded)),
+                )
+            )
+        ).all()
+    }
+    existing_refs = {
+        ref.google_media_id: ref
+        for ref in (
+            await session.exec(
+                select(AlbumMediaSourceRef).where(
+                    AlbumMediaSourceRef.uid == uid,
+                    AlbumMediaSourceRef.aid == aid,
+                    AlbumMediaSourceRef.source_kind
+                    == AlbumMediaSourceKind.google_photos,
+                )
+            )
+        ).all()
+        if ref.google_media_id is not None
+    }
+    now = datetime.now(UTC)
+    for match in matches:
+        if match.local_name not in succeeded:
+            continue
+        row = rows.get(match.local_name)
+        if row is None:
+            continue
+        target = album_dir / match.local_name
+        try:
+            updated = (
+                await Media.probe(target)
+                if is_video(match.local_name)
+                else await run_sync(
+                    Media.load,
+                    target,
+                    limiter=media_limiter,
+                )
+            )
+        except OSError, SyntaxError, RuntimeError:
+            logger.warning(
+                "media_upgrade.reprobe_failed",
+                exc_info=True,
+            )
+            continue
+        item = google_items_by_id.get(match.google_id)
+        ref = existing_refs.get(match.google_id)
+        if ref is None:
+            ref = AlbumMediaSourceRef(
+                uid=uid,
+                aid=aid,
+                source_kind=AlbumMediaSourceKind.google_photos,
+                google_media_id=match.google_id,
+                mime_type=item.media_file.mime_type if item else None,
+                width=item.media_file.width if item else None,
+                height=item.media_file.height if item else None,
+                captured_at=_captured_at(item),
+            )
+            session.add(ref)
+            await session.flush()
+            existing_refs[match.google_id] = ref
+        row.width = updated.width
+        row.height = updated.height
+        row.byte_size = target.stat().st_size
+        row.storage_path = row.name
+        row.source_ref_id = ref.id
+        row.updated_at = now
+        session.add(row)
+    await session.commit()
 
 
 async def _cleanup_picker_sessions(
