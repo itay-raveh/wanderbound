@@ -1,4 +1,6 @@
 import { readImportStream } from "@/composables/useMediaImport";
+import { externalMediaInvalidationKeys } from "@/composables/useAddExternalMedia";
+import { queryKeys } from "@/queries/keys";
 
 function streamFromText(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -36,5 +38,26 @@ describe("readImportStream", () => {
       done: 1,
       total: 0,
     });
+  });
+});
+
+describe("externalMediaInvalidationKeys", () => {
+  it("invalidates steps when imported media is added to a step", () => {
+    expect(
+      externalMediaInvalidationKeys("album-1", {
+        context: "step",
+        stepId: 1,
+      }),
+    ).toEqual([
+      queryKeys.album("album-1"),
+      queryKeys.media("album-1"),
+      queryKeys.steps("album-1"),
+    ]);
+  });
+
+  it("does not invalidate steps for cover imports", () => {
+    expect(
+      externalMediaInvalidationKeys("album-1", { context: "cover" }),
+    ).toEqual([queryKeys.album("album-1"), queryKeys.media("album-1")]);
   });
 });

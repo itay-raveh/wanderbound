@@ -95,16 +95,11 @@ export function useAddExternalMedia(albumId: () => string) {
 
   async function invalidateAlbumQueries(target: ExternalImportTarget) {
     const aid = albumId();
-    const invalidations = [
-      cache.invalidateQueries({ key: queryKeys.album(aid), exact: true }),
-      cache.invalidateQueries({ key: queryKeys.media(aid), exact: true }),
-    ];
-    if (target.context !== "step") {
-      invalidations.push(
-        cache.invalidateQueries({ key: queryKeys.steps(aid), exact: true }),
-      );
-    }
-    await Promise.all(invalidations);
+    await Promise.all(
+      externalMediaInvalidationKeys(aid, target).map((key) =>
+        cache.invalidateQueries({ key, exact: true }),
+      ),
+    );
   }
 
   function applyImportResult(
@@ -304,6 +299,19 @@ export function useAddExternalMedia(albumId: () => string) {
     importGoogle,
     cancel,
   };
+}
+
+export function externalMediaInvalidationKeys(
+  aid: string,
+  target: ExternalImportTarget,
+) {
+  const keys: Array<
+    | ReturnType<typeof queryKeys.album>
+    | ReturnType<typeof queryKeys.media>
+    | ReturnType<typeof queryKeys.steps>
+  > = [queryKeys.album(aid), queryKeys.media(aid)];
+  if (target.context === "step") keys.push(queryKeys.steps(aid));
+  return keys;
 }
 
 function statusMessage(statusCode: number): string {
