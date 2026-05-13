@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -231,6 +232,77 @@ async def test_google_replace_requires_one_selected_item(
         )
 
     assert resp.status_code in {400, 502}
+
+
+async def test_google_add_validates_step_before_download(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    await connect_google_photos(session, uid)
+
+    http = _pin_http_clients()
+    http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+        {"access_token": "fresh-token", "expires_in": 3600}
+    )
+    downloaded = False
+
+    async def fail_if_downloaded(**_kwargs: object) -> AsyncIterator[object]:
+        nonlocal downloaded
+        downloaded = True
+        for item in ():
+            yield item
+
+    with patch(
+        "app.api.v1.routes.external_media.download_google_items_to_saved",
+        fail_if_downloaded,
+    ):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/add/google",
+            json={"context": "step", "step_id": 999, "session_id": "session-abc"},
+        )
+
+    assert resp.status_code == 200
+    assert "Step not found" in resp.text
+    assert not downloaded
+
+
+async def test_google_replace_validates_media_before_download(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    uid = await _signed_in_album(client, session)
+    await connect_google_photos(session, uid)
+
+    http = _pin_http_clients()
+    http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+        {"access_token": "fresh-token", "expires_in": 3600}
+    )
+    downloaded = False
+
+    async def fail_if_downloaded(**_kwargs: object) -> AsyncIterator[object]:
+        nonlocal downloaded
+        downloaded = True
+        for item in ():
+            yield item
+
+    with patch(
+        "app.api.v1.routes.external_media.download_google_items_to_saved",
+        fail_if_downloaded,
+    ):
+        resp = await client.post(
+            f"/api/v1/albums/{AID}/external-media/replace/google",
+            json={
+                "media_name": (
+                    "33333333-3333-4333-8333-333333333333_"
+                    "44444444-4444-4444-8444-444444444444.jpg"
+                ),
+                "session_id": "session-abc",
+            },
+        )
+
+    assert resp.status_code == 404
+    assert not downloaded
 
 
 async def test_google_replace_sets_source_ref(

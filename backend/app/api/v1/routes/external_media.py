@@ -27,6 +27,7 @@ from app.logic.media_import import (
     persist_imported_media,
     process_saved_media,
     save_uploads,
+    validate_import_target,
 )
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaSourceKind, AlbumMediaSourceRef
@@ -204,6 +205,11 @@ async def add_google_media(
     album = await _get_album_or_404(aid, user, session)
     _require_google_available(user)
     access_token = await _ensure_fresh_access_token(http, user)
+    try:
+        await validate_import_target(session, album=album, request=body)
+    except ValueError as exc:
+        yield ImportFailed(detail=str(exc))
+        return
     written: list[Path] = []
     try:
         with tempfile.TemporaryDirectory(
@@ -264,6 +270,8 @@ async def replace_google_media(
     album = await _get_album_or_404(aid, user, session)
     _require_google_available(user)
     access_token = await _ensure_fresh_access_token(http, user)
+    if await session.get(AlbumMedia, (user.id, aid, body.media_name)) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
 
     with tempfile.TemporaryDirectory(
         dir=album_dir(user, aid),
