@@ -6,7 +6,7 @@ import MediaPanel from "./MediaPanel.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
-import { mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
+import { THUMB_WIDTHS, mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
 import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 import { useI18n } from "vue-i18n";
 import { computed, ref, watch } from "vue";
@@ -59,10 +59,8 @@ const coverField = computed(() =>
 );
 const activeCoverPhoto = computed(() => props.album[coverField.value]);
 
-const landscapePhotos = computed(() =>
-  props.media
-    .filter((m) => !isPortrait(m) && !isVideo(m.name))
-    .map((m) => m.name),
+const landscapeMedia = computed(() =>
+  props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
 );
 
 const coverGridRef = ref<HTMLElement | null>(null);
@@ -142,23 +140,30 @@ const panelLabel = computed(() =>
           <span>{{ panelLabel }}</span>
         </div>
         <div
-          v-if="landscapePhotos.length"
+          v-if="landscapeMedia.length"
           ref="coverGridRef"
           class="cover-grid"
         >
           <CoverCell
-            v-for="(photo, index) in landscapePhotos"
-            :key="photo"
-            :src="mediaThumbUrl(photo, album.id)"
-            :selected="photo === activeCoverPhoto"
+            v-for="(media, index) in landscapeMedia"
+            :key="media.name"
+            :src="
+              mediaThumbUrl(
+                media.name,
+                album.id,
+                THUMB_WIDTHS[0],
+                media.updated_at,
+              )
+            "
+            :selected="media.name === activeCoverPhoto"
             :lazy-root="coverGridRef"
             :label="
               t('album.selectCoverPhoto', {
                 index: index + 1,
-                total: landscapePhotos.length,
+                total: landscapeMedia.length,
               })
             "
-            @select="selectCoverPhoto(photo)"
+            @select="selectCoverPhoto(media.name)"
           />
         </div>
         <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
