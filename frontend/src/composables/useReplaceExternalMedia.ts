@@ -201,7 +201,8 @@ export function useReplaceExternalMedia() {
   }
 
   async function replaceFromGoogle(): Promise<string | null> {
-    if (!selectedMediaName.value) {
+    const mediaName = selectedMediaName.value;
+    if (!mediaName) {
       setError(translate("externalMedia.replace.noSelection"));
       return null;
     }
@@ -230,7 +231,7 @@ export function useReplaceExternalMedia() {
           signal,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            media_name: selectedMediaName.value,
+            media_name: mediaName,
             session_id: session.sessionId,
           }),
         },
@@ -239,7 +240,7 @@ export function useReplaceExternalMedia() {
       await invalidateQueries();
       phase.value = "done";
       phase.value = "idle";
-      return selectedMediaName.value;
+      return mediaName;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       setError(
