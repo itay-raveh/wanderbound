@@ -279,6 +279,7 @@ const { map, fitBounds } = useMapbox({
   container,
   locale,
   preserveDrawingBuffer: printMode,
+  deferInit: !printMode,
   onReady: (m) => {
     m.resize();
     try {

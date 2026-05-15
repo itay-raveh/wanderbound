@@ -34,6 +34,7 @@ interface UseMapboxOptions {
   interactive?: boolean;
   onReady?: (map: mapboxgl.Map) => void;
   preserveDrawingBuffer?: boolean;
+  deferInit?: boolean;
   /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Accepts ref/getter. */
   locale?: MaybeRefOrGetter<string>;
 }
@@ -45,6 +46,9 @@ function langFromLocale(locale: string | undefined): string {
 export function useMapbox(options: UseMapboxOptions) {
   const map = shallowRef<mapboxgl.Map | null>(null);
   let pendingIdle: (() => void) | null = null;
+  let initIdleHandle: number | null = null;
+  let initTimeout: ReturnType<typeof setTimeout> | null = null;
+  let initIntersectionObserver: IntersectionObserver | null = null;
 
   function init() {
     if (!options.container.value || map.value) return;
@@ -169,10 +173,64 @@ export function useMapbox(options: UseMapboxOptions) {
     if (el) armIdleReady(el, map.value);
   }
 
+  function scheduleInit() {
+    if (!options.deferInit) {
+      init();
+      return;
+    }
+
+    const scheduleIdleInit = () => {
+      if ("requestIdleCallback" in window) {
+        initIdleHandle = window.requestIdleCallback(() => {
+          initIdleHandle = null;
+          init();
+        });
+        return;
+      }
+      initTimeout = setTimeout(() => {
+        initTimeout = null;
+        init();
+      }, 0);
+    };
+
+    const el = options.container.value;
+    if (!el || !("IntersectionObserver" in window)) {
+      scheduleIdleInit();
+      return;
+    }
+
+    initIntersectionObserver = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        initIntersectionObserver?.disconnect();
+        initIntersectionObserver = null;
+        scheduleIdleInit();
+      },
+      { rootMargin: "200px" },
+    );
+    initIntersectionObserver.observe(el);
+  }
+
+  function cancelScheduledInit() {
+    initIntersectionObserver?.disconnect();
+    initIntersectionObserver = null;
+    if (initIdleHandle !== null) {
+      window.cancelIdleCallback(initIdleHandle);
+      initIdleHandle = null;
+    }
+    if (initTimeout !== null) {
+      clearTimeout(initTimeout);
+      initTimeout = null;
+    }
+  }
+
   useResizeObserver(options.container, () => map.value?.resize());
 
-  onMounted(init);
-  onBeforeUnmount(destroy);
+  onMounted(scheduleInit);
+  onBeforeUnmount(() => {
+    cancelScheduledInit();
+    destroy();
+  });
 
   return { map, fitBounds };
 }

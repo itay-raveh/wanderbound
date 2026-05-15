@@ -41,6 +41,7 @@ const { map, fitBounds } = useMapbox({
   locale,
   onReady: draw,
   preserveDrawingBuffer: printMode,
+  deferInit: !printMode,
 });
 
 function draw(m: Map) {
