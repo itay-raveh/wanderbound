@@ -3,6 +3,19 @@ import { TINY_JPEG_BASE64 } from "../tests/fixtures/mocks";
 
 const API = "**/api/v1";
 
+async function ensureExternalMediaOpen(
+  page: import("@playwright/test").Page,
+) {
+  const toggle = page.getByRole("button", {
+    name: /Expand "External media"|Collapse "External media"/,
+  });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
+
 test.describe("External media replacement", () => {
   test("cover media can be selected for replacement", async ({
     authedPage: page,
@@ -14,7 +27,7 @@ test.describe("External media replacement", () => {
     await page.locator('[data-media="cover.jpg"]').click({
       position: { x: 20, y: 20 },
     });
-    await expect(page.getByText("cover.jpg")).toBeVisible();
+    await ensureExternalMediaOpen(page);
     await expect(
       page.getByRole("button", { name: /Replace selected media/i }),
     ).toBeEnabled();
@@ -51,13 +64,10 @@ test.describe("External media replacement", () => {
       .locator('[data-media="photo2.jpg"]')
       .getByRole("button", { name: "Replace with better quality" })
       .click();
-    const externalMediaToggle = page.getByRole("button", {
-      name: /External media/,
-    });
-    if (!(await page.getByText(/Replace selected media/i).isVisible())) {
-      await externalMediaToggle.click();
-    }
-    await expect(page.getByText("photo2.jpg")).toBeVisible();
+    await ensureExternalMediaOpen(page);
+    await expect(
+      page.getByRole("button", { name: /Replace selected media/i }),
+    ).toBeEnabled();
     await page.getByRole("button", { name: /Replace selected media/i }).click();
     const chooser = page.waitForEvent("filechooser");
     await page.getByRole("menuitem", { name: "Device" }).click();

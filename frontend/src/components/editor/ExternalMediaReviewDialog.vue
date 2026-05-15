@@ -133,9 +133,7 @@ const hasWarnings = computed(() => (props.review?.warnings.length ?? 0) > 0);
 
 .preview-label {
   font-size: var(--type-xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--text-muted);
 }
 

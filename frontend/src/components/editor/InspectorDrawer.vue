@@ -7,10 +7,13 @@ import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import { THUMB_WIDTHS, mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
-import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
+import {
+  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  type MediaResolutionWarningPreset,
+} from "@/utils/photoQuality";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
 import { computed, ref, watch } from "vue";
-import { matImage } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
 
@@ -64,9 +67,10 @@ const landscapeMedia = computed(() =>
 );
 
 const coverGridRef = ref<HTMLElement | null>(null);
-const externalMediaOpen = ref(true);
-const unusedOpen = ref(true);
-const coverOpen = ref(true);
+const propertiesOpen = ref(true);
+const externalMediaOpen = ref(false);
+const unusedOpen = ref(false);
+const coverOpen = ref(false);
 
 watch(
   context,
@@ -75,43 +79,84 @@ watch(
     if (next === "step") unusedOpen.value = true;
     if (next === "cover") coverOpen.value = true;
   },
-  { immediate: true },
 );
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
 }
 
-// ── Panel metadata ─────────────────────────────────────────────────────
-const panelIcon = matImage;
+const resolutionWarningPreset = computed<MediaResolutionWarningPreset>(
+  () =>
+    props.album.media_resolution_warning_preset ??
+    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+);
+
+function updateResolutionWarningPreset(value: MediaResolutionWarningPreset) {
+  albumMutation.mutate({ media_resolution_warning_preset: value });
+}
+
 const panelLabel = computed(() =>
   isCoverBack.value ? t("album.backCover") : t("album.frontCover"),
 );
+
+const { countryName } = useUserQuery();
+
+const importTargetLabel = computed<string | null>(() => {
+  const s = props.step;
+  if (!s) return null;
+  const name = s.name?.trim();
+  if (name) return name;
+  const locName = s.location?.name?.trim();
+  if (locName) return locName;
+  const country = countryName(
+    s.location?.country_code ?? "",
+    s.location?.detail ?? "",
+  );
+  return country || t("externalMedia.import.unnamedStep");
+});
 </script>
 
 <template>
   <div class="inspector-panel">
-    <AlbumProperties :album="album" />
-    <q-separator class="properties-separator" />
+    <q-expansion-item
+      v-model="propertiesOpen"
+      group="inspector-primary"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-faint"
+      :label="t('editor.properties')"
+    >
+      <AlbumProperties :album="album" />
+    </q-expansion-item>
 
     <q-expansion-item
       v-model="externalMediaOpen"
+      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
       expand-icon-class="text-faint"
       :label="t('externalMedia.section')"
     >
-      <MediaPanel :album-id="album.id" :context="context" :step-id="step?.id" />
+      <MediaPanel
+        :album-id="album.id"
+        :context="context"
+        :step-id="step?.id"
+        :target-label="importTargetLabel"
+        :media="media"
+        :resolution-warning-preset="resolutionWarningPreset"
+        @update:resolution-warning-preset="updateResolutionWarningPreset"
+      />
     </q-expansion-item>
 
     <!-- Step: unused photos tray -->
     <q-expansion-item
       v-if="context === 'step'"
       v-model="unusedOpen"
+      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
       expand-icon-class="text-faint"
-      label="Unused"
+      :label="t('album.unused')"
     >
       <div class="context-section">
         <UnusedDrawer
@@ -127,18 +172,13 @@ const panelLabel = computed(() =>
     <q-expansion-item
       v-else-if="context === 'cover'"
       v-model="coverOpen"
+      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
       expand-icon-class="text-faint"
       :label="panelLabel"
     >
       <div class="context-section">
-        <div
-          class="panel-header row no-wrap items-center text-overline text-weight-semibold text-muted"
-        >
-          <q-icon :name="panelIcon" size="var(--type-md)" />
-          <span>{{ panelLabel }}</span>
-        </div>
         <div
           v-if="landscapeMedia.length"
           ref="coverGridRef"
@@ -182,11 +222,6 @@ const panelLabel = computed(() =>
   background: var(--bg-secondary);
 }
 
-.properties-separator {
-  flex-shrink: 0;
-  margin-inline: var(--gap-md);
-}
-
 .panel-section {
   border-top: 1px solid var(--border-color);
 }
@@ -202,12 +237,6 @@ const panelLabel = computed(() =>
 .unused-section {
   flex: 1;
   min-height: 0;
-}
-
-.panel-header {
-  gap: var(--gap-sm);
-  margin-bottom: var(--gap-md);
-  flex-shrink: 0;
 }
 
 .panel-hint {

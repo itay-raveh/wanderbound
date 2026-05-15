@@ -21,7 +21,7 @@ const upgrade = useMediaUpgrade();
 const googlePhotos = useGooglePhotos();
 const showDisconnectConfirm = ref(false);
 const googlePhotosIcon = "img:/google-photos.svg";
-const googlePhotosButtonIconSize = "1rem";
+const googlePhotosIconSize = "var(--type-md)";
 
 const isRunning = computed(() => {
   const p = upgrade.phase.value;
@@ -120,7 +120,7 @@ const { confirmUpgrade } = upgrade;
       v-if="buttonState"
       :state="buttonState"
       :idle-icon="googlePhotosIcon"
-      :idle-icon-size="googlePhotosButtonIconSize"
+      :idle-icon-size="googlePhotosIconSize"
       :idle-label="t('upgrade.button')"
       :progress-fraction="progressFraction"
       :progress-message="progressMessage"
@@ -148,7 +148,7 @@ const { confirmUpgrade } = upgrade;
         :aria-label="t('upgrade.button')"
         @click="upgrade.start(props.albumId)"
       >
-        <q-icon :name="googlePhotosIcon" :size="googlePhotosButtonIconSize" />
+        <q-icon :name="googlePhotosIcon" :size="googlePhotosIconSize" />
         {{ t("upgrade.button") }}
       </button>
       <button
@@ -210,6 +210,10 @@ const { confirmUpgrade } = upgrade;
 @use "@/styles/action-button" as *;
 @include action-button;
 
+:deep(.action-btn) {
+  width: 100%;
+}
+
 .action-btn.error {
   border-color: var(--q-negative);
   color: var(--q-negative);
@@ -221,10 +225,12 @@ const { confirmUpgrade } = upgrade;
 }
 
 .split-btn {
-  display: inline-flex;
+  display: flex;
   align-items: stretch;
+  width: 100%;
 
   .action-btn {
+    flex: 1;
     border-start-end-radius: 0;
     border-end-end-radius: 0;
   }

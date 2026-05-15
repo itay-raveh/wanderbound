@@ -98,7 +98,7 @@
     "bodyFont": "Body font",
     "properties": "Properties",
     "safeMargin": "Safe margin",
-    "resolutionWarnings": "Resolution warnings",
+    "photoQuality": "Photo quality",
     "resolutionWarningsOff": "Off",
     "resolutionWarningsRelaxed": "Relaxed",
     "resolutionWarningsPrint": "Print",
@@ -175,22 +175,32 @@
     },
     "quality": {
       "allGood": "No photo quality warnings right now.",
-      "needsAttention": "{warning} low-quality and {caution} medium-quality photos still need attention."
+      "needsAttention": "{warning} low-quality and {caution} medium-quality photos still need attention.",
+      "warningChip": "{count} below print quality",
+      "cautionChip": "{count} borderline for print",
+      "allClear": "All clear",
+      "jumpToNext": "Jump to next quality warning",
+      "jumpAnnounce": "Quality warning {index} of {total}"
     },
     "targets": {
       "stepUnused": "Import to Step {stepId} unused",
       "coverCandidates": "Import to cover candidates",
-      "mapUnavailable": "Import is unavailable while a map section is selected.",
-      "overviewUnavailable": "Import is unavailable in the overview section.",
-      "none": "Select a step or cover section to import media."
+      "mapUnavailable": "Select a step or cover to add photos.",
+      "overviewUnavailable": "Select a step or cover to add photos.",
+      "none": "Select a step or cover to add photos."
     },
     "import": {
       "label": "Import target",
-      "action": "Import external media"
+      "action": "Import external media",
+      "shortAction": "Import",
+      "toTarget": "Import to {target}",
+      "toCover": "Import to Cover",
+      "unnamedStep": "this step"
     },
     "replace": {
       "label": "Selected media",
       "action": "Replace selected media",
+      "shortAction": "Replace",
       "noneSelected": "No media selected",
       "noSelection": "Select a photo or video first.",
       "invalid": "This replacement could not be applied.",
@@ -215,6 +225,7 @@
     "undo": {
       "label": "Quick undo",
       "action": "Undo",
+      "shortAction": "Undo",
       "toast": "Media replaced. Undo is available for 5 minutes.",
       "done": "Replacement undone.",
       "failed": "Undo failed. Try again."

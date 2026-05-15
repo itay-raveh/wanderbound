@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import type { AlbumMeta } from "@/client";
-import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import {
   ALLOWED_FONTS,
@@ -8,19 +7,9 @@ import {
   DEFAULT_FONT,
   fontStack,
 } from "@/utils/fonts";
-import {
-  symOutlinedCropFree,
-  symOutlinedHideImage,
-  symOutlinedPhotoSizeSelectLarge,
-  symOutlinedTune,
-  symOutlinedWarning,
-} from "@quasar/extras/material-symbols-outlined";
+import { symOutlinedCropFree } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
-import {
-  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-  type MediaResolutionWarningPreset,
-} from "@/utils/photoQuality";
 
 const { t } = useI18n();
 
@@ -35,30 +24,6 @@ const currentBodyFont = computed(
   () => props.album.body_font ?? DEFAULT_BODY_FONT,
 );
 const safeMargin = computed(() => props.album.safe_margin_mm ?? 0);
-const mediaResolutionWarningPreset = computed(
-  () =>
-    props.album.media_resolution_warning_preset ??
-    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-);
-const mediaResolutionWarningOptions = computed<
-  { label: string; value: MediaResolutionWarningPreset; icon: string }[]
->(() => [
-  {
-    label: t("editor.resolutionWarningsOff"),
-    value: "off",
-    icon: symOutlinedHideImage,
-  },
-  {
-    label: t("editor.resolutionWarningsRelaxed"),
-    value: "relaxed",
-    icon: symOutlinedWarning,
-  },
-  {
-    label: t("editor.resolutionWarningsPrint"),
-    value: "print",
-    icon: symOutlinedPhotoSizeSelectLarge,
-  },
-]);
 
 function updateFont(font: string) {
   albumMutation.mutate({ font });
@@ -71,20 +36,10 @@ function updateBodyFont(font: string) {
 function updateSafeMargin(mm: number) {
   albumMutation.mutate({ safe_margin_mm: mm });
 }
-
-function updateMediaResolutionWarningPreset(
-  media_resolution_warning_preset: MediaResolutionWarningPreset,
-) {
-  albumMutation.mutate({ media_resolution_warning_preset });
-}
 </script>
 
 <template>
   <div class="album-properties">
-    <div class="properties-header row no-wrap items-center text-bright">
-      <q-icon :name="symOutlinedTune" size="var(--type-md)" />
-      <span>{{ t("editor.properties") }}</span>
-    </div>
     <q-select
       :model-value="currentFont"
       :options="ALLOWED_FONTS"
@@ -149,17 +104,6 @@ function updateMediaResolutionWarningPreset(
         @change="updateSafeMargin"
       />
     </div>
-    <div class="warning-group">
-      <span class="warning-title text-muted">{{
-        t("editor.resolutionWarnings")
-      }}</span>
-      <SegmentedControl
-        :model-value="mediaResolutionWarningPreset"
-        :options="mediaResolutionWarningOptions"
-        :aria-label="t('editor.resolutionWarnings')"
-        @update:model-value="updateMediaResolutionWarningPreset"
-      />
-    </div>
   </div>
 </template>
 
@@ -170,13 +114,6 @@ function updateMediaResolutionWarningPreset(
   gap: var(--gap-md-lg);
   flex-shrink: 0;
   padding: var(--gap-md-lg) var(--gap-lg);
-}
-
-.properties-header {
-  gap: var(--gap-sm);
-  font-size: var(--type-sm);
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
 }
 
 .font-picker {
@@ -199,13 +136,6 @@ function updateMediaResolutionWarningPreset(
   padding-inline: var(--gap-xs);
 }
 
-.warning-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  padding-inline: var(--gap-xs);
-}
-
 .margin-header {
   gap: var(--gap-sm);
   margin-bottom: var(--gap-xs);
@@ -214,10 +144,6 @@ function updateMediaResolutionWarningPreset(
 .margin-title {
   font-size: var(--type-xs);
   flex: 1;
-}
-
-.warning-title {
-  font-size: var(--type-xs);
 }
 
 .margin-label {

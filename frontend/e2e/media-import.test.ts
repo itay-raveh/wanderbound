@@ -33,13 +33,14 @@ async function ensureExternalMediaOpen(
   const importButton = page.getByRole("button", {
     name: "Import external media",
   });
-  const toggle = page.getByRole("button", { name: /External media/ });
-  if (!(await importButton.isVisible())) {
+  const toggle = page.getByRole("button", {
+    name: /Expand "External media"|Collapse "External media"/,
+  });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
   }
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(importButton).toBeVisible();
 }
 
@@ -48,8 +49,9 @@ async function selectImportStep(
   stepId: number,
 ) {
   await page.locator(`[data-nav-step="${stepId}"]`).click();
+  await ensureExternalMediaOpen(page);
   await expect(
-    page.getByLabel("Inspector").getByText(`Import to Step ${stepId} unused`),
+    page.getByLabel("Inspector").getByText(`Import to ${mockStep.name}`),
   ).toBeVisible();
 }
 
@@ -229,6 +231,7 @@ test.describe("Media import", () => {
     await page.getByRole("button", { name: "Expand", exact: true }).click();
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
+    await ensureUnusedOpen(page);
 
     await expect(
       unusedDrawer(page).getByText("0", { exact: true }),

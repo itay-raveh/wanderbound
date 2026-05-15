@@ -33,7 +33,9 @@ test.describe("External media panel", () => {
     await expect(
       page.getByRole("button", { name: "Upgrade Media" }),
     ).toBeVisible();
-    await expect(page.getByText("Import to Step 1 unused")).toBeVisible();
-    await expect(page.getByText("No media selected")).toBeVisible();
+    await expect(page.getByText("Import to Amsterdam")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Replace selected media/i }),
+    ).not.toBeVisible();
   });
 });
