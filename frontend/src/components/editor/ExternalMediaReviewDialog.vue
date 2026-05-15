@@ -163,13 +163,13 @@ const hasWarnings = computed(() => (props.review?.warnings.length ?? 0) > 0);
 }
 
 .alert-warning {
-  background: color-mix(in srgb, var(--q-warning) 12%, transparent);
-  color: color-mix(in srgb, var(--q-warning) 70%, var(--text));
+  background: color-mix(in srgb, var(--q-warning) 18%, transparent);
+  color: var(--text);
 }
 
 .alert-error {
-  background: color-mix(in srgb, var(--q-negative) 12%, transparent);
-  color: color-mix(in srgb, var(--q-negative) 70%, var(--text));
+  background: color-mix(in srgb, var(--q-negative) 18%, transparent);
+  color: var(--text);
 }
 
 @media (max-width: 720px) {

@@ -192,6 +192,7 @@
     "import": {
       "label": "Import target",
       "action": "Import external media",
+      "moreOptions": "More import options",
       "shortAction": "Import",
       "toTarget": "Import to {target}",
       "toCover": "Import to Cover",
@@ -227,6 +228,7 @@
       "action": "Undo",
       "shortAction": "Undo",
       "toast": "Media replaced. Undo is available for 5 minutes.",
+      "justReplacedAnnounce": "Media replaced. Undo is available.",
       "done": "Replacement undone.",
       "failed": "Undo failed. Try again."
     }

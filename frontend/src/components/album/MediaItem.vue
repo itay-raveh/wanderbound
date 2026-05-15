@@ -2,6 +2,7 @@
 import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
+import { registerQualityBadge } from "@/composables/usePhotoQuality";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
@@ -173,6 +174,20 @@ function scrub(delta: number) {
   videoRef.value.currentTime = Math.max(0, videoRef.value.currentTime + delta);
 }
 
+const qualityBadgeRef = ref<HTMLElement | null>(null);
+let unregisterBadge: (() => void) | null = null;
+watchEffect((onCleanup) => {
+  unregisterBadge?.();
+  unregisterBadge = null;
+  const el = qualityBadgeRef.value;
+  if (!el) return;
+  unregisterBadge = registerQualityBadge(el);
+  onCleanup(() => {
+    unregisterBadge?.();
+    unregisterBadge = null;
+  });
+});
+
 function onVideoKey(e: KeyboardEvent) {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -270,6 +285,7 @@ function onVideoKey(e: KeyboardEvent) {
     </template>
     <button
       v-if="!printMode && quality && quality.tier !== 'ok'"
+      ref="qualityBadgeRef"
       type="button"
       :class="['quality-badge', quality.tier, 'flex', 'flex-center']"
       :aria-label="t('externalMedia.replaceQuality')"

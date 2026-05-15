@@ -137,9 +137,7 @@ const { confirmUpgrade } = upgrade;
     >
       <q-icon :name="symOutlinedError" size="var(--type-lg)" />
       {{ errorMessage }}
-      <q-tooltip transition-show="scale" transition-hide="scale" class="q-menu">
-        {{ errorTooltip }}
-      </q-tooltip>
+      <q-tooltip class="q-menu">{{ errorTooltip }}</q-tooltip>
     </button>
 
     <div v-else class="split-btn">
@@ -278,6 +276,7 @@ const { confirmUpgrade } = upgrade;
   align-items: center;
   gap: var(--gap-sm);
   width: 100%;
+  min-height: 2.75rem;
   padding: var(--gap-sm) var(--gap-md);
   border-radius: var(--radius-sm);
   font-family: var(--font-ui);

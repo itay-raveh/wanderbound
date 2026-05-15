@@ -63,7 +63,6 @@ test.describe("Active step sync", () => {
     const fileChooser = page.waitForEvent("filechooser");
     await ensureExternalMediaOpen(page);
     await page.getByRole("button", { name: "Import external media" }).click();
-    await page.getByRole("menuitem", { name: "Device" }).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

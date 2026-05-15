@@ -105,7 +105,6 @@ test.describe("Media import", () => {
 
     const fileChooser = page.waitForEvent("filechooser");
     await page.getByRole("button", { name: "Import external media" }).click();
-    await page.getByRole("menuitem", { name: "Device" }).click();
     const importResponse = page.waitForResponse(
       (res) =>
         res.url().includes("/api/v1/albums/") &&
@@ -211,8 +210,6 @@ test.describe("Media import", () => {
 
     const fileChooser = page.waitForEvent("filechooser");
     await page.getByRole("button", { name: "Import external media" }).click();
-    await expect(page.getByRole("menuitem", { name: "Device" })).toBeVisible();
-    await page.getByRole("menuitem", { name: "Device" }).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

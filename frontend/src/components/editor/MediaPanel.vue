@@ -8,7 +8,10 @@ import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
 import { useExternalMediaSources } from "@/composables/useExternalMediaSources";
 import { useMediaUndo } from "@/composables/useMediaUndo";
 import { useReplaceExternalMedia } from "@/composables/useReplaceExternalMedia";
-import { qualitySummary } from "@/composables/usePhotoQuality";
+import {
+  jumpToNextQualityBadge,
+  qualitySummary,
+} from "@/composables/usePhotoQuality";
 import { THUMB_WIDTHS, mediaThumbUrl } from "@/utils/media";
 import type { MediaResolutionWarningPreset } from "@/utils/photoQuality";
 import { computed, ref } from "vue";
@@ -101,26 +104,14 @@ const qualityChipLabel = computed(() => {
   return "";
 });
 
-// Cycles through quality-badge elements rendered by MediaItem so each click
-// reveals the next problem photo instead of always the first one.
-const warningCursor = ref(0);
-const warningAnnouncement = ref("");
+const liveAnnouncement = ref("");
 
 function jumpToNextWarning() {
-  const badges = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      ".quality-badge.warning, .quality-badge.caution",
-    ),
-  );
-  if (badges.length === 0) return;
-  const index = warningCursor.value % badges.length;
-  const target = badges[index];
-  warningCursor.value = (index + 1) % badges.length;
-  target.scrollIntoView({ behavior: "smooth", block: "center" });
-  target.focus({ preventScroll: true });
-  warningAnnouncement.value = t("externalMedia.quality.jumpAnnounce", {
-    index: index + 1,
-    total: badges.length,
+  const result = jumpToNextQualityBadge();
+  if (!result) return;
+  liveAnnouncement.value = t("externalMedia.quality.jumpAnnounce", {
+    index: result.index + 1,
+    total: result.total,
   });
 }
 
@@ -217,6 +208,7 @@ let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flashUndo() {
   justReplaced.value = true;
+  liveAnnouncement.value = t("externalMedia.undo.justReplacedAnnounce");
   if (flashTimer != null) clearTimeout(flashTimer);
   flashTimer = setTimeout(() => {
     justReplaced.value = false;
@@ -272,15 +264,14 @@ const replaceError = computed(() =>
 
     <section class="quality-section" aria-labelledby="media-panel-quality-title">
       <div class="quality-header">
-        <h3 id="media-panel-quality-title" class="quality-section-title">
+        <div id="media-panel-quality-title" class="quality-section-title">
           {{ t("editor.photoQuality") }}
-        </h3>
+        </div>
         <button
           v-if="qualityTier"
           type="button"
           class="quality-chip"
           :class="qualityTier"
-          :title="t('externalMedia.quality.jumpToNext')"
           @click="jumpToNextWarning"
         >
           <q-icon :name="matWarning" size="var(--type-sm)" class="chip-icon" />
@@ -290,6 +281,7 @@ const replaceError = computed(() =>
             size="var(--type-sm)"
             class="chip-icon rtl-flip"
           />
+          <q-tooltip>{{ t("externalMedia.quality.jumpToNext") }}</q-tooltip>
         </button>
         <span
           v-else-if="resolutionWarningPreset !== 'off'"
@@ -311,57 +303,62 @@ const replaceError = computed(() =>
       <UpgradeMediaButton :album-id="albumId" />
     </section>
     <span class="sr-only" role="status" aria-live="polite">{{
-      warningAnnouncement
+      liveAnnouncement
     }}</span>
 
-    <button
-      v-if="importTarget"
-      type="button"
-      class="media-cta primary"
-      :disabled="addMedia.isBusy.value"
-      :aria-label="t('externalMedia.import.action')"
-      aria-haspopup="menu"
-      :aria-expanded="importMenuOpen"
-    >
-      <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
-      <span class="cta-label">{{ importLabel }}</span>
-      <q-icon
-        :name="matKeyboardArrowDown"
-        size="var(--type-sm)"
-        class="cta-caret"
-      />
-      <q-menu
-        v-model="importMenuOpen"
-        anchor="bottom start"
-        self="top start"
-        :offset="[0, 4]"
-        fit
+    <div v-if="importTarget" class="import-cta">
+      <button
+        type="button"
+        class="media-cta primary import-cta-main"
+        :class="{ 'has-trailing': sources.googleAvailable.value }"
+        :disabled="addMedia.isBusy.value"
+        :aria-label="t('externalMedia.import.action')"
+        @click="pickDeviceImport"
       >
-        <div class="cta-menu" role="menu">
-          <button
-            type="button"
-            class="cta-menu-item"
-            role="menuitem"
-            v-close-popup
-            @click="pickDeviceImport"
-          >
-            <q-icon :name="matComputer" size="var(--type-md)" />
-            <span>{{ t("mediaImport.device") }}</span>
-          </button>
-          <button
-            type="button"
-            class="cta-menu-item"
-            role="menuitem"
-            :disabled="!sources.googleAvailable.value"
-            v-close-popup
-            @click="runGoogleImport"
-          >
-            <q-icon name="img:/google-photos.svg" size="var(--type-md)" />
-            <span>{{ t("mediaImport.googlePhotos") }}</span>
-          </button>
-        </div>
-      </q-menu>
-    </button>
+        <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
+        <span class="cta-label">{{ importLabel }}</span>
+      </button>
+      <button
+        v-if="sources.googleAvailable.value"
+        type="button"
+        class="import-cta-trigger"
+        :disabled="addMedia.isBusy.value"
+        :aria-label="t('externalMedia.import.moreOptions')"
+        aria-haspopup="menu"
+        :aria-expanded="importMenuOpen"
+      >
+        <q-icon :name="matKeyboardArrowDown" size="var(--type-sm)" />
+        <q-menu
+          v-model="importMenuOpen"
+          anchor="bottom end"
+          self="top end"
+          :offset="[0, 4]"
+        >
+          <div class="cta-menu" role="menu">
+            <button
+              type="button"
+              class="cta-menu-item"
+              role="menuitem"
+              v-close-popup
+              @click="pickDeviceImport"
+            >
+              <q-icon :name="matComputer" size="var(--type-md)" />
+              <span>{{ t("mediaImport.device") }}</span>
+            </button>
+            <button
+              type="button"
+              class="cta-menu-item"
+              role="menuitem"
+              v-close-popup
+              @click="runGoogleImport"
+            >
+              <q-icon name="img:/google-photos.svg" size="var(--type-md)" />
+              <span>{{ t("mediaImport.googlePhotos") }}</span>
+            </button>
+          </div>
+        </q-menu>
+      </button>
+    </div>
     <p v-else class="media-helper">{{ importHelper }}</p>
 
     <div
@@ -392,6 +389,7 @@ const replaceError = computed(() =>
           :aria-expanded="replaceMenuOpen"
         >
           <q-icon :name="matPublishedWithChanges" size="var(--type-lg)" />
+          <q-tooltip>{{ t("externalMedia.replace.action") }}</q-tooltip>
           <q-menu
             v-model="replaceMenuOpen"
             anchor="bottom middle"
@@ -445,37 +443,36 @@ const replaceError = computed(() =>
       @hide="addMedia.cancel"
     >
       <q-card class="import-dialog">
-        <q-card-section class="row no-wrap items-center dialog-header">
-          <q-icon :name="matImage" size="1.5rem" />
-          <div class="text-subtitle1 text-weight-semibold">
-            {{ importDialogTitle }}
-          </div>
-        </q-card-section>
-        <q-card-section v-if="addMedia.isBusy.value">
-          <q-linear-progress
-            :value="importProgressFraction"
-            :indeterminate="importProgressFraction === 0"
-            color="primary"
-            rounded
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
+        <header class="import-dialog-header">
+          <q-icon :name="matImage" size="var(--type-lg)" />
+          <h3 class="import-dialog-title">{{ importDialogTitle }}</h3>
+        </header>
+        <q-linear-progress
+          v-if="addMedia.isBusy.value"
+          :value="importProgressFraction"
+          :indeterminate="importProgressFraction === 0"
+          color="primary"
+          rounded
+          class="import-dialog-progress"
+        />
+        <div class="import-dialog-actions">
+          <button
             v-if="addMedia.isBusy.value"
-            flat
-            no-caps
-            :label="t('common.cancel')"
+            type="button"
+            class="media-cta subtle"
             @click="addMedia.cancel"
-          />
-          <q-btn
+          >
+            <span class="cta-label">{{ t("common.cancel") }}</span>
+          </button>
+          <button
             v-else-if="addMedia.phase.value === 'error'"
-            flat
-            no-caps
-            color="primary"
-            :label="t('common.close')"
+            type="button"
+            class="media-cta"
             @click="addMedia.cancel"
-          />
-        </q-card-actions>
+          >
+            <span class="cta-label">{{ t("common.close") }}</span>
+          </button>
+        </div>
       </q-card>
     </q-dialog>
 
@@ -543,8 +540,8 @@ const replaceError = computed(() =>
   display: inline-flex;
   align-items: center;
   gap: var(--gap-xs);
-  min-height: 2rem;
-  padding: 0.25rem var(--gap-sm);
+  min-height: 2.5rem;
+  padding: var(--gap-sm) var(--gap-md);
   border-radius: var(--radius-xs);
   font-family: var(--font-ui);
   font-size: var(--type-sm);
@@ -649,8 +646,57 @@ const replaceError = computed(() =>
   color: var(--q-primary);
 }
 
-.media-cta:not(.primary) .cta-caret {
-  opacity: 0.7;
+.import-cta {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.import-cta-main {
+  flex: 1;
+  width: auto;
+
+  &.has-trailing {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+  }
+}
+
+.import-cta-trigger {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 var(--gap-sm);
+  border: 1px solid var(--q-primary);
+  border-inline-start: 1px solid color-mix(in srgb, var(--bg) 35%, transparent);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--radius-sm);
+  border-end-end-radius: var(--radius-sm);
+  background: var(--q-primary);
+  color: var(--bg);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--q-primary) 88%, var(--text));
+    border-color: color-mix(in srgb, var(--q-primary) 88%, var(--text));
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.125rem;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
 }
 
 .media-helper {
@@ -757,8 +803,8 @@ const replaceError = computed(() =>
   align-items: center;
   gap: var(--gap-sm);
   width: 100%;
-  min-height: 2.25rem;
-  padding: 0 var(--gap-sm);
+  min-height: 2.75rem;
+  padding: 0 var(--gap-md);
   border-radius: var(--radius-xs);
   color: var(--text);
   cursor: pointer;
@@ -776,18 +822,48 @@ const replaceError = computed(() =>
   }
 }
 
-.dialog-header {
-  gap: var(--gap-sm);
-}
-
 .import-dialog {
   width: min(24rem, 90vw);
   border-radius: var(--radius-sm);
+  padding: var(--gap-lg);
+  display: grid;
+  gap: var(--gap-md);
+}
+
+.import-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  color: var(--text);
+}
+
+.import-dialog-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--type-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.import-dialog-progress {
+  margin: 0;
+}
+
+.import-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+}
+
+.import-dialog-actions .media-cta {
+  width: auto;
+  padding: 0 var(--gap-md-lg);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .quality-chip,
   .media-cta,
+  .import-cta-trigger,
   .swap-cell.target {
     transition: none;
   }
