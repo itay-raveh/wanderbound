@@ -213,8 +213,8 @@ function onVideoKey(e: KeyboardEvent) {
     :aria-label="keyboardNavigable ? alt || t('album.selectPhoto') : undefined"
     :aria-pressed="keyboardNavigable ? isFocused : undefined"
     @click="handleClick"
-    @keydown.enter.prevent="keyboardNavigable && handleEnter()"
-    @keydown.space.prevent="keyboardNavigable && handleSpace()"
+    @keydown.enter.self.prevent="keyboardNavigable && handleEnter()"
+    @keydown.space.self.prevent="keyboardNavigable && handleSpace()"
   >
     <template v-if="isVideo && !printMode">
       <img

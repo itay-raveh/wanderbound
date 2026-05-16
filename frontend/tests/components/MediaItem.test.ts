@@ -243,4 +243,25 @@ describe("MediaItem video controls", () => {
     expect(wrapper.find(".quality-overlay").exists()).toBe(false);
     expect(wrapper.find(".quality-badge.warning").exists()).toBe(true);
   });
+
+  test("does not route quality badge keyboard events through photo shortcuts", () => {
+    const focus = vi.spyOn(usePhotoFocus(), "focus");
+    const wrapper = mountPhotoItem(ref(false), {
+      quality: { tier: "warning", dpi: 72 },
+    });
+    const badge = wrapper.get(".quality-badge").element;
+
+    for (const key of ["Enter", " "]) {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      expect(badge.dispatchEvent(event)).toBe(true);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(focus).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
 });
