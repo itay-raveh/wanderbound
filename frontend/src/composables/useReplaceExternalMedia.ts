@@ -8,6 +8,7 @@ import { useQueryCache } from "@pinia/colada";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { sleep } from "@/utils/async";
+import { GOOGLE_REPLACEMENT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 import { isVideo, mediaUrl, posterPath } from "@/utils/media";
 
 type ReplacePhase =
@@ -95,7 +96,8 @@ export function useReplaceExternalMedia() {
       /* Cross-origin opener policy can block this. */
     }
     activePopup = null;
-    if (activeSessionId) googlePhotos.closeSession(activeSessionId).catch(() => {});
+    if (activeSessionId)
+      googlePhotos.closeSession(activeSessionId).catch(() => {});
     activeSessionId = null;
   }
 
@@ -124,7 +126,11 @@ export function useReplaceExternalMedia() {
   async function prepareDeviceReview(
     file: File,
   ): Promise<ReplacementReviewState | null> {
-    if (!selectedMediaName.value || !selectedMedia.value || !selectedKind.value) {
+    if (
+      !selectedMediaName.value ||
+      !selectedMedia.value ||
+      !selectedKind.value
+    ) {
       setError(translate("externalMedia.replace.noSelection"));
       return null;
     }
@@ -196,7 +202,9 @@ export function useReplaceExternalMedia() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       setError(
-        err instanceof Error ? err.message : translate("externalMedia.replace.error"),
+        err instanceof Error
+          ? err.message
+          : translate("externalMedia.replace.error"),
       );
       return null;
     }
@@ -218,7 +226,9 @@ export function useReplaceExternalMedia() {
         await googlePhotos.authorize(activePopup, signal);
       }
       phase.value = "picking";
-      const session = await googlePhotos.createPickerSession();
+      const session = await googlePhotos.createPickerSession({
+        maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
+      });
       activeSessionId = session.sessionId;
       activePopup.location.href = `${session.pickerUri}/autoclose`;
       await pollUntilReady(session.sessionId, signal);
@@ -246,7 +256,9 @@ export function useReplaceExternalMedia() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       setError(
-        err instanceof Error ? err.message : translate("externalMedia.replace.error"),
+        err instanceof Error
+          ? err.message
+          : translate("externalMedia.replace.error"),
       );
       return null;
     } finally {
@@ -256,7 +268,8 @@ export function useReplaceExternalMedia() {
         /* Cross-origin opener policy can block this. */
       }
       activePopup = null;
-      if (activeSessionId) googlePhotos.closeSession(activeSessionId).catch(() => {});
+      if (activeSessionId)
+        googlePhotos.closeSession(activeSessionId).catch(() => {});
       activeSessionId = null;
     }
   }
@@ -317,11 +330,17 @@ function currentPreviewUrl(
   kind: "photo" | "video",
   updatedAt: string | undefined,
 ): string {
-  const base = mediaUrl(kind === "video" ? posterPath(mediaName) : mediaName, aid);
+  const base = mediaUrl(
+    kind === "video" ? posterPath(mediaName) : mediaName,
+    aid,
+  );
   return updatedAt ? `${base}?d=${encodeURIComponent(updatedAt)}` : base;
 }
 
-function buildWarnings(media: MediaDimensions, replacement: PreviewInfo): string[] {
+function buildWarnings(
+  media: MediaDimensions,
+  replacement: PreviewInfo,
+): string[] {
   const warnings: string[] = [];
   if (replacement.width * replacement.height < media.width * media.height) {
     warnings.push(t("externalMedia.review.warnings.lowerResolution"));
@@ -354,16 +373,21 @@ async function readPreviewInfo(file: File): Promise<PreviewInfo> {
   }
 }
 
-function readImageSize(src: string): Promise<{ width: number; height: number }> {
+function readImageSize(
+  src: string,
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
     img.onerror = () => reject(new Error("preview failed"));
     img.src = src;
   });
 }
 
-function readVideoSize(src: string): Promise<{ width: number; height: number }> {
+function readVideoSize(
+  src: string,
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.preload = "metadata";

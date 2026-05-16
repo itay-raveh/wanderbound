@@ -369,9 +369,17 @@ class PickerSessionResponse(BaseModel):
 
 
 @router.post("/sessions")
-async def create_session(user: UserDep, http: HttpClientsDep) -> PickerSessionResponse:
+async def create_session(
+    user: UserDep,
+    http: HttpClientsDep,
+    max_item_count: Annotated[int | None, Query(ge=0)] = None,
+) -> PickerSessionResponse:
     access_token = await _ensure_fresh_access_token(http, user)
-    picker = await create_picker_session(http.gphotos_picker, access_token)
+    picker = await create_picker_session(
+        http.gphotos_picker,
+        access_token,
+        max_item_count=max_item_count,
+    )
     return PickerSessionResponse(
         session_id=picker.id,
         picker_uri=picker.picker_uri,

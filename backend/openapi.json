@@ -1737,6 +1737,25 @@
         ],
         "summary": "Create Session",
         "operationId": "create_session",
+        "parameters": [
+          {
+            "name": "max_item_count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Item Count"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1744,6 +1763,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PickerSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

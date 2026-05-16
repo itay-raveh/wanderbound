@@ -370,7 +370,9 @@
       "selectionTimeout": "Selection timed out.",
       "connectionLost": "Connection lost during upgrade.",
       "authCancelled": "Authorization cancelled.",
-      "authTimeout": "Authorization timed out."
+      "authTimeout": "Authorization timed out.",
+      "tooManySelectionRounds": "Too many Google Photos selection rounds.",
+      "tooManyMatches": "Too many matched files selected."
     },
     "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",

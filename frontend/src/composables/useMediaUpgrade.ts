@@ -11,7 +11,7 @@ import {
   type UpgradeFailed,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
-import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
+import { UPGRADE_ERRORS, type UpgradeErrorKey } from "@/utils/upgradeErrors";
 import {
   createMatchAccumulator,
   type MatchRound,
@@ -21,6 +21,10 @@ import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
 import { sleep } from "@/utils/async";
+import {
+  GOOGLE_UPGRADE_MAX_MATCHES,
+  GOOGLE_UPGRADE_MAX_SESSION_IDS,
+} from "@/utils/externalMediaLimits";
 
 type UpgradePhase =
   | "idle"
@@ -52,6 +56,25 @@ type MatchEvent =
   | UpgradeFailed;
 
 type ConfirmAction = "confirm" | "selectMore";
+
+export function hasReachedGoogleUpgradeSessionLimit(
+  sessionIds: readonly unknown[],
+): boolean {
+  return sessionIds.length >= GOOGLE_UPGRADE_MAX_SESSION_IDS;
+}
+
+export function googleUpgradeRequestLimitError(
+  sessionIds: readonly unknown[],
+  matches: readonly unknown[],
+): UpgradeErrorKey | null {
+  if (sessionIds.length > GOOGLE_UPGRADE_MAX_SESSION_IDS) {
+    return UPGRADE_ERRORS.tooManySelectionRounds;
+  }
+  if (matches.length > GOOGLE_UPGRADE_MAX_MATCHES) {
+    return UPGRADE_ERRORS.tooManyMatches;
+  }
+  return null;
+}
 
 export function useMediaUpgrade() {
   const gp = useGooglePhotos();
@@ -172,6 +195,9 @@ export function useMediaUpgrade() {
         const action = await waitForConfirmation(signal);
         if (signal.aborted) return;
         if (action === "confirm") break;
+        if (hasReachedGoogleUpgradeSessionLimit(sessionIds)) {
+          throw new Error(UPGRADE_ERRORS.tooManySelectionRounds);
+        }
 
         // "Select More": new session, popup was opened by selectMore()
         const next = await gp.createPickerSession();
@@ -234,6 +260,10 @@ export function useMediaUpgrade() {
   }
 
   function selectMore() {
+    if (hasReachedGoogleUpgradeSessionLimit(sessionIds)) {
+      confirmReject?.(new Error(UPGRADE_ERRORS.tooManySelectionRounds));
+      return;
+    }
     try {
       activePopup = openPopup();
     } catch {
@@ -340,6 +370,12 @@ export function useMediaUpgrade() {
     albumId: string,
     signal: AbortSignal,
   ): Promise<void> {
+    const limitError = googleUpgradeRequestLimitError(
+      sessionIds,
+      accumulator.matches,
+    );
+    if (limitError) throw new Error(limitError);
+
     const { stream } = await upgradeMedia({
       path: { aid: albumId },
       body: {

@@ -4,6 +4,7 @@ import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
 import { queryKeys } from "@/queries/keys";
 import { sleep } from "@/utils/async";
+import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 import { useQueryCache } from "@pinia/colada";
 import { computed, nextTick, ref } from "vue";
 import { readImportStream } from "./useMediaImport";
@@ -36,7 +37,6 @@ interface ImportCompleted {
 const POLL_INTERVAL_MS = 2000;
 const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 2500;
-const MAX_ITEMS = 50;
 
 export function useAddExternalMedia(albumId: () => string) {
   const cache = useQueryCache();
@@ -146,7 +146,7 @@ export function useAddExternalMedia(albumId: () => string) {
   ): Promise<ImportCompleted | undefined> {
     const selected = Array.from(files);
     if (selected.length === 0) return;
-    if (selected.length > MAX_ITEMS) {
+    if (selected.length > EXTERNAL_MEDIA_IMPORT_MAX_ITEMS) {
       phase.value = "error";
       errorDetail.value = t("mediaImport.errors.tooMany");
       return;
@@ -216,7 +216,9 @@ export function useAddExternalMedia(albumId: () => string) {
       }
 
       phase.value = "picking";
-      const session = await googlePhotos.createPickerSession();
+      const session = await googlePhotos.createPickerSession({
+        maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS,
+      });
       activeSessionId = session.sessionId;
       activePopup.location.href = `${session.pickerUri}/autoclose`;
       await pollUntilReady(session.sessionId, signal);

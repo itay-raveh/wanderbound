@@ -370,7 +370,9 @@
       "selectionTimeout": "הבחירה פגה.",
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
-      "authTimeout": "ההרשאה פגה."
+      "authTimeout": "ההרשאה פגה.",
+      "tooManySelectionRounds": "נבחרו יותר מדי סבבי בחירה מ-Google Photos.",
+      "tooManyMatches": "נבחרו יותר מדי קבצים תואמים."
     },
     "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",

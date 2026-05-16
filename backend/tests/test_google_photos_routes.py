@@ -158,6 +158,37 @@ class TestPickerSession:
         assert data["session_id"] == "session-abc"
         assert "picker" in data["picker_uri"]
 
+    async def test_create_session_passes_picker_item_limit(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        user_data = await sign_in_and_upload(client, users_dir, provider="google")
+        uid = user_data["id"]
+        await connect_google_photos(session, uid)
+
+        http = _pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        mock_picker = AsyncMock()
+        mock_picker.return_value.id = "session-abc"
+        mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
+
+        with patch(
+            "app.api.v1.routes.google_photos.create_picker_session",
+            mock_picker,
+        ):
+            resp = await client.post("/api/v1/google-photos/sessions?max_item_count=1")
+
+        assert resp.status_code == 200
+        mock_picker.assert_awaited_once_with(
+            http.gphotos_picker,
+            "fresh-token",
+            max_item_count=1,
+        )
+
 
 class TestValidateMatchNames:
     def test_accepts_valid_names(self) -> None:

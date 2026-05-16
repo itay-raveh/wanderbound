@@ -13,6 +13,10 @@ import { queryKeys } from "@/queries/keys";
 
 type GooglePhotosState = "unavailable" | "disconnected" | "connected";
 
+interface CreatePickerSessionOptions {
+  maxItemCount?: number;
+}
+
 export function useGooglePhotos() {
   const { user } = useUserQuery();
   const cache = useQueryCache();
@@ -85,11 +89,18 @@ export function useGooglePhotos() {
     await cache.invalidateQueries({ key: queryKeys.user() });
   }
 
-  async function createPickerSession(): Promise<{
+  async function createPickerSession(
+    options: CreatePickerSessionOptions = {},
+  ): Promise<{
     sessionId: string;
     pickerUri: string;
   }> {
-    const { data } = await createSession();
+    const { data } = await createSession({
+      query:
+        options.maxItemCount === undefined
+          ? undefined
+          : { max_item_count: options.maxItemCount },
+    });
     if (!data) throw new Error(UPGRADE_ERRORS.connectionLost);
     return { sessionId: data.session_id, pickerUri: data.picker_uri };
   }
