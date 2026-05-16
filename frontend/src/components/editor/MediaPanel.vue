@@ -262,7 +262,10 @@ const replaceError = computed(() =>
       @change="onReplacementFileSelected"
     />
 
-    <section class="quality-section" aria-labelledby="media-panel-quality-title">
+    <section
+      class="quality-section"
+      aria-labelledby="media-panel-quality-title"
+    >
       <div class="quality-header">
         <div id="media-panel-quality-title" class="quality-section-title">
           {{ t("editor.photoQuality") }}
@@ -287,7 +290,11 @@ const replaceError = computed(() =>
           v-else-if="resolutionWarningPreset !== 'off'"
           class="quality-chip all-clear"
         >
-          <q-icon :name="matCheckCircle" size="var(--type-sm)" class="chip-icon" />
+          <q-icon
+            :name="matCheckCircle"
+            size="var(--type-sm)"
+            class="chip-icon"
+          />
           <span>{{ t("externalMedia.quality.allClear") }}</span>
         </span>
       </div>
@@ -411,7 +418,9 @@ const replaceError = computed(() =>
                 type="button"
                 class="cta-menu-item"
                 role="menuitem"
-                :disabled="replaceMedia.googlePhotosState.value === 'unavailable'"
+                :disabled="
+                  replaceMedia.googlePhotosState.value === 'unavailable'
+                "
                 v-close-popup
                 @click="replaceFromGoogle"
               >
@@ -489,7 +498,7 @@ const replaceError = computed(() =>
 .media-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-md);
+  gap: var(--gap-sm);
   padding: var(--gap-md) var(--gap-lg);
 }
 
