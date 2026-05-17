@@ -40,44 +40,57 @@ vi.mock("@/queries/useVideoFrameMutation", () => ({
   useVideoFrameMutation: () => ({ mutateAsync }),
 }));
 
-function mountVideoItem() {
+function mediaItem(overrides: Record<string, unknown> = {}) {
+  return {
+    uid: 1,
+    aid: "album-1",
+    name: "photo.jpg",
+    kind: "photo",
+    width: 1920,
+    height: 1080,
+    byte_size: 1234,
+    upgrade_candidate: false,
+    created_at: "2026-05-13T12:00:00Z",
+    updated_at: MEDIA_UPDATED_AT,
+    ...overrides,
+  };
+}
+
+function mountMediaItem(
+  media: Record<string, unknown>,
+  props: Record<string, unknown>,
+  provide: Record<symbol, unknown>,
+) {
   const Wrapper = defineComponent({
     setup() {
       provideAlbum({
         albumId: ref("album-1"),
         colors: ref({}),
-        media: ref([
-          {
-            uid: 1,
-            aid: "album-1",
-            name: "clip.mp4",
-            kind: "video",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: MEDIA_UPDATED_AT,
-          },
-        ]),
+        media: ref([media]),
         tripStart: ref("2024-01-01"),
         totalDays: ref(1),
         mediaResolutionWarningPreset: ref(
           DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
         ),
       });
-      return () => h(MediaItem, { media: "clip.mp4", alt: "Clip" });
+      return () => h(MediaItem, props);
     },
   });
 
   return mountWithPlugins(Wrapper, {
     global: {
-      provide: {
-        [STEP_ID_KEY as symbol]: 7,
-      },
+      provide,
     },
     attachTo: document.body,
   });
+}
+
+function mountVideoItem() {
+  return mountMediaItem(
+    mediaItem({ name: "clip.mp4", kind: "video" }),
+    { media: "clip.mp4", alt: "Clip" },
+    { [STEP_ID_KEY as symbol]: 7 },
+  );
 }
 
 function mountPhotoItem(
@@ -85,45 +98,14 @@ function mountPhotoItem(
   props: Record<string, unknown> = {},
   mediaOverrides: Record<string, unknown> = {},
 ) {
-  const Wrapper = defineComponent({
-    setup() {
-      provideAlbum({
-        albumId: ref("album-1"),
-        colors: ref({}),
-        media: ref([
-          {
-            uid: 1,
-            aid: "album-1",
-            name: "photo.jpg",
-            kind: "photo",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: MEDIA_UPDATED_AT,
-            ...mediaOverrides,
-          },
-        ]),
-        tripStart: ref("2024-01-01"),
-        totalDays: ref(1),
-        mediaResolutionWarningPreset: ref(
-          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-        ),
-      });
-      return () => h(MediaItem, { media: "photo.jpg", alt: "Photo", ...props });
+  return mountMediaItem(
+    mediaItem(mediaOverrides),
+    { media: "photo.jpg", alt: "Photo", ...props },
+    {
+      [STEP_ID_KEY as symbol]: 7,
+      [PROGRAMMATIC_SCROLL_KEY as symbol]: readonly(programmaticScrolling),
     },
-  });
-
-  return mountWithPlugins(Wrapper, {
-    global: {
-      provide: {
-        [STEP_ID_KEY as symbol]: 7,
-        [PROGRAMMATIC_SCROLL_KEY as symbol]: readonly(programmaticScrolling),
-      },
-    },
-    attachTo: document.body,
-  });
+  );
 }
 
 describe("MediaItem video controls", () => {

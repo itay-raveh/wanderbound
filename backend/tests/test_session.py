@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,6 +30,43 @@ def _mock_user(uid: int = 1) -> User:
     return user
 
 
+def _processing_events(
+    *events: ProcessingEvent,
+) -> Callable[[HttpClients, User], AsyncIterator[ProcessingEvent]]:
+    async def fake_processing(
+        _http: HttpClients, _user: User
+    ) -> AsyncIterator[ProcessingEvent]:
+        for event in events:
+            yield event
+
+    return fake_processing
+
+
+def _gated_processing(
+    gate: asyncio.Event,
+    *,
+    before: list[ProcessingEvent],
+    after: list[ProcessingEvent],
+) -> Callable[[HttpClients, User], AsyncIterator[ProcessingEvent]]:
+    async def fake_processing(
+        _http: HttpClients, _user: User
+    ) -> AsyncIterator[ProcessingEvent]:
+        for event in before:
+            yield event
+        await gate.wait()
+        for event in after:
+            yield event
+
+    return fake_processing
+
+
+def _scheduled_album_calls(uid: int) -> list[tuple[HttpClients, int, str]]:
+    return [
+        (_MOCK_HTTP, uid, "trip-1"),
+        (_MOCK_HTTP, uid, "trip-2"),
+    ]
+
+
 class TestProcessingSession:
     async def test_replay_past_events_on_late_subscribe(self) -> None:
         events = [
@@ -37,18 +74,10 @@ class TestProcessingSession:
             PhaseUpdate(phase="layouts", done=5, total=5),
         ]
 
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            for e in events:
-                yield e
-
-        with patch("app.logic.session.run_processing", fake_processing):
+        with patch("app.logic.session.run_processing", _processing_events(*events)):
             session = ProcessingSession(_MOCK_HTTP, _mock_user())
-            # Wait for processing to finish
             await session._task
             assert session.is_done
-            # Late subscriber still gets everything
             result = await collect_async(session.subscribe())
 
         assert result == events
@@ -56,34 +85,25 @@ class TestProcessingSession:
     async def test_enqueues_route_enrichment_after_successful_processing(
         self,
     ) -> None:
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            yield PhaseUpdate(phase="layouts", done=1, total=1)
-
         user = _mock_user(uid=42)
         with (
-            patch("app.logic.session.run_processing", fake_processing),
+            patch(
+                "app.logic.session.run_processing",
+                _processing_events(PhaseUpdate(phase="layouts", done=1, total=1)),
+            ),
             patch("app.logic.session.schedule_album_route_enrichment") as schedule,
         ):
             session = ProcessingSession(_MOCK_HTTP, user)
             await session._task
 
-        assert [call.args for call in schedule.call_args_list] == [
-            (_MOCK_HTTP, 42, "trip-1"),
-            (_MOCK_HTTP, 42, "trip-2"),
-        ]
+        calls = [call.args for call in schedule.call_args_list]
+        assert calls == _scheduled_album_calls(42)
 
     async def test_does_not_enqueue_route_enrichment_after_processing_error(
         self,
     ) -> None:
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            yield ErrorData()
-
         with (
-            patch("app.logic.session.run_processing", fake_processing),
+            patch("app.logic.session.run_processing", _processing_events(ErrorData())),
             patch("app.logic.session.schedule_album_route_enrichment") as schedule,
         ):
             session = ProcessingSession(_MOCK_HTTP, _mock_user())
@@ -104,30 +124,20 @@ class TestProcessStream:
         events_before_gate = [TripStart(trip_index=0)]
         events_after_gate = [PhaseUpdate(phase="elevations", done=1, total=5)]
 
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            for e in events_before_gate:
-                yield e
-            await gate.wait()
-            for e in events_after_gate:
-                yield e
-
         user = _mock_user(uid=99)
-        with patch("app.logic.session.run_processing", fake_processing):
-            # Start first subscriber - it will block at gate
+        with patch(
+            "app.logic.session.run_processing",
+            _gated_processing(gate, before=events_before_gate, after=events_after_gate),
+        ):
             session = ProcessingSession(_MOCK_HTTP, user)
             _sessions[user.id] = session
 
-            # Wait for first event to be produced
             await session._notify.wait()
 
-            # Second subscriber (reconnect) should get replayed events
             collected: list[ProcessingEvent] = []
             async for event in process_stream(_MOCK_HTTP, user):
                 collected.append(event)
                 if isinstance(event, TripStart):
-                    # After replay, release the gate
                     gate.set()
 
             assert collected == events_before_gate + events_after_gate
@@ -186,13 +196,11 @@ class TestProcessStream:
 
         user = _mock_user(uid=5)
         with patch("app.logic.session.run_processing", fake_processing):
-            # Start first stream
             session = ProcessingSession(_MOCK_HTTP, user)
             _sessions[user.id] = session
 
             await session._notify.wait()
 
-            # Start second stream (should reconnect, not create new)
             async def second_stream() -> list[ProcessingEvent]:
                 return await collect_async(process_stream(_MOCK_HTTP, user))
 
@@ -202,22 +210,22 @@ class TestProcessStream:
 
             result = await task
 
-        assert call_count == 1  # Only one processing run
+        assert call_count == 1
         assert result[0] == TripStart(trip_index=0)
 
     async def test_route_enrichment_survives_subscriber_disconnect(self) -> None:
         gate = asyncio.Event()
 
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            yield TripStart(trip_index=0)
-            await gate.wait()
-            yield PhaseUpdate(phase="layouts", done=1, total=1)
-
         user = _mock_user(uid=22)
         with (
-            patch("app.logic.session.run_processing", fake_processing),
+            patch(
+                "app.logic.session.run_processing",
+                _gated_processing(
+                    gate,
+                    before=[TripStart(trip_index=0)],
+                    after=[PhaseUpdate(phase="layouts", done=1, total=1)],
+                ),
+            ),
             patch("app.logic.session.schedule_album_route_enrichment") as schedule,
         ):
             stream = process_stream(_MOCK_HTTP, user)
@@ -229,7 +237,5 @@ class TestProcessStream:
             await session._task
 
         assert first == TripStart(trip_index=0)
-        assert [call.args for call in schedule.call_args_list] == [
-            (_MOCK_HTTP, 22, "trip-1"),
-            (_MOCK_HTTP, 22, "trip-2"),
-        ]
+        calls = [call.args for call in schedule.call_args_list]
+        assert calls == _scheduled_album_calls(22)
