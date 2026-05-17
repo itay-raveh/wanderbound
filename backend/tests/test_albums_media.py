@@ -6,8 +6,6 @@ from .helpers.albums import AlbumRoutes
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-pytest_plugins = ("tests.helpers.album_fixtures",)
-
 
 async def test_read_media_returns_album_media_rows(
     session: AsyncSession,

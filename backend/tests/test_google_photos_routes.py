@@ -26,12 +26,14 @@ from .factories import (
     sign_in_uploaded_user,
 )
 from .helpers.google_photos import (
+    GooglePhotosRoutes,
     assert_error_redirect,
     connected_google_photos_http,
     oauth_callback,
     picker_mock,
     pin_http_clients,
 )
+from .helpers.users import UserRoutes
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -47,27 +49,32 @@ def _clear_upgrade_caches_between_tests() -> Iterator[None]:
 
 
 class TestRequireGoogleUser:
-    async def test_microsoft_user_gets_403(self, client: AsyncClient) -> None:
+    async def test_microsoft_user_gets_403(
+        self, client: AsyncClient, google_photos_routes: GooglePhotosRoutes
+    ) -> None:
         await sign_in_uploaded_user(client, provider="microsoft")
-        resp = await client.post("/api/v1/google-photos/sessions")
+        resp = await google_photos_routes.create_session()
         assert resp.status_code == 403
 
     async def test_google_user_without_connection_gets_400(
-        self, client: AsyncClient
+        self, client: AsyncClient, google_photos_routes: GooglePhotosRoutes
     ) -> None:
         await sign_in_uploaded_user(client)
-        resp = await client.post("/api/v1/google-photos/sessions")
+        resp = await google_photos_routes.create_session()
         assert resp.status_code == 400
 
 
 class TestDisconnect:
     async def test_disconnect_clears_tokens(
-        self, client: AsyncClient, session: AsyncSession
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        google_photos_routes: GooglePhotosRoutes,
     ) -> None:
         uid = await sign_in_connected_google_photos(client, session)
         pin_http_clients()
 
-        resp = await client.delete("/api/v1/google-photos/connection")
+        resp = await google_photos_routes.disconnect()
         assert resp.status_code == 204
 
         user = await session.get(User, uid)
@@ -78,7 +85,10 @@ class TestDisconnect:
 
 class TestPickerSession:
     async def test_create_session_calls_google_api(
-        self, client: AsyncClient, session: AsyncSession
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        google_photos_routes: GooglePhotosRoutes,
     ) -> None:
         await connected_google_photos_http(client, session)
         mock_picker = picker_mock()
@@ -87,7 +97,7 @@ class TestPickerSession:
             "app.api.v1.routes.google_photos.create_picker_session",
             mock_picker,
         ):
-            resp = await client.post("/api/v1/google-photos/sessions")
+            resp = await google_photos_routes.create_session()
 
         assert resp.status_code == 200
         data = resp.json()
@@ -95,7 +105,10 @@ class TestPickerSession:
         assert "picker" in data["picker_uri"]
 
     async def test_create_session_passes_picker_item_limit(
-        self, client: AsyncClient, session: AsyncSession
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        google_photos_routes: GooglePhotosRoutes,
     ) -> None:
         http = await connected_google_photos_http(client, session)
         mock_picker = picker_mock()
@@ -104,7 +117,7 @@ class TestPickerSession:
             "app.api.v1.routes.google_photos.create_picker_session",
             mock_picker,
         ):
-            resp = await client.post("/api/v1/google-photos/sessions?max_item_count=1")
+            resp = await google_photos_routes.create_session(max_item_count=1)
 
         assert resp.status_code == 200
         mock_picker.assert_awaited_once_with(
@@ -295,21 +308,27 @@ class TestOAuthCallback:
 
 class TestTokenRevocation:
     async def test_expired_token_returns_401(
-        self, client: AsyncClient, session: AsyncSession
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        google_photos_routes: GooglePhotosRoutes,
     ) -> None:
         http = await connected_google_photos_http(client, session)
         http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError(
             "invalid_grant"
         )
 
-        resp = await client.post("/api/v1/google-photos/sessions")
+        resp = await google_photos_routes.create_session()
 
         assert resp.status_code == 401
 
 
 class TestTokenLostSelfHeal:
     async def test_token_lost_collapses_to_disconnected(
-        self, client: AsyncClient, session: AsyncSession
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        user_routes: UserRoutes,
     ) -> None:
         uid = await sign_in_connected_google_photos(client, session)
 
@@ -319,7 +338,7 @@ class TestTokenLostSelfHeal:
         session.add(user)
         await session.flush()
 
-        resp = await client.get("/api/v1/users")
+        resp = await user_routes.current()
         assert resp.status_code == 200
         assert resp.json()["google_photos_connected_at"] is None
 

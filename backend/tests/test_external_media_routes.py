@@ -25,8 +25,6 @@ from .helpers.google_photos import picked_item
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-pytest_plugins = ("tests.helpers.external_media_fixtures",)
-
 
 async def test_device_add_to_step_prepends_unused(
     session: AsyncSession,

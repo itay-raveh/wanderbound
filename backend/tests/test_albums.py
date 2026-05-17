@@ -24,8 +24,6 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-pytest_plugins = ("tests.helpers.album_fixtures",)
-
 
 class TestReadAlbum:
     async def test_cannot_read_other_users_album(

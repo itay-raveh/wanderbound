@@ -19,24 +19,10 @@ from .factories import (
     sign_in,
     sign_in_and_upload,
 )
+from .helpers.users import UserRoutes
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient, Response
-
-
-async def _auth(
-    client: AsyncClient, provider: str, credential: str = "fake"
-) -> Response:
-    return await client.post(
-        f"/api/v1/auth/{provider}", json={"credential": credential}
-    )
-
-
-async def _upload(client: AsyncClient) -> Response:
-    return await client.post(
-        "/api/v1/users/upload",
-        files={"file": ("data.zip", b"fake", "application/zip")},
-    )
+    from httpx import AsyncClient
 
 
 @pytest.mark.parametrize(
@@ -48,35 +34,44 @@ async def _upload(client: AsyncClient) -> Response:
 )
 class TestAuthProvider:
     async def test_invalid_jwt(
-        self, client: AsyncClient, provider: str, sub_field: str, sub_value: str
+        self,
+        user_routes: UserRoutes,
+        provider: str,
+        sub_field: str,
+        sub_value: str,
     ) -> None:
         _ = sub_field, sub_value
         with mock_jwt(provider, decode_error=True):
-            resp = await _auth(client, provider, "bad")
+            resp = await user_routes.auth(provider, "bad")
         assert resp.status_code == 401
 
     async def test_new_user_returns_null(
-        self, client: AsyncClient, provider: str, sub_field: str, sub_value: str
+        self,
+        user_routes: UserRoutes,
+        provider: str,
+        sub_field: str,
+        sub_value: str,
     ) -> None:
         _ = sub_field, sub_value
         with mock_jwt(provider):
-            resp = await _auth(client, provider)
+            resp = await user_routes.auth(provider)
         assert resp.status_code == 200
         assert resp.json() is None
 
     async def test_existing_user_returns_user(
         self,
         client: AsyncClient,
+        user_routes: UserRoutes,
         tmp_path: Path,
         provider: str,
         sub_field: str,
         sub_value: str,
     ) -> None:
         await sign_in_and_upload(client, tmp_path / "users", provider=provider)
-        await client.post("/api/v1/auth/logout")
+        await user_routes.logout()
 
         with mock_jwt(provider):
-            resp = await _auth(client, provider)
+            resp = await user_routes.auth(provider)
         assert resp.status_code == 200
         user = resp.json()
         assert user is not None
@@ -84,18 +79,18 @@ class TestAuthProvider:
 
 
 class TestAuthMicrosoftSpecific:
-    async def test_bad_issuer_returns_401(self, client: AsyncClient) -> None:
+    async def test_bad_issuer_returns_401(self, user_routes: UserRoutes) -> None:
         bad_iss = {**MICROSOFT_PAYLOAD, "iss": "https://evil.example.com/v2.0"}
         with mock_jwt("microsoft", payload=bad_iss):
-            resp = await _auth(client, "microsoft")
+            resp = await user_routes.auth("microsoft")
         assert resp.status_code == 401
 
     async def test_not_configured_returns_501(
-        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+        self, user_routes: UserRoutes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(get_settings(), "VITE_MICROSOFT_CLIENT_ID", "")
         with mock_jwt("microsoft", ensure_configured=False):
-            resp = await _auth(client, "microsoft")
+            resp = await user_routes.auth("microsoft")
         assert resp.status_code == 501
 
     async def test_falls_back_to_name_when_no_given_name(
@@ -109,16 +104,18 @@ class TestAuthMicrosoftSpecific:
 
 
 class TestLogout:
-    async def test_clears_session(self, client: AsyncClient, tmp_path: Path) -> None:
+    async def test_clears_session(
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
+    ) -> None:
         await sign_in_and_upload(client, tmp_path / "users")
-        await client.post("/api/v1/auth/logout")
-        resp = await client.get("/api/v1/users")
+        await user_routes.logout()
+        resp = await user_routes.current()
         assert resp.status_code == 401
 
 
 class TestUpload:
-    async def test_no_session(self, client: AsyncClient) -> None:
-        resp = await _upload(client)
+    async def test_no_session(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.upload()
         assert resp.status_code == 401
 
     async def test_new_user_google(self, client: AsyncClient, tmp_path: Path) -> None:
@@ -138,17 +135,17 @@ class TestUpload:
         assert user["first_name"] == "Test"  # from given_name in token
 
     async def test_falls_back_to_zip_name(
-        self, client: AsyncClient, tmp_path: Path
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
     ) -> None:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
         await sign_in(client, payload=no_name)
         with mock_extract(tmp_path / "users"):
-            resp = await _upload(client)
+            resp = await user_routes.upload()
         user = resp.json()["user"]
         assert user["first_name"] == "Zip"
 
     async def test_reupload_updates_trips(
-        self, client: AsyncClient, tmp_path: Path
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
     ) -> None:
         await sign_in_and_upload(client, tmp_path / "users")
 
@@ -160,30 +157,36 @@ class TestUpload:
             "app.api.v1.routes.users.extract_and_scan",
             return_value=(folder, PS_USER, new_trips),
         ):
-            resp = await _upload(client)
+            resp = await user_routes.upload()
         assert resp.status_code == 200
         assert resp.json()["trips"][0]["id"] == "trip-2"
 
 
 class TestUpdateUser:
-    async def test_update_locale(self, client: AsyncClient, tmp_path: Path) -> None:
+    async def test_update_locale(
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
+    ) -> None:
         await sign_in_and_upload(client, tmp_path / "users")
-        resp = await client.patch("/api/v1/users", json={"locale": "he-IL"})
+        resp = await user_routes.update(locale="he-IL")
         assert resp.status_code == 200
         assert resp.json()["locale"] == "he-IL"
 
 
 class TestDeleteUser:
-    async def test_clears_session(self, client: AsyncClient, tmp_path: Path) -> None:
+    async def test_clears_session(
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
+    ) -> None:
         await sign_in_and_upload(client, tmp_path / "users")
-        resp = await client.delete("/api/v1/users")
+        resp = await user_routes.delete()
         assert resp.status_code == 200
-        resp = await client.get("/api/v1/users")
+        resp = await user_routes.current()
         assert resp.status_code == 401
 
-    async def test_removes_folder(self, client: AsyncClient, tmp_path: Path) -> None:
+    async def test_removes_folder(
+        self, client: AsyncClient, user_routes: UserRoutes, tmp_path: Path
+    ) -> None:
         user = await sign_in_and_upload(client, tmp_path / "users")
         user_folder = tmp_path / "users" / str(user["id"])
         assert user_folder.exists()
-        await client.delete("/api/v1/users")
+        await user_routes.delete()
         assert not user_folder.exists()

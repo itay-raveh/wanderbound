@@ -22,6 +22,13 @@ from app.services.google_photos import GooglePhotosOAuth2
 
 from .factories import TRIPS_DIR
 
+pytest_plugins = (
+    "tests.helpers.album_fixtures",
+    "tests.helpers.external_media_fixtures",
+    "tests.helpers.google_photos_fixtures",
+    "tests.helpers.user_fixtures",
+)
+
 
 def _mock_http_clients() -> HttpClients:
     """Provide an HttpClients with AsyncMock clients for tests.

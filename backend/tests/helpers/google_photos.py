@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
@@ -22,6 +23,22 @@ from tests.factories import (
 if TYPE_CHECKING:
     from httpx import AsyncClient, Response
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@dataclass(frozen=True)
+class GooglePhotosRoutes:
+    client: AsyncClient
+
+    async def create_session(self, max_item_count: int | None = None) -> Response:
+        return await self.client.post(
+            "/api/v1/google-photos/sessions",
+            params={"max_item_count": max_item_count}
+            if max_item_count is not None
+            else None,
+        )
+
+    async def disconnect(self) -> Response:
+        return await self.client.delete("/api/v1/google-photos/connection")
 
 
 def fresh_oauth_token() -> OAuth2Token:

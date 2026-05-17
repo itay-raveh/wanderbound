@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from app.models.user import User
 from tests.factories import insert_album, sign_in_and_upload
+from tests.helpers.users import UserRoutes
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -14,17 +15,16 @@ if TYPE_CHECKING:
 
 
 class TestDemoLocale:
-    async def test_demo_respects_accept_language(self, client: AsyncClient) -> None:
-        resp = await client.post(
-            "/api/v1/users/demo",
-            headers={"Accept-Language": "he-IL,he;q=0.9,en;q=0.8"},
-        )
+    async def test_demo_respects_accept_language(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.demo(accept_language="he-IL,he;q=0.9,en;q=0.8")
         assert resp.status_code == 200
         data = resp.json()
         assert data["user"]["locale"] == "he-IL"
 
-    async def test_demo_falls_back_to_fixture_locale(self, client: AsyncClient) -> None:
-        resp = await client.post("/api/v1/users/demo")
+    async def test_demo_falls_back_to_fixture_locale(
+        self, user_routes: UserRoutes
+    ) -> None:
+        resp = await user_routes.demo()
         assert resp.status_code == 200
         data = resp.json()
         # Fixture user.json has locale "en_GB" → normalized to "en-GB"
@@ -34,8 +34,8 @@ class TestDemoLocale:
 class TestIsProcessed:
     """is_processed reflects whether albums in DB match the album_ids manifest."""
 
-    async def test_demo_user_starts_unprocessed(self, client: AsyncClient) -> None:
-        resp = await client.post("/api/v1/users/demo")
+    async def test_demo_user_starts_unprocessed(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.demo()
         body = resp.json()
         assert body["user"]["has_data"] is True
         assert body["user"]["album_ids"]
@@ -50,19 +50,27 @@ class TestIsProcessed:
         assert user["is_processed"] is False
 
     async def test_processed_when_albums_exist(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        user_routes: UserRoutes,
+        tmp_path: Path,
     ) -> None:
         user = await sign_in_and_upload(client, tmp_path / "users")
         for aid in user["album_ids"]:
             await insert_album(session, user["id"], aid=aid)
         await session.commit()
 
-        resp = await client.get("/api/v1/users")
+        resp = await user_routes.current()
         assert resp.status_code == 200
         assert resp.json()["is_processed"] is True
 
     async def test_evicted_user_is_unprocessed(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        user_routes: UserRoutes,
+        tmp_path: Path,
     ) -> None:
         user = await sign_in_and_upload(client, tmp_path / "users")
         for aid in user["album_ids"]:
@@ -70,12 +78,16 @@ class TestIsProcessed:
         await session.commit()
         shutil.rmtree(tmp_path / "users" / str(user["id"]))
 
-        resp = await client.get("/api/v1/users")
+        resp = await user_routes.current()
         assert resp.json()["is_processed"] is False
         assert resp.json()["has_data"] is False
 
     async def test_partial_processing_is_unprocessed(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        user_routes: UserRoutes,
+        tmp_path: Path,
     ) -> None:
         user = await sign_in_and_upload(client, tmp_path / "users")
         u = await session.get(User, user["id"])
@@ -86,5 +98,5 @@ class TestIsProcessed:
         await insert_album(session, user["id"], aid=user["album_ids"][0])
         await session.commit()
 
-        resp = await client.get("/api/v1/users")
+        resp = await user_routes.current()
         assert resp.json()["is_processed"] is False
