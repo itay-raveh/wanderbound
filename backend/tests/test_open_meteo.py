@@ -1,9 +1,7 @@
 import datetime as _dt_mod
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -17,6 +15,7 @@ from app.services.open_meteo import (
     elevations,
 )
 from tests.factories import collect_async
+from tests.helpers.http import async_client, error_response, json_response
 
 
 @dataclass
@@ -75,13 +74,7 @@ class TestElevations:
     async def test_http_error_propagates(self) -> None:
         locs = [_Loc(0, 0)]
 
-        resp = MagicMock()
-        resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "500", request=MagicMock(), response=MagicMock()
-        )
-
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(return_value=resp)
+        client = async_client(get=error_response())
         with pytest.raises(httpx.HTTPStatusError):
             await collect_async(elevations(client, locs))
 
@@ -141,11 +134,7 @@ class TestBuildWeathers:
             feels_min=[-5.0],
             wmo_daily=[71],
         )
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = json.dumps(resp_data).encode()
-
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(return_value=mock_response)
+        client = async_client(get=json_response(resp_data))
         result = [w async for w in build_weathers(client, [step])]
 
         assert len(result) == 1
@@ -158,8 +147,7 @@ class TestBuildWeathers:
 
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
+        client = async_client(get=httpx.HTTPError("fail"))
         with pytest.raises(RuntimeError, match="Weather API"):
             async for _ in build_weathers(client, [step]):
                 pass

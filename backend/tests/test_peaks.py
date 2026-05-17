@@ -1,6 +1,5 @@
 import json
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -12,6 +11,7 @@ from app.logic.spatial.peaks import (
     _parse_ele,
     correct_peaks,
 )
+from tests.helpers.http import async_client, mock_response
 
 
 @dataclass
@@ -29,11 +29,7 @@ def _overpass_json(peaks: list[tuple[float, str]]) -> bytes:
 
 
 def _mock_overpass_client(peaks: list[tuple[float, str]]) -> httpx.AsyncClient:
-    mock_response = MagicMock(status_code=200)
-    mock_response.content = _overpass_json(peaks)
-    client = MagicMock(spec=httpx.AsyncClient)
-    client.post = AsyncMock(return_value=mock_response)
-    return client
+    return async_client(post=mock_response(_overpass_json(peaks)))
 
 
 class TestParseEle:
@@ -115,8 +111,7 @@ class TestCorrectPeaks:
         locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
         elevs = [500.0, 5236.0, 500.0]
 
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.post = AsyncMock(side_effect=httpx.HTTPError("timeout"))
+        client = async_client(post=httpx.HTTPError("timeout"))
         result = await correct_peaks(client, locs, elevs)
 
         assert list(result) == elevs

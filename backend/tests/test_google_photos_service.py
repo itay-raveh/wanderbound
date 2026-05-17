@@ -1,4 +1,3 @@
-import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +21,7 @@ from app.services.google_photos import (
     ensure_fresh_token,
     get_media_items,
 )
+from tests.helpers.http import async_client, json_response
 
 _SESSION_JSON = {
     "id": "session-xyz",
@@ -95,25 +95,9 @@ class TestResponseParsing:
         assert item.media_file.media_file_metadata is None
 
 
-_DUMMY_REQUEST = httpx.Request("GET", "http://test")
-
-
-def _json_response(data: dict, status_code: int = 200) -> httpx.Response:
-    return httpx.Response(
-        status_code, content=json.dumps(data).encode(), request=_DUMMY_REQUEST
-    )
-
-
-def _client_with(**responses: httpx.Response) -> AsyncMock:
-    client = AsyncMock()
-    for method, response in responses.items():
-        getattr(client, method).return_value = response
-    return client
-
-
 class TestCreatePickerSession:
     async def test_maps_response_to_domain_model(self) -> None:
-        mock_client = _client_with(post=_json_response(_SESSION_JSON))
+        mock_client = async_client(post=json_response(_SESSION_JSON))
 
         session = await create_picker_session(mock_client, "test-token")
 
@@ -126,7 +110,7 @@ class TestCreatePickerSession:
         error = httpx.Response(
             500, request=httpx.Request("POST", "http://test"), content=b"error"
         )
-        mock_client = _client_with(post=error)
+        mock_client = async_client(post=error)
 
         with pytest.raises(httpx.HTTPStatusError):
             await create_picker_session(mock_client, "test-token")
@@ -135,7 +119,7 @@ class TestCreatePickerSession:
 class TestGetMediaItems:
     async def test_single_page(self) -> None:
         page_json = {"mediaItems": [_MEDIA_ITEM_JSON]}
-        mock_client = _client_with(get=_json_response(page_json))
+        mock_client = async_client(get=json_response(page_json))
 
         items = await get_media_items(mock_client, "session-1", "token-1")
 
@@ -147,13 +131,11 @@ class TestGetMediaItems:
 
     async def test_pagination_collects_all_pages(self) -> None:
         item2 = {**_MEDIA_ITEM_JSON, "id": "media-2"}
-        page1 = _json_response(
+        page1 = json_response(
             {"mediaItems": [_MEDIA_ITEM_JSON], "nextPageToken": "page-2"}
         )
-        page2 = _json_response({"mediaItems": [item2]})
-
-        mock_client = AsyncMock()
-        mock_client.get.side_effect = [page1, page2]
+        page2 = json_response({"mediaItems": [item2]})
+        mock_client = async_client(get=[page1, page2])
 
         items = await get_media_items(mock_client, "session-1", "token-1")
 
@@ -164,7 +146,7 @@ class TestGetMediaItems:
         assert second_call_params.get("pageToken") == "page-2"
 
     async def test_empty_response(self) -> None:
-        mock_client = _client_with(get=_json_response({}))
+        mock_client = async_client(get=json_response({}))
 
         items = await get_media_items(mock_client, "session-1", "token-1")
 
@@ -172,7 +154,7 @@ class TestGetMediaItems:
 
     async def test_video_items_preserved(self) -> None:
         video = {**_MEDIA_ITEM_JSON, "id": "vid-1", "type": "VIDEO"}
-        mock_client = _client_with(get=_json_response({"mediaItems": [video]}))
+        mock_client = async_client(get=json_response({"mediaItems": [video]}))
 
         items = await get_media_items(mock_client, "session-1", "token-1")
 
@@ -180,8 +162,8 @@ class TestGetMediaItems:
         assert items[0].type == "VIDEO"
 
     async def test_video_processing_status_surfaced(self) -> None:
-        mock_client = _client_with(
-            get=_json_response({"mediaItems": [_VIDEO_ITEM_JSON]})
+        mock_client = async_client(
+            get=json_response({"mediaItems": [_VIDEO_ITEM_JSON]})
         )
 
         items = await get_media_items(mock_client, "session-1", "token-1")

@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -11,6 +11,7 @@ from app.services.mapbox import (
     match_segment,
     match_segments_with_stats,
 )
+from tests.helpers.http import async_client, error_response, mock_response
 
 type Coords = list[tuple[float, float]]
 
@@ -23,38 +24,22 @@ def _matching_json(coords: list[list[float]]) -> bytes:
     ).encode()
 
 
-def _error_response(status: int = 422) -> MagicMock:
-    resp = MagicMock(status_code=status)
-    resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-        f"{status}", request=MagicMock(), response=resp
-    )
-    return resp
-
-
-def _ok_response(content: bytes) -> MagicMock:
-    resp = MagicMock(status_code=200)
-    resp.content = content
-    return resp
-
-
 class TestFetchMatching:
     @pytest.mark.parametrize(
         "response",
         [
-            _error_response(500),
-            _ok_response(b'{"matchings": []}'),
+            error_response(500),
+            mock_response(b'{"matchings": []}'),
         ],
     )
     async def test_returns_none_without_route(self, response: MagicMock) -> None:
-        client = AsyncMock()
-        client.get.return_value = response
+        client = async_client(get=response)
         assert (
             await _fetch_matching(client, [(4.0, 52.0), (4.1, 52.1)], "driving", "tok")
             is None
         )
 
     async def test_multiple_matchings_stitched(self) -> None:
-        client = AsyncMock()
         content = json.dumps(
             {
                 "matchings": [
@@ -73,7 +58,7 @@ class TestFetchMatching:
                 ]
             }
         ).encode()
-        client.get.return_value = _ok_response(content)
+        client = async_client(get=mock_response(content))
         result = await _fetch_matching(client, [(1, 2), (7, 8)], "driving", "tok")
         assert result == [(1, 2), (3, 4), (7, 8)]
 
@@ -82,13 +67,12 @@ class TestFetchDirections:
     @pytest.mark.parametrize(
         "response",
         [
-            _error_response(500),
-            _ok_response(b'{"routes": []}'),
+            error_response(500),
+            mock_response(b'{"routes": []}'),
         ],
     )
     async def test_returns_none_without_route(self, response: MagicMock) -> None:
-        client = AsyncMock()
-        client.get.return_value = response
+        client = async_client(get=response)
         assert (
             await _fetch_directions(
                 client, [(4.0, 52.0), (4.1, 52.1)], "walking", "tok"
@@ -148,24 +132,24 @@ class TestMatchSegment:
 
 class TestMatchSegmentsWithStats:
     async def test_counts_matching_and_directions_requests(self) -> None:
-        matching_client = AsyncMock()
-        directions_client = AsyncMock()
-        matching_client.get.return_value = _ok_response(
-            _matching_json([[4.0, 52.0], [4.1, 52.1]])
+        matching_client = async_client(
+            get=mock_response(_matching_json([[4.0, 52.0], [4.1, 52.1]]))
         )
-        directions_client.get.return_value = _ok_response(
-            json.dumps(
-                {
-                    "routes": [
-                        {
-                            "geometry": {
-                                "type": "LineString",
-                                "coordinates": [[5.0, 53.0], [5.1, 53.1]],
+        directions_client = async_client(
+            get=mock_response(
+                json.dumps(
+                    {
+                        "routes": [
+                            {
+                                "geometry": {
+                                    "type": "LineString",
+                                    "coordinates": [[5.0, 53.0], [5.1, 53.1]],
+                                }
                             }
-                        }
-                    ]
-                }
-            ).encode()
+                        ]
+                    }
+                ).encode()
+            )
         )
 
         with patch("app.services.mapbox._token", return_value="tok"):
