@@ -1,19 +1,3 @@
-"""Unit, regression, and integration tests for the segmentation pipeline.
-
-Unit tests use synthetic GPS data to cover:
-  - GPS noise removal (teleport + spike filters, step waypoint preservation)
-  - Segment classification (walking, driving, flight, hike)
-  - Hike validation thresholds (min duration, min distance, min displacement)
-  - Hike segments retain all densified points (no RDP simplification)
-  - Structural invariants (≥2 points, contiguous boundaries)
-  - Robustness (empty steps, no GPS, single step, minimal input)
-
-Integration tests use the South America 2024-2025 trip to verify segmentation
-against known ground truth (hike times, structural invariants).  All integration
-tests build segments from the full trip (all steps + all GPS points), matching
-how segments are pre-computed at user creation time.
-"""
-
 import datetime as _dt_mod
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -30,19 +14,14 @@ from app.logic.trip_processing import multi_day_hike_ranges, segment_timezone
 from app.models.polarsteps import Point, PSLocations, PSTrip
 from app.models.segment import Segment, SegmentData, SegmentKind
 
-# Helpers
-
-# All synthetic tests use 2024-01-01 UTC as the base date.
 _BASE_TS = datetime(2024, 1, 1, tzinfo=UTC).timestamp()
 
 
 def _ts(hours: float) -> float:
-    """Unix timestamp at base-date midnight + ``hours``."""
     return _BASE_TS + hours * 3600.0
 
 
 def _dt(hours: float) -> datetime:
-    """Aware UTC datetime at base-date midnight + ``hours``."""
     return datetime.fromtimestamp(_ts(hours), tz=UTC)
 
 
@@ -54,8 +33,6 @@ class _Loc:
 
 @dataclass
 class _Step:
-    """Minimal StepLike for tests - mirrors the protocol in segments.py."""
-
     location: _Loc
     _hours: float
 
@@ -81,7 +58,6 @@ def _track(
     h1: float,
     n: int = 20,
 ) -> list[Point]:
-    """Linearly-interpolated GPS track with ``n+1`` equally spaced points."""
     return [
         _pt(
             lat0 + (lat1 - lat0) * i / n,
@@ -93,10 +69,6 @@ def _track(
 
 
 def _noise_df(rows: list[tuple]) -> pl.DataFrame:
-    """Build a DataFrame for ``_remove_gps_noise``.
-
-    Each row is ``(lat, lon, unix_time_seconds, is_step?)``.
-    """
     return pl.DataFrame(
         {
             "lat": [float(r[0]) for r in rows],
@@ -115,35 +87,29 @@ def _hikes(steps: list[_Step], gps: list[Point]) -> list[SegmentData]:
     return [s for s in build_segments(steps, gps) if s.kind == SegmentKind.hike]
 
 
-# GPS noise removal
-
-
 class TestNoiseRemoval:
     def test_teleport_removed(self) -> None:
-        """A GPS point that jumps at unrealistic speed is removed."""
         rows = [
             (0.0, 0.0, _ts(10.0), False),
-            (50.0, 0.0, _ts(10.0) + 10, False),  # teleport: 50° in 10s
+            (50.0, 0.0, _ts(10.0) + 10, False),
             (0.01, 0.0, _ts(12.0), False),
         ]
         df = _remove_gps_noise(_noise_df(rows))
         assert 50.0 not in df["lat"].to_list()
 
     def test_teleport_kept_when_step(self) -> None:
-        """A step waypoint survives even when it looks like a teleport."""
         rows = [
             (0.0, 0.0, _ts(10.0), False),
-            (50.0, 0.0, _ts(10.0) + 10, True),  # same jump, but is_step
+            (50.0, 0.0, _ts(10.0) + 10, True),
             (0.01, 0.0, _ts(12.0), False),
         ]
         df = _remove_gps_noise(_noise_df(rows))
         assert 50.0 in df["lat"].to_list()
 
     def test_spike_removed(self) -> None:
-        """A GPS detour that backtracks to the same position is removed."""
         rows = [
             (0.0, 0.0, _ts(10.0), False),
-            (0.0, 0.1, _ts(10.5), False),  # spike: 0.1° off path
+            (0.0, 0.1, _ts(10.5), False),
             (0.0, 0.005, _ts(11.0), False),
         ]
         df = _remove_gps_noise(_noise_df(rows))
@@ -151,22 +117,17 @@ class TestNoiseRemoval:
         assert 0.1 not in df["lon"].to_list()
 
     def test_spike_kept_when_step(self) -> None:
-        """A step waypoint survives even when it looks like a spike."""
         rows = [
             (0.0, 0.0, _ts(10.0), False),
-            (0.0, 0.1, _ts(10.5), True),  # same detour, but is_step
+            (0.0, 0.1, _ts(10.5), True),
             (0.0, 0.005, _ts(11.0), False),
         ]
         df = _remove_gps_noise(_noise_df(rows))
         assert 0.1 in df["lon"].to_list()
 
 
-# Segment classification
-
-
 class TestClassification:
     def test_no_other_kind_in_output(self) -> None:
-        """The internal 'other' label is always resolved to walking or driving."""
         gps = (
             _track(0.0, 0.0, 0.0, 0.01, h0=8.0, h1=9.0, n=10)
             + _track(0.0, 0.01, 0.0, 1.0, h0=9.5, h1=10.0, n=5)
@@ -176,46 +137,30 @@ class TestClassification:
         assert all(k.value != "other" for k in kinds)
 
     def test_slow_short_movement_is_walking(self) -> None:
-        """A short slow segment (below hike thresholds) -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.005, h0=9.0, h1=9.5, n=10)
         kinds = _segment_kinds([_step(0.0, 0.005, 9.5)], gps)
         assert SegmentKind.walking in kinds
         assert SegmentKind.hike not in kinds
 
     def test_fast_movement_is_driving(self) -> None:
-        """Movement well above hike speed -> driving."""
         gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=5)
         kinds = _segment_kinds([_step(0.0, 0.5, 9.5)], gps)
         assert SegmentKind.driving in kinds
         assert SegmentKind.hike not in kinds
 
     def test_flight_speed_is_flight(self) -> None:
-        """Movement above flight speed over flight distance -> flight."""
         gps = [
             _pt(0.0, 0.0, hours=10.0),
-            _pt(0.0, 5.0, hours=12.0),  # ~278 km/h over ~555 km
+            _pt(0.0, 5.0, hours=12.0),
         ]
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 5.0, 12.0)]
         assert SegmentKind.flight in _segment_kinds(steps, gps)
 
     def test_pre_first_step_flight_not_dropped(self) -> None:
-        """A flight before the first step must not be silently dropped.
-
-        Simulates: fly from city A to layover city B (no step there), walk
-        around B, fly to destination city C (first step).  Both flights
-        occur before the first step's timestamp.
-
-        Regression: _emit_segments skipped pre-first-step flights, which
-        caused the stitch logic to merge the layover walking + second
-        flight into one giant "walking" segment rendered as a thick
-        dashed line across the ocean.
-        """
-        # City A (h0) -> fly -> City B (h3-h8 walking) -> fly -> City C (h22+)
         gps_a = [_pt(32.0, 35.0, hours=0.0)]
         gps_b = _track(25.0, 55.0, 25.01, 55.01, h0=3.5, h1=8.0, n=20)
         gps_c = _track(-34.6, -58.4, -34.61, -58.41, h0=22.0, h1=26.0, n=20)
 
-        # Only step is in city C (the destination)
         steps = [_step(-34.6, -58.4, 22.0)]
 
         segments = list(build_segments(steps, gps_a + gps_b + gps_c))
@@ -223,7 +168,6 @@ class TestClassification:
         assert kinds.count(SegmentKind.flight) >= 2, (
             f"Expected ≥2 flights in {kinds} - pre-first-step flights were dropped"
         )
-        # No walking segment should span continents (> 5° lat/lon)
         for seg in segments:
             if seg.kind == SegmentKind.walking:
                 p0, p1 = seg.points[0], seg.points[-1]
@@ -235,22 +179,12 @@ class TestClassification:
                 assert abs(p0.lon - p1.lon) < 5, msg
 
     def test_valid_hike_detected(self) -> None:
-        """A clear multi-hour walk at hike speed -> hike."""
         gps = _track(0.0, 0.0, 0.0, 0.2, h0=8.0, h1=14.0, n=50)
         assert _hikes([_step(0.0, 0.2, 14.0)], gps)
 
     def test_brief_transfer_between_hikes_absorbed(self) -> None:
-        """A short fast gap (taxi between trailheads) between two hikes -> one hike.
-
-        Regression: a 5-min drive at 17 km/h between two hike days produced
-        two separate hike segments, breaking the single-hike-segment
-        assumption in the frontend's HikeMapPage.
-        """
-        # Hike day 1: 3h, ~6 km at ~2 km/h
         hike1 = _track(0.0, 0.0, 0.0, 0.05, h0=8.0, h1=11.0, n=30)
-        # 10 min taxi at ~20 km/h (0.03° ≈ 3.3 km in 10 min)
         taxi = [_pt(0.0, 0.05, hours=11.0), _pt(0.0, 0.08, hours=11.17)]
-        # Hike day 2: 3h, ~6 km
         hike2 = _track(0.0, 0.08, 0.0, 0.13, h0=11.17, h1=14.17, n=30)
 
         steps = [_step(0.0, 0.0, 8.0), _step(0.0, 0.13, 14.17)]
@@ -260,22 +194,14 @@ class TestClassification:
         )
 
 
-# Hike validation thresholds
-
-
 class TestHikeValidation:
     def test_below_min_duration_is_not_hike(self) -> None:
-        """A hike-speed track shorter than MIN_HIKE_H -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.01, h0=9.0, h1=10.0, n=15)
         assert not _hikes([_step(0.0, 0.01, 10.0)], gps)
 
     def test_below_min_distance_is_not_hike(self) -> None:
-        """A hike-speed track shorter than MIN_HIKE_KM -> walking."""
         gps = _track(0.0, 0.0, 0.0, 0.009, h0=9.0, h1=12.0, n=30)
         assert not _hikes([_step(0.0, 0.009, 12.0)], gps)
-
-
-# Step location preservation
 
 
 def _point_near(
@@ -286,10 +212,6 @@ def _point_near(
 
 class TestStepPreservation:
     def test_step_in_out_and_back_hike(self) -> None:
-        """Step at turnaround of out-and-back hike appears in output.
-
-        Regression: RDP collapsed the path to two endpoints.
-        """
         gps = _track(0.0, 0.0, 0.0, 0.09, h0=8.0, h1=11.0, n=20) + _track(
             0.0, 0.09, 0.0, 0.0, h0=13.0, h1=16.0, n=20
         )
@@ -298,30 +220,19 @@ class TestStepPreservation:
         assert _point_near(hikes[0].points, 0.0, 0.15)
 
     def test_step_included_when_edge_speed_above_hike_max(self) -> None:
-        """Step is kept even when the GPS->step edge exceeds hike speed.
-
-        Regression: step-adjacent edges only had gap tolerance, not speed exemption.
-        """
         gps = _track(0.0, 0.0, 0.0, 0.05, h0=8.0, h1=13.0, n=30)
         hikes = _hikes([_step(0.0, 0.15, 13.5)], gps)
         assert hikes
         assert _point_near(hikes[0].points, 0.0, 0.15)
 
 
-# Hike point retention
-
-
 class TestHikePoints:
     def test_non_hike_segments_are_rdp_simplified(self) -> None:
-        """Non-hike segments (driving) are RDP-simplified."""
         gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=50)
         segments = list(build_segments([_step(0.0, 0.5, 9.5)], gps))
         for seg in segments:
             if seg.kind != SegmentKind.hike:
                 assert len(seg.points) <= 10
-
-
-# Structural invariants
 
 
 class TestStructure:
@@ -351,9 +262,6 @@ class TestStructure:
             )
 
 
-# Robustness
-
-
 class TestRobustness:
     def test_no_gps_does_not_crash(self) -> None:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 0.1, 14.0)]
@@ -361,23 +269,16 @@ class TestRobustness:
         assert all(len(s.points) >= 2 for s in segments)
 
 
-# ---------------------------------------------------------------------------
-# Integration tests (real Polarsteps trip data)
-# ---------------------------------------------------------------------------
-
-# Tolerance for hike start/end times: GPS can be sparse so allow ±30 min.
 _TOL_S = 30 * 60
 
 
 def _cmp(ts: float, dt_str: str, tz: ZoneInfo) -> float:
-    """Return signed error (seconds) vs expected 'YYYY-MM-DD HH:MM' in tz."""
     ref = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=tz)
     return ts - ref.timestamp()
 
 
 @pytest.fixture(scope="module")
 def all_segments(sa_trip: PSTrip, sa_locations: PSLocations) -> list[SegmentData]:
-    """Build segments once from the full trip (all steps + GPS)."""
     steps = sorted(sa_trip.all_steps, key=lambda s: s.timestamp)
     return list(build_segments(steps, sa_locations.locations))
 
@@ -388,7 +289,6 @@ def _hikes_in_window(
     start: int,
     end: int,
 ) -> list[SegmentData]:
-    """Return hike segments whose midpoint falls within the step range's day window."""
     t0 = (
         steps[start]
         .datetime.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -408,13 +308,6 @@ def _hikes_in_window(
 
 
 class TestKnownHikes:
-    """Verify detected hikes match known ground truth times.
-
-    Segments are built once from the full trip.  For each test case the hikes
-    whose midpoint falls inside the step range's day window are checked against
-    expected ground truth start/end times.
-    """
-
     @pytest.mark.parametrize(
         ("start", "end", "expected_hikes"),
         [
@@ -499,8 +392,6 @@ class TestKnownHikes:
 
 
 class TestFullTripInvariants:
-    """Structural invariants verified against the full trip."""
-
     def test_min_points_per_segment(self, all_segments: list[SegmentData]) -> None:
         for i, seg in enumerate(all_segments):
             expected_min = (
@@ -522,7 +413,6 @@ class TestFullTripInvariants:
             )
 
     def test_hikes_are_simplified(self, all_segments: list[SegmentData]) -> None:
-        """Hike segments are RDP-simplified but retain at least 2 points."""
         hikes = [s for s in all_segments if s.kind == SegmentKind.hike]
         assert hikes
         for i, h in enumerate(hikes):
@@ -533,10 +423,6 @@ class TestStepLocationInHike:
     def test_step9_location_in_output(
         self, sa_trip: PSTrip, all_segments: list[SegmentData]
     ) -> None:
-        """Step 9 (Ushuaia viewpoint) must appear in the hike output.
-
-        Regression: RDP collapsed out-and-back paths to two endpoints.
-        """
         step9 = sa_trip.all_steps[9]
         hikes = [s for s in all_segments if s.kind == SegmentKind.hike]
 
@@ -552,8 +438,6 @@ class TestStepLocationInHike:
         )
 
 
-# -- Multi-day hike range detection ------------------------------------------
-
 _KM_PER_DEG_LAT = 111.32  # at equator
 
 
@@ -562,12 +446,6 @@ def _multi_day_seg(
     start_date: date,
     tz: str = "America/Santiago",
 ) -> Segment:
-    """Create a hike segment with specified GPS distance per calendar day.
-
-    Each day gets two points (08:00 and 17:00 local), spaced along latitude
-    at the equator so haversine distance ≈ the requested km.  Overnight gaps
-    have zero displacement (camping).
-    """
     zone = ZoneInfo(tz)
     points: list[Point] = []
     lat = 0.0
@@ -598,7 +476,6 @@ def _minimal_seg(
     end: float,
     tz: str = "America/Santiago",
 ) -> Segment:
-    """Segment with only start/end endpoints (no per-day detail)."""
     return Segment(
         uid=1,
         aid="trip1",
@@ -614,30 +491,13 @@ def _minimal_seg(
 
 
 class TestMultiDayHikeRanges:
-    """Tests for multi_day_hike_ranges (per-day distance analysis)."""
-
-    # -- Basic behaviour --
-
-    def test_multi_day_hike_produces_range(self) -> None:
-        seg = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
-        ranges = multi_day_hike_ranges([seg])
-        assert ranges == [(date(2024, 12, 8), date(2024, 12, 11))]
-
-    def test_single_day_hike_excluded(self) -> None:
-        # 6-hour same-day hike - only 1 point pair, 1 calendar day
-        seg = _multi_day_seg([8.0], date(2024, 12, 8))
-        assert multi_day_hike_ranges([seg]) == []
-
     def test_non_hike_segments_excluded(self) -> None:
         seg = _minimal_seg(SegmentKind.driving, 1e9, 1e9 + 4 * 86400)
         assert multi_day_hike_ranges([seg]) == []
 
     def test_uses_local_timezone_for_date(self) -> None:
-        """Late evening in Santiago (23:30 local) is still the same local date."""
         zone = ZoneInfo("America/Santiago")
-        # Dec 8 08:00 Santiago
         t1 = datetime(2024, 12, 8, 8, 0, tzinfo=zone).timestamp()
-        # Dec 8 23:30 Santiago - next day in UTC but same day local
         t2 = datetime(2024, 12, 8, 23, 30, tzinfo=zone).timestamp()
         seg = Segment(
             uid=1,
@@ -648,43 +508,73 @@ class TestMultiDayHikeRanges:
             timezone_id="America/Santiago",
             points=[
                 Point(lat=0.0, lon=0.0, time=t1),
-                Point(lat=0.072, lon=0.0, time=t2),  # ~8 km
+                Point(lat=0.072, lon=0.0, time=t2),
             ],
         )
         assert multi_day_hike_ranges([seg]) == []
 
+    @pytest.mark.parametrize(
+        ("daily_km", "start", "expected", "tz"),
+        [
+            (
+                [14, 14, 14, 14],
+                date(2024, 12, 8),
+                [(date(2024, 12, 8), date(2024, 12, 11))],
+                "America/Santiago",
+            ),
+            ([8.0], date(2024, 12, 8), [], "America/Santiago"),
+            (
+                [15, 14, 13, 14],
+                date(2024, 12, 1),
+                [(date(2024, 12, 1), date(2024, 12, 4))],
+                "America/Santiago",
+            ),
+            (
+                [2.5, 2.3],
+                date(2025, 6, 10),
+                [(date(2025, 6, 10), date(2025, 6, 11))],
+                "America/Lima",
+            ),
+            (
+                [12, 10, 11, 9, 10, 11, 10, 8],
+                date(2025, 8, 10),
+                [(date(2025, 8, 10), date(2025, 8, 17))],
+                "America/Santiago",
+            ),
+            ([10.0, 1.5], date(2024, 12, 24), [], "America/Santiago"),
+            (
+                [6.0, 5.0],
+                date(2025, 5, 14),
+                [(date(2025, 5, 14), date(2025, 5, 15))],
+                "America/Santiago",
+            ),
+            (
+                [0.3, 0.4, 5.0, 0.2, 0.3, 0.3, 0.4, 0.3],
+                date(2025, 1, 26),
+                [],
+                "America/Santiago",
+            ),
+        ],
+    )
+    def test_daily_distance_cases(
+        self,
+        daily_km: list[float],
+        start: date,
+        expected: list[tuple[date, date]],
+        tz: str,
+    ) -> None:
+        assert multi_day_hike_ranges([_multi_day_seg(daily_km, start, tz)]) == expected
+
     def test_multiple_hikes(self) -> None:
-        seg1 = _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8))
-        seg2 = _multi_day_seg([10, 10, 10, 10], date(2025, 1, 7))
-        ranges = multi_day_hike_ranges([seg1, seg2])
+        ranges = multi_day_hike_ranges(
+            [
+                _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8)),
+                _multi_day_seg([10, 10, 10, 10], date(2025, 1, 7)),
+            ]
+        )
         assert len(ranges) == 2
 
-    # -- True positives (confirmed good multi-day hikes) --
-
-    def test_patagonia_4day_trek(self) -> None:
-        seg = _multi_day_seg([15, 14, 13, 14], date(2024, 12, 1))
-        ranges = multi_day_hike_ranges([seg])
-        assert ranges == [(date(2024, 12, 1), date(2024, 12, 4))]
-
-    def test_2day_hike_low_daily_distance(self) -> None:
-        """Weakest true positive: models Jun 10-11 (4.8 km total, ~2.4 km/day)."""
-        seg = _multi_day_seg([2.5, 2.3], date(2025, 6, 10), "America/Lima")
-        ranges = multi_day_hike_ranges([seg])
-        assert ranges == [(date(2025, 6, 10), date(2025, 6, 11))]
-
-    def test_week_long_trek(self) -> None:
-        """Models Aug 10-17: 81.6 km over 8 days."""
-        seg = _multi_day_seg([12, 10, 11, 9, 10, 11, 10, 8], date(2025, 8, 10))
-        ranges = multi_day_hike_ranges([seg])
-        assert ranges == [(date(2025, 8, 10), date(2025, 8, 17))]
-
-    # -- False positives: not multi-day (real hike, single active day) --
-
     def test_midnight_crossing_single_day_hike(self) -> None:
-        """Nov 15-16: single hike on the 15th crossing midnight.
-
-        ~8 km day 1, ~1 km day 2.
-        """
         zone = ZoneInfo("America/Santiago")
         d1 = date(2024, 11, 15)
         d2 = d1 + timedelta(days=1)
@@ -700,31 +590,13 @@ class TestMultiDayHikeRanges:
             timezone_id="America/Santiago",
             points=[
                 Point(lat=0.0, lon=0.0, time=t1),
-                Point(lat=0.072, lon=0.0, time=t2),  # ~8 km
-                Point(lat=0.081, lon=0.0, time=t3),  # ~1 km more
+                Point(lat=0.072, lon=0.0, time=t2),
+                Point(lat=0.081, lon=0.0, time=t3),
             ],
         )
         assert multi_day_hike_ranges([seg]) == []
 
-    def test_single_day_hike_other_day_below_threshold(self) -> None:
-        """Dec 24-25: only the 24th had a hike.  Day 2 has < 2 km."""
-        seg = _multi_day_seg([10.0, 1.5], date(2024, 12, 24))
-        assert multi_day_hike_ranges([seg]) == []
-
-    def test_two_separate_day_hikes_included(self) -> None:
-        """May 14-15: two separate day hikes absorbed into one segment.
-
-        Each day has significant distance - the per-day check correctly
-        includes it.  The frontend shows a map covering both, which is useful.
-        """
-        seg = _multi_day_seg([6.0, 5.0], date(2025, 5, 14))
-        ranges = multi_day_hike_ranges([seg])
-        assert ranges == [(date(2025, 5, 14), date(2025, 5, 15))]
-
-    # -- False positives: GPS drift (not hikes at all) --
-
     def test_gps_drift_crosses_midnight(self) -> None:
-        """Dec 15-16: GPS drift, ~1.5 km total across 2 days."""
         zone = ZoneInfo("America/Santiago")
         d1 = date(2024, 12, 15)
         d2 = d1 + timedelta(days=1)
@@ -740,33 +612,19 @@ class TestMultiDayHikeRanges:
             timezone_id="America/Santiago",
             points=[
                 Point(lat=0.0, lon=0.0, time=t1),
-                Point(lat=0.009, lon=0.0, time=t_mid),  # ~1 km
-                Point(lat=0.0135, lon=0.0, time=t2),  # ~0.5 km more
+                Point(lat=0.009, lon=0.0, time=t_mid),
+                Point(lat=0.0135, lon=0.0, time=t2),
             ],
         )
         assert multi_day_hike_ranges([seg]) == []
 
-    def test_overmerged_camping_one_active_day(self) -> None:
-        """Jan 26-Feb 2: 171 h segment but only one day has real hiking."""
-        seg = _multi_day_seg(
-            [0.3, 0.4, 5.0, 0.2, 0.3, 0.3, 0.4, 0.3],
-            date(2025, 1, 26),
-        )
-        assert multi_day_hike_ranges([seg]) == []
-
-    # -- Merge --
-
     def test_adjacent_ranges_merged(self) -> None:
-        """May 25-26 + May 26-27 → single range May 25-27."""
         seg1 = _multi_day_seg([6.0, 4.0], date(2025, 5, 25))
         seg2 = _multi_day_seg([3.0, 5.0], date(2025, 5, 26))
         ranges = multi_day_hike_ranges([seg1, seg2])
         assert ranges == [(date(2025, 5, 25), date(2025, 5, 27))]
 
-    # -- Edge cases --
-
     def test_non_overlapping_ranges_stay_separate(self) -> None:
-        """Two multi-day hikes a week apart stay as separate ranges."""
         seg1 = _multi_day_seg([10, 10], date(2025, 4, 1))
         seg2 = _multi_day_seg([10, 10], date(2025, 4, 10))
         ranges = multi_day_hike_ranges([seg1, seg2])
@@ -777,14 +635,6 @@ class TestMultiDayHikeRanges:
 
 
 class TestMultiDayHikeRangesIntegration:
-    """Verify multi_day_hike_ranges against real South America 2024-2025 data.
-
-    Builds Segment objects from the full trip's pipeline output, exactly as
-    build_trip_objects() does, then checks that the per-day distance analysis
-    produces the expected ranges - eliminating false positives while keeping
-    all confirmed multi-day hikes.
-    """
-
     @pytest.fixture(scope="class")
     def real_segments(
         self,
@@ -812,10 +662,9 @@ class TestMultiDayHikeRangesIntegration:
     def test_confirmed_multiday_hikes_present(
         self, real_ranges: list[tuple[date, date]]
     ) -> None:
-        """All user-confirmed multi-day hikes must appear."""
         expected_good = [
-            (date(2024, 12, 1), date(2024, 12, 4)),  # Patagonia trek 1
-            (date(2024, 12, 8), date(2024, 12, 11)),  # Patagonia trek 2
+            (date(2024, 12, 1), date(2024, 12, 4)),
+            (date(2024, 12, 8), date(2024, 12, 11)),
         ]
         for start, end in expected_good:
             assert any(s <= start and end <= e for s, e in real_ranges), (
@@ -825,24 +674,23 @@ class TestMultiDayHikeRangesIntegration:
     def test_false_positives_eliminated(
         self, real_ranges: list[tuple[date, date]]
     ) -> None:
-        """Ranges that the old naive check produced but aren't real multi-day hikes."""
         should_not_appear = [
-            (date(2024, 11, 15), date(2024, 11, 16)),  # single hike on 15th
-            (date(2024, 12, 15), date(2024, 12, 16)),  # GPS drift
-            (date(2024, 12, 16), date(2024, 12, 17)),  # same drift, second hit
-            (date(2024, 12, 21), date(2024, 12, 22)),  # not a hike
-            (date(2025, 1, 4), date(2025, 1, 5)),  # not a hike
-            (date(2025, 2, 9), date(2025, 2, 10)),  # GPS drift
-            (date(2025, 2, 11), date(2025, 2, 12)),  # GPS drift
-            (date(2025, 5, 29), date(2025, 5, 30)),  # not a hike
-            (date(2025, 6, 7), date(2025, 6, 8)),  # not a hike
-            (date(2025, 6, 22), date(2025, 6, 23)),  # not a hike
-            (date(2025, 7, 6), date(2025, 7, 7)),  # not a hike
-            (date(2025, 7, 10), date(2025, 7, 11)),  # not multiday
-            (date(2025, 7, 15), date(2025, 7, 16)),  # not a hike
-            (date(2025, 8, 29), date(2025, 8, 30)),  # not a hike
-            (date(2025, 8, 30), date(2025, 8, 31)),  # not a hike
-            (date(2025, 9, 1), date(2025, 9, 2)),  # not a hike
+            (date(2024, 11, 15), date(2024, 11, 16)),
+            (date(2024, 12, 15), date(2024, 12, 16)),
+            (date(2024, 12, 16), date(2024, 12, 17)),
+            (date(2024, 12, 21), date(2024, 12, 22)),
+            (date(2025, 1, 4), date(2025, 1, 5)),
+            (date(2025, 2, 9), date(2025, 2, 10)),
+            (date(2025, 2, 11), date(2025, 2, 12)),
+            (date(2025, 5, 29), date(2025, 5, 30)),
+            (date(2025, 6, 7), date(2025, 6, 8)),
+            (date(2025, 6, 22), date(2025, 6, 23)),
+            (date(2025, 7, 6), date(2025, 7, 7)),
+            (date(2025, 7, 10), date(2025, 7, 11)),
+            (date(2025, 7, 15), date(2025, 7, 16)),
+            (date(2025, 8, 29), date(2025, 8, 30)),
+            (date(2025, 8, 30), date(2025, 8, 31)),
+            (date(2025, 9, 1), date(2025, 9, 2)),
         ]
         for start, end in should_not_appear:
             assert (start, end) not in real_ranges, (
@@ -850,15 +698,11 @@ class TestMultiDayHikeRangesIntegration:
             )
 
     def test_split_hike_merged(self, real_ranges: list[tuple[date, date]]) -> None:
-        """May 25-26 + May 26-27 should merge into a single range."""
         assert (date(2025, 5, 25), date(2025, 5, 26)) not in real_ranges
         assert (date(2025, 5, 26), date(2025, 5, 27)) not in real_ranges
-        # Merged range should exist
         assert any(
             s <= date(2025, 5, 25) and date(2025, 5, 27) <= e for s, e in real_ranges
         ), "May 25-27 merged range missing"
 
     def test_range_count_reduced(self, real_ranges: list[tuple[date, date]]) -> None:
-        """Fewer ranges than the old naive date-crossing check."""
-        # Old naive check produced 40 ranges; new should be ~22
         assert len(real_ranges) < 30, f"Too many ranges: {len(real_ranges)}"
