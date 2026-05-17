@@ -17,10 +17,9 @@ import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { useLocalStorage } from "@vueuse/core";
-import { mergeImportedUnused } from "@/utils/stepImportedUnused";
 import { useMeta } from "quasar";
 import { useI18n } from "vue-i18n";
-import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, watch, nextTick, onBeforeUnmount } from "vue";
 
 const { t } = useI18n();
 
@@ -52,7 +51,6 @@ const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
 const { data: steps } = useStepsQuery(selectedAlbumId);
 const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
-const importedUnusedByStep = ref<Record<number, string[]>>({});
 
 useLocale(locale);
 
@@ -60,7 +58,6 @@ useEditorKeyboard();
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => {
-  importedUnusedByStep.value = {};
   undoStack.clear();
   photoFocus.blur();
   resetActiveSection();
@@ -69,30 +66,12 @@ watch(selectedAlbumId, () => {
 const { activeStepId, activeSectionKey, resetActiveSection } =
   useActiveSection();
 onBeforeUnmount(resetActiveSection);
-const displayedSteps = computed(() =>
-  steps.value?.map((step) => {
-    return mergeImportedUnused(step, importedUnusedByStep.value[step.id] ?? []);
-  }),
-);
+const displayedSteps = computed(() => steps.value);
 const activeStep = computed(() =>
   activeStepId.value != null
     ? displayedSteps.value?.find((s) => s.id === activeStepId.value)
     : undefined,
 );
-
-function onImportedStepMedia({
-  stepId,
-  names,
-}: {
-  stepId: number;
-  names: string[];
-}) {
-  const current = importedUnusedByStep.value[stepId] ?? [];
-  importedUnusedByStep.value = {
-    ...importedUnusedByStep.value,
-    [stepId]: [...names, ...current.filter((name) => !names.includes(name))],
-  };
-}
 </script>
 
 <template>
@@ -152,12 +131,10 @@ function onImportedStepMedia({
   >
     <InspectorDrawer
       v-if="album && media"
-      :key="activeStep?.id ?? activeSectionKey ?? 'empty'"
       :album="album"
       :media="media"
       :step="activeStep"
       :section-key="activeSectionKey"
-      @imported-step-media="onImportedStepMedia"
     />
   </q-drawer>
 

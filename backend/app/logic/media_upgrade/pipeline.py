@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -17,6 +18,7 @@ import structlog
 from httpx_oauth.oauth2 import RefreshTokenError
 from pydantic import BaseModel, Field, validate_call
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -28,7 +30,7 @@ from app.core.observability import set_span_data, start_span
 from app.core.resources import detect_cpu_count
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
-from app.models.album import Album
+from app.models.album_media import AlbumMedia
 from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
@@ -162,7 +164,7 @@ async def run_matching(  # noqa: PLR0913
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     tokens: AccessTokenGetter,
-    already_upgraded: dict[MediaName, GoogleMediaId] | None = None,
+    upgrade_candidates: set[MediaName] | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
@@ -170,9 +172,6 @@ async def run_matching(  # noqa: PLR0913
     "preparing" hashes local media, "matching" hashes picked Google items.
     Only media from steps that have picked Google items are hashed.
     """
-    if already_upgraded is None:
-        already_upgraded = {}
-
     with start_span(
         "google_photos.matching",
         "Match Google Photos media",
@@ -260,9 +259,10 @@ async def run_matching(  # noqa: PLR0913
                 google_items,
                 candidate_hashes,
             )
+            if upgrade_candidates is not None:
+                for match in all_matches:
+                    match.upgraded = match.local_name not in upgrade_candidates
 
-        for m in all_matches:
-            m.upgraded = already_upgraded.get(m.local_name) == m.google_id
         set_span_data(
             span,
             **{
@@ -359,16 +359,14 @@ async def _persist_upgrade(
             },
         ):
             async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-                album = await session.get_one(Album, (uid, aid))
-                album.media, album.upgraded_media = await refresh_upgraded_media(
-                    album_dir,
-                    matches,
-                    album.media,
-                    album.upgraded_media,
-                    succeeded,
+                await _persist_upgrade_in_session(
+                    session,
+                    uid=uid,
+                    aid=aid,
+                    album_dir=album_dir,
+                    matches=matches,
+                    succeeded=succeeded,
                 )
-                session.add(album)
-                await session.commit()
     except SQLAlchemyError:
         logger.warning(
             "media_upgrade.persist_failed",
@@ -384,6 +382,60 @@ async def _persist_upgrade(
         album_id=aid,
         replaced=replaced,
     )
+
+
+async def _persist_upgrade_in_session(  # noqa: PLR0913
+    session: AsyncSession,
+    *,
+    uid: int,
+    aid: str,
+    album_dir: Path,
+    matches: list[MatchResult],
+    succeeded: set[MediaName],
+) -> None:
+    rows = {
+        row.name: row
+        for row in (
+            await session.exec(
+                select(AlbumMedia).where(
+                    AlbumMedia.uid == uid,
+                    AlbumMedia.aid == aid,
+                    col(AlbumMedia.name).in_(tuple(succeeded)),
+                )
+            )
+        ).all()
+    }
+    now = datetime.now(UTC)
+    for match in matches:
+        if match.local_name not in succeeded:
+            continue
+        row = rows.get(match.local_name)
+        if row is None:
+            continue
+        target = album_dir / match.local_name
+        try:
+            updated = (
+                await Media.probe(target)
+                if is_video(match.local_name)
+                else await run_sync(
+                    Media.load,
+                    target,
+                    limiter=media_limiter,
+                )
+            )
+        except OSError, SyntaxError, RuntimeError:
+            logger.warning(
+                "media_upgrade.reprobe_failed",
+                exc_info=True,
+            )
+            continue
+        row.width = updated.width
+        row.height = updated.height
+        row.byte_size = target.stat().st_size
+        row.upgrade_candidate = False
+        row.updated_at = now
+        session.add(row)
+    await session.commit()
 
 
 async def _cleanup_picker_sessions(
@@ -411,16 +463,9 @@ async def _cleanup_picker_sessions(
 
 def _needs_upgrade(
     match: MatchResult,
-    already_upgraded: dict[MediaName, GoogleMediaId],
+    upgrade_candidates: set[MediaName],
 ) -> bool:
-    """True unless this exact (local_name, google_id) pair is already upgraded.
-
-    A match to a *different* google_id for a previously-upgraded local file
-    is a new upgrade: the user picked a different source than last time, and
-    the summary count (see ``run_matching``) already advertised it as work
-    to do.
-    """
-    return already_upgraded.get(match.local_name) != match.google_id
+    return match.local_name in upgrade_candidates
 
 
 async def run_upgrade(  # noqa: PLR0913, C901
@@ -431,7 +476,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     album_dir: Path,
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
-    already_upgraded: dict[MediaName, GoogleMediaId],
+    upgrade_candidates: set[MediaName],
     tokens: AccessTokenGetter,
     session_ids: list[PickerSessionId],
 ) -> AsyncGenerator[UpgradeEvent]:
@@ -441,7 +486,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     Exceptions during streaming become ``UpgradeError`` events; persist and
     picker cleanup always run.
     """
-    to_upgrade = [m for m in matches if _needs_upgrade(m, already_upgraded)]
+    to_upgrade = [m for m in matches if _needs_upgrade(m, upgrade_candidates)]
     total = len(to_upgrade)
     succeeded: set[MediaName] = set()
     skipped_names: set[MediaName] = set()
@@ -542,45 +587,14 @@ async def run_upgrade(  # noqa: PLR0913, C901
         )
         yield UpgradeFailed(detail="Upgrade failed unexpectedly.")
     finally:
-        await _persist_upgrade(uid, aid, album_dir, matches, succeeded)
+        await _persist_upgrade(
+            uid,
+            aid,
+            album_dir,
+            matches,
+            succeeded,
+        )
         await _cleanup_picker_sessions(clients.gphotos_picker, session_ids, tokens)
-
-
-async def refresh_upgraded_media(
-    album_dir: Path,
-    matches: list[MatchResult],
-    media: list[Media],
-    upgraded_media: dict[MediaName, GoogleMediaId],
-    succeeded: set[MediaName],
-) -> tuple[list[Media], dict[MediaName, GoogleMediaId]]:
-    """Re-read replaced files from disk and update media list + upgrade map.
-
-    Only files in *succeeded* are marked as upgraded. Files that failed
-    download or were skipped (e.g. not larger) are left untouched so
-    the user can retry.
-    """
-    media_by_name = {m.name: m for m in media}
-    new_upgraded = dict(upgraded_media)
-    for match in matches:
-        if match.local_name not in succeeded:
-            continue
-        target = album_dir / match.local_name
-        if match.local_name not in media_by_name:
-            continue
-        try:
-            if is_video(match.local_name):
-                updated = await Media.probe(target)
-            else:
-                updated = await run_sync(Media.load, target, limiter=media_limiter)
-            media_by_name[match.local_name] = updated
-        except OSError, SyntaxError, RuntimeError:
-            logger.warning(
-                "media_upgrade.reprobe_failed",
-                exc_info=True,
-            )
-            continue
-        new_upgraded[match.local_name] = match.google_id
-    return list(media_by_name.values()), new_upgraded
 
 
 async def cleanup_orphaned_tmp(users_folder: Path) -> None:

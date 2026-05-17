@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, Step } from "@/client";
+import type { DateRange, StepRead as Step } from "@/client";
 import { toQDate, parseYMD, ymdToIso } from "@/utils/date";
 import StepDatePicker from "@/components/editor/StepDatePicker.vue";
 import { useI18n } from "vue-i18n";

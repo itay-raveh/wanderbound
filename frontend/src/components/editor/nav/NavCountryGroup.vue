@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, Step } from "@/client";
+import type { DateRange, StepRead as Step } from "@/client";
 import type { CountryVisit } from "./types";
 import { flagUrl } from "@/utils/media";
 import { SHORT_DATE } from "@/utils/date";

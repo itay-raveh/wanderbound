@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AlbumMeta, SegmentOutline, Step } from "@/client";
+import type { AlbumMeta, SegmentOutline, StepRead as Step } from "@/client";
 import { computeOverview } from "@/composables/useOverview";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";

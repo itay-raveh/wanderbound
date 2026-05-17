@@ -8,7 +8,7 @@
  */
 
 import { createApp, defineComponent, h, ref, type Ref } from "vue";
-import type { Step, StepUpdate } from "@/client";
+import type { StepRead as Step, StepUpdate } from "@/client";
 import { provideStepMutate, useStepLayout } from "@/composables/useStepLayout";
 import { makeStep } from "../helpers";
 
@@ -30,14 +30,18 @@ interface LayoutResult {
  */
 function mountStepLayout(step: Step) {
   const stepRef = ref(step);
-  const mutateSpy = vi.fn<(payload: { sid: number; update: StepUpdate }) => void>();
+  const mutateSpy =
+    vi.fn<(payload: { sid: number; update: StepUpdate }) => void>();
   let result!: LayoutResult;
 
   const Child = defineComponent({
     setup() {
       const dropZoneRef = ref(null);
       const coverDropRef = ref(null);
-      result = useStepLayout(stepRef as Ref<Step>, { dropZoneRef, coverDropRef });
+      result = useStepLayout(stepRef as Ref<Step>, {
+        dropZoneRef,
+        coverDropRef,
+      });
       return () => null;
     },
   });
@@ -83,7 +87,6 @@ describe("onCoverUpdate", () => {
     expect(payload.update.pages).toEqual([["p1"], ["p3"]]);
     // No old cover to add to unused
     expect(payload.update.unused).toEqual([]);
-
   });
 
   it("moves old cover to unused when replacing", () => {
@@ -102,7 +105,6 @@ describe("onCoverUpdate", () => {
     expect(payload.update.pages).toEqual([["p1"]]);
     // Old cover should be added to unused list
     expect(payload.update.unused).toEqual(["u1", "old_cover"]);
-
   });
 
   it("removes cover photo from unused if it was there", () => {
@@ -119,7 +121,6 @@ describe("onCoverUpdate", () => {
     const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.cover).toBe("new_cover");
     expect(payload.update.unused).toEqual(["u1", "u2"]);
-
   });
 });
 
@@ -131,7 +132,10 @@ describe("onPageUpdate", () => {
   it("handles cross-list moves: strips added photos from other pages", () => {
     const step = makeStep({
       id: 1,
-      pages: [["a", "b"], ["c", "d"]],
+      pages: [
+        ["a", "b"],
+        ["c", "d"],
+      ],
       unused: [],
     });
     const { result, mutateSpy } = mountStepLayout(step);
@@ -142,7 +146,6 @@ describe("onPageUpdate", () => {
     const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.pages).toEqual([["a", "b", "c"], ["d"]]);
     expect(payload.update.unused).toEqual([]);
-
   });
 
   it("strips photos from unused when moved to a page", () => {
@@ -159,7 +162,6 @@ describe("onPageUpdate", () => {
     const payload = mutateSpy.mock.calls[0][0];
     expect(payload.update.pages).toEqual([["a", "u1"]]);
     expect(payload.update.unused).toEqual(["u2"]);
-
   });
 
   it("filters out empty pages after cross-list move", () => {
@@ -176,6 +178,5 @@ describe("onPageUpdate", () => {
     const payload = mutateSpy.mock.calls[0][0];
     // Page 1 becomes empty after removing "b", should be filtered out
     expect(payload.update.pages).toEqual([["a", "b"]]);
-
   });
 });

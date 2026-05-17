@@ -16,6 +16,13 @@ describe("mediaThumbUrl", () => {
     const url = mediaThumbUrl("photo.jpg", "aid-1", 800);
     expect(url).toBe("/api/v1/albums/aid-1/media/photo.jpg?w=800");
   });
+
+  it("adds an optional cache key after the thumbnail width", () => {
+    const url = mediaThumbUrl("photo.jpg", "aid-1", 200, "2026-05-13T12:34:56Z");
+    expect(url).toBe(
+      "/api/v1/albums/aid-1/media/photo.jpg?w=200&d=2026-05-13T12%3A34%3A56Z",
+    );
+  });
 });
 
 describe("flagUrl", () => {

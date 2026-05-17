@@ -16,11 +16,16 @@ from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
-from app.logic.layout.media import Media
 from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
 from app.logic.segment_routes import enqueue_album_route_enrichment
 from app.logic.spatial.geo import total_length_km
-from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
+from app.logic.step_media import (
+    read_step_with_media,
+    read_steps_with_media,
+    replace_step_media_layout,
+)
+from app.models.album import Album, AlbumMeta, AlbumUpdate, AlbumWithMedia, PrintBundle
+from app.models.album_media import AlbumMedia
 from app.models.segment import (
     BoundaryAdjust,
     Segment,
@@ -28,7 +33,7 @@ from app.models.segment import (
     SegmentOutline,
     split_segments,
 )
-from app.models.step import Step, StepUpdate
+from app.models.step import Step, StepMediaLayout, StepRead, StepUpdate
 
 from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
@@ -72,18 +77,20 @@ async def read_album(aid: str, album: AlbumDep) -> AlbumMeta:
 
 
 @router.get("/{aid}/media")
-async def read_media(aid: str, album: AlbumDep) -> list[Media]:
-    return album.media
+async def read_media(
+    aid: str, album: AlbumDep, session: SessionDep
+) -> list[AlbumMedia]:
+    result = await session.exec(
+        select(AlbumMedia)
+        .where(AlbumMedia.uid == album.uid, AlbumMedia.aid == aid)
+        .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
+    )
+    return list(result.all())
 
 
 @router.get("/{aid}/steps")
-async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[Step]:
-    result = await session.exec(
-        select(Step)
-        .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(col(Step.timestamp), col(Step.id))
-    )
-    return list(result.all())
+async def read_steps(aid: str, user: UserDep, session: SessionDep) -> list[StepRead]:
+    return await read_steps_with_media(session, user.id, aid)
 
 
 @router.get("/{aid}/segments")
@@ -137,9 +144,24 @@ async def update_step(
     update: StepUpdate,
     user: UserDep,
     session: SessionDep,
-) -> Step:
+) -> StepRead:
     step: Step = await session.get_one(Step, (user.id, aid, sid))
-    return await apply_update(session, step, update)
+    await apply_update(session, step, update)
+    return await read_step_with_media(session, user.id, aid, sid)
+
+
+@router.put("/{aid}/steps/{sid}/media-layout")
+async def update_step_media_layout(
+    aid: str,
+    sid: int,
+    layout: StepMediaLayout,
+    user: UserDep,
+    session: SessionDep,
+) -> StepRead:
+    try:
+        return await replace_step_media_layout(session, user.id, aid, sid, layout)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.patch("/{aid}/segments/adjust-boundary")
@@ -233,20 +255,24 @@ def _total_distance_km(segments: list[Segment]) -> float:
 async def read_print_bundle(
     aid: str, album: AlbumDep, user: UserDep, session: SessionDep
 ) -> PrintBundle:
-    steps_result = await session.exec(
-        select(Step)
-        .where(Step.uid == user.id, Step.aid == aid)
-        .order_by(col(Step.timestamp), col(Step.id))
+    media_result = await session.exec(
+        select(AlbumMedia)
+        .where(AlbumMedia.uid == user.id, AlbumMedia.aid == aid)
+        .order_by(col(AlbumMedia.created_at), col(AlbumMedia.name))
     )
     segments_result = await session.exec(
         select(Segment)
         .where(Segment.uid == user.id, Segment.aid == aid)
         .order_by(col(Segment.start_time))
     )
-    steps = list(steps_result.all())
+    media_rows = list(media_result.all())
+    steps = await read_steps_with_media(session, user.id, aid)
     segments = list(segments_result.all())
     return PrintBundle(
-        album=album,
+        album=AlbumWithMedia(
+            **album.model_dump(),
+            media=media_rows,
+        ),
         steps=steps,
         segments=segments,
         total_distance_km=_total_distance_km(segments),

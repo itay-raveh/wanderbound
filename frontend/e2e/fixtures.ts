@@ -69,7 +69,13 @@ async function mockDefaultSteps(page: Page) {
 }
 
 async function mockFocusData(page: Page) {
-  // PATCH for step updates (sendToUnused, setAsCover) - accept optimistically.
+  // Step updates used by focus shortcuts - accept optimistically.
+  await page.route(`${API}/albums/*/steps/*/media-layout`, (route) => {
+    if (route.request().method() === "PUT") {
+      return route.fulfill({ json: {} });
+    }
+    return route.fallback();
+  });
   await page.route(`${API}/albums/*/steps/*`, (route) => {
     if (route.request().method() === "PATCH") {
       return route.fulfill({ json: {} });

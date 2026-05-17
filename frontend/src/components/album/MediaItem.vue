@@ -2,6 +2,7 @@
 import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
+import { registerQualityBadge } from "@/composables/usePhotoQuality";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
@@ -68,16 +69,20 @@ watchEffect(() => {
 
 const stepId = inject(STEP_ID_KEY, null);
 const photoFocus = usePhotoFocus();
-const canFocus = computed(
-  () => props.focusable && !printMode && stepId != null,
-);
+const canSelect = computed(() => props.focusable && !printMode);
+const keyboardNavigable = computed(() => canSelect.value && stepId != null);
 const isFocused = computed(
-  () => canFocus.value && photoFocus.focusedPhotoId.value === props.media,
+  () => canSelect.value && photoFocus.focusedPhotoId.value === props.media,
 );
 
 function handleClick() {
-  if (!canFocus.value) return;
-  photoFocus.focus(stepId!, props.media);
+  if (!canSelect.value) return;
+  photoFocus.focus(stepId, props.media);
+}
+
+function focusForReplacement() {
+  handleClick();
+  rootRef.value?.focus();
 }
 
 function handleEnter() {
@@ -92,16 +97,14 @@ function handleSpace() {
 
 const isVideo = computed(() => checkVideo(props.media));
 
-// Dimensions string from the media query. Changes after upgrade (new file has
-// different resolution), which busts the immutable-cache URLs.
-const mediaDims = computed(() => {
+const mediaCacheKey = computed(() => {
   const m = mediaByName.value.get(props.media);
-  return m ? `${m.width}x${m.height}` : undefined;
+  return m ? encodeURIComponent(m.updated_at!) : undefined;
 });
 
 const src = computed(() => {
   const base = mediaUrl(props.media, albumId.value);
-  return mediaDims.value ? `${base}?d=${mediaDims.value}` : base;
+  return mediaCacheKey.value ? `${base}?d=${mediaCacheKey.value}` : base;
 });
 
 const posterCacheBust = ref<number>();
@@ -109,7 +112,7 @@ const posterSrc = computed(() => {
   if (!isVideo.value) return "";
   const base = mediaUrl(posterPath(props.media), albumId.value);
   const params: string[] = [];
-  if (mediaDims.value) params.push(`d=${mediaDims.value}`);
+  if (mediaCacheKey.value) params.push(`d=${mediaCacheKey.value}`);
   if (posterCacheBust.value != null) params.push(`v=${posterCacheBust.value}`);
   return params.length ? `${base}?${params.join("&")}` : base;
 });
@@ -119,7 +122,7 @@ const imgSrcset = computed(() => {
   const name = isVideo.value ? posterPath(props.media) : props.media;
   const base = mediaUrl(name, albumId.value);
   const extra: string[] = [];
-  if (mediaDims.value) extra.push(`d=${mediaDims.value}`);
+  if (mediaCacheKey.value) extra.push(`d=${mediaCacheKey.value}`);
   if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
   const suffix = extra.length ? `&${extra.join("&")}` : "";
   return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");
@@ -171,6 +174,20 @@ function scrub(delta: number) {
   videoRef.value.currentTime = Math.max(0, videoRef.value.currentTime + delta);
 }
 
+const qualityBadgeRef = ref<HTMLElement | null>(null);
+let unregisterBadge: (() => void) | null = null;
+watchEffect((onCleanup) => {
+  unregisterBadge?.();
+  unregisterBadge = null;
+  const el = qualityBadgeRef.value;
+  if (!el) return;
+  unregisterBadge = registerQualityBadge(el);
+  onCleanup(() => {
+    unregisterBadge?.();
+    unregisterBadge = null;
+  });
+});
+
 function onVideoKey(e: KeyboardEvent) {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -191,13 +208,13 @@ function onVideoKey(e: KeyboardEvent) {
     :class="['media-item', { focused: isFocused }]"
     class="relative-position overflow-hidden non-selectable"
     :data-media="media"
-    :tabindex="canFocus ? 0 : undefined"
-    :role="canFocus ? 'button' : undefined"
-    :aria-label="canFocus ? alt || t('album.selectPhoto') : undefined"
-    :aria-pressed="canFocus ? isFocused : undefined"
+    :tabindex="keyboardNavigable ? 0 : undefined"
+    :role="keyboardNavigable ? 'button' : undefined"
+    :aria-label="keyboardNavigable ? alt || t('album.selectPhoto') : undefined"
+    :aria-pressed="keyboardNavigable ? isFocused : undefined"
     @click="handleClick"
-    @keydown.enter.prevent="handleEnter"
-    @keydown.space.prevent="handleSpace"
+    @keydown.enter.self.prevent="keyboardNavigable && handleEnter()"
+    @keydown.space.self.prevent="keyboardNavigable && handleSpace()"
   >
     <template v-if="isVideo && !printMode">
       <img
@@ -266,20 +283,28 @@ function onVideoKey(e: KeyboardEvent) {
         decoding="async"
       />
     </template>
-    <div
+    <button
       v-if="!printMode && quality && quality.tier !== 'ok'"
+      ref="qualityBadgeRef"
+      type="button"
       :class="['quality-badge', quality.tier, 'flex', 'flex-center']"
+      :aria-label="t('externalMedia.replaceQuality')"
+      @click.stop="focusForReplacement"
     >
       <q-icon :name="matWarning" />
-      <q-tooltip>{{
-        t(
-          quality.tier === "warning"
-            ? "quality.warningTooltip"
-            : "quality.cautionTooltip",
-          { dpi: quality.dpi },
-        )
-      }}</q-tooltip>
-    </div>
+      <q-tooltip>
+        {{
+          t(
+            quality.tier === "warning"
+              ? "quality.warningTooltip"
+              : "quality.cautionTooltip",
+            { dpi: quality.dpi },
+          )
+        }}
+        <br />
+        {{ t("externalMedia.replaceQuality") }}
+      </q-tooltip>
+    </button>
   </div>
 </template>
 
@@ -428,9 +453,11 @@ function onVideoKey(e: KeyboardEvent) {
   right: var(--gap-md);
   width: var(--size);
   height: var(--size);
+  border: none;
   border-radius: 50%;
   pointer-events: auto;
   z-index: 2;
+  cursor: pointer;
   box-shadow: 0 0.125rem 0.5rem color-mix(in srgb, black 35%, transparent);
 
   &.caution {
@@ -444,6 +471,11 @@ function onVideoKey(e: KeyboardEvent) {
   :deep(.q-icon) {
     font-size: calc(var(--size) * 0.55);
     color: white;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid white;
+    outline-offset: 0.125rem;
   }
 }
 

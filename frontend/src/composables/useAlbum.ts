@@ -6,27 +6,27 @@ import {
   type InjectionKey,
   type Ref,
 } from "vue";
-import type { Media } from "@/client";
+import type { AlbumMedia } from "@/client";
 import type { MediaResolutionWarningPreset } from "@/utils/photoQuality";
 
 interface AlbumProvide {
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
-  media: ComputedRef<Media[]>;
+  media: ComputedRef<AlbumMedia[]>;
   tripStart: ComputedRef<string>;
   totalDays: ComputedRef<number>;
   mediaResolutionWarningPreset: ComputedRef<MediaResolutionWarningPreset>;
 }
 
 interface AlbumContext extends AlbumProvide {
-  mediaByName: ComputedRef<Map<string, Media>>;
+  mediaByName: ComputedRef<Map<string, AlbumMedia>>;
 }
 
 const KEY: InjectionKey<AlbumContext> = Symbol("album");
 
 export function provideAlbum(ctx: AlbumProvide): AlbumContext {
   const mediaByName = computed(() => {
-    const map = new Map<string, Media>();
+    const map = new Map<string, AlbumMedia>();
     for (const m of ctx.media.value) map.set(m.name, m);
     return map;
   });

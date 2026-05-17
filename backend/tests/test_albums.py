@@ -9,6 +9,7 @@ from app.models.segment import Segment, SegmentKind
 from .factories import (
     AID,
     insert_album,
+    insert_album_media,
     insert_segment,
     insert_step,
     make_points,
@@ -204,18 +205,67 @@ class TestUpdateStep:
         await insert_album(session, uid)
         await insert_step(session, uid)
 
-        new_pages = [["a.jpg", "b.jpg"], ["c.jpg"]]
         resp = await client.patch(
             f"/api/v1/albums/{AID}/steps/1",
-            json={"name": "New Name", "pages": new_pages, "unused": ["x.jpg"]},
+            json={"name": "New Name"},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "New Name"
-        assert data["pages"] == new_pages
-        assert data["unused"] == ["x.jpg"]
+        assert data["pages"] == [["photo1.jpg"]]
+        assert data["unused"] == ["photo2.jpg"]
         assert data["description"] == "A test step."
         assert data["cover"] is None
+
+    async def test_media_layout_update_rewrites_step_placements(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await insert_album(session, uid)
+        await insert_album_media(session, uid, name="a.jpg")
+        await insert_album_media(session, uid, name="b.jpg")
+        await insert_album_media(session, uid, name="c.jpg")
+        await insert_album_media(session, uid, name="cover.jpg")
+        await insert_album_media(session, uid, name="unused.jpg")
+        await insert_step(session, uid)
+        await session.commit()
+
+        resp = await client.put(
+            f"/api/v1/albums/{AID}/steps/1/media-layout",
+            json={
+                "cover": "cover.jpg",
+                "pages": [["a.jpg", "b.jpg"], ["c.jpg"]],
+                "unused": ["unused.jpg"],
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["cover"] == "cover.jpg"
+        assert data["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
+        assert data["unused"] == ["unused.jpg"]
+
+        get_resp = await client.get(f"/api/v1/albums/{AID}/steps")
+        assert get_resp.status_code == 200
+        assert get_resp.json()[0]["cover"] == "cover.jpg"
+        assert get_resp.json()[0]["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
+        assert get_resp.json()[0]["unused"] == ["unused.jpg"]
+
+    async def test_media_layout_update_rejects_missing_album_media(
+        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
+        await insert_album(session, uid)
+        await insert_step(session, uid)
+        await session.commit()
+
+        resp = await client.put(
+            f"/api/v1/albums/{AID}/steps/1/media-layout",
+            json={"cover": None, "pages": [["missing.jpg"]], "unused": []},
+        )
+
+        assert resp.status_code == 400
+        assert "missing.jpg" in resp.json()["detail"]
 
 
 class TestAdjustSegmentBoundary:
@@ -402,6 +452,10 @@ class TestPrintBundle:
         assert "total_distance_km" in data
         # Album should include media (full Album, not AlbumMeta)
         assert "media" in data["album"]
+        assert data["album"]["media"][0]["uid"] == uid
+        assert data["album"]["media"][0]["aid"] == AID
+        assert data["album"]["media"][0]["byte_size"] == 1234
+        assert "updated_at" in data["album"]["media"][0]
         assert len(data["steps"]) == 1
         assert len(data["segments"]) == 1
         assert isinstance(data["total_distance_km"], float)

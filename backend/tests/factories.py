@@ -15,9 +15,9 @@ import jwt as jwt_module
 from PIL import Image
 
 from app.core.config import get_settings
-from app.logic.layout.media import Media
 from app.logic.upload import TripMeta
 from app.models.album import Album
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -226,13 +226,37 @@ async def insert_album(
         front_cover_photo="photo1.jpg",
         back_cover_photo="photo2.jpg",
         colors={"nl": "#0000ff"},
-        media=[Media(name="photo1.jpg", width=1920, height=1080)],
         font="Assistant",
         body_font="Frank Ruhl Libre",
     )
     session.add(album)
     await session.flush()
     return album
+
+
+async def insert_album_media(
+    session: AsyncSession,
+    uid: int,
+    aid: str = AID,
+    name: str = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    ),
+    width: int = 1920,
+    height: int = 1080,
+) -> AlbumMedia:
+    media = AlbumMedia(
+        uid=uid,
+        aid=aid,
+        name=name,
+        kind="video" if name.endswith(".mp4") else "photo",
+        width=width,
+        height=height,
+        byte_size=1234,
+        upgrade_candidate=True,
+    )
+    session.add(media)
+    await session.flush()
+    return media
 
 
 async def insert_step(
@@ -242,22 +266,43 @@ async def insert_step(
     step_id: int = 1,
     timestamp: float = 1_700_000_000.0,
 ) -> Step:
+    for name in ("photo1.jpg", "photo2.jpg"):
+        if await session.get(AlbumMedia, (uid, aid, name)) is None:
+            await insert_album_media(session, uid, aid=aid, name=name)
     step = Step(
         uid=uid,
         aid=aid,
         id=step_id,
         name="Test Step",
         description="A test step.",
-        cover=None,
-        pages=[["photo1.jpg"]],
-        unused=["photo2.jpg"],
         timestamp=timestamp,
         timezone_id="Europe/Amsterdam",
         location=LOCATION,
         elevation=0,
         weather=WEATHER,
+        cover_media_name=None,
     )
     session.add(step)
+    await session.flush()
+    session.add(
+        StepPageMedia(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            page_index=0,
+            position_index=0,
+            media_name="photo1.jpg",
+        )
+    )
+    session.add(
+        StepUnusedMedia(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            position_index=0,
+            media_name="photo2.jpg",
+        )
+    )
     await session.flush()
     return step
 

@@ -10,6 +10,40 @@ function sseBody(events: object[]): string {
   return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
 }
 
+async function ensureExternalMediaOpen(page: Page) {
+  const toggle = page.getByRole("button", {
+    name: /Expand "External media"|Collapse "External media"/,
+  });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
+}
+
+async function expectUpgradeDone(page: Page, message: RegExp) {
+  await expect(page.locator(".media-panel .action-btn.done")).toHaveAttribute(
+    "aria-label",
+    message,
+    { timeout: 10_000 },
+  );
+}
+
+function upgradeMediaButton(page: Page) {
+  return page
+    .locator(".media-panel")
+    .getByRole("button", { name: "Upgrade Media" });
+}
+
+async function clickUpgradeMedia(page: Page) {
+  await ensureExternalMediaOpen(page);
+  const button = upgradeMediaButton(page);
+  await button.scrollIntoViewIfNeeded();
+  await expect(button).toBeVisible({ timeout: 15_000 });
+  await button.click();
+}
+
 /** Mock user with Google Photos already connected. */
 const connectedUser = {
   ...mockUser,
@@ -91,9 +125,8 @@ test.describe("Media Upgrade", () => {
   }) => {
     // Default mockUser has google_sub set, so button should appear
     await page.goto("/editor");
-    await expect(
-      page.getByRole("button", { name: "Upgrade Media" }),
-    ).toBeVisible({ timeout: 15_000 });
+    await ensureExternalMediaOpen(page);
+    await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
   });
 
   test("onboarding dialog shown on first upgrade", async ({
@@ -102,10 +135,9 @@ test.describe("Media Upgrade", () => {
     await setupUpgradeRoutes(page);
     await blockPopup(page);
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     // Onboarding dialog should appear since no localStorage key set
     await expect(page.getByText(/original quality/i)).toBeVisible({
@@ -141,14 +173,15 @@ test.describe("Media Upgrade", () => {
     );
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
     // Click upgrade
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     // Match summary dialog should appear
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Confirm upgrade
     const confirmBtn = page.getByRole("button", {
@@ -158,9 +191,7 @@ test.describe("Media Upgrade", () => {
     await confirmBtn.click();
 
     // Done state should show "Upgraded 2 files"
-    await expect(page.getByText(/upgraded 2 files/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 2 files/i);
   });
 
   test("partial failure shows count in done message", async ({
@@ -188,19 +219,18 @@ test.describe("Media Upgrade", () => {
     );
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     // Wait for match summary
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/2 files ready/i)).toBeVisible({
+      timeout: 10_000,
+    });
     await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
 
     // Partial failure: "Upgraded 1 of 2 files"
-    await expect(page.getByText(/upgraded 1 of 2/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 1 of 2/i);
   });
 
   test("disconnect option visible in dropdown when connected", async ({
@@ -212,6 +242,7 @@ test.describe("Media Upgrade", () => {
     );
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
     // Split-trigger chevron opens the dropdown menu
     const splitTrigger = page.getByRole("button", {
@@ -221,9 +252,9 @@ test.describe("Media Upgrade", () => {
     await splitTrigger.click();
 
     // Disconnect option should appear in the dropdown
-    await expect(
-      page.getByRole("button", { name: /disconnect/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: /disconnect/i })).toBeVisible(
+      { timeout: 5_000 },
+    );
   });
 
   // -- Cancel flows ----------------------------------------------------------
@@ -234,10 +265,10 @@ test.describe("Media Upgrade", () => {
     await setupUpgradeRoutes(page);
     await blockPopup(page);
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    const upgradeBtn = upgradeMediaButton(page);
+    await clickUpgradeMedia(page);
 
     // Onboarding dialog should appear
     await expect(page.getByText(/original quality/i)).toBeVisible({
@@ -263,10 +294,10 @@ test.describe("Media Upgrade", () => {
     await mockPopup(page);
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    const upgradeBtn = upgradeMediaButton(page);
+    await clickUpgradeMedia(page);
 
     // Match summary with "2 files ready"
     await expect(page.getByText(/2 files ready/i)).toBeVisible({
@@ -312,18 +343,19 @@ test.describe("Media Upgrade", () => {
     await mockPopup(page);
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    const upgradeBtn = upgradeMediaButton(page);
+    await clickUpgradeMedia(page);
 
     // Should enter picking phase with running button
-    const runningBtn = page.getByRole("button", {
-      name: /waiting for selection/i,
-    });
+    const runningBtn = page
+      .locator(".media-panel")
+      .getByRole("button", { name: /waiting for selection/i });
     await expect(runningBtn).toBeVisible({ timeout: 5_000 });
 
     // Click running button to cancel
+    await runningBtn.scrollIntoViewIfNeeded();
     await runningBtn.click();
 
     // Should return to idle
@@ -342,10 +374,9 @@ test.describe("Media Upgrade", () => {
     );
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     // Error state button appears with translated popup-blocked copy inside
     const errorBtn = page.getByRole("button", {
@@ -402,10 +433,9 @@ test.describe("Media Upgrade", () => {
     );
     await mockPopup(page);
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     const errorBtn = page.getByRole("button", {
       name: /upgrade failed\. try again/i,
@@ -458,9 +488,7 @@ test.describe("Media Upgrade", () => {
         matched: 1,
         already_upgraded: 0,
         unmatched: 1,
-        matches: [
-          { local_name: "cover.jpg", google_id: "gid-3", distance: 0 },
-        ],
+        matches: [{ local_name: "cover.jpg", google_id: "gid-3", distance: 0 }],
       },
     ];
 
@@ -498,10 +526,9 @@ test.describe("Media Upgrade", () => {
     await mockPopup(page);
 
     await page.goto("/editor");
+    await ensureExternalMediaOpen(page);
 
-    const upgradeBtn = page.getByRole("button", { name: "Upgrade Media" });
-    await expect(upgradeBtn).toBeVisible({ timeout: 15_000 });
-    await upgradeBtn.click();
+    await clickUpgradeMedia(page);
 
     // Round 1: summary shows "2 files ready to upgrade"
     await expect(page.getByText(/2 files ready/i)).toBeVisible({
@@ -520,8 +547,6 @@ test.describe("Media Upgrade", () => {
     await page.getByRole("button", { name: /upgrade 3 files/i }).click();
 
     // Done
-    await expect(page.getByText(/upgraded 3 files/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectUpgradeDone(page, /upgraded 3 files/i);
   });
 });

@@ -1,4 +1,4 @@
-import type { Segment, Step } from "@/client";
+import type { Segment, StepRead as Step } from "@/client";
 import { DEFAULT_COUNTRY_COLOR } from "../colors";
 import { mediaThumbUrl } from "@/utils/media";
 import "./map-segments.css";

@@ -1,4 +1,5 @@
-import type { Step, StepUpdate } from "@/client";
+import type { StepRead as Step } from "@/client";
+import type { StepMutationUpdate } from "@/queries/useStepMutation";
 import { ref, type InjectionKey, readonly } from "vue";
 import { coverUpdatePayload, unusedUpdatePayload } from "./useStepLayout";
 
@@ -16,7 +17,7 @@ let getSteps: () => Step[] = () => [];
 let mutateFn:
   | ((
       sid: number,
-      update: Partial<StepUpdate>,
+      update: StepMutationUpdate,
       focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
     ) => void)
   | null = null;
@@ -50,7 +51,7 @@ function init(config: {
   steps: () => Step[];
   mutate: (
     sid: number,
-    update: Partial<StepUpdate>,
+    update: StepMutationUpdate,
     focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
   ) => void;
   scrollToStep: (stepId: number) => void;
@@ -105,7 +106,7 @@ function scrollFocusedIntoView() {
   scrollRafId = requestAnimationFrame(tryScroll);
 }
 
-function focus(stepId: number, photoId: string) {
+function focus(stepId: number | null, photoId: string) {
   focusedStepId.value = stepId;
   focusedPhotoId.value = photoId;
 }

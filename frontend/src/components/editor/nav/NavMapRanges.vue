@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, Step } from "@/client";
+import type { DateRange, StepRead as Step } from "@/client";
 import { toQDate } from "@/utils/date";
 import {
   useDateRangePicker,

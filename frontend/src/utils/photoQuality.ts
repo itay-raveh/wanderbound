@@ -1,4 +1,4 @@
-import type { Media, Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import type { PageFraction } from "@/utils/photoLayout";
 import {
   PAGE_WIDTH_MM,
@@ -26,6 +26,8 @@ export interface PhotoQuality {
   tier: QualityTier;
   dpi: number;
 }
+
+type MediaDimensions = { width: number; height: number };
 
 const DPI_CAUTION_DEFAULT = 100;
 const DPI_WARNING_DEFAULT = 75;
@@ -74,7 +76,7 @@ export function dpiTier(
 export function mediaQuality(
   name: string,
   cell: PageFraction,
-  mediaByName: ReadonlyMap<string, Media>,
+  mediaByName: ReadonlyMap<string, MediaDimensions>,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
@@ -87,7 +89,7 @@ export function summarizeQuality(
   steps: readonly Step[],
   frontCover: string | undefined,
   backCover: string | undefined,
-  mediaByName: ReadonlyMap<string, Media>,
+  mediaByName: ReadonlyMap<string, MediaDimensions>,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): QualitySummary {
   const summary: QualitySummary = { caution: 0, warning: 0 };

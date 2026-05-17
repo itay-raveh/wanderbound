@@ -8,11 +8,10 @@ from sqlalchemy import String
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
-from app.logic.layout.media import Media, MediaName
-from app.models.google_photos import GoogleMediaId
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import CountryCode, HexColor
 from app.models.segment import Segment
-from app.models.step import Step
+from app.models.step import StepRead
 
 type DateRange = tuple[date, date]
 
@@ -76,29 +75,23 @@ class AlbumMeta(AlbumBase):
     colors: dict[CountryCode, HexColor] = Field(
         sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
     )
-    upgraded_media: dict[MediaName, GoogleMediaId] = Field(
-        default_factory=dict,
-        sa_column=Column(
-            PydanticJSON(dict[MediaName, GoogleMediaId]),
-            nullable=False,
-            server_default="{}",
-        ),
-    )
 
 
 class Album(AlbumMeta, table=True):
-    """Full DB row. Only adds media - no relationships."""
+    """Full DB row."""
 
-    media: list[Media] = Field(
-        default_factory=list,
-        sa_column=Column(PydanticJSON(list[Media]), nullable=False),
-    )
+
+class AlbumWithMedia(AlbumMeta):
+    media: list[AlbumMedia] = Field(default_factory=list)
 
 
 class PrintBundle(BaseModel):
     """Everything needed for PDF rendering in one response."""
 
-    album: Album
-    steps: list[Step]
+    album: AlbumWithMedia
+    steps: list[StepRead]
     segments: list[Segment]
     total_distance_km: float
+
+
+AlbumWithMedia.model_rebuild()

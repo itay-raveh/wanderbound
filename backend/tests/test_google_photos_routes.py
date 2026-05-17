@@ -7,6 +7,8 @@ E2E. The matching algorithm is covered in test_media_upgrade.py.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
@@ -20,13 +22,16 @@ from httpx_oauth.oauth2 import (
 from itsdangerous import URLSafeTimedSerializer
 
 from app.api.v1.deps import _get_http_clients
-from app.api.v1.routes.google_photos import _validate_match_names
+from app.api.v1.routes.google_photos import _validate_match_names, match_media
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.logic.media_upgrade.phash_matching import MatchResult
-from app.logic.media_upgrade.pipeline import _clear_caches
+from app.logic.media_upgrade.pipeline import MatchCompleted, _clear_caches
 from app.main import app
+from app.models.polarsteps import Location
+from app.models.step import StepRead
 from app.models.user import User
+from app.models.weather import Weather, WeatherData
 
 from .conftest import _mock_http_clients
 from .factories import (
@@ -153,6 +158,37 @@ class TestPickerSession:
         assert data["session_id"] == "session-abc"
         assert "picker" in data["picker_uri"]
 
+    async def test_create_session_passes_picker_item_limit(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        users_dir = get_settings().USERS_FOLDER
+        users_dir.mkdir(parents=True, exist_ok=True)
+
+        user_data = await sign_in_and_upload(client, users_dir, provider="google")
+        uid = user_data["id"]
+        await connect_google_photos(session, uid)
+
+        http = _pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        mock_picker = AsyncMock()
+        mock_picker.return_value.id = "session-abc"
+        mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
+
+        with patch(
+            "app.api.v1.routes.google_photos.create_picker_session",
+            mock_picker,
+        ):
+            resp = await client.post("/api/v1/google-photos/sessions?max_item_count=1")
+
+        assert resp.status_code == 200
+        mock_picker.assert_awaited_once_with(
+            http.gphotos_picker,
+            "fresh-token",
+            max_item_count=1,
+        )
+
 
 class TestValidateMatchNames:
     def test_accepts_valid_names(self) -> None:
@@ -174,6 +210,79 @@ class TestValidateMatchNames:
             _validate_match_names(matches, {"photo1.jpg"})
         assert exc_info.value.status_code == 422
         assert "evil.jpg" in str(exc_info.value.detail)
+
+
+class TestMatchMedia:
+    async def test_keeps_non_candidate_media_in_match_set(self) -> None:
+        user = User(
+            id=1,
+            first_name="Test",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            google_sub="sub",
+            google_photos_refresh_token="refresh-token",  # noqa: S106
+            google_photos_connected_at=datetime.now(UTC),
+        )
+        step = StepRead(
+            uid=1,
+            aid="trip-1",
+            id=7,
+            name="Step",
+            description="",
+            timestamp=1_700_000_000.0,
+            timezone_id="UTC",
+            location=Location(
+                name="Place", detail="", country_code="nl", lat=52.0, lon=4.0
+            ),
+            elevation=0,
+            weather=Weather(
+                day=WeatherData(temp=20.0, feels_like=18.0, icon="clear"),
+                night=None,
+            ),
+            cover=None,
+            pages=[["photo.jpg"]],
+            unused=[],
+        )
+        http = _mock_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        captured: dict[str, object] = {}
+
+        async def fake_run_matching(
+            *_args: object, **kwargs: object
+        ) -> AsyncIterator[MatchCompleted]:
+            captured.update(kwargs)
+            yield MatchCompleted(total_picked=0, matched=0, unmatched=0, matches=[])
+
+        class FakeLock:
+            async def __aenter__(self) -> bool:
+                return True
+
+            async def __aexit__(self, *_args: object) -> None:
+                return None
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
+                AsyncMock(return_value=([step], set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items",
+                AsyncMock(return_value=[]),
+            ),
+            patch("app.api.v1.routes.google_photos.run_matching", fake_run_matching),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=FakeLock(),
+            ),
+        ):
+            events = [event async for event in match_media("trip-1", user, http, "s1")]
+
+        assert isinstance(events[-1], MatchCompleted)
+        assert captured["media_by_step"] == {7: ["photo.jpg"]}
+        assert captured["upgrade_candidates"] == set()
 
 
 class TestOAuthCallback:

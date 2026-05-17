@@ -5,7 +5,7 @@ import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
-import type { Step, Segment } from "@/client";
+import type { Segment, StepRead as Step } from "@/client";
 
 // Set base URL for test API calls (MSW intercepts these).
 client.setConfig({ baseUrl: "http://localhost:8000" });

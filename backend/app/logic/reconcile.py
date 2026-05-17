@@ -19,6 +19,7 @@ from app.logic.trip_processing import (
     PhaseUpdate,
     ProcessingEvent,
     TripResults,
+    build_album_media_rows,
     build_segment_objects,
     build_step,
     count_segments,
@@ -33,8 +34,9 @@ from app.logic.trip_processing import (
     track_iter,
 )
 from app.models.album import Album
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import PSStep
-from app.models.step import Step
+from app.models.step import Step, StepRead
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -66,12 +68,12 @@ def _pick_cover(
 
 
 def _reconcile_step(
-    step: Step,
+    step: StepRead,
     ps_step: PSStep,
     disk_media: set[str],
     all_on_disk: set[str],
     media_by_name: dict[str, Media],
-) -> Step:
+) -> StepRead:
     """Update a single step's media references and metadata."""
     old_media: set[str] = set()
     for pg in step.pages:
@@ -102,7 +104,7 @@ def _reconcile_step(
 
 async def _probe_media(
     trip_dir: Path,
-    steps: list[Step],
+    steps: list[StepRead],
     known: dict[str, Media],
 ) -> list[Media]:
     """Probe dimensions for unknown media files, return full merged list."""
@@ -131,7 +133,7 @@ def _fix_album_covers(
     album: Album,
     all_on_disk: set[str],
     cover_name: str,
-    steps: list[Step],
+    steps: list[StepRead],
 ) -> None:
     """Ensure album cover photos reference files that exist on disk."""
     first_step_cover = next((s.cover for s in steps if s.cover), None)
@@ -151,7 +153,7 @@ async def _process_new_steps(  # noqa: PLR0913
     aid: str,
     new_ps_steps: list[PSStep],
     cover_name: str,
-    step_out: list[Step],
+    step_out: list[StepRead],
 ) -> AsyncIterator[PhaseUpdate]:
     """Run full processing (elevations, weather, layouts) for new steps."""
     logger.info(
@@ -197,12 +199,68 @@ async def _process_new_steps(  # noqa: PLR0913
     results = await runner
     weathers = [results.weather_by_idx[i] for i in range(n_new)]
     layouts_list = [results.layout_by_idx[i] for i in range(n_new)]
-    step_out.extend(
-        build_step(user.id, aid, ps, elev, wthr, layout)
-        for ps, elev, wthr, layout in zip(
-            new_ps_steps, results.elevations, weathers, layouts_list, strict=True
+    for ps, elev, wthr, layout in zip(
+        new_ps_steps, results.elevations, weathers, layouts_list, strict=True
+    ):
+        step = build_step(user.id, aid, ps, elev, wthr, layout)
+        step_out.append(
+            StepRead(
+                uid=step.uid,
+                aid=step.aid,
+                id=step.id,
+                name=step.name,
+                description=step.description,
+                timestamp=step.timestamp,
+                timezone_id=step.timezone_id,
+                location=step.location,
+                elevation=step.elevation,
+                weather=step.weather,
+                cover=step.cover_media_name,
+                pages=layout.pages if layout else [],
+                unused=[],
+            )
         )
+
+
+def _step_read_to_rows(step: StepRead) -> list[DbRow]:
+    rows: list[DbRow] = [
+        Step(
+            uid=step.uid,
+            aid=step.aid,
+            id=step.id,
+            name=step.name,
+            description=step.description,
+            timestamp=step.timestamp,
+            timezone_id=step.timezone_id,
+            location=step.location,
+            elevation=step.elevation,
+            weather=step.weather,
+            cover_media_name=step.cover,
+        )
+    ]
+    rows.extend(
+        StepPageMedia(
+            uid=step.uid,
+            aid=step.aid,
+            step_id=step.id,
+            page_index=page_index,
+            position_index=position_index,
+            media_name=media_name,
+        )
+        for page_index, page in enumerate(step.pages)
+        for position_index, media_name in enumerate(page)
     )
+    rows.extend(
+        StepUnusedMedia(
+            uid=step.uid,
+            aid=step.aid,
+            step_id=step.id,
+            position_index=position_index,
+            media_name=media_name,
+        )
+        for position_index, media_name in enumerate(step.unused)
+    )
+    return rows
 
 
 async def reconcile_trip(  # noqa: PLR0913
@@ -210,8 +268,9 @@ async def reconcile_trip(  # noqa: PLR0913
     user: User,
     trip_dir: Path,
     album: Album,
-    existing_steps: list[Step],
+    existing_steps: list[StepRead],
     db_out: list[DbRow],
+    existing_media_rows: list[AlbumMedia] | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     """Reconcile an existing album with re-uploaded data.
 
@@ -244,7 +303,7 @@ async def reconcile_trip(  # noqa: PLR0913
     db_by_step_id = {s.id: s for s in existing_steps}
     new_ps_steps = [ps for ps in trip.all_steps if ps.id not in db_by_step_id]
 
-    new_step_objects: list[Step] = []
+    new_step_objects: list[StepRead] = []
     if new_ps_steps:
         async for event in _process_new_steps(
             http, user, aid, new_ps_steps, cover_name, new_step_objects
@@ -252,12 +311,17 @@ async def reconcile_trip(  # noqa: PLR0913
             yield event
 
     # Phase 4: Reconcile existing steps
+    if existing_media_rows is None:
+        existing_media_rows = []
     all_on_disk = {
         normalize_name(f.name)
         for f in trip_dir.iterdir()  # noqa: ASYNC240
         if f.is_file()
     }
-    media_by_name: dict[str, Media] = {m.name: m for m in album.media}
+    media_by_name: dict[str, Media] = {
+        row.name: Media(name=row.name, width=row.width, height=row.height)
+        for row in existing_media_rows
+    }
     reconciled_steps = [
         _reconcile_step(
             db_by_step_id[ps.id],
@@ -272,10 +336,18 @@ async def reconcile_trip(  # noqa: PLR0913
 
     # Phase 5: Probe media dimensions for any new/unknown files
     known_media: dict[str, Media] = {
-        m.name: m for m in album.media if m.name in all_on_disk
+        row.name: Media(name=row.name, width=row.width, height=row.height)
+        for row in existing_media_rows
+        if row.name in all_on_disk
     }
-    album.media = await _probe_media(
-        trip_dir, [*new_step_objects, *reconciled_steps], known_media
+    album_media = build_album_media_rows(
+        user.id,
+        aid,
+        trip_dir,
+        await _probe_media(
+            trip_dir, [*new_step_objects, *reconciled_steps], known_media
+        ),
+        {row.name: row.upgrade_candidate for row in existing_media_rows},
     )
 
     _fix_album_covers(album, all_on_disk, cover_name, reconciled_steps)
@@ -300,5 +372,7 @@ async def reconcile_trip(  # noqa: PLR0913
     album.maps_ranges = multi_day_hike_ranges(segments)
 
     db_out.append(album)
-    db_out.extend(all_steps)
+    db_out.extend(album_media)
+    for step in all_steps:
+        db_out.extend(_step_read_to_rows(step))
     db_out.extend(segments)

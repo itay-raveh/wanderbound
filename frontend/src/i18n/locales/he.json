@@ -98,7 +98,7 @@
     "bodyFont": "גופן גוף",
     "properties": "מאפיינים",
     "safeMargin": "שוליים בטוחים",
-    "resolutionWarnings": "אזהרות רזולוציה",
+    "photoQuality": "איכות תמונה",
     "resolutionWarningsOff": "כבוי",
     "resolutionWarningsRelaxed": "רגוע",
     "resolutionWarningsPrint": "דפוס",
@@ -163,6 +163,75 @@
   },
   "inspector": {
     "overview": "סיכום"
+  },
+  "externalMedia": {
+    "section": "מדיה חיצונית",
+    "replaceQuality": "החלפה באיכות טובה יותר",
+    "google": {
+      "title": "Google Photos",
+      "connected": "מחובר ומוכן לשדרוגים או להחלפות.",
+      "disconnected": "זמין אחרי חיבור Google Photos.",
+      "unavailable": "לא זמין לחשבון הזה."
+    },
+    "quality": {
+      "allGood": "כרגע אין אזהרות איכות לתמונות.",
+      "needsAttention": "עדיין יש {warning} תמונות באיכות נמוכה ו-{caution} באיכות בינונית שדורשות תשומת לב.",
+      "warningChip": "{count} מתחת לאיכות הדפסה",
+      "cautionChip": "{count} על הסף לדפוס",
+      "allClear": "הכל תקין",
+      "jumpToNext": "מעבר לאזהרת האיכות הבאה",
+      "jumpAnnounce": "אזהרת איכות {index} מתוך {total}"
+    },
+    "targets": {
+      "stepUnused": "ייבוא ל-Step {stepId} ללא שימוש",
+      "coverCandidates": "ייבוא למועמדי השער",
+      "mapUnavailable": "בחרו צעד או שער כדי להוסיף תמונות.",
+      "overviewUnavailable": "בחרו צעד או שער כדי להוסיף תמונות.",
+      "none": "בחרו צעד או שער כדי להוסיף תמונות."
+    },
+    "import": {
+      "label": "יעד הייבוא",
+      "action": "ייבוא מדיה חיצונית",
+      "moreOptions": "אפשרויות ייבוא נוספות",
+      "shortAction": "ייבוא",
+      "toTarget": "ייבוא ל{target}",
+      "toCover": "ייבוא לשער",
+      "unnamedStep": "צעד זה"
+    },
+    "replace": {
+      "label": "מדיה נבחרת",
+      "action": "החלפת המדיה הנבחרת",
+      "shortAction": "החלפה",
+      "noneSelected": "לא נבחרה מדיה",
+      "noSelection": "בחרו קודם תמונה או וידאו.",
+      "invalid": "אי אפשר להחיל את ההחלפה הזאת.",
+      "error": "ההחלפה נכשלה. נסו שוב."
+    },
+    "review": {
+      "title": "בדיקת החלפה",
+      "body": "הפעולה תחליף את המדיה הזאת בכל מקום שבו היא מופיעה באלבום.",
+      "current": "המדיה הנוכחית",
+      "replacement": "ההחלפה",
+      "confirm": "החלפה בכל המקומות",
+      "errors": {
+        "previewFailed": "לא הצלחנו לקרוא את תצוגת הקובץ שנבחר.",
+        "typeMismatch": "תמונה יכולה להחליף רק תמונה, ווידאו יכול להחליף רק ווידאו."
+      },
+      "warnings": {
+        "lowerResolution": "להחלפה יש רזולוציה נמוכה יותר מהמדיה הנוכחית.",
+        "aspectRatio": "יחס הממדים של ההחלפה שונה בצורה מורגשת.",
+        "orientation": "ההחלפה מחליפה בין פורטרט ללנדסקייפ."
+      }
+    },
+    "undo": {
+      "label": "ביטול מהיר",
+      "action": "ביטול",
+      "shortAction": "ביטול",
+      "toast": "המדיה הוחלפה. אפשר לבטל במשך 5 דקות.",
+      "justReplacedAnnounce": "המדיה הוחלפה. הביטול זמין.",
+      "done": "ההחלפה בוטלה.",
+      "failed": "הביטול נכשל. נסו שוב."
+    }
   },
   "mediaImport": {
     "addMedia": "הוספת מדיה",
@@ -301,7 +370,9 @@
       "selectionTimeout": "הבחירה פגה.",
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
-      "authTimeout": "ההרשאה פגה."
+      "authTimeout": "ההרשאה פגה.",
+      "tooManySelectionRounds": "נבחרו יותר מדי סבבי בחירה מ-Google Photos.",
+      "tooManyMatches": "נבחרו יותר מדי קבצים תואמים."
     },
     "options": "אפשרויות שדרוג",
     "disconnect": "ניתוק Google Photos",

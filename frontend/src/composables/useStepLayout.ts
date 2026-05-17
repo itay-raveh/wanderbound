@@ -1,10 +1,14 @@
-import type { Step, StepUpdate } from "@/client";
+import type { StepRead as Step } from "@/client";
+import type { StepMutationUpdate } from "@/queries/useStepMutation";
 import { useDragState } from "./useDragState";
 import { usePrintMode } from "./usePrintReady";
 import { inject, provide, ref, watch, type InjectionKey, type Ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
 
-type StepMutateFn = (payload: { sid: number; update: StepUpdate }) => void;
+type StepMutateFn = (payload: {
+  sid: number;
+  update: StepMutationUpdate;
+}) => void;
 
 const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 
@@ -22,7 +26,7 @@ function stripPhotos(step: Step, photoSet: Set<string>) {
 export function coverUpdatePayload(
   step: Step,
   newCover: string,
-): Partial<StepUpdate> {
+): StepMutationUpdate {
   const { pages, unused } = stripPhotos(step, new Set([newCover]));
   return {
     cover: newCover,
@@ -35,7 +39,7 @@ export function coverUpdatePayload(
 export function unusedUpdatePayload(
   step: Step,
   nextUnused: string[],
-): Partial<StepUpdate> {
+): StepMutationUpdate {
   const existing = new Set(step.unused);
   const added = nextUnused.filter((p) => !existing.has(p));
   if (added.length > 0) {
@@ -68,7 +72,7 @@ export function useStepLayout(
   const dropZoneList = ref<string[]>([]);
   const coverDropList = ref<string[]>([]);
 
-  function saveField(patch: Partial<StepUpdate>) {
+  function saveField(patch: StepMutationUpdate) {
     mutate?.({ sid: step.value.id, update: patch });
   }
 

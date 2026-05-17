@@ -1,5 +1,21 @@
 import { test, expect } from "./fixtures";
 
+async function ensureExternalMediaOpen(
+  page: import("@playwright/test").Page,
+) {
+  const importButton = page.getByRole("button", {
+    name: "Import external media",
+  });
+  const toggle = page.getByRole("button", { name: /External media/ });
+  if (!(await importButton.isVisible())) {
+    await toggle.click();
+  }
+  if (!(await importButton.isVisible())) {
+    await toggle.click();
+  }
+  await expect(importButton).toBeVisible();
+}
+
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
     focusPage: page,
@@ -13,12 +29,14 @@ test.describe("Active step sync", () => {
     await nav.getByText("Argentina").click();
     await nav.locator('[data-nav-step="102"]').click();
     await expect(
-      page.getByLabel("Inspector").getByText("Unused"),
+      page
+        .getByLabel("Inspector")
+        .getByRole("region", { name: "Unused" }),
     ).toBeVisible();
 
     let importedStepId: string | null = null;
     await page.route(
-      "**/api/v1/albums/*/media-imports/device",
+      "**/api/v1/albums/*/external-media/add/device",
       async (route) => {
         const headers = {
           "access-control-allow-credentials": "true",
@@ -43,8 +61,8 @@ test.describe("Active step sync", () => {
     );
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Add media" }).click();
-    await page.getByRole("menuitem", { name: "Device" }).click();
+    await ensureExternalMediaOpen(page);
+    await page.getByRole("button", { name: "Import external media" }).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

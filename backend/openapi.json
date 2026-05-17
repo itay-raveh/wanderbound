@@ -724,7 +724,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Media"
+                    "$ref": "#/components/schemas/AlbumMedia"
                   },
                   "title": "Response Read Media"
                 }
@@ -770,7 +770,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Step"
+                    "$ref": "#/components/schemas/StepRead"
                   },
                   "title": "Response Read Steps"
                 }
@@ -943,7 +943,68 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Step"
+                  "$ref": "#/components/schemas/StepRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/steps/{sid}/media-layout": {
+      "put": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Update Step Media Layout",
+        "operationId": "update_step_media_layout",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepMediaLayout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepRead"
                 }
               }
             }
@@ -1155,13 +1216,13 @@
         }
       }
     },
-    "/api/v1/albums/{aid}/media-imports/device": {
+    "/api/v1/albums/{aid}/external-media/add/device": {
       "post": {
         "tags": [
-          "media-imports"
+          "external-media"
         ],
-        "summary": "Import Device Media",
-        "operationId": "import_device_media",
+        "summary": "Add Device",
+        "operationId": "add_device",
         "parameters": [
           {
             "name": "aid",
@@ -1178,7 +1239,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_import_device_media"
+                "$ref": "#/components/schemas/Body_add_device"
               }
             }
           }
@@ -1207,13 +1268,13 @@
         }
       }
     },
-    "/api/v1/albums/{aid}/media-imports/google/session": {
+    "/api/v1/albums/{aid}/external-media/replace/device": {
       "post": {
         "tags": [
-          "media-imports"
+          "external-media"
         ],
-        "summary": "Create Google Import Session",
-        "operationId": "create_google_import_session",
+        "summary": "Replace Device",
+        "operationId": "replace_device",
         "parameters": [
           {
             "name": "aid",
@@ -1225,13 +1286,23 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_replace_device"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PickerSessionResponse"
+                  "$ref": "#/components/schemas/AlbumMedia"
                 }
               }
             }
@@ -1249,13 +1320,65 @@
         }
       }
     },
-    "/api/v1/albums/{aid}/media-imports/google": {
+    "/api/v1/albums/{aid}/external-media/undo/{media_name}": {
       "post": {
         "tags": [
-          "media-imports"
+          "external-media"
         ],
-        "summary": "Import Google Media",
-        "operationId": "import_google_media",
+        "summary": "Undo Replacement",
+        "operationId": "undo_replacement",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "media_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Media Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/external-media/add/google": {
+      "post": {
+        "tags": [
+          "external-media"
+        ],
+        "summary": "Add Google Media",
+        "operationId": "add_google_media",
         "parameters": [
           {
             "name": "aid",
@@ -1323,7 +1446,59 @@
                       }
                     }
                   },
-                  "title": "Response 200 Import Google Media"
+                  "title": "Response 200 Add Google Media"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/external-media/replace/google": {
+      "post": {
+        "tags": [
+          "external-media"
+        ],
+        "summary": "Replace Google Media",
+        "operationId": "replace_google_media",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleReplaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMedia"
                 }
               }
             }
@@ -1562,6 +1737,25 @@
         ],
         "summary": "Create Session",
         "operationId": "create_session",
+        "parameters": [
+          {
+            "name": "max_item_count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Item Count"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1569,6 +1763,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PickerSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1870,127 +2074,64 @@
   },
   "components": {
     "schemas": {
-      "Album": {
+      "AlbumMedia": {
         "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Title"
-          },
-          "subtitle": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Subtitle"
-          },
-          "hidden_steps": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Hidden Steps"
-          },
-          "hidden_headers": {
-            "items": {
-              "type": "string",
-              "enum": [
-                "cover-front",
-                "cover-back",
-                "overview",
-                "full-map"
-              ]
-            },
-            "type": "array",
-            "title": "Hidden Headers"
-          },
-          "maps_ranges": {
-            "items": {
-              "$ref": "#/components/schemas/DateRange"
-            },
-            "type": "array",
-            "title": "Maps Ranges"
-          },
-          "front_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Front Cover Photo"
-          },
-          "back_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Back Cover Photo"
-          },
-          "font": {
-            "type": "string",
-            "title": "Font",
-            "default": "Assistant"
-          },
-          "body_font": {
-            "type": "string",
-            "title": "Body Font",
-            "default": "Frank Ruhl Libre"
-          },
-          "safe_margin_mm": {
-            "type": "integer",
-            "title": "Safe Margin Mm",
-            "default": 5
-          },
-          "media_resolution_warning_preset": {
-            "type": "string",
-            "enum": [
-              "off",
-              "relaxed",
-              "print"
-            ],
-            "title": "Media Resolution Warning Preset",
-            "default": "relaxed"
-          },
           "uid": {
             "type": "integer",
             "title": "Uid"
           },
-          "id": {
+          "aid": {
             "type": "string",
-            "title": "Id"
+            "title": "Aid"
           },
-          "colors": {
-            "patternProperties": {
-              "[a-zA-Z]{2}|00": {
-                "type": "string",
-                "pattern": "#[0-9a-fA-F]{6}"
-              }
-            },
-            "type": "object",
-            "title": "Colors"
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name"
           },
-          "upgraded_media": {
-            "patternProperties": {
-              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
-                "$ref": "#/components/schemas/GoogleMediaId"
-              }
-            },
-            "type": "object",
-            "title": "Upgraded Media"
+          "kind": {
+            "type": "string",
+            "title": "Kind"
           },
-          "media": {
-            "items": {
-              "$ref": "#/components/schemas/Media"
-            },
-            "type": "array",
-            "title": "Media"
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "upgrade_candidate": {
+            "type": "boolean",
+            "title": "Upgrade Candidate",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
           }
         },
         "type": "object",
         "required": [
-          "title",
-          "subtitle",
-          "front_cover_photo",
-          "back_cover_photo",
           "uid",
-          "id",
-          "colors"
+          "aid",
+          "name",
+          "kind",
+          "width",
+          "height",
+          "byte_size"
         ],
-        "title": "Album",
-        "description": "Full DB row. Only adds media - no relationships."
+        "title": "AlbumMedia"
       },
       "AlbumMeta": {
         "properties": {
@@ -2083,15 +2224,6 @@
             },
             "type": "object",
             "title": "Colors"
-          },
-          "upgraded_media": {
-            "patternProperties": {
-              "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$": {
-                "$ref": "#/components/schemas/GoogleMediaId"
-              }
-            },
-            "type": "object",
-            "title": "Upgraded Media"
           }
         },
         "type": "object",
@@ -2262,6 +2394,118 @@
         "type": "object",
         "title": "AlbumUpdate"
       },
+      "AlbumWithMedia": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Subtitle"
+          },
+          "hidden_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hidden Steps"
+          },
+          "hidden_headers": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "cover-front",
+                "cover-back",
+                "overview",
+                "full-map"
+              ]
+            },
+            "type": "array",
+            "title": "Hidden Headers"
+          },
+          "maps_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/DateRange"
+            },
+            "type": "array",
+            "title": "Maps Ranges"
+          },
+          "front_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Back Cover Photo"
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "Assistant"
+          },
+          "body_font": {
+            "type": "string",
+            "title": "Body Font",
+            "default": "Frank Ruhl Libre"
+          },
+          "safe_margin_mm": {
+            "type": "integer",
+            "title": "Safe Margin Mm",
+            "default": 5
+          },
+          "media_resolution_warning_preset": {
+            "type": "string",
+            "enum": [
+              "off",
+              "relaxed",
+              "print"
+            ],
+            "title": "Media Resolution Warning Preset",
+            "default": "relaxed"
+          },
+          "uid": {
+            "type": "integer",
+            "title": "Uid"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "colors": {
+            "patternProperties": {
+              "[a-zA-Z]{2}|00": {
+                "type": "string",
+                "pattern": "#[0-9a-fA-F]{6}"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumMedia"
+            },
+            "type": "array",
+            "title": "Media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "subtitle",
+          "front_cover_photo",
+          "back_cover_photo",
+          "uid",
+          "id",
+          "colors"
+        ],
+        "title": "AlbumWithMedia"
+      },
       "AuthState": {
         "properties": {
           "state": {
@@ -2312,7 +2556,7 @@
         ],
         "title": "AuthState"
       },
-      "Body_import_device_media": {
+      "Body_add_device": {
         "properties": {
           "context": {
             "type": "string",
@@ -2347,7 +2591,27 @@
           "context",
           "files"
         ],
-        "title": "Body_import_device_media"
+        "title": "Body_add_device"
+      },
+      "Body_replace_device": {
+        "properties": {
+          "media_name": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+            "title": "Media Name"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_name",
+          "file"
+        ],
+        "title": "Body_replace_device"
       },
       "Body_upload_data": {
         "properties": {
@@ -2561,6 +2825,24 @@
         "type": "string",
         "maxLength": 256,
         "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "GoogleReplaceRequest": {
+        "properties": {
+          "media_name": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+            "title": "Media Name"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/PickerSessionId"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_name",
+          "session_id"
+        ],
+        "title": "GoogleReplaceRequest"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2796,29 +3078,6 @@
         ],
         "title": "MatchResult"
       },
-      "Media": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "width": {
-            "type": "integer",
-            "title": "Width"
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "width",
-          "height"
-        ],
-        "title": "Media"
-      },
       "PdfDone": {
         "properties": {
           "type": {
@@ -2984,11 +3243,11 @@
       "PrintBundle": {
         "properties": {
           "album": {
-            "$ref": "#/components/schemas/Album"
+            "$ref": "#/components/schemas/AlbumWithMedia"
           },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/Step"
+              "$ref": "#/components/schemas/StepRead"
             },
             "type": "array",
             "title": "Steps"
@@ -3209,21 +3468,53 @@
         ],
         "title": "SessionStatusResponse"
       },
-      "Step": {
+      "StepMediaLayout": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
           "cover": {
             "anyOf": [
               {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover"
+          },
+          "pages": {
+            "items": {
+              "items": {
                 "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "unused": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cover",
+          "pages",
+          "unused"
+        ],
+        "title": "StepMediaLayout"
+      },
+      "StepRead": {
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
               },
               {
                 "type": "null"
@@ -3248,6 +3539,15 @@
             "type": "array",
             "title": "Unused"
           },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
           "uid": {
             "type": "integer",
             "title": "Uid"
@@ -3266,7 +3566,6 @@
           },
           "timezone_id": {
             "type": "string",
-            "maxLength": 255,
             "title": "Timezone Id"
           },
           "location": {
@@ -3288,10 +3587,11 @@
         },
         "type": "object",
         "required": [
-          "name",
-          "description",
+          "cover",
           "pages",
           "unused",
+          "name",
+          "description",
           "uid",
           "aid",
           "id",
@@ -3302,7 +3602,7 @@
           "weather",
           "datetime"
         ],
-        "title": "Step"
+        "title": "StepRead"
       },
       "StepUpdate": {
         "properties": {
@@ -3328,48 +3628,6 @@
               }
             ],
             "title": "Description"
-          },
-          "cover": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cover"
-          },
-          "pages": {
-            "anyOf": [
-              {
-                "items": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pages"
-          },
-          "unused": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unused"
           }
         },
         "type": "object",

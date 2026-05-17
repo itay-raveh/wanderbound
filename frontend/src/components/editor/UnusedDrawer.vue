@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../album/MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
@@ -54,7 +54,7 @@ useDraggable(trackRef, localUnused, {
 </script>
 
 <template>
-  <div class="unused-drawer">
+  <div class="unused-drawer" role="region" :aria-label="t('album.unused')">
     <div
       class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted"
     >

@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import type { AlbumMeta, Media, Step, SegmentOutline } from "@/client";
+import type {
+  AlbumMedia,
+  AlbumMeta,
+  SegmentOutline,
+  StepRead as Step,
+} from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";
@@ -70,7 +75,7 @@ const OverviewPage = defineAsyncComponent({
 
 const props = defineProps<{
   album: AlbumMeta;
-  media: Media[];
+  media: AlbumMedia[];
   steps: Step[];
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;

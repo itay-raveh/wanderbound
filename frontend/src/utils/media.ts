@@ -25,8 +25,10 @@ export function mediaThumbUrl(
   name: string,
   albumId: string,
   width: number = THUMB_WIDTHS[0],
+  cacheKey?: string,
 ): string {
-  return `${mediaUrl(posterPath(name), albumId)}?w=${width}`;
+  const suffix = cacheKey ? `&d=${encodeURIComponent(cacheKey)}` : "";
+  return `${mediaUrl(posterPath(name), albumId)}?w=${width}${suffix}`;
 }
 
 export function flagUrl(countryCode: string): string {

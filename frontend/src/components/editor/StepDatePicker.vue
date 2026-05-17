@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import { getCountryColor } from "../album/colors";
 import { isoDate, qDateNavBounds, toQDate } from "@/utils/date";
 import { QDate } from "quasar";

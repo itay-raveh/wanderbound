@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,8 +24,8 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
-from app.logic.layout.media import Media
 from app.models.album import Album
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment
 from app.models.step import Step
@@ -61,7 +62,6 @@ async def _insert_album(session: AsyncSession, uid: int, aid: str) -> Album:
         front_cover_photo="cover.jpg",
         back_cover_photo="back.jpg",
         colors={"NL": "#FF6B35"},
-        media=[Media(name="photo1.jpg", width=1920, height=1080)],
         font="Assistant",
         body_font="Frank Ruhl Libre",
     )
@@ -77,9 +77,7 @@ async def _insert_step(session: AsyncSession, uid: int, aid: str, sid: int) -> S
         id=sid,
         name="Step One",
         description="A test step",
-        cover="photo1.jpg",
-        pages=[["photo1.jpg"]],
-        unused=[],
+        cover_media_name="photo1.jpg",
         timestamp=1700000000.0,
         timezone_id="Europe/Amsterdam",
         location=_LOCATION,
@@ -197,6 +195,66 @@ class TestExportUserData:
             assert f"{_EXPORT_NAME}/account.json" in names
             assert len(names) == 1
 
+        path.unlink(missing_ok=True)
+
+    async def test_steps_json_includes_normalized_media_layout(
+        self, session: AsyncSession, tmp_path: Path
+    ) -> None:
+        uid = 7005
+        user = _make_user(uid, tmp_path)
+        trip_dir = user.trips_folder / "trip-1"
+        trip_dir.mkdir(parents=True)
+
+        await _insert_album(session, uid, "trip-1")
+        session.add_all(
+            [
+                AlbumMedia(
+                    uid=uid,
+                    aid="trip-1",
+                    name=name,
+                    kind="photo",
+                    width=640,
+                    height=480,
+                    byte_size=10,
+                    upgrade_candidate=True,
+                )
+                for name in ("photo1.jpg", "page.jpg", "unused.jpg")
+            ]
+        )
+        await _insert_step(session, uid, "trip-1", 1)
+        session.add(
+            StepPageMedia(
+                uid=uid,
+                aid="trip-1",
+                step_id=1,
+                page_index=0,
+                position_index=0,
+                media_name="page.jpg",
+            )
+        )
+        session.add(
+            StepUnusedMedia(
+                uid=uid,
+                aid="trip-1",
+                step_id=1,
+                position_index=0,
+                media_name="unused.jpg",
+            )
+        )
+        await session.flush()
+
+        events = await collect_async(export_user_data(user, session))
+        done = next(e for e in events if isinstance(e, ExportDone))
+        path = pop_export_token(done.token)
+        assert path is not None
+
+        with zipfile.ZipFile(path) as zf:
+            steps = json.loads(zf.read(f"{_EXPORT_NAME}/albums/trip-1/steps.json"))
+
+        assert steps[0]["cover"] == "photo1.jpg"
+        assert steps[0]["pages"] == [["page.jpg"]]
+        assert steps[0]["unused"] == ["unused.jpg"]
+        assert "cover_media_name" not in steps[0]
         path.unlink(missing_ok=True)
 
     async def test_error_on_zip_failure(

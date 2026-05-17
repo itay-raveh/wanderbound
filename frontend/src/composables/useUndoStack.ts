@@ -1,5 +1,6 @@
-import type { AlbumUpdate, StepUpdate } from "@/client";
+import type { AlbumUpdate } from "@/client";
 import type { PhotoFocusSnapshot } from "@/composables/usePhotoFocus";
+import type { StepMutationUpdate } from "@/queries/useStepMutation";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { ref } from "vue";
 
@@ -7,8 +8,8 @@ type UndoEntry =
   | {
       type: "step";
       sid: number;
-      before: StepUpdate;
-      after: StepUpdate;
+      before: StepMutationUpdate;
+      after: StepMutationUpdate;
       focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot };
     }
   | { type: "album"; before: AlbumUpdate; after: AlbumUpdate };
@@ -36,18 +37,19 @@ function syncFlags() {
   canRedo.value = redoEntries.length > 0;
 }
 
-let stepMutator: ((sid: number, update: StepUpdate) => void) | null = null;
+let stepMutator: ((sid: number, update: StepMutationUpdate) => void) | null =
+  null;
 let albumMutator: ((update: AlbumUpdate) => void) | null = null;
 
 function replay(
   entry: UndoEntry,
-  snapshot: StepUpdate | AlbumUpdate,
+  snapshot: StepMutationUpdate | AlbumUpdate,
   focus?: PhotoFocusSnapshot,
 ) {
   replaying = true;
   try {
     if (entry.type === "step") {
-      stepMutator?.(entry.sid, snapshot as StepUpdate);
+      stepMutator?.(entry.sid, snapshot as StepMutationUpdate);
       if (focus) usePhotoFocus().restore(focus);
     } else {
       albumMutator?.(snapshot as AlbumUpdate);
@@ -99,7 +101,7 @@ function clear() {
 }
 
 function registerMutators(
-  step: (sid: number, update: StepUpdate) => void,
+  step: (sid: number, update: StepMutationUpdate) => void,
   album: (update: AlbumUpdate) => void,
 ) {
   stepMutator = step;

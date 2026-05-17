@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { SegmentOutline, Step } from "@/client";
+import type { SegmentOutline, StepRead as Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
 import { usePrintMode } from "@/composables/usePrintReady";
@@ -41,6 +41,7 @@ const { map, fitBounds } = useMapbox({
   locale,
   onReady: draw,
   preserveDrawingBuffer: printMode,
+  deferInit: !printMode,
 });
 
 function draw(m: Map) {

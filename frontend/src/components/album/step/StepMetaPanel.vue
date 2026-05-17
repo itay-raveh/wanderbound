@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Step } from "@/client";
+import type { StepRead as Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";

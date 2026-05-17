@@ -98,7 +98,7 @@
     "bodyFont": "Body font",
     "properties": "Properties",
     "safeMargin": "Safe margin",
-    "resolutionWarnings": "Resolution warnings",
+    "photoQuality": "Photo quality",
     "resolutionWarningsOff": "Off",
     "resolutionWarningsRelaxed": "Relaxed",
     "resolutionWarningsPrint": "Print",
@@ -163,6 +163,75 @@
   },
   "inspector": {
     "overview": "Overview"
+  },
+  "externalMedia": {
+    "section": "External media",
+    "replaceQuality": "Replace with better quality",
+    "google": {
+      "title": "Google Photos",
+      "connected": "Connected and ready for upgrades or replacements.",
+      "disconnected": "Available after you connect Google Photos.",
+      "unavailable": "Not available for this account."
+    },
+    "quality": {
+      "allGood": "No photo quality warnings right now.",
+      "needsAttention": "{warning} low-quality and {caution} medium-quality photos still need attention.",
+      "warningChip": "{count} below print quality",
+      "cautionChip": "{count} borderline for print",
+      "allClear": "All clear",
+      "jumpToNext": "Jump to next quality warning",
+      "jumpAnnounce": "Quality warning {index} of {total}"
+    },
+    "targets": {
+      "stepUnused": "Import to Step {stepId} unused",
+      "coverCandidates": "Import to cover candidates",
+      "mapUnavailable": "Select a step or cover to add photos.",
+      "overviewUnavailable": "Select a step or cover to add photos.",
+      "none": "Select a step or cover to add photos."
+    },
+    "import": {
+      "label": "Import target",
+      "action": "Import external media",
+      "moreOptions": "More import options",
+      "shortAction": "Import",
+      "toTarget": "Import to {target}",
+      "toCover": "Import to Cover",
+      "unnamedStep": "this step"
+    },
+    "replace": {
+      "label": "Selected media",
+      "action": "Replace selected media",
+      "shortAction": "Replace",
+      "noneSelected": "No media selected",
+      "noSelection": "Select a photo or video first.",
+      "invalid": "This replacement could not be applied.",
+      "error": "Replacement failed. Try again."
+    },
+    "review": {
+      "title": "Review replacement",
+      "body": "This will replace this media everywhere it appears in the album.",
+      "current": "Current media",
+      "replacement": "Replacement",
+      "confirm": "Replace everywhere",
+      "errors": {
+        "previewFailed": "Couldn't read the selected file preview.",
+        "typeMismatch": "A photo can only replace a photo, and a video can only replace a video."
+      },
+      "warnings": {
+        "lowerResolution": "The replacement has lower resolution than the current media.",
+        "aspectRatio": "The replacement aspect ratio is noticeably different.",
+        "orientation": "The replacement flips between portrait and landscape."
+      }
+    },
+    "undo": {
+      "label": "Quick undo",
+      "action": "Undo",
+      "shortAction": "Undo",
+      "toast": "Media replaced. Undo is available for 5 minutes.",
+      "justReplacedAnnounce": "Media replaced. Undo is available.",
+      "done": "Replacement undone.",
+      "failed": "Undo failed. Try again."
+    }
   },
   "mediaImport": {
     "addMedia": "Add media",
@@ -301,7 +370,9 @@
       "selectionTimeout": "Selection timed out.",
       "connectionLost": "Connection lost during upgrade.",
       "authCancelled": "Authorization cancelled.",
-      "authTimeout": "Authorization timed out."
+      "authTimeout": "Authorization timed out.",
+      "tooManySelectionRounds": "Too many Google Photos selection rounds.",
+      "tooManyMatches": "Too many matched files selected."
     },
     "options": "Upgrade options",
     "disconnect": "Disconnect Google Photos",

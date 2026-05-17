@@ -11,7 +11,7 @@ import {
   type UpgradeFailed,
 } from "@/client";
 import { useGooglePhotos } from "./useGooglePhotos";
-import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
+import { UPGRADE_ERRORS, type UpgradeErrorKey } from "@/utils/upgradeErrors";
 import {
   createMatchAccumulator,
   type MatchRound,
@@ -21,6 +21,10 @@ import { useQueryCache } from "@pinia/colada";
 import { queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
 import { sleep } from "@/utils/async";
+import {
+  GOOGLE_UPGRADE_MAX_MATCHES,
+  GOOGLE_UPGRADE_MAX_SESSION_IDS,
+} from "@/utils/externalMediaLimits";
 
 type UpgradePhase =
   | "idle"
@@ -53,10 +57,32 @@ type MatchEvent =
 
 type ConfirmAction = "confirm" | "selectMore";
 
+export function hasReachedGoogleUpgradeSessionLimit(
+  sessionIds: readonly unknown[],
+): boolean {
+  return sessionIds.length >= GOOGLE_UPGRADE_MAX_SESSION_IDS;
+}
+
+export function googleUpgradeRequestLimitError(
+  sessionIds: readonly unknown[],
+  matches: readonly unknown[],
+): UpgradeErrorKey | null {
+  if (sessionIds.length > GOOGLE_UPGRADE_MAX_SESSION_IDS) {
+    return UPGRADE_ERRORS.tooManySelectionRounds;
+  }
+  if (matches.length > GOOGLE_UPGRADE_MAX_MATCHES) {
+    return UPGRADE_ERRORS.tooManyMatches;
+  }
+  return null;
+}
+
 export function useMediaUpgrade() {
   const gp = useGooglePhotos();
   const cache = useQueryCache();
-  const onboarded = useLocalStorage<boolean>(MEDIA_UPGRADE_ONBOARDED_KEY, false);
+  const onboarded = useLocalStorage<boolean>(
+    MEDIA_UPGRADE_ONBOARDED_KEY,
+    false,
+  );
 
   const phase = ref<UpgradePhase>("idle");
   const progress = ref<UpgradeProgress>({ done: 0, total: 0 });
@@ -86,8 +112,12 @@ export function useMediaUpgrade() {
   function openPopup(): Window {
     const width = Math.min(screen.availWidth - 100, 1200);
     const height = Math.min(screen.availHeight - 100, 900);
-    const left = ((screen as { availLeft?: number }).availLeft ?? 0) + (screen.availWidth - width) / 2;
-    const top = ((screen as { availTop?: number }).availTop ?? 0) + (screen.availHeight - height) / 2;
+    const left =
+      ((screen as { availLeft?: number }).availLeft ?? 0) +
+      (screen.availWidth - width) / 2;
+    const top =
+      ((screen as { availTop?: number }).availTop ?? 0) +
+      (screen.availHeight - height) / 2;
     const popup = window.open(
       "about:blank",
       "google-photos",
@@ -102,7 +132,11 @@ export function useMediaUpgrade() {
   }
 
   async function start(albumId: string) {
-    if (phase.value !== "idle" && phase.value !== "done" && phase.value !== "error")
+    if (
+      phase.value !== "idle" &&
+      phase.value !== "done" &&
+      phase.value !== "error"
+    )
       return;
 
     if (resetTimer !== null) {
@@ -148,7 +182,11 @@ export function useMediaUpgrade() {
         phase.value = "preparing";
         progress.value = { done: 0, total: 0 };
 
-        const roundSummary = await runMatchStream(albumId, currentSessionId, signal);
+        const roundSummary = await runMatchStream(
+          albumId,
+          currentSessionId,
+          signal,
+        );
         if (signal.aborted) return;
 
         const newThisRound = roundSummary ? accumulator.merge(roundSummary) : 0;
@@ -157,6 +195,9 @@ export function useMediaUpgrade() {
         const action = await waitForConfirmation(signal);
         if (signal.aborted) return;
         if (action === "confirm") break;
+        if (hasReachedGoogleUpgradeSessionLimit(sessionIds)) {
+          throw new Error(UPGRADE_ERRORS.tooManySelectionRounds);
+        }
 
         // "Select More": new session, popup was opened by selectMore()
         const next = await gp.createPickerSession();
@@ -172,21 +213,30 @@ export function useMediaUpgrade() {
       }
 
       // Step 7: Upgrade
-      const toUpgrade = matchSummary.value.matched - matchSummary.value.alreadyUpgraded;
+      const toUpgrade =
+        matchSummary.value.matched - matchSummary.value.alreadyUpgraded;
       phase.value = "downloading";
       progress.value = { done: 0, total: toUpgrade };
       await runUpgradeStream(albumId, signal);
       if (signal.aborted) return;
 
       phase.value = "done";
-      await cache.invalidateQueries({ key: queryKeys.album(albumId) });
+      await Promise.all(
+        mediaUpgradeInvalidationKeys(albumId).map((key) =>
+          cache.invalidateQueries({ key, exact: true }),
+        ),
+      );
       scheduleDoneReset();
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       phase.value = "error";
       errorDetail.value = (err as Error).message;
     } finally {
-      try { activePopup?.close(); } catch { /* COOP may block */ }
+      try {
+        activePopup?.close();
+      } catch {
+        /* COOP may block */
+      }
       activePopup = null;
       for (const sid of sessionIds) {
         gp.closeSession(sid).catch(() => {});
@@ -210,6 +260,10 @@ export function useMediaUpgrade() {
   }
 
   function selectMore() {
+    if (hasReachedGoogleUpgradeSessionLimit(sessionIds)) {
+      confirmReject?.(new Error(UPGRADE_ERRORS.tooManySelectionRounds));
+      return;
+    }
     try {
       activePopup = openPopup();
     } catch {
@@ -222,7 +276,11 @@ export function useMediaUpgrade() {
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
-    try { activePopup?.close(); } catch { /* COOP may block */ }
+    try {
+      activePopup?.close();
+    } catch {
+      /* COOP may block */
+    }
     for (const sid of sessionIds) {
       gp.closeSession(sid).catch(() => {});
     }
@@ -312,6 +370,12 @@ export function useMediaUpgrade() {
     albumId: string,
     signal: AbortSignal,
   ): Promise<void> {
+    const limitError = googleUpgradeRequestLimitError(
+      sessionIds,
+      accumulator.matches,
+    );
+    if (limitError) throw new Error(limitError);
+
     const { stream } = await upgradeMedia({
       path: { aid: albumId },
       body: {
@@ -387,4 +451,12 @@ export function useMediaUpgrade() {
     selectMore,
     cancel,
   };
+}
+
+export function mediaUpgradeInvalidationKeys(aid: string) {
+  return [
+    queryKeys.album(aid),
+    queryKeys.media(aid),
+    queryKeys.printBundle(aid),
+  ];
 }
