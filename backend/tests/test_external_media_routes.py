@@ -1,158 +1,41 @@
 from __future__ import annotations
 
-import io
-from collections.abc import AsyncIterator, Callable
 from inspect import signature
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
-from httpx_oauth.oauth2 import OAuth2Token
-from PIL import Image
-
-from app.api.v1.deps import _get_http_clients
 from app.api.v1.routes.external_media import add_google_media
-from app.core.http_clients import HttpClients
-from app.main import app
 from app.models.album_media import AlbumMedia, StepUnusedMedia
-from app.models.google_photos import GoogleMediaFile, PickedMediaItem
 from app.models.user import User
 
-from .conftest import _mock_http_clients
 from .factories import (
     AID,
     DEFAULT_MEDIA_NAME,
     MISSING_MEDIA_NAME,
-    AlbumMediaScenario,
-    connect_google_photos,
-    sign_in_with_album_media,
 )
+from .helpers.external_media import (
+    AlbumMediaFactory,
+    ExternalMediaRoutes,
+    download_guard,
+    jpeg_bytes,
+)
+from .helpers.google_photos import picked_item
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient, Response
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-
-def _jpeg_bytes(width: int = 640, height: int = 480) -> bytes:
-    buf = io.BytesIO()
-    Image.new("RGB", (width, height), color="red").save(buf, "JPEG")
-    return buf.getvalue()
-
-
-def _pin_http_clients() -> HttpClients:
-    http = _mock_http_clients()
-    app.dependency_overrides[_get_http_clients] = lambda: http
-    return http
-
-
-async def _google_connected_album_media(
-    client: AsyncClient,
-    session: AsyncSession,
-    *,
-    write_media: bool = False,
-) -> AlbumMediaScenario:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=write_media,
-    )
-    await connect_google_photos(session, scenario.uid)
-    http = _pin_http_clients()
-    http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
-        {"access_token": "fresh-token", "expires_in": 3600}
-    )
-    return scenario
-
-
-def _picked_item(
-    item_id: str = "google-1",
-    *,
-    filename: str = "picked.jpg",
-    base_url: str = "https://lh3.googleusercontent.com/test",
-    width: int = 1200,
-    height: int = 800,
-) -> PickedMediaItem:
-    return PickedMediaItem(
-        id=item_id,
-        create_time="2024-01-01T00:00:00Z",
-        type="PHOTO",
-        media_file=GoogleMediaFile(
-            base_url=base_url,
-            mime_type="image/jpeg",
-            filename=filename,
-            width=width,
-            height=height,
-        ),
-    )
-
-
-def _download_guard() -> tuple[
-    Callable[..., AsyncIterator[object]], Callable[[], bool]
-]:
-    downloaded = False
-
-    async def fail_if_downloaded(**_kwargs: object) -> AsyncIterator[object]:
-        nonlocal downloaded
-        downloaded = True
-        for item in ():
-            yield item
-
-    return fail_if_downloaded, lambda: downloaded
-
-
-async def _replace_device(
-    client: AsyncClient,
-    media_name: str,
-    *,
-    width: int = 1200,
-    height: int = 800,
-) -> Response:
-    return await client.post(
-        f"/api/v1/albums/{AID}/external-media/replace/device",
-        data={"media_name": media_name},
-        files={"file": ("replacement.jpg", _jpeg_bytes(width, height), "image/jpeg")},
-    )
-
-
-async def _undo_replacement(client: AsyncClient, media_name: str) -> Response:
-    return await client.post(
-        f"/api/v1/albums/{AID}/external-media/undo/{media_name}",
-    )
-
-
-async def _replace_google(
-    client: AsyncClient,
-    *,
-    media_name: str = DEFAULT_MEDIA_NAME,
-    session_id: str = "session-abc",
-) -> Response:
-    return await client.post(
-        f"/api/v1/albums/{AID}/external-media/replace/google",
-        json={"media_name": media_name, "session_id": session_id},
-    )
-
-
-async def _add_google(
-    client: AsyncClient,
-    **payload: str | int,
-) -> Response:
-    return await client.post(
-        f"/api/v1/albums/{AID}/external-media/add/google",
-        json={"session_id": "session-abc", **payload},
-    )
+pytest_plugins = ("tests.helpers.external_media_fixtures",)
 
 
 async def test_device_add_to_step_prepends_unused(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session)
+    scenario = await album_media_scenario()
 
-    resp = await client.post(
-        f"/api/v1/albums/{AID}/external-media/add/device",
-        data={"context": "step", "step_id": "1"},
-        files=[("files", ("holiday.jpg", _jpeg_bytes(), "image/jpeg"))],
-    )
+    resp = await external_media.add_device(context="step", step_id=1)
 
     assert resp.status_code == 200
     imported = resp.json()["names"]
@@ -174,15 +57,14 @@ def test_google_add_stream_route_does_not_depend_on_request_db_session() -> None
 
 
 async def test_device_add_to_cover_does_not_select_cover(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session)
+    scenario = await album_media_scenario()
 
-    resp = await client.post(
-        f"/api/v1/albums/{AID}/external-media/add/device",
-        data={"context": "cover"},
-        files=[("files", ("cover.jpg", _jpeg_bytes(900, 600), "image/jpeg"))],
+    resp = await external_media.add_device(
+        context="cover", filename="cover.jpg", width=900, height=600
     )
 
     assert resp.status_code == 200
@@ -193,12 +75,13 @@ async def test_device_add_to_cover_does_not_select_cover(
 
 
 async def test_device_replace_updates_existing_media(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session, write_media=True)
+    scenario = await album_media_scenario(write_media=True)
 
-    resp = await _replace_device(client, scenario.media_name)
+    resp = await external_media.replace_device(scenario.media_name)
 
     assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -207,15 +90,16 @@ async def test_device_replace_updates_existing_media(
 
 
 async def test_device_replace_schedules_undo_snapshot_prune(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session, write_media=True)
+    scenario = await album_media_scenario(write_media=True)
 
     with patch(
         "app.api.v1.routes.external_media.enqueue_undo_snapshot_prune",
     ) as enqueue_prune:
-        resp = await _replace_device(client, scenario.media_name)
+        resp = await external_media.replace_device(scenario.media_name)
 
     assert resp.status_code == 200
     enqueue_prune.assert_called_once()
@@ -228,19 +112,18 @@ async def test_device_replace_schedules_undo_snapshot_prune(
 
 
 async def test_device_replace_oversized_upload_returns_413(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await sign_in_with_album_media(client, session)
+    await album_media_scenario()
 
     with patch(
         "app.api.v1.routes.external_media.save_uploads",
         AsyncMock(side_effect=OverflowError("Import is too large")),
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/device",
-            data={"media_name": DEFAULT_MEDIA_NAME},
-            files={"file": ("replacement.jpg", b"too large", "image/jpeg")},
+        resp = await external_media.replace_device(
+            DEFAULT_MEDIA_NAME, content=b"too large"
         )
 
     assert resp.status_code == 413
@@ -248,18 +131,15 @@ async def test_device_replace_oversized_upload_returns_413(
 
 
 async def test_device_replace_missing_media_returns_404(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await sign_in_with_album_media(client, session)
+    await album_media_scenario()
     save_uploads = AsyncMock(side_effect=AssertionError("should not save upload"))
 
     with patch("app.api.v1.routes.external_media.save_uploads", save_uploads):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/device",
-            data={"media_name": MISSING_MEDIA_NAME},
-            files={"file": ("replacement.jpg", _jpeg_bytes(1200, 800), "image/jpeg")},
-        )
+        resp = await external_media.replace_device(MISSING_MEDIA_NAME)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Media not found"
@@ -267,15 +147,16 @@ async def test_device_replace_missing_media_returns_404(
 
 
 async def test_undo_replacement_restores_previous_dimensions(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session, write_media=True)
+    scenario = await album_media_scenario(write_media=True)
 
-    replace_resp = await _replace_device(client, scenario.media_name)
+    replace_resp = await external_media.replace_device(scenario.media_name)
     assert replace_resp.status_code == 200
 
-    undo_resp = await _undo_replacement(client, scenario.media_name)
+    undo_resp = await external_media.undo_replacement(scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -284,20 +165,21 @@ async def test_undo_replacement_restores_previous_dimensions(
 
 
 async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session, write_media=True)
+    scenario = await album_media_scenario(write_media=True)
 
-    first_replace = await _replace_device(client, scenario.media_name)
+    first_replace = await external_media.replace_device(scenario.media_name)
     assert first_replace.status_code == 200
 
-    second_replace = await _replace_device(
-        client, scenario.media_name, width=1600, height=900
+    second_replace = await external_media.replace_device(
+        scenario.media_name, width=1600, height=900
     )
     assert second_replace.status_code == 200
 
-    undo_resp = await _undo_replacement(client, scenario.media_name)
+    undo_resp = await external_media.undo_replacement(scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -306,21 +188,22 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
 
 
 async def test_undo_replacement_restores_previous_upgrade_candidate(
-    client: AsyncClient,
     session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await sign_in_with_album_media(client, session, write_media=True)
+    scenario = await album_media_scenario(write_media=True)
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     row.upgrade_candidate = True
     session.add(row)
     await session.commit()
 
-    replace_resp = await _replace_device(client, scenario.media_name)
+    replace_resp = await external_media.replace_device(scenario.media_name)
     assert replace_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False
 
-    undo_resp = await _undo_replacement(client, scenario.media_name)
+    undo_resp = await external_media.undo_replacement(scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -328,29 +211,31 @@ async def test_undo_replacement_restores_previous_upgrade_candidate(
 
 
 async def test_google_replace_requires_one_selected_item(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await _google_connected_album_media(client, session)
+    await google_album_media_scenario()
 
     with patch(
         "app.logic.external_media.operations.get_media_items",
         AsyncMock(return_value=[]),
     ):
-        resp = await _replace_google(client)
+        resp = await external_media.replace_google()
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Select exactly one replacement"
 
 
 async def test_google_replace_rejects_multiple_items_before_download(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await _google_connected_album_media(client, session)
+    await google_album_media_scenario()
     items = [
-        _picked_item("google-1", filename="one.jpg"),
-        _picked_item(
+        picked_item("google-1", filename="one.jpg"),
+        picked_item(
             "google-2",
             filename="two.jpg",
             base_url="https://lh3.googleusercontent.com/two",
@@ -367,7 +252,7 @@ async def test_google_replace_rejects_multiple_items_before_download(
             AsyncMock(),
         ) as download,
     ):
-        resp = await _replace_google(client)
+        resp = await external_media.replace_google()
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Select exactly one replacement"
@@ -375,11 +260,12 @@ async def test_google_replace_rejects_multiple_items_before_download(
 
 
 async def test_google_add_validates_step_before_download(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await _google_connected_album_media(client, session)
-    fail_if_downloaded, downloaded = _download_guard()
+    await google_album_media_scenario()
+    fail_if_downloaded, downloaded = download_guard()
 
     with (
         patch(
@@ -388,7 +274,7 @@ async def test_google_add_validates_step_before_download(
         ),
         patch("app.api.v1.routes.external_media.get_engine", return_value=session.bind),
     ):
-        resp = await _add_google(client, context="step", step_id=999)
+        resp = await external_media.add_google(context="step", step_id=999)
 
     assert resp.status_code == 200
     assert "Step not found" in resp.text
@@ -396,10 +282,11 @@ async def test_google_add_validates_step_before_download(
 
 
 async def test_google_add_collapses_lost_token_to_disconnected(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await _google_connected_album_media(client, session)
+    scenario = await google_album_media_scenario()
     user = await session.get_one(User, scenario.uid)
     user.google_photos_refresh_token = None
     session.add(user)
@@ -408,7 +295,7 @@ async def test_google_add_collapses_lost_token_to_disconnected(
     with patch(
         "app.api.v1.routes.external_media.get_engine", return_value=session.bind
     ):
-        resp = await _add_google(client, context="cover")
+        resp = await external_media.add_google(context="cover")
 
     assert resp.status_code == 400
     assert "Google Photos not connected" in resp.text
@@ -417,44 +304,46 @@ async def test_google_add_collapses_lost_token_to_disconnected(
 
 
 async def test_google_replace_validates_media_before_download(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    await _google_connected_album_media(client, session)
-    fail_if_downloaded, downloaded = _download_guard()
+    await google_album_media_scenario()
+    fail_if_downloaded, downloaded = download_guard()
 
     with patch(
         "app.api.v1.routes.external_media.download_google_items_to_saved",
         fail_if_downloaded,
     ):
-        resp = await _replace_google(client, media_name=MISSING_MEDIA_NAME)
+        resp = await external_media.replace_google(media_name=MISSING_MEDIA_NAME)
 
     assert resp.status_code == 404
     assert not downloaded()
 
 
 async def test_google_replace_marks_media_upgraded(
-    client: AsyncClient,
     session: AsyncSession,
+    google_album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
 ) -> None:
-    scenario = await _google_connected_album_media(client, session, write_media=True)
+    scenario = await google_album_media_scenario(write_media=True)
 
     async def fake_download(*args: object, **kwargs: object) -> None:
         dest = args[3]
         assert isinstance(dest, Path)
-        dest.write_bytes(_jpeg_bytes(1200, 800))
+        dest.write_bytes(jpeg_bytes(1200, 800))
 
     with (
         patch(
             "app.logic.external_media.operations.get_media_items",
-            AsyncMock(return_value=[_picked_item()]),
+            AsyncMock(return_value=[picked_item()]),
         ),
         patch(
             "app.logic.external_media.operations.download_media_to_file",
             AsyncMock(side_effect=fake_download),
         ),
     ):
-        resp = await _replace_google(client, media_name=scenario.media_name)
+        resp = await external_media.replace_google(media_name=scenario.media_name)
 
     assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
