@@ -56,10 +56,10 @@ class TestRequireGoogleUser:
         resp = await google_photos_routes.create_session()
         assert resp.status_code == 403
 
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_google_user_without_connection_gets_400(
-        self, client: AsyncClient, google_photos_routes: GooglePhotosRoutes
+        self, google_photos_routes: GooglePhotosRoutes
     ) -> None:
-        await sign_in_uploaded_user(client)
         resp = await google_photos_routes.create_session()
         assert resp.status_code == 400
 
@@ -232,11 +232,8 @@ class TestMatchMedia:
 
 class TestOAuthCallback:
     async def test_success_stores_refresh_token(
-        self, client: AsyncClient, session: AsyncSession
+        self, client: AsyncClient, session: AsyncSession, uploaded_user: dict
     ) -> None:
-        user_data = await sign_in_uploaded_user(client)
-        uid = user_data["id"]
-
         http = pin_http_clients()
         http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
             {"refresh_token": "rt-new-123", "access_token": "at-xyz"}
@@ -247,11 +244,12 @@ class TestOAuthCallback:
         assert resp.status_code == 303
         assert "?error" not in resp.headers["location"]
 
-        user = await session.get(User, uid)
+        user = await session.get(User, uploaded_user["id"])
         assert user is not None
         assert user.google_photos_refresh_token is not None
         assert user.google_photos_connected_at is not None
 
+    @pytest.mark.usefixtures("uploaded_user")
     @pytest.mark.parametrize(
         ("token", "side_effect"),
         [
@@ -265,8 +263,6 @@ class TestOAuthCallback:
         token: OAuth2Token | None,
         side_effect: Exception | None,
     ) -> None:
-        await sign_in_uploaded_user(client)
-
         http = pin_http_clients()
         if side_effect is None:
             http.gphotos_oauth.get_access_token.return_value = token
@@ -277,22 +273,20 @@ class TestOAuthCallback:
 
         assert_error_redirect(resp)
 
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_state_csrf_mismatch_redirects_with_error(
         self, client: AsyncClient
     ) -> None:
-        await sign_in_uploaded_user(client)
-
         resp = await oauth_callback(
             client, csrf="state-csrf-B", cookie_csrf="cookie-csrf-A"
         )
 
         assert_error_redirect(resp)
 
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_passes_pkce_verifier_to_token_exchange(
         self, client: AsyncClient
     ) -> None:
-        await sign_in_uploaded_user(client)
-
         http = pin_http_clients()
         http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
             {"refresh_token": "rt-x", "access_token": "at-x"}

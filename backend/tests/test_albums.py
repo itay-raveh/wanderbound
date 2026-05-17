@@ -16,24 +16,20 @@ from .factories import (
     insert_segment,
     insert_step,
     make_points,
-    sign_in_and_upload,
 )
 from .helpers.albums import AlbumRoutes
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class TestReadAlbum:
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_cannot_read_other_users_album(
         self,
-        client: AsyncClient,
         session: AsyncSession,
         album_routes: AlbumRoutes,
-        tmp_path: Path,
     ) -> None:
-        await sign_in_and_upload(client, tmp_path / "users")
         await insert_album(session, uid=9999, aid="other-trip")
 
         resp = await album_routes.get_album("other-trip")

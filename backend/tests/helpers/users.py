@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from tests.factories import mock_extract, sign_in
+from tests.factories import (
+    mock_extract,
+    sign_in as factory_sign_in,
+    sign_in_and_upload as factory_sign_in_and_upload,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,6 +24,21 @@ class UserRoutes:
             f"/api/v1/auth/{provider}", json={"credential": credential}
         )
 
+    async def sign_in(
+        self, provider: str = "google", payload: dict | None = None
+    ) -> None:
+        await factory_sign_in(self.client, provider=provider, payload=payload)
+
+    async def sign_in_and_upload(
+        self,
+        users_dir: Path,
+        provider: str = "google",
+        payload: dict | None = None,
+    ) -> dict:
+        return await factory_sign_in_and_upload(
+            self.client, users_dir, provider=provider, payload=payload
+        )
+
     async def logout(self) -> Response:
         return await self.client.post("/api/v1/auth/logout")
 
@@ -28,6 +47,10 @@ class UserRoutes:
             "/api/v1/users/upload",
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
+
+    async def upload_with_extract(self, users_dir: Path) -> Response:
+        with mock_extract(users_dir):
+            return await self.upload()
 
     async def current(self) -> Response:
         return await self.client.get("/api/v1/users")
@@ -53,7 +76,7 @@ class UserRoutes:
         return await self.client.post("/api/v1/users/upload/init")
 
     async def start_chunked_upload(self, provider: str = "google") -> str:
-        await sign_in(self.client, provider)
+        await factory_sign_in(self.client, provider)
         resp = await self.init_upload()
         assert resp.status_code == 200
         return resp.json()["upload_id"]

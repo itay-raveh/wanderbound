@@ -96,6 +96,13 @@ async def client(
     app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def users_dir(tmp_path: Path) -> Path:
+    path = tmp_path / "users"
+    path.mkdir(exist_ok=True)
+    return path
+
+
 @pytest.fixture(scope="module")
 def sa_trip_dir() -> Path:
     trip_dir = TRIPS_DIR / "south-america-2024-2025"

@@ -34,6 +34,13 @@ def _make_user(uid: int, *, hours_ago: int = 0) -> User:
     )
 
 
+def _configure_storage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, max_bytes: int
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", max_bytes)
+
+
 class TestSizesByUser:
     def test_sums_per_user(self, tmp_path: Path) -> None:
         _make_file(tmp_path / "1" / "a.txt", 100)
@@ -51,27 +58,23 @@ class TestSizesByUser:
 
 class TestRunEviction:
     async def test_noop_when_under_cap(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 1000)
+        _configure_storage(tmp_path, monkeypatch, 1000)
 
-        users_folder = tmp_path / "users"
-        _make_file(users_folder / "1" / "data.bin", 100)
+        _make_file(users_dir / "1" / "data.bin", 100)
 
         await run_eviction(skip_uid=999)
 
-        assert (users_folder / "1" / "data.bin").exists()
+        assert (users_dir / "1" / "data.bin").exists()
 
     async def test_evicts_lru_user(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 100)
+        _configure_storage(tmp_path, monkeypatch, 100)
 
-        users_folder = tmp_path / "users"
-        _make_file(users_folder / "1" / "data.bin", 80)
-        _make_file(users_folder / "2" / "data.bin", 80)
+        _make_file(users_dir / "1" / "data.bin", 80)
+        _make_file(users_dir / "2" / "data.bin", 80)
 
         old_user = _make_user(1, hours_ago=48)
         recent_user = _make_user(2, hours_ago=1)
@@ -83,18 +86,16 @@ class TestRunEviction:
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=999)
 
-        assert not (users_folder / "1").exists()
-        assert (users_folder / "2" / "data.bin").exists()
+        assert not (users_dir / "1").exists()
+        assert (users_dir / "2" / "data.bin").exists()
 
     async def test_skips_uploading_user(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 50)
+        _configure_storage(tmp_path, monkeypatch, 50)
 
-        users_folder = tmp_path / "users"
-        _make_file(users_folder / "1" / "data.bin", 80)
-        _make_file(users_folder / "2" / "data.bin", 80)
+        _make_file(users_dir / "1" / "data.bin", 80)
+        _make_file(users_dir / "2" / "data.bin", 80)
 
         oldest_user = _make_user(1, hours_ago=100)
         other_user = _make_user(2, hours_ago=10)
@@ -106,19 +107,17 @@ class TestRunEviction:
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=1)
 
-        assert (users_folder / "1" / "data.bin").exists()
-        assert not (users_folder / "2").exists()
+        assert (users_dir / "1" / "data.bin").exists()
+        assert not (users_dir / "2").exists()
 
     async def test_stops_when_under_cap(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-        monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", 120)
+        _configure_storage(tmp_path, monkeypatch, 120)
 
-        users_folder = tmp_path / "users"
-        _make_file(users_folder / "1" / "data.bin", 80)
-        _make_file(users_folder / "2" / "data.bin", 80)
-        _make_file(users_folder / "3" / "data.bin", 80)
+        _make_file(users_dir / "1" / "data.bin", 80)
+        _make_file(users_dir / "2" / "data.bin", 80)
+        _make_file(users_dir / "3" / "data.bin", 80)
 
         users = [
             _make_user(1, hours_ago=72),
@@ -133,6 +132,6 @@ class TestRunEviction:
         with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
             await run_eviction(skip_uid=999)
 
-        assert not (users_folder / "1").exists()
-        assert not (users_folder / "2").exists()
-        assert (users_folder / "3" / "data.bin").exists()
+        assert not (users_dir / "1").exists()
+        assert not (users_dir / "2").exists()
+        assert (users_dir / "3" / "data.bin").exists()

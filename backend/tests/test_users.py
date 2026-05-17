@@ -4,13 +4,12 @@ import shutil
 from typing import TYPE_CHECKING
 
 from app.models.user import User
-from tests.factories import insert_album, sign_in_and_upload
+from tests.factories import insert_album
 from tests.helpers.users import UserRoutes
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -41,24 +40,19 @@ class TestIsProcessed:
         assert body["user"]["album_ids"]
         assert body["user"]["is_processed"] is False
 
-    async def test_uploaded_user_starts_unprocessed(
-        self, client: AsyncClient, tmp_path: Path
-    ) -> None:
-        user = await sign_in_and_upload(client, tmp_path / "users")
-        assert user["has_data"] is True
-        assert user["album_ids"]
-        assert user["is_processed"] is False
+    async def test_uploaded_user_starts_unprocessed(self, uploaded_user: dict) -> None:
+        assert uploaded_user["has_data"] is True
+        assert uploaded_user["album_ids"]
+        assert uploaded_user["is_processed"] is False
 
     async def test_processed_when_albums_exist(
         self,
-        client: AsyncClient,
         session: AsyncSession,
         user_routes: UserRoutes,
-        tmp_path: Path,
+        uploaded_user: dict,
     ) -> None:
-        user = await sign_in_and_upload(client, tmp_path / "users")
-        for aid in user["album_ids"]:
-            await insert_album(session, user["id"], aid=aid)
+        for aid in uploaded_user["album_ids"]:
+            await insert_album(session, uploaded_user["id"], aid=aid)
         await session.commit()
 
         resp = await user_routes.current()
@@ -67,16 +61,15 @@ class TestIsProcessed:
 
     async def test_evicted_user_is_unprocessed(
         self,
-        client: AsyncClient,
         session: AsyncSession,
         user_routes: UserRoutes,
-        tmp_path: Path,
+        users_dir: Path,
+        uploaded_user: dict,
     ) -> None:
-        user = await sign_in_and_upload(client, tmp_path / "users")
-        for aid in user["album_ids"]:
-            await insert_album(session, user["id"], aid=aid)
+        for aid in uploaded_user["album_ids"]:
+            await insert_album(session, uploaded_user["id"], aid=aid)
         await session.commit()
-        shutil.rmtree(tmp_path / "users" / str(user["id"]))
+        shutil.rmtree(users_dir / str(uploaded_user["id"]))
 
         resp = await user_routes.current()
         assert resp.json()["is_processed"] is False
@@ -84,18 +77,18 @@ class TestIsProcessed:
 
     async def test_partial_processing_is_unprocessed(
         self,
-        client: AsyncClient,
         session: AsyncSession,
         user_routes: UserRoutes,
-        tmp_path: Path,
+        uploaded_user: dict,
     ) -> None:
-        user = await sign_in_and_upload(client, tmp_path / "users")
-        u = await session.get(User, user["id"])
+        u = await session.get(User, uploaded_user["id"])
         assert u is not None
-        u.album_ids = [user["album_ids"][0], "second-trip"]
+        u.album_ids = [uploaded_user["album_ids"][0], "second-trip"]
         session.add(u)
         await session.commit()
-        await insert_album(session, user["id"], aid=user["album_ids"][0])
+        await insert_album(
+            session, uploaded_user["id"], aid=uploaded_user["album_ids"][0]
+        )
         await session.commit()
 
         resp = await user_routes.current()
