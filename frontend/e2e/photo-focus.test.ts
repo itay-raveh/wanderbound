@@ -26,6 +26,14 @@ async function scrollToStep(page: Page, country: string, stepName: string) {
   await expect(photos(page).first()).toBeVisible({ timeout: 5_000 });
 }
 
+async function selectFirstPhoto(page: Page): Promise<Locator> {
+  await scrollToStep(page, "Argentina", "Buenos Aires");
+  const first = photos(page).first();
+  await first.click();
+  await expect(selected(page)).toHaveCount(1);
+  return first;
+}
+
 async function selectedIndex(page: Page): Promise<number> {
   return selected(page).evaluate((el) => {
     const all = [...document.querySelectorAll('[role="button"][aria-pressed]')];
@@ -46,18 +54,13 @@ test.describe("Photo focus & arrow navigation", () => {
   });
 
   test("click selects a photo", async ({ focusPage: page }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    const photo = photos(page).first();
-    await photo.click();
+    const photo = await selectFirstPhoto(page);
 
-    await expect(selected(page)).toHaveCount(1);
     await expect(photo).toHaveAttribute("aria-pressed", "true");
   });
 
   test("Escape deselects", async ({ focusPage: page }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
-    await expect(selected(page)).toHaveCount(1);
+    await selectFirstPhoto(page);
 
     await page.keyboard.press("Escape");
     await expect(selected(page)).toHaveCount(0);
@@ -66,9 +69,7 @@ test.describe("Photo focus & arrow navigation", () => {
   test("ArrowRight moves selection to next photo", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    const first = photos(page).first();
-    await first.click();
+    const first = await selectFirstPhoto(page);
     await expect(first).toHaveAttribute("aria-pressed", "true");
 
     await page.keyboard.press("ArrowRight");
@@ -80,9 +81,7 @@ test.describe("Photo focus & arrow navigation", () => {
   test("ArrowRight moves DOM focus to the selected photo", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    const first = photos(page).first();
-    await first.click();
+    const first = await selectFirstPhoto(page);
     await expect(first).toHaveAttribute("aria-pressed", "true");
 
     await page.keyboard.press("ArrowRight");
@@ -115,9 +114,7 @@ test.describe("Photo focus & arrow navigation", () => {
   });
 
   test("ArrowRight crosses step boundary", async ({ focusPage: page }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
-    await expect(selected(page)).toHaveCount(1);
+    await selectFirstPhoto(page);
 
     await press(page, "ArrowRight", 2);
     const beforeBoundary = await selected(page).boundingBox();
@@ -131,8 +128,7 @@ test.describe("Photo focus & arrow navigation", () => {
   });
 
   test("ArrowLeft crosses step boundary", async ({ focusPage: page }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
+    await selectFirstPhoto(page);
 
     await press(page, "ArrowRight", 3);
     const inStep2 = await selected(page).boundingBox();
@@ -148,8 +144,7 @@ test.describe("Photo focus & arrow navigation", () => {
   test("arrow navigation continues after crossing a step boundary", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
+    await selectFirstPhoto(page);
 
     const indices: number[] = [];
     for (let i = 0; i < 5; i++) {
@@ -163,8 +158,7 @@ test.describe("Photo focus & arrow navigation", () => {
   });
 
   test("forward then backward is a round trip", async ({ focusPage: page }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
+    await selectFirstPhoto(page);
 
     const startIdx = await selectedIndex(page);
 
@@ -178,9 +172,7 @@ test.describe("Photo focus & arrow navigation", () => {
   test("rapid ArrowRight presses settle with one selected photo", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
-    await expect(selected(page)).toHaveCount(1);
+    await selectFirstPhoto(page);
 
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press("ArrowRight");
@@ -199,9 +191,7 @@ test.describe("Send to unused & set as cover", () => {
   test("sendToUnused removes photo and advances focus", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
-    await expect(selected(page)).toHaveCount(1);
+    await selectFirstPhoto(page);
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
 
@@ -212,9 +202,7 @@ test.describe("Send to unused & set as cover", () => {
   test("sendToUnused on last navigable photo advances to previous", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-
-    await photos(page).first().click();
+    await selectFirstPhoto(page);
     await press(page, "ArrowRight", 2);
 
     const indexBefore = await selectedIndex(page);
@@ -228,8 +216,7 @@ test.describe("Send to unused & set as cover", () => {
   test("sendToUnused on the only remaining photo clears focus", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    await photos(page).first().click();
+    await selectFirstPhoto(page);
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
@@ -243,9 +230,7 @@ test.describe("Send to unused & set as cover", () => {
   test("setAsCover advances focus to next photo", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
-    const first = photos(page).first();
-    await first.click();
+    const first = await selectFirstPhoto(page);
     await expect(first).toHaveAttribute("aria-pressed", "true");
 
     await page.keyboard.press(PHOTO_SHORTCUTS.setAsCover);
