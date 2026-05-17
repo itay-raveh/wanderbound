@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.models.segment import Segment, SegmentKind
 
 from .factories import (
@@ -131,8 +133,9 @@ class TestReadSegmentPoints:
 
 
 class TestSegmentPointsReadOnly:
-    async def test_unmatched_driving_segment_returns_stored_null_route(
-        self, client: AsyncClient, session: AsyncSession
+    @pytest.mark.parametrize("kind", [SegmentKind.driving, SegmentKind.hike])
+    async def test_segment_returns_stored_null_route(
+        self, client: AsyncClient, session: AsyncSession, kind: SegmentKind
     ) -> None:
         album = await sign_in_with_album(client, session)
         await insert_segment(
@@ -140,7 +143,7 @@ class TestSegmentPointsReadOnly:
             album.uid,
             start_time=100.0,
             end_time=300.0,
-            kind=SegmentKind.driving,
+            kind=kind,
         )
 
         resp, mock_enqueue = await _get_segment_points(client)
@@ -149,24 +152,6 @@ class TestSegmentPointsReadOnly:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
-        assert data[0]["route"] is None
-
-    async def test_hike_segment_returns_stored_null_route(
-        self, client: AsyncClient, session: AsyncSession
-    ) -> None:
-        album = await sign_in_with_album(client, session)
-        await insert_segment(
-            session,
-            album.uid,
-            start_time=100.0,
-            end_time=300.0,
-            kind=SegmentKind.hike,
-        )
-
-        resp, mock_enqueue = await _get_segment_points(client)
-
-        mock_enqueue.assert_not_called()
-        data = resp.json()
         assert data[0]["route"] is None
 
     async def test_already_matched_route_returned_as_stored(
