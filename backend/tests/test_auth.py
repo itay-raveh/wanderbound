@@ -21,7 +21,22 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx import AsyncClient, Response
+
+
+async def _auth(
+    client: AsyncClient, provider: str, credential: str = "fake"
+) -> Response:
+    return await client.post(
+        f"/api/v1/auth/{provider}", json={"credential": credential}
+    )
+
+
+async def _upload(client: AsyncClient) -> Response:
+    return await client.post(
+        "/api/v1/users/upload",
+        files={"file": ("data.zip", b"fake", "application/zip")},
+    )
 
 
 @pytest.mark.parametrize(
@@ -37,9 +52,7 @@ class TestAuthProvider:
     ) -> None:
         _ = sub_field, sub_value
         with mock_jwt(provider, decode_error=True):
-            resp = await client.post(
-                f"/api/v1/auth/{provider}", json={"credential": "bad"}
-            )
+            resp = await _auth(client, provider, "bad")
         assert resp.status_code == 401
 
     async def test_new_user_returns_null(
@@ -47,9 +60,7 @@ class TestAuthProvider:
     ) -> None:
         _ = sub_field, sub_value
         with mock_jwt(provider):
-            resp = await client.post(
-                f"/api/v1/auth/{provider}", json={"credential": "fake"}
-            )
+            resp = await _auth(client, provider)
         assert resp.status_code == 200
         assert resp.json() is None
 
@@ -65,9 +76,7 @@ class TestAuthProvider:
         await client.post("/api/v1/auth/logout")
 
         with mock_jwt(provider):
-            resp = await client.post(
-                f"/api/v1/auth/{provider}", json={"credential": "fake"}
-            )
+            resp = await _auth(client, provider)
         assert resp.status_code == 200
         user = resp.json()
         assert user is not None
@@ -75,14 +84,10 @@ class TestAuthProvider:
 
 
 class TestAuthMicrosoftSpecific:
-    """Tests specific to Microsoft auth."""
-
     async def test_bad_issuer_returns_401(self, client: AsyncClient) -> None:
         bad_iss = {**MICROSOFT_PAYLOAD, "iss": "https://evil.example.com/v2.0"}
         with mock_jwt("microsoft", payload=bad_iss):
-            resp = await client.post(
-                "/api/v1/auth/microsoft", json={"credential": "fake"}
-            )
+            resp = await _auth(client, "microsoft")
         assert resp.status_code == 401
 
     async def test_not_configured_returns_501(
@@ -90,9 +95,7 @@ class TestAuthMicrosoftSpecific:
     ) -> None:
         monkeypatch.setattr(get_settings(), "VITE_MICROSOFT_CLIENT_ID", "")
         with mock_jwt("microsoft", ensure_configured=False):
-            resp = await client.post(
-                "/api/v1/auth/microsoft", json={"credential": "fake"}
-            )
+            resp = await _auth(client, "microsoft")
         assert resp.status_code == 501
 
     async def test_falls_back_to_name_when_no_given_name(
@@ -115,10 +118,7 @@ class TestLogout:
 
 class TestUpload:
     async def test_no_session(self, client: AsyncClient) -> None:
-        resp = await client.post(
-            "/api/v1/users/upload",
-            files={"file": ("data.zip", b"fake", "application/zip")},
-        )
+        resp = await _upload(client)
         assert resp.status_code == 401
 
     async def test_new_user_google(self, client: AsyncClient, tmp_path: Path) -> None:
@@ -143,10 +143,7 @@ class TestUpload:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
         await sign_in(client, payload=no_name)
         with mock_extract(tmp_path / "users"):
-            resp = await client.post(
-                "/api/v1/users/upload",
-                files={"file": ("data.zip", b"fake", "application/zip")},
-            )
+            resp = await _upload(client)
         user = resp.json()["user"]
         assert user["first_name"] == "Zip"
 
@@ -163,10 +160,7 @@ class TestUpload:
             "app.api.v1.routes.users.extract_and_scan",
             return_value=(folder, PS_USER, new_trips),
         ):
-            resp = await client.post(
-                "/api/v1/users/upload",
-                files={"file": ("data.zip", b"fake", "application/zip")},
-            )
+            resp = await _upload(client)
         assert resp.status_code == 200
         assert resp.json()["trips"][0]["id"] == "trip-2"
 

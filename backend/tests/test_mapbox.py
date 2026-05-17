@@ -1,9 +1,8 @@
-"""Tests for app.services.mapbox - Mapbox Map Matching & Directions API client."""
-
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 
 from app.services.mapbox import (
     _chunked_route,
@@ -14,11 +13,6 @@ from app.services.mapbox import (
 )
 
 type Coords = list[tuple[float, float]]
-
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
 
 
 def _matching_json(coords: list[list[float]]) -> bytes:
@@ -43,30 +37,23 @@ def _ok_response(content: bytes) -> MagicMock:
     return resp
 
 
-# ---------------------------------------------------------------------------
-# _fetch_matching - coordinate extraction + stitching logic
-# ---------------------------------------------------------------------------
-
-
 class TestFetchMatching:
-    async def test_api_error_returns_none(self) -> None:
+    @pytest.mark.parametrize(
+        "response",
+        [
+            _error_response(500),
+            _ok_response(b'{"matchings": []}'),
+        ],
+    )
+    async def test_returns_none_without_route(self, response: MagicMock) -> None:
         client = AsyncMock()
-        client.get.return_value = _error_response(500)
-        assert (
-            await _fetch_matching(client, [(4.0, 52.0), (4.1, 52.1)], "driving", "tok")
-            is None
-        )
-
-    async def test_empty_matchings_returns_none(self) -> None:
-        client = AsyncMock()
-        client.get.return_value = _ok_response(b'{"matchings": []}')
+        client.get.return_value = response
         assert (
             await _fetch_matching(client, [(4.0, 52.0), (4.1, 52.1)], "driving", "tok")
             is None
         )
 
     async def test_multiple_matchings_stitched(self) -> None:
-        """First point of subsequent matchings is skipped to avoid duplication."""
         client = AsyncMock()
         content = json.dumps(
             {
@@ -91,36 +78,23 @@ class TestFetchMatching:
         assert result == [(1, 2), (3, 4), (7, 8)]
 
 
-# ---------------------------------------------------------------------------
-# _fetch_directions
-# ---------------------------------------------------------------------------
-
-
 class TestFetchDirections:
-    async def test_api_error_returns_none(self) -> None:
+    @pytest.mark.parametrize(
+        "response",
+        [
+            _error_response(500),
+            _ok_response(b'{"routes": []}'),
+        ],
+    )
+    async def test_returns_none_without_route(self, response: MagicMock) -> None:
         client = AsyncMock()
-        client.get.return_value = _error_response(500)
+        client.get.return_value = response
         assert (
             await _fetch_directions(
                 client, [(4.0, 52.0), (4.1, 52.1)], "walking", "tok"
             )
             is None
         )
-
-    async def test_empty_routes_returns_none(self) -> None:
-        client = AsyncMock()
-        client.get.return_value = _ok_response(b'{"routes": []}')
-        assert (
-            await _fetch_directions(
-                client, [(4.0, 52.0), (4.1, 52.1)], "walking", "tok"
-            )
-            is None
-        )
-
-
-# ---------------------------------------------------------------------------
-# _chunked_route
-# ---------------------------------------------------------------------------
 
 
 class TestChunkedRoute:
@@ -136,7 +110,6 @@ class TestChunkedRoute:
         result = await _chunked_route(coords, chunk_size=4, overlap=1, route_fn=mock_fn)
         assert result is not None
         assert call_count == 3
-        # First point preserved, subsequent chunks skip first point
         assert result[0] == (0.0, 52.001)
 
     async def test_all_chunks_fail(self) -> None:
@@ -149,14 +122,13 @@ class TestChunkedRoute:
         assert result is None
 
     async def test_partial_failure(self) -> None:
-        """If some chunks fail, remaining are still stitched."""
         call_idx = 0
 
         async def partial_fn(chunk: Coords) -> Coords | None:
             nonlocal call_idx
             call_idx += 1
             if call_idx == 2:
-                return None  # second chunk fails
+                return None
             return [(c[0], c[1] + 0.001) for c in chunk]
 
         coords: Coords = [(i * 0.01, 52.0) for i in range(10)]
@@ -165,11 +137,6 @@ class TestChunkedRoute:
         )
         assert result is not None
         assert len(result) >= 2
-
-
-# ---------------------------------------------------------------------------
-# match_segment (integration, mocked HTTP)
-# ---------------------------------------------------------------------------
 
 
 class TestMatchSegment:

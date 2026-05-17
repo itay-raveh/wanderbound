@@ -35,7 +35,7 @@ from .factories import (
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from httpx import AsyncClient
+    from httpx import AsyncClient, Response
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -49,6 +49,24 @@ def _pin_http_clients() -> HttpClients:
     http = _mock_http_clients()
     app.dependency_overrides[_get_http_clients] = lambda: http
     return http
+
+
+async def _connected_google_photos_http(
+    client: AsyncClient, session: AsyncSession
+) -> HttpClients:
+    await sign_in_connected_google_photos(client, session)
+    http = _pin_http_clients()
+    http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+        {"access_token": "fresh-token", "expires_in": 3600}
+    )
+    return http
+
+
+def _picker_mock() -> AsyncMock:
+    mock_picker = AsyncMock()
+    mock_picker.return_value.id = "session-abc"
+    mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
+    return mock_picker
 
 
 def _build_callback_state(
@@ -68,6 +86,31 @@ def _build_oauth_cookie(
     return URLSafeTimedSerializer(
         get_settings().SECRET_KEY, salt="gphotos-oauth-cookie"
     ).dumps({"csrf": csrf, "verifier": verifier})
+
+
+async def _oauth_callback(
+    client: AsyncClient,
+    *,
+    csrf: str = "test-csrf-value",
+    cookie_csrf: str | None = "test-csrf-value",
+    verifier: str = "test-verifier-value",
+) -> Response:
+    state = _build_callback_state(csrf=csrf)
+    if cookie_csrf is not None:
+        client.cookies.set(
+            "gphotos_oauth",
+            _build_oauth_cookie(csrf=cookie_csrf, verifier=verifier),
+        )
+    return await client.get(
+        "/api/v1/google-photos/callback",
+        params={"code": "auth-code", "state": state},
+        follow_redirects=False,
+    )
+
+
+def _assert_error_redirect(resp: Response) -> None:
+    assert resp.status_code == 303
+    assert "?error" in resp.headers["location"]
 
 
 class TestRequireGoogleUser:
@@ -104,14 +147,8 @@ class TestPickerSession:
     async def test_create_session_calls_google_api(
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
-        await sign_in_connected_google_photos(client, session)
-        http = _pin_http_clients()
-        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
-            {"access_token": "fresh-token", "expires_in": 3600}
-        )
-        mock_picker = AsyncMock()
-        mock_picker.return_value.id = "session-abc"
-        mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
+        await _connected_google_photos_http(client, session)
+        mock_picker = _picker_mock()
 
         with patch(
             "app.api.v1.routes.google_photos.create_picker_session",
@@ -127,14 +164,8 @@ class TestPickerSession:
     async def test_create_session_passes_picker_item_limit(
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
-        await sign_in_connected_google_photos(client, session)
-        http = _pin_http_clients()
-        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
-            {"access_token": "fresh-token", "expires_in": 3600}
-        )
-        mock_picker = AsyncMock()
-        mock_picker.return_value.id = "session-abc"
-        mock_picker.return_value.picker_uri = "https://photos.google.com/picker/abc"
+        http = await _connected_google_photos_http(client, session)
+        mock_picker = _picker_mock()
 
         with patch(
             "app.api.v1.routes.google_photos.create_picker_session",
@@ -155,21 +186,29 @@ class TestValidateMatchNames:
         matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
         _validate_match_names(matches, {"photo1.jpg", "photo2.jpg"})
 
-    def test_rejects_unknown_name(self) -> None:
-        matches = [MatchResult(local_name="unknown.jpg", google_id="gid-1", distance=0)]
+    @pytest.mark.parametrize(
+        ("matches", "detail"),
+        [
+            (
+                [MatchResult(local_name="unknown.jpg", google_id="gid-1", distance=0)],
+                "unknown.jpg",
+            ),
+            (
+                [
+                    MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0),
+                    MatchResult(local_name="evil.jpg", google_id="gid-2", distance=0),
+                ],
+                "evil.jpg",
+            ),
+        ],
+    )
+    def test_rejects_unknown_name(
+        self, matches: list[MatchResult], detail: str
+    ) -> None:
         with pytest.raises(HTTPException) as exc_info:
             _validate_match_names(matches, {"photo1.jpg"})
         assert exc_info.value.status_code == 422
-
-    def test_rejects_if_any_name_invalid(self) -> None:
-        matches = [
-            MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0),
-            MatchResult(local_name="evil.jpg", google_id="gid-2", distance=0),
-        ]
-        with pytest.raises(HTTPException) as exc_info:
-            _validate_match_names(matches, {"photo1.jpg"})
-        assert exc_info.value.status_code == 422
-        assert "evil.jpg" in str(exc_info.value.detail)
+        assert detail in str(exc_info.value.detail)
 
 
 class TestMatchMedia:
@@ -257,14 +296,7 @@ class TestOAuthCallback:
             {"refresh_token": "rt-new-123", "access_token": "at-xyz"}
         )
 
-        csrf = "test-csrf-value"
-        state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
-        resp = await client.get(
-            "/api/v1/google-photos/callback",
-            params={"code": "auth-code", "state": state},
-            follow_redirects=False,
-        )
+        resp = await _oauth_callback(client)
 
         assert resp.status_code == 303
         assert "?error" not in resp.headers["location"]
@@ -274,63 +306,41 @@ class TestOAuthCallback:
         assert user.google_photos_refresh_token is not None
         assert user.google_photos_connected_at is not None
 
-    async def test_oauth_error_redirects_with_error(self, client: AsyncClient) -> None:
-        await sign_in_uploaded_user(client)
-
-        http = _pin_http_clients()
-        http.gphotos_oauth.get_access_token.side_effect = GetAccessTokenError(
-            "access_denied"
-        )
-
-        csrf = "test-csrf-value"
-        state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
-        resp = await client.get(
-            "/api/v1/google-photos/callback",
-            params={"code": "auth-code", "state": state},
-            follow_redirects=False,
-        )
-
-        assert resp.status_code == 303
-        assert "?error" in resp.headers["location"]
-
-    async def test_no_refresh_token_redirects_with_error(
-        self, client: AsyncClient
+    @pytest.mark.parametrize(
+        ("token", "side_effect"),
+        [
+            (None, GetAccessTokenError("access_denied")),
+            (OAuth2Token({"access_token": "at-xyz"}), None),
+        ],
+    )
+    async def test_token_exchange_failure_redirects_with_error(
+        self,
+        client: AsyncClient,
+        token: OAuth2Token | None,
+        side_effect: Exception | None,
     ) -> None:
         await sign_in_uploaded_user(client)
 
         http = _pin_http_clients()
-        http.gphotos_oauth.get_access_token.return_value = OAuth2Token(
-            {"access_token": "at-xyz"}  # no refresh_token
-        )
+        if side_effect is None:
+            http.gphotos_oauth.get_access_token.return_value = token
+        else:
+            http.gphotos_oauth.get_access_token.side_effect = side_effect
 
-        csrf = "test-csrf-value"
-        state = _build_callback_state(csrf=csrf)
-        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf=csrf))
-        resp = await client.get(
-            "/api/v1/google-photos/callback",
-            params={"code": "auth-code", "state": state},
-            follow_redirects=False,
-        )
+        resp = await _oauth_callback(client)
 
-        assert resp.status_code == 303
-        assert "?error" in resp.headers["location"]
+        _assert_error_redirect(resp)
 
     async def test_state_csrf_mismatch_redirects_with_error(
         self, client: AsyncClient
     ) -> None:
         await sign_in_uploaded_user(client)
 
-        client.cookies.set("gphotos_oauth", _build_oauth_cookie(csrf="cookie-csrf-A"))
-        state = _build_callback_state(csrf="state-csrf-B")
-        resp = await client.get(
-            "/api/v1/google-photos/callback",
-            params={"code": "auth-code", "state": state},
-            follow_redirects=False,
+        resp = await _oauth_callback(
+            client, csrf="state-csrf-B", cookie_csrf="cookie-csrf-A"
         )
 
-        assert resp.status_code == 303
-        assert "?error" in resp.headers["location"]
+        _assert_error_redirect(resp)
 
     async def test_passes_pkce_verifier_to_token_exchange(
         self, client: AsyncClient
@@ -342,17 +352,8 @@ class TestOAuthCallback:
             {"refresh_token": "rt-x", "access_token": "at-x"}
         )
 
-        csrf = "test-csrf-value"
         verifier = "test-verifier-value"
-        state = _build_callback_state(csrf=csrf)
-        client.cookies.set(
-            "gphotos_oauth", _build_oauth_cookie(csrf=csrf, verifier=verifier)
-        )
-        await client.get(
-            "/api/v1/google-photos/callback",
-            params={"code": "auth-code", "state": state},
-            follow_redirects=False,
-        )
+        await _oauth_callback(client, verifier=verifier)
 
         http.gphotos_oauth.get_access_token.assert_awaited_once()
         call = http.gphotos_oauth.get_access_token.call_args
@@ -363,8 +364,7 @@ class TestTokenRevocation:
     async def test_expired_token_returns_401(
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
-        await sign_in_connected_google_photos(client, session)
-        http = _pin_http_clients()
+        http = await _connected_google_photos_http(client, session)
         http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError(
             "invalid_grant"
         )

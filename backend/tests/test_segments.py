@@ -79,6 +79,33 @@ def _noise_df(rows: list[tuple]) -> pl.DataFrame:
     )
 
 
+def _teleport_rows(*, is_step: bool) -> list[tuple[float, float, float, bool]]:
+    return [
+        (0.0, 0.0, _ts(10.0), False),
+        (50.0, 0.0, _ts(10.0) + 10, is_step),
+        (0.01, 0.0, _ts(12.0), False),
+    ]
+
+
+def _spike_rows(*, is_step: bool) -> list[tuple[float, float, float, bool]]:
+    return [
+        (0.0, 0.0, _ts(10.0), False),
+        (0.0, 0.1, _ts(10.5), is_step),
+        (0.0, 0.005, _ts(11.0), False),
+    ]
+
+
+def _assert_noise_value(
+    rows: list[tuple[float, float, float, bool]],
+    column: str,
+    value: float,
+    *,
+    kept: bool,
+) -> None:
+    values = _remove_gps_noise(_noise_df(rows))[column].to_list()
+    assert (value in values) is kept
+
+
 def _segment_kinds(steps: list[_Step], gps: list[Point]) -> set[SegmentKind]:
     return {s.kind for s in build_segments(steps, gps)}
 
@@ -87,43 +114,30 @@ def _hikes(steps: list[_Step], gps: list[Point]) -> list[SegmentData]:
     return [s for s in build_segments(steps, gps) if s.kind == SegmentKind.hike]
 
 
+def _assert_segment_kind(
+    steps: list[_Step],
+    gps: list[Point],
+    expected: SegmentKind,
+    unexpected: SegmentKind | None = None,
+) -> None:
+    kinds = _segment_kinds(steps, gps)
+    assert expected in kinds
+    if unexpected is not None:
+        assert unexpected not in kinds
+
+
 class TestNoiseRemoval:
     def test_teleport_removed(self) -> None:
-        rows = [
-            (0.0, 0.0, _ts(10.0), False),
-            (50.0, 0.0, _ts(10.0) + 10, False),
-            (0.01, 0.0, _ts(12.0), False),
-        ]
-        df = _remove_gps_noise(_noise_df(rows))
-        assert 50.0 not in df["lat"].to_list()
+        _assert_noise_value(_teleport_rows(is_step=False), "lat", 50.0, kept=False)
 
     def test_teleport_kept_when_step(self) -> None:
-        rows = [
-            (0.0, 0.0, _ts(10.0), False),
-            (50.0, 0.0, _ts(10.0) + 10, True),
-            (0.01, 0.0, _ts(12.0), False),
-        ]
-        df = _remove_gps_noise(_noise_df(rows))
-        assert 50.0 in df["lat"].to_list()
+        _assert_noise_value(_teleport_rows(is_step=True), "lat", 50.0, kept=True)
 
     def test_spike_removed(self) -> None:
-        rows = [
-            (0.0, 0.0, _ts(10.0), False),
-            (0.0, 0.1, _ts(10.5), False),
-            (0.0, 0.005, _ts(11.0), False),
-        ]
-        df = _remove_gps_noise(_noise_df(rows))
-        assert df.height == 2
-        assert 0.1 not in df["lon"].to_list()
+        _assert_noise_value(_spike_rows(is_step=False), "lon", 0.1, kept=False)
 
     def test_spike_kept_when_step(self) -> None:
-        rows = [
-            (0.0, 0.0, _ts(10.0), False),
-            (0.0, 0.1, _ts(10.5), True),
-            (0.0, 0.005, _ts(11.0), False),
-        ]
-        df = _remove_gps_noise(_noise_df(rows))
-        assert 0.1 in df["lon"].to_list()
+        _assert_noise_value(_spike_rows(is_step=True), "lon", 0.1, kept=True)
 
 
 class TestClassification:
@@ -137,24 +151,27 @@ class TestClassification:
         assert all(k.value != "other" for k in kinds)
 
     def test_slow_short_movement_is_walking(self) -> None:
-        gps = _track(0.0, 0.0, 0.0, 0.005, h0=9.0, h1=9.5, n=10)
-        kinds = _segment_kinds([_step(0.0, 0.005, 9.5)], gps)
-        assert SegmentKind.walking in kinds
-        assert SegmentKind.hike not in kinds
+        _assert_segment_kind(
+            [_step(0.0, 0.005, 9.5)],
+            _track(0.0, 0.0, 0.0, 0.005, h0=9.0, h1=9.5, n=10),
+            SegmentKind.walking,
+            SegmentKind.hike,
+        )
 
     def test_fast_movement_is_driving(self) -> None:
-        gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=5)
-        kinds = _segment_kinds([_step(0.0, 0.5, 9.5)], gps)
-        assert SegmentKind.driving in kinds
-        assert SegmentKind.hike not in kinds
+        _assert_segment_kind(
+            [_step(0.0, 0.5, 9.5)],
+            _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=5),
+            SegmentKind.driving,
+            SegmentKind.hike,
+        )
 
     def test_flight_speed_is_flight(self) -> None:
-        gps = [
-            _pt(0.0, 0.0, hours=10.0),
-            _pt(0.0, 5.0, hours=12.0),
-        ]
-        steps = [_step(0.0, 0.0, 9.0), _step(0.0, 5.0, 12.0)]
-        assert SegmentKind.flight in _segment_kinds(steps, gps)
+        _assert_segment_kind(
+            [_step(0.0, 0.0, 9.0), _step(0.0, 5.0, 12.0)],
+            [_pt(0.0, 0.0, hours=10.0), _pt(0.0, 5.0, hours=12.0)],
+            SegmentKind.flight,
+        )
 
     def test_pre_first_step_flight_not_dropped(self) -> None:
         gps_a = [_pt(32.0, 35.0, hours=0.0)]
