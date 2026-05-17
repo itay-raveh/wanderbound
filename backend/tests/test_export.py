@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
@@ -32,6 +32,10 @@ from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
 from tests.factories import collect_async
+
+
+def _export_path(*parts: str) -> str:
+    return str(Path(_EXPORT_NAME, *parts))
 
 
 def _make_user(uid: int, tmp_path: Path, *, album_ids: list[str] | None = None) -> User:
@@ -107,6 +111,31 @@ async def _insert_segment(session: AsyncSession, uid: int, aid: str) -> Segment:
     return seg
 
 
+def _done_event(events: list[ExportEvent]) -> ExportDone:
+    done_events = [e for e in events if isinstance(e, ExportDone)]
+    assert len(done_events) == 1
+    return done_events[0]
+
+
+async def _export_events_and_path(
+    user: User, session: AsyncSession
+) -> tuple[list[ExportEvent], Path]:
+    events: list[ExportEvent] = await collect_async(export_user_data(user, session))
+    path = pop_export_token(_done_event(events).token)
+    assert path is not None
+    return events, path
+
+
+def _zip_names(path: Path) -> list[str]:
+    with zipfile.ZipFile(path) as zf:
+        return zf.namelist()
+
+
+def _read_zip_json(path: Path, member: str) -> Any:
+    with zipfile.ZipFile(path) as zf:
+        return json.loads(zf.read(member))
+
+
 class TestTokenManagement:
     @pytest.fixture(autouse=True)
     def _clean_tokens(self) -> None:
@@ -123,7 +152,6 @@ class TestTokenManagement:
         result = pop_export_token(token)
         assert result == path
 
-        # Second pop returns None
         assert pop_export_token(token) is None
 
 
@@ -140,40 +168,29 @@ class TestExportUserData:
         uid = 7001
         user = _make_user(uid, tmp_path)
 
-        # Set up media on disk
         trip_dir = user.trips_folder / "trip-1"
         trip_dir.mkdir(parents=True)
         (trip_dir / "photo1.jpg").write_bytes(b"\xff\xd8fake jpeg")
 
-        # Insert DB records
         await _insert_album(session, uid, "trip-1")
         await _insert_step(session, uid, "trip-1", 1)
         await _insert_segment(session, uid, "trip-1")
         await session.flush()
 
-        events: list[ExportEvent] = await collect_async(export_user_data(user, session))
+        events, path = await _export_events_and_path(user, session)
 
         progress_events = [e for e in events if isinstance(e, ExportProgress)]
-        done_events = [e for e in events if isinstance(e, ExportDone)]
 
-        assert len(progress_events) >= 2  # initial 0 + at least one update
+        assert len(progress_events) >= 2
         assert progress_events[0].files_done == 0
-        assert (
-            progress_events[0].files_total == 5
-        )  # 1 account + 3 album JSONs + 1 photo
-        assert len(done_events) == 1
-
-        # Verify the ZIP contents
-        path = pop_export_token(done_events[0].token)
-        assert path is not None
-
-        with zipfile.ZipFile(path) as zf:
-            names = zf.namelist()
-            assert f"{_EXPORT_NAME}/account.json" in names
-            assert f"{_EXPORT_NAME}/albums/trip-1/album.json" in names
-            assert f"{_EXPORT_NAME}/albums/trip-1/steps.json" in names
-            assert f"{_EXPORT_NAME}/albums/trip-1/segments.json" in names
-            assert f"{_EXPORT_NAME}/albums/trip-1/media/photo1.jpg" in names
+        assert progress_events[0].files_total == 5
+        assert {
+            _export_path("account.json"),
+            _export_path("albums", "trip-1", "album.json"),
+            _export_path("albums", "trip-1", "steps.json"),
+            _export_path("albums", "trip-1", "segments.json"),
+            _export_path("albums", "trip-1", "media", "photo1.jpg"),
+        }.issubset(_zip_names(path))
 
         path.unlink(missing_ok=True)
 
@@ -183,17 +200,10 @@ class TestExportUserData:
         uid = 7003
         user = _make_user(uid, tmp_path, album_ids=[])
 
-        events = await collect_async(export_user_data(user, session))
-        done_events = [e for e in events if isinstance(e, ExportDone)]
-        assert len(done_events) == 1
-
-        path = pop_export_token(done_events[0].token)
-        assert path is not None
-
-        with zipfile.ZipFile(path) as zf:
-            names = zf.namelist()
-            assert f"{_EXPORT_NAME}/account.json" in names
-            assert len(names) == 1
+        _, path = await _export_events_and_path(user, session)
+        names = _zip_names(path)
+        assert _export_path("account.json") in names
+        assert len(names) == 1
 
         path.unlink(missing_ok=True)
 
@@ -243,13 +253,8 @@ class TestExportUserData:
         )
         await session.flush()
 
-        events = await collect_async(export_user_data(user, session))
-        done = next(e for e in events if isinstance(e, ExportDone))
-        path = pop_export_token(done.token)
-        assert path is not None
-
-        with zipfile.ZipFile(path) as zf:
-            steps = json.loads(zf.read(f"{_EXPORT_NAME}/albums/trip-1/steps.json"))
+        _, path = await _export_events_and_path(user, session)
+        steps = _read_zip_json(path, _export_path("albums", "trip-1", "steps.json"))
 
         assert steps[0]["cover"] == "photo1.jpg"
         assert steps[0]["pages"] == [["page.jpg"]]
