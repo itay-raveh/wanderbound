@@ -54,7 +54,7 @@ useDraggable(trackRef, localUnused, {
 </script>
 
 <template>
-  <div class="unused-drawer">
+  <div class="unused-drawer" role="region" :aria-label="t('album.unused')">
     <div
       class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted"
     >

@@ -29,9 +29,9 @@ test.describe("Active step sync", () => {
     await nav.getByText("Argentina").click();
     await nav.locator('[data-nav-step="102"]').click();
     await expect(
-      page.getByLabel("Inspector").getByRole("button", {
-        name: /Unused/,
-      }),
+      page
+        .getByLabel("Inspector")
+        .getByRole("region", { name: "Unused" }),
     ).toBeVisible();
 
     let importedStepId: string | null = null;

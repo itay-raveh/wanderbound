@@ -12,18 +12,15 @@ const IMPORTED =
   "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg";
 
 function unusedDrawer(page: import("@playwright/test").Page) {
-  return page.getByLabel("Inspector").filter({ hasText: "Unused" });
+  return page
+    .getByLabel("Inspector")
+    .getByRole("region", { name: "Unused" });
 }
 
-async function ensureUnusedOpen(page: import("@playwright/test").Page) {
-  const inspector = page.getByLabel("Inspector");
+async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
   const drawer = unusedDrawer(page);
   const count = drawer.getByText(/^\d+$/);
-  if (!(await count.isVisible())) {
-    const toggle = inspector.getByRole("button", { name: /Unused/ });
-    await expect(toggle).toHaveCount(1);
-    await toggle.click();
-  }
+  await expect(drawer).toBeVisible();
   await expect(count).toBeVisible();
 }
 
@@ -120,7 +117,7 @@ test.describe("Media import", () => {
     expect((await importResponse).ok()).toBeTruthy();
     expect(imported).toBe(true);
 
-    await ensureUnusedOpen(page);
+    await ensureUnusedTrayVisible(page);
     await expect(
       unusedDrawer(page).getByText("1", { exact: true }),
     ).toBeVisible({
@@ -216,7 +213,7 @@ test.describe("Media import", () => {
       mimeType: "image/jpeg",
       buffer: Buffer.from(TINY_JPEG_BASE64, "base64"),
     });
-    await ensureUnusedOpen(page);
+    await ensureUnusedTrayVisible(page);
     await expect(
       unusedDrawer(page).getByText("1", { exact: true }),
     ).toBeVisible({
@@ -228,7 +225,7 @@ test.describe("Media import", () => {
     await page.getByRole("button", { name: "Expand", exact: true }).click();
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
-    await ensureUnusedOpen(page);
+    await ensureUnusedTrayVisible(page);
 
     await expect(
       unusedDrawer(page).getByText("0", { exact: true }),
