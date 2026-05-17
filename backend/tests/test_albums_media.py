@@ -1,23 +1,20 @@
 from typing import TYPE_CHECKING
 
-from app.core.config import get_settings
-
-from .factories import AID, insert_album, insert_album_media, sign_in_and_upload
+from .factories import AID, AlbumScenario, insert_album_media
+from .helpers.albums import AlbumRoutes
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+pytest_plugins = ("tests.helpers.album_fixtures",)
 
 
 async def test_read_media_returns_album_media_rows(
-    client: AsyncClient,
     session: AsyncSession,
+    signed_album: AlbumScenario,
+    album_routes: AlbumRoutes,
 ) -> None:
-    user_data = await sign_in_and_upload(
-        client, get_settings().USERS_FOLDER, provider="google"
-    )
-    uid = user_data["id"]
-    await insert_album(session, uid)
+    uid = signed_album.uid
     media = await insert_album_media(
         session,
         uid,
@@ -25,7 +22,7 @@ async def test_read_media_returns_album_media_rows(
     )
     await session.commit()
 
-    resp = await client.get(f"/api/v1/albums/{AID}/media")
+    resp = await album_routes.get_media()
 
     assert resp.status_code == 200
     assert resp.json() == [
