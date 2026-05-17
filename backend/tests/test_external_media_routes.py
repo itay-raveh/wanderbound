@@ -114,6 +114,34 @@ async def _replace_device(
     )
 
 
+async def _undo_replacement(client: AsyncClient, media_name: str) -> Response:
+    return await client.post(
+        f"/api/v1/albums/{AID}/external-media/undo/{media_name}",
+    )
+
+
+async def _replace_google(
+    client: AsyncClient,
+    *,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    session_id: str = "session-abc",
+) -> Response:
+    return await client.post(
+        f"/api/v1/albums/{AID}/external-media/replace/google",
+        json={"media_name": media_name, "session_id": session_id},
+    )
+
+
+async def _add_google(
+    client: AsyncClient,
+    **payload: str | int,
+) -> Response:
+    return await client.post(
+        f"/api/v1/albums/{AID}/external-media/add/google",
+        json={"session_id": "session-abc", **payload},
+    )
+
+
 async def test_device_add_to_step_prepends_unused(
     client: AsyncClient,
     session: AsyncSession,
@@ -168,11 +196,7 @@ async def test_device_replace_updates_existing_media(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await sign_in_with_album_media(client, session, write_media=True)
 
     resp = await _replace_device(client, scenario.media_name)
 
@@ -186,11 +210,7 @@ async def test_device_replace_schedules_undo_snapshot_prune(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await sign_in_with_album_media(client, session, write_media=True)
 
     with patch(
         "app.api.v1.routes.external_media.enqueue_undo_snapshot_prune",
@@ -250,18 +270,12 @@ async def test_undo_replacement_restores_previous_dimensions(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await sign_in_with_album_media(client, session, write_media=True)
 
     replace_resp = await _replace_device(client, scenario.media_name)
     assert replace_resp.status_code == 200
 
-    undo_resp = await client.post(
-        f"/api/v1/albums/{AID}/external-media/undo/{scenario.media_name}",
-    )
+    undo_resp = await _undo_replacement(client, scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -273,11 +287,7 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await sign_in_with_album_media(client, session, write_media=True)
 
     first_replace = await _replace_device(client, scenario.media_name)
     assert first_replace.status_code == 200
@@ -287,9 +297,7 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
     )
     assert second_replace.status_code == 200
 
-    undo_resp = await client.post(
-        f"/api/v1/albums/{AID}/external-media/undo/{scenario.media_name}",
-    )
+    undo_resp = await _undo_replacement(client, scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -301,11 +309,7 @@ async def test_undo_replacement_restores_previous_upgrade_candidate(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await sign_in_with_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await sign_in_with_album_media(client, session, write_media=True)
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     row.upgrade_candidate = True
     session.add(row)
@@ -316,9 +320,7 @@ async def test_undo_replacement_restores_previous_upgrade_candidate(
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False
 
-    undo_resp = await client.post(
-        f"/api/v1/albums/{AID}/external-media/undo/{scenario.media_name}",
-    )
+    undo_resp = await _undo_replacement(client, scenario.media_name)
 
     assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
@@ -335,10 +337,7 @@ async def test_google_replace_requires_one_selected_item(
         "app.logic.external_media.operations.get_media_items",
         AsyncMock(return_value=[]),
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/google",
-            json={"media_name": DEFAULT_MEDIA_NAME, "session_id": "session-abc"},
-        )
+        resp = await _replace_google(client)
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Select exactly one replacement"
@@ -368,10 +367,7 @@ async def test_google_replace_rejects_multiple_items_before_download(
             AsyncMock(),
         ) as download,
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/google",
-            json={"media_name": DEFAULT_MEDIA_NAME, "session_id": "session-abc"},
-        )
+        resp = await _replace_google(client)
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Select exactly one replacement"
@@ -392,10 +388,7 @@ async def test_google_add_validates_step_before_download(
         ),
         patch("app.api.v1.routes.external_media.get_engine", return_value=session.bind),
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/add/google",
-            json={"context": "step", "step_id": 999, "session_id": "session-abc"},
-        )
+        resp = await _add_google(client, context="step", step_id=999)
 
     assert resp.status_code == 200
     assert "Step not found" in resp.text
@@ -415,10 +408,7 @@ async def test_google_add_collapses_lost_token_to_disconnected(
     with patch(
         "app.api.v1.routes.external_media.get_engine", return_value=session.bind
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/add/google",
-            json={"context": "cover", "session_id": "session-abc"},
-        )
+        resp = await _add_google(client, context="cover")
 
     assert resp.status_code == 400
     assert "Google Photos not connected" in resp.text
@@ -437,10 +427,7 @@ async def test_google_replace_validates_media_before_download(
         "app.api.v1.routes.external_media.download_google_items_to_saved",
         fail_if_downloaded,
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/google",
-            json={"media_name": MISSING_MEDIA_NAME, "session_id": "session-abc"},
-        )
+        resp = await _replace_google(client, media_name=MISSING_MEDIA_NAME)
 
     assert resp.status_code == 404
     assert not downloaded()
@@ -450,11 +437,7 @@ async def test_google_replace_marks_media_upgraded(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    scenario = await _google_connected_album_media(
-        client,
-        session,
-        write_media=True,
-    )
+    scenario = await _google_connected_album_media(client, session, write_media=True)
 
     async def fake_download(*args: object, **kwargs: object) -> None:
         dest = args[3]
@@ -471,10 +454,7 @@ async def test_google_replace_marks_media_upgraded(
             AsyncMock(side_effect=fake_download),
         ),
     ):
-        resp = await client.post(
-            f"/api/v1/albums/{AID}/external-media/replace/google",
-            json={"media_name": scenario.media_name, "session_id": "session-abc"},
-        )
+        resp = await _replace_google(client, media_name=scenario.media_name)
 
     assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))

@@ -96,6 +96,80 @@ def _replacement_video(tmp_path: Path, poster: bytes = b"generated poster") -> P
     return replacement
 
 
+def _saved_input(path: Path) -> SavedInput:
+    return SavedInput(path=path, size=path.stat().st_size)
+
+
+async def _replace_video_with_mocked_processing(
+    session: AsyncSession,
+    album: Album,
+    tmp_path: Path,
+    replacement: Path,
+) -> None:
+    with (
+        patch(
+            "app.logic.external_media.album_media.process_saved_media",
+            AsyncMock(
+                return_value=(
+                    [Media(name=replacement.name, width=1280, height=720)],
+                    [replacement],
+                )
+            ),
+        ),
+        patch("app.logic.external_media.album_media.extract_frame", AsyncMock()),
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_VIDEO_NAME,
+            saved=_saved_input(replacement),
+        )
+
+
+def _seed_video_undo_files(
+    tmp_path: Path,
+    target: Path,
+    *,
+    snapshot_poster: bytes | None = None,
+) -> Path:
+    target.with_suffix(".jpg").write_bytes(b"replacement poster")
+    undo_dir = tmp_path / ".undo"
+    undo_dir.mkdir()
+    snapshot = undo_dir / VALID_VIDEO_NAME
+    snapshot.write_bytes(b"original video")
+    if snapshot_poster is not None:
+        snapshot.with_suffix(".jpg").write_bytes(snapshot_poster)
+    return target.with_suffix(".jpg")
+
+
+async def _restore_video_undo(
+    session: AsyncSession,
+    album: Album,
+    tmp_path: Path,
+    *,
+    create_frame_patch: bool = False,
+) -> AsyncMock:
+    with (
+        patch(
+            "app.logic.external_media.undo.Media.probe",
+            AsyncMock(return_value=Media(name=VALID_VIDEO_NAME, width=640, height=480)),
+        ),
+        patch(
+            "app.logic.external_media.undo.extract_frame",
+            AsyncMock(),
+            create=create_frame_patch,
+        ) as extract_frame,
+    ):
+        await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_VIDEO_NAME,
+        )
+    return extract_frame
+
+
 def _add_undo_snapshot(
     session: AsyncSession,
     *,
@@ -147,7 +221,7 @@ async def test_replace_preserves_media_name_and_creates_undo(
         album=album,
         album_dir=album_dir,
         media_name=VALID_NAME,
-        saved=SavedInput(path=replacement, size=replacement.stat().st_size),
+        saved=_saved_input(replacement),
     )
 
     assert result.name == VALID_NAME
@@ -187,7 +261,7 @@ async def test_replace_prunes_expired_undo_snapshots(
         album=album,
         album_dir=album_dir,
         media_name=VALID_NAME,
-        saved=SavedInput(path=replacement, size=replacement.stat().st_size),
+        saved=_saved_input(replacement),
     )
 
     assert not old_snapshot.exists()
@@ -211,7 +285,7 @@ async def test_replace_rejects_photo_video_mismatch(
             album=album,
             album_dir=tmp_path,
             media_name=VALID_NAME,
-            saved=SavedInput(path=replacement, size=replacement.stat().st_size),
+            saved=_saved_input(replacement),
         )
 
 
@@ -223,28 +297,7 @@ async def test_video_replace_removes_generated_temp_poster(
     replacement = _replacement_video(tmp_path)
     await session.commit()
 
-    with (
-        patch(
-            "app.logic.external_media.album_media.process_saved_media",
-            AsyncMock(
-                return_value=(
-                    [Media(name=replacement.name, width=1280, height=720)],
-                    [replacement],
-                )
-            ),
-        ),
-        patch(
-            "app.logic.external_media.album_media.extract_frame",
-            AsyncMock(),
-        ),
-    ):
-        await replace_album_media_from_saved(
-            session,
-            album=album,
-            album_dir=tmp_path,
-            media_name=VALID_VIDEO_NAME,
-            saved=SavedInput(path=replacement, size=replacement.stat().st_size),
-        )
+    await _replace_video_with_mocked_processing(session, album, tmp_path, replacement)
 
     assert (tmp_path / VALID_VIDEO_NAME).read_bytes() == b"new video"
     assert not replacement.with_suffix(".jpg").exists()
@@ -258,25 +311,7 @@ async def test_video_replace_snapshots_custom_poster_for_undo(
     replacement = _replacement_video(tmp_path)
     await session.commit()
 
-    with (
-        patch(
-            "app.logic.external_media.album_media.process_saved_media",
-            AsyncMock(
-                return_value=(
-                    [Media(name=replacement.name, width=1280, height=720)],
-                    [replacement],
-                )
-            ),
-        ),
-        patch("app.logic.external_media.album_media.extract_frame", AsyncMock()),
-    ):
-        await replace_album_media_from_saved(
-            session,
-            album=album,
-            album_dir=tmp_path,
-            media_name=VALID_VIDEO_NAME,
-            saved=SavedInput(path=replacement, size=replacement.stat().st_size),
-        )
+    await _replace_video_with_mocked_processing(session, album, tmp_path, replacement)
 
     snapshot_poster = tmp_path / ".undo" / VALID_VIDEO_POSTER_NAME
     assert snapshot_poster.read_bytes() == b"custom poster"
@@ -290,31 +325,11 @@ async def test_video_undo_restores_snapshot_poster(
     album, target = await _album_with_video(
         session, tmp_path, uid=uid, content=b"replacement video"
     )
-    poster = target.with_suffix(".jpg")
-    poster.write_bytes(b"replacement poster")
-    undo_dir = tmp_path / ".undo"
-    undo_dir.mkdir()
-    snapshot = undo_dir / VALID_VIDEO_NAME
-    snapshot.write_bytes(b"original video")
-    snapshot.with_suffix(".jpg").write_bytes(b"custom poster")
+    poster = _seed_video_undo_files(tmp_path, target, snapshot_poster=b"custom poster")
     _add_undo_snapshot(session, uid=uid)
     await session.commit()
 
-    with (
-        patch(
-            "app.logic.external_media.undo.Media.probe",
-            AsyncMock(return_value=Media(name=VALID_VIDEO_NAME, width=640, height=480)),
-        ),
-        patch(
-            "app.logic.external_media.undo.extract_frame", AsyncMock()
-        ) as extract_frame,
-    ):
-        await restore_undo_snapshot(
-            session,
-            album=album,
-            album_dir=tmp_path,
-            media_name=VALID_VIDEO_NAME,
-        )
+    extract_frame = await _restore_video_undo(session, album, tmp_path)
 
     assert poster.read_bytes() == b"custom poster"
     extract_frame.assert_not_awaited()
@@ -328,30 +343,12 @@ async def test_video_undo_regenerates_restored_poster(
     album, target = await _album_with_video(
         session, tmp_path, uid=uid, content=b"replacement video"
     )
-    target.with_suffix(".jpg").write_bytes(b"replacement poster")
-    undo_dir = tmp_path / ".undo"
-    undo_dir.mkdir()
-    snapshot = undo_dir / VALID_VIDEO_NAME
-    snapshot.write_bytes(b"original video")
+    _seed_video_undo_files(tmp_path, target)
     _add_undo_snapshot(session, uid=uid)
     await session.commit()
 
-    with (
-        patch(
-            "app.logic.external_media.undo.Media.probe",
-            AsyncMock(return_value=Media(name=VALID_VIDEO_NAME, width=640, height=480)),
-        ),
-        patch(
-            "app.logic.external_media.undo.extract_frame",
-            AsyncMock(),
-            create=True,
-        ) as extract_frame,
-    ):
-        await restore_undo_snapshot(
-            session,
-            album=album,
-            album_dir=tmp_path,
-            media_name=VALID_VIDEO_NAME,
-        )
+    extract_frame = await _restore_video_undo(
+        session, album, tmp_path, create_frame_patch=True
+    )
 
     extract_frame.assert_awaited_once_with(target)
