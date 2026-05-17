@@ -1,9 +1,3 @@
-"""Tests for app.services.google_photos - Pydantic parsing and pagination.
-
-Tests the API contract boundary: camelCase Google JSON -> domain models.
-Uses real httpx.Response objects so Pydantic parsing runs end-to-end.
-"""
-
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,15 +23,11 @@ from app.services.google_photos import (
     get_media_items,
 )
 
-# ---------------------------------------------------------------------------
-# Fixtures: realistic Google API JSON (camelCase, extra fields)
-# ---------------------------------------------------------------------------
-
 _SESSION_JSON = {
     "id": "session-xyz",
     "pickerUri": "https://photos.google.com/picker/abc",
     "pollingConfig": {"pollInterval": "5s"},
-    "expireTime": "2025-01-01T00:00:00Z",  # extra field we don't model
+    "expireTime": "2025-01-01T00:00:00Z",
     "mediaItemsSet": False,
 }
 
@@ -72,11 +62,6 @@ _VIDEO_ITEM_JSON = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Response parsing (Pydantic camelCase -> snake_case)
-# ---------------------------------------------------------------------------
-
-
 class TestResponseParsing:
     def test_session_response_parses_camel_case(self) -> None:
         data = _SessionResponse.model_validate(_SESSION_JSON)
@@ -85,11 +70,6 @@ class TestResponseParsing:
         assert data.polling_config is not None
         assert data.polling_config.poll_interval == "5s"
         assert data.media_items_set is False
-
-    def test_session_response_ignores_extra_fields(self) -> None:
-        """Google may add fields; extra='allow' prevents breakage."""
-        data = _SessionResponse.model_validate(_SESSION_JSON)
-        assert data.id == "session-xyz"  # core fields still parsed
 
     def test_media_items_page_parses_items(self) -> None:
         raw = {"mediaItems": [_MEDIA_ITEM_JSON], "nextPageToken": "tok-2"}
@@ -113,11 +93,6 @@ class TestResponseParsing:
         page = _MediaItemsPage.model_validate({"mediaItems": [raw]})
         item = page.media_items[0]
         assert item.media_file.media_file_metadata is None
-
-
-# ---------------------------------------------------------------------------
-# Service function tests (mock HTTP, test logic + parsing end-to-end)
-# ---------------------------------------------------------------------------
 
 
 _DUMMY_REQUEST = httpx.Request("GET", "http://test")
@@ -181,7 +156,6 @@ class TestGetMediaItems:
         assert len(items) == 2
         assert items[0].id == "media-1"
         assert items[1].id == "media-2"
-        # Verify page token was passed on second call
         second_call_params = mock_client.get.call_args_list[1].kwargs.get("params", {})
         assert second_call_params.get("pageToken") == "page-2"
 
@@ -194,7 +168,6 @@ class TestGetMediaItems:
         assert items == []
 
     async def test_video_items_preserved(self) -> None:
-        """get_media_items returns all types; filtering is done later."""
         video = {**_MEDIA_ITEM_JSON, "id": "vid-1", "type": "VIDEO"}
         mock_client = AsyncMock()
         mock_client.get.return_value = _json_response({"mediaItems": [video]})
@@ -218,14 +191,10 @@ class TestGetMediaItems:
 
 
 class TestVideoMetadataParsing:
-    def test_video_processing_status_parsed(self) -> None:
-        page = _MediaItemsPage.model_validate({"mediaItems": [_VIDEO_ITEM_JSON]})
-        assert page.media_items[0].type == "VIDEO"
-
     def test_video_processing_status_surfaced_on_picked_item(self) -> None:
-        """get_media_items should surface processingStatus on PickedMediaItem."""
         page = _MediaItemsPage.model_validate({"mediaItems": [_VIDEO_ITEM_JSON]})
         raw = page.media_items[0]
+        assert raw.type == "VIDEO"
         assert raw.video_metadata is not None
         assert raw.video_metadata.processing_status == "READY"
 
@@ -233,11 +202,6 @@ class TestVideoMetadataParsing:
         page = _MediaItemsPage.model_validate({"mediaItems": [_MEDIA_ITEM_JSON]})
         raw = page.media_items[0]
         assert raw.video_metadata is None
-
-
-# ---------------------------------------------------------------------------
-# ensure_fresh_token
-# ---------------------------------------------------------------------------
 
 
 def _oauth_mock(refresh_return: OAuth2Token | None = None) -> AsyncMock:
@@ -249,7 +213,6 @@ def _oauth_mock(refresh_return: OAuth2Token | None = None) -> AsyncMock:
 
 class TestEnsureFreshToken:
     async def test_returns_input_when_fresh(self) -> None:
-        """A non-expired token is returned unchanged - no network call."""
         fresh = OAuth2Token({"access_token": "tok-fresh", "expires_in": 3600})
         oauth = _oauth_mock()
         result = await ensure_fresh_token(oauth, "rt-1", fresh)
@@ -257,15 +220,12 @@ class TestEnsureFreshToken:
         oauth.refresh_token.assert_not_called()
 
     async def test_refreshes_when_stale_or_none(self) -> None:
-        """None or near-expiry tokens trigger the refresh grant."""
         new = OAuth2Token({"access_token": "tok-new", "expires_in": 3600})
         oauth = _oauth_mock(refresh_return=new)
 
-        # Case: no prior token.
         result = await ensure_fresh_token(oauth, "rt-1", None)
         assert result is new
 
-        # Case: prior token already expired (expires_in=0 -> past).
         stale = OAuth2Token({"access_token": "tok-stale", "expires_in": 0})
         result = await ensure_fresh_token(oauth, "rt-1", stale)
         assert result is new
@@ -278,10 +238,6 @@ class TestEnsureFreshToken:
             await ensure_fresh_token(oauth, "rt-bad", None)
 
 
-# ---------------------------------------------------------------------------
-# Download size limits and cleanup
-# ---------------------------------------------------------------------------
-
 _BASE_URL = "https://lh3.googleusercontent.com/test"
 _TOKEN = "ya29.test"  # noqa: S105
 
@@ -289,7 +245,6 @@ _TOKEN = "ya29.test"  # noqa: S105
 def _streaming_client(
     chunks: list[bytes], headers: dict[str, str] | None = None
 ) -> AsyncMock:
-    """Build a mock httpx.AsyncClient whose .stream() yields the given chunks."""
     resp = AsyncMock()
     resp.raise_for_status = lambda: None
     resp.headers = headers or {}
@@ -310,14 +265,17 @@ async def _async_iter(items: list[bytes]) -> AsyncIterator[bytes]:
 
 
 class TestDownloadMediaBytes:
-    async def test_rejects_content_length_over_limit(self) -> None:
-        client = _streaming_client([], headers={"content-length": "1000"})
-        with pytest.raises(DownloadTooLargeError):
-            await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=500)
-
-    async def test_rejects_stream_exceeding_limit(self) -> None:
-        """Even without content-length, reject if chunks exceed max_bytes."""
-        client = _streaming_client([b"x" * 600])
+    @pytest.mark.parametrize(
+        ("chunks", "headers"),
+        [
+            ([], {"content-length": "1000"}),
+            ([b"x" * 600], None),
+        ],
+    )
+    async def test_rejects_download_over_limit(
+        self, chunks: list[bytes], headers: dict[str, str] | None
+    ) -> None:
+        client = _streaming_client(chunks, headers=headers)
         with pytest.raises(DownloadTooLargeError):
             await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=500)
 
