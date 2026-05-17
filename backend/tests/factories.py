@@ -180,6 +180,17 @@ async def sign_in_and_upload(
     return resp.json()["user"]
 
 
+async def sign_in_uploaded_user(
+    client: AsyncClient,
+    *,
+    provider: str = "google",
+    payload: dict | None = None,
+) -> dict:
+    users_dir = get_settings().USERS_FOLDER
+    users_dir.mkdir(parents=True, exist_ok=True)
+    return await sign_in_and_upload(client, users_dir, provider, payload)
+
+
 # ---------------------------------------------------------------------------
 # DB insert helpers
 # ---------------------------------------------------------------------------
@@ -195,6 +206,16 @@ async def connect_google_photos(session: AsyncSession, uid: int) -> None:
     user.google_photos_connected_at = datetime.now(UTC)
     session.add(user)
     await session.flush()
+
+
+async def sign_in_connected_google_photos(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> int:
+    user_data = await sign_in_uploaded_user(client, provider="google")
+    uid = user_data["id"]
+    await connect_google_photos(session, uid)
+    return uid
 
 
 LOCATION = Location(
