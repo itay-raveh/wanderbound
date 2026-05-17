@@ -211,6 +211,12 @@ MISSING_MEDIA_NAME = (
 
 
 @dataclass(frozen=True)
+class AlbumScenario:
+    uid: int
+    aid: str = AID
+
+
+@dataclass(frozen=True)
 class AlbumMediaScenario:
     uid: int
     album_dir: Path
@@ -317,6 +323,23 @@ async def insert_step(
     )
     await session.flush()
     return step
+
+
+async def sign_in_with_album(
+    client: AsyncClient,
+    session: AsyncSession,
+    *,
+    provider: str = "google",
+    aid: str = AID,
+) -> AlbumScenario:
+    user_data = await sign_in_and_upload(
+        client,
+        get_settings().USERS_FOLDER,
+        provider=provider,
+    )
+    uid = user_data["id"]
+    await insert_album(session, uid, aid=aid)
+    return AlbumScenario(uid=uid, aid=aid)
 
 
 async def sign_in_with_album_media(
