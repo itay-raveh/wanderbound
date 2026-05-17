@@ -1,12 +1,3 @@
-"""Tests for the media upgrade pipeline.
-
-Unit tests are scoped to the algorithmic edge cases that motivated the
-code (Hungarian optimality, overlap-margin boundary, cross-step
-fallback dimension cap) plus the real-I/O photo/video processing. A
-single integration test exercises ``run_matching`` end-to-end against
-fixture JPEGs on disk.
-"""
-
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,13 +44,11 @@ from .factories import AID, create_test_jpeg, insert_album, insert_album_media
 
 @pytest.fixture(autouse=True)
 def _clear_upgrade_caches_between_tests() -> Iterator[None]:
-    """Reset the event-loop-bound semaphore cache between tests."""
     yield
     _clear_caches()
 
 
 def _make_hash(value: int) -> imagehash.ImageHash:
-    """Create a deterministic hash for testing."""
     bits = np.array([(value >> i) & 1 for i in range(64)], dtype=bool)
     return imagehash.ImageHash(bits)
 
@@ -97,7 +86,6 @@ def _make_item(
 def _write_jpeg(
     path: Path, width: int, height: int, *, exif: bytes | None = None
 ) -> None:
-    """Write a JPEG image to *path*, optionally with EXIF data."""
     img = Image.new("RGB", (width, height), color=(100, 150, 200))
     kwargs: dict = {"format": "JPEG", "quality": 95}
     if exif is not None:
@@ -106,14 +94,8 @@ def _write_jpeg(
 
 
 def _write_png(path: Path, width: int, height: int) -> None:
-    """Write a PNG image to *path*."""
     img = Image.new("RGBA", (width, height), color=(100, 150, 200, 255))
     img.save(path, format="PNG")
-
-
-# ---------------------------------------------------------------------------
-# Targeted algorithm regression guards
-# ---------------------------------------------------------------------------
 
 
 class TestComputePhash:
@@ -140,26 +122,21 @@ class TestComputePhash:
 
 class TestMatchWithinWindow:
     def test_optimal_assignment_not_greedy(self) -> None:
-        """Hungarian must find the global optimum, not a greedy local one.
-
-        Regression guard: a greedy matcher would pair photo1 with the nearest
-        candidate and leave photo2 worse off; the global optimum swaps them.
-        """
         h_base = _make_hash(0)
 
         bits_p1 = np.array([(0 >> i) & 1 for i in range(64)], dtype=bool)
         bits_p1[0] = True
-        bits_p1[1] = True  # distance 2 from all-zero
+        bits_p1[1] = True
         h_p1 = imagehash.ImageHash(bits_p1)
 
         bits_p2 = np.zeros(64, dtype=bool)
-        bits_p2[0] = True  # distance 1 from all-zero
+        bits_p2[0] = True
         h_p2 = imagehash.ImageHash(bits_p2)
 
         bits_gp2 = np.zeros(64, dtype=bool)
         bits_gp2[0] = True
         bits_gp2[1] = True
-        bits_gp2[2] = True  # distance 3 from p1
+        bits_gp2[2] = True
         h_gp2 = imagehash.ImageHash(bits_gp2)
 
         results = match_within_window(
@@ -173,11 +150,6 @@ class TestMatchWithinWindow:
 
 class TestBucketByWindow:
     def test_overlap_margin_includes_boundary_items(self) -> None:
-        """Items just past a window boundary match via overlap.
-
-        Regression guard: an item 10 min past a step boundary must still be
-        considered for the previous step (30-min overlap).
-        """
         windows = build_step_windows(
             step_timestamps=[1_000_000.0, 1_050_000.0],
             step_ids=[1, 2],
@@ -192,7 +164,6 @@ class TestBucketByWindow:
 
 class TestCrossStepFallback:
     def test_runs_at_exact_dimension_limit(self) -> None:
-        """Fallback still runs when both dimensions are exactly at the limit."""
         h = _make_hash(0)
         n = _FALLBACK_MAX_DIMENSION
         names = [f"photo{i}.jpg" for i in range(n)]
@@ -214,7 +185,6 @@ class TestCrossStepFallback:
         assert len(all_matches) == n
 
     def test_skips_when_exceeding_dimension_limit(self) -> None:
-        """Fallback is skipped when the matrix would be too large."""
         h = _make_hash(0)
         n = _FALLBACK_MAX_DIMENSION + 1
         names = [f"photo{i}.jpg" for i in range(n)]
@@ -236,14 +206,8 @@ class TestCrossStepFallback:
         assert len(all_matches) == 0
 
 
-# ---------------------------------------------------------------------------
-# Photo processing (EXIF strip, resize, JPEG conversion)
-# ---------------------------------------------------------------------------
-
-
 class TestProcessPhoto:
     def test_strips_exif(self, tmp_path: Path) -> None:
-        """EXIF metadata must be removed."""
         img = Image.new("RGB", (800, 600))
         exif = img.getexif()
         exif[ExifBase.Make] = "TestCamera"
@@ -263,38 +227,29 @@ class TestProcessPhoto:
         with Image.open(out) as result:
             assert len(result.getexif()) == 0
 
-    def test_resizes_large_landscape(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("source_size", "expected_size"),
+        [
+            ((5000, 3000), (_MAX_LONG_EDGE, 1800)),
+            ((3000, 5000), (1800, _MAX_LONG_EDGE)),
+            ((2000, 1500), (2000, 1500)),
+        ],
+    )
+    def test_resizes_photos(
+        self,
+        tmp_path: Path,
+        source_size: tuple[int, int],
+        expected_size: tuple[int, int],
+    ) -> None:
         raw = tmp_path / "in.jpg"
         out = tmp_path / "out.jpg"
-        _write_jpeg(raw, 5000, 3000)
+        _write_jpeg(raw, *source_size)
 
         w, h = process_photo_sync(raw, out)
 
-        assert (w, h) == (_MAX_LONG_EDGE, 1800)
+        assert (w, h) == expected_size
         with Image.open(out) as result:
-            assert result.size == (_MAX_LONG_EDGE, 1800)
-
-    def test_resizes_large_portrait(self, tmp_path: Path) -> None:
-        raw = tmp_path / "in.jpg"
-        out = tmp_path / "out.jpg"
-        _write_jpeg(raw, 3000, 5000)
-
-        w, h = process_photo_sync(raw, out)
-
-        assert (w, h) == (1800, _MAX_LONG_EDGE)
-        with Image.open(out) as result:
-            assert result.size == (1800, _MAX_LONG_EDGE)
-
-    def test_preserves_small_image(self, tmp_path: Path) -> None:
-        raw = tmp_path / "in.jpg"
-        out = tmp_path / "out.jpg"
-        _write_jpeg(raw, 2000, 1500)
-
-        w, h = process_photo_sync(raw, out)
-
-        assert (w, h) == (2000, 1500)
-        with Image.open(out) as result:
-            assert result.size == (2000, 1500)
+            assert result.size == expected_size
 
     def test_converts_png_to_jpeg(self, tmp_path: Path) -> None:
         raw = tmp_path / "in.png"
@@ -309,10 +264,9 @@ class TestProcessPhoto:
             assert result.size == (800, 600)
 
     def test_handles_orientation_tag(self, tmp_path: Path) -> None:
-        """EXIF orientation 6 (rotated 90 CW) should produce a transposed image."""
-        img = Image.new("RGB", (400, 600))  # portrait source
+        img = Image.new("RGB", (400, 600))
         exif = img.getexif()
-        exif[ExifBase.Orientation] = 6  # 90 CW rotation
+        exif[ExifBase.Orientation] = 6
         exif_bytes = exif.tobytes()
 
         raw = tmp_path / "in.jpg"
@@ -321,7 +275,6 @@ class TestProcessPhoto:
 
         w, h = process_photo_sync(raw, out)
 
-        # After transpose: 600x400 (landscape)
         assert (w, h) == (600, 400)
         with Image.open(out) as result:
             assert result.size == (600, 400)
@@ -351,11 +304,6 @@ class TestProcessVideo:
         monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
         with pytest.raises(RuntimeError, match="cap"):
             await process_video(source, out)
-
-
-# ---------------------------------------------------------------------------
-# _needs_upgrade
-# ---------------------------------------------------------------------------
 
 
 class TestNeedsUpgrade:
@@ -396,11 +344,6 @@ class TestPersistUpgrade:
 
         assert media.byte_size == target.stat().st_size
         assert media.upgrade_candidate is False
-
-
-# ---------------------------------------------------------------------------
-# run_matching end-to-end
-# ---------------------------------------------------------------------------
 
 
 class TestRunMatching:
@@ -456,14 +399,6 @@ class TestRunMatching:
     async def test_matches_real_images_end_to_end(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Full matching pipeline against real JPEGs on disk.
-
-        Each Google item's base_url points at its own id; the mocked
-        ``download_media_bytes`` returns the matching local file's bytes so
-        candidate hashes equal local hashes. Exercises bucketing, local
-        hashing, candidate hashing, within-window Hungarian, cross-step
-        fallback, and the terminal summary event.
-        """
         album_dir = tmp_path / "album"
         album_dir.mkdir()
 
@@ -475,7 +410,6 @@ class TestRunMatching:
         step_ids = [1, 2, 3]
         names = ["step1.jpg", "step2.jpg", "step3.jpg"]
 
-        # Visually distinct images so each pHash is unique.
         bytes_by_name: dict[str, bytes] = {}
         for i, name in enumerate(names):
             img = Image.new("RGB", (400, 300))
@@ -489,7 +423,6 @@ class TestRunMatching:
             img.save(path, "JPEG", quality=90)
             bytes_by_name[name] = path.read_bytes()
 
-        # Google items: one per step, base_url encodes the local file.
         google_items = [
             _make_item(
                 f"gp-{i}",
