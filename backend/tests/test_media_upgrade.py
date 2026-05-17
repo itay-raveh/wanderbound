@@ -98,6 +98,10 @@ def _write_png(path: Path, width: int, height: int) -> None:
     img.save(path, format="PNG")
 
 
+async def _test_token() -> str:
+    return "test-token"
+
+
 class TestComputePhash:
     def test_orientation_invariant(self, tmp_path: Path) -> None:
         upright = Image.new("RGB", (100, 200), color="white")
@@ -163,13 +167,21 @@ class TestBucketByWindow:
 
 
 class TestCrossStepFallback:
-    def test_runs_at_exact_dimension_limit(self) -> None:
+    @pytest.mark.parametrize(
+        ("dimension", "expected_matches"),
+        [
+            (_FALLBACK_MAX_DIMENSION, _FALLBACK_MAX_DIMENSION),
+            (_FALLBACK_MAX_DIMENSION + 1, 0),
+        ],
+    )
+    def test_dimension_limit(self, dimension: int, expected_matches: int) -> None:
         h = _make_hash(0)
-        n = _FALLBACK_MAX_DIMENSION
-        names = [f"photo{i}.jpg" for i in range(n)]
+        names = [f"photo{i}.jpg" for i in range(dimension)]
         hashes = dict.fromkeys(names, h)
-        items = [_make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(n)]
-        candidate_hashes = {f"gp-{i}": h for i in range(n)}
+        items = [
+            _make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(dimension)
+        ]
+        candidate_hashes = {f"gp-{i}": h for i in range(dimension)}
 
         all_matches: list[MatchResult] = []
         cross_step_fallback(
@@ -182,28 +194,7 @@ class TestCrossStepFallback:
             google_items=items,
         )
 
-        assert len(all_matches) == n
-
-    def test_skips_when_exceeding_dimension_limit(self) -> None:
-        h = _make_hash(0)
-        n = _FALLBACK_MAX_DIMENSION + 1
-        names = [f"photo{i}.jpg" for i in range(n)]
-        hashes = dict.fromkeys(names, h)
-        items = [_make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(n)]
-        candidate_hashes = {f"gp-{i}": h for i in range(n)}
-
-        all_matches: list[MatchResult] = []
-        cross_step_fallback(
-            all_matches,
-            matched_locals=set(),
-            matched_candidates=set(),
-            media_names=names,
-            local_hashes=hashes,
-            candidate_hashes=candidate_hashes,
-            google_items=items,
-        )
-
-        assert len(all_matches) == 0
+        assert len(all_matches) == expected_matches
 
 
 class TestProcessPhoto:
@@ -307,13 +298,18 @@ class TestProcessVideo:
 
 
 class TestNeedsUpgrade:
-    def test_candidate_needs_upgrade(self) -> None:
+    @pytest.mark.parametrize(
+        ("upgrade_candidates", "expected"),
+        [
+            ({"photo.jpg"}, True),
+            (set(), False),
+        ],
+    )
+    def test_needs_upgrade(
+        self, upgrade_candidates: set[str], *, expected: bool
+    ) -> None:
         match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
-        assert _needs_upgrade(match, {"photo.jpg"}) is True
-
-    def test_non_candidate_skips(self) -> None:
-        match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
-        assert _needs_upgrade(match, set()) is False
+        assert _needs_upgrade(match, upgrade_candidates) is expected
 
 
 class TestPersistUpgrade:
@@ -370,9 +366,6 @@ class TestRunMatching:
             "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
         )
 
-        async def fake_token() -> str:
-            return "test-token"
-
         events = [
             event
             async for event in run_matching(
@@ -387,7 +380,7 @@ class TestRunMatching:
                         datetime(2024, 1, 15, 10, 5, tzinfo=UTC).isoformat(),
                     )
                 ],
-                tokens=fake_token,
+                tokens=_test_token,
                 upgrade_candidates=set(),
             )
         ]
@@ -450,9 +443,6 @@ class TestRunMatching:
             "app.logic.media_upgrade.pipeline.download_media_bytes", fake_download
         )
 
-        async def fake_token() -> str:
-            return "test-token"
-
         clients = AsyncMock()
         events = [
             event
@@ -465,7 +455,7 @@ class TestRunMatching:
                 step_timestamps=step_timestamps,
                 step_ids=step_ids,
                 google_items=google_items,
-                tokens=fake_token,
+                tokens=_test_token,
             )
         ]
 
