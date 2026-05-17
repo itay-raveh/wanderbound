@@ -2,7 +2,11 @@ import { defineComponent, h, ref } from "vue";
 import { mountWithPlugins } from "../helpers";
 import { provideAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
-import { useReplaceExternalMedia } from "@/composables/useReplaceExternalMedia";
+import {
+  replacementInvalidationKeys,
+  useReplaceExternalMedia,
+} from "@/composables/useReplaceExternalMedia";
+import { queryKeys } from "@/queries/keys";
 import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const googlePhotosMock = vi.hoisted(() => ({
@@ -160,5 +164,14 @@ describe("useReplaceExternalMedia", () => {
     expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
       maxItemCount: 1,
     });
+  });
+
+  it("invalidates print bundle after replacements", () => {
+    expect(replacementInvalidationKeys("album-1")).toEqual([
+      queryKeys.album("album-1"),
+      queryKeys.media("album-1"),
+      queryKeys.steps("album-1"),
+      queryKeys.printBundle("album-1"),
+    ]);
   });
 });

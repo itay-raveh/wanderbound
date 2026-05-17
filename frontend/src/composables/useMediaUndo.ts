@@ -72,11 +72,11 @@ export function useMediaUndo(albumId: () => string) {
       await undoReplacement({
         path: { aid: state.aid, media_name: state.mediaName },
       });
-      await Promise.all([
-        cache.invalidateQueries({ key: queryKeys.album(state.aid) }),
-        cache.invalidateQueries({ key: queryKeys.media(state.aid) }),
-        cache.invalidateQueries({ key: queryKeys.steps(state.aid) }),
-      ]);
+      await Promise.all(
+        mediaUndoInvalidationKeys(state.aid).map((key) =>
+          cache.invalidateQueries({ key }),
+        ),
+      );
       Notify.create({
         type: "positive",
         message: t("externalMedia.undo.done"),
@@ -97,4 +97,13 @@ export function useMediaUndo(albumId: () => string) {
     undo,
     clearUndoState,
   };
+}
+
+export function mediaUndoInvalidationKeys(aid: string) {
+  return [
+    queryKeys.album(aid),
+    queryKeys.media(aid),
+    queryKeys.steps(aid),
+    queryKeys.printBundle(aid),
+  ];
 }

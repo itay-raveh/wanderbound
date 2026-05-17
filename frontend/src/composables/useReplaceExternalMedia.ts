@@ -275,11 +275,11 @@ export function useReplaceExternalMedia() {
   }
 
   async function invalidateQueries() {
-    await Promise.all([
-      cache.invalidateQueries({ key: queryKeys.album(albumId.value) }),
-      cache.invalidateQueries({ key: queryKeys.media(albumId.value) }),
-      cache.invalidateQueries({ key: queryKeys.steps(albumId.value) }),
-    ]);
+    await Promise.all(
+      replacementInvalidationKeys(albumId.value).map((key) =>
+        cache.invalidateQueries({ key }),
+      ),
+    );
   }
 
   async function pollUntilReady(
@@ -322,6 +322,15 @@ export function useReplaceExternalMedia() {
     cancelReview,
     cancel,
   };
+}
+
+export function replacementInvalidationKeys(aid: string) {
+  return [
+    queryKeys.album(aid),
+    queryKeys.media(aid),
+    queryKeys.steps(aid),
+    queryKeys.printBundle(aid),
+  ];
 }
 
 function currentPreviewUrl(
