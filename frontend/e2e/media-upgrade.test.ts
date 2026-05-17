@@ -96,6 +96,12 @@ async function expectUpgradeDone(page: Page, message: RegExp) {
   );
 }
 
+async function expectReadyFiles(page: Page, count: number) {
+  await expect(page.getByText(new RegExp(`${count} files ready`, "i"))).toBeVisible(
+    { timeout: 10_000 },
+  );
+}
+
 async function skipOnboarding(page: Page) {
   await page.addInitScript(
     ([key]) => localStorage.setItem(key, "true"),
@@ -152,6 +158,19 @@ async function mockMatchStream(page: Page, events: object[] = matchEvents) {
   );
 }
 
+async function mockMatchRounds(page: Page, rounds: object[][]) {
+  let round = 0;
+  await page.route(`${API}/google-photos/match/**`, (route) => {
+    const events = rounds[Math.min(round, rounds.length - 1)];
+    round += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: sseBody(events),
+    });
+  });
+}
+
 async function mockUpgradeStream(page: Page, events: object[]) {
   await page.route(`${API}/google-photos/upgrade/**`, (route) =>
     route.fulfill({
@@ -174,14 +193,23 @@ async function setupUpgradeRoutes(page: Page) {
 async function openReadyUpgradeSummary(page: Page) {
   await page.goto("/editor");
   await clickUpgradeMedia(page);
-  await expect(page.getByText(/2 files ready/i)).toBeVisible({
-    timeout: 10_000,
-  });
+  await expectReadyFiles(page, 2);
 }
 
 async function prepareOnboardedPopupFlow(page: Page) {
   await skipOnboarding(page);
   await mockPopup(page);
+}
+
+async function completeReadyUpgrade(
+  page: Page,
+  events: object[],
+  expectedDone: RegExp,
+) {
+  await mockUpgradeStream(page, events);
+  await openReadyUpgradeSummary(page);
+  await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
+  await expectUpgradeDone(page, expectedDone);
 }
 
 test.describe("Media Upgrade", () => {
@@ -212,12 +240,7 @@ test.describe("Media Upgrade", () => {
   }) => {
     await setupUpgradeRoutes(page);
     await prepareOnboardedPopupFlow(page);
-    await mockUpgradeStream(page, upgradeEvents);
-    await openReadyUpgradeSummary(page);
-
-    await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
-
-    await expectUpgradeDone(page, /upgraded 2 files/i);
+    await completeReadyUpgrade(page, upgradeEvents, /upgraded 2 files/i);
   });
 
   test("partial failure shows count in done message", async ({
@@ -225,12 +248,7 @@ test.describe("Media Upgrade", () => {
   }) => {
     await setupUpgradeRoutes(page);
     await prepareOnboardedPopupFlow(page);
-    await mockUpgradeStream(page, partialUpgradeEvents);
-    await openReadyUpgradeSummary(page);
-
-    await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
-
-    await expectUpgradeDone(page, /upgraded 1 of 2/i);
+    await completeReadyUpgrade(page, partialUpgradeEvents, /upgraded 1 of 2/i);
   });
 
   test("disconnect option visible in dropdown when connected", async ({
@@ -318,21 +336,12 @@ test.describe("Media Upgrade", () => {
   test("clicking error button restarts the flow", async ({
     authedPage: page,
   }) => {
-    let matchCall = 0;
     await mockConnectedUser(page);
     await mockPickerSession(page, { dynamicSession: true });
-    await page.route(`${API}/google-photos/match/**`, (route) => {
-      matchCall += 1;
-      return route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(
-          matchCall === 1
-            ? [{ type: "upgrade_failed", detail: "connectionLost" }]
-            : matchEvents,
-        ),
-      });
-    });
+    await mockMatchRounds(page, [
+      [{ type: "upgrade_failed", detail: "connectionLost" }],
+      matchEvents,
+    ]);
     await prepareOnboardedPopupFlow(page);
     await page.goto("/editor");
 
@@ -343,33 +352,21 @@ test.describe("Media Upgrade", () => {
     await expect(errorBtn).toBeVisible({ timeout: 10_000 });
     await errorBtn.click();
 
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectReadyFiles(page, 2);
   });
 
   test("select more accumulates matches across rounds", async ({
     authedPage: page,
   }) => {
-    let matchRound = 0;
     await mockConnectedUser(page);
     await mockPickerSession(page, { dynamicSession: true });
-    await page.route(`${API}/google-photos/match/**`, (route) => {
-      matchRound += 1;
-      return route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(matchRound === 1 ? matchEvents : round2MatchEvents),
-      });
-    });
+    await mockMatchRounds(page, [matchEvents, round2MatchEvents]);
     await mockUpgradeStream(page, threeFileUpgradeEvents);
     await prepareOnboardedPopupFlow(page);
     await openReadyUpgradeSummary(page);
 
     await page.getByRole("button", { name: /select more/i }).click();
-    await expect(page.getByText(/3 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectReadyFiles(page, 3);
     await page.getByRole("button", { name: /upgrade 3 files/i }).click();
 
     await expectUpgradeDone(page, /upgraded 3 files/i);
