@@ -12,7 +12,8 @@ import {
   enforceOrientationOrder,
 } from "@/utils/photoLayout";
 
-// -- computeDpi --
+type DpiPreset = Parameters<typeof dpiTier>[1];
+type DpiTier = ReturnType<typeof dpiTier>;
 
 describe("computeDpi", () => {
   it("computes DPI for a full-page photo", () => {
@@ -27,51 +28,31 @@ describe("computeDpi", () => {
   });
 });
 
-// -- dpiTier --
-
 describe("dpiTier", () => {
   it("defaults normal albums to relaxed warnings and demo albums to off", () => {
     expect(DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET).toBe("relaxed");
     expect(DEMO_MEDIA_RESOLUTION_WARNING_PRESET).toBe("off");
   });
 
-  it("classifies >= 100 as ok (default thresholds)", () => {
-    expect(dpiTier(100)).toBe("ok");
-    expect(dpiTier(300)).toBe("ok");
-  });
-
-  it("classifies 75-99 as caution (default thresholds)", () => {
-    expect(dpiTier(99)).toBe("caution");
-    expect(dpiTier(75)).toBe("caution");
-  });
-
-  it("classifies < 75 as warning (default thresholds)", () => {
-    expect(dpiTier(74)).toBe("warning");
-    expect(dpiTier(50)).toBe("warning");
-  });
-
-  it("classifies all photos as ok when warnings are off", () => {
-    expect(dpiTier(1, "off")).toBe("ok");
-    expect(dpiTier(50, "off")).toBe("ok");
-  });
-
-  it("classifies >= 300 as ok with print-quality thresholds", () => {
-    expect(dpiTier(300, "print")).toBe("ok");
-    expect(dpiTier(450, "print")).toBe("ok");
-  });
-
-  it("classifies 150-299 as caution with print-quality thresholds", () => {
-    expect(dpiTier(299, "print")).toBe("caution");
-    expect(dpiTier(150, "print")).toBe("caution");
-  });
-
-  it("classifies < 150 as warning with print-quality thresholds", () => {
-    expect(dpiTier(149, "print")).toBe("warning");
-    expect(dpiTier(50, "print")).toBe("warning");
+  it.each<[number, DpiPreset, DpiTier]>([
+    [100, undefined, "ok"],
+    [300, undefined, "ok"],
+    [99, undefined, "caution"],
+    [75, undefined, "caution"],
+    [74, undefined, "warning"],
+    [50, undefined, "warning"],
+    [1, "off", "ok"],
+    [50, "off", "ok"],
+    [300, "print", "ok"],
+    [450, "print", "ok"],
+    [299, "print", "caution"],
+    [150, "print", "caution"],
+    [149, "print", "warning"],
+    [50, "print", "warning"],
+  ])("classifies %s dpi with %s preset as %s", (dpi, preset, expected) => {
+    expect(dpiTier(dpi, preset)).toBe(expected);
   });
 });
-
-// -- photoPageFraction --
 
 describe("photoPageFraction", () => {
   it("returns full page for single-photo layouts", () => {
@@ -109,8 +90,6 @@ describe("photoPageFraction", () => {
   });
 });
 
-// -- enforceOrientationOrder --
-
 describe("enforceOrientationOrder", () => {
   const isP = (name: string) => name.startsWith("p");
 
@@ -130,8 +109,6 @@ describe("enforceOrientationOrder", () => {
     ]);
   });
 });
-
-// -- summarizeQuality --
 
 describe("summarizeQuality", () => {
   function media(name: string, width: number, height: number) {
@@ -164,7 +141,6 @@ describe("summarizeQuality", () => {
   }
 
   it("counts low-res cover as warning", () => {
-    // 500px on full 297mm page → ~43 DPI → warning
     const mediaMap = new Map([["lo.jpg", media("lo.jpg", 500, 400)]]);
     const result = summarizeQuality([], "lo.jpg", undefined, mediaMap);
     expect(result.warning).toBe(1);
@@ -189,28 +165,20 @@ describe("summarizeQuality", () => {
   });
 
   it("handles cover photo appearing in both cover and step.cover", () => {
-    // 800×700: front cover min(68,85)=68 → warning; side panel min(124,85)=85 → caution
     const mediaMap = new Map([["lo.jpg", media("lo.jpg", 800, 700)]]);
     const steps = [step({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] })];
-    // Front cover (full bleed) + step cover (side panel) - the page entry is
-    // filtered out because it matches step.cover
     const result = summarizeQuality(steps, "lo.jpg", undefined, mediaMap);
     expect(result.warning).toBe(1);
     expect(result.caution).toBe(1);
   });
 
   it("applies orientation ordering before assigning cell fractions", () => {
-    // 1p-2l layout: portrait spans full height (left), landscapes are half-height (right).
-    // A low-res landscape in the raw data at index 0 should be evaluated in its
-    // actual (half-height) cell after orientation reordering, not the portrait cell.
-    const portrait = media("portrait.jpg", 600, 900); // portrait
-    const landscape = media("landscape.jpg", 800, 500); // landscape - low res
+    const portrait = media("portrait.jpg", 600, 900);
+    const landscape = media("landscape.jpg", 800, 500);
     const mediaMap = new Map([
       [portrait.name, portrait],
       [landscape.name, landscape],
     ]);
-    // Raw order: landscape first - without enforceOrientationOrder this assigns
-    // the landscape the portrait's full-height cell (inflating its DPI).
     const steps = [
       step({
         id: 1,
@@ -218,10 +186,6 @@ describe("summarizeQuality", () => {
       }),
     ];
     const result = summarizeQuality(steps, undefined, undefined, mediaMap);
-    // After reordering: [portrait, landscape, landscape] in layout-1p-2l.
-    // Portrait (600×900) in cell {0.5, 1}: min(600/(148.5/25.4), 900/(210/25.4)) ≈ min(103, 109) = 103 → ok
-    // Landscape (800×500) in cell {0.5, 0.5}: min(800/(148.5/25.4), 500/(105/25.4)) ≈ min(137, 121) = 121 → ok
-    // Both landscapes are the same media at 121 DPI → ok. All photos are ok.
     expect(result).toEqual({ caution: 0, warning: 0 });
   });
 });
