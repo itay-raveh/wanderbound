@@ -1,5 +1,3 @@
-"""Tests for app.services.open_meteo - elevation lookups and weather fetching."""
-
 import datetime as _dt_mod
 import json
 from dataclasses import dataclass
@@ -19,10 +17,6 @@ from app.services.open_meteo import (
     elevations,
 )
 from tests.factories import collect_async
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -48,10 +42,6 @@ class _Step:
 def _make_step(lat: float, lon: float, ts: float, **kw: Any) -> _Step:
     return _Step(location=_Loc(lat, lon), timestamp=ts, **kw)
 
-
-# ---------------------------------------------------------------------------
-# Weather helpers
-# ---------------------------------------------------------------------------
 
 _DAILY_FIELD_MAP = {
     "temp_max": "temperature_2m_max",
@@ -81,11 +71,6 @@ def _om_response(dates: list[str], **overrides: list) -> dict:
     return {"daily": daily}
 
 
-# ---------------------------------------------------------------------------
-# Elevation tests
-# ---------------------------------------------------------------------------
-
-
 class TestElevations:
     async def test_http_error_propagates(self) -> None:
         locs = [_Loc(0, 0)]
@@ -101,23 +86,18 @@ class TestElevations:
             await collect_async(elevations(client, locs))
 
 
-# ---------------------------------------------------------------------------
-# Weather tests
-# ---------------------------------------------------------------------------
-
-
 class TestWmoIcon:
-    def test_clear_day(self) -> None:
-        assert _wmo_icon(0) == "clear-day"
-
-    def test_clear_night(self) -> None:
-        assert _wmo_icon(0, night=True) == "clear-night"
-
-    def test_fog_day(self) -> None:
-        assert _wmo_icon(45) == "fog-day"
-
-    def test_unknown_code(self) -> None:
-        assert _wmo_icon(999) == "not-available"
+    @pytest.mark.parametrize(
+        ("code", "night", "expected"),
+        [
+            (0, False, "clear-day"),
+            (0, True, "clear-night"),
+            (45, False, "fog-day"),
+            (999, False, "not-available"),
+        ],
+    )
+    def test_icon(self, code: int, *, night: bool, expected: str) -> None:
+        assert _wmo_icon(code, night=night) == expected
 
 
 class TestWeatherFromResult:
@@ -185,46 +165,36 @@ class TestBuildWeathers:
                 pass
 
 
-# ---------------------------------------------------------------------------
-# Rate-limit weight
-# ---------------------------------------------------------------------------
-
-
 class TestOpenMeteoWeight:
-    def test_elevation_single_coord(self) -> None:
-        req = httpx.Request(
-            "GET", "https://api.open-meteo.com/v1/elevation?latitude=1.0&longitude=2.0"
-        )
-        assert _open_meteo_weight(req) == 1
-
-    def test_elevation_batched_coords(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://api.open-meteo.com/v1/elevation?latitude=1,2,3,4&longitude=5,6,7,8",
-        )
-        assert _open_meteo_weight(req) == 4
-
-    def test_archive_counts_daily_variables(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive"
-            "?latitude=1&longitude=2&start_date=2024-01-01&end_date=2024-01-01"
-            "&daily=temperature_2m_max,temperature_2m_min,"
-            "apparent_temperature_max,apparent_temperature_min,weather_code",
-        )
-        assert _open_meteo_weight(req) == 5
-
-    def test_archive_single_variable(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive"
-            "?latitude=1&longitude=2&daily=temperature_2m_max",
-        )
-        assert _open_meteo_weight(req) == 1
-
-    def test_archive_without_daily_param(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive?latitude=1&longitude=2",
-        )
-        assert _open_meteo_weight(req) == 1
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            (
+                "https://api.open-meteo.com/v1/elevation?latitude=1.0&longitude=2.0",
+                1,
+            ),
+            (
+                "https://api.open-meteo.com/v1/elevation"
+                "?latitude=1,2,3,4&longitude=5,6,7,8",
+                4,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive"
+                "?latitude=1&longitude=2&start_date=2024-01-01&end_date=2024-01-01"
+                "&daily=temperature_2m_max,temperature_2m_min,"
+                "apparent_temperature_max,apparent_temperature_min,weather_code",
+                5,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive"
+                "?latitude=1&longitude=2&daily=temperature_2m_max",
+                1,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive?latitude=1&longitude=2",
+                1,
+            ),
+        ],
+    )
+    def test_weight(self, url: str, expected: int) -> None:
+        assert _open_meteo_weight(httpx.Request("GET", url)) == expected
