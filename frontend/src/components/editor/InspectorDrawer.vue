@@ -6,14 +6,19 @@ import MediaPanel from "./MediaPanel.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
-import { THUMB_WIDTHS, mediaThumbUrl, isVideo, isPortrait } from "@/utils/media";
+import {
+  THUMB_WIDTHS,
+  mediaThumbUrl,
+  isVideo,
+  isPortrait,
+} from "@/utils/media";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
   type MediaResolutionWarningPreset,
 } from "@/utils/photoQuality";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
@@ -69,17 +74,6 @@ const landscapeMedia = computed(() =>
 const coverGridRef = ref<HTMLElement | null>(null);
 const propertiesOpen = ref(true);
 const externalMediaOpen = ref(false);
-const unusedOpen = ref(false);
-const coverOpen = ref(false);
-
-watch(
-  context,
-  (next, prev) => {
-    if (next === prev) return;
-    if (next === "step") unusedOpen.value = true;
-    if (next === "cover") coverOpen.value = true;
-  },
-);
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
@@ -148,17 +142,9 @@ const importTargetLabel = computed<string | null>(() => {
       />
     </q-expansion-item>
 
-    <!-- Step: unused photos tray -->
-    <q-expansion-item
-      v-if="context === 'step'"
-      v-model="unusedOpen"
-      group="inspector-primary"
-      class="panel-section"
-      header-class="panel-section-header"
-      expand-icon-class="text-faint"
-      :label="t('album.unused')"
-    >
-      <div class="context-section">
+    <div class="inspector-context-tray">
+      <!-- Step: unused photos tray -->
+      <div v-if="context === 'step'" class="context-section">
         <UnusedDrawer
           :key="step!.unused.join('|')"
           :step="step!"
@@ -166,24 +152,16 @@ const importTargetLabel = computed<string | null>(() => {
           class="unused-section"
         />
       </div>
-    </q-expansion-item>
 
-    <!-- Cover: photo picker grid -->
-    <q-expansion-item
-      v-else-if="context === 'cover'"
-      v-model="coverOpen"
-      group="inspector-primary"
-      class="panel-section"
-      header-class="panel-section-header"
-      expand-icon-class="text-faint"
-      :label="panelLabel"
-    >
-      <div class="context-section">
+      <!-- Cover: photo picker grid -->
+      <div v-else-if="context === 'cover'" class="context-section">
         <div
-          v-if="landscapeMedia.length"
-          ref="coverGridRef"
-          class="cover-grid"
+          class="context-tray-header row no-wrap items-center text-overline text-weight-semibold text-muted"
         >
+          <span>{{ panelLabel }}</span>
+          <span class="text-faint">{{ landscapeMedia.length }}</span>
+        </div>
+        <div v-if="landscapeMedia.length" ref="coverGridRef" class="cover-grid">
           <CoverCell
             v-for="(media, index) in landscapeMedia"
             :key="media.name"
@@ -208,7 +186,9 @@ const importTargetLabel = computed<string | null>(() => {
         </div>
         <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
       </div>
-    </q-expansion-item>
+
+      <div v-else class="context-section context-section-empty" />
+    </div>
   </div>
 </template>
 
@@ -226,6 +206,14 @@ const importTargetLabel = computed<string | null>(() => {
   border-top: 1px solid var(--border-color);
 }
 
+.inspector-context-tray {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+}
+
 .context-section {
   flex: 1;
   min-height: 0;
@@ -234,9 +222,20 @@ const importTargetLabel = computed<string | null>(() => {
   padding: var(--gap-md);
 }
 
+.context-section-empty {
+  padding: 0;
+}
+
 .unused-section {
   flex: 1;
   min-height: 0;
+}
+
+.context-tray-header {
+  gap: var(--gap-xs);
+  min-height: 2rem;
+  padding-block-end: var(--gap-sm);
+  letter-spacing: var(--tracking-wide);
 }
 
 .panel-hint {

@@ -1,7 +1,7 @@
 import { defineComponent } from "vue";
 import { mountWithPlugins } from "../helpers";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
-import { defaultAlbum } from "../mocks/handlers";
+import { defaultAlbum, defaultSteps } from "../mocks/handlers";
 
 const CoverCellStub = defineComponent({
   name: "CoverCell",
@@ -14,7 +14,60 @@ const CoverCellStub = defineComponent({
   template: '<img class="cover-cell" :src="src" alt="" />',
 });
 
+const ExpansionItemStub = defineComponent({
+  name: "QExpansionItem",
+  props: {
+    group: { type: String, default: undefined },
+    label: { type: String, default: "" },
+  },
+  template:
+    '<section class="expansion-stub" :data-group="group" :data-label="label"><slot /></section>',
+});
+
 describe("InspectorDrawer", () => {
+  it("keeps only properties and external media in the primary accordion", () => {
+    const wrapper = mountWithPlugins(InspectorDrawer, {
+      props: {
+        album: defaultAlbum,
+        sectionKey: "step-1",
+        step: { ...defaultSteps[0], unused: ["unused.jpg"] },
+        media: [
+          {
+            uid: 1,
+            aid: defaultAlbum.id,
+            name: "unused.jpg",
+            kind: "photo",
+            width: 1920,
+            height: 1080,
+            byte_size: 1234,
+            upgrade_candidate: false,
+            created_at: "2026-05-13T12:00:00Z",
+            updated_at: "2026-05-13T12:34:56Z",
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          AlbumProperties: true,
+          CoverCell: CoverCellStub,
+          MediaPanel: true,
+          QExpansionItem: ExpansionItemStub,
+          QIcon: true,
+          QSeparator: true,
+          UnusedDrawer: { template: '<div class="unused-drawer-stub" />' },
+        },
+      },
+    });
+
+    const primary = wrapper.findAll(
+      '.expansion-stub[data-group="inspector-primary"]',
+    );
+    expect(primary).toHaveLength(2);
+    expect(
+      wrapper.find(".inspector-context-tray .unused-drawer-stub").exists(),
+    ).toBe(true);
+  });
+
   it("cache-busts cover picker thumbnails with media update time", () => {
     const wrapper = mountWithPlugins(InspectorDrawer, {
       props: {
@@ -40,7 +93,7 @@ describe("InspectorDrawer", () => {
           AlbumProperties: true,
           CoverCell: CoverCellStub,
           MediaPanel: true,
-          QExpansionItem: { template: "<div><slot /></div>" },
+          QExpansionItem: ExpansionItemStub,
           QIcon: true,
           QSeparator: true,
           UnusedDrawer: true,
