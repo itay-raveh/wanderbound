@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.models.segment import Segment, SegmentKind
 
@@ -18,8 +18,43 @@ from .factories import (
 )
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx import AsyncClient, Response
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+async def _get_segment_points(
+    client: AsyncClient,
+    *,
+    from_time: float = 0.0,
+    to_time: float = 1000.0,
+) -> tuple[Response, MagicMock]:
+    with patch(
+        "app.api.v1.routes.albums.enqueue_album_route_enrichment",
+    ) as mock_enqueue:
+        resp = await client.get(
+            f"/api/v1/albums/{AID}/segments/points",
+            params={"from_time": from_time, "to_time": to_time},
+        )
+    return resp, mock_enqueue
+
+
+async def _adjust_boundary(
+    client: AsyncClient,
+    *,
+    start_time: float = 100.0,
+    end_time: float = 300.0,
+    new_boundary_time: float = 200.0,
+    handle: str = "end",
+) -> Response:
+    return await client.patch(
+        f"/api/v1/albums/{AID}/segments/adjust-boundary",
+        json={
+            "start_time": start_time,
+            "end_time": end_time,
+            "new_boundary_time": new_boundary_time,
+            "handle": handle,
+        },
+    )
 
 
 class TestReadAlbum:
@@ -84,13 +119,9 @@ class TestReadSegmentPoints:
             kind=SegmentKind.hike,
         )
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 50.0, "to_time": 400.0},
-            )
+        resp, mock_enqueue = await _get_segment_points(
+            client, from_time=50.0, to_time=400.0
+        )
         mock_enqueue.assert_not_called()
         assert resp.status_code == 200
         data = resp.json()
@@ -112,13 +143,7 @@ class TestSegmentPointsReadOnly:
             kind=SegmentKind.driving,
         )
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
+        resp, mock_enqueue = await _get_segment_points(client)
 
         mock_enqueue.assert_not_called()
         assert resp.status_code == 200
@@ -138,13 +163,7 @@ class TestSegmentPointsReadOnly:
             kind=SegmentKind.hike,
         )
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
+        resp, mock_enqueue = await _get_segment_points(client)
 
         mock_enqueue.assert_not_called()
         data = resp.json()
@@ -165,13 +184,7 @@ class TestSegmentPointsReadOnly:
         session.add(seg)
         await session.flush()
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
+        resp, mock_enqueue = await _get_segment_points(client)
 
         mock_enqueue.assert_not_called()
         assert resp.json()[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
@@ -316,15 +329,7 @@ class TestAdjustSegmentBoundary:
             "app.api.v1.routes.albums.enqueue_album_route_enrichment",
             create=True,
         ) as mock_enqueue:
-            resp = await client.patch(
-                f"/api/v1/albums/{AID}/segments/adjust-boundary",
-                json={
-                    "start_time": 100.0,
-                    "end_time": 300.0,
-                    "new_boundary_time": 200.0,
-                    "handle": "end",
-                },
-            )
+            resp = await _adjust_boundary(client)
         assert resp.status_code == 400
         assert "flight" in resp.json()["detail"].lower()
         mock_enqueue.assert_not_called()
@@ -339,15 +344,7 @@ class TestAdjustSegmentBoundary:
             "app.api.v1.routes.albums.enqueue_album_route_enrichment",
             create=True,
         ) as mock_enqueue:
-            resp = await client.patch(
-                f"/api/v1/albums/{AID}/segments/adjust-boundary",
-                json={
-                    "start_time": 100.0,
-                    "end_time": 300.0,
-                    "new_boundary_time": 200.0,
-                    "handle": "end",
-                },
-            )
+            resp = await _adjust_boundary(client)
         assert resp.status_code == 200
         mock_enqueue.assert_called_once()
         _, _, called_uid, called_aid = mock_enqueue.call_args.args
@@ -380,14 +377,12 @@ class TestAdjustSegmentBoundary:
             points=make_points([200.0, 300.0, 400.0, 500.0]),
         )
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 200.0,
-                "end_time": 500.0,
-                "new_boundary_time": 300.0,
-                "handle": "start",
-            },
+        resp = await _adjust_boundary(
+            client,
+            start_time=200.0,
+            end_time=500.0,
+            new_boundary_time=300.0,
+            handle="start",
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -418,15 +413,7 @@ class TestAdjustSegmentBoundary:
             points=make_points([300.0, 400.0, 500.0]),
         )
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
+        resp = await _adjust_boundary(client)
         assert resp.status_code == 200
         data = resp.json()
         for seg_data in data:
