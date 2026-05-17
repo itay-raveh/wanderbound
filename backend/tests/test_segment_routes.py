@@ -20,6 +20,9 @@ from .factories import AID, insert_album, insert_segment
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
+type Route = list[tuple[float, float]]
+type SegmentSeed = tuple[float, float, SegmentKind]
+
 
 @asynccontextmanager
 async def _lock(*, acquired: bool = True) -> AsyncIterator[bool]:
@@ -28,6 +31,65 @@ async def _lock(*, acquired: bool = True) -> AsyncIterator[bool]:
 
 def _http() -> SimpleNamespace:
     return SimpleNamespace(mapbox_matching=object(), mapbox_directions=object())
+
+
+def _stats(
+    *, requests: int = 1, matching_requests: int = 1, directions_requests: int = 0
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        requests=requests,
+        matching_requests=matching_requests,
+        directions_requests=directions_requests,
+    )
+
+
+async def _seed_segments(engine: AsyncEngine, uid: int, *segments: SegmentSeed) -> None:
+    async with AsyncSession(engine) as session:
+        await insert_album(session, uid)
+        for start_time, end_time, kind in segments:
+            await insert_segment(
+                session,
+                uid,
+                start_time=start_time,
+                end_time=end_time,
+                kind=kind,
+            )
+        await session.commit()
+
+
+async def _run_route_enrichment(
+    engine: AsyncEngine,
+    uid: int,
+    *,
+    http: SimpleNamespace | None = None,
+    lock_acquired: bool = True,
+    route_result: tuple[list[Route | None], SimpleNamespace] | None = None,
+    side_effect: object | None = None,
+) -> SimpleNamespace:
+    http = http or _http()
+    match_segments = AsyncMock(
+        side_effect=side_effect,
+        return_value=route_result or ([], _stats(requests=0, matching_requests=0)),
+    )
+
+    with (
+        patch("app.logic.segment_routes.get_engine", return_value=engine) as get_engine,
+        patch(
+            "app.logic.segment_routes.try_advisory_lock",
+            return_value=_lock(acquired=lock_acquired),
+        ),
+        patch(
+            "app.logic.segment_routes.match_segments_with_stats",
+            new=match_segments,
+        ),
+    ):
+        await match_album_segment_routes(http, uid, AID)
+
+    return SimpleNamespace(
+        get_engine=get_engine,
+        match_segments=match_segments,
+        http=http,
+    )
 
 
 def test_enqueue_album_route_enrichment_adds_background_task() -> None:
@@ -62,43 +124,21 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
     uid = 3001
     driving_route = [(4.0, 52.0), (4.1, 52.1)]
     walking_route = [(5.0, 53.0), (5.1, 53.1)]
-    async with AsyncSession(engine) as session:
-        await insert_album(session, uid)
-        await insert_segment(
-            session,
-            uid,
-            start_time=100.0,
-            end_time=200.0,
-            kind=SegmentKind.driving,
-        )
-        await insert_segment(
-            session,
-            uid,
-            start_time=300.0,
-            end_time=400.0,
-            kind=SegmentKind.walking,
-        )
-        await session.commit()
+    await _seed_segments(
+        engine,
+        uid,
+        (100.0, 200.0, SegmentKind.driving),
+        (300.0, 400.0, SegmentKind.walking),
+    )
 
-    http = _http()
-    with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine),
-        patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
-        patch(
-            "app.logic.segment_routes.match_segments_with_stats",
-            new=AsyncMock(
-                return_value=(
-                    [driving_route, walking_route],
-                    SimpleNamespace(
-                        requests=2,
-                        matching_requests=1,
-                        directions_requests=1,
-                    ),
-                )
-            ),
-        ) as match_segments,
-    ):
-        await match_album_segment_routes(http, uid, AID)
+    result = await _run_route_enrichment(
+        engine,
+        uid,
+        route_result=(
+            [driving_route, walking_route],
+            _stats(requests=2, matching_requests=1, directions_requests=1),
+        ),
+    )
 
     assert (
         await _route_for(engine, uid, start_time=100.0, end_time=200.0) == driving_route
@@ -106,10 +146,11 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
     assert (
         await _route_for(engine, uid, start_time=300.0, end_time=400.0) == walking_route
     )
+    match_segments = result.match_segments
     match_segments.assert_awaited_once()
     assert match_segments.await_args.args[:2] == (
-        http.mapbox_matching,
-        http.mapbox_directions,
+        result.http.mapbox_matching,
+        result.http.mapbox_directions,
     )
     assert [profile for _, profile in match_segments.await_args.args[2]] == [
         "driving",
@@ -119,34 +160,15 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
 
 async def test_hike_and_flight_segments_are_skipped(engine: AsyncEngine) -> None:
     uid = 3002
-    async with AsyncSession(engine) as session:
-        await insert_album(session, uid)
-        await insert_segment(
-            session,
-            uid,
-            start_time=100.0,
-            end_time=200.0,
-            kind=SegmentKind.hike,
-        )
-        await insert_segment(
-            session,
-            uid,
-            start_time=300.0,
-            end_time=400.0,
-            kind=SegmentKind.flight,
-        )
-        await session.commit()
+    await _seed_segments(
+        engine,
+        uid,
+        (100.0, 200.0, SegmentKind.hike),
+        (300.0, 400.0, SegmentKind.flight),
+    )
 
-    with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine),
-        patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
-        patch(
-            "app.logic.segment_routes.match_segments_with_stats", new=AsyncMock()
-        ) as match_segments,
-    ):
-        await match_album_segment_routes(_http(), uid, AID)
-
-    match_segments.assert_not_awaited()
+    result = await _run_route_enrichment(engine, uid)
+    result.match_segments.assert_not_awaited()
     assert await _route_for(engine, uid, start_time=100.0, end_time=200.0) is None
     assert await _route_for(engine, uid, start_time=300.0, end_time=400.0) is None
 
@@ -154,16 +176,7 @@ async def test_hike_and_flight_segments_are_skipped(engine: AsyncEngine) -> None
 async def test_rows_deleted_before_write_are_skipped(engine: AsyncEngine) -> None:
     uid = 3003
     route = [(4.0, 52.0), (4.1, 52.1)]
-    async with AsyncSession(engine) as session:
-        await insert_album(session, uid)
-        await insert_segment(
-            session,
-            uid,
-            start_time=100.0,
-            end_time=200.0,
-            kind=SegmentKind.driving,
-        )
-        await session.commit()
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
 
     async def delete_then_match(
         *_args: object,
@@ -179,15 +192,7 @@ async def test_rows_deleted_before_write_are_skipped(engine: AsyncEngine) -> Non
             directions_requests=0,
         )
 
-    with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine),
-        patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
-        patch(
-            "app.logic.segment_routes.match_segments_with_stats",
-            new=AsyncMock(side_effect=delete_then_match),
-        ),
-    ):
-        await match_album_segment_routes(_http(), uid, AID)
+    await _run_route_enrichment(engine, uid, side_effect=delete_then_match)
 
     async with AsyncSession(engine) as session:
         assert await session.get(Segment, (uid, AID, 100.0, 200.0)) is None
@@ -195,58 +200,21 @@ async def test_rows_deleted_before_write_are_skipped(engine: AsyncEngine) -> Non
 
 async def test_none_route_leaves_row_unchanged(engine: AsyncEngine) -> None:
     uid = 3004
-    async with AsyncSession(engine) as session:
-        await insert_album(session, uid)
-        await insert_segment(
-            session,
-            uid,
-            start_time=100.0,
-            end_time=200.0,
-            kind=SegmentKind.driving,
-        )
-        await session.commit()
-
-    with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine),
-        patch("app.logic.segment_routes.try_advisory_lock", return_value=_lock()),
-        patch(
-            "app.logic.segment_routes.match_segments_with_stats",
-            new=AsyncMock(
-                return_value=(
-                    [None],
-                    SimpleNamespace(
-                        requests=1,
-                        matching_requests=1,
-                        directions_requests=0,
-                    ),
-                )
-            ),
-        ),
-    ):
-        await match_album_segment_routes(_http(), uid, AID)
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    await _run_route_enrichment(
+        engine,
+        uid,
+        route_result=([None], _stats()),
+    )
 
     assert await _route_for(engine, uid) is None
 
 
 async def test_advisory_lock_already_held_skips_run(engine: AsyncEngine) -> None:
     uid = 3005
-    async with AsyncSession(engine) as session:
-        await insert_album(session, uid)
-        await insert_segment(session, uid, start_time=100.0, end_time=200.0)
-        await session.commit()
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    result = await _run_route_enrichment(engine, uid, lock_acquired=False)
 
-    with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine) as get_engine,
-        patch(
-            "app.logic.segment_routes.try_advisory_lock",
-            return_value=_lock(acquired=False),
-        ),
-        patch(
-            "app.logic.segment_routes.match_segments_with_stats", new=AsyncMock()
-        ) as match_segments,
-    ):
-        await match_album_segment_routes(_http(), uid, AID)
-
-    get_engine.assert_not_called()
-    match_segments.assert_not_awaited()
+    result.get_engine.assert_not_called()
+    result.match_segments.assert_not_awaited()
     assert await _route_for(engine, uid) is None
