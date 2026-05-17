@@ -11,6 +11,7 @@ describe("mediaUpgradeInvalidationKeys", () => {
     expect(mediaUpgradeInvalidationKeys("album-1")).toEqual([
       queryKeys.album("album-1"),
       queryKeys.media("album-1"),
+      queryKeys.printBundle("album-1"),
     ]);
   });
 });

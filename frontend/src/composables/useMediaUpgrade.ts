@@ -454,5 +454,9 @@ export function useMediaUpgrade() {
 }
 
 export function mediaUpgradeInvalidationKeys(aid: string) {
-  return [queryKeys.album(aid), queryKeys.media(aid)];
+  return [
+    queryKeys.album(aid),
+    queryKeys.media(aid),
+    queryKeys.printBundle(aid),
+  ];
 }

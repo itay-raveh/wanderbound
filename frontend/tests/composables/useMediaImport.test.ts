@@ -52,12 +52,17 @@ describe("externalMediaInvalidationKeys", () => {
       queryKeys.album("album-1"),
       queryKeys.media("album-1"),
       queryKeys.steps("album-1"),
+      queryKeys.printBundle("album-1"),
     ]);
   });
 
-  it("does not invalidate steps for cover imports", () => {
+  it("invalidates print bundle but not steps for cover imports", () => {
     expect(
       externalMediaInvalidationKeys("album-1", { context: "cover" }),
-    ).toEqual([queryKeys.album("album-1"), queryKeys.media("album-1")]);
+    ).toEqual([
+      queryKeys.album("album-1"),
+      queryKeys.media("album-1"),
+      queryKeys.printBundle("album-1"),
+    ]);
   });
 });

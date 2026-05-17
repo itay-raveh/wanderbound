@@ -317,8 +317,10 @@ export function externalMediaInvalidationKeys(
     | ReturnType<typeof queryKeys.album>
     | ReturnType<typeof queryKeys.media>
     | ReturnType<typeof queryKeys.steps>
+    | ReturnType<typeof queryKeys.printBundle>
   > = [queryKeys.album(aid), queryKeys.media(aid)];
   if (target.context === "step") keys.push(queryKeys.steps(aid));
+  keys.push(queryKeys.printBundle(aid));
   return keys;
 }
 
