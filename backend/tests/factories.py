@@ -6,6 +6,7 @@ import io
 import tempfile
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -201,6 +202,19 @@ LOCATION = Location(
 )
 WEATHER = Weather(day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"), night=None)
 AID = "trip-1"
+DEFAULT_MEDIA_NAME = (
+    "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+)
+MISSING_MEDIA_NAME = (
+    "33333333-3333-4333-8333-333333333333_44444444-4444-4444-8444-444444444444.jpg"
+)
+
+
+@dataclass(frozen=True)
+class AlbumMediaScenario:
+    uid: int
+    album_dir: Path
+    media_name: str = DEFAULT_MEDIA_NAME
 
 
 def make_points(times: list[float]) -> list[Point]:
@@ -238,9 +252,7 @@ async def insert_album_media(
     session: AsyncSession,
     uid: int,
     aid: str = AID,
-    name: str = (
-        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
-    ),
+    name: str = DEFAULT_MEDIA_NAME,
     width: int = 1920,
     height: int = 1080,
 ) -> AlbumMedia:
@@ -305,6 +317,33 @@ async def insert_step(
     )
     await session.flush()
     return step
+
+
+async def sign_in_with_album_media(
+    client: AsyncClient,
+    session: AsyncSession,
+    *,
+    provider: str = "google",
+    media_name: str = DEFAULT_MEDIA_NAME,
+    width: int = 640,
+    height: int = 480,
+    write_media: bool = False,
+) -> AlbumMediaScenario:
+    user_data = await sign_in_and_upload(
+        client,
+        get_settings().USERS_FOLDER,
+        provider=provider,
+    )
+    uid = user_data["id"]
+    await insert_album(session, uid)
+    await insert_album_media(session, uid, name=media_name, width=width, height=height)
+    await insert_step(session, uid)
+    album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
+    album_dir.mkdir(parents=True, exist_ok=True)
+    if write_media:
+        create_test_jpeg(album_dir / media_name, width, height)
+    await session.commit()
+    return AlbumMediaScenario(uid=uid, album_dir=album_dir, media_name=media_name)
 
 
 async def insert_segment(
