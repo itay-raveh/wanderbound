@@ -13,6 +13,15 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+async def _insert_uploaded_albums(
+    session: AsyncSession,
+    uploaded_user: dict,
+) -> None:
+    for aid in uploaded_user["album_ids"]:
+        await insert_album(session, uploaded_user["id"], aid=aid)
+    await session.commit()
+
+
 class TestDemoLocale:
     async def test_demo_respects_accept_language(self, user_routes: UserRoutes) -> None:
         resp = await user_routes.demo(accept_language="he-IL,he;q=0.9,en;q=0.8")
@@ -51,9 +60,7 @@ class TestIsProcessed:
         user_routes: UserRoutes,
         uploaded_user: dict,
     ) -> None:
-        for aid in uploaded_user["album_ids"]:
-            await insert_album(session, uploaded_user["id"], aid=aid)
-        await session.commit()
+        await _insert_uploaded_albums(session, uploaded_user)
 
         resp = await user_routes.current()
         assert resp.status_code == 200
@@ -66,9 +73,7 @@ class TestIsProcessed:
         users_dir: Path,
         uploaded_user: dict,
     ) -> None:
-        for aid in uploaded_user["album_ids"]:
-            await insert_album(session, uploaded_user["id"], aid=aid)
-        await session.commit()
+        await _insert_uploaded_albums(session, uploaded_user)
         shutil.rmtree(users_dir / str(uploaded_user["id"]))
 
         resp = await user_routes.current()
