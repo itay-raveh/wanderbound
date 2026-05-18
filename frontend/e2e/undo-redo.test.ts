@@ -8,10 +8,6 @@ import {
 import type { Page, Locator } from "@playwright/test";
 import { PHOTO_SHORTCUTS } from "../src/composables/shortcutKeys";
 
-function photos(page: Page): Locator {
-  return photoButtons(page);
-}
-
 /** The unused photo count badge in the inspector panel. */
 function unusedBadge(page: Page): Locator {
   return page
@@ -31,7 +27,7 @@ test.describe("Undo & redo", () => {
   }) => {
     await expect(unusedBadge(page)).toHaveText("0");
 
-    await photos(page).first().click();
+    await photoButtons(page).first().click();
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(unusedBadge(page)).toHaveText("1", { timeout: 3_000 });
 
@@ -42,7 +38,7 @@ test.describe("Undo & redo", () => {
   test("Ctrl+Z after sendToUnused restores focus to the moved photo", async ({
     focusPage: page,
   }) => {
-    const photo = photos(page).first();
+    const photo = photoButtons(page).first();
     await photo.click();
     const originalMedia = await photo.getAttribute("data-media");
 
@@ -62,7 +58,7 @@ test.describe("Undo & redo", () => {
   }) => {
     await expect(unusedBadge(page)).toHaveText("0");
 
-    await photos(page).first().click();
+    await photoButtons(page).first().click();
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(unusedBadge(page)).toHaveText("1", { timeout: 3_000 });
 
@@ -81,7 +77,7 @@ test.describe("Undo & redo", () => {
     await expect(unusedBadge(page)).toHaveText("0");
 
     // Send two photos to unused
-    await photos(page).first().click();
+    await photoButtons(page).first().click();
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(unusedBadge(page)).toHaveText("1", { timeout: 3_000 });
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
