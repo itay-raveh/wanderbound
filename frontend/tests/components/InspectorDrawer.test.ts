@@ -1,5 +1,5 @@
 import { defineComponent } from "vue";
-import { mountWithPlugins } from "../helpers";
+import { makeAlbumMedia, mountWithPlugins } from "../helpers";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { defaultAlbum, defaultSteps } from "../mocks/handlers";
 
@@ -32,18 +32,10 @@ describe("InspectorDrawer", () => {
         sectionKey: "step-1",
         step: { ...defaultSteps[0], unused: ["unused.jpg"] },
         media: [
-          {
-            uid: 1,
-            aid: defaultAlbum.id,
+          makeAlbumMedia({
             name: "unused.jpg",
-            kind: "photo",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: "2026-05-13T12:34:56Z",
-          },
+            aid: defaultAlbum.id,
+          }),
         ],
       },
       global: {
@@ -74,18 +66,10 @@ describe("InspectorDrawer", () => {
         album: defaultAlbum,
         sectionKey: "cover-front",
         media: [
-          {
-            uid: 1,
-            aid: defaultAlbum.id,
+          makeAlbumMedia({
             name: "cover.jpg",
-            kind: "photo",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: "2026-05-13T12:34:56Z",
-          },
+            aid: defaultAlbum.id,
+          }),
         ],
       },
       global: {
