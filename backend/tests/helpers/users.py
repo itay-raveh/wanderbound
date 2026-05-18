@@ -114,6 +114,11 @@ class UserRoutes:
     async def download_export(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/users/export/download/{token}")
 
+    async def download_export_ok(self, token: str) -> Response:
+        resp = await self.download_export(token)
+        assert resp.status_code == 200
+        return resp
+
     async def init_upload(self) -> Response:
         return await self.client.post("/api/v1/users/upload/init")
 

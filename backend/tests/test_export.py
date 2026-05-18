@@ -181,9 +181,8 @@ class TestDownloadExport:
         zip_path.write_bytes(b"PK\x03\x04 fake zip")
 
         with _export_download_token(zip_path):
-            resp = await user_routes.download_export("valid-token")
+            resp = await user_routes.download_export_ok("valid-token")
 
-        assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/zip"
         assert EXPORT_FILENAME in resp.headers.get("content-disposition", "")
         assert resp.content == b"PK\x03\x04 fake zip"
