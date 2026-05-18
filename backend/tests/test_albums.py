@@ -23,6 +23,18 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+def _assert_step_layout(
+    data: dict[str, object],
+    *,
+    cover: str | None,
+    pages: list[list[str]],
+    unused: list[str],
+) -> None:
+    assert data["cover"] == cover
+    assert data["pages"] == pages
+    assert data["unused"] == unused
+
+
 class TestReadAlbum:
     @pytest.mark.usefixtures("uploaded_user")
     async def test_cannot_read_other_users_album(
@@ -196,28 +208,24 @@ class TestUpdateStep:
         signed_album: AlbumScenario,
         album_routes: AlbumRoutes,
     ) -> None:
+        expected_layout = {
+            "cover": "cover.jpg",
+            "pages": [["a.jpg", "b.jpg"], ["c.jpg"]],
+            "unused": ["unused.jpg"],
+        }
         for name in ("a.jpg", "b.jpg", "c.jpg", "cover.jpg", "unused.jpg"):
             await insert_album_media(session, signed_album.uid, name=name)
         await insert_step(session, signed_album.uid)
         await session.commit()
 
-        resp = await album_routes.update_media_layout(
-            cover="cover.jpg",
-            pages=[["a.jpg", "b.jpg"], ["c.jpg"]],
-            unused=["unused.jpg"],
-        )
+        resp = await album_routes.update_media_layout(**expected_layout)
 
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["cover"] == "cover.jpg"
-        assert data["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
-        assert data["unused"] == ["unused.jpg"]
+        _assert_step_layout(resp.json(), **expected_layout)
 
         get_resp = await album_routes.get_steps()
         assert get_resp.status_code == 200
-        assert get_resp.json()[0]["cover"] == "cover.jpg"
-        assert get_resp.json()[0]["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
-        assert get_resp.json()[0]["unused"] == ["unused.jpg"]
+        _assert_step_layout(get_resp.json()[0], **expected_layout)
 
     async def test_media_layout_update_rejects_missing_album_media(
         self,
