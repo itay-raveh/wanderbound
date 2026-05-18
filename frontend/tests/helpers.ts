@@ -7,6 +7,7 @@ import {
   type Component,
 } from "vue";
 import { mount, type ComponentMountingOptions } from "@vue/test-utils";
+import type { Mock } from "vitest";
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
@@ -112,6 +113,32 @@ export function makeLocation(overrides: Partial<Location> = {}): Location {
     country_code: "US",
     ...overrides,
   };
+}
+
+export function mockReadyGooglePickerSession(googlePhotosMock: {
+  closeSession: Mock;
+  createPickerSession: Mock;
+  pollSession: Mock;
+}) {
+  googlePhotosMock.createPickerSession.mockResolvedValue({
+    sessionId: "session-1",
+    pickerUri: "https://photos.google.com/picker/session-1",
+  });
+  googlePhotosMock.pollSession.mockResolvedValue({ ready: true });
+  googlePhotosMock.closeSession.mockResolvedValue(undefined);
+}
+
+export function mockGooglePickerPopup() {
+  const popup = {
+    close: vi.fn(),
+    document: {
+      body: { style: {}, textContent: "" },
+      title: "",
+    },
+    location: { href: "" },
+  };
+  vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+  return popup;
 }
 
 export function provideTestAlbum({

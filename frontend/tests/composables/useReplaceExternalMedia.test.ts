@@ -1,4 +1,10 @@
-import { makeAlbumMedia, provideTestAlbum, withParentSetup } from "../helpers";
+import {
+  makeAlbumMedia,
+  mockGooglePickerPopup,
+  mockReadyGooglePickerSession,
+  provideTestAlbum,
+  withParentSetup,
+} from "../helpers";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import {
   replacementInvalidationKeys,
@@ -71,22 +77,8 @@ describe("useReplaceExternalMedia", () => {
   });
 
   it("limits Google replacement picker sessions to one item", async () => {
-    googlePhotosMock.createPickerSession.mockResolvedValue({
-      sessionId: "session-1",
-      pickerUri: "https://photos.google.com/picker/session-1",
-    });
-    googlePhotosMock.pollSession.mockResolvedValue({ ready: true });
-    googlePhotosMock.closeSession.mockResolvedValue(undefined);
-
-    const popup = {
-      close: vi.fn(),
-      document: {
-        body: { style: {}, textContent: "" },
-        title: "",
-      },
-      location: { href: "" },
-    };
-    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    mockReadyGooglePickerSession(googlePhotosMock);
+    mockGooglePickerPopup();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),

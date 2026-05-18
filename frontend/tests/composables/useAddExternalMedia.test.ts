@@ -1,4 +1,8 @@
-import { withSetup } from "../helpers";
+import {
+  mockGooglePickerPopup,
+  mockReadyGooglePickerSession,
+  withSetup,
+} from "../helpers";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
 
 const googlePhotosMock = vi.hoisted(() => ({
@@ -27,22 +31,8 @@ describe("useAddExternalMedia", () => {
   });
 
   it("limits Google import picker sessions to the backend import cap", async () => {
-    googlePhotosMock.createPickerSession.mockResolvedValue({
-      sessionId: "session-1",
-      pickerUri: "https://photos.google.com/picker/session-1",
-    });
-    googlePhotosMock.pollSession.mockResolvedValue({ ready: true });
-    googlePhotosMock.closeSession.mockResolvedValue(undefined);
-
-    const popup = {
-      close: vi.fn(),
-      document: {
-        body: { style: {}, textContent: "" },
-        title: "",
-      },
-      location: { href: "" },
-    };
-    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    mockReadyGooglePickerSession(googlePhotosMock);
+    mockGooglePickerPopup();
     vi.stubGlobal(
       "fetch",
       vi
