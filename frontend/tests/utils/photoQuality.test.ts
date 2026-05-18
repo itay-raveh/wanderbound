@@ -116,36 +116,52 @@ describe("summarizeQuality", () => {
     return makeAlbumMedia({ name, width, height });
   }
 
+  function mediaMap(...items: ReturnType<typeof media>[]) {
+    return new Map(items.map((item) => [item.name, item]));
+  }
+
   it("counts low-res cover as warning", () => {
-    const mediaMap = new Map([["lo.jpg", media("lo.jpg", 500, 400)]]);
-    const result = summarizeQuality([], "lo.jpg", undefined, mediaMap);
+    const result = summarizeQuality(
+      [],
+      "lo.jpg",
+      undefined,
+      mediaMap(media("lo.jpg", 500, 400)),
+    );
     expect(result.warning).toBe(1);
   });
 
   it("does not count warnings when warnings are off", () => {
-    const mediaMap = new Map([["lo.jpg", media("lo.jpg", 500, 400)]]);
-    const result = summarizeQuality([], "lo.jpg", undefined, mediaMap, "off");
+    const result = summarizeQuality(
+      [],
+      "lo.jpg",
+      undefined,
+      mediaMap(media("lo.jpg", 500, 400)),
+      "off",
+    );
     expect(result).toEqual({ caution: 0, warning: 0 });
   });
 
   it("uses print-quality thresholds when requested", () => {
-    const mediaMap = new Map([["medium.jpg", media("medium.jpg", 1800, 1800)]]);
     const result = summarizeQuality(
       [],
       "medium.jpg",
       undefined,
-      mediaMap,
+      mediaMap(media("medium.jpg", 1800, 1800)),
       "print",
     );
     expect(result).toEqual({ caution: 1, warning: 0 });
   });
 
   it("handles cover photo appearing in both cover and step.cover", () => {
-    const mediaMap = new Map([["lo.jpg", media("lo.jpg", 800, 700)]]);
     const steps: Step[] = [
       makeStep({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] }),
     ];
-    const result = summarizeQuality(steps, "lo.jpg", undefined, mediaMap);
+    const result = summarizeQuality(
+      steps,
+      "lo.jpg",
+      undefined,
+      mediaMap(media("lo.jpg", 800, 700)),
+    );
     expect(result.warning).toBe(1);
     expect(result.caution).toBe(1);
   });
@@ -153,17 +169,18 @@ describe("summarizeQuality", () => {
   it("applies orientation ordering before assigning cell fractions", () => {
     const portrait = media("portrait.jpg", 600, 900);
     const landscape = media("landscape.jpg", 800, 500);
-    const mediaMap = new Map([
-      [portrait.name, portrait],
-      [landscape.name, landscape],
-    ]);
     const steps = [
       makeStep({
         id: 1,
         pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]],
       }),
     ];
-    const result = summarizeQuality(steps, undefined, undefined, mediaMap);
+    const result = summarizeQuality(
+      steps,
+      undefined,
+      undefined,
+      mediaMap(portrait, landscape),
+    );
     expect(result).toEqual({ caution: 0, warning: 0 });
   });
 });
