@@ -41,6 +41,13 @@ def _configure_storage(
     monkeypatch.setattr(get_settings(), "MAX_STORAGE_BYTES", max_bytes)
 
 
+def _mock_eviction_users(*users: User) -> patch:
+    mock_result = MagicMock()
+    mock_result.all.return_value = list(users)
+    mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
+    return patch("app.logic.eviction.AsyncSession", return_value=mock_session)
+
+
 class TestSizesByUser:
     def test_sums_per_user(self, tmp_path: Path) -> None:
         _make_file(tmp_path / "1" / "a.txt", 100)
@@ -79,11 +86,7 @@ class TestRunEviction:
         old_user = _make_user(1, hours_ago=48)
         recent_user = _make_user(2, hours_ago=1)
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [old_user, recent_user]
-        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
-
-        with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
+        with _mock_eviction_users(old_user, recent_user):
             await run_eviction(skip_uid=999)
 
         assert not (users_dir / "1").exists()
@@ -100,11 +103,7 @@ class TestRunEviction:
         oldest_user = _make_user(1, hours_ago=100)
         other_user = _make_user(2, hours_ago=10)
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [oldest_user, other_user]
-        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
-
-        with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
+        with _mock_eviction_users(oldest_user, other_user):
             await run_eviction(skip_uid=1)
 
         assert (users_dir / "1" / "data.bin").exists()
@@ -125,11 +124,7 @@ class TestRunEviction:
             _make_user(3, hours_ago=24),
         ]
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = users
-        mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
-
-        with patch("app.logic.eviction.AsyncSession", return_value=mock_session):
+        with _mock_eviction_users(*users):
             await run_eviction(skip_uid=999)
 
         assert not (users_dir / "1").exists()

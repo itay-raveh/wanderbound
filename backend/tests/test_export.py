@@ -9,10 +9,6 @@ from unittest.mock import patch
 import pytest
 
 from app.core.config import get_settings
-
-if TYPE_CHECKING:
-    from httpx import AsyncClient
-    from sqlmodel.ext.asyncio.session import AsyncSession
 from app.logic.export import (
     _EXPORT_NAME,
     EXPORT_FILENAME,
@@ -32,6 +28,10 @@ from app.models.step import Step
 from app.models.user import User
 from app.models.weather import Weather, WeatherData
 from tests.factories import collect_async
+from tests.helpers.users import UserRoutes
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def _export_path(*parts: str) -> str:
@@ -134,6 +134,10 @@ def _zip_names(path: Path) -> list[str]:
 def _read_zip_json(path: Path, member: str) -> Any:
     with zipfile.ZipFile(path) as zf:
         return json.loads(zf.read(member))
+
+
+def _export_download_token(path: Path | None) -> patch:
+    return patch("app.api.v1.routes.users.pop_export_token", return_value=path)
 
 
 class TestTokenManagement:
@@ -277,27 +281,21 @@ class TestExportUserData:
 
 class TestDownloadExport:
     async def test_valid_token_returns_zip(
-        self, client: AsyncClient, tmp_path: Path
+        self, user_routes: UserRoutes, tmp_path: Path
     ) -> None:
         zip_path = tmp_path / "test-export.zip"
         zip_path.write_bytes(b"PK\x03\x04 fake zip")
 
-        with patch(
-            "app.api.v1.routes.users.pop_export_token",
-            return_value=zip_path,
-        ):
-            resp = await client.get("/api/v1/users/export/download/valid-token")
+        with _export_download_token(zip_path):
+            resp = await user_routes.download_export("valid-token")
 
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/zip"
         assert EXPORT_FILENAME in resp.headers.get("content-disposition", "")
         assert resp.content == b"PK\x03\x04 fake zip"
 
-    async def test_invalid_token_returns_404(self, client: AsyncClient) -> None:
-        with patch(
-            "app.api.v1.routes.users.pop_export_token",
-            return_value=None,
-        ):
-            resp = await client.get("/api/v1/users/export/download/bad-token")
+    async def test_invalid_token_returns_404(self, user_routes: UserRoutes) -> None:
+        with _export_download_token(None):
+            resp = await user_routes.download_export("bad-token")
 
         assert resp.status_code == 404

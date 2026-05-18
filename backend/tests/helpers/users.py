@@ -72,6 +72,9 @@ class UserRoutes:
     async def delete_demo(self) -> Response:
         return await self.client.delete("/api/v1/users/demo")
 
+    async def download_export(self, token: str) -> Response:
+        return await self.client.get(f"/api/v1/users/export/download/{token}")
+
     async def init_upload(self) -> Response:
         return await self.client.post("/api/v1/users/upload/init")
 
