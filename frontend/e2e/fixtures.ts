@@ -159,6 +159,23 @@ export async function openEditor(page: Page) {
   });
 }
 
+export function photoButtons(page: Page) {
+  return page.locator('[role="button"][aria-pressed]');
+}
+
+export async function scrollToStep(
+  page: Page,
+  country: string,
+  stepName: string,
+) {
+  const nav = page.getByRole("navigation");
+  await nav.getByText(country).click();
+  const step = nav.getByText(stepName);
+  await expect(step).toBeVisible({ timeout: 3_000 });
+  await step.click();
+  await expect(photoButtons(page).first()).toBeVisible({ timeout: 5_000 });
+}
+
 export function externalMediaImportButton(page: Page) {
   return page.getByRole("button", { name: "Import external media" });
 }

@@ -1,22 +1,19 @@
-import { expect, openEditor, test } from "./fixtures";
+import {
+  expect,
+  openEditor,
+  photoButtons,
+  scrollToStep,
+  test,
+} from "./fixtures";
 import type { Page, Locator } from "@playwright/test";
 import { PHOTO_SHORTCUTS } from "../src/composables/shortcutKeys";
 
 function photos(page: Page): Locator {
-  return page.locator('[role="button"][aria-pressed]');
+  return photoButtons(page);
 }
 
 function selected(page: Page): Locator {
   return page.locator('[role="button"][aria-pressed="true"]');
-}
-
-async function scrollToStep(page: Page, country: string, stepName: string) {
-  const nav = page.getByRole("navigation");
-  await nav.getByText(country).click();
-  const step = nav.getByText(stepName);
-  await expect(step).toBeVisible({ timeout: 3_000 });
-  await step.click();
-  await expect(photos(page).first()).toBeVisible({ timeout: 5_000 });
 }
 
 async function selectFirstPhoto(page: Page): Promise<Locator> {
