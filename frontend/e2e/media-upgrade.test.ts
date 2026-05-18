@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "../src/utils/storage-keys";
 import { mockMedia, mockUser } from "../tests/fixtures/mocks";
+import { sseBody } from "../tests/sse";
 import {
   blockPopup,
   ensureExternalMediaOpen,
@@ -64,10 +65,6 @@ const threeFileUpgradeEvents = [
   { type: "download_in_progress", done: 3, total: 3 },
   { type: "upgrade_completed", replaced: 3, skipped: 0, failed: 0 },
 ];
-
-function sseBody(events: object[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
-}
 
 function upgradeMediaButton(page: Page) {
   return page

@@ -1,6 +1,7 @@
 import { readImportStream } from "@/composables/useMediaImport";
 import { externalMediaInvalidationKeys } from "@/composables/useAddExternalMedia";
 import { queryKeys } from "@/queries/keys";
+import { sseBody } from "../sse";
 
 function streamFromText(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -9,10 +10,6 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
       controller.close();
     },
   });
-}
-
-function sseBody(events: object[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
 }
 
 describe("readImportStream", () => {
