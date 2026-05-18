@@ -48,8 +48,7 @@ class TestUploadChunk:
         await user_routes.put_chunk_ok(upload_id, 0, b"first-attempt")
         await user_routes.put_chunk_ok(upload_id, 0, b"retry-attempt")
 
-        complete = await user_routes.complete_upload_with_extract(upload_id, users_dir)
-        assert complete.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
 
     async def test_client_disconnect_returns_quietly(
         self, user_routes: UserRoutes, monkeypatch: pytest.MonkeyPatch
@@ -85,9 +84,7 @@ class TestCompleteChunkedUpload:
         await user_routes.put_chunk_ok(upload_id, 0, b"fake-zip-part1")
         await user_routes.put_chunk_ok(upload_id, 1, b"fake-zip-part2")
 
-        resp = await user_routes.complete_upload_with_extract(upload_id, users_dir)
-        assert resp.status_code == 200
-        body = resp.json()
+        body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
         assert body["user"]["id"] == 999
         assert len(body["trips"]) == 1
 
@@ -119,8 +116,7 @@ class TestCompleteChunkedUpload:
 
         await user_routes.put_chunk_ok(upload_id, 0)
 
-        resp = await user_routes.complete_upload_with_extract(upload_id, users_dir)
-        assert resp.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
 
     @pytest.mark.usefixtures("uploaded_user")
     async def test_reupload_via_session_cookie(
@@ -132,9 +128,8 @@ class TestCompleteChunkedUpload:
 
         await user_routes.put_chunk_ok(upload_id, 0)
 
-        resp = await user_routes.complete_upload_with_extract(upload_id, users_dir)
-        assert resp.status_code == 200
-        assert resp.json()["user"]["id"] == 999
+        body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
+        assert body["user"]["id"] == 999
 
     async def test_rejects_wrong_owner(self, user_routes: UserRoutes) -> None:
         upload_id = await user_routes.start_chunked_upload()
@@ -157,5 +152,4 @@ class TestParallelChunkedUpload:
             )
         )
 
-        resp = await user_routes.complete_upload_with_extract(upload_id, users_dir)
-        assert resp.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)

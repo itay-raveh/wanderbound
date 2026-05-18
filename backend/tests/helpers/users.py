@@ -153,3 +153,12 @@ class UserRoutes:
     ) -> Response:
         with mock_extract(users_dir):
             return await self.complete_upload(upload_id)
+
+    async def complete_upload_with_extract_ok(
+        self,
+        upload_id: str,
+        users_dir: Path,
+    ) -> dict:
+        resp = await self.complete_upload_with_extract(upload_id, users_dir)
+        assert resp.status_code == 200
+        return resp.json()
