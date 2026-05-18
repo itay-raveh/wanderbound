@@ -24,6 +24,14 @@ def _matching_json(coords: list[list[float]]) -> bytes:
     ).encode()
 
 
+def _directions_json(coords: list[list[float]]) -> bytes:
+    return json.dumps(
+        {
+            "routes": [{"geometry": {"type": "LineString", "coordinates": coords}}],
+        }
+    ).encode()
+
+
 class TestFetchMatching:
     @pytest.mark.parametrize(
         "response",
@@ -136,20 +144,7 @@ class TestMatchSegmentsWithStats:
             get=mock_response(_matching_json([[4.0, 52.0], [4.1, 52.1]]))
         )
         directions_client = async_client(
-            get=mock_response(
-                json.dumps(
-                    {
-                        "routes": [
-                            {
-                                "geometry": {
-                                    "type": "LineString",
-                                    "coordinates": [[5.0, 53.0], [5.1, 53.1]],
-                                }
-                            }
-                        ]
-                    }
-                ).encode()
-            )
+            get=mock_response(_directions_json([[5.0, 53.0], [5.1, 53.1]]))
         )
 
         with patch("app.services.mapbox._token", return_value="tok"):
