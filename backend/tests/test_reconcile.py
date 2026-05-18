@@ -18,17 +18,21 @@ from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
 from app.models.step import StepRead
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
-from tests.factories import collect_async
+from tests.factories import (
+    collect_async,
+    make_album,
+    make_album_media,
+    make_step_read,
+    make_user,
+    make_weather,
+)
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
 
 _LOC = Location(name="Place", detail="", country_code="nl", lat=52.0, lon=4.0)
 _LOC2 = Location(name="Updated", detail="center", country_code="de", lat=48.0, lon=11.0)
-_WEATHER = Weather(
-    day=WeatherData(temp=20.0, feels_like=18.0, icon="clear"), night=None
-)
+_WEATHER = make_weather(icon="clear")
 
 
 def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> PSStep:
@@ -52,20 +56,16 @@ def _step(
     name: str = "Old Name",
     description: str = "Old desc",
 ) -> StepRead:
-    return StepRead(
-        uid=1,
-        aid="trip-1",
-        id=step_id,
+    return make_step_read(
+        step_id=step_id,
         name=name,
         description=description,
-        timestamp=1_700_000_000.0,
         timezone_id="Europe/Amsterdam",
         location=_LOC,
-        elevation=0,
         weather=_WEATHER,
         cover=cover,
-        pages=pages or [],
-        unused=unused or [],
+        pages=pages,
+        unused=unused,
     )
 
 
@@ -74,30 +74,17 @@ def _album(
     front_cover_photo: str = "front.jpg",
     back_cover_photo: str = "back.jpg",
 ) -> Album:
-    return Album(
-        uid=1,
-        id="trip-1",
+    return make_album(
         title="Trip",
         subtitle="Sub",
         front_cover_photo=front_cover_photo,
         back_cover_photo=back_cover_photo,
         colors={},
-        hidden_steps=[],
-        maps_ranges=[],
-        font="Assistant",
-        body_font="Frank Ruhl Libre",
     )
 
 
 def _user() -> User:
-    return User(
-        id=_UID,
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        google_sub="test",
-    )
+    return make_user(_UID, google_sub="test")
 
 
 class TestScanStepMedia:
@@ -361,9 +348,9 @@ class TestReconcileTripRebuildsSegments:
         (trip_dir / media_name).write_bytes(b"\xff\xd8")
 
         existing_steps = [_existing_step(1, pages=[[media_name]], cover=media_name)]
-        existing_media = AlbumMedia(
-            uid=_UID,
-            aid=_RECONCILE_AID,
+        existing_media = make_album_media(
+            _UID,
+            _RECONCILE_AID,
             name=media_name,
             kind="photo",
             width=640,

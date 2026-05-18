@@ -21,7 +21,7 @@ from app.models.album import Album
 from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location, Point
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step
+from app.models.step import Step, StepRead
 from app.models.user import PSUser, User
 from app.models.weather import Weather, WeatherData
 
@@ -371,6 +371,39 @@ def make_step(
         elevation=elevation,
         weather=weather or WEATHER,
         cover_media_name=cover_media_name,
+    )
+
+
+def make_step_read(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    name: str = "Test Step",
+    description: str = "A test step.",
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "Europe/Amsterdam",
+    location: Location | None = LOCATION,
+    elevation: int = 0,
+    weather: Weather | None = None,
+    cover: str | None = None,
+    pages: list[list[str]] | None = None,
+    unused: list[str] | None = None,
+) -> StepRead:
+    return StepRead(
+        uid=uid,
+        aid=aid,
+        id=step_id,
+        name=name,
+        description=description,
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+        elevation=elevation,
+        weather=weather or WEATHER,
+        cover=cover,
+        pages=pages or [],
+        unused=unused or [],
     )
 
 
