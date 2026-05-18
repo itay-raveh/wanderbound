@@ -4,7 +4,7 @@ import { computed, ref } from "vue";
 import type { Ref } from "vue";
 import { server } from "../mocks/server";
 import { BASE } from "../mocks/handlers";
-import { makeSegment, withParentSetup } from "../helpers";
+import { deferred, makeSegment, withParentSetup } from "../helpers";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   ROUTE_REFETCH_LIMIT,
@@ -149,14 +149,12 @@ describe("useSegmentPointsQuery", () => {
   });
 
   it("does not start another refetch while the previous one is loading", async () => {
-    let resolveSecond: (() => void) | undefined;
+    const secondResponse = deferred<Response>();
     const calls = mockSegmentPoints((call) => {
       if (call === 1) {
         return missingDrivingRoute();
       }
-      return new Promise((resolve) => {
-        resolveSecond = () => resolve(HttpResponse.json(missingDrivingRoute()));
-      });
+      return secondResponse.promise;
     });
 
     mountQuery();
@@ -167,19 +165,17 @@ describe("useSegmentPointsQuery", () => {
     await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
     expect(calls()).toBe(2);
 
-    resolveSecond?.();
+    secondResponse.resolve(HttpResponse.json(missingDrivingRoute()));
     await flushPromises();
   });
 
   it("does not schedule another poll after unmounting during a refetch", async () => {
-    let resolveSecond: (() => void) | undefined;
+    const secondResponse = deferred<Response>();
     const calls = mockSegmentPoints((call) => {
       if (call === 1) {
         return missingDrivingRoute();
       }
-      return new Promise((resolve) => {
-        resolveSecond = () => resolve(HttpResponse.json(missingDrivingRoute()));
-      });
+      return secondResponse.promise;
     });
 
     const { unmount } = mountQuery();
@@ -188,7 +184,7 @@ describe("useSegmentPointsQuery", () => {
     expect(calls()).toBe(2);
 
     unmount();
-    resolveSecond?.();
+    secondResponse.resolve(HttpResponse.json(missingDrivingRoute()));
     await flushPromises();
     await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
 

@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import { BASE, defaultAlbum } from "../mocks/handlers";
-import { withSetup } from "../helpers";
+import { deferred, withSetup } from "../helpers";
 import { useAlbumQuery } from "@/queries/queries";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
@@ -13,29 +13,25 @@ describe("useAlbumMutation", () => {
     useUndoStack().clear();
   });
 
-  // ---------------------------------------------------------------------------
-  // Optimistic update
-  // ---------------------------------------------------------------------------
+  function mountAlbumMutation() {
+    const aid = ref<string | null>(defaultAlbum.id);
+    return withSetup(() => {
+      const query = useAlbumQuery(aid);
+      const mutation = useAlbumMutation(() => aid.value!);
+      return { query, mutation };
+    });
+  }
 
   describe("optimistic update", () => {
     it("updates cache immediately before server responds", async () => {
-      const aid = ref<string | null>(defaultAlbum.id);
+      const result = mountAlbumMutation();
 
-      const result = withSetup(() => {
-        const query = useAlbumQuery(aid);
-        const mutation = useAlbumMutation(() => aid.value!);
-        return { query, mutation };
-      });
-
-      // Wait for initial query to load
       await flushPromises();
       expect(result.query.data.value?.title).toBe("South America");
 
+      const updateResponse = deferred<Response>();
       server.use(
-        http.patch(`${BASE}/albums/:aid`, async () => {
-          await new Promise((r) => setTimeout(r, 50));
-          return HttpResponse.json({ ...defaultAlbum, title: "Updated Title" });
-        }),
+        http.patch(`${BASE}/albums/:aid`, () => updateResponse.promise),
       );
 
       result.mutation.mutate({ title: "Updated Title" });
@@ -43,16 +39,12 @@ describe("useAlbumMutation", () => {
 
       expect(result.query.data.value?.title).toBe("Updated Title");
 
-      // Let the delayed response settle before MSW resets handlers
-      await new Promise((r) => setTimeout(r, 100));
+      updateResponse.resolve(
+        HttpResponse.json({ ...defaultAlbum, title: "Updated Title" }),
+      );
       await flushPromises();
     });
-
-});
-
-  // ---------------------------------------------------------------------------
-  // Error rollback
-  // ---------------------------------------------------------------------------
+  });
 
   describe("error rollback", () => {
     it("reverts cache to previous value on error", async () => {
@@ -62,13 +54,7 @@ describe("useAlbumMutation", () => {
         ),
       );
 
-      const aid = ref<string | null>(defaultAlbum.id);
-
-      const result = withSetup(() => {
-        const query = useAlbumQuery(aid);
-        const mutation = useAlbumMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountAlbumMutation();
 
       await flushPromises();
       expect(result.query.data.value?.title).toBe("South America");
@@ -79,5 +65,4 @@ describe("useAlbumMutation", () => {
       expect(result.query.data.value?.title).toBe("South America");
     });
   });
-
 });

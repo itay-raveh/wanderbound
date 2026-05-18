@@ -12,7 +12,6 @@ client.setConfig({ baseUrl: "http://localhost:8000" });
 
 /**
  * Mount a composable in a minimal app with Pinia + PiniaColada + Quasar.
- * Call `cleanup()` when done, or use `onTestFinished` for auto-cleanup.
  */
 export function withSetup<T>(composable: () => T): T {
   let result!: T;
@@ -64,6 +63,14 @@ export function withParentSetup<T>(
   const unmount = () => app.unmount();
   onTestFinished(unmount);
   return { result, unmount };
+}
+
+export function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 /** Shared plugin list for mounting components under test. */
