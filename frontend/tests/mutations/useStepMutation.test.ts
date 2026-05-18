@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import { BASE, defaultAlbum, defaultSteps } from "../mocks/handlers";
-import { withSetup } from "../helpers";
+import { deferred, withSetup } from "../helpers";
 import { useStepsQuery } from "@/queries/queries";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { useUndoStack } from "@/composables/useUndoStack";
@@ -15,28 +15,28 @@ describe("useStepMutation", () => {
     useUndoStack().clear();
   });
 
-  // ---------------------------------------------------------------------------
-  // Optimistic update
-  // ---------------------------------------------------------------------------
+  function mountStepMutation() {
+    const aid = ref<string | null>(defaultAlbum.id);
+    return withSetup(() => {
+      const query = useStepsQuery(aid);
+      const mutation = useStepMutation(() => aid.value!);
+      return { query, mutation };
+    });
+  }
 
   describe("optimistic update", () => {
     it("updates the matching step in cache immediately", async () => {
-      const aid = ref<string | null>(defaultAlbum.id);
-
-      const result = withSetup(() => {
-        const query = useStepsQuery(aid);
-        const mutation = useStepMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountStepMutation();
 
       await flushPromises();
       expect(result.query.data.value?.[0]?.name).toBe("Amsterdam");
 
+      const updateResponse = deferred<Response>();
       server.use(
-        http.patch(`${BASE}/albums/:aid/steps/:sid`, async () => {
-          await new Promise((r) => setTimeout(r, 50));
-          return HttpResponse.json({ ...defaultStep, name: "Rotterdam" });
-        }),
+        http.patch(
+          `${BASE}/albums/:aid/steps/:sid`,
+          () => updateResponse.promise,
+        ),
       );
 
       result.mutation.mutate({ sid: 1, update: { name: "Rotterdam" } });
@@ -44,7 +44,9 @@ describe("useStepMutation", () => {
 
       expect(result.query.data.value?.[0]?.name).toBe("Rotterdam");
 
-      await new Promise((r) => setTimeout(r, 100));
+      updateResponse.resolve(
+        HttpResponse.json({ ...defaultStep, name: "Rotterdam" }),
+      );
       await flushPromises();
     });
 
@@ -56,11 +58,12 @@ describe("useStepMutation", () => {
       };
       const updatedStep1 = { ...defaultStep, name: "Utrecht" };
 
-      // First GET returns initial data; after mutation, GET returns updated data
       let mutated = false;
       server.use(
         http.get(`${BASE}/albums/:aid/steps`, () =>
-          HttpResponse.json(mutated ? [updatedStep1, step2] : [defaultStep, step2]),
+          HttpResponse.json(
+            mutated ? [updatedStep1, step2] : [defaultStep, step2],
+          ),
         ),
         http.patch(`${BASE}/albums/:aid/steps/:sid`, () => {
           mutated = true;
@@ -68,13 +71,7 @@ describe("useStepMutation", () => {
         }),
       );
 
-      const aid = ref<string | null>(defaultAlbum.id);
-
-      const result = withSetup(() => {
-        const query = useStepsQuery(aid);
-        const mutation = useStepMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountStepMutation();
 
       await flushPromises();
       expect(result.query.data.value).toHaveLength(2);
@@ -87,21 +84,19 @@ describe("useStepMutation", () => {
     });
 
     it("sends explicit null cover in layout updates", async () => {
-      const aid = ref<string | null>(defaultAlbum.id);
       let body: unknown;
 
       server.use(
-        http.put(`${BASE}/albums/:aid/steps/:sid/media-layout`, async ({ request }) => {
-          body = await request.json();
-          return HttpResponse.json({ ...defaultStep, cover: null });
-        }),
+        http.put(
+          `${BASE}/albums/:aid/steps/:sid/media-layout`,
+          async ({ request }) => {
+            body = await request.json();
+            return HttpResponse.json({ ...defaultStep, cover: null });
+          },
+        ),
       );
 
-      const result = withSetup(() => {
-        const query = useStepsQuery(aid);
-        const mutation = useStepMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountStepMutation();
 
       await flushPromises();
 
@@ -110,25 +105,15 @@ describe("useStepMutation", () => {
 
       expect(body).toMatchObject({ cover: null });
     });
-
-});
-
-  // ---------------------------------------------------------------------------
-  // Undo stack integration
-  // ---------------------------------------------------------------------------
+  });
 
   describe("undo stack", () => {
     it("stores step-specific before/after snapshots", async () => {
-      const aid = ref<string | null>(defaultAlbum.id);
       const undoStack = useUndoStack();
       const stepMutator = vi.fn();
       undoStack.registerMutators(stepMutator, vi.fn());
 
-      const result = withSetup(() => {
-        const query = useStepsQuery(aid);
-        const mutation = useStepMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountStepMutation();
 
       await flushPromises();
 
@@ -140,14 +125,9 @@ describe("useStepMutation", () => {
     });
 
     it("does not push to undo stack if step is not found", async () => {
-      const aid = ref<string | null>(defaultAlbum.id);
       const undoStack = useUndoStack();
 
-      const result = withSetup(() => {
-        const query = useStepsQuery(aid);
-        const mutation = useStepMutation(() => aid.value!);
-        return { query, mutation };
-      });
+      const result = mountStepMutation();
 
       await flushPromises();
 
@@ -158,5 +138,4 @@ describe("useStepMutation", () => {
       expect(undoStack.canUndo.value).toBe(false);
     });
   });
-
 });

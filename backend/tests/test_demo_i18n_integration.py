@@ -4,6 +4,7 @@ import re
 
 from app.logic.trip_pipeline import _apply_demo_i18n
 from app.models.user import User
+from tests.factories import make_user
 
 from .test_demo_i18n import make_album, make_step
 
@@ -14,12 +15,10 @@ HEBREW_STEP_ID = 149050611  # Pantanal in he.json
 
 
 def _make_demo_user(locale: str = "he") -> User:
-    return User(
-        id=42,
+    return make_user(
+        42,
         first_name="Demo",
         locale=locale,
-        unit_is_km=True,
-        temperature_is_celsius=True,
         album_ids=[DEMO_AID],
         is_demo=True,
     )
@@ -43,12 +42,10 @@ class TestApplyDemoI18n:
     def test_skips_non_demo_user(self) -> None:
         album = make_album(uid=42, id=DEMO_AID)
 
-        user = User(
-            id=42,
+        user = make_user(
+            42,
             first_name="Real",
             locale="he",
-            unit_is_km=True,
-            temperature_is_celsius=True,
             google_sub="g-42",
             album_ids=[DEMO_AID],
             is_demo=False,

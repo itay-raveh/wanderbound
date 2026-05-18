@@ -1,7 +1,9 @@
-import { test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
 import {
   mockUser,
+  mockAuthStateAnonymous,
   mockAuthStateAuthenticated,
+  mockAuthStatePending,
   mockAlbum,
   mockMedia,
   mockSteps,
@@ -57,6 +59,37 @@ async function mockCommonApi(page: Page) {
   await page.route("**/media/**", (route) =>
     route.fulfill({ contentType: "image/jpeg", body: mediaBody }),
   );
+}
+
+async function mockUnauthorizedUser(page: Page) {
+  await page.route(`${API}/users`, (route) =>
+    route.fulfill({ status: 401, json: { detail: "Unauthorized" } }),
+  );
+}
+
+async function mockAnonymousApi(page: Page) {
+  await page.route(`${API}/auth/state`, (route) =>
+    route.fulfill({ json: mockAuthStateAnonymous }),
+  );
+}
+
+async function mockPendingSignupApi(page: Page) {
+  await page.route(`${API}/auth/state`, (route) =>
+    route.fulfill({ json: mockAuthStatePending }),
+  );
+  await mockUnauthorizedUser(page);
+}
+
+export async function mockGooglePendingSignupTransition(page: Page) {
+  let state = mockAuthStateAnonymous;
+  await page.route(`${API}/auth/state`, (route) =>
+    route.fulfill({ json: state }),
+  );
+  await page.route(`${API}/auth/google`, (route) => {
+    state = mockAuthStatePending;
+    return route.fulfill({ json: null });
+  });
+  await mockUnauthorizedUser(page);
 }
 
 async function mockDefaultSteps(page: Page) {
@@ -119,11 +152,73 @@ export async function blockPopup(page: Page) {
   });
 }
 
-export const test = base.extend<{ authedPage: Page; focusPage: Page }>({
+export async function openEditor(page: Page) {
+  await page.goto("/editor");
+  await expect(page.getByText("South America")).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
+export function photoButtons(page: Page) {
+  return page.locator('[role="button"][aria-pressed]');
+}
+
+export async function scrollToStep(
+  page: Page,
+  country: string,
+  stepName: string,
+) {
+  const nav = page.getByRole("navigation");
+  await nav.getByText(country).click();
+  const step = nav.getByText(stepName);
+  await expect(step).toBeVisible({ timeout: 3_000 });
+  await step.click();
+  await expect(photoButtons(page).first()).toBeVisible({ timeout: 5_000 });
+}
+
+export function externalMediaImportButton(page: Page) {
+  return page.getByRole("button", { name: "Import external media" });
+}
+
+export async function ensureExternalMediaOpen(page: Page) {
+  const toggle = page.getByRole("button", {
+    name: /Expand "External media"|Collapse "External media"|External media/,
+  });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
+
+export function externalMediaCorsHeaders(page: Page) {
+  const cors = {
+    "access-control-allow-credentials": "true",
+    "access-control-allow-headers": "*",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-origin": new URL(page.url()).origin,
+  };
+  return {
+    cors,
+    json: { ...cors, "content-type": "application/json" },
+  };
+}
+
+export const test = base.extend<{
+  anonymousPage: Page;
+  authedPage: Page;
+  editorPage: Page;
+  focusPage: Page;
+  pendingSignupPage: Page;
+}>({
   page: async ({ page }, use) => {
     const assertAllMocked = await installStrictMockGuard(page);
     await use(page);
     assertAllMocked();
+  },
+  anonymousPage: async ({ page }, use) => {
+    await mockAnonymousApi(page);
+    await use(page);
   },
   authedPage: async ({ page }, use) => {
     await mockCommonApi(page);
@@ -131,12 +226,20 @@ export const test = base.extend<{ authedPage: Page; focusPage: Page }>({
     await initPage(page);
     await use(page);
   },
+  editorPage: async ({ authedPage }, use) => {
+    await openEditor(authedPage);
+    await use(authedPage);
+  },
   focusPage: async ({ page }, use) => {
     await mockCommonApi(page);
     await mockFocusData(page);
     await initPage(page);
     await use(page);
   },
+  pendingSignupPage: async ({ page }, use) => {
+    await mockPendingSignupApi(page);
+    await use(page);
+  },
 });
 
-export { expect } from "@playwright/test";
+export { expect };

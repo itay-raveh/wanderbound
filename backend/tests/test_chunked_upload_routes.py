@@ -1,9 +1,6 @@
-"""Integration tests for the chunked upload endpoints (init/chunk/complete)."""
-
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -12,241 +9,147 @@ from starlette.requests import ClientDisconnect
 from app.core.config import get_settings
 from app.logic.chunked_upload import upload_store
 
-from .factories import mock_extract, sign_in, sign_in_and_upload
+from .helpers.users import UserRoutes
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
-
-
-async def _init(client: AsyncClient, provider: str = "google") -> str:
-    """Sign in then POST /upload/init, return upload_id."""
-    await sign_in(client, provider)
-    resp = await client.post("/api/v1/users/upload/init")
-    assert resp.status_code == 200
-    return resp.json()["upload_id"]
+    from pathlib import Path
 
 
 class TestInitChunkedUpload:
-    async def test_returns_upload_id(self, client: AsyncClient) -> None:
-        upload_id = await _init(client)
+    async def test_returns_upload_id(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
         assert isinstance(upload_id, str)
         assert len(upload_id) > 10  # token_urlsafe produces ~43 chars
 
-    async def test_rejects_unauthenticated(self, client: AsyncClient) -> None:
-        resp = await client.post("/api/v1/users/upload/init")
+    async def test_rejects_unauthenticated(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.init_upload()
         assert resp.status_code == 401
 
 
 class TestUploadChunk:
-    async def test_accepts_valid_chunk(self, client: AsyncClient) -> None:
-        upload_id = await _init(client)
-        resp = await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"chunk-data",
-        )
-        assert resp.status_code == 204
+    async def test_accepts_valid_chunk(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        await user_routes.put_chunk_ok(upload_id, 0, b"chunk-data")
 
-    async def test_rejects_unknown_session(self, client: AsyncClient) -> None:
-        resp = await client.put(
-            "/api/v1/users/upload/nonexistent/0",
-            content=b"chunk-data",
-        )
+    async def test_rejects_unknown_session(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.put_chunk("nonexistent", 0, b"chunk-data")
         assert resp.status_code == 404
 
-    async def test_rejects_negative_index(self, client: AsyncClient) -> None:
-        upload_id = await _init(client)
-        resp = await client.put(
-            f"/api/v1/users/upload/{upload_id}/-1",
-            content=b"x",
-        )
+    async def test_rejects_negative_index(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        resp = await user_routes.put_chunk(upload_id, -1, b"x")
         assert resp.status_code == 400
 
-    async def test_idempotent_retry(self, client: AsyncClient, tmp_path: Path) -> None:
-        """Re-uploading the same chunk index uses the latest data."""
-        upload_id = await _init(client)
+    async def test_idempotent_retry(
+        self, user_routes: UserRoutes, users_dir: Path
+    ) -> None:
+        upload_id = await user_routes.start_chunked_upload()
 
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"first-attempt",
-        )
-        resp = await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"retry-attempt",
-        )
-        assert resp.status_code == 204
+        await user_routes.put_chunk_ok(upload_id, 0, b"first-attempt")
+        await user_routes.put_chunk_ok(upload_id, 0, b"retry-attempt")
 
-        users_dir = tmp_path / "users"
-        users_dir.mkdir(exist_ok=True)
-        with mock_extract(users_dir):
-            complete = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-            )
-        assert complete.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
 
     async def test_client_disconnect_returns_quietly(
-        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+        self, user_routes: UserRoutes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Browser abort mid-upload should not produce a 500 traceback."""
-        upload_id = await _init(client)
+        upload_id = await user_routes.start_chunked_upload()
 
         async def raise_disconnect(*_args: object, **_kwargs: object) -> None:
             raise ClientDisconnect
 
         monkeypatch.setattr(upload_store, "write_chunk_stream", raise_disconnect)
 
-        resp = await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"anything",
-        )
+        resp = await user_routes.put_chunk(upload_id, 0, b"anything")
         assert resp.status_code == 204
 
     async def test_rejects_overflow(
-        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+        self,
+        user_routes: UserRoutes,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Accumulated chunks exceeding max_bytes return 413."""
-        # Set a tiny limit so a small chunk triggers overflow
         monkeypatch.setattr(get_settings(), "VITE_MAX_UPLOAD_GB", 0)
-        await sign_in(client)
-        init_resp = await client.post("/api/v1/users/upload/init")
+        await user_routes.sign_in()
+        init_resp = await user_routes.init_upload()
         upload_id = init_resp.json()["upload_id"]
 
-        resp = await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"any data at all",
-        )
+        resp = await user_routes.put_chunk(upload_id, 0, b"any data at all")
         assert resp.status_code == 413
 
 
 class TestCompleteChunkedUpload:
-    async def test_happy_path(self, client: AsyncClient, tmp_path: Path) -> None:
-        upload_id = await _init(client)
+    async def test_happy_path(self, user_routes: UserRoutes, users_dir: Path) -> None:
+        upload_id = await user_routes.start_chunked_upload()
 
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"fake-zip-part1",
-        )
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/1",
-            content=b"fake-zip-part2",
-        )
+        await user_routes.put_chunk_ok(upload_id, 0, b"fake-zip-part1")
+        await user_routes.put_chunk_ok(upload_id, 1, b"fake-zip-part2")
 
-        users_dir = tmp_path / "users"
-        users_dir.mkdir(exist_ok=True)
-        with mock_extract(users_dir):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-            )
-        assert resp.status_code == 200
-        body = resp.json()
+        body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
         assert body["user"]["id"] == 999
         assert len(body["trips"]) == 1
 
-    async def test_rejects_unknown_session(self, client: AsyncClient) -> None:
-        await sign_in(client)
-        resp = await client.post("/api/v1/users/upload/nonexistent/complete")
+    async def test_rejects_unknown_session(self, user_routes: UserRoutes) -> None:
+        await user_routes.sign_in()
+        resp = await user_routes.complete_upload("nonexistent")
         assert resp.status_code == 404
 
-    async def test_rejects_empty_upload(self, client: AsyncClient) -> None:
-        upload_id = await _init(client)
-        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
+    async def test_rejects_empty_upload(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        resp = await user_routes.complete_upload(upload_id)
         assert resp.status_code == 400
 
-    async def test_rejects_unauthenticated(self, client: AsyncClient) -> None:
-        resp = await client.post("/api/v1/users/upload/any-id/complete")
+    async def test_rejects_unauthenticated(self, user_routes: UserRoutes) -> None:
+        resp = await user_routes.complete_upload("any-id")
         assert resp.status_code == 401
 
-    async def test_bad_zip_returns_406(self, client: AsyncClient) -> None:
-        """Assembled chunks that aren't a valid ZIP should return 406."""
-        upload_id = await _init(client)
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"not a zip at all",
-        )
-        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
+    async def test_bad_zip_returns_406(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        await user_routes.put_chunk(upload_id, 0, b"not a zip at all")
+        resp = await user_routes.complete_upload(upload_id)
         assert resp.status_code == 406
 
     @pytest.mark.parametrize("provider", ["google", "microsoft"])
     async def test_both_providers(
-        self, client: AsyncClient, tmp_path: Path, provider: str
+        self, user_routes: UserRoutes, users_dir: Path, provider: str
     ) -> None:
-        """Chunked upload works with both Google and Microsoft auth."""
-        upload_id = await _init(client, provider=provider)
+        upload_id = await user_routes.start_chunked_upload(provider=provider)
 
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"fake-zip",
-        )
+        await user_routes.put_chunk_ok(upload_id, 0)
 
-        users_dir = tmp_path / "users"
-        users_dir.mkdir(exist_ok=True)
-        with mock_extract(users_dir):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-            )
-        assert resp.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
 
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_reupload_via_session_cookie(
-        self, client: AsyncClient, tmp_path: Path
+        self, user_routes: UserRoutes, users_dir: Path
     ) -> None:
-        """Logged-in user can re-upload without credential/provider."""
-        users_dir = tmp_path / "users"
-        users_dir.mkdir(exist_ok=True)
-        await sign_in_and_upload(client, users_dir)
-
-        init_resp = await client.post("/api/v1/users/upload/init")
+        init_resp = await user_routes.init_upload()
         assert init_resp.status_code == 200
         upload_id = init_resp.json()["upload_id"]
 
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"fake-zip",
-        )
+        await user_routes.put_chunk_ok(upload_id, 0)
 
-        with mock_extract(users_dir):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-            )
-        assert resp.status_code == 200
-        assert resp.json()["user"]["id"] == 999
+        body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
+        assert body["user"]["id"] == 999
 
-    async def test_rejects_wrong_owner(self, client: AsyncClient) -> None:
-        """Complete by a different user than init returns 403."""
-        # Init as Google user (owner = "google:google-123")
-        upload_id = await _init(client)
-        await client.put(
-            f"/api/v1/users/upload/{upload_id}/0",
-            content=b"chunk",
-        )
-        await sign_in(client, provider="microsoft")
-        resp = await client.post(f"/api/v1/users/upload/{upload_id}/complete")
+    async def test_rejects_wrong_owner(self, user_routes: UserRoutes) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        await user_routes.put_chunk_ok(upload_id, 0, b"chunk")
+        await user_routes.sign_in(provider="microsoft")
+        resp = await user_routes.complete_upload(upload_id)
         assert resp.status_code == 403
 
 
 class TestParallelChunkedUpload:
     async def test_parallel_chunks_complete_cleanly(
-        self, client: AsyncClient, tmp_path: Path
+        self, user_routes: UserRoutes, users_dir: Path
     ) -> None:
-        """4 concurrent PUTs to one session finish and complete succeeds."""
-        upload_id = await _init(client)
-
-        async def put_chunk(index: int, data: bytes) -> None:
-            resp = await client.put(
-                f"/api/v1/users/upload/{upload_id}/{index}",
-                content=data,
-            )
-            assert resp.status_code == 204
+        upload_id = await user_routes.start_chunked_upload()
 
         await asyncio.gather(
             *(
-                put_chunk(i, p)
+                user_routes.put_chunk_ok(upload_id, i, p)
                 for i, p in enumerate([b"AAAA", b"BBBB", b"CCCC", b"DDDD"])
             )
         )
 
-        users_dir = tmp_path / "users"
-        users_dir.mkdir(exist_ok=True)
-        with mock_extract(users_dir):
-            resp = await client.post(
-                f"/api/v1/users/upload/{upload_id}/complete",
-            )
-        assert resp.status_code == 200
+        await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)

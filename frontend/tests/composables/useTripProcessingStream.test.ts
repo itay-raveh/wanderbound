@@ -21,7 +21,6 @@ async function* streamEvents(events: unknown[]) {
 
 async function waitForStream() {
   await flushPromises();
-  await new Promise((resolve) => setTimeout(resolve));
   await flushPromises();
 }
 

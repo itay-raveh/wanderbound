@@ -8,9 +8,9 @@ from uuid import uuid4
 from app.core.config import get_settings
 from app.logic.layout.builder import _load_photos, _step_media, build_step_layout
 from app.logic.layout.media import Media
-from app.models.polarsteps import Location, PSStep
+from app.models.polarsteps import PSStep
 from app.models.user import User
-from tests.factories import collect_async, create_test_jpeg
+from tests.factories import collect_async, create_test_jpeg, make_ps_step, make_user
 
 if TYPE_CHECKING:
     import pytest
@@ -23,28 +23,20 @@ def _media_name(ext: str = "jpg") -> str:
 
 
 def _make_step() -> PSStep:
-    return PSStep(
-        id=1,
+    return make_ps_step(
+        1,
         name="Test Step",
-        slug="test-step",
         description="",
         timestamp=1_700_000_000.0,
         timezone_id="Europe/Amsterdam",
-        location=Location(
-            name="Test", detail="", country_code="nl", lat=52.37, lon=4.89
-        ),
     )
 
 
 def _make_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> User:
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-    return User(
-        id=1,
+    return make_user(
+        1,
         google_sub="g-1",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
     )
 
 

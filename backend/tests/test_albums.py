@@ -4,43 +4,56 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
+
 from app.models.segment import Segment, SegmentKind
 
 from .factories import (
     AID,
+    AlbumScenario,
     insert_album,
     insert_album_media,
     insert_segment,
     insert_step,
     make_points,
-    sign_in_and_upload,
 )
+from .helpers.albums import AlbumRoutes
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+def _assert_step_layout(
+    data: dict[str, object],
+    *,
+    cover: str | None,
+    pages: list[list[str]],
+    unused: list[str],
+) -> None:
+    assert data["cover"] == cover
+    assert data["pages"] == pages
+    assert data["unused"] == unused
+
+
 class TestReadAlbum:
+    @pytest.mark.usefixtures("uploaded_user")
     async def test_cannot_read_other_users_album(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        album_routes: AlbumRoutes,
     ) -> None:
-        await sign_in_and_upload(client, tmp_path / "users")
         await insert_album(session, uid=9999, aid="other-trip")
 
-        resp = await client.get("/api/v1/albums/other-trip")
+        resp = await album_routes.get_album("other-trip")
         assert resp.status_code == 404
 
+    @pytest.mark.usefixtures("signed_album")
     async def test_returns_album_meta_without_media(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self, album_routes: AlbumRoutes
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-
-        resp = await client.get(f"/api/v1/albums/{AID}")
+        resp = await album_routes.get_album()
         assert resp.status_code == 200
         data = resp.json()
-        # AlbumMeta excludes heavy fields - only meta returned
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data
@@ -48,13 +61,14 @@ class TestReadAlbum:
 
 class TestReadSegments:
     async def test_returns_outlines_without_points(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_segment(session, uid)
+        await insert_segment(session, signed_album.uid)
 
-        resp = await client.get(f"/api/v1/albums/{AID}/segments")
+        resp = await album_routes.get_segments()
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
@@ -68,130 +82,95 @@ class TestReadSegments:
 
 class TestReadSegmentPoints:
     async def test_returns_segments_with_points_for_time_range(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
         await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+            session,
+            signed_album.uid,
+            start_time=100.0,
+            end_time=300.0,
+            kind=SegmentKind.driving,
         )
         await insert_segment(
-            session, uid, start_time=500.0, end_time=700.0, kind=SegmentKind.hike
+            session,
+            signed_album.uid,
+            start_time=500.0,
+            end_time=700.0,
+            kind=SegmentKind.hike,
         )
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            # Request range that only covers the first segment
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 50.0, "to_time": 400.0},
-            )
+        data, mock_enqueue = await album_routes.get_segment_points_ok(
+            from_time=50.0, to_time=400.0
+        )
         mock_enqueue.assert_not_called()
-        assert resp.status_code == 200
-        data = resp.json()
         assert len(data) == 1
         assert data[0]["kind"] == "driving"
         assert len(data[0]["points"]) == 3
 
 
 class TestSegmentPointsReadOnly:
-    async def test_unmatched_driving_segment_returns_stored_null_route(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+    @pytest.mark.parametrize("kind", [SegmentKind.driving, SegmentKind.hike])
+    async def test_segment_returns_stored_null_route(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+        kind: SegmentKind,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
         await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+            session,
+            signed_album.uid,
+            start_time=100.0,
+            end_time=300.0,
+            kind=kind,
         )
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
+        data, mock_enqueue = await album_routes.get_segment_points_ok()
 
         mock_enqueue.assert_not_called()
-        assert resp.status_code == 200
-        data = resp.json()
         assert len(data) == 1
         assert data[0]["route"] is None
 
-    async def test_hike_segment_returns_stored_null_route(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.hike
-        )
-
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
-
-        mock_enqueue.assert_not_called()
-        data = resp.json()
-        assert data[0]["route"] is None
-
     async def test_already_matched_route_returned_as_stored(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
         seg = await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.driving
+            session,
+            signed_album.uid,
+            start_time=100.0,
+            end_time=300.0,
+            kind=SegmentKind.driving,
         )
         seg.route = [(4.0, 52.0), (4.01, 52.01)]
         session.add(seg)
         await session.flush()
 
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-        ) as mock_enqueue:
-            resp = await client.get(
-                f"/api/v1/albums/{AID}/segments/points",
-                params={"from_time": 0.0, "to_time": 1000.0},
-            )
+        data, mock_enqueue = await album_routes.get_segment_points_ok()
 
         mock_enqueue.assert_not_called()
-        assert resp.json()[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
+        assert data[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
 
 
+@pytest.mark.usefixtures("signed_album")
 class TestUpdateAlbum:
-    async def test_update_cover_photos(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
-    ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}",
-            json={
-                "front_cover_photo": "new_front.jpg",
-                "back_cover_photo": "new_back.jpg",
-            },
+    async def test_update_cover_photos(self, album_routes: AlbumRoutes) -> None:
+        data = await album_routes.update_album_ok(
+            front_cover_photo="new_front.jpg",
+            back_cover_photo="new_back.jpg",
         )
-        assert resp.status_code == 200
-        data = resp.json()
         assert data["front_cover_photo"] == "new_front.jpg"
         assert data["back_cover_photo"] == "new_back.jpg"
 
     async def test_partial_update_preserves_other_fields(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self, album_routes: AlbumRoutes
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-
-        resp = await client.patch(f"/api/v1/albums/{AID}", json={"title": "Changed"})
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.update_album_ok(title="Changed")
         assert data["title"] == "Changed"
         assert data["subtitle"] == "A subtitle"
         assert data["front_cover_photo"] == "photo1.jpg"
@@ -199,16 +178,14 @@ class TestUpdateAlbum:
 
 class TestUpdateStep:
     async def test_partial_update_preserves_other_fields(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_step(session, uid)
+        await insert_step(session, signed_album.uid)
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/steps/1",
-            json={"name": "New Name"},
-        )
+        resp = await album_routes.update_step(name="New Name")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "New Name"
@@ -218,50 +195,41 @@ class TestUpdateStep:
         assert data["cover"] is None
 
     async def test_media_layout_update_rewrites_step_placements(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_album_media(session, uid, name="a.jpg")
-        await insert_album_media(session, uid, name="b.jpg")
-        await insert_album_media(session, uid, name="c.jpg")
-        await insert_album_media(session, uid, name="cover.jpg")
-        await insert_album_media(session, uid, name="unused.jpg")
-        await insert_step(session, uid)
+        expected_layout = {
+            "cover": "cover.jpg",
+            "pages": [["a.jpg", "b.jpg"], ["c.jpg"]],
+            "unused": ["unused.jpg"],
+        }
+        for name in ("a.jpg", "b.jpg", "c.jpg", "cover.jpg", "unused.jpg"):
+            await insert_album_media(session, signed_album.uid, name=name)
+        await insert_step(session, signed_album.uid)
         await session.commit()
 
-        resp = await client.put(
-            f"/api/v1/albums/{AID}/steps/1/media-layout",
-            json={
-                "cover": "cover.jpg",
-                "pages": [["a.jpg", "b.jpg"], ["c.jpg"]],
-                "unused": ["unused.jpg"],
-            },
-        )
-
+        resp = await album_routes.update_media_layout(**expected_layout)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["cover"] == "cover.jpg"
-        assert data["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
-        assert data["unused"] == ["unused.jpg"]
+        _assert_step_layout(data, **expected_layout)
 
-        get_resp = await client.get(f"/api/v1/albums/{AID}/steps")
+        get_resp = await album_routes.get_steps()
         assert get_resp.status_code == 200
-        assert get_resp.json()[0]["cover"] == "cover.jpg"
-        assert get_resp.json()[0]["pages"] == [["a.jpg", "b.jpg"], ["c.jpg"]]
-        assert get_resp.json()[0]["unused"] == ["unused.jpg"]
+        _assert_step_layout(get_resp.json()[0], **expected_layout)
 
     async def test_media_layout_update_rejects_missing_album_media(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_step(session, uid)
+        await insert_step(session, signed_album.uid)
         await session.commit()
 
-        resp = await client.put(
-            f"/api/v1/albums/{AID}/steps/1/media-layout",
-            json={"cover": None, "pages": [["missing.jpg"]], "unused": []},
+        resp = await album_routes.update_media_layout(
+            cover=None, pages=[["missing.jpg"]], unused=[]
         )
 
         assert resp.status_code == 400
@@ -296,57 +264,44 @@ class TestAdjustSegmentBoundary:
         return seg1, seg2
 
     async def test_flight_segment_rejected(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
         await insert_segment(
-            session, uid, start_time=100.0, end_time=300.0, kind=SegmentKind.flight
+            session,
+            signed_album.uid,
+            start_time=100.0,
+            end_time=300.0,
+            kind=SegmentKind.flight,
         )
 
         with patch(
             "app.api.v1.routes.albums.enqueue_album_route_enrichment",
             create=True,
         ) as mock_enqueue:
-            resp = await client.patch(
-                f"/api/v1/albums/{AID}/segments/adjust-boundary",
-                json={
-                    "start_time": 100.0,
-                    "end_time": 300.0,
-                    "new_boundary_time": 200.0,
-                    "handle": "end",
-                },
-            )
+            resp = await album_routes.adjust_boundary()
         assert resp.status_code == 400
         assert "flight" in resp.json()["detail"].lower()
         mock_enqueue.assert_not_called()
 
     async def test_adjust_end_handle_success(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await self._setup_adjacent_segments(session, uid)
+        await self._setup_adjacent_segments(session, signed_album.uid)
 
         with patch(
             "app.api.v1.routes.albums.enqueue_album_route_enrichment",
             create=True,
         ) as mock_enqueue:
-            resp = await client.patch(
-                f"/api/v1/albums/{AID}/segments/adjust-boundary",
-                json={
-                    "start_time": 100.0,
-                    "end_time": 300.0,
-                    "new_boundary_time": 200.0,
-                    "handle": "end",
-                },
-            )
-        assert resp.status_code == 200
+            data = await album_routes.adjust_boundary_ok()
         mock_enqueue.assert_called_once()
         _, _, called_uid, called_aid = mock_enqueue.call_args.args
-        assert (called_uid, called_aid) == (uid, AID)
-        data = resp.json()
-        # Response is now a flat list of SegmentOutline objects
+        assert (called_uid, called_aid) == (signed_album.uid, AID)
         assert isinstance(data, list)
         assert len(data) == 2
         assert "start_coord" in data[0]
@@ -354,14 +309,14 @@ class TestAdjustSegmentBoundary:
         assert "points" not in data[0]
 
     async def test_adjust_start_handle_success(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        # seg1 ends at 200, seg2 starts at 200 (gap-free boundary)
         await insert_segment(
             session,
-            uid,
+            signed_album.uid,
             start_time=100.0,
             end_time=200.0,
             kind=SegmentKind.driving,
@@ -369,90 +324,72 @@ class TestAdjustSegmentBoundary:
         )
         await insert_segment(
             session,
-            uid,
+            signed_album.uid,
             start_time=200.0,
             end_time=500.0,
             kind=SegmentKind.hike,
             points=make_points([200.0, 300.0, 400.0, 500.0]),
         )
 
-        # Move the hike's start boundary forward (shrink it)
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 200.0,
-                "end_time": 500.0,
-                "new_boundary_time": 300.0,
-                "handle": "start",
-            },
+        data = await album_routes.adjust_boundary_ok(
+            start_time=200.0,
+            end_time=500.0,
+            new_boundary_time=300.0,
+            handle="start",
         )
-        assert resp.status_code == 200
-        data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 2
 
     async def test_route_reset_after_boundary_adjust(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        # Insert segment with a route
         seg = await insert_segment(
             session,
-            uid,
+            signed_album.uid,
             start_time=100.0,
             end_time=300.0,
             kind=SegmentKind.driving,
             points=make_points([100.0, 200.0, 300.0]),
         )
-        # Manually set route on the segment
         seg.route = [(4.0, 52.0), (4.01, 52.01)]
         session.add(seg)
         await session.flush()
         await insert_segment(
             session,
-            uid,
+            signed_album.uid,
             start_time=300.0,
             end_time=500.0,
             kind=SegmentKind.hike,
             points=make_points([300.0, 400.0, 500.0]),
         )
 
-        resp = await client.patch(
-            f"/api/v1/albums/{AID}/segments/adjust-boundary",
-            json={
-                "start_time": 100.0,
-                "end_time": 300.0,
-                "new_boundary_time": 200.0,
-                "handle": "end",
-            },
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        # Both new segments should have route=None (reset by split_segments)
+        data = await album_routes.adjust_boundary_ok()
         for seg_data in data:
             assert seg_data.get("route") is None
 
 
 class TestPrintBundle:
     async def test_returns_full_bundle(
-        self, client: AsyncClient, session: AsyncSession, tmp_path: Path
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        uid = (await sign_in_and_upload(client, tmp_path / "users"))["id"]
-        await insert_album(session, uid)
-        await insert_step(session, uid)
-        await insert_segment(session, uid)
+        await insert_step(session, signed_album.uid)
+        await insert_segment(session, signed_album.uid)
 
-        resp = await client.get(f"/api/v1/albums/{AID}/print-bundle")
+        resp = await album_routes.print_bundle()
         assert resp.status_code == 200
         data = resp.json()
         assert "album" in data
         assert "steps" in data
         assert "segments" in data
         assert "total_distance_km" in data
-        # Album should include media (full Album, not AlbumMeta)
         assert "media" in data["album"]
-        assert data["album"]["media"][0]["uid"] == uid
+        assert data["album"]["media"][0]["uid"] == signed_album.uid
         assert data["album"]["media"][0]["aid"] == AID
         assert data["album"]["media"][0]["byte_size"] == 1234
         assert "updated_at" in data["album"]["media"][0]
@@ -463,7 +400,7 @@ class TestPrintBundle:
 
 class TestDownloadPdf:
     async def test_valid_token_returns_file(
-        self, client: AsyncClient, tmp_path: Path
+        self, album_routes: AlbumRoutes, tmp_path: Path
     ) -> None:
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-1.4 fake content")
@@ -472,7 +409,7 @@ class TestDownloadPdf:
             "app.api.v1.routes.albums.pop_pdf_token",
             return_value=(pdf_path, "my-album"),
         ):
-            resp = await client.get("/api/v1/albums/pdf/download/valid-token")
+            resp = await album_routes.download_pdf("valid-token")
 
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"

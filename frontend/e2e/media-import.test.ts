@@ -1,4 +1,10 @@
-import { test, expect } from "./fixtures";
+import {
+  ensureExternalMediaOpen,
+  externalMediaCorsHeaders,
+  externalMediaImportButton,
+  test,
+  expect,
+} from "./fixtures";
 import {
   mockAlbum,
   mockMedia,
@@ -12,9 +18,7 @@ const IMPORTED =
   "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg";
 
 function unusedDrawer(page: import("@playwright/test").Page) {
-  return page
-    .getByLabel("Inspector")
-    .getByRole("region", { name: "Unused" });
+  return page.getByLabel("Inspector").getByRole("region", { name: "Unused" });
 }
 
 async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
@@ -24,21 +28,26 @@ async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
   await expect(count).toBeVisible();
 }
 
-async function ensureExternalMediaOpen(
+async function mockDeviceImport(
   page: import("@playwright/test").Page,
+  onImport: () => void,
 ) {
-  const importButton = page.getByRole("button", {
-    name: "Import external media",
-  });
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(importButton).toBeVisible();
+  await page.route(
+    `${API}/albums/*/external-media/add/device`,
+    async (route) => {
+      const headers = externalMediaCorsHeaders(page);
+      if (route.request().method() === "OPTIONS") {
+        await route.fulfill({ headers: headers.cors, status: 204 });
+        return;
+      }
+      onImport();
+      await route.fulfill({
+        headers: headers.json,
+        status: 200,
+        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
+      });
+    },
+  );
 }
 
 async function selectImportStep(
@@ -50,6 +59,7 @@ async function selectImportStep(
   await expect(
     page.getByLabel("Inspector").getByText(`Import to ${mockStep.name}`),
   ).toBeVisible();
+  await expect(externalMediaImportButton(page)).toBeVisible();
 }
 
 test.describe("Media import", () => {
@@ -58,26 +68,8 @@ test.describe("Media import", () => {
   }) => {
     let imported = false;
 
-    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
-      const headers = {
-        "access-control-allow-credentials": "true",
-        "access-control-allow-headers": "*",
-        "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-origin": new URL(page.url()).origin,
-      };
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ headers, status: 204 });
-        return;
-      }
+    await mockDeviceImport(page, () => {
       imported = true;
-      await route.fulfill({
-        headers: {
-          ...headers,
-          "content-type": "application/json",
-        },
-        status: 200,
-        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-      });
     });
     await page.route(`${API}/albums/*/steps`, async (route) => {
       const steps = imported
@@ -101,7 +93,7 @@ test.describe("Media import", () => {
     await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await externalMediaImportButton(page).click();
     const importResponse = page.waitForResponse(
       (res) =>
         res.url().includes("/api/v1/albums/") &&
@@ -175,26 +167,8 @@ test.describe("Media import", () => {
           : mockMedia;
       return route.fulfill({ json: media });
     });
-    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
-      const headers = {
-        "access-control-allow-credentials": "true",
-        "access-control-allow-headers": "*",
-        "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-origin": new URL(page.url()).origin,
-      };
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ headers, status: 204 });
-        return;
-      }
+    await mockDeviceImport(page, () => {
       imported = true;
-      await route.fulfill({
-        headers: {
-          ...headers,
-          "content-type": "application/json",
-        },
-        status: 200,
-        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-      });
     });
 
     await page.goto("/editor");
@@ -206,7 +180,7 @@ test.describe("Media import", () => {
     await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await externalMediaImportButton(page).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

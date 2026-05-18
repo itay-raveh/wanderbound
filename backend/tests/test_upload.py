@@ -22,6 +22,12 @@ def _jpeg_bytes(width: int = 10, height: int = 10) -> bytes:
     return buf.getvalue()
 
 
+def _png_bytes(width: int = 10, height: int = 10) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height)).save(buf, "PNG")
+    return buf.getvalue()
+
+
 _DEFAULT_JPEG = _jpeg_bytes()
 
 
@@ -40,6 +46,11 @@ def _make_zip(**entries: bytes) -> io.BytesIO:
             zf.writestr(name, data)
     buf.seek(0)
     return buf
+
+
+def _assert_bad_zip(buf: io.BytesIO, tmp_path: Path, match: str) -> None:
+    with pytest.raises(zipfile.BadZipFile, match=match):
+        _safe_extract(buf, tmp_path)
 
 
 def _user_json(**overrides: str | int | bool) -> bytes:
@@ -103,8 +114,7 @@ class TestSafeExtract:
                 "c.jpg": _DEFAULT_JPEG,
             }
         )
-        with pytest.raises(zipfile.BadZipFile, match="too many files"):
-            _safe_extract(buf, tmp_path)
+        _assert_bad_zip(buf, tmp_path, "too many files")
 
     def test_rejects_symlinks(self, tmp_path: Path) -> None:
         buf = io.BytesIO()
@@ -114,16 +124,7 @@ class TestSafeExtract:
             info.external_attr = 0xA0000000
             zf.writestr(info, b"target")
         buf.seek(0)
-        with pytest.raises(zipfile.BadZipFile, match="Symlink not allowed"):
-            _safe_extract(buf, tmp_path)
-
-    def test_rejects_path_traversal(self, tmp_path: Path) -> None:
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("../../etc/passwd", _DEFAULT_JPEG)
-        buf.seek(0)
-        with pytest.raises(zipfile.BadZipFile, match="Path traversal"):
-            _safe_extract(buf, tmp_path)
+        _assert_bad_zip(buf, tmp_path, "Symlink not allowed")
 
     def test_rejects_exceeding_size_limit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -131,23 +132,20 @@ class TestSafeExtract:
         monkeypatch.setattr("app.logic.upload._MAX_TOTAL_BYTES", 100)
         big_jpeg = _jpeg_bytes(200, 200)
         buf = _make_zip(**{"big.jpg": big_jpeg})
-        with pytest.raises(zipfile.BadZipFile, match="exceeds limit"):
-            _safe_extract(buf, tmp_path)
+        _assert_bad_zip(buf, tmp_path, "exceeds limit")
 
-    def test_rejects_disallowed_mime_type(self, tmp_path: Path) -> None:
-        # A PNG file has a recognizable MIME type that is NOT in the allow list
-        png_buf = io.BytesIO()
-        Image.new("RGB", (10, 10)).save(png_buf, "PNG")
-        buf = _make_zip(**{"image.png": png_buf.getvalue()})
-        with pytest.raises(zipfile.BadZipFile, match="Disallowed file type"):
-            _safe_extract(buf, tmp_path)
-
-    def test_rejects_executable(self, tmp_path: Path) -> None:
-        # ELF magic bytes → application/x-executable or similar
-        elf_header = b"\x7fELF" + b"\x00" * 100
-        buf = _make_zip(**{"malware.bin": elf_header})
-        with pytest.raises(zipfile.BadZipFile, match="Disallowed file type"):
-            _safe_extract(buf, tmp_path)
+    @pytest.mark.parametrize(
+        ("entry", "data", "match"),
+        [
+            ("../../etc/passwd", _DEFAULT_JPEG, "Path traversal"),
+            ("image.png", _png_bytes(), "Disallowed file type"),
+            ("malware.bin", b"\x7fELF" + b"\x00" * 100, "Disallowed file type"),
+        ],
+    )
+    def test_rejects_unsafe_entries(
+        self, tmp_path: Path, entry: str, data: bytes, match: str
+    ) -> None:
+        _assert_bad_zip(_make_zip(**{entry: data}), tmp_path, match)
 
 
 class TestScanUserFolder:

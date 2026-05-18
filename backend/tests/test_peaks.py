@@ -1,8 +1,5 @@
-"""Tests for app.logic.spatial.peaks."""
-
 import json
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -14,6 +11,7 @@ from app.logic.spatial.peaks import (
     _parse_ele,
     correct_peaks,
 )
+from tests.helpers.http import async_client, mock_response
 
 
 @dataclass
@@ -31,11 +29,11 @@ def _overpass_json(peaks: list[tuple[float, str]]) -> bytes:
 
 
 def _mock_overpass_client(peaks: list[tuple[float, str]]) -> httpx.AsyncClient:
-    mock_response = MagicMock(status_code=200)
-    mock_response.content = _overpass_json(peaks)
-    client = MagicMock(spec=httpx.AsyncClient)
-    client.post = AsyncMock(return_value=mock_response)
-    return client
+    return async_client(post=mock_response(_overpass_json(peaks)))
+
+
+def _peak_profile(middle: float) -> tuple[list[_Loc], list[float]]:
+    return [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)], [500.0, middle, 500.0]
 
 
 class TestParseEle:
@@ -77,58 +75,45 @@ class TestLocalPeaks:
 
 
 class TestCorrectPeaks:
-    async def test_corrects_summit(self) -> None:
-        locs = [_Loc(0, 0), _Loc(-16.19, -68.26), _Loc(0, 0)]
-        elevs = [500.0, 5236.0, 500.0]
+    @pytest.mark.parametrize(
+        ("middle", "peaks", "expected"),
+        [
+            pytest.param(
+                5236.0, [(5327, "Pico Austria")], 5327.0, id="corrects-summit"
+            ),
+            pytest.param(5400.0, [(5327, "Pico Austria")], 5400.0, id="does-not-lower"),
+            pytest.param(
+                5000.0,
+                [(5000.0 * (1 + PEAK_MAX_DEVIATION), "Boundary Peak")],
+                5000.0 * (1 + PEAK_MAX_DEVIATION),
+                id="threshold",
+            ),
+            pytest.param(
+                5236.0,
+                [
+                    (6088, "Huayna Potosi"),
+                    (5327, "Pico Austria"),
+                    (5648, "Condoriri"),
+                ],
+                5327.0,
+                id="closest",
+            ),
+        ],
+    )
+    async def test_peak_correction_cases(
+        self, middle: float, peaks: list[tuple[float, str]], expected: float
+    ) -> None:
+        locs, elevs = _peak_profile(middle)
 
-        client = _mock_overpass_client([(5327, "Pico Austria")])
+        client = _mock_overpass_client(peaks)
         result = await correct_peaks(client, locs, elevs)
 
-        assert result[0] == 500.0  # unchanged
-        assert result[1] == 5327.0  # corrected
-        assert result[2] == 500.0  # unchanged
-
-    async def test_does_not_lower_elevation(self) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        elevs = [500.0, 5400.0, 500.0]
-
-        client = _mock_overpass_client([(5327, "Pico Austria")])
-        result = await correct_peaks(client, locs, elevs)
-
-        assert result[1] == 5400.0  # unchanged - OSM peak is lower
-
-    async def test_deviation_exactly_at_threshold(self) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        dem_val = 5000.0
-        osm_val = dem_val * (1 + PEAK_MAX_DEVIATION)  # exactly 10%
-        elevs = [500.0, dem_val, 500.0]
-
-        client = _mock_overpass_client([(osm_val, "Boundary Peak")])
-        result = await correct_peaks(client, locs, elevs)
-
-        assert result[1] == osm_val  # corrected
-
-    async def test_picks_closest_in_elevation(self) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        elevs = [500.0, 5236.0, 500.0]
-
-        client = _mock_overpass_client(
-            [
-                (6088, "Huayna Potosi"),
-                (5327, "Pico Austria"),
-                (5648, "Condoriri"),
-            ]
-        )
-        result = await correct_peaks(client, locs, elevs)
-
-        assert result[1] == 5327.0  # closest to 5236
+        assert result == [500.0, expected, 500.0]
 
     async def test_overpass_failure_returns_original(self) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        elevs = [500.0, 5236.0, 500.0]
+        locs, elevs = _peak_profile(5236.0)
 
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.post = AsyncMock(side_effect=httpx.HTTPError("timeout"))
+        client = async_client(post=httpx.HTTPError("timeout"))
         result = await correct_peaks(client, locs, elevs)
 
         assert list(result) == elevs

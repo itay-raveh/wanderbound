@@ -9,7 +9,11 @@ from app.logic.demo_i18n import apply_overlay, load_overlay
 from app.models.album import Album
 from app.models.polarsteps import Location
 from app.models.step import Step
-from app.models.weather import Weather, WeatherData
+from tests.factories import (
+    make_album as make_test_album,
+    make_step as make_test_step,
+    make_weather,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -26,7 +30,7 @@ HEBREW_OVERLAY = {
     },
 }
 
-WEATHER = Weather(day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"))
+WEATHER = make_weather()
 LOCATION = Location(
     name="Amsterdam",
     detail="NL",
@@ -37,39 +41,29 @@ LOCATION = Location(
 
 
 def make_album(**kwargs: object) -> Album:
-    defaults: dict[str, object] = {
-        "uid": 1,
-        "id": "trip-1",
-        "title": "Original Title",
-        "subtitle": "Original Subtitle",
-        "hidden_steps": [],
-        "hidden_headers": [],
-        "maps_ranges": [],
-        "front_cover_photo": "",
-        "back_cover_photo": "",
-        "colors": {},
-        "media": [],
-    }
-    return Album(**(defaults | kwargs))
+    overrides = dict(kwargs)
+    aid = overrides.pop("id", overrides.pop("aid", "trip-1"))
+    return make_test_album(
+        aid=aid,
+        title="Original Title",
+        subtitle="Original Subtitle",
+        front_cover_photo="",
+        back_cover_photo="",
+        colors={},
+        **overrides,
+    )
 
 
 def make_step(step_id: int = 1, **kwargs: object) -> Step:
-    defaults: dict[str, object] = {
-        "uid": 1,
-        "aid": "trip-1",
-        "id": step_id,
-        "name": "Original Name",
-        "description": "",
-        "cover": None,
-        "pages": [],
-        "unused": [],
-        "timestamp": 1_700_000_000.0,
-        "timezone_id": "UTC",
-        "location": LOCATION,
-        "elevation": 0,
-        "weather": WEATHER,
-    }
-    return Step(**(defaults | kwargs))
+    return make_test_step(
+        step_id=step_id,
+        name="Original Name",
+        description="",
+        timezone_id="UTC",
+        location=LOCATION,
+        weather=WEATHER,
+        **kwargs,
+    )
 
 
 @pytest.fixture

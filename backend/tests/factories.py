@@ -6,7 +6,8 @@ import io
 import tempfile
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,10 +18,15 @@ from PIL import Image
 from app.core.config import get_settings
 from app.logic.upload import TripMeta
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.polarsteps import Location, Point
+from app.models.album_media import (
+    AlbumMedia,
+    AlbumMediaUndoSnapshot,
+    StepPageMedia,
+    StepUnusedMedia,
+)
+from app.models.polarsteps import Location, Point, PSStep
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step
+from app.models.step import Step, StepRead
 from app.models.user import PSUser, User
 from app.models.weather import Weather, WeatherData
 
@@ -179,11 +185,52 @@ async def sign_in_and_upload(
     return resp.json()["user"]
 
 
+async def sign_in_uploaded_user(
+    client: AsyncClient,
+    *,
+    provider: str = "google",
+    payload: dict | None = None,
+) -> dict:
+    users_dir = get_settings().USERS_FOLDER
+    users_dir.mkdir(parents=True, exist_ok=True)
+    return await sign_in_and_upload(client, users_dir, provider, payload)
+
+
 # ---------------------------------------------------------------------------
 # DB insert helpers
 # ---------------------------------------------------------------------------
 
 GOOGLE_REFRESH_TOKEN = "1//0fake-refresh-token-for-tests"  # noqa: S105
+
+
+def make_user(
+    uid: int = 1,
+    *,
+    album_ids: list[str] | None = None,
+    google_sub: str | None = None,
+    first_name: str = "Test",
+    locale: str = "en-US",
+    unit_is_km: bool = True,
+    temperature_is_celsius: bool = True,
+    is_demo: bool = False,
+    last_active_at: datetime | None = None,
+) -> User:
+    resolved_google_sub = google_sub
+    if resolved_google_sub is None and not is_demo:
+        resolved_google_sub = f"google-{uid}"
+    user = User(
+        id=uid,
+        google_sub=resolved_google_sub,
+        first_name=first_name,
+        locale=locale,
+        unit_is_km=unit_is_km,
+        temperature_is_celsius=temperature_is_celsius,
+        album_ids=album_ids if album_ids is not None else [AID],
+        is_demo=is_demo,
+        last_active_at=last_active_at or datetime.now(UTC),
+    )
+    user.folder.mkdir(parents=True, exist_ok=True)
+    return user
 
 
 async def connect_google_photos(session: AsyncSession, uid: int) -> None:
@@ -196,11 +243,40 @@ async def connect_google_photos(session: AsyncSession, uid: int) -> None:
     await session.flush()
 
 
+async def sign_in_connected_google_photos(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> int:
+    user_data = await sign_in_uploaded_user(client, provider="google")
+    uid = user_data["id"]
+    await connect_google_photos(session, uid)
+    return uid
+
+
 LOCATION = Location(
     name="Amsterdam", detail="NH", country_code="nl", lat=52.37, lon=4.89
 )
 WEATHER = Weather(day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"), night=None)
 AID = "trip-1"
+DEFAULT_MEDIA_NAME = (
+    "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+)
+MISSING_MEDIA_NAME = (
+    "33333333-3333-4333-8333-333333333333_44444444-4444-4444-8444-444444444444.jpg"
+)
+
+
+@dataclass(frozen=True)
+class AlbumScenario:
+    uid: int
+    aid: str = AID
+
+
+@dataclass(frozen=True)
+class AlbumMediaScenario:
+    uid: int
+    album_dir: Path
+    media_name: str = DEFAULT_MEDIA_NAME
 
 
 def make_points(times: list[float]) -> list[Point]:
@@ -210,25 +286,243 @@ def make_points(times: list[float]) -> list[Point]:
     ]
 
 
+def make_points_from_tuples(points: list[tuple[float, float, float]]) -> list[Point]:
+    return [Point(lat=lat, lon=lon, time=time) for lat, lon, time in points]
+
+
+def make_ps_step(
+    step_id: int = 1,
+    *,
+    name: str | None = None,
+    slug: str | None = None,
+    description: str | None = None,
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "UTC",
+    location: Location = LOCATION,
+) -> PSStep:
+    resolved_name = name or f"Step {step_id}"
+    return PSStep(
+        id=step_id,
+        name=resolved_name,
+        slug=slug or resolved_name.lower().replace(" ", "-"),
+        description=description if description is not None else f"Desc {step_id}",
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+    )
+
+
+def make_weather(
+    temp: float = 20.0,
+    feels_like: float = 18.0,
+    icon: str = "sun",
+) -> Weather:
+    return Weather(
+        day=WeatherData(temp=temp, feels_like=feels_like, icon=icon),
+        night=None,
+    )
+
+
+def make_album(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    title: str = "Test Album",
+    subtitle: str = "A subtitle",
+    front_cover_photo: str = "photo1.jpg",
+    back_cover_photo: str = "photo2.jpg",
+    colors: dict[str, str] | None = None,
+    font: str | None = "Assistant",
+    body_font: str = "Frank Ruhl Libre",
+) -> Album:
+    values: dict[str, object] = {
+        "uid": uid,
+        "id": aid,
+        "title": title,
+        "subtitle": subtitle,
+        "hidden_steps": [],
+        "hidden_headers": [],
+        "maps_ranges": [],
+        "front_cover_photo": front_cover_photo,
+        "back_cover_photo": back_cover_photo,
+        "colors": colors if colors is not None else {"nl": "#0000ff"},
+        "body_font": body_font,
+    }
+    if font is not None:
+        values["font"] = font
+    return Album(**values)
+
+
+def make_album_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    name: str = DEFAULT_MEDIA_NAME,
+    width: int = 1920,
+    height: int = 1080,
+    kind: str | None = None,
+    byte_size: int = 1234,
+    upgrade_candidate: bool = True,
+) -> AlbumMedia:
+    return AlbumMedia(
+        uid=uid,
+        aid=aid,
+        name=name,
+        kind=kind or ("video" if name.endswith(".mp4") else "photo"),
+        width=width,
+        height=height,
+        byte_size=byte_size,
+        upgrade_candidate=upgrade_candidate,
+    )
+
+
+def make_step_page_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    page_index: int = 0,
+    position_index: int = 0,
+) -> StepPageMedia:
+    return StepPageMedia(
+        uid=uid,
+        aid=aid,
+        step_id=step_id,
+        media_name=media_name,
+        page_index=page_index,
+        position_index=position_index,
+    )
+
+
+def make_step_unused_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    position_index: int = 0,
+) -> StepUnusedMedia:
+    return StepUnusedMedia(
+        uid=uid,
+        aid=aid,
+        step_id=step_id,
+        media_name=media_name,
+        position_index=position_index,
+    )
+
+
+def make_undo_snapshot(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    created_at: datetime | None = None,
+    expires_at: datetime | None = None,
+) -> AlbumMediaUndoSnapshot:
+    now = created_at or datetime.now(UTC)
+    return AlbumMediaUndoSnapshot(
+        uid=uid,
+        aid=aid,
+        media_name=media_name,
+        snapshot_path=str(Path(".undo") / media_name),
+        upgrade_candidate=True,
+        created_at=now,
+        expires_at=expires_at or now + timedelta(minutes=5),
+    )
+
+
+def make_step(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    name: str = "Test Step",
+    description: str = "A test step.",
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "Europe/Amsterdam",
+    location: Location | None = LOCATION,
+    elevation: int = 0,
+    weather: Weather | None = None,
+    cover_media_name: str | None = None,
+) -> Step:
+    return Step(
+        uid=uid,
+        aid=aid,
+        id=step_id,
+        name=name,
+        description=description,
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+        elevation=elevation,
+        weather=weather or WEATHER,
+        cover_media_name=cover_media_name,
+    )
+
+
+def make_step_read(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    name: str = "Test Step",
+    description: str = "A test step.",
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "Europe/Amsterdam",
+    location: Location | None = LOCATION,
+    elevation: int = 0,
+    weather: Weather | None = None,
+    cover: str | None = None,
+    pages: list[list[str]] | None = None,
+    unused: list[str] | None = None,
+) -> StepRead:
+    return StepRead(
+        uid=uid,
+        aid=aid,
+        id=step_id,
+        name=name,
+        description=description,
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+        elevation=elevation,
+        weather=weather or WEATHER,
+        cover=cover,
+        pages=pages or [],
+        unused=unused or [],
+    )
+
+
+def make_segment(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    start_time: float = 1_700_000_000.0,
+    end_time: float = 1_700_003_600.0,
+    kind: SegmentKind = SegmentKind.driving,
+    points: list[Point] | None = None,
+    timezone_id: str = "UTC",
+) -> Segment:
+    return Segment(
+        uid=uid,
+        aid=aid,
+        start_time=start_time,
+        end_time=end_time,
+        kind=kind,
+        timezone_id=timezone_id,
+        points=points
+        if points is not None
+        else make_points([start_time, (start_time + end_time) / 2, end_time]),
+    )
+
+
 async def insert_album(
     session: AsyncSession,
     uid: int,
     aid: str = AID,
 ) -> Album:
-    album = Album(
-        uid=uid,
-        id=aid,
-        title="Test Album",
-        subtitle="A subtitle",
-        hidden_steps=[],
-        hidden_headers=[],
-        maps_ranges=[],
-        front_cover_photo="photo1.jpg",
-        back_cover_photo="photo2.jpg",
-        colors={"nl": "#0000ff"},
-        font="Assistant",
-        body_font="Frank Ruhl Libre",
-    )
+    album = make_album(uid, aid)
     session.add(album)
     await session.flush()
     return album
@@ -238,21 +532,16 @@ async def insert_album_media(
     session: AsyncSession,
     uid: int,
     aid: str = AID,
-    name: str = (
-        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
-    ),
+    name: str = DEFAULT_MEDIA_NAME,
     width: int = 1920,
     height: int = 1080,
 ) -> AlbumMedia:
-    media = AlbumMedia(
+    media = make_album_media(
         uid=uid,
         aid=aid,
         name=name,
-        kind="video" if name.endswith(".mp4") else "photo",
         width=width,
         height=height,
-        byte_size=1234,
-        upgrade_candidate=True,
     )
     session.add(media)
     await session.flush()
@@ -265,46 +554,91 @@ async def insert_step(
     aid: str = AID,
     step_id: int = 1,
     timestamp: float = 1_700_000_000.0,
+    cover_media_name: str | None = None,
+    page_media_name: str | None = "photo1.jpg",
+    unused_media_name: str | None = "photo2.jpg",
 ) -> Step:
-    for name in ("photo1.jpg", "photo2.jpg"):
+    for name in {cover_media_name, page_media_name, unused_media_name}:
+        if name is None:
+            continue
         if await session.get(AlbumMedia, (uid, aid, name)) is None:
             await insert_album_media(session, uid, aid=aid, name=name)
-    step = Step(
-        uid=uid,
-        aid=aid,
-        id=step_id,
-        name="Test Step",
-        description="A test step.",
+    step = make_step(
+        uid,
+        aid,
+        step_id=step_id,
         timestamp=timestamp,
-        timezone_id="Europe/Amsterdam",
-        location=LOCATION,
-        elevation=0,
-        weather=WEATHER,
-        cover_media_name=None,
+        cover_media_name=cover_media_name,
     )
     session.add(step)
     await session.flush()
-    session.add(
-        StepPageMedia(
-            uid=uid,
-            aid=aid,
-            step_id=step_id,
-            page_index=0,
-            position_index=0,
-            media_name="photo1.jpg",
+    if page_media_name is not None:
+        session.add(
+            StepPageMedia(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                page_index=0,
+                position_index=0,
+                media_name=page_media_name,
+            )
         )
-    )
-    session.add(
-        StepUnusedMedia(
-            uid=uid,
-            aid=aid,
-            step_id=step_id,
-            position_index=0,
-            media_name="photo2.jpg",
+    if unused_media_name is not None:
+        session.add(
+            StepUnusedMedia(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                position_index=0,
+                media_name=unused_media_name,
+            )
         )
-    )
     await session.flush()
     return step
+
+
+async def sign_in_with_album(
+    client: AsyncClient,
+    session: AsyncSession,
+    *,
+    provider: str = "google",
+    aid: str = AID,
+) -> AlbumScenario:
+    user_data = await sign_in_and_upload(
+        client,
+        get_settings().USERS_FOLDER,
+        provider=provider,
+    )
+    uid = user_data["id"]
+    await insert_album(session, uid, aid=aid)
+    return AlbumScenario(uid=uid, aid=aid)
+
+
+async def sign_in_with_album_media(
+    client: AsyncClient,
+    session: AsyncSession,
+    *,
+    provider: str = "google",
+    media_name: str = DEFAULT_MEDIA_NAME,
+    width: int = 640,
+    height: int = 480,
+    write_media: bool = False,
+) -> AlbumMediaScenario:
+    user_data = await sign_in_and_upload(
+        client,
+        get_settings().USERS_FOLDER,
+        provider=provider,
+    )
+    uid = user_data["id"]
+    await insert_album(session, uid)
+    await insert_album_media(session, uid, name=media_name, width=width, height=height)
+    await insert_step(session, uid)
+    album_dir = get_settings().USERS_FOLDER / str(uid) / "trip" / AID
+    album_dir.mkdir(parents=True, exist_ok=True)
+    if write_media:
+        create_test_jpeg(album_dir / media_name, width, height)
+    await session.commit()
+    return AlbumMediaScenario(uid=uid, album_dir=album_dir, media_name=media_name)
 
 
 async def insert_segment(
@@ -316,15 +650,13 @@ async def insert_segment(
     kind: SegmentKind = SegmentKind.driving,
     points: list[Point] | None = None,
 ) -> Segment:
-    pts = points or make_points([start_time, (start_time + end_time) / 2, end_time])
-    segment = Segment(
+    segment = make_segment(
         uid=uid,
         aid=aid,
         start_time=start_time,
         end_time=end_time,
         kind=kind,
-        timezone_id="UTC",
-        points=pts,
+        points=points,
     )
     session.add(segment)
     await session.flush()

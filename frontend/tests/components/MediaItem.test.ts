@@ -1,10 +1,8 @@
 import { defineComponent, h, nextTick, ref, readonly } from "vue";
-import { mountWithPlugins } from "../helpers";
+import { makeAlbumMedia, mountWithPlugins, provideTestAlbum } from "../helpers";
 import MediaItem from "@/components/album/MediaItem.vue";
-import { provideAlbum } from "@/composables/useAlbum";
 import { STEP_ID_KEY, usePhotoFocus } from "@/composables/usePhotoFocus";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
-import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
@@ -40,90 +38,47 @@ vi.mock("@/queries/useVideoFrameMutation", () => ({
   useVideoFrameMutation: () => ({ mutateAsync }),
 }));
 
-function mountVideoItem() {
+function mountMediaItem(
+  media: ReturnType<typeof makeAlbumMedia>,
+  props: Record<string, unknown>,
+  provide: Record<symbol, unknown>,
+) {
   const Wrapper = defineComponent({
     setup() {
-      provideAlbum({
-        albumId: ref("album-1"),
-        colors: ref({}),
-        media: ref([
-          {
-            uid: 1,
-            aid: "album-1",
-            name: "clip.mp4",
-            kind: "video",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: MEDIA_UPDATED_AT,
-          },
-        ]),
-        tripStart: ref("2024-01-01"),
-        totalDays: ref(1),
-        mediaResolutionWarningPreset: ref(
-          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-        ),
-      });
-      return () => h(MediaItem, { media: "clip.mp4", alt: "Clip" });
+      provideTestAlbum({ media: [media] });
+      return () => h(MediaItem, props);
     },
   });
 
   return mountWithPlugins(Wrapper, {
     global: {
-      provide: {
-        [STEP_ID_KEY as symbol]: 7,
-      },
+      provide,
     },
     attachTo: document.body,
   });
 }
 
+function mountVideoItem() {
+  return mountMediaItem(
+    makeAlbumMedia({ name: "clip.mp4", kind: "video" }),
+    { media: "clip.mp4", alt: "Clip" },
+    { [STEP_ID_KEY as symbol]: 7 },
+  );
+}
+
 function mountPhotoItem(
   programmaticScrolling = ref(false),
   props: Record<string, unknown> = {},
-  mediaOverrides: Record<string, unknown> = {},
+  mediaOverrides: Partial<ReturnType<typeof makeAlbumMedia>> = {},
 ) {
-  const Wrapper = defineComponent({
-    setup() {
-      provideAlbum({
-        albumId: ref("album-1"),
-        colors: ref({}),
-        media: ref([
-          {
-            uid: 1,
-            aid: "album-1",
-            name: "photo.jpg",
-            kind: "photo",
-            width: 1920,
-            height: 1080,
-            byte_size: 1234,
-            upgrade_candidate: false,
-            created_at: "2026-05-13T12:00:00Z",
-            updated_at: MEDIA_UPDATED_AT,
-            ...mediaOverrides,
-          },
-        ]),
-        tripStart: ref("2024-01-01"),
-        totalDays: ref(1),
-        mediaResolutionWarningPreset: ref(
-          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-        ),
-      });
-      return () => h(MediaItem, { media: "photo.jpg", alt: "Photo", ...props });
+  return mountMediaItem(
+    makeAlbumMedia({ updated_at: MEDIA_UPDATED_AT, ...mediaOverrides }),
+    { media: "photo.jpg", alt: "Photo", ...props },
+    {
+      [STEP_ID_KEY as symbol]: 7,
+      [PROGRAMMATIC_SCROLL_KEY as symbol]: readonly(programmaticScrolling),
     },
-  });
-
-  return mountWithPlugins(Wrapper, {
-    global: {
-      provide: {
-        [STEP_ID_KEY as symbol]: 7,
-        [PROGRAMMATIC_SCROLL_KEY as symbol]: readonly(programmaticScrolling),
-      },
-    },
-    attachTo: document.body,
-  });
+  );
 }
 
 describe("MediaItem video controls", () => {
@@ -162,7 +117,7 @@ describe("MediaItem video controls", () => {
     const video = wrapper.get("video").element as HTMLVideoElement;
 
     await wrapper.get(".media-item").trigger("keydown", { key: "Enter" });
-    await new Promise((resolve) => setTimeout(resolve));
+    await nextTick();
 
     expect(playSpy).toHaveBeenCalled();
     expect(document.activeElement).toBe(video);
@@ -206,7 +161,6 @@ describe("MediaItem video controls", () => {
     const programmaticScrolling = ref(false);
     const wrapper = mountPhotoItem(programmaticScrolling);
     await nextTick();
-    await new Promise((resolve) => setTimeout(resolve));
     MockIntersectionObserver.instances.at(-1)?.trigger(true);
     await nextTick();
     const img = wrapper.get("img");

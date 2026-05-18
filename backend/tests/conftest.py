@@ -22,6 +22,13 @@ from app.services.google_photos import GooglePhotosOAuth2
 
 from .factories import TRIPS_DIR
 
+pytest_plugins = (
+    "tests.helpers.album_fixtures",
+    "tests.helpers.external_media_fixtures",
+    "tests.helpers.google_photos_fixtures",
+    "tests.helpers.user_fixtures",
+)
+
 
 def _mock_http_clients() -> HttpClients:
     """Provide an HttpClients with AsyncMock clients for tests.
@@ -87,6 +94,13 @@ async def client(
         ):
             yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def users_dir(tmp_path: Path) -> Path:
+    path = tmp_path / "users"
+    path.mkdir(exist_ok=True)
+    return path
 
 
 @pytest.fixture(scope="module")

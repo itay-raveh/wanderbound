@@ -1,16 +1,13 @@
-"""Tests for app.services.open_meteo - elevation lookups and weather fetching."""
-
 import datetime as _dt_mod
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 
 from app.core.http_clients import _open_meteo_weight
+from app.models.weather import Weather
 from app.services.open_meteo import (
     _LocationResult,
     _weather_from_result,
@@ -19,10 +16,7 @@ from app.services.open_meteo import (
     elevations,
 )
 from tests.factories import collect_async
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
+from tests.helpers.http import async_client, error_response, json_response
 
 
 @dataclass
@@ -48,10 +42,6 @@ class _Step:
 def _make_step(lat: float, lon: float, ts: float, **kw: Any) -> _Step:
     return _Step(location=_Loc(lat, lon), timestamp=ts, **kw)
 
-
-# ---------------------------------------------------------------------------
-# Weather helpers
-# ---------------------------------------------------------------------------
 
 _DAILY_FIELD_MAP = {
     "temp_max": "temperature_2m_max",
@@ -81,43 +71,52 @@ def _om_response(dates: list[str], **overrides: list) -> dict:
     return {"daily": daily}
 
 
-# ---------------------------------------------------------------------------
-# Elevation tests
-# ---------------------------------------------------------------------------
+def _assert_weather(
+    weather: Weather,
+    *,
+    day_temp: float,
+    day_feels: float | None = None,
+    day_icon: str | None = None,
+    night_temp: float | None = None,
+    night_feels: float | None = None,
+    night_icon: str | None = None,
+) -> None:
+    assert weather.day.temp == day_temp
+    if day_feels is not None:
+        assert weather.day.feels_like == day_feels
+    if day_icon is not None:
+        assert weather.day.icon == day_icon
+    if night_temp is None:
+        return
+    assert weather.night is not None
+    assert weather.night.temp == night_temp
+    if night_feels is not None:
+        assert weather.night.feels_like == night_feels
+    if night_icon is not None:
+        assert weather.night.icon == night_icon
 
 
 class TestElevations:
     async def test_http_error_propagates(self) -> None:
         locs = [_Loc(0, 0)]
 
-        resp = MagicMock()
-        resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "500", request=MagicMock(), response=MagicMock()
-        )
-
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(return_value=resp)
+        client = async_client(get=error_response())
         with pytest.raises(httpx.HTTPStatusError):
             await collect_async(elevations(client, locs))
 
 
-# ---------------------------------------------------------------------------
-# Weather tests
-# ---------------------------------------------------------------------------
-
-
 class TestWmoIcon:
-    def test_clear_day(self) -> None:
-        assert _wmo_icon(0) == "clear-day"
-
-    def test_clear_night(self) -> None:
-        assert _wmo_icon(0, night=True) == "clear-night"
-
-    def test_fog_day(self) -> None:
-        assert _wmo_icon(45) == "fog-day"
-
-    def test_unknown_code(self) -> None:
-        assert _wmo_icon(999) == "not-available"
+    @pytest.mark.parametrize(
+        ("code", "night", "expected"),
+        [
+            (0, False, "clear-day"),
+            (0, True, "clear-night"),
+            (45, False, "fog-day"),
+            (999, False, "not-available"),
+        ],
+    )
+    def test_icon(self, code: int, *, night: bool, expected: str) -> None:
+        assert _wmo_icon(code, night=night) == expected
 
 
 class TestWeatherFromResult:
@@ -135,13 +134,15 @@ class TestWeatherFromResult:
         weather = _weather_from_result(step, loc)
 
         assert weather is not None
-        assert weather.day.temp == 30.0
-        assert weather.day.feels_like == 32.0
-        assert weather.day.icon == "rain"
-        assert weather.night is not None
-        assert weather.night.temp == 18.0
-        assert weather.night.feels_like == 16.0
-        assert weather.night.icon == "rain"
+        _assert_weather(
+            weather,
+            day_temp=30.0,
+            day_feels=32.0,
+            day_icon="rain",
+            night_temp=18.0,
+            night_feels=16.0,
+            night_icon="rain",
+        )
 
     def test_missing_date_returns_none(self) -> None:
         raw = _om_response(["2024-01-01"])
@@ -161,70 +162,57 @@ class TestBuildWeathers:
             feels_min=[-5.0],
             wmo_daily=[71],
         )
-        mock_response = MagicMock(status_code=200)
-        mock_response.content = json.dumps(resp_data).encode()
-
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(return_value=mock_response)
+        client = async_client(get=json_response(resp_data))
         result = [w async for w in build_weathers(client, [step])]
 
         assert len(result) == 1
         idx, w = result[0]
         assert idx == 0
-        assert w.day.temp == 5.0
-        assert w.day.icon == "partly-cloudy-day-snow"
-        assert w.night is not None
-        assert w.night.temp == -2.0
+        _assert_weather(
+            w,
+            day_temp=5.0,
+            day_icon="partly-cloudy-day-snow",
+            night_temp=-2.0,
+        )
 
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.get = AsyncMock(side_effect=httpx.HTTPError("fail"))
+        client = async_client(get=httpx.HTTPError("fail"))
         with pytest.raises(RuntimeError, match="Weather API"):
             async for _ in build_weathers(client, [step]):
                 pass
 
 
-# ---------------------------------------------------------------------------
-# Rate-limit weight
-# ---------------------------------------------------------------------------
-
-
 class TestOpenMeteoWeight:
-    def test_elevation_single_coord(self) -> None:
-        req = httpx.Request(
-            "GET", "https://api.open-meteo.com/v1/elevation?latitude=1.0&longitude=2.0"
-        )
-        assert _open_meteo_weight(req) == 1
-
-    def test_elevation_batched_coords(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://api.open-meteo.com/v1/elevation?latitude=1,2,3,4&longitude=5,6,7,8",
-        )
-        assert _open_meteo_weight(req) == 4
-
-    def test_archive_counts_daily_variables(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive"
-            "?latitude=1&longitude=2&start_date=2024-01-01&end_date=2024-01-01"
-            "&daily=temperature_2m_max,temperature_2m_min,"
-            "apparent_temperature_max,apparent_temperature_min,weather_code",
-        )
-        assert _open_meteo_weight(req) == 5
-
-    def test_archive_single_variable(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive"
-            "?latitude=1&longitude=2&daily=temperature_2m_max",
-        )
-        assert _open_meteo_weight(req) == 1
-
-    def test_archive_without_daily_param(self) -> None:
-        req = httpx.Request(
-            "GET",
-            "https://archive-api.open-meteo.com/v1/archive?latitude=1&longitude=2",
-        )
-        assert _open_meteo_weight(req) == 1
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            (
+                "https://api.open-meteo.com/v1/elevation?latitude=1.0&longitude=2.0",
+                1,
+            ),
+            (
+                "https://api.open-meteo.com/v1/elevation"
+                "?latitude=1,2,3,4&longitude=5,6,7,8",
+                4,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive"
+                "?latitude=1&longitude=2&start_date=2024-01-01&end_date=2024-01-01"
+                "&daily=temperature_2m_max,temperature_2m_min,"
+                "apparent_temperature_max,apparent_temperature_min,weather_code",
+                5,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive"
+                "?latitude=1&longitude=2&daily=temperature_2m_max",
+                1,
+            ),
+            (
+                "https://archive-api.open-meteo.com/v1/archive?latitude=1&longitude=2",
+                1,
+            ),
+        ],
+    )
+    def test_weight(self, url: str, expected: int) -> None:
+        assert _open_meteo_weight(httpx.Request("GET", url)) == expected

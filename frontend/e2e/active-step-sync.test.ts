@@ -1,20 +1,10 @@
-import { test, expect } from "./fixtures";
-
-async function ensureExternalMediaOpen(
-  page: import("@playwright/test").Page,
-) {
-  const importButton = page.getByRole("button", {
-    name: "Import external media",
-  });
-  const toggle = page.getByRole("button", { name: /External media/ });
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
-  await expect(importButton).toBeVisible();
-}
+import {
+  ensureExternalMediaOpen,
+  externalMediaCorsHeaders,
+  externalMediaImportButton,
+  test,
+  expect,
+} from "./fixtures";
 
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
@@ -29,23 +19,16 @@ test.describe("Active step sync", () => {
     await nav.getByText("Argentina").click();
     await nav.locator('[data-nav-step="102"]').click();
     await expect(
-      page
-        .getByLabel("Inspector")
-        .getByRole("region", { name: "Unused" }),
+      page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();
 
     let importedStepId: string | null = null;
     await page.route(
       "**/api/v1/albums/*/external-media/add/device",
       async (route) => {
-        const headers = {
-          "access-control-allow-credentials": "true",
-          "access-control-allow-headers": "*",
-          "access-control-allow-methods": "POST, OPTIONS",
-          "access-control-allow-origin": new URL(page.url()).origin,
-        };
+        const headers = externalMediaCorsHeaders(page);
         if (route.request().method() === "OPTIONS") {
-          await route.fulfill({ headers, status: 204 });
+          await route.fulfill({ headers: headers.cors, status: 204 });
           return;
         }
         const form = route.request().postDataBuffer();
@@ -53,7 +36,7 @@ test.describe("Active step sync", () => {
           form.toString("utf8").match(/name="step_id"\r\n\r\n(\d+)/)?.[1] ??
           null;
         await route.fulfill({
-          headers: { ...headers, "content-type": "application/json" },
+          headers: headers.json,
           status: 200,
           body: JSON.stringify({ type: "import_completed", names: [] }),
         });
@@ -62,7 +45,8 @@ test.describe("Active step sync", () => {
 
     const fileChooser = page.waitForEvent("filechooser");
     await ensureExternalMediaOpen(page);
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await expect(externalMediaImportButton(page)).toBeVisible();
+    await externalMediaImportButton(page).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

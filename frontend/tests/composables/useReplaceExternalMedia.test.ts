@@ -1,13 +1,17 @@
-import { defineComponent, h, ref } from "vue";
-import { mountWithPlugins } from "../helpers";
-import { provideAlbum } from "@/composables/useAlbum";
+import {
+  makeAlbumMedia,
+  mockGooglePickerPopup,
+  mockReadyGooglePickerSession,
+  provideTestAlbum,
+  resetGooglePhotosMock,
+  withParentSetup,
+} from "../helpers";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import {
   replacementInvalidationKeys,
   useReplaceExternalMedia,
 } from "@/composables/useReplaceExternalMedia";
 import { queryKeys } from "@/queries/keys";
-import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const googlePhotosMock = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -33,15 +37,21 @@ class PreviewImage {
   }
 }
 
+function provideReplacementAlbum() {
+  provideTestAlbum({
+    media: [makeAlbumMedia()],
+  });
+}
+
+function mountReplaceExternalMedia() {
+  return withParentSetup(provideReplacementAlbum, useReplaceExternalMedia)
+    .result;
+}
+
 describe("useReplaceExternalMedia", () => {
   afterEach(() => {
     usePhotoFocus().blur();
-    googlePhotosMock.authorize.mockReset();
-    googlePhotosMock.closeSession.mockReset();
-    googlePhotosMock.createPickerSession.mockReset();
-    googlePhotosMock.pollSession.mockReset();
-    googlePhotosMock.isConnected.value = true;
-    googlePhotosMock.state.value = "connected";
+    resetGooglePhotosMock(googlePhotosMock);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -51,43 +61,7 @@ describe("useReplaceExternalMedia", () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:replacement");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     usePhotoFocus().focus(1, "photo.jpg");
-    let result!: ReturnType<typeof useReplaceExternalMedia>;
-
-    const Child = defineComponent({
-      setup() {
-        result = useReplaceExternalMedia();
-        return () => null;
-      },
-    });
-    const Parent = defineComponent({
-      setup() {
-        provideAlbum({
-          albumId: ref("album-1"),
-          colors: ref({}),
-          media: ref([
-            {
-              uid: 1,
-              aid: "album-1",
-              name: "photo.jpg",
-              kind: "photo",
-              width: 1920,
-              height: 1080,
-              byte_size: 1234,
-              upgrade_candidate: false,
-              created_at: "2026-05-13T12:00:00Z",
-              updated_at: "2026-05-13T12:34:56Z",
-            },
-          ]),
-          tripStart: ref("2024-01-01"),
-          totalDays: ref(1),
-          mediaResolutionWarningPreset: ref(
-            DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-          ),
-        });
-        return () => h(Child);
-      },
-    });
-    mountWithPlugins(Parent);
+    const result = mountReplaceExternalMedia();
 
     const review = await result.prepareDeviceReview(
       new File(["image"], "replacement.jpg", { type: "image/jpeg" }),
@@ -99,65 +73,15 @@ describe("useReplaceExternalMedia", () => {
   });
 
   it("limits Google replacement picker sessions to one item", async () => {
-    googlePhotosMock.createPickerSession.mockResolvedValue({
-      sessionId: "session-1",
-      pickerUri: "https://photos.google.com/picker/session-1",
-    });
-    googlePhotosMock.pollSession.mockResolvedValue({ ready: true });
-    googlePhotosMock.closeSession.mockResolvedValue(undefined);
-
-    const popup = {
-      close: vi.fn(),
-      document: {
-        body: { style: {}, textContent: "" },
-        title: "",
-      },
-      location: { href: "" },
-    };
-    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    mockReadyGooglePickerSession(googlePhotosMock);
+    mockGooglePickerPopup();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
     );
 
     usePhotoFocus().focus(1, "photo.jpg");
-    let result!: ReturnType<typeof useReplaceExternalMedia>;
-
-    const Child = defineComponent({
-      setup() {
-        result = useReplaceExternalMedia();
-        return () => null;
-      },
-    });
-    const Parent = defineComponent({
-      setup() {
-        provideAlbum({
-          albumId: ref("album-1"),
-          colors: ref({}),
-          media: ref([
-            {
-              uid: 1,
-              aid: "album-1",
-              name: "photo.jpg",
-              kind: "photo",
-              width: 1920,
-              height: 1080,
-              byte_size: 1234,
-              upgrade_candidate: false,
-              created_at: "2026-05-13T12:00:00Z",
-              updated_at: "2026-05-13T12:34:56Z",
-            },
-          ]),
-          tripStart: ref("2024-01-01"),
-          totalDays: ref(1),
-          mediaResolutionWarningPreset: ref(
-            DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-          ),
-        });
-        return () => h(Child);
-      },
-    });
-    mountWithPlugins(Parent);
+    const result = mountReplaceExternalMedia();
 
     await expect(result.replaceFromGoogle()).resolves.toBe("photo.jpg");
 

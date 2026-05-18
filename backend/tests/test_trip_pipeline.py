@@ -1,11 +1,9 @@
-"""Regression tests for the processing pipeline."""
-
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,12 +17,160 @@ from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
-from tests.factories import collect_async, make_points
+from tests.factories import (
+    collect_async,
+    make_album,
+    make_album_media,
+    make_segment,
+    make_step,
+    make_user,
+    make_weather,
+)
 
 AID = "test-trip"
 UID = 1
 _MOCK_HTTP = MagicMock(spec=HttpClients)
+
+
+def _sqlite_engine(*, foreign_keys: bool = False) -> AsyncEngine:
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    if foreign_keys:
+        event.listen(
+            engine.sync_engine,
+            "connect",
+            lambda dbapi_connection, _connection_record: dbapi_connection.execute(
+                "PRAGMA foreign_keys=ON"
+            ),
+        )
+    return engine
+
+
+async def _create_schema(engine: AsyncEngine) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+
+def _user() -> User:
+    return make_user(UID, google_sub="test-sub")
+
+
+def _album(
+    *,
+    title: str = "Old Trip",
+    front_cover_photo: str = "a.jpg",
+    back_cover_photo: str = "b.jpg",
+    font: str | None = "Assistant",
+) -> Album:
+    return make_album(
+        UID,
+        AID,
+        title=title,
+        subtitle="",
+        front_cover_photo=front_cover_photo,
+        back_cover_photo=back_cover_photo,
+        colors={},
+        font=font,
+    )
+
+
+def _step(
+    *,
+    step_id: int = 1,
+    name: str = "Old Step",
+    cover_media_name: str | None = None,
+    timestamp: float = 1_000_000.0,
+    temp: float = 20.0,
+    feels_like: float = 18.0,
+    weather_icon: str = "sun",
+) -> Step:
+    return make_step(
+        UID,
+        AID,
+        step_id=step_id,
+        name=name,
+        description="",
+        timestamp=timestamp,
+        timezone_id="UTC",
+        location=None,
+        elevation=0,
+        weather=make_weather(temp=temp, feels_like=feels_like, icon=weather_icon),
+        cover_media_name=cover_media_name,
+    )
+
+
+def _reuploaded_album() -> Album:
+    return _album(
+        title="Reconciled Trip",
+        front_cover_photo="c.jpg",
+        back_cover_photo="d.jpg",
+        font=None,
+    )
+
+
+def _reuploaded_step() -> Step:
+    return _step(
+        step_id=2,
+        name="New Step",
+        timestamp=2_000_000.0,
+        temp=25.0,
+        feels_like=23.0,
+        weather_icon="cloud",
+    )
+
+
+def _segment() -> Segment:
+    return make_segment(
+        UID,
+        AID,
+        start_time=100.0,
+        end_time=500.0,
+        kind=SegmentKind.driving,
+    )
+
+
+def _cover_media() -> AlbumMedia:
+    return make_album_media(
+        UID,
+        AID,
+        name="cover.jpg",
+        kind="photo",
+        width=640,
+        height=480,
+        byte_size=10,
+    )
+
+
+async def _seed_album_state(engine: AsyncEngine, *objects: object) -> None:
+    async with AsyncSession(engine) as session:
+        session.add(_user())
+        await session.flush()
+        for obj in objects:
+            session.add(obj)
+            await session.flush()
+        await session.commit()
+
+
+async def _save_reuploaded_objects(
+    engine: AsyncEngine,
+    tmp_path: Path,
+    existing_album: Album,
+    *objects: object,
+) -> None:
+    trip_dir = tmp_path / AID
+    trip_dir.mkdir()
+
+    with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+        await _save_reupload(
+            uid=UID,
+            objects=list(objects),
+            reconciled_aids={AID},
+            existing_albums={AID: existing_album},
+            trip_dirs=[trip_dir],
+        )
 
 
 class TestProcessTripSegmentEvents:
@@ -43,32 +189,21 @@ class TestProcessTripSegmentEvents:
             step_count=1,
             all_steps=[SimpleNamespace(location=location)],
         )
-        user = User(
-            id=UID,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
-            google_sub="test-sub",
-        )
+        user = _user()
         segments = [
-            Segment(
-                uid=UID,
-                aid=AID,
+            make_segment(
+                UID,
+                AID,
                 start_time=100.0,
                 end_time=200.0,
                 kind=SegmentKind.driving,
-                timezone_id="UTC",
-                points=make_points([100.0, 200.0]),
             ),
-            Segment(
-                uid=UID,
-                aid=AID,
+            make_segment(
+                UID,
+                AID,
                 start_time=300.0,
                 end_time=400.0,
                 kind=SegmentKind.walking,
-                timezone_id="UTC",
-                points=make_points([300.0, 400.0]),
             ),
         ]
         db_out: list = []
@@ -107,121 +242,21 @@ class TestProcessTripSegmentEvents:
 
 
 class TestSaveReuploadDeletesSegments:
-    """Regression for stale Segments on reupload.
-
-    _save_reupload deleted Steps for reconciled albums but left stale Segments
-    in the DB.  Segments FK-cascade from Album, not Step, so deleting Steps
-    alone had no effect on Segments.
-    """
-
     async def test_reconciled_album_segments_are_deleted(self, tmp_path: Path) -> None:
-        engine = create_async_engine(
-            "sqlite+aiosqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
+        engine = _sqlite_engine()
+        await _create_schema(engine)
 
-        # Seed: user, album, step, and segment.
-        async with AsyncSession(engine) as session:
-            user = User(
-                id=UID,
-                first_name="Test",
-                locale="en-US",
-                unit_is_km=True,
-                temperature_is_celsius=True,
-                google_sub="test-sub",
-            )
-            session.add(user)
-            album = Album(
-                uid=UID,
-                id=AID,
-                title="Old Trip",
-                subtitle="",
-                hidden_steps=[],
-                maps_ranges=[],
-                front_cover_photo="a.jpg",
-                back_cover_photo="b.jpg",
-                colors={},
-                font="Assistant",
-                body_font="Frank Ruhl Libre",
-            )
-            session.add(album)
-            step = Step(
-                uid=UID,
-                aid=AID,
-                id=1,
-                name="Old Step",
-                description="",
-                cover_media_name=None,
-                timestamp=1_000_000.0,
-                timezone_id="UTC",
-                location=None,
-                elevation=0,
-                weather=Weather(
-                    day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"),
-                    night=None,
-                ),
-            )
-            session.add(step)
-            segment = Segment(
-                uid=UID,
-                aid=AID,
-                start_time=100.0,
-                end_time=500.0,
-                kind=SegmentKind.driving,
-                timezone_id="UTC",
-                points=make_points([100.0, 300.0, 500.0]),
-            )
-            session.add(segment)
-            await session.commit()
+        album = _album()
+        await _seed_album_state(engine, album, _step(), _segment())
 
-        # New objects for the reupload (new step, no new segments - they'd
-        # normally be regenerated by the segment pipeline, but the reconcile
-        # path doesn't produce them).
-        new_album = Album(
-            uid=UID,
-            id=AID,
-            title="Reconciled Trip",
-            subtitle="",
-            hidden_steps=[],
-            maps_ranges=[],
-            front_cover_photo="c.jpg",
-            back_cover_photo="d.jpg",
-            colors={},
-            body_font="Frank Ruhl Libre",
-        )
-        new_step = Step(
-            uid=UID,
-            aid=AID,
-            id=2,
-            name="New Step",
-            description="",
-            cover_media_name=None,
-            timestamp=2_000_000.0,
-            timezone_id="UTC",
-            location=None,
-            elevation=0,
-            weather=Weather(
-                day=WeatherData(temp=25.0, feels_like=23.0, icon="cloud"),
-                night=None,
-            ),
+        await _save_reuploaded_objects(
+            engine,
+            tmp_path,
+            album,
+            _reuploaded_album(),
+            _reuploaded_step(),
         )
 
-        trip_dir = tmp_path / AID
-        trip_dir.mkdir()
-
-        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
-            await _save_reupload(
-                uid=UID,
-                objects=[new_album, new_step],
-                reconciled_aids={AID},
-                existing_albums={AID: album},
-                trip_dirs=[trip_dir],
-            )
-
-        # Verify: old segment must be gone, old step must be gone.
         async with AsyncSession(engine) as session:
             segments = (await session.exec(select(Segment))).all()
             steps = (await session.exec(select(Step))).all()
@@ -236,117 +271,24 @@ class TestSaveReuploadDeletesSegments:
     async def test_reupload_deletes_steps_before_cover_media(
         self, tmp_path: Path
     ) -> None:
-        engine = create_async_engine(
-            "sqlite+aiosqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        event.listen(
-            engine.sync_engine,
-            "connect",
-            lambda dbapi_connection, _connection_record: dbapi_connection.execute(
-                "PRAGMA foreign_keys=ON"
-            ),
-        )
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
+        engine = _sqlite_engine(foreign_keys=True)
+        await _create_schema(engine)
 
-        async with AsyncSession(engine) as session:
-            user = User(
-                id=UID,
-                first_name="Test",
-                locale="en-US",
-                unit_is_km=True,
-                temperature_is_celsius=True,
-                google_sub="test-sub",
-            )
-            album = Album(
-                uid=UID,
-                id=AID,
-                title="Old Trip",
-                subtitle="",
-                hidden_steps=[],
-                maps_ranges=[],
-                front_cover_photo="a.jpg",
-                back_cover_photo="b.jpg",
-                colors={},
-                font="Assistant",
-                body_font="Frank Ruhl Libre",
-            )
-            media = AlbumMedia(
-                uid=UID,
-                aid=AID,
-                name="cover.jpg",
-                kind="photo",
-                width=640,
-                height=480,
-                byte_size=10,
-                upgrade_candidate=True,
-            )
-            step = Step(
-                uid=UID,
-                aid=AID,
-                id=1,
-                name="Old Step",
-                description="",
-                cover_media_name="cover.jpg",
-                timestamp=1_000_000.0,
-                timezone_id="UTC",
-                location=None,
-                elevation=0,
-                weather=Weather(
-                    day=WeatherData(temp=20.0, feels_like=18.0, icon="sun"),
-                    night=None,
-                ),
-            )
-            session.add(user)
-            await session.flush()
-            session.add(album)
-            await session.flush()
-            session.add(media)
-            await session.flush()
-            session.add(step)
-            await session.commit()
-
-        new_album = Album(
-            uid=UID,
-            id=AID,
-            title="Reconciled Trip",
-            subtitle="",
-            hidden_steps=[],
-            maps_ranges=[],
-            front_cover_photo="c.jpg",
-            back_cover_photo="d.jpg",
-            colors={},
-            body_font="Frank Ruhl Libre",
+        album = _album()
+        await _seed_album_state(
+            engine,
+            album,
+            _cover_media(),
+            _step(cover_media_name="cover.jpg"),
         )
-        new_step = Step(
-            uid=UID,
-            aid=AID,
-            id=2,
-            name="New Step",
-            description="",
-            cover_media_name=None,
-            timestamp=2_000_000.0,
-            timezone_id="UTC",
-            location=None,
-            elevation=0,
-            weather=Weather(
-                day=WeatherData(temp=25.0, feels_like=23.0, icon="cloud"),
-                night=None,
-            ),
-        )
-        trip_dir = tmp_path / AID
-        trip_dir.mkdir()
 
-        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
-            await _save_reupload(
-                uid=UID,
-                objects=[new_album, new_step],
-                reconciled_aids={AID},
-                existing_albums={AID: album},
-                trip_dirs=[trip_dir],
-            )
+        await _save_reuploaded_objects(
+            engine,
+            tmp_path,
+            album,
+            _reuploaded_album(),
+            _reuploaded_step(),
+        )
 
         async with AsyncSession(engine) as session:
             steps = (await session.exec(select(Step))).all()

@@ -18,17 +18,21 @@ from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
 from app.models.step import StepRead
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
-from tests.factories import collect_async
+from tests.factories import (
+    collect_async,
+    make_album,
+    make_album_media,
+    make_step_read,
+    make_user,
+    make_weather,
+)
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
 
 _LOC = Location(name="Place", detail="", country_code="nl", lat=52.0, lon=4.0)
 _LOC2 = Location(name="Updated", detail="center", country_code="de", lat=48.0, lon=11.0)
-_WEATHER = Weather(
-    day=WeatherData(temp=20.0, feels_like=18.0, icon="clear"), night=None
-)
+_WEATHER = make_weather(icon="clear")
 
 
 def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> PSStep:
@@ -52,20 +56,16 @@ def _step(
     name: str = "Old Name",
     description: str = "Old desc",
 ) -> StepRead:
-    return StepRead(
-        uid=1,
-        aid="trip-1",
-        id=step_id,
+    return make_step_read(
+        step_id=step_id,
         name=name,
         description=description,
-        timestamp=1_700_000_000.0,
         timezone_id="Europe/Amsterdam",
         location=_LOC,
-        elevation=0,
         weather=_WEATHER,
         cover=cover,
-        pages=pages or [],
-        unused=unused or [],
+        pages=pages,
+        unused=unused,
     )
 
 
@@ -74,19 +74,17 @@ def _album(
     front_cover_photo: str = "front.jpg",
     back_cover_photo: str = "back.jpg",
 ) -> Album:
-    return Album(
-        uid=1,
-        id="trip-1",
+    return make_album(
         title="Trip",
         subtitle="Sub",
         front_cover_photo=front_cover_photo,
         back_cover_photo=back_cover_photo,
         colors={},
-        hidden_steps=[],
-        maps_ranges=[],
-        font="Assistant",
-        body_font="Frank Ruhl Libre",
     )
+
+
+def _user() -> User:
+    return make_user(_UID, google_sub="test")
 
 
 class TestScanStepMedia:
@@ -232,7 +230,6 @@ _LOC_B = Location(name="B", detail="", country_code="nl", lat=52.5, lon=5.0)
 
 
 def _build_trip_dir(tmp_path: Path, ps_steps: list[PSStep]) -> Path:
-    """Create a minimal trip directory with trip.json and locations.json."""
     trip_dir = tmp_path / _RECONCILE_AID
     trip_dir.mkdir()
     trip_json = {
@@ -245,7 +242,6 @@ def _build_trip_dir(tmp_path: Path, ps_steps: list[PSStep]) -> Path:
         "all_steps": [s.model_dump(by_alias=True) for s in ps_steps],
     }
     (trip_dir / "trip.json").write_text(json.dumps(trip_json))
-    # Dense GPS points between the two steps (simulates a driving track)
     gps_points = [
         {"lat": 52.0 + i * 0.05, "lon": 4.0 + i * 0.1, "time": 1_000_000.0 + i * 360}
         for i in range(11)
@@ -254,14 +250,50 @@ def _build_trip_dir(tmp_path: Path, ps_steps: list[PSStep]) -> Path:
     return trip_dir
 
 
+def _existing_step(step_id: int, **kwargs: object) -> StepRead:
+    step = _step(step_id, **kwargs)
+    step.uid = _UID
+    step.aid = _RECONCILE_AID
+    return step
+
+
+def _existing_album(
+    *,
+    front_cover_photo: str = "front.jpg",
+    back_cover_photo: str = "back.jpg",
+) -> Album:
+    album = _album(
+        front_cover_photo=front_cover_photo,
+        back_cover_photo=back_cover_photo,
+    )
+    album.uid = _UID
+    album.id = _RECONCILE_AID
+    return album
+
+
+async def _collect_reconcile(
+    trip_dir: Path,
+    album: Album,
+    existing_steps: list[StepRead],
+    *,
+    existing_media_rows: list[AlbumMedia] | None = None,
+) -> tuple[list, list]:
+    db_out: list = []
+    events = await collect_async(
+        reconcile_trip(
+            _MOCK_HTTP,
+            _user(),
+            trip_dir,
+            album,
+            existing_steps,
+            db_out,
+            existing_media_rows=existing_media_rows,
+        )
+    )
+    return events, db_out
+
+
 class TestReconcileTripRebuildsSegments:
-    """Regression: reconcile_trip must rebuild segments from GPS data.
-
-    Previously, reconcile_trip never called build_segments, so after
-    _save_reupload deleted old segments the table stayed empty - route
-    lines disappeared from trip maps.
-    """
-
     async def test_segments_included_in_db_out(self, tmp_path: Path) -> None:
         ps_steps = [
             _ps_step(1, slug="start"),
@@ -270,29 +302,11 @@ class TestReconcileTripRebuildsSegments:
         trip_dir = _build_trip_dir(tmp_path, ps_steps)
 
         existing_steps = [
-            _step(1, name="Start"),
-            _step(2, name="End"),
+            _existing_step(1, name="Start"),
+            _existing_step(2, name="End"),
         ]
-        for s in existing_steps:
-            s.uid = _UID
-            s.aid = _RECONCILE_AID
-
-        album = _album()
-        album.uid = _UID
-        album.id = _RECONCILE_AID
-
-        user = User(
-            id=_UID,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
-            google_sub="test",
-        )
-
-        db_out: list = []
-        events = await collect_async(
-            reconcile_trip(_MOCK_HTTP, user, trip_dir, album, existing_steps, db_out)
+        events, db_out = await _collect_reconcile(
+            trip_dir, _existing_album(), existing_steps
         )
 
         segments = [obj for obj in db_out if isinstance(obj, Segment)]
@@ -314,7 +328,7 @@ class TestReconcileTripRebuildsSegments:
             for event in events
         )
         assert len(segments) > 0, (
-            "reconcile_trip must rebuild segments from GPS data; "
+            "reconcile_trip must rebuild segments from GPS data, "
             "got 0 segments in db_out (route lines would be missing)"
         )
         for seg in segments:
@@ -333,25 +347,10 @@ class TestReconcileTripRebuildsSegments:
         )
         (trip_dir / media_name).write_bytes(b"\xff\xd8")
 
-        existing_steps = [_step(1, pages=[[media_name]], cover=media_name)]
-        for step in existing_steps:
-            step.uid = _UID
-            step.aid = _RECONCILE_AID
-
-        album = _album(front_cover_photo=media_name, back_cover_photo=media_name)
-        album.uid = _UID
-        album.id = _RECONCILE_AID
-        user = User(
-            id=_UID,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
-            google_sub="test",
-        )
-        existing_media = AlbumMedia(
-            uid=_UID,
-            aid=_RECONCILE_AID,
+        existing_steps = [_existing_step(1, pages=[[media_name]], cover=media_name)]
+        existing_media = make_album_media(
+            _UID,
+            _RECONCILE_AID,
             name=media_name,
             kind="photo",
             width=640,
@@ -360,17 +359,11 @@ class TestReconcileTripRebuildsSegments:
             upgrade_candidate=False,
         )
 
-        db_out: list = []
-        await collect_async(
-            reconcile_trip(
-                _MOCK_HTTP,
-                user,
-                trip_dir,
-                album,
-                existing_steps,
-                db_out,
-                existing_media_rows=[existing_media],
-            )
+        _, db_out = await _collect_reconcile(
+            trip_dir,
+            _existing_album(front_cover_photo=media_name, back_cover_photo=media_name),
+            existing_steps,
+            existing_media_rows=[existing_media],
         )
 
         media_rows = [obj for obj in db_out if isinstance(obj, AlbumMedia)]

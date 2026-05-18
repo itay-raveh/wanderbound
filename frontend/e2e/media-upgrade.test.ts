@@ -1,56 +1,23 @@
-import { test, expect, mockPopup, blockPopup } from "./fixtures";
-import { MEDIA_UPGRADE_ONBOARDED_KEY } from "../src/utils/storage-keys";
-import { mockUser, mockMedia } from "../tests/fixtures/mocks";
 import type { Page } from "@playwright/test";
+
+import { MEDIA_UPGRADE_ONBOARDED_KEY } from "../src/utils/storage-keys";
+import { mockMedia, mockUser } from "../tests/fixtures/mocks";
+import { sseBody } from "../tests/sse";
+import {
+  blockPopup,
+  ensureExternalMediaOpen,
+  expect,
+  mockPopup,
+  test,
+} from "./fixtures";
 
 const API = "**/api/v1";
 
-/** Build an SSE payload from an array of event objects. */
-function sseBody(events: object[]): string {
-  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
-}
-
-async function ensureExternalMediaOpen(page: Page) {
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
-}
-
-async function expectUpgradeDone(page: Page, message: RegExp) {
-  await expect(page.locator(".media-panel .action-btn.done")).toHaveAttribute(
-    "aria-label",
-    message,
-    { timeout: 10_000 },
-  );
-}
-
-function upgradeMediaButton(page: Page) {
-  return page
-    .locator(".media-panel")
-    .getByRole("button", { name: "Upgrade Media" });
-}
-
-async function clickUpgradeMedia(page: Page) {
-  await ensureExternalMediaOpen(page);
-  const button = upgradeMediaButton(page);
-  await button.scrollIntoViewIfNeeded();
-  await expect(button).toBeVisible({ timeout: 15_000 });
-  await button.click();
-}
-
-/** Mock user with Google Photos already connected. */
 const connectedUser = {
   ...mockUser,
   google_photos_connected_at: "2026-01-01T00:00:00Z",
 };
 
-/** SSE match events: progress -> summary with 2 of 3 matched. */
 const matchEvents = [
   { type: "match_in_progress", phase: "matching", done: 1, total: 3 },
   { type: "match_in_progress", phase: "matching", done: 2, total: 3 },
@@ -68,63 +35,179 @@ const matchEvents = [
   },
 ];
 
-/** SSE upgrade events: progress -> completed with all replaced. */
+const round2MatchEvents = [
+  { type: "match_in_progress", phase: "matching", done: 1, total: 2 },
+  { type: "match_in_progress", phase: "matching", done: 2, total: 2 },
+  {
+    type: "match_completed",
+    total_picked: 2,
+    matched: 1,
+    already_upgraded: 0,
+    unmatched: 1,
+    matches: [{ local_name: "cover.jpg", google_id: "gid-3", distance: 0 }],
+  },
+];
+
 const upgradeEvents = [
   { type: "download_in_progress", done: 1, total: 2 },
   { type: "download_in_progress", done: 2, total: 2 },
   { type: "upgrade_completed", replaced: 2, skipped: 0, failed: 0 },
 ];
 
-/** SSE upgrade events where one file fails. */
-const upgradeEventsPartial = [
+const partialUpgradeEvents = [
   { type: "download_in_progress", done: 1, total: 2 },
   { type: "upgrade_completed", replaced: 1, skipped: 0, failed: 1 },
 ];
 
-async function setupUpgradeRoutes(page: Page) {
-  // Override user route with connected user
+const threeFileUpgradeEvents = [
+  { type: "download_in_progress", done: 1, total: 3 },
+  { type: "download_in_progress", done: 2, total: 3 },
+  { type: "download_in_progress", done: 3, total: 3 },
+  { type: "upgrade_completed", replaced: 3, skipped: 0, failed: 0 },
+];
+
+function upgradeMediaButton(page: Page) {
+  return page
+    .locator(".media-panel")
+    .getByRole("button", { name: "Upgrade Media" });
+}
+
+async function clickUpgradeMedia(page: Page) {
+  await ensureExternalMediaOpen(page);
+  const button = upgradeMediaButton(page);
+  await expect(button).toBeVisible({ timeout: 15_000 });
+  await button.scrollIntoViewIfNeeded();
+  await button.click();
+}
+
+async function expectUpgradeDone(page: Page, message: RegExp) {
+  await expect(page.locator(".media-panel .action-btn.done")).toHaveAttribute(
+    "aria-label",
+    message,
+    { timeout: 10_000 },
+  );
+}
+
+async function expectReadyFiles(page: Page, count: number) {
+  await expect(
+    page.getByText(new RegExp(`${count} files ready`, "i")),
+  ).toBeVisible({ timeout: 10_000 });
+}
+
+async function skipOnboarding(page: Page) {
+  await page.addInitScript(
+    ([key]) => localStorage.setItem(key, "true"),
+    [MEDIA_UPGRADE_ONBOARDED_KEY],
+  );
+}
+
+async function mockConnectedUser(page: Page) {
   await page.route(`${API}/users`, (route) =>
     route.fulfill({ json: connectedUser }),
   );
+}
 
-  // Picker session create
+async function mockPickerSession(
+  page: Page,
+  {
+    ready = true,
+    sessionId = "sess-1",
+    dynamicSession = false,
+  }: { ready?: boolean; sessionId?: string; dynamicSession?: boolean } = {},
+) {
+  let count = 0;
   await page.route(`${API}/google-photos/sessions`, (route) => {
-    if (route.request().method() === "POST") {
-      return route.fulfill({
-        json: {
-          session_id: "sess-1",
-          picker_uri: "https://photos.google.com/picker/sess-1",
-        },
-      });
+    if (route.request().method() !== "POST") {
+      return route.fallback();
     }
-    return route.fallback();
+    count += 1;
+    const id = dynamicSession ? `sess-${count}` : sessionId;
+    return route.fulfill({
+      json: {
+        session_id: id,
+        picker_uri: `https://photos.google.com/picker/${id}`,
+      },
+    });
   });
+  await page.route(
+    `${API}/google-photos/sessions/${dynamicSession ? "sess-*" : sessionId}`,
+    (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: { ready } });
+      }
+      return route.fulfill({ status: 204, body: "" });
+    },
+  );
+}
 
-  // Picker session poll - immediately ready
-  await page.route(`${API}/google-photos/sessions/sess-1`, (route) => {
-    if (route.request().method() === "GET") {
-      return route.fulfill({ json: { ready: true } });
-    }
-    // DELETE
-    return route.fulfill({ status: 204, body: "" });
-  });
-
-  // Match SSE
+async function mockMatchStream(page: Page, events: object[] = matchEvents) {
   await page.route(`${API}/google-photos/match/**`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "text/event-stream",
-      body: sseBody(matchEvents),
+      body: sseBody(events),
     }),
   );
 }
 
+async function mockMatchRounds(page: Page, rounds: object[][]) {
+  let round = 0;
+  await page.route(`${API}/google-photos/match/**`, (route) => {
+    const events = rounds[Math.min(round, rounds.length - 1)];
+    round += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: sseBody(events),
+    });
+  });
+}
+
+async function mockUpgradeStream(page: Page, events: object[]) {
+  await page.route(`${API}/google-photos/upgrade/**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: sseBody(events),
+    }),
+  );
+  await page.route(`${API}/albums/*/media`, (route) =>
+    route.fulfill({ json: mockMedia }),
+  );
+}
+
+async function setupUpgradeRoutes(page: Page) {
+  await mockConnectedUser(page);
+  await mockPickerSession(page);
+  await mockMatchStream(page);
+}
+
+async function openReadyUpgradeSummary(page: Page) {
+  await page.goto("/editor");
+  await clickUpgradeMedia(page);
+  await expectReadyFiles(page, 2);
+}
+
+async function prepareOnboardedPopupFlow(page: Page) {
+  await skipOnboarding(page);
+  await mockPopup(page);
+}
+
+async function completeReadyUpgrade(
+  page: Page,
+  events: object[],
+  expectedDone: RegExp,
+) {
+  await mockUpgradeStream(page, events);
+  await openReadyUpgradeSummary(page);
+  await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
+  await expectUpgradeDone(page, expectedDone);
+}
+
 test.describe("Media Upgrade", () => {
   test("upgrade button visible for Google-linked user", async ({
-    authedPage: page,
+    editorPage: page,
   }) => {
-    // Default mockUser has google_sub set, so button should appear
-    await page.goto("/editor");
     await ensureExternalMediaOpen(page);
     await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
   });
@@ -135,11 +218,9 @@ test.describe("Media Upgrade", () => {
     await setupUpgradeRoutes(page);
     await blockPopup(page);
     await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
 
     await clickUpgradeMedia(page);
 
-    // Onboarding dialog should appear since no localStorage key set
     await expect(page.getByText(/original quality/i)).toBeVisible({
       timeout: 5_000,
     });
@@ -149,115 +230,31 @@ test.describe("Media Upgrade", () => {
     authedPage: page,
   }) => {
     await setupUpgradeRoutes(page);
-
-    // Skip onboarding
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-
-    await mockPopup(page);
-
-    // Upgrade SSE
-    await page.route(`${API}/google-photos/upgrade/**`, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(upgradeEvents),
-      }),
-    );
-
-    // Media invalidation after upgrade
-    await page.route(`${API}/albums/*/media`, (route) =>
-      route.fulfill({ json: mockMedia }),
-    );
-
-    await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
-
-    // Click upgrade
-    await clickUpgradeMedia(page);
-
-    // Match summary dialog should appear
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Confirm upgrade
-    const confirmBtn = page.getByRole("button", {
-      name: /upgrade \d+ files/i,
-    });
-    await expect(confirmBtn).toBeVisible();
-    await confirmBtn.click();
-
-    // Done state should show "Upgraded 2 files"
-    await expectUpgradeDone(page, /upgraded 2 files/i);
+    await prepareOnboardedPopupFlow(page);
+    await completeReadyUpgrade(page, upgradeEvents, /upgraded 2 files/i);
   });
 
   test("partial failure shows count in done message", async ({
     authedPage: page,
   }) => {
     await setupUpgradeRoutes(page);
-
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-    await mockPopup(page);
-
-    // Upgrade SSE with partial failure
-    await page.route(`${API}/google-photos/upgrade/**`, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(upgradeEventsPartial),
-      }),
-    );
-
-    await page.route(`${API}/albums/*/media`, (route) =>
-      route.fulfill({ json: mockMedia }),
-    );
-
-    await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
-
-    await clickUpgradeMedia(page);
-
-    // Wait for match summary
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
-    await page.getByRole("button", { name: /upgrade \d+ files/i }).click();
-
-    // Partial failure: "Upgraded 1 of 2 files"
-    await expectUpgradeDone(page, /upgraded 1 of 2/i);
+    await prepareOnboardedPopupFlow(page);
+    await completeReadyUpgrade(page, partialUpgradeEvents, /upgraded 1 of 2/i);
   });
 
   test("disconnect option visible in dropdown when connected", async ({
     authedPage: page,
   }) => {
-    // Override user to be connected
-    await page.route(`${API}/users`, (route) =>
-      route.fulfill({ json: connectedUser }),
-    );
-
+    await mockConnectedUser(page);
     await page.goto("/editor");
     await ensureExternalMediaOpen(page);
 
-    // Split-trigger chevron opens the dropdown menu
-    const splitTrigger = page.getByRole("button", {
-      name: "Upgrade options",
-    });
-    await expect(splitTrigger).toBeVisible({ timeout: 15_000 });
-    await splitTrigger.click();
+    await page.getByRole("button", { name: "Upgrade options" }).click();
 
-    // Disconnect option should appear in the dropdown
     await expect(page.getByRole("button", { name: /disconnect/i })).toBeVisible(
       { timeout: 5_000 },
     );
   });
-
-  // -- Cancel flows ----------------------------------------------------------
 
   test("cancel from onboarding closes dialog and returns to idle", async ({
     authedPage: page,
@@ -265,20 +262,15 @@ test.describe("Media Upgrade", () => {
     await setupUpgradeRoutes(page);
     await blockPopup(page);
     await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
 
     const upgradeBtn = upgradeMediaButton(page);
     await clickUpgradeMedia(page);
-
-    // Onboarding dialog should appear
     await expect(page.getByText(/original quality/i)).toBeVisible({
       timeout: 5_000,
     });
 
-    // Cancel - computed setter triggers upgrade.cancel()
     await page.getByRole("button", { name: "Cancel" }).click();
 
-    // Should return to idle
     await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(/original quality/i)).not.toBeVisible();
   });
@@ -287,98 +279,44 @@ test.describe("Media Upgrade", () => {
     authedPage: page,
   }) => {
     await setupUpgradeRoutes(page);
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-    await mockPopup(page);
-
-    await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
+    await prepareOnboardedPopupFlow(page);
+    await openReadyUpgradeSummary(page);
 
     const upgradeBtn = upgradeMediaButton(page);
-    await clickUpgradeMedia(page);
-
-    // Match summary with "2 files ready"
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Cancel - computed setter triggers upgrade.cancel()
     await page.getByRole("button", { name: "Cancel" }).click();
 
-    // Should return to idle
     await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
   });
 
   test("cancel during picking aborts and returns to idle", async ({
     authedPage: page,
   }) => {
-    await page.route(`${API}/users`, (route) =>
-      route.fulfill({ json: connectedUser }),
-    );
-    await page.route(`${API}/google-photos/sessions`, (route) => {
-      if (route.request().method() === "POST") {
-        return route.fulfill({
-          json: {
-            session_id: "sess-1",
-            picker_uri: "https://photos.google.com/picker/sess-1",
-          },
-        });
-      }
-      return route.fallback();
-    });
-    // Poll always returns not-ready so picking phase persists
-    await page.route(`${API}/google-photos/sessions/sess-1`, (route) => {
-      if (route.request().method() === "GET") {
-        return route.fulfill({ json: { ready: false } });
-      }
-      return route.fulfill({ status: 204, body: "" });
-    });
-
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-    await mockPopup(page);
-
+    await mockConnectedUser(page);
+    await mockPickerSession(page, { ready: false });
+    await prepareOnboardedPopupFlow(page);
     await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
 
     const upgradeBtn = upgradeMediaButton(page);
     await clickUpgradeMedia(page);
-
-    // Should enter picking phase with running button
     const runningBtn = page
       .locator(".media-panel")
       .getByRole("button", { name: /waiting for selection/i });
     await expect(runningBtn).toBeVisible({ timeout: 5_000 });
 
-    // Click running button to cancel
     await runningBtn.scrollIntoViewIfNeeded();
     await runningBtn.click();
 
-    // Should return to idle
     await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
   });
-
-  // -- Error paths -----------------------------------------------------------
 
   test("popup blocked surfaces error button", async ({ authedPage: page }) => {
     await setupUpgradeRoutes(page);
     await blockPopup(page);
-    // Skip onboarding so the start() path opens the popup directly
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-
+    await skipOnboarding(page);
     await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
 
     await clickUpgradeMedia(page);
 
-    // Error state button appears with translated popup-blocked copy inside
     const errorBtn = page.getByRole("button", {
       name: /upgrade failed\. try again/i,
     });
@@ -389,164 +327,39 @@ test.describe("Media Upgrade", () => {
   test("clicking error button restarts the flow", async ({
     authedPage: page,
   }) => {
-    // First match request returns an SSE error; second returns real matches.
-    let matchCall = 0;
-    await page.route(`${API}/users`, (route) =>
-      route.fulfill({ json: connectedUser }),
-    );
-    await page.route(`${API}/google-photos/sessions`, (route) => {
-      if (route.request().method() === "POST") {
-        return route.fulfill({
-          json: {
-            session_id: `sess-${matchCall + 1}`,
-            picker_uri: `https://photos.google.com/picker/sess-${matchCall + 1}`,
-          },
-        });
-      }
-      return route.fallback();
-    });
-    await page.route(`${API}/google-photos/sessions/sess-*`, (route) => {
-      if (route.request().method() === "GET") {
-        return route.fulfill({ json: { ready: true } });
-      }
-      return route.fulfill({ status: 204, body: "" });
-    });
-    await page.route(`${API}/google-photos/match/**`, (route) => {
-      matchCall++;
-      if (matchCall === 1) {
-        return route.fulfill({
-          status: 200,
-          contentType: "text/event-stream",
-          body: sseBody([{ type: "upgrade_failed", detail: "connectionLost" }]),
-        });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(matchEvents),
-      });
-    });
-
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-    await mockPopup(page);
+    await mockConnectedUser(page);
+    await mockPickerSession(page, { dynamicSession: true });
+    await mockMatchRounds(page, [
+      [{ type: "upgrade_failed", detail: "connectionLost" }],
+      matchEvents,
+    ]);
+    await prepareOnboardedPopupFlow(page);
     await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
 
     await clickUpgradeMedia(page);
-
     const errorBtn = page.getByRole("button", {
       name: /upgrade failed\. try again/i,
     });
     await expect(errorBtn).toBeVisible({ timeout: 10_000 });
     await errorBtn.click();
 
-    // Second attempt reaches match summary
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectReadyFiles(page, 2);
   });
-
-  // -- Select more flow ------------------------------------------------------
 
   test("select more accumulates matches across rounds", async ({
     authedPage: page,
   }) => {
-    let sessionCount = 0;
+    await mockConnectedUser(page);
+    await mockPickerSession(page, { dynamicSession: true });
+    await mockMatchRounds(page, [matchEvents, round2MatchEvents]);
+    await mockUpgradeStream(page, threeFileUpgradeEvents);
+    await prepareOnboardedPopupFlow(page);
+    await openReadyUpgradeSummary(page);
 
-    await page.route(`${API}/users`, (route) =>
-      route.fulfill({ json: connectedUser }),
-    );
-    await page.route(`${API}/google-photos/sessions`, (route) => {
-      if (route.request().method() === "POST") {
-        sessionCount++;
-        return route.fulfill({
-          json: {
-            session_id: `sess-${sessionCount}`,
-            picker_uri: `https://photos.google.com/picker/sess-${sessionCount}`,
-          },
-        });
-      }
-      return route.fallback();
-    });
-    // Both sessions immediately ready; DELETE returns 204
-    await page.route(`${API}/google-photos/sessions/sess-*`, (route) => {
-      if (route.request().method() === "GET") {
-        return route.fulfill({ json: { ready: true } });
-      }
-      return route.fulfill({ status: 204, body: "" });
-    });
-
-    const round2MatchEvents = [
-      { type: "match_in_progress", phase: "matching", done: 1, total: 2 },
-      { type: "match_in_progress", phase: "matching", done: 2, total: 2 },
-      {
-        type: "match_completed",
-        total_picked: 2,
-        matched: 1,
-        already_upgraded: 0,
-        unmatched: 1,
-        matches: [{ local_name: "cover.jpg", google_id: "gid-3", distance: 0 }],
-      },
-    ];
-
-    let matchRound = 0;
-    await page.route(`${API}/google-photos/match/**`, (route) => {
-      matchRound++;
-      return route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody(matchRound === 1 ? matchEvents : round2MatchEvents),
-      });
-    });
-
-    await page.route(`${API}/google-photos/upgrade/**`, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: sseBody([
-          { type: "download_in_progress", done: 1, total: 3 },
-          { type: "download_in_progress", done: 2, total: 3 },
-          { type: "download_in_progress", done: 3, total: 3 },
-          { type: "upgrade_completed", replaced: 3, skipped: 0, failed: 0 },
-        ]),
-      }),
-    );
-
-    await page.route(`${API}/albums/*/media`, (route) =>
-      route.fulfill({ json: mockMedia }),
-    );
-
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "true"),
-      [MEDIA_UPGRADE_ONBOARDED_KEY],
-    );
-    await mockPopup(page);
-
-    await page.goto("/editor");
-    await ensureExternalMediaOpen(page);
-
-    await clickUpgradeMedia(page);
-
-    // Round 1: summary shows "2 files ready to upgrade"
-    await expect(page.getByText(/2 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Click "Select More" to start round 2
     await page.getByRole("button", { name: /select more/i }).click();
-
-    // After round 2, merged summary shows "3 files ready to upgrade"
-    await expect(page.getByText(/3 files ready/i)).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Confirm upgrade
+    await expectReadyFiles(page, 3);
     await page.getByRole("button", { name: /upgrade 3 files/i }).click();
 
-    // Done
     await expectUpgradeDone(page, /upgraded 3 files/i);
   });
 });

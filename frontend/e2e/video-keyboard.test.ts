@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { expect, openEditor, test } from "./fixtures";
 import type { Page, Locator } from "@playwright/test";
 import { FOCUS_VIDEO } from "../tests/fixtures/mocks";
 
@@ -8,13 +8,6 @@ function videoItem(page: Page): Locator {
 
 function playOverlay(page: Page): Locator {
   return videoItem(page).getByRole("button", { name: "Play video" });
-}
-
-async function openEditor(page: Page) {
-  await page.goto("/editor");
-  await expect(page.getByText("South America")).toBeVisible({
-    timeout: 15_000,
-  });
 }
 
 async function scrollToVideo(page: Page) {

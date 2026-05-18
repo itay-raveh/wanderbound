@@ -1,23 +1,20 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
-from app.models.album_media import (
-    AlbumMedia,
-    AlbumMediaUndoSnapshot,
-    StepPageMedia,
-    StepUnusedMedia,
+from tests.factories import (
+    DEFAULT_MEDIA_NAME,
+    make_album_media,
+    make_step_page_media,
+    make_step_unused_media,
+    make_undo_snapshot,
 )
 
 
 def test_album_media_keeps_name_as_identity() -> None:
-    media = AlbumMedia(
-        uid=1,
-        aid="trip-1",
-        name="11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg",
-        kind="photo",
+    media = make_album_media(
+        name=DEFAULT_MEDIA_NAME,
         width=1600,
         height=1200,
         byte_size=123456,
-        upgrade_candidate=True,
     )
 
     dumped = media.model_dump()
@@ -29,11 +26,9 @@ def test_album_media_keeps_name_as_identity() -> None:
 
 
 def test_step_page_media_uses_position_as_identity() -> None:
-    placement = StepPageMedia(
-        uid=1,
-        aid="trip-1",
+    placement = make_step_page_media(
         step_id=7,
-        media_name="11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg",
+        media_name=DEFAULT_MEDIA_NAME,
         page_index=2,
         position_index=3,
     )
@@ -45,11 +40,9 @@ def test_step_page_media_uses_position_as_identity() -> None:
 
 
 def test_step_unused_media_uses_position_as_identity() -> None:
-    placement = StepUnusedMedia(
-        uid=1,
-        aid="trip-1",
+    placement = make_step_unused_media(
         step_id=7,
-        media_name="11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg",
+        media_name=DEFAULT_MEDIA_NAME,
         position_index=0,
     )
 
@@ -59,15 +52,6 @@ def test_step_unused_media_uses_position_as_identity() -> None:
 
 
 def test_undo_snapshot_expires_after_five_minutes() -> None:
-    now = datetime.now(UTC)
-    snap = AlbumMediaUndoSnapshot(
-        uid=1,
-        aid="trip-1",
-        media_name="11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg",
-        snapshot_path=".undo/11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg",
-        upgrade_candidate=True,
-        created_at=now,
-        expires_at=now + timedelta(minutes=5),
-    )
+    snap = make_undo_snapshot()
 
     assert snap.expires_at - snap.created_at == timedelta(minutes=5)
