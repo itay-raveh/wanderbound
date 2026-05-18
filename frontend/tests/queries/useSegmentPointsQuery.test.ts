@@ -48,6 +48,11 @@ function mockSegmentPoints(handler: (calls: number) => SegmentHandlerResult) {
 const missingDrivingRoute = () =>
   [makeSegment({ kind: "driving", route: null })] satisfies Segment[];
 
+async function advanceRoutePoll() {
+  await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
+  await flushPromises();
+}
+
 describe("useSegmentPointsQuery", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -64,8 +69,7 @@ describe("useSegmentPointsQuery", () => {
     await flushPromises();
     expect(calls()).toBe(1);
 
-    await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-    await flushPromises();
+    await advanceRoutePoll();
 
     expect(calls()).toBe(2);
   });
@@ -81,8 +85,7 @@ describe("useSegmentPointsQuery", () => {
 
     mountQuery();
     await flushPromises();
-    await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-    await flushPromises();
+    await advanceRoutePoll();
 
     expect(calls()).toBe(1);
   });
@@ -98,8 +101,7 @@ describe("useSegmentPointsQuery", () => {
 
     mountQuery();
     await flushPromises();
-    await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-    await flushPromises();
+    await advanceRoutePoll();
 
     expect(calls()).toBe(1);
   });
@@ -113,8 +115,7 @@ describe("useSegmentPointsQuery", () => {
     await flushPromises();
 
     for (let i = 0; i < ROUTE_REFETCH_LIMIT + 1; i += 1) {
-      await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-      await flushPromises();
+      await advanceRoutePoll();
     }
 
     expect(calls()).toBe(1 + ROUTE_REFETCH_LIMIT);
@@ -128,16 +129,14 @@ describe("useSegmentPointsQuery", () => {
     mountQuery(fromTime, toTime);
     await flushPromises();
     for (let i = 0; i < ROUTE_REFETCH_LIMIT + 1; i += 1) {
-      await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-      await flushPromises();
+      await advanceRoutePoll();
     }
     expect(calls()).toBe(1 + ROUTE_REFETCH_LIMIT);
 
     fromTime.value = 100;
     toTime.value = 200;
     await flushPromises();
-    await vi.advanceTimersByTimeAsync(ROUTE_REFETCH_MS);
-    await flushPromises();
+    await advanceRoutePoll();
 
     expect(calls()).toBe(3 + ROUTE_REFETCH_LIMIT);
   });
