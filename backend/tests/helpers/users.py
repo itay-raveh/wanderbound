@@ -55,6 +55,11 @@ class UserRoutes:
     async def current(self) -> Response:
         return await self.client.get("/api/v1/users")
 
+    async def current_ok(self) -> dict:
+        resp = await self.current()
+        assert resp.status_code == 200
+        return resp.json()
+
     async def update(self, **payload: object) -> Response:
         return await self.client.patch("/api/v1/users", json=payload)
 
@@ -69,8 +74,17 @@ class UserRoutes:
         )
         return await self.client.post("/api/v1/users/demo", headers=headers)
 
+    async def demo_ok(self, *, accept_language: str | None = None) -> dict:
+        resp = await self.demo(accept_language=accept_language)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def delete_demo(self) -> Response:
         return await self.client.delete("/api/v1/users/demo")
+
+    async def delete_demo_ok(self) -> None:
+        resp = await self.delete_demo()
+        assert resp.status_code == 204
 
     async def download_export(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/users/export/download/{token}")

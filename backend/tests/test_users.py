@@ -24,17 +24,13 @@ async def _insert_uploaded_albums(
 
 class TestDemoLocale:
     async def test_demo_respects_accept_language(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.demo(accept_language="he-IL,he;q=0.9,en;q=0.8")
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await user_routes.demo_ok(accept_language="he-IL,he;q=0.9,en;q=0.8")
         assert data["user"]["locale"] == "he-IL"
 
     async def test_demo_falls_back_to_fixture_locale(
         self, user_routes: UserRoutes
     ) -> None:
-        resp = await user_routes.demo()
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await user_routes.demo_ok()
         # Fixture user.json has locale "en_GB" → normalized to "en-GB"
         assert data["user"]["locale"] == "en-GB"
 
@@ -43,8 +39,7 @@ class TestIsProcessed:
     """is_processed reflects whether albums in DB match the album_ids manifest."""
 
     async def test_demo_user_starts_unprocessed(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.demo()
-        body = resp.json()
+        body = await user_routes.demo_ok()
         assert body["user"]["has_data"] is True
         assert body["user"]["album_ids"]
         assert body["user"]["is_processed"] is False
@@ -62,9 +57,7 @@ class TestIsProcessed:
     ) -> None:
         await _insert_uploaded_albums(session, uploaded_user)
 
-        resp = await user_routes.current()
-        assert resp.status_code == 200
-        assert resp.json()["is_processed"] is True
+        assert (await user_routes.current_ok())["is_processed"] is True
 
     async def test_evicted_user_is_unprocessed(
         self,
@@ -76,9 +69,9 @@ class TestIsProcessed:
         await _insert_uploaded_albums(session, uploaded_user)
         shutil.rmtree(users_dir / str(uploaded_user["id"]))
 
-        resp = await user_routes.current()
-        assert resp.json()["is_processed"] is False
-        assert resp.json()["has_data"] is False
+        user = await user_routes.current_ok()
+        assert user["is_processed"] is False
+        assert user["has_data"] is False
 
     async def test_partial_processing_is_unprocessed(
         self,
@@ -96,5 +89,4 @@ class TestIsProcessed:
         )
         await session.commit()
 
-        resp = await user_routes.current()
-        assert resp.json()["is_processed"] is False
+        assert (await user_routes.current_ok())["is_processed"] is False
