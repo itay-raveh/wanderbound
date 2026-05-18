@@ -459,6 +459,18 @@ class TestStepLocationInHike:
 _KM_PER_DEG_LAT = 111.32  # at equator
 
 
+def _hike_seg(points: list[Point], tz: str = "America/Santiago") -> Segment:
+    return make_segment(
+        1,
+        "trip1",
+        start_time=points[0].time,
+        end_time=points[-1].time,
+        kind=SegmentKind.hike,
+        timezone_id=tz,
+        points=points,
+    )
+
+
 def _multi_day_seg(
     daily_km: list[float],
     start_date: date,
@@ -477,15 +489,7 @@ def _multi_day_seg(
         lat += km / _KM_PER_DEG_LAT
         points.append(Point(lat=lat, lon=0.0, time=t_end))
 
-    return make_segment(
-        1,
-        "trip1",
-        start_time=points[0].time,
-        end_time=points[-1].time,
-        kind=SegmentKind.hike,
-        timezone_id=tz,
-        points=points,
-    )
+    return _hike_seg(points, tz)
 
 
 def _minimal_seg(
@@ -517,17 +521,11 @@ class TestMultiDayHikeRanges:
         zone = ZoneInfo("America/Santiago")
         t1 = datetime(2024, 12, 8, 8, 0, tzinfo=zone).timestamp()
         t2 = datetime(2024, 12, 8, 23, 30, tzinfo=zone).timestamp()
-        seg = make_segment(
-            1,
-            "trip1",
-            start_time=t1,
-            end_time=t2,
-            kind=SegmentKind.hike,
-            timezone_id="America/Santiago",
-            points=[
+        seg = _hike_seg(
+            [
                 Point(lat=0.0, lon=0.0, time=t1),
                 Point(lat=0.072, lon=0.0, time=t2),
-            ],
+            ]
         )
         assert multi_day_hike_ranges([seg]) == []
 
@@ -599,18 +597,12 @@ class TestMultiDayHikeRanges:
         t1 = datetime(d1.year, d1.month, d1.day, 18, 0, tzinfo=zone).timestamp()
         t2 = datetime(d1.year, d1.month, d1.day, 23, 59, tzinfo=zone).timestamp()
         t3 = datetime(d2.year, d2.month, d2.day, 6, 0, tzinfo=zone).timestamp()
-        seg = make_segment(
-            1,
-            "trip1",
-            start_time=t1,
-            end_time=t3,
-            kind=SegmentKind.hike,
-            timezone_id="America/Santiago",
-            points=[
+        seg = _hike_seg(
+            [
                 Point(lat=0.0, lon=0.0, time=t1),
                 Point(lat=0.072, lon=0.0, time=t2),
                 Point(lat=0.081, lon=0.0, time=t3),
-            ],
+            ]
         )
         assert multi_day_hike_ranges([seg]) == []
 
@@ -621,18 +613,12 @@ class TestMultiDayHikeRanges:
         t1 = datetime(d1.year, d1.month, d1.day, 14, 0, tzinfo=zone).timestamp()
         t_mid = datetime(d1.year, d1.month, d1.day, 23, 30, tzinfo=zone).timestamp()
         t2 = datetime(d2.year, d2.month, d2.day, 10, 0, tzinfo=zone).timestamp()
-        seg = make_segment(
-            1,
-            "trip1",
-            start_time=t1,
-            end_time=t2,
-            kind=SegmentKind.hike,
-            timezone_id="America/Santiago",
-            points=[
+        seg = _hike_seg(
+            [
                 Point(lat=0.0, lon=0.0, time=t1),
                 Point(lat=0.009, lon=0.0, time=t_mid),
                 Point(lat=0.0135, lon=0.0, time=t2),
-            ],
+            ]
         )
         assert multi_day_hike_ranges([seg]) == []
 
