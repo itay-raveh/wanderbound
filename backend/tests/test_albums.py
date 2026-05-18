@@ -397,9 +397,8 @@ class TestDownloadPdf:
             "app.api.v1.routes.albums.pop_pdf_token",
             return_value=(pdf_path, "my-album"),
         ):
-            resp = await album_routes.download_pdf("valid-token")
+            resp = await album_routes.download_pdf_ok("valid-token")
 
-        assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"
         assert "my-album.pdf" in resp.headers.get("content-disposition", "")
         assert resp.content == b"%PDF-1.4 fake content"

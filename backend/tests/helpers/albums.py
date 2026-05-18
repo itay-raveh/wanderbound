@@ -41,6 +41,11 @@ class AlbumRoutes:
     async def get_media(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/media")
 
+    async def get_media_ok(self, aid: str = AID) -> list:
+        resp = await self.get_media(aid)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def get_segment_points(
         self,
         *,
@@ -163,3 +168,8 @@ class AlbumRoutes:
 
     async def download_pdf(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/albums/pdf/download/{token}")
+
+    async def download_pdf_ok(self, token: str) -> Response:
+        resp = await self.download_pdf(token)
+        assert resp.status_code == 200
+        return resp

@@ -20,10 +20,7 @@ async def test_read_media_returns_album_media_rows(
     )
     await session.commit()
 
-    resp = await album_routes.get_media()
-
-    assert resp.status_code == 200
-    assert resp.json() == [
+    assert await album_routes.get_media_ok() == [
         {
             "uid": uid,
             "aid": AID,
