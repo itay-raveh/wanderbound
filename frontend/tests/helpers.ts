@@ -1,11 +1,23 @@
-import { createApp, defineComponent, h, type Component } from "vue";
+import {
+  computed,
+  createApp,
+  defineComponent,
+  h,
+  ref,
+  type Component,
+} from "vue";
 import { mount, type ComponentMountingOptions } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
-import type { Segment, StepRead as Step } from "@/client";
+import type { AlbumMedia, Segment, StepRead as Step } from "@/client";
+import { provideAlbum } from "@/composables/useAlbum";
+import {
+  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  type MediaResolutionWarningPreset,
+} from "@/utils/photoQuality";
 
 // Set base URL for test API calls (MSW intercepts these).
 client.setConfig({ baseUrl: "http://localhost:8000" });
@@ -71,6 +83,49 @@ export function deferred<T>() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+export function makeAlbumMedia(
+  overrides: Partial<AlbumMedia> = {},
+): AlbumMedia {
+  return {
+    uid: 1,
+    aid: "album-1",
+    name: "photo.jpg",
+    kind: "photo",
+    width: 1920,
+    height: 1080,
+    byte_size: 1234,
+    upgrade_candidate: false,
+    created_at: "2026-05-13T12:00:00Z",
+    updated_at: "2026-05-13T12:34:56Z",
+    ...overrides,
+  };
+}
+
+export function provideTestAlbum({
+  albumId = "album-1",
+  colors = {},
+  media = [],
+  tripStart = "2024-01-01",
+  totalDays = 1,
+  mediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+}: {
+  albumId?: string;
+  colors?: Record<string, string>;
+  media?: AlbumMedia[];
+  tripStart?: string;
+  totalDays?: number;
+  mediaResolutionWarningPreset?: MediaResolutionWarningPreset;
+} = {}) {
+  return provideAlbum({
+    albumId: ref(albumId),
+    colors: computed(() => colors),
+    media: computed(() => media),
+    tripStart: computed(() => tripStart),
+    totalDays: computed(() => totalDays),
+    mediaResolutionWarningPreset: computed(() => mediaResolutionWarningPreset),
+  });
 }
 
 /** Shared plugin list for mounting components under test. */

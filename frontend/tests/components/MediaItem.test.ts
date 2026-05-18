@@ -1,10 +1,8 @@
 import { defineComponent, h, nextTick, ref, readonly } from "vue";
-import { mountWithPlugins } from "../helpers";
+import { makeAlbumMedia, mountWithPlugins, provideTestAlbum } from "../helpers";
 import MediaItem from "@/components/album/MediaItem.vue";
-import { provideAlbum } from "@/composables/useAlbum";
 import { STEP_ID_KEY, usePhotoFocus } from "@/composables/usePhotoFocus";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
-import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
@@ -40,39 +38,14 @@ vi.mock("@/queries/useVideoFrameMutation", () => ({
   useVideoFrameMutation: () => ({ mutateAsync }),
 }));
 
-function mediaItem(overrides: Record<string, unknown> = {}) {
-  return {
-    uid: 1,
-    aid: "album-1",
-    name: "photo.jpg",
-    kind: "photo",
-    width: 1920,
-    height: 1080,
-    byte_size: 1234,
-    upgrade_candidate: false,
-    created_at: "2026-05-13T12:00:00Z",
-    updated_at: MEDIA_UPDATED_AT,
-    ...overrides,
-  };
-}
-
 function mountMediaItem(
-  media: Record<string, unknown>,
+  media: ReturnType<typeof makeAlbumMedia>,
   props: Record<string, unknown>,
   provide: Record<symbol, unknown>,
 ) {
   const Wrapper = defineComponent({
     setup() {
-      provideAlbum({
-        albumId: ref("album-1"),
-        colors: ref({}),
-        media: ref([media]),
-        tripStart: ref("2024-01-01"),
-        totalDays: ref(1),
-        mediaResolutionWarningPreset: ref(
-          DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-        ),
-      });
+      provideTestAlbum({ media: [media] });
       return () => h(MediaItem, props);
     },
   });
@@ -87,7 +60,7 @@ function mountMediaItem(
 
 function mountVideoItem() {
   return mountMediaItem(
-    mediaItem({ name: "clip.mp4", kind: "video" }),
+    makeAlbumMedia({ name: "clip.mp4", kind: "video" }),
     { media: "clip.mp4", alt: "Clip" },
     { [STEP_ID_KEY as symbol]: 7 },
   );
@@ -96,10 +69,10 @@ function mountVideoItem() {
 function mountPhotoItem(
   programmaticScrolling = ref(false),
   props: Record<string, unknown> = {},
-  mediaOverrides: Record<string, unknown> = {},
+  mediaOverrides: Partial<ReturnType<typeof makeAlbumMedia>> = {},
 ) {
   return mountMediaItem(
-    mediaItem(mediaOverrides),
+    makeAlbumMedia({ updated_at: MEDIA_UPDATED_AT, ...mediaOverrides }),
     { media: "photo.jpg", alt: "Photo", ...props },
     {
       [STEP_ID_KEY as symbol]: 7,

@@ -1,18 +1,21 @@
 import { flushPromises } from "@vue/test-utils";
 import { http, HttpResponse } from "msw";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import type { Ref } from "vue";
 import { server } from "../mocks/server";
 import { BASE } from "../mocks/handlers";
-import { deferred, makeSegment, withParentSetup } from "../helpers";
-import { provideAlbum } from "@/composables/useAlbum";
+import {
+  deferred,
+  makeSegment,
+  provideTestAlbum,
+  withParentSetup,
+} from "../helpers";
 import {
   ROUTE_REFETCH_LIMIT,
   ROUTE_REFETCH_MS,
   useSegmentPointsQuery,
 } from "@/queries/useSegmentPointsQuery";
 import type { Segment } from "@/client";
-import { DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET } from "@/utils/photoQuality";
 
 type SegmentHandlerResult = Segment[] | Promise<Response>;
 
@@ -22,16 +25,7 @@ function mountQuery(
 ) {
   const { result: query, unmount } = withParentSetup(
     () => {
-      provideAlbum({
-        albumId: ref("aid-1"),
-        colors: computed(() => ({})),
-        media: computed(() => []),
-        tripStart: computed(() => "2024-01-01T00:00:00Z"),
-        totalDays: computed(() => 1),
-        mediaResolutionWarningPreset: computed(
-          () => DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-        ),
-      });
+      provideTestAlbum({ albumId: "aid-1" });
     },
     () => useSegmentPointsQuery(fromTime, toTime),
   );
