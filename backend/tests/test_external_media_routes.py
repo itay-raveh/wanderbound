@@ -26,23 +26,6 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-async def _replace_device_ok(
-    external_media: ExternalMediaRoutes,
-    media_name: str,
-    **kwargs: int | bytes | None,
-) -> None:
-    resp = await external_media.replace_device(media_name, **kwargs)
-    assert resp.status_code == 200
-
-
-async def _undo_replacement_ok(
-    external_media: ExternalMediaRoutes,
-    media_name: str,
-) -> None:
-    resp = await external_media.undo_replacement(media_name)
-    assert resp.status_code == 200
-
-
 async def test_device_add_to_step_prepends_unused(
     session: AsyncSession,
     album_media_scenario: AlbumMediaFactory,
@@ -50,10 +33,7 @@ async def test_device_add_to_step_prepends_unused(
 ) -> None:
     scenario = await album_media_scenario()
 
-    resp = await external_media.add_device(context="step", step_id=1)
-
-    assert resp.status_code == 200
-    imported = resp.json()["names"]
+    imported = (await external_media.add_device_ok(context="step", step_id=1))["names"]
     assert len(imported) == 1
 
     unused = await session.get_one(StepUnusedMedia, (scenario.uid, AID, 1, 0))
@@ -78,12 +58,11 @@ async def test_device_add_to_cover_does_not_select_cover(
 ) -> None:
     scenario = await album_media_scenario()
 
-    resp = await external_media.add_device(
-        context="cover", filename="cover.jpg", width=900, height=600
-    )
-
-    assert resp.status_code == 200
-    imported = resp.json()["names"][0]
+    imported = (
+        await external_media.add_device_ok(
+            context="cover", filename="cover.jpg", width=900, height=600
+        )
+    )["names"][0]
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, imported))
     assert row.width == 900
     assert row.height == 600
@@ -96,9 +75,8 @@ async def test_device_replace_updates_existing_media(
 ) -> None:
     scenario = await album_media_scenario(write_media=True)
 
-    resp = await external_media.replace_device(scenario.media_name)
+    await external_media.replace_device_ok(scenario.media_name)
 
-    assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 1200
     assert row.height == 800
@@ -114,9 +92,8 @@ async def test_device_replace_schedules_undo_snapshot_prune(
     with patch(
         "app.api.v1.routes.external_media.enqueue_undo_snapshot_prune",
     ) as enqueue_prune:
-        resp = await external_media.replace_device(scenario.media_name)
+        await external_media.replace_device_ok(scenario.media_name)
 
-    assert resp.status_code == 200
     enqueue_prune.assert_called_once()
     _, scheduled_uid, scheduled_aid, scheduled_dir = enqueue_prune.call_args.args
     assert (scheduled_uid, scheduled_aid, scheduled_dir) == (
@@ -168,8 +145,8 @@ async def test_undo_replacement_restores_previous_dimensions(
 ) -> None:
     scenario = await album_media_scenario(write_media=True)
 
-    await _replace_device_ok(external_media, scenario.media_name)
-    await _undo_replacement_ok(external_media, scenario.media_name)
+    await external_media.replace_device_ok(scenario.media_name)
+    await external_media.undo_replacement_ok(scenario.media_name)
 
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 640
@@ -183,11 +160,9 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
 ) -> None:
     scenario = await album_media_scenario(write_media=True)
 
-    await _replace_device_ok(external_media, scenario.media_name)
-    await _replace_device_ok(
-        external_media, scenario.media_name, width=1600, height=900
-    )
-    await _undo_replacement_ok(external_media, scenario.media_name)
+    await external_media.replace_device_ok(scenario.media_name)
+    await external_media.replace_device_ok(scenario.media_name, width=1600, height=900)
+    await external_media.undo_replacement_ok(scenario.media_name)
 
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 1200
@@ -205,11 +180,11 @@ async def test_undo_replacement_restores_previous_upgrade_candidate(
     session.add(row)
     await session.commit()
 
-    await _replace_device_ok(external_media, scenario.media_name)
+    await external_media.replace_device_ok(scenario.media_name)
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False
 
-    await _undo_replacement_ok(external_media, scenario.media_name)
+    await external_media.undo_replacement_ok(scenario.media_name)
 
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is True
@@ -279,10 +254,9 @@ async def test_google_add_validates_step_before_download(
         ),
         patch("app.api.v1.routes.external_media.get_engine", return_value=session.bind),
     ):
-        resp = await external_media.add_google(context="step", step_id=999)
+        text = await external_media.add_google_ok(context="step", step_id=999)
 
-    assert resp.status_code == 200
-    assert "Step not found" in resp.text
+    assert "Step not found" in text
     assert not downloaded()
 
 
@@ -348,8 +322,7 @@ async def test_google_replace_marks_media_upgraded(
             AsyncMock(side_effect=fake_download),
         ),
     ):
-        resp = await external_media.replace_google(media_name=scenario.media_name)
+        await external_media.replace_google_ok(media_name=scenario.media_name)
 
-    assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False

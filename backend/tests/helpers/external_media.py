@@ -55,6 +55,25 @@ class ExternalMediaRoutes:
             files=[("files", (filename, jpeg_bytes(width, height), "image/jpeg"))],
         )
 
+    async def add_device_ok(
+        self,
+        *,
+        context: str,
+        filename: str = "holiday.jpg",
+        step_id: int | None = None,
+        width: int = 640,
+        height: int = 480,
+    ) -> dict:
+        resp = await self.add_device(
+            context=context,
+            filename=filename,
+            step_id=step_id,
+            width=width,
+            height=height,
+        )
+        assert resp.status_code == 200
+        return resp.json()
+
     async def replace_device(
         self,
         media_name: str,
@@ -70,10 +89,32 @@ class ExternalMediaRoutes:
             files={"file": ("replacement.jpg", body, "image/jpeg")},
         )
 
+    async def replace_device_ok(
+        self,
+        media_name: str,
+        *,
+        width: int = 1200,
+        height: int = 800,
+        content: bytes | None = None,
+    ) -> dict:
+        resp = await self.replace_device(
+            media_name,
+            width=width,
+            height=height,
+            content=content,
+        )
+        assert resp.status_code == 200
+        return resp.json()
+
     async def undo_replacement(self, media_name: str) -> Response:
         return await self.client.post(
             f"/api/v1/albums/{AID}/external-media/undo/{media_name}",
         )
+
+    async def undo_replacement_ok(self, media_name: str) -> dict:
+        resp = await self.undo_replacement(media_name)
+        assert resp.status_code == 200
+        return resp.json()
 
     async def replace_google(
         self,
@@ -86,6 +127,16 @@ class ExternalMediaRoutes:
             json={"media_name": media_name, "session_id": session_id},
         )
 
+    async def replace_google_ok(
+        self,
+        *,
+        media_name: str = DEFAULT_MEDIA_NAME,
+        session_id: str = "session-abc",
+    ) -> dict:
+        resp = await self.replace_google(media_name=media_name, session_id=session_id)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def add_google(
         self,
         **payload: str | int,
@@ -94,3 +145,8 @@ class ExternalMediaRoutes:
             f"/api/v1/albums/{AID}/external-media/add/google",
             json={"session_id": "session-abc", **payload},
         )
+
+    async def add_google_ok(self, **payload: str | int) -> str:
+        resp = await self.add_google(**payload)
+        assert resp.status_code == 200
+        return resp.text
