@@ -51,7 +51,9 @@ class TestReadAlbum:
     async def test_returns_album_meta_without_media(
         self, album_routes: AlbumRoutes
     ) -> None:
-        data = await album_routes.get_album_ok()
+        resp = await album_routes.get_album()
+        assert resp.status_code == 200
+        data = resp.json()
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data
@@ -66,7 +68,9 @@ class TestReadSegments:
     ) -> None:
         await insert_segment(session, signed_album.uid)
 
-        data = await album_routes.get_segments_ok()
+        resp = await album_routes.get_segments()
+        assert resp.status_code == 200
+        data = resp.json()
         assert len(data) == 1
         outline = data[0]
         assert outline["kind"] == "driving"
@@ -181,7 +185,9 @@ class TestUpdateStep:
     ) -> None:
         await insert_step(session, signed_album.uid)
 
-        data = await album_routes.update_step_ok(name="New Name")
+        resp = await album_routes.update_step(name="New Name")
+        assert resp.status_code == 200
+        data = resp.json()
         assert data["name"] == "New Name"
         assert data["pages"] == [["photo1.jpg"]]
         assert data["unused"] == ["photo2.jpg"]
@@ -204,10 +210,14 @@ class TestUpdateStep:
         await insert_step(session, signed_album.uid)
         await session.commit()
 
-        data = await album_routes.update_media_layout_ok(**expected_layout)
+        resp = await album_routes.update_media_layout(**expected_layout)
+        assert resp.status_code == 200
+        data = resp.json()
         _assert_step_layout(data, **expected_layout)
 
-        _assert_step_layout((await album_routes.get_steps_ok())[0], **expected_layout)
+        get_resp = await album_routes.get_steps()
+        assert get_resp.status_code == 200
+        _assert_step_layout(get_resp.json()[0], **expected_layout)
 
     async def test_media_layout_update_rejects_missing_album_media(
         self,
@@ -371,7 +381,9 @@ class TestPrintBundle:
         await insert_step(session, signed_album.uid)
         await insert_segment(session, signed_album.uid)
 
-        data = await album_routes.print_bundle_ok()
+        resp = await album_routes.print_bundle()
+        assert resp.status_code == 200
+        data = resp.json()
         assert "album" in data
         assert "steps" in data
         assert "segments" in data
@@ -397,8 +409,9 @@ class TestDownloadPdf:
             "app.api.v1.routes.albums.pop_pdf_token",
             return_value=(pdf_path, "my-album"),
         ):
-            resp = await album_routes.download_pdf_ok("valid-token")
+            resp = await album_routes.download_pdf("valid-token")
 
+        assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"
         assert "my-album.pdf" in resp.headers.get("content-disposition", "")
         assert resp.content == b"%PDF-1.4 fake content"

@@ -254,9 +254,10 @@ async def test_google_add_validates_step_before_download(
         ),
         patch("app.api.v1.routes.external_media.get_engine", return_value=session.bind),
     ):
-        text = await external_media.add_google_ok(context="step", step_id=999)
+        resp = await external_media.add_google(context="step", step_id=999)
 
-    assert "Step not found" in text
+    assert resp.status_code == 200
+    assert "Step not found" in resp.text
     assert not downloaded()
 
 
@@ -322,7 +323,8 @@ async def test_google_replace_marks_media_upgraded(
             AsyncMock(side_effect=fake_download),
         ),
     ):
-        await external_media.replace_google_ok(media_name=scenario.media_name)
+        resp = await external_media.replace_google(media_name=scenario.media_name)
 
+    assert resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False

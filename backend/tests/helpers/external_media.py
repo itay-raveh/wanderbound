@@ -127,16 +127,6 @@ class ExternalMediaRoutes:
             json={"media_name": media_name, "session_id": session_id},
         )
 
-    async def replace_google_ok(
-        self,
-        *,
-        media_name: str = DEFAULT_MEDIA_NAME,
-        session_id: str = "session-abc",
-    ) -> dict:
-        resp = await self.replace_google(media_name=media_name, session_id=session_id)
-        assert resp.status_code == 200
-        return resp.json()
-
     async def add_google(
         self,
         **payload: str | int,
@@ -145,8 +135,3 @@ class ExternalMediaRoutes:
             f"/api/v1/albums/{AID}/external-media/add/google",
             json={"session_id": "session-abc", **payload},
         )
-
-    async def add_google_ok(self, **payload: str | int) -> str:
-        resp = await self.add_google(**payload)
-        assert resp.status_code == 200
-        return resp.text

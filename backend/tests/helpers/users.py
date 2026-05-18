@@ -53,19 +53,9 @@ class UserRoutes:
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
 
-    async def upload_ok(self) -> dict:
-        resp = await self.upload()
-        assert resp.status_code == 200
-        return resp.json()
-
     async def upload_with_extract(self, users_dir: Path) -> Response:
         with mock_extract(users_dir):
             return await self.upload()
-
-    async def upload_with_extract_ok(self, users_dir: Path) -> dict:
-        resp = await self.upload_with_extract(users_dir)
-        assert resp.status_code == 200
-        return resp.json()
 
     async def current(self) -> Response:
         return await self.client.get("/api/v1/users")
@@ -77,11 +67,6 @@ class UserRoutes:
 
     async def update(self, **payload: object) -> Response:
         return await self.client.patch("/api/v1/users", json=payload)
-
-    async def update_ok(self, **payload: object) -> dict:
-        resp = await self.update(**payload)
-        assert resp.status_code == 200
-        return resp.json()
 
     async def delete(self) -> Response:
         return await self.client.delete("/api/v1/users")
@@ -107,17 +92,8 @@ class UserRoutes:
     async def delete_demo(self) -> Response:
         return await self.client.delete("/api/v1/users/demo")
 
-    async def delete_demo_ok(self) -> None:
-        resp = await self.delete_demo()
-        assert resp.status_code == 204
-
     async def download_export(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/users/export/download/{token}")
-
-    async def download_export_ok(self, token: str) -> Response:
-        resp = await self.download_export(token)
-        assert resp.status_code == 200
-        return resp
 
     async def init_upload(self) -> Response:
         return await self.client.post("/api/v1/users/upload/init")

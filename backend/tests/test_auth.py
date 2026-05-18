@@ -122,7 +122,9 @@ class TestUpload:
     ) -> None:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
         await user_routes.sign_in(payload=no_name)
-        user = (await user_routes.upload_with_extract_ok(users_dir))["user"]
+        resp = await user_routes.upload_with_extract(users_dir)
+        assert resp.status_code == 200
+        user = resp.json()["user"]
         assert user["first_name"] == "Zip"
 
     @pytest.mark.usefixtures("uploaded_user")
@@ -137,14 +139,17 @@ class TestUpload:
             "app.api.v1.routes.users.extract_and_scan",
             return_value=(folder, PS_USER, new_trips),
         ):
-            data = await user_routes.upload_ok()
-        assert data["trips"][0]["id"] == "trip-2"
+            resp = await user_routes.upload()
+        assert resp.status_code == 200
+        assert resp.json()["trips"][0]["id"] == "trip-2"
 
 
 class TestUpdateUser:
     @pytest.mark.usefixtures("uploaded_user")
     async def test_update_locale(self, user_routes: UserRoutes) -> None:
-        assert (await user_routes.update_ok(locale="he-IL"))["locale"] == "he-IL"
+        resp = await user_routes.update(locale="he-IL")
+        assert resp.status_code == 200
+        assert resp.json()["locale"] == "he-IL"
 
 
 class TestDeleteUser:

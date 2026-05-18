@@ -16,7 +16,8 @@ class TestCreateDemo:
 class TestDeleteDemo:
     async def test_deletes_demo_user(self, user_routes: UserRoutes) -> None:
         await user_routes.demo_ok()
-        await user_routes.delete_demo_ok()
+        resp = await user_routes.delete_demo()
+        assert resp.status_code == 204
         # Session cleared - user endpoint returns 401
         user_resp = await user_routes.current()
         assert user_resp.status_code == 401

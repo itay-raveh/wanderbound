@@ -17,34 +17,14 @@ class AlbumRoutes:
     async def get_album(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}")
 
-    async def get_album_ok(self, aid: str = AID) -> dict:
-        resp = await self.get_album(aid)
-        assert resp.status_code == 200
-        return resp.json()
-
     async def get_segments(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/segments")
-
-    async def get_segments_ok(self, aid: str = AID) -> list:
-        resp = await self.get_segments(aid)
-        assert resp.status_code == 200
-        return resp.json()
 
     async def get_steps(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/steps")
 
-    async def get_steps_ok(self, aid: str = AID) -> list:
-        resp = await self.get_steps(aid)
-        assert resp.status_code == 200
-        return resp.json()
-
     async def get_media(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/media")
-
-    async def get_media_ok(self, aid: str = AID) -> list:
-        resp = await self.get_media(aid)
-        assert resp.status_code == 200
-        return resp.json()
 
     async def get_segment_points(
         self,
@@ -88,11 +68,6 @@ class AlbumRoutes:
             json=payload,
         )
 
-    async def update_step_ok(self, step_id: int = 1, **payload: object) -> dict:
-        resp = await self.update_step(step_id, **payload)
-        assert resp.status_code == 200
-        return resp.json()
-
     async def update_media_layout(
         self,
         *,
@@ -105,23 +80,6 @@ class AlbumRoutes:
             f"/api/v1/albums/{AID}/steps/{step_id}/media-layout",
             json={"cover": cover, "pages": pages, "unused": unused},
         )
-
-    async def update_media_layout_ok(
-        self,
-        *,
-        step_id: int = 1,
-        cover: str | None,
-        pages: list[list[str]],
-        unused: list[str],
-    ) -> dict:
-        resp = await self.update_media_layout(
-            step_id=step_id,
-            cover=cover,
-            pages=pages,
-            unused=unused,
-        )
-        assert resp.status_code == 200
-        return resp.json()
 
     async def adjust_boundary(
         self,
@@ -161,15 +119,5 @@ class AlbumRoutes:
     async def print_bundle(self) -> Response:
         return await self.client.get(f"/api/v1/albums/{AID}/print-bundle")
 
-    async def print_bundle_ok(self) -> dict:
-        resp = await self.print_bundle()
-        assert resp.status_code == 200
-        return resp.json()
-
     async def download_pdf(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/albums/pdf/download/{token}")
-
-    async def download_pdf_ok(self, token: str) -> Response:
-        resp = await self.download_pdf(token)
-        assert resp.status_code == 200
-        return resp
