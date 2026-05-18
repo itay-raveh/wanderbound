@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeOverview } from "@/composables/useOverview";
-import { makeLocation, makeStep } from "../helpers";
+import { makeLocation, makeStep, makeWeather } from "../helpers";
 
 describe("computeOverview", () => {
   it("excludes countries with code '00'", () => {
@@ -31,18 +31,18 @@ describe("computeOverview", () => {
     const steps = [
       makeStep({
         name: "Hot Place",
-        weather: {
-          day: { temp: 35, feels_like: 38, icon: "clear-day" },
-          night: { temp: 25, feels_like: 27, icon: "clear-night" },
-        },
+        weather: makeWeather({
+          day: { feels_like: 38 },
+          night: { feels_like: 27 },
+        }),
       }),
       makeStep({
         id: 2,
         name: "Cold Place",
-        weather: {
-          day: { temp: 5, feels_like: 2, icon: "snow" },
-          night: { temp: -3, feels_like: -8, icon: "snow" },
-        },
+        weather: makeWeather({
+          day: { feels_like: 2 },
+          night: { feels_like: -8 },
+        }),
       }),
     ];
     const overview = computeOverview(steps, [], null, null);
@@ -56,10 +56,10 @@ describe("computeOverview", () => {
     const steps = [
       makeStep({
         name: "Only Step",
-        weather: {
-          day: { temp: 10, feels_like: 8, icon: "cloudy" },
-          night: { temp: -2, feels_like: -5, icon: "snow" },
-        },
+        weather: makeWeather({
+          day: { feels_like: 8 },
+          night: { feels_like: -5 },
+        }),
       }),
     ];
     const overview = computeOverview(steps, [], null, null);

@@ -13,7 +13,14 @@ import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
-import type { AlbumMedia, Location, Segment, StepRead as Step } from "@/client";
+import type {
+  AlbumMedia,
+  Location,
+  Segment,
+  StepRead as Step,
+  Weather,
+  WeatherData,
+} from "@/client";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -115,6 +122,19 @@ export function makeLocation(overrides: Partial<Location> = {}): Location {
   };
 }
 
+export function makeWeather({
+  day = {},
+  night = null,
+}: {
+  day?: Partial<WeatherData>;
+  night?: Partial<WeatherData> | null;
+} = {}): Weather {
+  return {
+    day: { temp: 20, feels_like: 18, icon: "clear-day", ...day },
+    night: night && { temp: 10, feels_like: 8, icon: "clear-night", ...night },
+  };
+}
+
 export function mockReadyGooglePickerSession(googlePhotosMock: {
   closeSession: Mock;
   createPickerSession: Mock;
@@ -195,10 +215,7 @@ export function makeStep(overrides: Partial<Step> = {}): Step {
     timezone_id: "UTC",
     location: makeLocation(),
     elevation: 0,
-    weather: {
-      day: { temp: 20, feels_like: 18, icon: "clear-day" },
-      night: null,
-    },
+    weather: makeWeather(),
     datetime: "2024-01-01T00:00:00Z",
     ...overrides,
   };
