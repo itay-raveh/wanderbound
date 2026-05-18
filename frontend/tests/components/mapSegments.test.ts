@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { drawSegmentsAndMarkers } from "@/components/album/map/mapSegments";
-import type { Segment } from "@/client";
+import { makeSegment } from "../helpers";
 
 function makeMap() {
   const container = document.createElement("div");
@@ -18,19 +18,14 @@ function makeMap() {
   };
 }
 
-const segment: Segment = {
-  uid: 1,
-  aid: "a1",
+const segment = makeSegment({
   start_time: 0,
   end_time: 1,
-  kind: "driving",
-  timezone_id: "UTC",
   points: [
     { lat: 1, lon: 2, time: 0 },
     { lat: 3, lon: 4, time: 1 },
   ],
-  route: null,
-};
+});
 
 describe("drawSegmentsAndMarkers", () => {
   it("temporarily detaches terrain while replacing segment sources", () => {
