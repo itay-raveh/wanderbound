@@ -20,14 +20,15 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
-from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.polarsteps import Location, Point
-from app.models.segment import Segment
-from app.models.step import Step
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
-from tests.factories import collect_async
+from tests.factories import (
+    AID,
+    collect_async,
+    insert_album,
+    insert_segment,
+    insert_step,
+    make_user,
+)
 from tests.helpers.users import UserRoutes
 
 if TYPE_CHECKING:
@@ -36,79 +37,6 @@ if TYPE_CHECKING:
 
 def _export_path(*parts: str) -> str:
     return str(Path(_EXPORT_NAME, *parts))
-
-
-def _make_user(uid: int, tmp_path: Path, *, album_ids: list[str] | None = None) -> User:
-    user = User(
-        id=uid,
-        google_sub=f"google-{uid}",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=album_ids or ["trip-1"],
-    )
-    user.folder.mkdir(parents=True, exist_ok=True)
-    return user
-
-
-_LOCATION = Location(name="Test", detail="Place", country_code="NL", lat=52.0, lon=4.0)
-_WEATHER = Weather(day=WeatherData(temp=20.0, feels_like=18.0, icon="clear_day"))
-
-
-async def _insert_album(session: AsyncSession, uid: int, aid: str) -> Album:
-    album = Album(
-        uid=uid,
-        id=aid,
-        title="Test Album",
-        subtitle="Test Subtitle",
-        hidden_steps=[],
-        front_cover_photo="cover.jpg",
-        back_cover_photo="back.jpg",
-        colors={"NL": "#FF6B35"},
-        font="Assistant",
-        body_font="Frank Ruhl Libre",
-    )
-    session.add(album)
-    await session.flush()
-    return album
-
-
-async def _insert_step(session: AsyncSession, uid: int, aid: str, sid: int) -> Step:
-    step = Step(
-        uid=uid,
-        aid=aid,
-        id=sid,
-        name="Step One",
-        description="A test step",
-        cover_media_name="photo1.jpg",
-        timestamp=1700000000.0,
-        timezone_id="Europe/Amsterdam",
-        location=_LOCATION,
-        elevation=10,
-        weather=_WEATHER,
-    )
-    session.add(step)
-    await session.flush()
-    return step
-
-
-async def _insert_segment(session: AsyncSession, uid: int, aid: str) -> Segment:
-    seg = Segment(
-        uid=uid,
-        aid=aid,
-        start_time=1700000000.0,
-        end_time=1700003600.0,
-        kind="walking",
-        timezone_id="UTC",
-        points=[
-            Point(lat=52.0, lon=4.0, time=1700000000.0),
-            Point(lat=52.1, lon=4.1, time=1700003600.0),
-        ],
-    )
-    session.add(seg)
-    await session.flush()
-    return seg
 
 
 def _done_event(events: list[ExportEvent]) -> ExportDone:
@@ -166,19 +94,17 @@ class TestExportUserData:
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         (tmp_path / "users").mkdir(exist_ok=True)
 
-    async def test_yields_progress_and_done(
-        self, session: AsyncSession, tmp_path: Path
-    ) -> None:
+    async def test_yields_progress_and_done(self, session: AsyncSession) -> None:
         uid = 7001
-        user = _make_user(uid, tmp_path)
+        user = make_user(uid)
 
-        trip_dir = user.trips_folder / "trip-1"
+        trip_dir = user.trips_folder / AID
         trip_dir.mkdir(parents=True)
         (trip_dir / "photo1.jpg").write_bytes(b"\xff\xd8fake jpeg")
 
-        await _insert_album(session, uid, "trip-1")
-        await _insert_step(session, uid, "trip-1", 1)
-        await _insert_segment(session, uid, "trip-1")
+        await insert_album(session, uid)
+        await insert_step(session, uid)
+        await insert_segment(session, uid)
         await session.flush()
 
         events, path = await _export_events_and_path(user, session)
@@ -190,19 +116,17 @@ class TestExportUserData:
         assert progress_events[0].files_total == 5
         assert {
             _export_path("account.json"),
-            _export_path("albums", "trip-1", "album.json"),
-            _export_path("albums", "trip-1", "steps.json"),
-            _export_path("albums", "trip-1", "segments.json"),
-            _export_path("albums", "trip-1", "media", "photo1.jpg"),
+            _export_path("albums", AID, "album.json"),
+            _export_path("albums", AID, "steps.json"),
+            _export_path("albums", AID, "segments.json"),
+            _export_path("albums", AID, "media", "photo1.jpg"),
         }.issubset(_zip_names(path))
 
         path.unlink(missing_ok=True)
 
-    async def test_empty_user_still_produces_zip(
-        self, session: AsyncSession, tmp_path: Path
-    ) -> None:
+    async def test_empty_user_still_produces_zip(self, session: AsyncSession) -> None:
         uid = 7003
-        user = _make_user(uid, tmp_path, album_ids=[])
+        user = make_user(uid, album_ids=[])
 
         _, path = await _export_events_and_path(user, session)
         names = _zip_names(path)
@@ -212,53 +136,25 @@ class TestExportUserData:
         path.unlink(missing_ok=True)
 
     async def test_steps_json_includes_normalized_media_layout(
-        self, session: AsyncSession, tmp_path: Path
+        self, session: AsyncSession
     ) -> None:
         uid = 7005
-        user = _make_user(uid, tmp_path)
-        trip_dir = user.trips_folder / "trip-1"
+        user = make_user(uid)
+        trip_dir = user.trips_folder / AID
         trip_dir.mkdir(parents=True)
 
-        await _insert_album(session, uid, "trip-1")
-        session.add_all(
-            [
-                AlbumMedia(
-                    uid=uid,
-                    aid="trip-1",
-                    name=name,
-                    kind="photo",
-                    width=640,
-                    height=480,
-                    byte_size=10,
-                    upgrade_candidate=True,
-                )
-                for name in ("photo1.jpg", "page.jpg", "unused.jpg")
-            ]
-        )
-        await _insert_step(session, uid, "trip-1", 1)
-        session.add(
-            StepPageMedia(
-                uid=uid,
-                aid="trip-1",
-                step_id=1,
-                page_index=0,
-                position_index=0,
-                media_name="page.jpg",
-            )
-        )
-        session.add(
-            StepUnusedMedia(
-                uid=uid,
-                aid="trip-1",
-                step_id=1,
-                position_index=0,
-                media_name="unused.jpg",
-            )
+        await insert_album(session, uid)
+        await insert_step(
+            session,
+            uid,
+            cover_media_name="photo1.jpg",
+            page_media_name="page.jpg",
+            unused_media_name="unused.jpg",
         )
         await session.flush()
 
         _, path = await _export_events_and_path(user, session)
-        steps = _read_zip_json(path, _export_path("albums", "trip-1", "steps.json"))
+        steps = _read_zip_json(path, _export_path("albums", AID, "steps.json"))
 
         assert steps[0]["cover"] == "photo1.jpg"
         assert steps[0]["pages"] == [["page.jpg"]]
@@ -266,11 +162,9 @@ class TestExportUserData:
         assert "cover_media_name" not in steps[0]
         path.unlink(missing_ok=True)
 
-    async def test_error_on_zip_failure(
-        self, session: AsyncSession, tmp_path: Path
-    ) -> None:
+    async def test_error_on_zip_failure(self, session: AsyncSession) -> None:
         uid = 7004
-        user = _make_user(uid, tmp_path, album_ids=[])
+        user = make_user(uid, album_ids=[])
 
         with patch("app.logic.export._build_zip", side_effect=OSError("disk full")):
             events = await collect_async(export_user_data(user, session))

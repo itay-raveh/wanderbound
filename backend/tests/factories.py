@@ -198,6 +198,25 @@ async def sign_in_uploaded_user(
 GOOGLE_REFRESH_TOKEN = "1//0fake-refresh-token-for-tests"  # noqa: S105
 
 
+def make_user(
+    uid: int = 1,
+    *,
+    album_ids: list[str] | None = None,
+    google_sub: str | None = None,
+) -> User:
+    user = User(
+        id=uid,
+        google_sub=google_sub if google_sub is not None else f"google-{uid}",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=album_ids if album_ids is not None else [AID],
+    )
+    user.folder.mkdir(parents=True, exist_ok=True)
+    return user
+
+
 async def connect_google_photos(session: AsyncSession, uid: int) -> None:
     """Mark user as Google Photos connected with a refresh token."""
     user = await session.get(User, uid)
@@ -304,8 +323,13 @@ async def insert_step(
     aid: str = AID,
     step_id: int = 1,
     timestamp: float = 1_700_000_000.0,
+    cover_media_name: str | None = None,
+    page_media_name: str | None = "photo1.jpg",
+    unused_media_name: str | None = "photo2.jpg",
 ) -> Step:
-    for name in ("photo1.jpg", "photo2.jpg"):
+    for name in {cover_media_name, page_media_name, unused_media_name}:
+        if name is None:
+            continue
         if await session.get(AlbumMedia, (uid, aid, name)) is None:
             await insert_album_media(session, uid, aid=aid, name=name)
     step = Step(
@@ -319,29 +343,31 @@ async def insert_step(
         location=LOCATION,
         elevation=0,
         weather=WEATHER,
-        cover_media_name=None,
+        cover_media_name=cover_media_name,
     )
     session.add(step)
     await session.flush()
-    session.add(
-        StepPageMedia(
-            uid=uid,
-            aid=aid,
-            step_id=step_id,
-            page_index=0,
-            position_index=0,
-            media_name="photo1.jpg",
+    if page_media_name is not None:
+        session.add(
+            StepPageMedia(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                page_index=0,
+                position_index=0,
+                media_name=page_media_name,
+            )
         )
-    )
-    session.add(
-        StepUnusedMedia(
-            uid=uid,
-            aid=aid,
-            step_id=step_id,
-            position_index=0,
-            media_name="photo2.jpg",
+    if unused_media_name is not None:
+        session.add(
+            StepUnusedMedia(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                position_index=0,
+                media_name=unused_media_name,
+            )
         )
-    )
     await session.flush()
     return step
 
