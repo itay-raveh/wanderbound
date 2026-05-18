@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.logic.upload import TripMeta
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.polarsteps import Location, Point
+from app.models.polarsteps import Location, Point, PSStep
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step, StepRead
 from app.models.user import PSUser, User
@@ -279,6 +279,28 @@ def make_points(times: list[float]) -> list[Point]:
         Point(lat=52.0 + i * 0.01, lon=4.0 + i * 0.01, time=t)
         for i, t in enumerate(times)
     ]
+
+
+def make_ps_step(
+    step_id: int = 1,
+    *,
+    name: str | None = None,
+    slug: str | None = None,
+    description: str | None = None,
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "UTC",
+    location: Location = LOCATION,
+) -> PSStep:
+    resolved_name = name or f"Step {step_id}"
+    return PSStep(
+        id=step_id,
+        name=resolved_name,
+        slug=slug or resolved_name.lower().replace(" ", "-"),
+        description=description if description is not None else f"Desc {step_id}",
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+    )
 
 
 def make_weather(

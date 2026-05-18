@@ -16,12 +16,12 @@ from httpx_oauth.oauth2 import (
 from app.api.v1.routes.google_photos import _validate_match_names, match_media
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import MatchCompleted, _clear_caches
-from app.models.polarsteps import Location
-from app.models.step import StepRead
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
 
 from .factories import (
+    make_step_read,
+    make_user,
+    make_weather,
     sign_in_connected_google_photos,
     sign_in_uploaded_user,
 )
@@ -159,35 +159,19 @@ class TestValidateMatchNames:
 
 class TestMatchMedia:
     async def test_keeps_non_candidate_media_in_match_set(self) -> None:
-        user = User(
-            id=1,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
+        user = make_user(
+            1,
             google_sub="sub",
-            google_photos_refresh_token="refresh-token",  # noqa: S106
-            google_photos_connected_at=datetime.now(UTC),
         )
-        step = StepRead(
-            uid=1,
-            aid="trip-1",
-            id=7,
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        step = make_step_read(
+            step_id=7,
             name="Step",
             description="",
-            timestamp=1_700_000_000.0,
             timezone_id="UTC",
-            location=Location(
-                name="Place", detail="", country_code="nl", lat=52.0, lon=4.0
-            ),
-            elevation=0,
-            weather=Weather(
-                day=WeatherData(temp=20.0, feels_like=18.0, icon="clear"),
-                night=None,
-            ),
-            cover=None,
+            weather=make_weather(icon="clear"),
             pages=[["photo.jpg"]],
-            unused=[],
         )
         http = pin_http_clients()
         http.gphotos_oauth.refresh_token.return_value = OAuth2Token(

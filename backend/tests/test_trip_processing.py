@@ -8,29 +8,22 @@ from app.logic.trip_processing import (
     segment_timezone,
 )
 from app.models.polarsteps import Location, PSStep
-from app.models.user import User
+from tests.factories import make_ps_step, make_user
 
 
 class TestDefaultMediaResolutionWarningPreset:
     def test_uses_relaxed_warnings_for_normal_users(self) -> None:
-        user = User(
-            id=1,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
+        user = make_user(
+            1,
             google_sub="test-sub",
         )
 
         assert default_media_resolution_warning_preset(user) == "relaxed"
 
     def test_disables_warnings_for_demo_users(self) -> None:
-        user = User(
-            id=1,
+        user = make_user(
+            1,
             first_name="Demo",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
             is_demo=True,
         )
 
@@ -38,13 +31,11 @@ class TestDefaultMediaResolutionWarningPreset:
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:
-    return PSStep(
-        id=int(timestamp),
+    return make_ps_step(
+        int(timestamp),
         name=name,
-        slug=name.lower().replace(" ", "-"),
         description="",
         timestamp=timestamp,
-        timezone_id="UTC",
         location=Location(
             name=name, detail="", country_code=country_code, lat=0, lon=0
         ),
