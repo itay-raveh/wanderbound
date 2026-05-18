@@ -117,7 +117,7 @@ describe("MediaItem video controls", () => {
     const video = wrapper.get("video").element as HTMLVideoElement;
 
     await wrapper.get(".media-item").trigger("keydown", { key: "Enter" });
-    await new Promise((resolve) => setTimeout(resolve));
+    await nextTick();
 
     expect(playSpy).toHaveBeenCalled();
     expect(document.activeElement).toBe(video);
@@ -161,7 +161,6 @@ describe("MediaItem video controls", () => {
     const programmaticScrolling = ref(false);
     const wrapper = mountPhotoItem(programmaticScrolling);
     await nextTick();
-    await new Promise((resolve) => setTimeout(resolve));
     MockIntersectionObserver.instances.at(-1)?.trigger(true);
     await nextTick();
     const img = wrapper.get("img");
