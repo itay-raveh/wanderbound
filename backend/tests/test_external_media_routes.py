@@ -26,6 +26,23 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+async def _replace_device_ok(
+    external_media: ExternalMediaRoutes,
+    media_name: str,
+    **kwargs: int | bytes | None,
+) -> None:
+    resp = await external_media.replace_device(media_name, **kwargs)
+    assert resp.status_code == 200
+
+
+async def _undo_replacement_ok(
+    external_media: ExternalMediaRoutes,
+    media_name: str,
+) -> None:
+    resp = await external_media.undo_replacement(media_name)
+    assert resp.status_code == 200
+
+
 async def test_device_add_to_step_prepends_unused(
     session: AsyncSession,
     album_media_scenario: AlbumMediaFactory,
@@ -151,12 +168,9 @@ async def test_undo_replacement_restores_previous_dimensions(
 ) -> None:
     scenario = await album_media_scenario(write_media=True)
 
-    replace_resp = await external_media.replace_device(scenario.media_name)
-    assert replace_resp.status_code == 200
+    await _replace_device_ok(external_media, scenario.media_name)
+    await _undo_replacement_ok(external_media, scenario.media_name)
 
-    undo_resp = await external_media.undo_replacement(scenario.media_name)
-
-    assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 640
     assert row.height == 480
@@ -169,17 +183,12 @@ async def test_undo_after_repeated_replacement_restores_immediate_previous_file(
 ) -> None:
     scenario = await album_media_scenario(write_media=True)
 
-    first_replace = await external_media.replace_device(scenario.media_name)
-    assert first_replace.status_code == 200
-
-    second_replace = await external_media.replace_device(
-        scenario.media_name, width=1600, height=900
+    await _replace_device_ok(external_media, scenario.media_name)
+    await _replace_device_ok(
+        external_media, scenario.media_name, width=1600, height=900
     )
-    assert second_replace.status_code == 200
+    await _undo_replacement_ok(external_media, scenario.media_name)
 
-    undo_resp = await external_media.undo_replacement(scenario.media_name)
-
-    assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 1200
     assert row.height == 800
@@ -196,14 +205,12 @@ async def test_undo_replacement_restores_previous_upgrade_candidate(
     session.add(row)
     await session.commit()
 
-    replace_resp = await external_media.replace_device(scenario.media_name)
-    assert replace_resp.status_code == 200
+    await _replace_device_ok(external_media, scenario.media_name)
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is False
 
-    undo_resp = await external_media.undo_replacement(scenario.media_name)
+    await _undo_replacement_ok(external_media, scenario.media_name)
 
-    assert undo_resp.status_code == 200
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.upgrade_candidate is True
 
