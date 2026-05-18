@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.logic.eviction import _sizes_by_user, run_eviction
 from app.models.user import User
 
-from .factories import make_async_session_mock
+from .factories import make_async_session_mock, make_user
 
 if TYPE_CHECKING:
     import pytest
@@ -22,13 +22,10 @@ def _make_file(path: Path, size: int) -> Path:
 
 
 def _make_user(uid: int, *, hours_ago: int = 0) -> User:
-    return User(
-        id=uid,
+    return make_user(
+        uid,
         google_sub=f"g-{uid}",
         first_name="U",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
         album_ids=[],
         last_active_at=datetime.now(UTC) - timedelta(hours=hours_ago),
     )

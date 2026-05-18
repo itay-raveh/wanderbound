@@ -203,15 +203,26 @@ def make_user(
     *,
     album_ids: list[str] | None = None,
     google_sub: str | None = None,
+    first_name: str = "Test",
+    locale: str = "en-US",
+    unit_is_km: bool = True,
+    temperature_is_celsius: bool = True,
+    is_demo: bool = False,
+    last_active_at: datetime | None = None,
 ) -> User:
+    resolved_google_sub = google_sub
+    if resolved_google_sub is None and not is_demo:
+        resolved_google_sub = f"google-{uid}"
     user = User(
         id=uid,
-        google_sub=google_sub if google_sub is not None else f"google-{uid}",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
+        google_sub=resolved_google_sub,
+        first_name=first_name,
+        locale=locale,
+        unit_is_km=unit_is_km,
+        temperature_is_celsius=temperature_is_celsius,
         album_ids=album_ids if album_ids is not None else [AID],
+        is_demo=is_demo,
+        last_active_at=last_active_at or datetime.now(UTC),
     )
     user.folder.mkdir(parents=True, exist_ok=True)
     return user
@@ -270,25 +281,128 @@ def make_points(times: list[float]) -> list[Point]:
     ]
 
 
+def make_weather(
+    temp: float = 20.0,
+    feels_like: float = 18.0,
+    icon: str = "sun",
+) -> Weather:
+    return Weather(
+        day=WeatherData(temp=temp, feels_like=feels_like, icon=icon),
+        night=None,
+    )
+
+
+def make_album(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    title: str = "Test Album",
+    subtitle: str = "A subtitle",
+    front_cover_photo: str = "photo1.jpg",
+    back_cover_photo: str = "photo2.jpg",
+    colors: dict[str, str] | None = None,
+    font: str | None = "Assistant",
+    body_font: str = "Frank Ruhl Libre",
+) -> Album:
+    values: dict[str, object] = {
+        "uid": uid,
+        "id": aid,
+        "title": title,
+        "subtitle": subtitle,
+        "hidden_steps": [],
+        "hidden_headers": [],
+        "maps_ranges": [],
+        "front_cover_photo": front_cover_photo,
+        "back_cover_photo": back_cover_photo,
+        "colors": colors if colors is not None else {"nl": "#0000ff"},
+        "body_font": body_font,
+    }
+    if font is not None:
+        values["font"] = font
+    return Album(**values)
+
+
+def make_album_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    name: str = DEFAULT_MEDIA_NAME,
+    width: int = 1920,
+    height: int = 1080,
+    kind: str | None = None,
+    byte_size: int = 1234,
+    upgrade_candidate: bool = True,
+) -> AlbumMedia:
+    return AlbumMedia(
+        uid=uid,
+        aid=aid,
+        name=name,
+        kind=kind or ("video" if name.endswith(".mp4") else "photo"),
+        width=width,
+        height=height,
+        byte_size=byte_size,
+        upgrade_candidate=upgrade_candidate,
+    )
+
+
+def make_step(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    name: str = "Test Step",
+    description: str = "A test step.",
+    timestamp: float = 1_700_000_000.0,
+    timezone_id: str = "Europe/Amsterdam",
+    location: Location | None = LOCATION,
+    elevation: int = 0,
+    weather: Weather | None = None,
+    cover_media_name: str | None = None,
+) -> Step:
+    return Step(
+        uid=uid,
+        aid=aid,
+        id=step_id,
+        name=name,
+        description=description,
+        timestamp=timestamp,
+        timezone_id=timezone_id,
+        location=location,
+        elevation=elevation,
+        weather=weather or WEATHER,
+        cover_media_name=cover_media_name,
+    )
+
+
+def make_segment(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    start_time: float = 1_700_000_000.0,
+    end_time: float = 1_700_003_600.0,
+    kind: SegmentKind = SegmentKind.driving,
+    points: list[Point] | None = None,
+    timezone_id: str = "UTC",
+) -> Segment:
+    return Segment(
+        uid=uid,
+        aid=aid,
+        start_time=start_time,
+        end_time=end_time,
+        kind=kind,
+        timezone_id=timezone_id,
+        points=points
+        if points is not None
+        else make_points([start_time, (start_time + end_time) / 2, end_time]),
+    )
+
+
 async def insert_album(
     session: AsyncSession,
     uid: int,
     aid: str = AID,
 ) -> Album:
-    album = Album(
-        uid=uid,
-        id=aid,
-        title="Test Album",
-        subtitle="A subtitle",
-        hidden_steps=[],
-        hidden_headers=[],
-        maps_ranges=[],
-        front_cover_photo="photo1.jpg",
-        back_cover_photo="photo2.jpg",
-        colors={"nl": "#0000ff"},
-        font="Assistant",
-        body_font="Frank Ruhl Libre",
-    )
+    album = make_album(uid, aid)
     session.add(album)
     await session.flush()
     return album
@@ -302,15 +416,12 @@ async def insert_album_media(
     width: int = 1920,
     height: int = 1080,
 ) -> AlbumMedia:
-    media = AlbumMedia(
+    media = make_album_media(
         uid=uid,
         aid=aid,
         name=name,
-        kind="video" if name.endswith(".mp4") else "photo",
         width=width,
         height=height,
-        byte_size=1234,
-        upgrade_candidate=True,
     )
     session.add(media)
     await session.flush()
@@ -332,17 +443,11 @@ async def insert_step(
             continue
         if await session.get(AlbumMedia, (uid, aid, name)) is None:
             await insert_album_media(session, uid, aid=aid, name=name)
-    step = Step(
-        uid=uid,
-        aid=aid,
-        id=step_id,
-        name="Test Step",
-        description="A test step.",
+    step = make_step(
+        uid,
+        aid,
+        step_id=step_id,
         timestamp=timestamp,
-        timezone_id="Europe/Amsterdam",
-        location=LOCATION,
-        elevation=0,
-        weather=WEATHER,
         cover_media_name=cover_media_name,
     )
     session.add(step)
@@ -425,15 +530,13 @@ async def insert_segment(
     kind: SegmentKind = SegmentKind.driving,
     points: list[Point] | None = None,
 ) -> Segment:
-    pts = points or make_points([start_time, (start_time + end_time) / 2, end_time])
-    segment = Segment(
+    segment = make_segment(
         uid=uid,
         aid=aid,
         start_time=start_time,
         end_time=end_time,
         kind=kind,
-        timezone_id="UTC",
-        points=pts,
+        points=points,
     )
     session.add(segment)
     await session.flush()

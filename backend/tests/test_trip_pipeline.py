@@ -17,8 +17,15 @@ from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
-from app.models.weather import Weather, WeatherData
-from tests.factories import collect_async, make_points
+from tests.factories import (
+    collect_async,
+    make_album,
+    make_album_media,
+    make_segment,
+    make_step,
+    make_user,
+    make_weather,
+)
 
 AID = "test-trip"
 UID = 1
@@ -48,14 +55,7 @@ async def _create_schema(engine: AsyncEngine) -> None:
 
 
 def _user() -> User:
-    return User(
-        id=UID,
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        google_sub="test-sub",
-    )
+    return make_user(UID, google_sub="test-sub")
 
 
 def _album(
@@ -65,21 +65,16 @@ def _album(
     back_cover_photo: str = "b.jpg",
     font: str | None = "Assistant",
 ) -> Album:
-    values = {
-        "uid": UID,
-        "id": AID,
-        "title": title,
-        "subtitle": "",
-        "hidden_steps": [],
-        "maps_ranges": [],
-        "front_cover_photo": front_cover_photo,
-        "back_cover_photo": back_cover_photo,
-        "colors": {},
-        "body_font": "Frank Ruhl Libre",
-    }
-    if font is not None:
-        values["font"] = font
-    return Album(**values)
+    return make_album(
+        UID,
+        AID,
+        title=title,
+        subtitle="",
+        front_cover_photo=front_cover_photo,
+        back_cover_photo=back_cover_photo,
+        colors={},
+        font=font,
+    )
 
 
 def _step(
@@ -92,21 +87,18 @@ def _step(
     feels_like: float = 18.0,
     weather_icon: str = "sun",
 ) -> Step:
-    return Step(
-        uid=UID,
-        aid=AID,
-        id=step_id,
+    return make_step(
+        UID,
+        AID,
+        step_id=step_id,
         name=name,
         description="",
-        cover_media_name=cover_media_name,
         timestamp=timestamp,
         timezone_id="UTC",
         location=None,
         elevation=0,
-        weather=Weather(
-            day=WeatherData(temp=temp, feels_like=feels_like, icon=weather_icon),
-            night=None,
-        ),
+        weather=make_weather(temp=temp, feels_like=feels_like, icon=weather_icon),
+        cover_media_name=cover_media_name,
     )
 
 
@@ -131,27 +123,24 @@ def _reuploaded_step() -> Step:
 
 
 def _segment() -> Segment:
-    return Segment(
-        uid=UID,
-        aid=AID,
+    return make_segment(
+        UID,
+        AID,
         start_time=100.0,
         end_time=500.0,
         kind=SegmentKind.driving,
-        timezone_id="UTC",
-        points=make_points([100.0, 300.0, 500.0]),
     )
 
 
 def _cover_media() -> AlbumMedia:
-    return AlbumMedia(
-        uid=UID,
-        aid=AID,
+    return make_album_media(
+        UID,
+        AID,
         name="cover.jpg",
         kind="photo",
         width=640,
         height=480,
         byte_size=10,
-        upgrade_candidate=True,
     )
 
 
@@ -200,32 +189,21 @@ class TestProcessTripSegmentEvents:
             step_count=1,
             all_steps=[SimpleNamespace(location=location)],
         )
-        user = User(
-            id=UID,
-            first_name="Test",
-            locale="en-US",
-            unit_is_km=True,
-            temperature_is_celsius=True,
-            google_sub="test-sub",
-        )
+        user = _user()
         segments = [
-            Segment(
-                uid=UID,
-                aid=AID,
+            make_segment(
+                UID,
+                AID,
                 start_time=100.0,
                 end_time=200.0,
                 kind=SegmentKind.driving,
-                timezone_id="UTC",
-                points=make_points([100.0, 200.0]),
             ),
-            Segment(
-                uid=UID,
-                aid=AID,
+            make_segment(
+                UID,
+                AID,
                 start_time=300.0,
                 end_time=400.0,
                 kind=SegmentKind.walking,
-                timezone_id="UTC",
-                points=make_points([300.0, 400.0]),
             ),
         ]
         db_out: list = []
