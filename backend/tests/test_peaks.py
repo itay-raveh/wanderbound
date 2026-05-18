@@ -32,6 +32,10 @@ def _mock_overpass_client(peaks: list[tuple[float, str]]) -> httpx.AsyncClient:
     return async_client(post=mock_response(_overpass_json(peaks)))
 
 
+def _peak_profile(middle: float) -> tuple[list[_Loc], list[float]]:
+    return [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)], [500.0, middle, 500.0]
+
+
 class TestParseEle:
     def test_plain_string(self) -> None:
         assert _parse_ele("5327") == 5327.0
@@ -99,8 +103,7 @@ class TestCorrectPeaks:
     async def test_peak_correction_cases(
         self, middle: float, peaks: list[tuple[float, str]], expected: float
     ) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        elevs = [500.0, middle, 500.0]
+        locs, elevs = _peak_profile(middle)
 
         client = _mock_overpass_client(peaks)
         result = await correct_peaks(client, locs, elevs)
@@ -108,8 +111,7 @@ class TestCorrectPeaks:
         assert result == [500.0, expected, 500.0]
 
     async def test_overpass_failure_returns_original(self) -> None:
-        locs = [_Loc(0, 0), _Loc(0, 0), _Loc(0, 0)]
-        elevs = [500.0, 5236.0, 500.0]
+        locs, elevs = _peak_profile(5236.0)
 
         client = async_client(post=httpx.HTTPError("timeout"))
         result = await correct_peaks(client, locs, elevs)
