@@ -13,6 +13,7 @@ from app.logic.spatial.segments import (
 from app.logic.trip_processing import multi_day_hike_ranges, segment_timezone
 from app.models.polarsteps import Point, PSLocations, PSTrip
 from app.models.segment import Segment, SegmentData, SegmentKind
+from tests.factories import make_segment
 
 _BASE_TS = datetime(2024, 1, 1, tzinfo=UTC).timestamp()
 
@@ -476,9 +477,9 @@ def _multi_day_seg(
         lat += km / _KM_PER_DEG_LAT
         points.append(Point(lat=lat, lon=0.0, time=t_end))
 
-    return Segment(
-        uid=1,
-        aid="trip1",
+    return make_segment(
+        1,
+        "trip1",
         start_time=points[0].time,
         end_time=points[-1].time,
         kind=SegmentKind.hike,
@@ -493,9 +494,9 @@ def _minimal_seg(
     end: float,
     tz: str = "America/Santiago",
 ) -> Segment:
-    return Segment(
-        uid=1,
-        aid="trip1",
+    return make_segment(
+        1,
+        "trip1",
         start_time=start,
         end_time=end,
         kind=kind,
@@ -516,9 +517,9 @@ class TestMultiDayHikeRanges:
         zone = ZoneInfo("America/Santiago")
         t1 = datetime(2024, 12, 8, 8, 0, tzinfo=zone).timestamp()
         t2 = datetime(2024, 12, 8, 23, 30, tzinfo=zone).timestamp()
-        seg = Segment(
-            uid=1,
-            aid="trip1",
+        seg = make_segment(
+            1,
+            "trip1",
             start_time=t1,
             end_time=t2,
             kind=SegmentKind.hike,
@@ -598,9 +599,9 @@ class TestMultiDayHikeRanges:
         t1 = datetime(d1.year, d1.month, d1.day, 18, 0, tzinfo=zone).timestamp()
         t2 = datetime(d1.year, d1.month, d1.day, 23, 59, tzinfo=zone).timestamp()
         t3 = datetime(d2.year, d2.month, d2.day, 6, 0, tzinfo=zone).timestamp()
-        seg = Segment(
-            uid=1,
-            aid="trip1",
+        seg = make_segment(
+            1,
+            "trip1",
             start_time=t1,
             end_time=t3,
             kind=SegmentKind.hike,
@@ -620,9 +621,9 @@ class TestMultiDayHikeRanges:
         t1 = datetime(d1.year, d1.month, d1.day, 14, 0, tzinfo=zone).timestamp()
         t_mid = datetime(d1.year, d1.month, d1.day, 23, 30, tzinfo=zone).timestamp()
         t2 = datetime(d2.year, d2.month, d2.day, 10, 0, tzinfo=zone).timestamp()
-        seg = Segment(
-            uid=1,
-            aid="trip1",
+        seg = make_segment(
+            1,
+            "trip1",
             start_time=t1,
             end_time=t2,
             kind=SegmentKind.hike,
@@ -660,9 +661,9 @@ class TestMultiDayHikeRangesIntegration:
     ) -> list[Segment]:
         steps = sa_trip.all_steps
         return [
-            Segment(
-                uid=1,
-                aid="sa2024",
+            make_segment(
+                1,
+                "sa2024",
                 start_time=seg.points[0].time,
                 end_time=seg.points[-1].time,
                 kind=seg.kind,

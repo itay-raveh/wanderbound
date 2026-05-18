@@ -7,7 +7,7 @@ import tempfile
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,7 +18,12 @@ from PIL import Image
 from app.core.config import get_settings
 from app.logic.upload import TripMeta
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import (
+    AlbumMedia,
+    AlbumMediaUndoSnapshot,
+    StepPageMedia,
+    StepUnusedMedia,
+)
 from app.models.polarsteps import Location, Point, PSStep
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step, StepRead
@@ -368,6 +373,62 @@ def make_album_media(
         height=height,
         byte_size=byte_size,
         upgrade_candidate=upgrade_candidate,
+    )
+
+
+def make_step_page_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    page_index: int = 0,
+    position_index: int = 0,
+) -> StepPageMedia:
+    return StepPageMedia(
+        uid=uid,
+        aid=aid,
+        step_id=step_id,
+        media_name=media_name,
+        page_index=page_index,
+        position_index=position_index,
+    )
+
+
+def make_step_unused_media(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    step_id: int = 1,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    position_index: int = 0,
+) -> StepUnusedMedia:
+    return StepUnusedMedia(
+        uid=uid,
+        aid=aid,
+        step_id=step_id,
+        media_name=media_name,
+        position_index=position_index,
+    )
+
+
+def make_undo_snapshot(
+    uid: int = 1,
+    aid: str = AID,
+    *,
+    media_name: str = DEFAULT_MEDIA_NAME,
+    created_at: datetime | None = None,
+    expires_at: datetime | None = None,
+) -> AlbumMediaUndoSnapshot:
+    now = created_at or datetime.now(UTC)
+    return AlbumMediaUndoSnapshot(
+        uid=uid,
+        aid=aid,
+        media_name=media_name,
+        snapshot_path=str(Path(".undo") / media_name),
+        upgrade_candidate=True,
+        created_at=now,
+        expires_at=expires_at or now + timedelta(minutes=5),
     )
 
 
