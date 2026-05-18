@@ -16,11 +16,15 @@ function selected(page: Page): Locator {
   return page.locator('[role="button"][aria-pressed="true"]');
 }
 
+async function expectOneSelected(page: Page, timeout = 3_000) {
+  await expect(selected(page)).toHaveCount(1, { timeout });
+}
+
 async function selectFirstPhoto(page: Page): Promise<Locator> {
   await scrollToStep(page, "Argentina", "Buenos Aires");
   const first = photos(page).first();
   await first.click();
-  await expect(selected(page)).toHaveCount(1);
+  await expectOneSelected(page);
   return first;
 }
 
@@ -34,7 +38,7 @@ async function selectedIndex(page: Page): Promise<number> {
 async function press(page: Page, key: string, times: number) {
   for (let i = 0; i < times; i++) {
     await page.keyboard.press(key);
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
   }
 }
 
@@ -65,7 +69,7 @@ test.describe("Photo focus & arrow navigation", () => {
     await page.keyboard.press("ArrowRight");
 
     await expect(first).toHaveAttribute("aria-pressed", "false");
-    await expect(selected(page)).toHaveCount(1);
+    await expectOneSelected(page);
   });
 
   test("ArrowRight moves DOM focus to the selected photo", async ({
@@ -75,7 +79,7 @@ test.describe("Photo focus & arrow navigation", () => {
     await expect(first).toHaveAttribute("aria-pressed", "true");
 
     await page.keyboard.press("ArrowRight");
-    await expect(selected(page)).toHaveCount(1);
+    await expectOneSelected(page);
 
     await expect
       .poll(async () =>
@@ -100,7 +104,7 @@ test.describe("Photo focus & arrow navigation", () => {
     await page.keyboard.press("ArrowLeft");
 
     await expect(second).toHaveAttribute("aria-pressed", "false");
-    await expect(selected(page)).toHaveCount(1);
+    await expectOneSelected(page);
   });
 
   test("ArrowRight crosses step boundary", async ({ focusPage: page }) => {
@@ -111,7 +115,7 @@ test.describe("Photo focus & arrow navigation", () => {
 
     await page.keyboard.press("ArrowRight");
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 5_000 });
+    await expectOneSelected(page, 5_000);
     await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
     const afterBoundary = await selected(page).boundingBox();
     expect(afterBoundary!.y).not.toBeCloseTo(beforeBoundary!.y, -1);
@@ -125,7 +129,7 @@ test.describe("Photo focus & arrow navigation", () => {
 
     await page.keyboard.press("ArrowLeft");
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 5_000 });
+    await expectOneSelected(page, 5_000);
     await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
     const backInStep1 = await selected(page).boundingBox();
     expect(backInStep1!.y).not.toBeCloseTo(inStep2!.y, -1);
@@ -139,7 +143,7 @@ test.describe("Photo focus & arrow navigation", () => {
     const indices: number[] = [];
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press("ArrowRight");
-      await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+      await expectOneSelected(page);
       indices.push(await selectedIndex(page));
     }
 
@@ -168,7 +172,7 @@ test.describe("Photo focus & arrow navigation", () => {
       await page.keyboard.press("ArrowRight");
     }
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 5_000 });
+    await expectOneSelected(page, 5_000);
     await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
   });
 });
@@ -185,7 +189,7 @@ test.describe("Send to unused & set as cover", () => {
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
     await expect(selected(page)).toBeInViewport();
   });
 
@@ -198,7 +202,7 @@ test.describe("Send to unused & set as cover", () => {
     const indexBefore = await selectedIndex(page);
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
     const indexAfter = await selectedIndex(page);
     expect(indexAfter).toBeLessThan(indexBefore);
   });
@@ -209,9 +213,9 @@ test.describe("Send to unused & set as cover", () => {
     await selectFirstPhoto(page);
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
     await expect(selected(page)).toHaveCount(0, { timeout: 3_000 });
@@ -225,7 +229,7 @@ test.describe("Send to unused & set as cover", () => {
 
     await page.keyboard.press(PHOTO_SHORTCUTS.setAsCover);
 
-    await expect(selected(page)).toHaveCount(1, { timeout: 3_000 });
+    await expectOneSelected(page);
     await expect(first).not.toHaveAttribute("aria-pressed", "true");
   });
 
