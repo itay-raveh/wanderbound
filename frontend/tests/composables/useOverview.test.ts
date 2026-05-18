@@ -1,12 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { computeOverview } from "@/composables/useOverview";
-import { makeStep } from "../helpers";
+import { makeLocation, makeStep } from "../helpers";
 
 describe("computeOverview", () => {
   it("excludes countries with code '00'", () => {
     const steps = [
-      makeStep({ location: { lat: 0, lon: 0, name: "Unknown", detail: "Unknown", country_code: "00" } }),
-      makeStep({ id: 2, location: { lat: 52.52, lon: 13.4, name: "Berlin", detail: "Germany", country_code: "DE" } }),
+      makeStep({
+        location: makeLocation({
+          name: "Unknown",
+          detail: "Unknown",
+          country_code: "00",
+        }),
+      }),
+      makeStep({
+        id: 2,
+        location: makeLocation({
+          lat: 52.52,
+          lon: 13.4,
+          name: "Berlin",
+          detail: "Germany",
+          country_code: "DE",
+        }),
+      }),
     ];
     const overview = computeOverview(steps, [], null, null);
     expect(overview.countries).toEqual([{ code: "DE", detail: "Germany" }]);
@@ -50,5 +65,4 @@ describe("computeOverview", () => {
     const overview = computeOverview(steps, [], null, null);
     expect(overview.coldest).toMatchObject({ value: -5, isNight: true });
   });
-
 });

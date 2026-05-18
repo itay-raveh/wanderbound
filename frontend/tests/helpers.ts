@@ -12,7 +12,7 @@ import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
-import type { AlbumMedia, Segment, StepRead as Step } from "@/client";
+import type { AlbumMedia, Location, Segment, StepRead as Step } from "@/client";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -103,6 +103,17 @@ export function makeAlbumMedia(
   };
 }
 
+export function makeLocation(overrides: Partial<Location> = {}): Location {
+  return {
+    lat: 0,
+    lon: 0,
+    name: "Place",
+    detail: "",
+    country_code: "US",
+    ...overrides,
+  };
+}
+
 export function provideTestAlbum({
   albumId = "album-1",
   colors = {},
@@ -155,7 +166,7 @@ export function makeStep(overrides: Partial<Step> = {}): Step {
     aid: "a1",
     timestamp: 1704067200,
     timezone_id: "UTC",
-    location: { lat: 0, lon: 0, name: "Place", detail: "", country_code: "US" },
+    location: makeLocation(),
     elevation: 0,
     weather: {
       day: { temp: 20, feels_like: 18, icon: "clear-day" },
