@@ -1,4 +1,4 @@
-import { createApp, type Component } from "vue";
+import { createApp, defineComponent, h, type Component } from "vue";
 import { mount, type ComponentMountingOptions } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
@@ -33,6 +33,37 @@ export function withSetup<T>(composable: () => T): T {
   });
 
   return result;
+}
+
+export function withParentSetup<T>(
+  parentSetup: () => void,
+  composable: () => T,
+  { plugins = true }: { plugins?: boolean } = {},
+): { result: T; unmount: () => void } {
+  let result!: T;
+  const Child = defineComponent({
+    setup() {
+      result = composable();
+      return () => null;
+    },
+  });
+  const Parent = defineComponent({
+    setup() {
+      parentSetup();
+      return () => h(Child);
+    },
+  });
+  const app = createApp(Parent);
+  if (plugins) {
+    app.use(createPinia());
+    app.use(PiniaColada);
+    app.use(Quasar, {});
+    app.use(i18n);
+  }
+  app.mount(document.createElement("div"));
+  const unmount = () => app.unmount();
+  onTestFinished(unmount);
+  return { result, unmount };
 }
 
 /** Shared plugin list for mounting components under test. */

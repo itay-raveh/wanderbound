@@ -1,55 +1,37 @@
-import { createApp, defineComponent, h, ref, type Ref } from "vue";
+import { ref, type Ref } from "vue";
 import type { StepRead as Step, StepUpdate } from "@/client";
 import { provideStepMutate, useStepLayout } from "@/composables/useStepLayout";
-import { makeStep } from "../helpers";
+import { makeStep, withParentSetup } from "../helpers";
 
 vi.mock("vue-draggable-plus", () => ({
   useDraggable: vi.fn(),
 }));
 
-interface LayoutResult {
-  saveField: (patch: Partial<StepUpdate>) => void;
-  onPageUpdate: (idx: number, page: string[]) => void;
-  onCoverUpdate: (cover: string) => void;
-  printMode: boolean;
-}
-
 function mountStepLayout(step: Step) {
   const stepRef = ref(step);
   const mutateSpy =
     vi.fn<(payload: { sid: number; update: StepUpdate }) => void>();
-  let result!: LayoutResult;
-
-  const Child = defineComponent({
-    setup() {
+  const { result } = withParentSetup(
+    () => {
+      provideStepMutate(mutateSpy);
+    },
+    () => {
       const dropZoneRef = ref(null);
       const coverDropRef = ref(null);
-      result = useStepLayout(stepRef as Ref<Step>, {
+      return useStepLayout(stepRef as Ref<Step>, {
         dropZoneRef,
         coverDropRef,
       });
-      return () => null;
     },
-  });
-
-  const Parent = defineComponent({
-    setup() {
-      provideStepMutate(mutateSpy);
-      return () => h(Child);
-    },
-  });
-
-  const app = createApp(Parent);
-  app.mount(document.createElement("div"));
-
-  onTestFinished(() => {
-    app.unmount();
-  });
+    { plugins: false },
+  );
 
   return { result, mutateSpy, stepRef };
 }
 
-function lastUpdate(mutateSpy: ReturnType<typeof mountStepLayout>["mutateSpy"]) {
+function lastUpdate(
+  mutateSpy: ReturnType<typeof mountStepLayout>["mutateSpy"],
+) {
   expect(mutateSpy).toHaveBeenCalledOnce();
   return mutateSpy.mock.calls[0][0].update;
 }
@@ -72,7 +54,9 @@ describe("onCoverUpdate", () => {
       { cover: "new_cover", unused: ["u1", "u2"] },
     ],
   ])("updates cover placement", (stepPatch, cover, expected) => {
-    const { result, mutateSpy } = mountStepLayout(makeStep({ id: 1, ...stepPatch }));
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({ id: 1, ...stepPatch }),
+    );
 
     result.onCoverUpdate(cover);
 
@@ -83,7 +67,13 @@ describe("onCoverUpdate", () => {
 describe("onPageUpdate", () => {
   it.each([
     [
-      { pages: [["a", "b"], ["c", "d"]], unused: [] },
+      {
+        pages: [
+          ["a", "b"],
+          ["c", "d"],
+        ],
+        unused: [],
+      },
       ["a", "b", "c"],
       { pages: [["a", "b", "c"], ["d"]], unused: [] },
     ],
@@ -98,7 +88,9 @@ describe("onPageUpdate", () => {
       { pages: [["a", "b"]] },
     ],
   ])("updates page placement", (stepPatch, page, expected) => {
-    const { result, mutateSpy } = mountStepLayout(makeStep({ id: 1, ...stepPatch }));
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({ id: 1, ...stepPatch }),
+    );
 
     result.onPageUpdate(0, page);
 

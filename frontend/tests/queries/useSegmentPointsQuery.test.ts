@@ -1,12 +1,10 @@
 import { flushPromises } from "@vue/test-utils";
-import { PiniaColada } from "@pinia/colada";
-import { createPinia } from "pinia";
 import { http, HttpResponse } from "msw";
-import { createApp, computed, defineComponent, h, ref } from "vue";
+import { computed, ref } from "vue";
 import type { Ref } from "vue";
 import { server } from "../mocks/server";
 import { BASE } from "../mocks/handlers";
-import { makeSegment } from "../helpers";
+import { makeSegment, withParentSetup } from "../helpers";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   ROUTE_REFETCH_LIMIT,
@@ -22,15 +20,8 @@ function mountQuery(
   fromTime: Ref<number> = ref(0),
   toTime: Ref<number> = ref(100),
 ) {
-  let result!: ReturnType<typeof useSegmentPointsQuery>;
-  const Child = defineComponent({
-    setup() {
-      result = useSegmentPointsQuery(fromTime, toTime);
-      return () => null;
-    },
-  });
-  const Parent = defineComponent({
-    setup() {
+  const { result: query, unmount } = withParentSetup(
+    () => {
       provideAlbum({
         albumId: ref("aid-1"),
         colors: computed(() => ({})),
@@ -41,16 +32,11 @@ function mountQuery(
           () => DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
         ),
       });
-      return () => h(Child);
     },
-  });
-  const app = createApp(Parent);
-  app.use(createPinia());
-  app.use(PiniaColada);
-  app.mount(document.createElement("div"));
-  onTestFinished(() => app.unmount());
+    () => useSegmentPointsQuery(fromTime, toTime),
+  );
 
-  return { query: result, unmount: () => app.unmount() };
+  return { query, unmount };
 }
 
 function mockSegmentPoints(handler: (calls: number) => SegmentHandlerResult) {
