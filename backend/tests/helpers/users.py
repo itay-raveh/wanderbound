@@ -24,6 +24,11 @@ class UserRoutes:
             f"/api/v1/auth/{provider}", json={"credential": credential}
         )
 
+    async def auth_ok(self, provider: str, credential: str = "fake") -> dict | None:
+        resp = await self.auth(provider, credential)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def sign_in(
         self, provider: str = "google", payload: dict | None = None
     ) -> None:
@@ -48,9 +53,19 @@ class UserRoutes:
             files={"file": ("data.zip", b"fake", "application/zip")},
         )
 
+    async def upload_ok(self) -> dict:
+        resp = await self.upload()
+        assert resp.status_code == 200
+        return resp.json()
+
     async def upload_with_extract(self, users_dir: Path) -> Response:
         with mock_extract(users_dir):
             return await self.upload()
+
+    async def upload_with_extract_ok(self, users_dir: Path) -> dict:
+        resp = await self.upload_with_extract(users_dir)
+        assert resp.status_code == 200
+        return resp.json()
 
     async def current(self) -> Response:
         return await self.client.get("/api/v1/users")
@@ -63,8 +78,18 @@ class UserRoutes:
     async def update(self, **payload: object) -> Response:
         return await self.client.patch("/api/v1/users", json=payload)
 
+    async def update_ok(self, **payload: object) -> dict:
+        resp = await self.update(**payload)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def delete(self) -> Response:
         return await self.client.delete("/api/v1/users")
+
+    async def delete_ok(self) -> dict:
+        resp = await self.delete()
+        assert resp.status_code == 200
+        return resp.json()
 
     async def demo(self, *, accept_language: str | None = None) -> Response:
         headers = (

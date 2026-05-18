@@ -47,9 +47,7 @@ class TestAuthProvider:
     ) -> None:
         _ = sub_field, sub_value
         with mock_jwt(provider):
-            resp = await user_routes.auth(provider)
-        assert resp.status_code == 200
-        assert resp.json() is None
+            assert await user_routes.auth_ok(provider) is None
 
     async def test_existing_user_returns_user(
         self,
@@ -63,9 +61,7 @@ class TestAuthProvider:
         await user_routes.logout()
 
         with mock_jwt(provider):
-            resp = await user_routes.auth(provider)
-        assert resp.status_code == 200
-        user = resp.json()
+            user = await user_routes.auth_ok(provider)
         assert user is not None
         assert user[sub_field] == sub_value
 
@@ -126,8 +122,7 @@ class TestUpload:
     ) -> None:
         no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
         await user_routes.sign_in(payload=no_name)
-        resp = await user_routes.upload_with_extract(users_dir)
-        user = resp.json()["user"]
+        user = (await user_routes.upload_with_extract_ok(users_dir))["user"]
         assert user["first_name"] == "Zip"
 
     @pytest.mark.usefixtures("uploaded_user")
@@ -142,24 +137,20 @@ class TestUpload:
             "app.api.v1.routes.users.extract_and_scan",
             return_value=(folder, PS_USER, new_trips),
         ):
-            resp = await user_routes.upload()
-        assert resp.status_code == 200
-        assert resp.json()["trips"][0]["id"] == "trip-2"
+            data = await user_routes.upload_ok()
+        assert data["trips"][0]["id"] == "trip-2"
 
 
 class TestUpdateUser:
     @pytest.mark.usefixtures("uploaded_user")
     async def test_update_locale(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.update(locale="he-IL")
-        assert resp.status_code == 200
-        assert resp.json()["locale"] == "he-IL"
+        assert (await user_routes.update_ok(locale="he-IL"))["locale"] == "he-IL"
 
 
 class TestDeleteUser:
     @pytest.mark.usefixtures("uploaded_user")
     async def test_clears_session(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.delete()
-        assert resp.status_code == 200
+        await user_routes.delete_ok()
         resp = await user_routes.current()
         assert resp.status_code == 401
 
@@ -168,5 +159,5 @@ class TestDeleteUser:
     ) -> None:
         user_folder = users_dir / str(uploaded_user["id"])
         assert user_folder.exists()
-        await user_routes.delete()
+        await user_routes.delete_ok()
         assert not user_folder.exists()
