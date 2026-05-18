@@ -20,6 +20,12 @@ const expectTypes = (sections: Section[], types: Section["type"][]) => {
   expect(sections.map((section) => section.type)).toEqual(types);
 };
 
+const stepAt = (id: number, datetime: string, timestamp = id * 100) =>
+  makeStep({ id, datetime, timestamp });
+
+const drivingSegment = (start_time: number, end_time: number) =>
+  makeSegment({ start_time, end_time, kind: "driving" });
+
 describe("filterCoverFromPages", () => {
   it.each([
     [
@@ -67,11 +73,11 @@ describe("segmentsOverlapping", () => {
 describe("buildSections", () => {
   it("inserts map section before its first step", () => {
     const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-      makeStep({ id: 2, datetime: "2024-01-20T00:00:00Z", timestamp: 200 }),
-      makeStep({ id: 3, datetime: "2024-02-15T00:00:00Z", timestamp: 300 }),
+      stepAt(1, "2024-01-10T00:00:00Z"),
+      stepAt(2, "2024-01-20T00:00:00Z"),
+      stepAt(3, "2024-02-15T00:00:00Z"),
     ];
-    const segments = [makeSegment({ start_time: 50, end_time: 250, kind: "driving" })];
+    const segments = [drivingSegment(50, 250)];
     const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
 
     const result = buildSections(steps, segments, ranges);
@@ -79,10 +85,10 @@ describe("buildSections", () => {
   });
 
   it("creates hike section when only hike segments (no transport)", () => {
-    const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
+    const steps = [stepAt(1, "2024-01-10T00:00:00Z")];
+    const segments = [
+      makeSegment({ start_time: 50, end_time: 150, kind: "hike" }),
     ];
-    const segments = [makeSegment({ start_time: 50, end_time: 150, kind: "hike" })];
     const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
 
     const result = buildSections(steps, segments, ranges);
@@ -93,12 +99,10 @@ describe("buildSections", () => {
   });
 
   it("creates map section (not hike) when there are transport segments", () => {
-    const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-    ];
+    const steps = [stepAt(1, "2024-01-10T00:00:00Z")];
     const segments = [
       makeSegment({ start_time: 50, end_time: 150, kind: "hike" }),
-      makeSegment({ start_time: 50, end_time: 150, kind: "driving" }),
+      drivingSegment(50, 150),
     ];
     const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
 
@@ -107,9 +111,7 @@ describe("buildSections", () => {
   });
 
   it("skips ranges with no matching steps", () => {
-    const steps = [
-      makeStep({ id: 1, datetime: "2024-03-10T00:00:00Z", timestamp: 100 }),
-    ];
+    const steps = [stepAt(1, "2024-03-10T00:00:00Z")];
     const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
     const result = buildSections(steps, [], ranges);
     expectTypes(result, ["step"]);
@@ -117,13 +119,10 @@ describe("buildSections", () => {
 
   it("handles multiple map ranges with different steps", () => {
     const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-      makeStep({ id: 2, datetime: "2024-02-10T00:00:00Z", timestamp: 200 }),
+      stepAt(1, "2024-01-10T00:00:00Z"),
+      stepAt(2, "2024-02-10T00:00:00Z"),
     ];
-    const segments = [
-      makeSegment({ start_time: 50, end_time: 150, kind: "driving" }),
-      makeSegment({ start_time: 150, end_time: 250, kind: "driving" }),
-    ];
+    const segments = [drivingSegment(50, 150), drivingSegment(150, 250)];
     const ranges: DateRange[] = [
       ["2024-01-01", "2024-01-31"],
       ["2024-02-01", "2024-02-28"],
@@ -135,13 +134,10 @@ describe("buildSections", () => {
 
   it("attaches overlapping segments to map sections", () => {
     const steps = [
-      makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z", timestamp: 100 }),
-      makeStep({ id: 2, datetime: "2024-01-20T00:00:00Z", timestamp: 200 }),
+      stepAt(1, "2024-01-10T00:00:00Z"),
+      stepAt(2, "2024-01-20T00:00:00Z"),
     ];
-    const segments = [
-      makeSegment({ start_time: 50, end_time: 150, kind: "driving" }),
-      makeSegment({ start_time: 500, end_time: 600, kind: "driving" }),
-    ];
+    const segments = [drivingSegment(50, 150), drivingSegment(500, 600)];
     const ranges: DateRange[] = [["2024-01-01", "2024-01-31"]];
 
     const result = buildSections(steps, segments, ranges);
