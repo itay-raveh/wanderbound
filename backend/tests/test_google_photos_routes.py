@@ -316,9 +316,7 @@ class TestTokenLostSelfHeal:
         session.add(user)
         await session.flush()
 
-        resp = await user_routes.current()
-        assert resp.status_code == 200
-        assert resp.json()["google_photos_connected_at"] is None
+        assert (await user_routes.current_ok())["google_photos_connected_at"] is None
 
         await session.refresh(user)
         assert user.google_photos_connected_at is None
