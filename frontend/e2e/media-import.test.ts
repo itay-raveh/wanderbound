@@ -27,6 +27,36 @@ async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
   await expect(count).toBeVisible();
 }
 
+async function mockDeviceImport(
+  page: import("@playwright/test").Page,
+  onImport: () => void,
+) {
+  await page.route(
+    `${API}/albums/*/external-media/add/device`,
+    async (route) => {
+      const headers = {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "*",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": new URL(page.url()).origin,
+      };
+      if (route.request().method() === "OPTIONS") {
+        await route.fulfill({ headers, status: 204 });
+        return;
+      }
+      onImport();
+      await route.fulfill({
+        headers: {
+          ...headers,
+          "content-type": "application/json",
+        },
+        status: 200,
+        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
+      });
+    },
+  );
+}
+
 async function selectImportStep(
   page: import("@playwright/test").Page,
   stepId: number,
@@ -45,30 +75,9 @@ test.describe("Media import", () => {
   }) => {
     let imported = false;
 
-    await page.route(
-      `${API}/albums/*/external-media/add/device`,
-      async (route) => {
-        const headers = {
-          "access-control-allow-credentials": "true",
-          "access-control-allow-headers": "*",
-          "access-control-allow-methods": "POST, OPTIONS",
-          "access-control-allow-origin": new URL(page.url()).origin,
-        };
-        if (route.request().method() === "OPTIONS") {
-          await route.fulfill({ headers, status: 204 });
-          return;
-        }
-        imported = true;
-        await route.fulfill({
-          headers: {
-            ...headers,
-            "content-type": "application/json",
-          },
-          status: 200,
-          body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-        });
-      },
-    );
+    await mockDeviceImport(page, () => {
+      imported = true;
+    });
     await page.route(`${API}/albums/*/steps`, async (route) => {
       const steps = imported
         ? [{ ...mockStep, unused: [IMPORTED, ...mockStep.unused] }]
@@ -165,30 +174,9 @@ test.describe("Media import", () => {
           : mockMedia;
       return route.fulfill({ json: media });
     });
-    await page.route(
-      `${API}/albums/*/external-media/add/device`,
-      async (route) => {
-        const headers = {
-          "access-control-allow-credentials": "true",
-          "access-control-allow-headers": "*",
-          "access-control-allow-methods": "POST, OPTIONS",
-          "access-control-allow-origin": new URL(page.url()).origin,
-        };
-        if (route.request().method() === "OPTIONS") {
-          await route.fulfill({ headers, status: 204 });
-          return;
-        }
-        imported = true;
-        await route.fulfill({
-          headers: {
-            ...headers,
-            "content-type": "application/json",
-          },
-          status: 200,
-          body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-        });
-      },
-    );
+    await mockDeviceImport(page, () => {
+      imported = true;
+    });
 
     await page.goto("/editor");
     await expect(page.getByText("South America")).toBeVisible({
