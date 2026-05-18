@@ -37,6 +37,11 @@ class GooglePhotosRoutes:
             else None,
         )
 
+    async def create_session_ok(self, max_item_count: int | None = None) -> dict:
+        resp = await self.create_session(max_item_count=max_item_count)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def disconnect(self) -> Response:
         return await self.client.delete("/api/v1/google-photos/connection")
 

@@ -97,10 +97,8 @@ class TestPickerSession:
             "app.api.v1.routes.google_photos.create_picker_session",
             mock_picker,
         ):
-            resp = await google_photos_routes.create_session()
+            data = await google_photos_routes.create_session_ok()
 
-        assert resp.status_code == 200
-        data = resp.json()
         assert data["session_id"] == "session-abc"
         assert "picker" in data["picker_uri"]
 
@@ -117,9 +115,8 @@ class TestPickerSession:
             "app.api.v1.routes.google_photos.create_picker_session",
             mock_picker,
         ):
-            resp = await google_photos_routes.create_session(max_item_count=1)
+            await google_photos_routes.create_session_ok(max_item_count=1)
 
-        assert resp.status_code == 200
         mock_picker.assert_awaited_once_with(
             http.gphotos_picker,
             "fresh-token",
