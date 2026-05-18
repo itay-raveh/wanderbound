@@ -51,9 +51,7 @@ class TestReadAlbum:
     async def test_returns_album_meta_without_media(
         self, album_routes: AlbumRoutes
     ) -> None:
-        resp = await album_routes.get_album()
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.get_album_ok()
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data
@@ -68,9 +66,7 @@ class TestReadSegments:
     ) -> None:
         await insert_segment(session, signed_album.uid)
 
-        resp = await album_routes.get_segments()
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.get_segments_ok()
         assert len(data) == 1
         outline = data[0]
         assert outline["kind"] == "driving"
@@ -102,12 +98,10 @@ class TestReadSegmentPoints:
             kind=SegmentKind.hike,
         )
 
-        resp, mock_enqueue = await album_routes.get_segment_points(
+        data, mock_enqueue = await album_routes.get_segment_points_ok(
             from_time=50.0, to_time=400.0
         )
         mock_enqueue.assert_not_called()
-        assert resp.status_code == 200
-        data = resp.json()
         assert len(data) == 1
         assert data[0]["kind"] == "driving"
         assert len(data[0]["points"]) == 3
@@ -130,11 +124,9 @@ class TestSegmentPointsReadOnly:
             kind=kind,
         )
 
-        resp, mock_enqueue = await album_routes.get_segment_points()
+        data, mock_enqueue = await album_routes.get_segment_points_ok()
 
         mock_enqueue.assert_not_called()
-        assert resp.status_code == 200
-        data = resp.json()
         assert len(data) == 1
         assert data[0]["route"] is None
 
@@ -155,30 +147,26 @@ class TestSegmentPointsReadOnly:
         session.add(seg)
         await session.flush()
 
-        resp, mock_enqueue = await album_routes.get_segment_points()
+        data, mock_enqueue = await album_routes.get_segment_points_ok()
 
         mock_enqueue.assert_not_called()
-        assert resp.json()[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
+        assert data[0]["route"] == [[4.0, 52.0], [4.01, 52.01]]
 
 
 @pytest.mark.usefixtures("signed_album")
 class TestUpdateAlbum:
     async def test_update_cover_photos(self, album_routes: AlbumRoutes) -> None:
-        resp = await album_routes.update_album(
+        data = await album_routes.update_album_ok(
             front_cover_photo="new_front.jpg",
             back_cover_photo="new_back.jpg",
         )
-        assert resp.status_code == 200
-        data = resp.json()
         assert data["front_cover_photo"] == "new_front.jpg"
         assert data["back_cover_photo"] == "new_back.jpg"
 
     async def test_partial_update_preserves_other_fields(
         self, album_routes: AlbumRoutes
     ) -> None:
-        resp = await album_routes.update_album(title="Changed")
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.update_album_ok(title="Changed")
         assert data["title"] == "Changed"
         assert data["subtitle"] == "A subtitle"
         assert data["front_cover_photo"] == "photo1.jpg"
@@ -193,9 +181,7 @@ class TestUpdateStep:
     ) -> None:
         await insert_step(session, signed_album.uid)
 
-        resp = await album_routes.update_step(name="New Name")
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.update_step_ok(name="New Name")
         assert data["name"] == "New Name"
         assert data["pages"] == [["photo1.jpg"]]
         assert data["unused"] == ["photo2.jpg"]
@@ -218,14 +204,10 @@ class TestUpdateStep:
         await insert_step(session, signed_album.uid)
         await session.commit()
 
-        resp = await album_routes.update_media_layout(**expected_layout)
+        data = await album_routes.update_media_layout_ok(**expected_layout)
+        _assert_step_layout(data, **expected_layout)
 
-        assert resp.status_code == 200
-        _assert_step_layout(resp.json(), **expected_layout)
-
-        get_resp = await album_routes.get_steps()
-        assert get_resp.status_code == 200
-        _assert_step_layout(get_resp.json()[0], **expected_layout)
+        _assert_step_layout((await album_routes.get_steps_ok())[0], **expected_layout)
 
     async def test_media_layout_update_rejects_missing_album_media(
         self,
@@ -306,12 +288,10 @@ class TestAdjustSegmentBoundary:
             "app.api.v1.routes.albums.enqueue_album_route_enrichment",
             create=True,
         ) as mock_enqueue:
-            resp = await album_routes.adjust_boundary()
-        assert resp.status_code == 200
+            data = await album_routes.adjust_boundary_ok()
         mock_enqueue.assert_called_once()
         _, _, called_uid, called_aid = mock_enqueue.call_args.args
         assert (called_uid, called_aid) == (signed_album.uid, AID)
-        data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 2
         assert "start_coord" in data[0]
@@ -341,14 +321,12 @@ class TestAdjustSegmentBoundary:
             points=make_points([200.0, 300.0, 400.0, 500.0]),
         )
 
-        resp = await album_routes.adjust_boundary(
+        data = await album_routes.adjust_boundary_ok(
             start_time=200.0,
             end_time=500.0,
             new_boundary_time=300.0,
             handle="start",
         )
-        assert resp.status_code == 200
-        data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 2
 
@@ -378,9 +356,7 @@ class TestAdjustSegmentBoundary:
             points=make_points([300.0, 400.0, 500.0]),
         )
 
-        resp = await album_routes.adjust_boundary()
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.adjust_boundary_ok()
         for seg_data in data:
             assert seg_data.get("route") is None
 
@@ -395,9 +371,7 @@ class TestPrintBundle:
         await insert_step(session, signed_album.uid)
         await insert_segment(session, signed_album.uid)
 
-        resp = await album_routes.print_bundle()
-        assert resp.status_code == 200
-        data = resp.json()
+        data = await album_routes.print_bundle_ok()
         assert "album" in data
         assert "steps" in data
         assert "segments" in data

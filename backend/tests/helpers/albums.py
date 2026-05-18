@@ -17,11 +17,26 @@ class AlbumRoutes:
     async def get_album(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}")
 
+    async def get_album_ok(self, aid: str = AID) -> dict:
+        resp = await self.get_album(aid)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def get_segments(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/segments")
 
+    async def get_segments_ok(self, aid: str = AID) -> list:
+        resp = await self.get_segments(aid)
+        assert resp.status_code == 200
+        return resp.json()
+
     async def get_steps(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/steps")
+
+    async def get_steps_ok(self, aid: str = AID) -> list:
+        resp = await self.get_steps(aid)
+        assert resp.status_code == 200
+        return resp.json()
 
     async def get_media(self, aid: str = AID) -> Response:
         return await self.client.get(f"/api/v1/albums/{aid}/media")
@@ -41,14 +56,37 @@ class AlbumRoutes:
             )
         return resp, mock_enqueue
 
+    async def get_segment_points_ok(
+        self,
+        *,
+        from_time: float = 0.0,
+        to_time: float = 1000.0,
+    ) -> tuple[list, MagicMock]:
+        resp, mock_enqueue = await self.get_segment_points(
+            from_time=from_time,
+            to_time=to_time,
+        )
+        assert resp.status_code == 200
+        return resp.json(), mock_enqueue
+
     async def update_album(self, **payload: object) -> Response:
         return await self.client.patch(f"/api/v1/albums/{AID}", json=payload)
+
+    async def update_album_ok(self, **payload: object) -> dict:
+        resp = await self.update_album(**payload)
+        assert resp.status_code == 200
+        return resp.json()
 
     async def update_step(self, step_id: int = 1, **payload: object) -> Response:
         return await self.client.patch(
             f"/api/v1/albums/{AID}/steps/{step_id}",
             json=payload,
         )
+
+    async def update_step_ok(self, step_id: int = 1, **payload: object) -> dict:
+        resp = await self.update_step(step_id, **payload)
+        assert resp.status_code == 200
+        return resp.json()
 
     async def update_media_layout(
         self,
@@ -62,6 +100,23 @@ class AlbumRoutes:
             f"/api/v1/albums/{AID}/steps/{step_id}/media-layout",
             json={"cover": cover, "pages": pages, "unused": unused},
         )
+
+    async def update_media_layout_ok(
+        self,
+        *,
+        step_id: int = 1,
+        cover: str | None,
+        pages: list[list[str]],
+        unused: list[str],
+    ) -> dict:
+        resp = await self.update_media_layout(
+            step_id=step_id,
+            cover=cover,
+            pages=pages,
+            unused=unused,
+        )
+        assert resp.status_code == 200
+        return resp.json()
 
     async def adjust_boundary(
         self,
@@ -81,8 +136,30 @@ class AlbumRoutes:
             },
         )
 
+    async def adjust_boundary_ok(
+        self,
+        *,
+        start_time: float = 100.0,
+        end_time: float = 300.0,
+        new_boundary_time: float = 200.0,
+        handle: str = "end",
+    ) -> list:
+        resp = await self.adjust_boundary(
+            start_time=start_time,
+            end_time=end_time,
+            new_boundary_time=new_boundary_time,
+            handle=handle,
+        )
+        assert resp.status_code == 200
+        return resp.json()
+
     async def print_bundle(self) -> Response:
         return await self.client.get(f"/api/v1/albums/{AID}/print-bundle")
+
+    async def print_bundle_ok(self) -> dict:
+        resp = await self.print_bundle()
+        assert resp.status_code == 200
+        return resp.json()
 
     async def download_pdf(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/albums/pdf/download/{token}")
