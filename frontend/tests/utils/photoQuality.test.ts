@@ -1,4 +1,5 @@
 import type { StepRead as Step } from "@/client";
+import { makeAlbumMedia, makeStep } from "../helpers";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -112,32 +113,7 @@ describe("enforceOrientationOrder", () => {
 
 describe("summarizeQuality", () => {
   function media(name: string, width: number, height: number) {
-    return { name, width, height };
-  }
-
-  function step(overrides: Partial<Step> & { id: number }): Step {
-    return {
-      uid: 1,
-      aid: "trip",
-      name: "Step",
-      description: "",
-      cover: null,
-      pages: [],
-      unused: [],
-      timestamp: 0,
-      timezone_id: "UTC",
-      location: { city: "", country: "", country_code: "US" },
-      elevation: 0,
-      weather: {
-        icon: "clear-day",
-        high: 20,
-        low: 10,
-        code: 0,
-        condition: "Clear",
-      },
-      datetime: "2024-01-01T00:00:00Z",
-      ...overrides,
-    };
+    return makeAlbumMedia({ name, width, height });
   }
 
   it("counts low-res cover as warning", () => {
@@ -166,7 +142,9 @@ describe("summarizeQuality", () => {
 
   it("handles cover photo appearing in both cover and step.cover", () => {
     const mediaMap = new Map([["lo.jpg", media("lo.jpg", 800, 700)]]);
-    const steps = [step({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] })];
+    const steps: Step[] = [
+      makeStep({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] }),
+    ];
     const result = summarizeQuality(steps, "lo.jpg", undefined, mediaMap);
     expect(result.warning).toBe(1);
     expect(result.caution).toBe(1);
@@ -180,7 +158,7 @@ describe("summarizeQuality", () => {
       [landscape.name, landscape],
     ]);
     const steps = [
-      step({
+      makeStep({
         id: 1,
         pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]],
       }),
