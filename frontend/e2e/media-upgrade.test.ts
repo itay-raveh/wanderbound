@@ -2,7 +2,13 @@ import type { Page } from "@playwright/test";
 
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "../src/utils/storage-keys";
 import { mockMedia, mockUser } from "../tests/fixtures/mocks";
-import { blockPopup, expect, mockPopup, test } from "./fixtures";
+import {
+  blockPopup,
+  ensureExternalMediaOpen,
+  expect,
+  mockPopup,
+  test,
+} from "./fixtures";
 
 const API = "**/api/v1";
 
@@ -69,21 +75,10 @@ function upgradeMediaButton(page: Page) {
     .getByRole("button", { name: "Upgrade Media" });
 }
 
-async function ensureExternalMediaOpen(page: Page) {
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
-}
-
 async function clickUpgradeMedia(page: Page) {
   await ensureExternalMediaOpen(page);
   const button = upgradeMediaButton(page);
+  await expect(button).toBeVisible({ timeout: 15_000 });
   await button.scrollIntoViewIfNeeded();
   await button.click();
 }

@@ -1,20 +1,9 @@
-import { test, expect } from "./fixtures";
-
-async function ensureExternalMediaOpen(
-  page: import("@playwright/test").Page,
-) {
-  const importButton = page.getByRole("button", {
-    name: "Import external media",
-  });
-  const toggle = page.getByRole("button", { name: /External media/ });
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
-  await expect(importButton).toBeVisible();
-}
+import {
+  ensureExternalMediaOpen,
+  externalMediaImportButton,
+  test,
+  expect,
+} from "./fixtures";
 
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
@@ -29,9 +18,7 @@ test.describe("Active step sync", () => {
     await nav.getByText("Argentina").click();
     await nav.locator('[data-nav-step="102"]').click();
     await expect(
-      page
-        .getByLabel("Inspector")
-        .getByRole("region", { name: "Unused" }),
+      page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();
 
     let importedStepId: string | null = null;
@@ -62,7 +49,8 @@ test.describe("Active step sync", () => {
 
     const fileChooser = page.waitForEvent("filechooser");
     await ensureExternalMediaOpen(page);
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await expect(externalMediaImportButton(page)).toBeVisible();
+    await externalMediaImportButton(page).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

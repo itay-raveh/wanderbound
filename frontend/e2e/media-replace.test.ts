@@ -1,18 +1,7 @@
-import { test, expect } from "./fixtures";
+import { ensureExternalMediaOpen, test, expect } from "./fixtures";
 import { TINY_JPEG_BASE64 } from "../tests/fixtures/mocks";
 
 const API = "**/api/v1";
-
-async function ensureExternalMediaOpen(page: import("@playwright/test").Page) {
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-}
 
 test.describe("External media replacement", () => {
   test("cover media can be selected for replacement", async ({

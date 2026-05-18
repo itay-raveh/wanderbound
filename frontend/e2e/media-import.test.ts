@@ -1,4 +1,9 @@
-import { test, expect } from "./fixtures";
+import {
+  ensureExternalMediaOpen,
+  externalMediaImportButton,
+  test,
+  expect,
+} from "./fixtures";
 import {
   mockAlbum,
   mockMedia,
@@ -12,9 +17,7 @@ const IMPORTED =
   "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg";
 
 function unusedDrawer(page: import("@playwright/test").Page) {
-  return page
-    .getByLabel("Inspector")
-    .getByRole("region", { name: "Unused" });
+  return page.getByLabel("Inspector").getByRole("region", { name: "Unused" });
 }
 
 async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
@@ -22,23 +25,6 @@ async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
   const count = drawer.getByText(/^\d+$/);
   await expect(drawer).toBeVisible();
   await expect(count).toBeVisible();
-}
-
-async function ensureExternalMediaOpen(
-  page: import("@playwright/test").Page,
-) {
-  const importButton = page.getByRole("button", {
-    name: "Import external media",
-  });
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-    await toggle.click();
-  }
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(importButton).toBeVisible();
 }
 
 async function selectImportStep(
@@ -50,6 +36,7 @@ async function selectImportStep(
   await expect(
     page.getByLabel("Inspector").getByText(`Import to ${mockStep.name}`),
   ).toBeVisible();
+  await expect(externalMediaImportButton(page)).toBeVisible();
 }
 
 test.describe("Media import", () => {
@@ -58,27 +45,30 @@ test.describe("Media import", () => {
   }) => {
     let imported = false;
 
-    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
-      const headers = {
-        "access-control-allow-credentials": "true",
-        "access-control-allow-headers": "*",
-        "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-origin": new URL(page.url()).origin,
-      };
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ headers, status: 204 });
-        return;
-      }
-      imported = true;
-      await route.fulfill({
-        headers: {
-          ...headers,
-          "content-type": "application/json",
-        },
-        status: 200,
-        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-      });
-    });
+    await page.route(
+      `${API}/albums/*/external-media/add/device`,
+      async (route) => {
+        const headers = {
+          "access-control-allow-credentials": "true",
+          "access-control-allow-headers": "*",
+          "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-origin": new URL(page.url()).origin,
+        };
+        if (route.request().method() === "OPTIONS") {
+          await route.fulfill({ headers, status: 204 });
+          return;
+        }
+        imported = true;
+        await route.fulfill({
+          headers: {
+            ...headers,
+            "content-type": "application/json",
+          },
+          status: 200,
+          body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
+        });
+      },
+    );
     await page.route(`${API}/albums/*/steps`, async (route) => {
       const steps = imported
         ? [{ ...mockStep, unused: [IMPORTED, ...mockStep.unused] }]
@@ -101,7 +91,7 @@ test.describe("Media import", () => {
     await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await externalMediaImportButton(page).click();
     const importResponse = page.waitForResponse(
       (res) =>
         res.url().includes("/api/v1/albums/") &&
@@ -175,27 +165,30 @@ test.describe("Media import", () => {
           : mockMedia;
       return route.fulfill({ json: media });
     });
-    await page.route(`${API}/albums/*/external-media/add/device`, async (route) => {
-      const headers = {
-        "access-control-allow-credentials": "true",
-        "access-control-allow-headers": "*",
-        "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-origin": new URL(page.url()).origin,
-      };
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ headers, status: 204 });
-        return;
-      }
-      imported = true;
-      await route.fulfill({
-        headers: {
-          ...headers,
-          "content-type": "application/json",
-        },
-        status: 200,
-        body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
-      });
-    });
+    await page.route(
+      `${API}/albums/*/external-media/add/device`,
+      async (route) => {
+        const headers = {
+          "access-control-allow-credentials": "true",
+          "access-control-allow-headers": "*",
+          "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-origin": new URL(page.url()).origin,
+        };
+        if (route.request().method() === "OPTIONS") {
+          await route.fulfill({ headers, status: 204 });
+          return;
+        }
+        imported = true;
+        await route.fulfill({
+          headers: {
+            ...headers,
+            "content-type": "application/json",
+          },
+          status: 200,
+          body: JSON.stringify({ type: "import_completed", names: [IMPORTED] }),
+        });
+      },
+    );
 
     await page.goto("/editor");
     await expect(page.getByText("South America")).toBeVisible({
@@ -206,7 +199,7 @@ test.describe("Media import", () => {
     await ensureExternalMediaOpen(page);
 
     const fileChooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Import external media" }).click();
+    await externalMediaImportButton(page).click();
     const chooser = await fileChooser;
     await chooser.setFiles({
       name: "import.jpg",

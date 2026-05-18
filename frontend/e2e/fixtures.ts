@@ -159,6 +159,21 @@ export async function openEditor(page: Page) {
   });
 }
 
+export function externalMediaImportButton(page: Page) {
+  return page.getByRole("button", { name: "Import external media" });
+}
+
+export async function ensureExternalMediaOpen(page: Page) {
+  const toggle = page.getByRole("button", {
+    name: /Expand "External media"|Collapse "External media"|External media/,
+  });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
+
 export const test = base.extend<{
   anonymousPage: Page;
   authedPage: Page;

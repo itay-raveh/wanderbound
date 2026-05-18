@@ -1,17 +1,9 @@
-import { test, expect } from "./fixtures";
-
-async function ensureExternalMediaOpen(page: import("@playwright/test").Page) {
-  const importButton = page.getByRole("button", {
-    name: "Import external media",
-  });
-  const toggle = page.getByRole("button", {
-    name: /Expand "External media"|Collapse "External media"/,
-  });
-  if (!(await importButton.isVisible())) {
-    await toggle.click();
-  }
-  await expect(importButton).toBeVisible();
-}
+import {
+  ensureExternalMediaOpen,
+  externalMediaImportButton,
+  test,
+  expect,
+} from "./fixtures";
 
 test.describe("External media panel", () => {
   test("shows source status, upgrade action, and import target", async ({
@@ -24,9 +16,7 @@ test.describe("External media panel", () => {
     await page.locator('[data-nav-step="1"]').click();
 
     await ensureExternalMediaOpen(page);
-    await expect(
-      page.getByRole("button", { name: "Import external media" }),
-    ).toBeVisible();
+    await expect(externalMediaImportButton(page)).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Upgrade Media" }),
     ).toBeVisible();
