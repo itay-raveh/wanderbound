@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from app.core.http_clients import _open_meteo_weight
+from app.models.weather import Weather
 from app.services.open_meteo import (
     _LocationResult,
     _weather_from_result,
@@ -70,6 +71,31 @@ def _om_response(dates: list[str], **overrides: list) -> dict:
     return {"daily": daily}
 
 
+def _assert_weather(
+    weather: Weather,
+    *,
+    day_temp: float,
+    day_feels: float | None = None,
+    day_icon: str | None = None,
+    night_temp: float | None = None,
+    night_feels: float | None = None,
+    night_icon: str | None = None,
+) -> None:
+    assert weather.day.temp == day_temp
+    if day_feels is not None:
+        assert weather.day.feels_like == day_feels
+    if day_icon is not None:
+        assert weather.day.icon == day_icon
+    if night_temp is None:
+        return
+    assert weather.night is not None
+    assert weather.night.temp == night_temp
+    if night_feels is not None:
+        assert weather.night.feels_like == night_feels
+    if night_icon is not None:
+        assert weather.night.icon == night_icon
+
+
 class TestElevations:
     async def test_http_error_propagates(self) -> None:
         locs = [_Loc(0, 0)]
@@ -108,13 +134,15 @@ class TestWeatherFromResult:
         weather = _weather_from_result(step, loc)
 
         assert weather is not None
-        assert weather.day.temp == 30.0
-        assert weather.day.feels_like == 32.0
-        assert weather.day.icon == "rain"
-        assert weather.night is not None
-        assert weather.night.temp == 18.0
-        assert weather.night.feels_like == 16.0
-        assert weather.night.icon == "rain"
+        _assert_weather(
+            weather,
+            day_temp=30.0,
+            day_feels=32.0,
+            day_icon="rain",
+            night_temp=18.0,
+            night_feels=16.0,
+            night_icon="rain",
+        )
 
     def test_missing_date_returns_none(self) -> None:
         raw = _om_response(["2024-01-01"])
@@ -140,10 +168,12 @@ class TestBuildWeathers:
         assert len(result) == 1
         idx, w = result[0]
         assert idx == 0
-        assert w.day.temp == 5.0
-        assert w.day.icon == "partly-cloudy-day-snow"
-        assert w.night is not None
-        assert w.night.temp == -2.0
+        _assert_weather(
+            w,
+            day_temp=5.0,
+            day_icon="partly-cloudy-day-snow",
+            night_temp=-2.0,
+        )
 
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
