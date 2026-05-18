@@ -102,6 +102,10 @@ async def _test_token() -> str:
     return "test-token"
 
 
+def _match_dt(hour: int, minute: int = 0) -> datetime:
+    return datetime(2024, 1, 15, hour, minute, tzinfo=UTC)
+
+
 class TestComputePhash:
     def test_orientation_invariant(self, tmp_path: Path) -> None:
         upright = Image.new("RGB", (100, 200), color="white")
@@ -372,14 +376,9 @@ class TestRunMatching:
                 clients=AsyncMock(),
                 album_dir=album_dir,
                 media_by_step={1: ["photo.jpg"]},
-                step_timestamps=[datetime(2024, 1, 15, 10, 0, tzinfo=UTC).timestamp()],
+                step_timestamps=[_match_dt(10).timestamp()],
                 step_ids=[1],
-                google_items=[
-                    _make_item(
-                        "gp-1",
-                        datetime(2024, 1, 15, 10, 5, tzinfo=UTC).isoformat(),
-                    )
-                ],
+                google_items=[_make_item("gp-1", _match_dt(10, 5).isoformat())],
                 tokens=_test_token,
                 upgrade_candidates=set(),
             )
@@ -396,9 +395,9 @@ class TestRunMatching:
         album_dir.mkdir()
 
         step_timestamps = [
-            datetime(2024, 1, 15, 10, 0, tzinfo=UTC).timestamp(),
-            datetime(2024, 1, 15, 14, 0, tzinfo=UTC).timestamp(),
-            datetime(2024, 1, 15, 18, 0, tzinfo=UTC).timestamp(),
+            _match_dt(10).timestamp(),
+            _match_dt(14).timestamp(),
+            _match_dt(18).timestamp(),
         ]
         step_ids = [1, 2, 3]
         names = ["step1.jpg", "step2.jpg", "step3.jpg"]
@@ -419,7 +418,7 @@ class TestRunMatching:
         google_items = [
             _make_item(
                 f"gp-{i}",
-                datetime(2024, 1, 15, 10 + i * 4, 30, tzinfo=UTC).isoformat(),
+                _match_dt(10 + i * 4, 30).isoformat(),
                 base_url=f"https://lh3.googleusercontent.com/{name}",
             )
             for i, name in enumerate(names)
