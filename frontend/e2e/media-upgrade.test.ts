@@ -97,9 +97,9 @@ async function expectUpgradeDone(page: Page, message: RegExp) {
 }
 
 async function expectReadyFiles(page: Page, count: number) {
-  await expect(page.getByText(new RegExp(`${count} files ready`, "i"))).toBeVisible(
-    { timeout: 10_000 },
-  );
+  await expect(
+    page.getByText(new RegExp(`${count} files ready`, "i")),
+  ).toBeVisible({ timeout: 10_000 });
 }
 
 async function skipOnboarding(page: Page) {
@@ -214,9 +214,8 @@ async function completeReadyUpgrade(
 
 test.describe("Media Upgrade", () => {
   test("upgrade button visible for Google-linked user", async ({
-    authedPage: page,
+    editorPage: page,
   }) => {
-    await page.goto("/editor");
     await ensureExternalMediaOpen(page);
     await expect(upgradeMediaButton(page)).toBeVisible({ timeout: 15_000 });
   });

@@ -1,15 +1,8 @@
-import { test, expect } from "./fixtures";
+import { expect, openEditor, test } from "./fixtures";
 import type { Page, Locator } from "@playwright/test";
 
 function photos(page: Page): Locator {
   return page.locator('[role="button"][aria-pressed]');
-}
-
-async function openEditor(page: Page) {
-  await page.goto("/editor");
-  await expect(page.getByText("South America")).toBeVisible({
-    timeout: 15_000,
-  });
 }
 
 async function scrollToStep(page: Page, country: string, stepName: string) {
@@ -23,7 +16,10 @@ async function scrollToStep(page: Page, country: string, stepName: string) {
 
 /** Find the first step name textbox (aria-label="Step name") in the viewer. */
 function stepNameTextbox(page: Page): Locator {
-  return page.getByRole("main").getByRole("textbox", { name: "Step name" }).first();
+  return page
+    .getByRole("main")
+    .getByRole("textbox", { name: "Step name" })
+    .first();
 }
 
 test.describe("Text editing", () => {

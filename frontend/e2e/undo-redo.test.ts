@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { expect, openEditor, test } from "./fixtures";
 import type { Page, Locator } from "@playwright/test";
 import { PHOTO_SHORTCUTS } from "../src/composables/shortcutKeys";
 
@@ -12,13 +12,6 @@ function unusedBadge(page: Page): Locator {
     .getByRole("complementary")
     .filter({ hasText: "Unused" })
     .getByText(/^\d+$/);
-}
-
-async function openEditor(page: Page) {
-  await page.goto("/editor");
-  await expect(page.getByText("South America")).toBeVisible({
-    timeout: 15_000,
-  });
 }
 
 async function scrollToStep(page: Page, country: string, stepName: string) {

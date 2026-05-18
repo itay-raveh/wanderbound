@@ -1,8 +1,6 @@
 import { test, expect } from "./fixtures";
 
-async function ensureExternalMediaOpen(
-  page: import("@playwright/test").Page,
-) {
+async function ensureExternalMediaOpen(page: import("@playwright/test").Page) {
   const importButton = page.getByRole("button", {
     name: "Import external media",
   });
@@ -17,9 +15,8 @@ async function ensureExternalMediaOpen(
 
 test.describe("External media panel", () => {
   test("shows source status, upgrade action, and import target", async ({
-    authedPage: page,
+    editorPage: page,
   }) => {
-    await page.goto("/editor");
     await expect(page.getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
