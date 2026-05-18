@@ -148,6 +148,22 @@ export function mockReadyGooglePickerSession(googlePhotosMock: {
   googlePhotosMock.closeSession.mockResolvedValue(undefined);
 }
 
+export function resetGooglePhotosMock(googlePhotosMock: {
+  authorize: Mock;
+  closeSession: Mock;
+  createPickerSession: Mock;
+  isConnected: { value: boolean };
+  pollSession: Mock;
+  state: { value: string };
+}) {
+  googlePhotosMock.authorize.mockReset();
+  googlePhotosMock.closeSession.mockReset();
+  googlePhotosMock.createPickerSession.mockReset();
+  googlePhotosMock.pollSession.mockReset();
+  googlePhotosMock.isConnected.value = true;
+  googlePhotosMock.state.value = "connected";
+}
+
 export function mockGooglePickerPopup() {
   const popup = {
     close: vi.fn(),

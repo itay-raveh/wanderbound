@@ -3,6 +3,7 @@ import {
   mockGooglePickerPopup,
   mockReadyGooglePickerSession,
   provideTestAlbum,
+  resetGooglePhotosMock,
   withParentSetup,
 } from "../helpers";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
@@ -50,12 +51,7 @@ function mountReplaceExternalMedia() {
 describe("useReplaceExternalMedia", () => {
   afterEach(() => {
     usePhotoFocus().blur();
-    googlePhotosMock.authorize.mockReset();
-    googlePhotosMock.closeSession.mockReset();
-    googlePhotosMock.createPickerSession.mockReset();
-    googlePhotosMock.pollSession.mockReset();
-    googlePhotosMock.isConnected.value = true;
-    googlePhotosMock.state.value = "connected";
+    resetGooglePhotosMock(googlePhotosMock);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

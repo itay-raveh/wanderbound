@@ -1,6 +1,7 @@
 import {
   mockGooglePickerPopup,
   mockReadyGooglePickerSession,
+  resetGooglePhotosMock,
   withSetup,
 } from "../helpers";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
@@ -20,12 +21,7 @@ vi.mock("@/composables/useGooglePhotos", () => ({
 
 describe("useAddExternalMedia", () => {
   afterEach(() => {
-    googlePhotosMock.authorize.mockReset();
-    googlePhotosMock.closeSession.mockReset();
-    googlePhotosMock.createPickerSession.mockReset();
-    googlePhotosMock.pollSession.mockReset();
-    googlePhotosMock.isConnected.value = true;
-    googlePhotosMock.state.value = "connected";
+    resetGooglePhotosMock(googlePhotosMock);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
