@@ -174,6 +174,19 @@ export async function ensureExternalMediaOpen(page: Page) {
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
 }
 
+export function externalMediaCorsHeaders(page: Page) {
+  const cors = {
+    "access-control-allow-credentials": "true",
+    "access-control-allow-headers": "*",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-origin": new URL(page.url()).origin,
+  };
+  return {
+    cors,
+    json: { ...cors, "content-type": "application/json" },
+  };
+}
+
 export const test = base.extend<{
   anonymousPage: Page;
   authedPage: Page;
