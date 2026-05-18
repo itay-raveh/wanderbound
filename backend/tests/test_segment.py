@@ -2,19 +2,18 @@
 
 import pytest
 
-from app.models.polarsteps import Point
 from app.models.segment import Segment, SegmentKind, split_segments
+from tests.factories import make_points_from_tuples, make_segment
 
 
 def _seg(kind: str, points: list[tuple[float, float, float]]) -> Segment:
-    pts = [Point(lat=lat, lon=lon, time=t) for lat, lon, t in points]
-    return Segment(
-        uid=1,
-        aid="test",
+    pts = make_points_from_tuples(points)
+    return make_segment(
+        1,
+        "test",
         start_time=pts[0].time,
         end_time=pts[-1].time,
         kind=SegmentKind(kind),
-        timezone_id="UTC",
         points=pts,
     )
 

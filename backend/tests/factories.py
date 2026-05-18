@@ -281,6 +281,10 @@ def make_points(times: list[float]) -> list[Point]:
     ]
 
 
+def make_points_from_tuples(points: list[tuple[float, float, float]]) -> list[Point]:
+    return [Point(lat=lat, lon=lon, time=time) for lat, lon, time in points]
+
+
 def make_ps_step(
     step_id: int = 1,
     *,
