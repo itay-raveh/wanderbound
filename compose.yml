@@ -76,6 +76,12 @@ services:
       VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
       ENVIRONMENT: ${ENVIRONMENT:?Variable not set}
       APP_VERSION: ${APP_VERSION:-}
+      DBOS_SYSTEM_DATABASE_URI: ${DBOS_SYSTEM_DATABASE_URI:-}
+      DBOS_EXECUTOR_ID: ${DBOS_EXECUTOR_ID:-}
+      DBOS_ADMIN_PORT: ${DBOS_ADMIN_PORT:-3001}
+      DBOS_RUN_ADMIN_SERVER: ${DBOS_RUN_ADMIN_SERVER:-true}
+      DBOS_HEARTBEAT_TTL_SECONDS: ${DBOS_HEARTBEAT_TTL_SECONDS:-60}
+      DBOS_RECOVERY_INTERVAL_SECONDS: ${DBOS_RECOVERY_INTERVAL_SECONDS:-10}
       SENTRY_DSN: ${SENTRY_DSN:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
