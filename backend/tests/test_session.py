@@ -1,10 +1,18 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable, Iterator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.http_clients import HttpClients
+from app.logic.processing_operations import (
+    append_processing_event,
+    complete_processing_operation,
+    create_processing_operation,
+    latest_processing_operation,
+    mark_processing_operation_running,
+)
 from app.logic.session import (
     ProcessingSession,
     _sessions,
@@ -18,6 +26,9 @@ from app.logic.trip_processing import (
 )
 from app.models.user import User
 from tests.factories import collect_async
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 
@@ -239,3 +250,148 @@ class TestProcessStream:
         assert first == TripStart(trip_index=0)
         calls = [call.args for call in schedule.call_args_list]
         assert calls == _scheduled_album_calls(22)
+
+
+class TestPersistedProcessStream:
+    @pytest.fixture(autouse=True)
+    def _clean_sessions(self) -> Iterator[None]:
+        _sessions.clear()
+        yield
+        _sessions.clear()
+
+    async def test_completed_processing_replays_from_database_after_memory_eviction(
+        self, session: AsyncSession
+    ) -> None:
+        starts: list[str] = []
+
+        def fake_start_processing_workflow(operation: object, _user: User) -> object:
+            starts.append(operation.workflow_id)
+            return object()
+
+        async def finish_operation() -> None:
+            await asyncio.sleep(0.01)
+            operation = await latest_processing_operation(session, uid=123)
+            assert operation is not None
+            await mark_processing_operation_running(session, operation)
+            await append_processing_event(session, operation, TripStart(trip_index=0))
+            await append_processing_event(
+                session, operation, PhaseUpdate(phase="layouts", done=1, total=1)
+            )
+            await complete_processing_operation(session, operation, status="succeeded")
+            await session.commit()
+
+        user = _mock_user(uid=123)
+        with patch(
+            "app.logic.session.start_processing_workflow",
+            fake_start_processing_workflow,
+        ):
+            finisher = asyncio.create_task(finish_operation())
+            first = await collect_async(process_stream(_MOCK_HTTP, user, session))
+            await finisher
+            _sessions.clear()
+            second = await collect_async(process_stream(_MOCK_HTTP, user, session))
+
+        operation = await latest_processing_operation(session, uid=123)
+        assert operation is not None
+        assert operation.status == "succeeded"
+        assert starts == ["processing:" + operation.operation_id]
+        assert (
+            first
+            == second
+            == [
+                TripStart(trip_index=0),
+                PhaseUpdate(phase="layouts", done=1, total=1),
+            ]
+        )
+
+    async def test_running_operation_without_local_session_polls_database_events(
+        self, session: AsyncSession
+    ) -> None:
+        user = _mock_user(uid=321)
+        operation = await create_processing_operation(
+            session, uid=321, upload_generation=1
+        )
+        await mark_processing_operation_running(session, operation)
+        await append_processing_event(session, operation, TripStart(trip_index=0))
+        await session.commit()
+
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
+            if _user.uid == -1:
+                yield TripStart(trip_index=99)
+            msg = "running operation should not start duplicate processing"
+            raise AssertionError(msg)
+
+        async def finish_operation() -> None:
+            await asyncio.sleep(0.01)
+            await append_processing_event(
+                session,
+                operation,
+                PhaseUpdate(phase="layouts", done=1, total=1),
+            )
+            await complete_processing_operation(session, operation, status="succeeded")
+            await session.commit()
+
+        with patch("app.logic.session.run_processing", fake_processing):
+            finisher = asyncio.create_task(finish_operation())
+            events = await collect_async(process_stream(_MOCK_HTTP, user, session))
+            await finisher
+
+        assert events == [
+            TripStart(trip_index=0),
+            PhaseUpdate(phase="layouts", done=1, total=1),
+        ]
+
+    async def test_queued_operation_starts_dbos_and_polls_database_events(
+        self, session: AsyncSession
+    ) -> None:
+        user = _mock_user(uid=654)
+
+        async def fake_processing(
+            _http: HttpClients, _user: User
+        ) -> AsyncIterator[ProcessingEvent]:
+            if _user.uid == -1:
+                yield TripStart(trip_index=99)
+            msg = "queued operation should start DBOS, not local processing"
+            raise AssertionError(msg)
+
+        async def finish_operation() -> None:
+            await asyncio.sleep(0.01)
+            operation = await latest_processing_operation(session, uid=654)
+            assert operation is not None
+            await mark_processing_operation_running(session, operation)
+            await append_processing_event(session, operation, TripStart(trip_index=0))
+            await append_processing_event(
+                session,
+                operation,
+                PhaseUpdate(phase="layouts", done=1, total=1),
+            )
+            await complete_processing_operation(session, operation, status="succeeded")
+            await session.commit()
+
+        starts: list[str] = []
+
+        def fake_start_processing_workflow(operation: object, _user: User) -> object:
+            starts.append(operation.workflow_id)
+            return object()
+
+        with (
+            patch("app.logic.session.run_processing", fake_processing),
+            patch(
+                "app.logic.session.start_processing_workflow",
+                fake_start_processing_workflow,
+                create=True,
+            ),
+        ):
+            finisher = asyncio.create_task(finish_operation())
+            events = await collect_async(process_stream(_MOCK_HTTP, user, session))
+            await finisher
+
+        operation = await latest_processing_operation(session, uid=654)
+        assert operation is not None
+        assert starts == ["processing:" + operation.operation_id]
+        assert events == [
+            TripStart(trip_index=0),
+            PhaseUpdate(phase="layouts", done=1, total=1),
+        ]

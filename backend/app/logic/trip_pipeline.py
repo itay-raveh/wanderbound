@@ -2,7 +2,7 @@ import asyncio
 import shutil
 import time
 from collections import defaultdict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 import structlog
@@ -302,8 +302,20 @@ def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
     logger.info("demo.i18n_overlay_applied", user_id=user.id, locale=user.locale)
 
 
-async def run_processing(
-    http: HttpClients, user: User
+async def _processing_should_continue(
+    user: User, should_continue: Callable[[], Awaitable[bool]] | None
+) -> bool:
+    if should_continue is None or await should_continue():
+        return True
+    logger.info("processing.stale_before_save", user_id=user.id)
+    return False
+
+
+async def run_processing(  # noqa: C901
+    http: HttpClients,
+    user: User,
+    *,
+    should_continue: Callable[[], Awaitable[bool]] | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
@@ -356,6 +368,10 @@ async def run_processing(
             return
 
         _apply_demo_i18n(user, all_objects)
+
+        if not await _processing_should_continue(user, should_continue):
+            yield ErrorData()
+            return
 
         try:
             if existing_albums:

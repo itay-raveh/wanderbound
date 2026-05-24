@@ -37,6 +37,19 @@ async def store(tmp_path: Path) -> AsyncIterator[UploadStore]:
 
 
 class TestWriteChunkStream:
+    async def test_chunks_can_continue_on_another_store_instance(
+        self, tmp_path: Path
+    ) -> None:
+        base = tmp_path / "chunked-uploads"
+        first = UploadStore(base=base)
+        second = UploadStore(base=base)
+
+        async with first.lifespan(), second.lifespan():
+            upload_id = first.create(MAX_BYTES, owner=OWNER)
+            await second.write_chunk_stream(upload_id, 0, _one(b"hello"))
+
+            assert _assembled_bytes(second, upload_id) == b"hello"
+
     async def test_writes_stream_to_disk(self, store: UploadStore) -> None:
         upload_id = store.create(MAX_BYTES, owner=OWNER)
 
@@ -65,7 +78,7 @@ class TestWriteChunkStream:
         with pytest.raises(ValueError, match="exceeds"):
             await store.write_chunk_stream(upload_id, 0, _chunks(81))
 
-        session_dir = store._sessions[upload_id].dir
+        session_dir = store._upload_dir(upload_id)
         assert list(session_dir.glob("*.part")) == []
 
     async def test_rejects_accumulated_overflow(self, store: UploadStore) -> None:
@@ -117,7 +130,7 @@ class TestWriteChunkStream:
         with pytest.raises(ClientDisconnect):
             await store.write_chunk_stream(upload_id, 0, gen())
 
-        session_dir = store._sessions[upload_id].dir
+        session_dir = store._upload_dir(upload_id)
         assert list(session_dir.glob("*.part")) == []
 
     async def test_concurrent_same_index_writes_do_not_corrupt(
@@ -187,8 +200,8 @@ class TestAssemble:
     async def test_assemble_ignores_orphan_part_files(self, store: UploadStore) -> None:
         upload_id = store.create(MAX_BYTES, owner=OWNER)
         await store.write_chunk_stream(upload_id, 0, _one(b"real"))
-        session = store._sessions[upload_id]
-        (session.dir / f"0000.{'ab' * 8}.part").write_bytes(b"STALE")
+        session_dir = store._upload_dir(upload_id)
+        (session_dir / f"0000.{'ab' * 8}.part").write_bytes(b"STALE")
 
         assert _assembled_bytes(store, upload_id) == b"real"
 
@@ -209,12 +222,10 @@ class TestEviction:
         self, store: UploadStore
     ) -> None:
         upload_id = store.create(MAX_BYTES, owner=OWNER)
-        session = store._sessions[upload_id]
+        session_dir = store._upload_dir(upload_id)
 
         async def gen() -> AsyncIterator[bytes]:
-            shutil.rmtree(session.dir)
-            store._sessions.pop(upload_id)
-            session.timer.cancel()
+            shutil.rmtree(session_dir)
             yield b"doomed"
 
         with pytest.raises(KeyError):

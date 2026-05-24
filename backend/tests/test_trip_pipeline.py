@@ -1,5 +1,7 @@
+from collections.abc import AsyncIterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy import event
@@ -8,9 +10,15 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.http_clients import HttpClients
-from app.logic.trip_pipeline import _process_trip, _save_new, _save_reupload
-from app.logic.trip_processing import PhaseUpdate, SegmentsFound
+from app.logic.trip_pipeline import (
+    _process_trip,
+    _save_new,
+    _save_reupload,
+    run_processing,
+)
+from app.logic.trip_processing import ErrorData, PhaseUpdate, SegmentsFound
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, StepPageMedia
 from app.models.polarsteps import Location
@@ -56,6 +64,36 @@ async def _create_schema(engine: AsyncEngine) -> None:
 
 def _user() -> User:
     return make_user(UID, google_sub="test-sub")
+
+
+async def test_run_processing_stale_guard_skips_db_save(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    user = _user()
+    trip_dir = user.trips_folder / AID
+    trip_dir.mkdir(parents=True)
+
+    async def cancelled() -> bool:
+        return False
+
+    async def fake_process_trip(*args: object) -> AsyncIterator[PhaseUpdate]:
+        yield PhaseUpdate(phase="layouts", done=1, total=1)
+
+    with (
+        patch(
+            "app.logic.trip_pipeline._load_existing",
+            new=AsyncMock(return_value=({}, {}, {})),
+        ),
+        patch("app.logic.trip_pipeline._process_trip", fake_process_trip),
+        patch("app.logic.trip_pipeline._save_new", new=AsyncMock()) as save_new,
+    ):
+        events = await collect_async(
+            run_processing(_MOCK_HTTP, user, should_continue=cancelled)
+        )
+
+    save_new.assert_not_awaited()
+    assert events[-1] == ErrorData()
 
 
 def _album(

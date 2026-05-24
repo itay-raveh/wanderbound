@@ -36,6 +36,7 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
@@ -126,6 +127,7 @@ async def _finalize_upload(  # noqa: PLR0913
             },
         ):
             cancel_session(ps_user.id)
+            await mark_user_processing_operations_stale(session, uid=ps_user.id)
 
             if existing is not None:
                 existing.album_ids = album_ids
@@ -443,9 +445,9 @@ async def delete_demo(
     responses={200: {"model": list[ProcessingEvent]}},
 )
 async def process_user(
-    user: UserDep, http: HttpClientsDep
+    user: UserDep, http: HttpClientsDep, session: SessionDep
 ) -> AsyncIterable[ProcessingEvent]:
-    async for event in process_stream(http, user):
+    async for event in process_stream(http, user, session):
         yield event
 
 
