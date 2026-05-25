@@ -66,18 +66,13 @@ async def run_processing_workflow_payload(
         msg = "processing workflow references missing user or operation"
         raise RuntimeError(msg)
 
+    if not await processing_operation_is_active(session, operation.operation_id):
+        return {"operation_id": operation.operation_id, "status": operation.status}
+
     await mark_processing_operation_running(session, operation)
     await session.commit()
 
-    async def should_continue() -> bool:
-        return await processing_operation_is_active(session, operation.operation_id)
-
-    saw_error = False
-    async for event in run_processing(http, user, should_continue=should_continue):
-        if isinstance(event, ErrorData):
-            saw_error = True
-        await append_processing_event(session, operation, event)
-        await session.commit()
+    saw_error = await run_and_persist_processing_events(http, user, operation, session)
 
     await session.refresh(operation)
     if operation.status == "stale":
@@ -92,6 +87,24 @@ async def run_processing_workflow_payload(
             schedule_album_route_enrichment(http, user.id, aid)
 
     return {"operation_id": operation.operation_id, "status": status}
+
+
+async def run_and_persist_processing_events(
+    http: HttpClients,
+    user: User,
+    operation: ProcessingOperation,
+    session: AsyncSession,
+) -> bool:
+    async def should_continue() -> bool:
+        return await processing_operation_is_active(session, operation.operation_id)
+
+    saw_error = False
+    async for event in run_processing(http, user, should_continue=should_continue):
+        if isinstance(event, ErrorData):
+            saw_error = True
+        await append_processing_event(session, operation, event)
+        await session.commit()
+    return saw_error
 
 
 @DBOS.workflow(name="processing.upload")

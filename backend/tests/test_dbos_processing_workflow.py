@@ -232,3 +232,44 @@ async def test_run_processing_workflow_payload_preserves_stale_operation(
     await session.refresh(operation)
     assert result == {"operation_id": operation.operation_id, "status": "stale"}
     assert operation.status == "stale"
+
+
+async def test_run_processing_workflow_payload_exits_when_operation_already_stale(
+    session: AsyncSession,
+) -> None:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    operation.status = "stale"
+    session.add(operation)
+    await session.commit()
+
+    run_calls = 0
+
+    async def fake_run_processing(
+        _http: object, _user: User, **_kwargs: object
+    ) -> AsyncIterator[ProcessingEvent]:
+        nonlocal run_calls
+        run_calls += 1
+        yield ErrorData()
+
+    with patch("app.logic.workflows.processing.run_processing", fake_run_processing):
+        result = await run_processing_workflow_payload(
+            processing_workflow_payload(operation, user),
+            MagicMock(),
+            session,
+        )
+
+    await session.refresh(operation)
+    assert result == {"operation_id": operation.operation_id, "status": "stale"}
+    assert operation.status == "stale"
+    assert run_calls == 0
