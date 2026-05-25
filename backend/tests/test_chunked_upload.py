@@ -218,6 +218,28 @@ class TestEviction:
             with pytest.raises(KeyError):
                 store.assemble(upload_id, owner=OWNER)
 
+    async def test_abandoned_session_expires_while_backend_keeps_running(
+        self, tmp_path: Path
+    ) -> None:
+        store = UploadStore(
+            base=tmp_path / "chunked-uploads",
+            cleanup_interval=0.01,
+        )
+        async with store.lifespan():
+            upload_id = store.create(MAX_BYTES, owner=OWNER)
+            upload_dir = store._upload_dir(upload_id)
+            manifest = store._read_manifest(upload_dir)
+            manifest["expires_at"] = 0
+            store._write_manifest(upload_dir, manifest)
+
+            for _ in range(10):
+                if not upload_dir.exists():
+                    break
+                await asyncio.sleep(0.01)
+
+            with pytest.raises(KeyError):
+                store.assemble(upload_id, owner=OWNER)
+
     async def test_eviction_during_write_surfaces_as_key_error(
         self, store: UploadStore
     ) -> None:

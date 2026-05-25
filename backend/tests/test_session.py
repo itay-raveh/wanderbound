@@ -12,9 +12,11 @@ from app.logic.processing_operations import (
     create_processing_operation,
     latest_processing_operation,
     mark_processing_operation_running,
+    mark_user_processing_operations_stale,
 )
 from app.logic.session import (
     ProcessingSession,
+    _operation_for_process_request,
     _sessions,
     process_stream,
 )
@@ -395,3 +397,42 @@ class TestPersistedProcessStream:
             TripStart(trip_index=0),
             PhaseUpdate(phase="layouts", done=1, total=1),
         ]
+
+    async def test_reupload_after_success_creates_new_operation(
+        self, session: AsyncSession
+    ) -> None:
+        user = User(
+            id=987,
+            google_sub="google-987",
+            first_name="Test",
+            locale="en-US",
+            unit_is_km=True,
+            temperature_is_celsius=True,
+            album_ids=["trip-1"],
+        )
+        session.add(user)
+        await session.flush()
+        old = await create_processing_operation(session, uid=987, upload_generation=1)
+        await append_processing_event(session, old, TripStart(trip_index=0))
+        await complete_processing_operation(session, old, status="succeeded")
+        await mark_user_processing_operations_stale(session, uid=987)
+
+        new = await _operation_for_process_request(session, user)
+
+        assert new.operation_id != old.operation_id
+        assert new.upload_generation == 2
+        assert new.status == "queued"
+
+    async def test_process_request_locks_user_before_operation_decision(
+        self, session: AsyncSession
+    ) -> None:
+        user = _mock_user(uid=222)
+
+        with patch(
+            "app.logic.session.lock_user_for_processing_request",
+            new_callable=AsyncMock,
+            create=True,
+        ) as lock_user:
+            await _operation_for_process_request(session, user)
+
+        lock_user.assert_awaited_once_with(session, uid=222)

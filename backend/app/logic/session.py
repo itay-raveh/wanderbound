@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
 import structlog
+from sqlmodel import col, select
 
 from app.core.http_clients import HttpClients
 from app.logic.processing_operations import (
@@ -210,6 +211,7 @@ async def _persisted_process_stream(
 async def _operation_for_process_request(
     db_session: AsyncSession, user: User
 ) -> ProcessingOperation:
+    await lock_user_for_processing_request(db_session, uid=user.id)
     latest = await latest_processing_operation(db_session, uid=user.id)
     if latest is None:
         return await create_processing_operation(
@@ -220,6 +222,12 @@ async def _operation_for_process_request(
     return await create_processing_operation(
         db_session, uid=user.id, upload_generation=latest.upload_generation + 1
     )
+
+
+async def lock_user_for_processing_request(
+    db_session: AsyncSession, *, uid: int
+) -> None:
+    await db_session.exec(select(User).where(col(User.id) == uid).with_for_update())
 
 
 async def _poll_persisted_operation(

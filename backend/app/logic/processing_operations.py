@@ -156,7 +156,7 @@ async def mark_user_processing_operations_stale(
     result = await session.exec(
         update(ProcessingOperation)
         .where(col(ProcessingOperation.uid) == uid)
-        .where(col(ProcessingOperation.status).notin_(_TERMINAL_STATUSES))
+        .where(col(ProcessingOperation.status) != "stale")
         .values(status="stale", updated_at=_now())
     )
     await session.flush()

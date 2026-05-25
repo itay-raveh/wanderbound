@@ -21,6 +21,7 @@ logger = structlog.get_logger(__name__)
 _UPLOAD_TTL = 3600  # 1 hour
 _CHUNK_LIMIT = 80 * 1024 * 1024 + 1024  # 80 MiB + 1 KiB margin
 _FLUSH_AT = 1024 * 1024  # flush buffer to disk every 1 MiB
+_CLEANUP_INTERVAL = 60
 _MANIFEST_NAME = "upload.json"
 _LOCK_NAME = "upload.lock"
 _UPLOAD_ID_CHARS = frozenset(
@@ -59,8 +60,11 @@ async def _stream_to_file(path: Path, stream: AsyncIterator[bytes], index: int) 
 class UploadStore:
     """Manages in-progress chunked uploads with automatic TTL eviction."""
 
-    def __init__(self, base: Path | None = None) -> None:
+    def __init__(
+        self, base: Path | None = None, *, cleanup_interval: float = _CLEANUP_INTERVAL
+    ) -> None:
         self._base_override = base
+        self._cleanup_interval = cleanup_interval
         self._base: Path  # resolved in lifespan()
 
     # -- lifecycle --------------------------------------------------------
@@ -72,7 +76,13 @@ class UploadStore:
         )
         self._base.mkdir(parents=True, exist_ok=True)
         await asyncio.to_thread(self._cleanup_expired)
-        yield
+        cleanup_task = asyncio.create_task(self._cleanup_loop())
+        try:
+            yield
+        finally:
+            cleanup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await cleanup_task
 
     # -- public API -------------------------------------------------------
 
@@ -223,6 +233,11 @@ class UploadStore:
                 manifest = self._read_manifest(upload_dir)
                 if manifest["expires_at"] < now:
                     shutil.rmtree(upload_dir, ignore_errors=True)
+
+    async def _cleanup_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._cleanup_interval)
+            await asyncio.to_thread(self._cleanup_expired)
 
     def _upload_dir(self, upload_id: str) -> Path:
         if not upload_id or any(char not in _UPLOAD_ID_CHARS for char in upload_id):

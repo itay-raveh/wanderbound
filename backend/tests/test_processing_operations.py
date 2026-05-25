@@ -69,7 +69,7 @@ async def test_persisted_events_replay_in_sequence(session: AsyncSession) -> Non
     ]
 
 
-async def test_mark_user_processing_operations_stale_only_updates_active_rows(
+async def test_mark_user_processing_operations_stale_updates_all_non_stale_rows(
     session: AsyncSession,
 ) -> None:
     active = await create_processing_operation(session, uid=42, upload_generation=3)
@@ -81,9 +81,9 @@ async def test_mark_user_processing_operations_stale_only_updates_active_rows(
 
     stale_count = await mark_user_processing_operations_stale(session, uid=42)
 
-    assert stale_count == 1
+    assert stale_count == 2
     assert active.status == "stale"
-    assert failed.status == "failed"
+    assert failed.status == "stale"
     assert other_user.status == "queued"
 
 
