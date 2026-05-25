@@ -22,7 +22,8 @@ async def try_advisory_lock(key: str) -> AsyncIterator[bool]:
     against the engine pool (size=10, max_overflow=10). Callers should
     release the lock quickly or scale the pool accordingly.
     """
-    async with get_engine().connect() as conn:
+    async with get_engine().connect() as raw_conn:
+        conn = await raw_conn.execution_options(isolation_level="AUTOCOMMIT")
         lock = create_async_sadlock(conn, key)
         acquired = await lock.acquire(block=False)
         try:
