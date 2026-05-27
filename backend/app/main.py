@@ -61,69 +61,73 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     else:
         logger.warning("ffmpeg.missing")
 
-    async with try_advisory_lock("dbos-admin") as admin_lock_acquired:
-        admin_state = WorkflowAdminState(
-            has_admin_server=settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired
-        )
-        launch_dbos(settings, run_admin_server=admin_state.has_admin_server)
-
-        async def promote_to_admin() -> None:
-            logger.info("workflow.admin_promoted")
-            destroy_dbos()
-            launch_dbos(settings, run_admin_server=True)
-
-        heartbeat_task = asyncio.create_task(
-            workflow_heartbeat_loop(
-                settings, has_admin_server=lambda: admin_state.has_admin_server
-            )
-        )
-        recovery_task = (
-            asyncio.create_task(workflow_recovery_loop(settings))
-            if admin_state.has_admin_server
-            else None
-        )
-        election_task = (
-            asyncio.create_task(
-                workflow_admin_election_loop(
-                    settings,
-                    admin_state,
-                    promote_to_admin=promote_to_admin,
-                )
-            )
-            if settings.DBOS_RUN_ADMIN_SERVER and not admin_state.has_admin_server
-            else None
-        )
+    async with (
+        pdf_lifespan() as browser_manager,
+        export_lifespan(),
+        undo_lifespan(),
+        upload_store.lifespan(),
+        lifespan_clients() as http,
+    ):
+        app.state.browser_manager = browser_manager
+        app.state.http = http
+        set_processing_workflow_http_clients(http)
+        set_route_enrichment_http_clients(http)
         try:
-            async with (
-                pdf_lifespan() as browser_manager,
-                export_lifespan(),
-                undo_lifespan(),
-                upload_store.lifespan(),
-                lifespan_clients() as http,
-            ):
-                app.state.browser_manager = browser_manager
-                app.state.http = http
-                set_processing_workflow_http_clients(http)
-                set_route_enrichment_http_clients(http)
+            async with try_advisory_lock("dbos-admin") as admin_lock_acquired:
+                admin_state = WorkflowAdminState(
+                    has_admin_server=(
+                        settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired
+                    )
+                )
+                launch_dbos(settings, run_admin_server=admin_state.has_admin_server)
+
+                async def promote_to_admin() -> None:
+                    logger.info("workflow.admin_promoted")
+                    destroy_dbos()
+                    launch_dbos(settings, run_admin_server=True)
+
+                heartbeat_task = asyncio.create_task(
+                    workflow_heartbeat_loop(
+                        settings,
+                        has_admin_server=lambda: admin_state.has_admin_server,
+                    )
+                )
+                recovery_task = (
+                    asyncio.create_task(workflow_recovery_loop(settings))
+                    if admin_state.has_admin_server
+                    else None
+                )
+                election_task = (
+                    asyncio.create_task(
+                        workflow_admin_election_loop(
+                            settings,
+                            admin_state,
+                            promote_to_admin=promote_to_admin,
+                        )
+                    )
+                    if settings.DBOS_RUN_ADMIN_SERVER
+                    and not admin_state.has_admin_server
+                    else None
+                )
                 try:
                     yield
                 finally:
-                    set_route_enrichment_http_clients(None)
-                    set_processing_workflow_http_clients(None)
-                    cancel_all_sessions()
+                    heartbeat_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await heartbeat_task
+                    if recovery_task is not None:
+                        recovery_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await recovery_task
+                    if election_task is not None:
+                        election_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await election_task
+                    destroy_dbos()
         finally:
-            heartbeat_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await heartbeat_task
-            if recovery_task is not None:
-                recovery_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await recovery_task
-            if election_task is not None:
-                election_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await election_task
-            destroy_dbos()
+            set_route_enrichment_http_clients(None)
+            set_processing_workflow_http_clients(None)
+            cancel_all_sessions()
 
 
 app = FastAPI(

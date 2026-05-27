@@ -189,7 +189,7 @@ class UploadStore:
                 msg = "Chunks are not contiguous from 0"
                 raise ValueError(msg)
 
-            chunks = sorted(upload_dir.glob("[0-9][0-9][0-9][0-9]"))
+            chunks = [upload_dir / f"{index:04d}" for index in sorted(chunks_written)]
             assembled = upload_dir / "assembled.zip"
             with start_span(
                 "upload.assemble",

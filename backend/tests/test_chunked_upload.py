@@ -205,6 +205,16 @@ class TestAssemble:
 
         assert _assembled_bytes(store, upload_id) == b"real"
 
+    async def test_assemble_ignores_uncommitted_final_chunk(
+        self, store: UploadStore
+    ) -> None:
+        upload_id = store.create(MAX_BYTES, owner=OWNER)
+        await store.write_chunk_stream(upload_id, 0, _one(b"committed"))
+        session_dir = store._upload_dir(upload_id)
+        (session_dir / "0001").write_bytes(b"STALE")
+
+        assert _assembled_bytes(store, upload_id) == b"committed"
+
 
 class TestEviction:
     async def test_expired_session_is_cleaned_up(self, tmp_path: Path) -> None:
