@@ -96,6 +96,27 @@ async def test_run_processing_stale_guard_skips_db_save(
     assert events[-1] == ErrorData()
 
 
+async def test_save_new_guard_skips_commit_inside_save_transaction(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    engine = _sqlite_engine()
+    await _create_schema(engine)
+    album = _album()
+
+    async def stale(_session: AsyncSession) -> bool:
+        return False
+
+    with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+        saved = await _save_new(UID, [album], save_guard=stale)
+
+    async with AsyncSession(engine) as session:
+        rows = (await session.exec(select(Album))).all()
+
+    assert saved is False
+    assert rows == []
+
+
 def _album(
     *,
     title: str = "Old Trip",

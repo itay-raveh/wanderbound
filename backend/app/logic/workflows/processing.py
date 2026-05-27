@@ -12,6 +12,7 @@ from app.logic.processing_operations import (
     complete_processing_operation,
     mark_processing_operation_running,
     processing_operation_is_active,
+    processing_operation_is_active_for_update,
 )
 from app.logic.segment_routes import schedule_album_route_enrichment
 from app.logic.trip_pipeline import run_processing
@@ -135,8 +136,15 @@ async def run_and_persist_processing_events(
     async def should_continue() -> bool:
         return await processing_operation_is_active(session, operation.operation_id)
 
+    async def save_guard(save_session: AsyncSession) -> bool:
+        return await processing_operation_is_active_for_update(
+            save_session, operation.operation_id
+        )
+
     saw_error = False
-    async for event in run_processing(http, user, should_continue=should_continue):
+    async for event in run_processing(
+        http, user, should_continue=should_continue, save_guard=save_guard
+    ):
         if isinstance(event, ErrorData):
             saw_error = True
         await append_processing_event(session, operation, event)

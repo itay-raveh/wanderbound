@@ -4,10 +4,12 @@ from urllib.request import Request
 
 from app.logic.workflows.recovery import (
     WORKFLOW_RECOVERY_PATH,
+    WorkflowAdminState,
     list_dead_workflow_executors,
     record_workflow_executor_heartbeat,
     recover_dead_workflow_executors,
     recover_workflows_via_admin,
+    workflow_admin_election_once,
     workflow_heartbeat_once,
 )
 from app.models.processing import WorkflowExecutorHeartbeat
@@ -157,3 +159,51 @@ async def test_recover_dead_workflow_executors_recovers_stale(
     assert stale.status == "dead"
     assert recovered == ["workflow-1"]
     assert calls == [("http://127.0.0.1:3001", ["stale-worker"])]
+
+
+async def test_workflow_admin_election_promotes_when_lock_is_available() -> None:
+    state = WorkflowAdminState()
+    events: list[str] = []
+
+    async def promote() -> None:
+        events.append("promote")
+
+    async def recover() -> None:
+        events.append("recover")
+
+    await workflow_admin_election_once(
+        state,
+        lock_acquired=True,
+        promote_to_admin=promote,
+        recover_once=recover,
+    )
+
+    assert state.has_admin_server is True
+    assert events == ["promote", "recover"]
+
+
+async def test_workflow_admin_election_retries_after_missing_lock() -> None:
+    state = WorkflowAdminState()
+    events: list[str] = []
+
+    async def promote() -> None:
+        events.append("promote")
+
+    async def recover() -> None:
+        events.append("recover")
+
+    await workflow_admin_election_once(
+        state,
+        lock_acquired=False,
+        promote_to_admin=promote,
+        recover_once=recover,
+    )
+    await workflow_admin_election_once(
+        state,
+        lock_acquired=True,
+        promote_to_admin=promote,
+        recover_once=recover,
+    )
+
+    assert state.has_admin_server is True
+    assert events == ["promote", "recover"]

@@ -116,6 +116,18 @@ async def processing_operation_is_active(
     return status in _ACTIVE_STATUSES
 
 
+async def processing_operation_is_active_for_update(
+    session: AsyncSession, operation_id: str
+) -> bool:
+    result = await session.exec(
+        select(ProcessingOperation)
+        .where(col(ProcessingOperation.operation_id) == operation_id)
+        .with_for_update()
+    )
+    operation = result.one_or_none()
+    return operation is not None and operation.status in _ACTIVE_STATUSES
+
+
 async def append_processing_event(
     session: AsyncSession,
     operation: ProcessingOperation,

@@ -43,6 +43,7 @@ from app.models.user import User
 logger = structlog.get_logger(__name__)
 
 _POLARSTEPS_METADATA = {"trip.json", "locations.json"}
+SaveGuard = Callable[[AsyncSession], Awaitable[bool]]
 
 
 def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
@@ -176,7 +177,9 @@ async def _load_existing(
 async def _save_new(
     uid: int,
     objects: list[DbRow],
-) -> None:
+    *,
+    save_guard: SaveGuard | None = None,
+) -> bool:
     with start_span(
         "processing.db_save",
         "Save processing results",
@@ -188,6 +191,9 @@ async def _save_new(
         },
     ):
         async with AsyncSession(get_engine()) as session:
+            if save_guard is not None and not await save_guard(session):
+                logger.info("processing.stale_during_save", user_id=uid)
+                return False
             for layer in _db_save_layers(objects):
                 session.add_all(layer)
                 await session.flush()
@@ -198,15 +204,18 @@ async def _save_new(
         object_count=len(objects),
         new_user=True,
     )
+    return True
 
 
-async def _save_reupload(
+async def _save_reupload(  # noqa: PLR0913
     uid: int,
     objects: list[DbRow],
     reconciled_aids: set[str],
     existing_albums: dict[str, Album],
     trip_dirs: list[Path],
-) -> None:
+    *,
+    save_guard: SaveGuard | None = None,
+) -> bool:
     with start_span(
         "processing.db_save",
         "Save processing results",
@@ -220,6 +229,9 @@ async def _save_reupload(
         },
     ):
         async with AsyncSession(get_engine()) as session:
+            if save_guard is not None and not await save_guard(session):
+                logger.info("processing.stale_during_save", user_id=uid)
+                return False
             if reconciled_aids:
                 await session.exec(
                     delete(StepPageMedia)
@@ -268,6 +280,7 @@ async def _save_reupload(
         object_count=len(objects),
         new_user=False,
     )
+    return True
 
 
 def _db_save_layers(objects: list[DbRow]) -> list[list[DbRow]]:
@@ -316,6 +329,7 @@ async def run_processing(  # noqa: C901
     user: User,
     *,
     should_continue: Callable[[], Awaitable[bool]] | None = None,
+    save_guard: SaveGuard | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
@@ -375,13 +389,21 @@ async def run_processing(  # noqa: C901
 
         try:
             if existing_albums:
-                await _save_reupload(
-                    user.id, all_objects, reconciled_aids, existing_albums, trip_dirs
+                saved = await _save_reupload(
+                    user.id,
+                    all_objects,
+                    reconciled_aids,
+                    existing_albums,
+                    trip_dirs,
+                    save_guard=save_guard,
                 )
             else:
-                await _save_new(user.id, all_objects)
+                saved = await _save_new(user.id, all_objects, save_guard=save_guard)
         except SQLAlchemyError:
             logger.exception("processing.db_save_failed", user_id=user.id)
+            yield ErrorData()
+            return
+        if not saved:
             yield ErrorData()
             return
         with start_span(
