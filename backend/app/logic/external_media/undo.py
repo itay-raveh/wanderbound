@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import shutil
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,12 +22,26 @@ from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
+from app.models.user import User
 
 UNDO_DIR = ".undo"
 UNDO_TTL = timedelta(minutes=5)
+UNDO_CLEANUP_INTERVAL = 60.0
 
 logger = structlog.get_logger(__name__)
 _undo_prune_tasks: set[asyncio.Task[None]] = set()
+
+
+@asynccontextmanager
+async def lifespan() -> AsyncGenerator[None]:
+    await _prune_all_expired_undo_snapshots_once()
+    task = asyncio.create_task(_prune_all_expired_undo_snapshots_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -218,3 +235,44 @@ async def prune_expired_undo_snapshots(
         await session.delete(row)
     await session.flush()
     return len(rows)
+
+
+async def prune_all_expired_undo_snapshots(
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+) -> int:
+    now = now or datetime.now(UTC)
+    rows = (
+        await session.exec(
+            select(AlbumMediaUndoSnapshot).where(
+                AlbumMediaUndoSnapshot.expires_at <= _as_utc(now)
+            )
+        )
+    ).all()
+    removed = 0
+    for row in rows:
+        user = await session.get(User, row.uid)
+        if user is not None:
+            await _unlink_snapshot(user.trips_folder / row.aid / row.snapshot_path)
+        await session.delete(row)
+        removed += 1
+    await session.flush()
+    return removed
+
+
+async def _prune_all_expired_undo_snapshots_once() -> None:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        removed = await prune_all_expired_undo_snapshots(session)
+        await session.commit()
+    if removed:
+        logger.info("external_media.undo_pruned", count=removed)
+
+
+async def _prune_all_expired_undo_snapshots_loop() -> None:
+    while True:
+        await asyncio.sleep(UNDO_CLEANUP_INTERVAL)
+        try:
+            await _prune_all_expired_undo_snapshots_once()
+        except SQLAlchemyError, OSError:
+            logger.debug("external_media.undo_prune_failed", exc_info=True)

@@ -87,7 +87,10 @@ class TestProcessingSession:
             PhaseUpdate(phase="layouts", done=5, total=5),
         ]
 
-        with patch("app.logic.session.run_processing", _processing_events(*events)):
+        with (
+            patch("app.logic.session.run_processing", _processing_events(*events)),
+            patch("app.logic.session.schedule_album_route_enrichment"),
+        ):
             session = ProcessingSession(_MOCK_HTTP, _mock_user())
             await session._task
             assert session.is_done
@@ -128,9 +131,10 @@ class TestProcessingSession:
 class TestProcessStream:
     @pytest.fixture(autouse=True)
     def _clean_sessions(self) -> Iterator[None]:
-        _sessions.clear()
-        yield
-        _sessions.clear()
+        with patch("app.logic.session.schedule_album_route_enrichment"):
+            _sessions.clear()
+            yield
+            _sessions.clear()
 
     async def test_reconnect_to_running_session(self) -> None:
         gate = asyncio.Event()

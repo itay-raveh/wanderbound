@@ -6,6 +6,7 @@ import json
 import threading
 import zipfile
 from collections.abc import AsyncGenerator, Callable
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal
@@ -15,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.core.observability import start_span
-from app.core.tokens import TokenStore
+from app.core.tokens import FileTokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.logic.step_media import read_steps_with_media
 from app.models.album import Album
@@ -58,12 +59,34 @@ ExportEvent = Annotated[
     Field(discriminator="type"),
 ]
 
-_tokens: TokenStore[Path] = TokenStore(
-    dir_name=_EXPORT_NAME,
-    ttl=300,
-    label="export",
-    on_evict=lambda p: p.unlink(missing_ok=True),
-)
+
+class _ExportTokens:
+    def __init__(self) -> None:
+        self._store = FileTokenStore(
+            dir_name=_EXPORT_NAME,
+            ttl=300,
+            label="export",
+            on_evict=lambda data: Path(data["path"]).unlink(missing_ok=True),
+        )
+
+    def cleanup(self) -> None:
+        self._store.cleanup()
+
+    def make_dest(self, suffix: str) -> Path:
+        return self._store.make_dest(suffix)
+
+    def store(self, path: Path) -> str:
+        return self._store.store({"path": str(path)})
+
+    def pop(self, token: str) -> Path | None:
+        data = self._store.pop(token)
+        return None if data is None else Path(data["path"])
+
+    def lifespan(self) -> AbstractAsyncContextManager[None]:
+        return self._store.lifespan()
+
+
+_tokens = _ExportTokens()
 
 pop_export_token = _tokens.pop
 lifespan = _tokens.lifespan

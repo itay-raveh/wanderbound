@@ -20,8 +20,10 @@ from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
 from app.logic.chunked_upload import upload_store
 from app.logic.export import lifespan as export_lifespan
+from app.logic.external_media.undo import lifespan as undo_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
+from app.logic.segment_routes import set_route_enrichment_http_clients
 from app.logic.session import cancel_all_sessions
 from app.logic.workflows.processing import set_processing_workflow_http_clients
 from app.logic.workflows.recovery import workflow_heartbeat_loop, workflow_recovery_loop
@@ -69,15 +71,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             async with (
                 pdf_lifespan() as browser_manager,
                 export_lifespan(),
+                undo_lifespan(),
                 upload_store.lifespan(),
                 lifespan_clients() as http,
             ):
                 app.state.browser_manager = browser_manager
                 app.state.http = http
                 set_processing_workflow_http_clients(http)
+                set_route_enrichment_http_clients(http)
                 try:
                     yield
                 finally:
+                    set_route_enrichment_http_clients(None)
                     set_processing_workflow_http_clients(None)
                     cancel_all_sessions()
         finally:

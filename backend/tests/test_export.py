@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.config import get_settings
+from app.core.tokens import FileTokenStore
 from app.logic.export import (
     _EXPORT_NAME,
     EXPORT_FILENAME,
@@ -70,7 +71,8 @@ def _export_download_token(path: Path | None) -> patch:
 
 class TestTokenManagement:
     @pytest.fixture(autouse=True)
-    def _clean_tokens(self) -> None:
+    def _clean_tokens(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         export_tokens.cleanup()
 
     async def test_store_and_pop(self, tmp_path: Path) -> None:
@@ -85,6 +87,17 @@ class TestTokenManagement:
         assert result == path
 
         assert pop_export_token(token) is None
+
+    async def test_file_tokens_can_be_popped_by_another_store_instance(self) -> None:
+        first = FileTokenStore(dir_name="shared", ttl=60, label="test")
+        second = FileTokenStore(dir_name="shared", ttl=60, label="test")
+        path = first.make_dest(".bin")
+        path.write_bytes(b"shared")
+
+        token = first.store({"path": str(path)})
+
+        assert second.pop(token) == {"path": str(path)}
+        assert first.pop(token) is None
 
 
 class TestExportUserData:

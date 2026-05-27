@@ -1,7 +1,12 @@
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import aclosing, asynccontextmanager, suppress
+from contextlib import (
+    AbstractAsyncContextManager,
+    aclosing,
+    asynccontextmanager,
+    suppress,
+)
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
@@ -10,9 +15,10 @@ from playwright.async_api import Browser, Page, Playwright, async_playwright
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
 from app.core.resources import MiB, detect_memory_mb
-from app.core.tokens import TokenStore
+from app.core.tokens import FileTokenStore
 
 logger = structlog.get_logger(__name__)
 
@@ -22,11 +28,10 @@ _PER_RENDER_MB = 768
 _memory_mb = detect_memory_mb()
 _max_concurrent = max(1, (_memory_mb - _PDF_BASELINE_MB) // _PER_RENDER_MB)
 
-_render_sem = asyncio.Semaphore(_max_concurrent)
-
 _QUEUE_TIMEOUT = 120
 _RENDER_TIMEOUT = 300
 _PROGRESS_CHUNK_BYTES = 512 * 1024
+_RENDER_SLOT_POLL_INTERVAL = 0.25
 
 
 class PdfQueued(BaseModel):
@@ -55,12 +60,35 @@ PdfEvent = Annotated[
     Field(discriminator="type"),
 ]
 
-_tokens: TokenStore[tuple[Path, str]] = TokenStore(
-    dir_name="wanderbound-pdf",
-    ttl=60,
-    label="PDF",
-    on_evict=lambda d: d[0].unlink(missing_ok=True),
-)
+
+class _PdfTokens:
+    def __init__(self) -> None:
+        self._store = FileTokenStore(
+            dir_name="wanderbound-pdf",
+            ttl=60,
+            label="PDF",
+            on_evict=lambda data: Path(data["path"]).unlink(missing_ok=True),
+        )
+
+    def cleanup(self) -> None:
+        self._store.cleanup()
+
+    def make_dest(self, suffix: str) -> Path:
+        return self._store.make_dest(suffix)
+
+    def store(self, data: tuple[Path, str]) -> str:
+        path, aid = data
+        return self._store.store({"path": str(path), "aid": aid})
+
+    def pop(self, token: str) -> tuple[Path, str] | None:
+        data = self._store.pop(token)
+        return None if data is None else (Path(data["path"]), data["aid"])
+
+    def lifespan(self) -> AbstractAsyncContextManager[None]:
+        return self._store.lifespan()
+
+
+_tokens = _PdfTokens()
 
 
 class BrowserManager:
@@ -120,6 +148,27 @@ def store_pdf_token(path: Path, aid: str) -> str:
 
 
 pop_pdf_token = _tokens.pop
+
+
+@asynccontextmanager
+async def _render_slot() -> AsyncGenerator[None]:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _QUEUE_TIMEOUT
+    while True:
+        for slot in range(_max_concurrent):
+            lock = try_advisory_lock(f"pdf-render:{slot}")
+            acquired = await lock.__aenter__()
+            if acquired:
+                try:
+                    yield
+                finally:
+                    await lock.__aexit__(None, None, None)
+                return
+            await lock.__aexit__(None, None, None)
+
+        if loop.time() >= deadline:
+            raise TimeoutError
+        await asyncio.sleep(_RENDER_SLOT_POLL_INTERVAL)
 
 
 async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
@@ -290,8 +339,8 @@ async def render_album_pdf_stream(
             "Wait for PDF render slot",
             **{"app.workflow": "pdf", "album.id": aid},
         ):
-            async with asyncio.timeout(_QUEUE_TIMEOUT):
-                await _render_sem.acquire()
+            slot = _render_slot()
+            await slot.__aenter__()
     except TimeoutError:
         logger.warning(
             "pdf.queue_timeout",
@@ -351,4 +400,4 @@ async def render_album_pdf_stream(
     finally:
         if not owned:
             dest.unlink(missing_ok=True)
-        _render_sem.release()
+        await slot.__aexit__(None, None, None)
