@@ -109,7 +109,7 @@ def test_enqueue_album_route_enrichment_adds_background_task() -> None:
     assert task.kwargs == {}
 
 
-def test_start_album_route_enrichment_uses_stable_workflow_id() -> None:
+def test_start_album_route_enrichment_uses_unique_workflow_id_per_run() -> None:
     calls: list[tuple[object, dict[str, object]]] = []
     workflow_ids: list[str] = []
     handle = object()
@@ -135,10 +135,20 @@ def test_start_album_route_enrichment_uses_stable_workflow_id() -> None:
         result = start_album_route_enrichment(123, "album-1")
 
     assert result is handle
-    assert workflow_ids == [route_enrichment_workflow_id(123, "album-1")]
+    assert len(workflow_ids) == 1
+    assert workflow_ids[0].startswith("route-enrichment:123:album-1:")
     assert calls == [
         (album_route_enrichment_workflow, route_enrichment_payload(123, "album-1"))
     ]
+
+
+def test_route_enrichment_workflow_id_is_unique_per_call() -> None:
+    first = route_enrichment_workflow_id(123, "album-1")
+    second = route_enrichment_workflow_id(123, "album-1")
+
+    assert first != second
+    assert first.startswith("route-enrichment:123:album-1:")
+    assert second.startswith("route-enrichment:123:album-1:")
 
 
 async def _route_for(

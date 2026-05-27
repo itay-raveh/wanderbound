@@ -193,6 +193,51 @@ async def test_run_processing_workflow_payload_marks_failed_on_error_event(
     schedule.assert_not_called()
 
 
+async def test_run_processing_workflow_payload_marks_failed_when_processing_raises(
+    session: AsyncSession,
+) -> None:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    await session.commit()
+
+    async def fake_run_processing(
+        _http: object, _user: User, **_kwargs: object
+    ) -> AsyncIterator[ProcessingEvent]:
+        yield TripStart(trip_index=0)
+        msg = "boom"
+        raise RuntimeError(msg)
+
+    with (
+        patch("app.logic.workflows.processing.run_processing", fake_run_processing),
+        patch(
+            "app.logic.workflows.processing.schedule_album_route_enrichment"
+        ) as schedule,
+    ):
+        result = await run_processing_workflow_payload(
+            processing_workflow_payload(operation, user),
+            MagicMock(),
+            session,
+        )
+
+    await session.refresh(operation)
+    events = await read_processing_events(session, operation.operation_id)
+
+    assert result == {"operation_id": operation.operation_id, "status": "failed"}
+    assert operation.status == "failed"
+    assert events == [TripStart(trip_index=0), ErrorData()]
+    schedule.assert_not_called()
+
+
 async def test_run_processing_workflow_payload_preserves_stale_operation(
     session: AsyncSession,
 ) -> None:

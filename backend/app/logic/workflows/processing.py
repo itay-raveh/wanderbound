@@ -1,5 +1,6 @@
 from typing import Any
 
+import structlog
 from dbos import DBOS, SetWorkflowID
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,6 +18,8 @@ from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ErrorData
 from app.models.processing import ProcessingOperation
 from app.models.user import User
+
+logger = structlog.get_logger(__name__)
 
 
 class ProcessingWorkflowPayload(BaseModel):
@@ -72,7 +75,19 @@ async def run_processing_workflow_payload(
     await mark_processing_operation_running(session, operation)
     await session.commit()
 
-    saw_error = await run_and_persist_processing_events(http, user, operation, session)
+    try:
+        saw_error = await run_and_persist_processing_events(
+            http, user, operation, session
+        )
+    except Exception as exc:
+        await session.rollback()
+        logger.exception(
+            "processing_workflow.failed",
+            operation_id=operation.operation_id,
+            user_id=user.id,
+            error_type=type(exc).__name__,
+        )
+        return await fail_active_processing_operation(session, operation, exc)
 
     await session.refresh(operation)
     if operation.status == "stale":
@@ -87,6 +102,28 @@ async def run_processing_workflow_payload(
             schedule_album_route_enrichment(http, user.id, aid)
 
     return {"operation_id": operation.operation_id, "status": status}
+
+
+async def fail_active_processing_operation(
+    session: AsyncSession,
+    operation: ProcessingOperation,
+    exc: Exception,
+) -> dict[str, str]:
+    current = await session.get(ProcessingOperation, operation.operation_id)
+    if current is None:
+        raise exc
+    if not await processing_operation_is_active(session, current.operation_id):
+        return {"operation_id": current.operation_id, "status": current.status}
+
+    await append_processing_event(session, current, ErrorData())
+    await complete_processing_operation(
+        session,
+        current,
+        status="failed",
+        error_code=type(exc).__name__,
+    )
+    await session.commit()
+    return {"operation_id": current.operation_id, "status": "failed"}
 
 
 async def run_and_persist_processing_events(

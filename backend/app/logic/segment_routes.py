@@ -4,6 +4,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 import structlog
 from dbos import DBOS, SetWorkflowID
@@ -81,7 +82,7 @@ def get_route_enrichment_http_clients() -> HttpClients:
 
 
 def route_enrichment_workflow_id(uid: int, aid: str) -> str:
-    return f"route-enrichment:{uid}:{aid}"
+    return f"route-enrichment:{uid}:{aid}:{uuid4().hex}"
 
 
 def route_enrichment_payload(uid: int, aid: str) -> dict[str, Any]:
