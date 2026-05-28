@@ -161,6 +161,38 @@ async def test_recover_dead_workflow_executors_recovers_stale(
     assert calls == [("http://127.0.0.1:3001", ["stale-worker"])]
 
 
+async def test_recover_dead_workflow_executors_runs_admin_call_in_thread(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = WorkflowExecutorHeartbeat(
+        executor_id="stale-worker",
+        admin_base_url="http://127.0.0.1:3001",
+        status="active",
+        last_seen_at=datetime.now(UTC) - timedelta(seconds=120),
+    )
+    session.add(stale)
+    await session.flush()
+    calls: list[tuple[object, tuple[object, ...]]] = []
+
+    async def fake_to_thread(func: object, *args: object) -> list[str]:
+        calls.append((func, args))
+        return ["workflow-1"]
+
+    monkeypatch.setattr(
+        "app.logic.workflows.recovery.asyncio.to_thread", fake_to_thread
+    )
+
+    recovered = await recover_dead_workflow_executors(session, _RecoverySettings())
+
+    assert recovered == ["workflow-1"]
+    assert calls == [
+        (
+            recover_workflows_via_admin,
+            ("http://127.0.0.1:3001", ["stale-worker"]),
+        )
+    ]
+
+
 async def test_workflow_admin_election_promotes_when_lock_is_available() -> None:
     state = WorkflowAdminState()
     events: list[str] = []

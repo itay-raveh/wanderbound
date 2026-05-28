@@ -12,13 +12,19 @@ def _database_url(value: object) -> str:
     return str(value)
 
 
+def _database_url_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    url = _database_url(value)
+    return url or None
+
+
 def dbos_config(
     settings: Any, *, run_admin_server: bool | None = None
 ) -> dict[str, Any]:
     system_database_url = (
-        settings.DBOS_SYSTEM_DATABASE_URI
-        if settings.DBOS_SYSTEM_DATABASE_URI is not None
-        else settings.SQLALCHEMY_DATABASE_URI
+        _database_url_or_none(settings.DBOS_SYSTEM_DATABASE_URI)
+        or settings.SQLALCHEMY_DATABASE_URI
     )
     config: dict[str, Any] = {
         "name": settings.DBOS_APP_NAME,

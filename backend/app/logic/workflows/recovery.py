@@ -114,7 +114,9 @@ async def recover_dead_workflow_executors(
     )
     if not dead_executor_ids:
         return []
-    return recover_workflows_via_admin(admin_base_url, dead_executor_ids)
+    return await asyncio.to_thread(
+        recover_workflows_via_admin, admin_base_url, dead_executor_ids
+    )
 
 
 async def workflow_heartbeat_once(

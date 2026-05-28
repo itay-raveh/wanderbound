@@ -44,6 +44,15 @@ def test_dbos_config_accepts_dedicated_system_database() -> None:
     )
 
 
+def test_dbos_config_treats_blank_system_database_as_unset() -> None:
+    settings = _Settings()
+    settings.DBOS_SYSTEM_DATABASE_URI = SecretStr("")
+
+    assert dbos_config(settings)["system_database_url"] == (
+        "postgresql+psycopg://app:secret@db/app"
+    )
+
+
 def test_launch_and_destroy_dbos_delegate_to_dbos_runtime() -> None:
     settings = _Settings()
     with (
