@@ -67,8 +67,14 @@ async def run_processing_workflow_payload(
     user = await session.get(User, params.uid)
     operation = await session.get(ProcessingOperation, params.operation_id)
     if user is None or operation is None:
-        msg = "processing workflow references missing user or operation"
-        raise RuntimeError(msg)
+        logger.info(
+            "processing_workflow.cancelled_missing_rows",
+            operation_id=params.operation_id,
+            user_id=params.uid,
+            missing_user=user is None,
+            missing_operation=operation is None,
+        )
+        return {"operation_id": params.operation_id, "status": "cancelled"}
 
     if not await processing_operation_is_active(session, operation.operation_id):
         return {"operation_id": operation.operation_id, "status": operation.status}

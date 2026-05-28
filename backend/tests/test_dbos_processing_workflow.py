@@ -238,6 +238,24 @@ async def test_run_processing_workflow_payload_marks_failed_when_processing_rais
     schedule.assert_not_called()
 
 
+async def test_run_processing_workflow_payload_exits_when_user_was_deleted(
+    session: AsyncSession,
+) -> None:
+    result = await run_processing_workflow_payload(
+        {
+            "operation_id": "deleted-operation",
+            "uid": 42,
+            "upload_generation": 1,
+            "trips_folder": "/deleted",
+            "album_ids": [],
+        },
+        MagicMock(),
+        session,
+    )
+
+    assert result == {"operation_id": "deleted-operation", "status": "cancelled"}
+
+
 async def test_run_processing_workflow_payload_preserves_stale_operation(
     session: AsyncSession,
 ) -> None:
