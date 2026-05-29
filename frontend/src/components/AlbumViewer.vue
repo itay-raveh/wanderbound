@@ -35,6 +35,7 @@ import {
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
+import type { VirtualItem } from "@tanstack/vue-virtual";
 import {
   computed,
   defineAsyncComponent,
@@ -195,7 +196,7 @@ const { virtualizer, items, size, version } = useWindowVirtualizer(
         if (index < hc) return pageH.value;
         return (sectionPageCounts.value[index - hc] ?? 1) * pageH.value;
       },
-      overscan: 3,
+      overscan: 1,
       gap: 16,
       scrollMargin: scrollMargin.value,
       getItemKey: (index: number) => {
@@ -220,6 +221,20 @@ function measureNew() {
       virtualizer.measureElement(el);
     }
   }
+}
+
+const heavyRenderWindow = computed(() => {
+  void version.value;
+  if (typeof window === "undefined") return { top: 0, bottom: 0 };
+  const preload = pageH.value * 0.5;
+  const top = window.scrollY - scrollMargin.value - preload;
+  const bottom = top + window.innerHeight + preload * 2;
+  return { top, bottom };
+});
+
+function shouldRenderHeavyPage(vItem: VirtualItem) {
+  const { top, bottom } = heavyRenderWindow.value;
+  return vItem.end >= top && vItem.start <= bottom;
 }
 
 function onWheel(e: WheelEvent) {
@@ -479,7 +494,12 @@ if (props.printMode) {
               v-else-if="activeHeaders[vItem.index] === 'full-map'"
               class="map-wrapper"
             >
-              <MapPage :segment-outlines="segments" :steps="visibleSteps" />
+              <MapPage
+                v-if="shouldRenderHeavyPage(vItem)"
+                :segment-outlines="segments"
+                :steps="visibleSteps"
+              />
+              <EmptyPage v-else />
             </div>
           </template>
 
@@ -491,17 +511,18 @@ if (props.printMode) {
             >
               <div v-if="sec.type !== 'step'" class="map-wrapper">
                 <MapPage
-                  v-if="sec.type === 'map'"
+                  v-if="sec.type === 'map' && shouldRenderHeavyPage(vItem)"
                   :segment-outlines="sec.segments"
                   :steps="sec.steps"
                 />
                 <HikeMapPage
-                  v-else
+                  v-else-if="sec.type === 'hike' && shouldRenderHeavyPage(vItem)"
                   :segments="sec.segments"
                   :steps="sec.steps"
                   :hike-segment="sec.hikeSegment"
                   :all-segments="segmentOutlines"
                 />
+                <EmptyPage v-else />
               </div>
               <StepEntry v-else :step="sec.step" />
             </template>
