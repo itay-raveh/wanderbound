@@ -76,14 +76,22 @@ async def mark_processing_operation_running(
     operation: ProcessingOperation,
     *,
     executor_id: str | None = None,
-) -> None:
+) -> bool:
     now = _now()
-    operation.status = "running"
-    operation.started_by_executor_id = executor_id
-    operation.started_at = operation.started_at or now
-    operation.updated_at = now
-    session.add(operation)
+    result = await session.exec(
+        update(ProcessingOperation)
+        .where(col(ProcessingOperation.operation_id) == operation.operation_id)
+        .where(col(ProcessingOperation.status).in_(_ACTIVE_STATUSES))
+        .values(
+            status="running",
+            started_by_executor_id=executor_id,
+            started_at=func.coalesce(ProcessingOperation.started_at, now),
+            updated_at=now,
+        )
+    )
     await session.flush()
+    await session.refresh(operation)
+    return bool(result.rowcount)
 
 
 async def complete_processing_operation(
@@ -92,17 +100,25 @@ async def complete_processing_operation(
     *,
     status: ProcessingOperationStatus,
     error_code: str | None = None,
-) -> None:
+) -> bool:
     if status not in _TERMINAL_STATUSES:
         msg = f"{status!r} is not a terminal processing status"
         raise ValueError(msg)
     now = _now()
-    operation.status = status
-    operation.error_code = error_code
-    operation.completed_at = now
-    operation.updated_at = now
-    session.add(operation)
+    result = await session.exec(
+        update(ProcessingOperation)
+        .where(col(ProcessingOperation.operation_id) == operation.operation_id)
+        .where(col(ProcessingOperation.status).in_(_ACTIVE_STATUSES))
+        .values(
+            status=status,
+            error_code=error_code,
+            completed_at=now,
+            updated_at=now,
+        )
+    )
     await session.flush()
+    await session.refresh(operation)
+    return bool(result.rowcount)
 
 
 async def processing_operation_is_active(

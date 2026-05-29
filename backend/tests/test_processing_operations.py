@@ -118,3 +118,33 @@ async def test_status_helpers_track_running_terminal_and_active(
     assert operation.completed_at is not None
     active = await processing_operation_is_active(session, operation.operation_id)
     assert active is False
+
+
+async def test_mark_running_does_not_revive_stale_operation(
+    session: AsyncSession,
+) -> None:
+    operation = await create_processing_operation(session, uid=42, upload_generation=3)
+    operation.status = "stale"
+    session.add(operation)
+    await session.flush()
+
+    updated = await mark_processing_operation_running(session, operation)
+
+    assert updated is False
+    assert operation.status == "stale"
+
+
+async def test_complete_operation_does_not_overwrite_stale_operation(
+    session: AsyncSession,
+) -> None:
+    operation = await create_processing_operation(session, uid=42, upload_generation=3)
+    operation.status = "stale"
+    session.add(operation)
+    await session.flush()
+
+    updated = await complete_processing_operation(
+        session, operation, status="succeeded"
+    )
+
+    assert updated is False
+    assert operation.status == "stale"

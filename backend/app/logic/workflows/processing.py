@@ -76,10 +76,8 @@ async def run_processing_workflow_payload(
         )
         return {"operation_id": params.operation_id, "status": "cancelled"}
 
-    if not await processing_operation_is_active(session, operation.operation_id):
+    if not await mark_processing_operation_running(session, operation):
         return {"operation_id": operation.operation_id, "status": operation.status}
-
-    await mark_processing_operation_running(session, operation)
     await session.commit()
 
     try:
@@ -96,12 +94,9 @@ async def run_processing_workflow_payload(
         )
         return await fail_active_processing_operation(session, operation, exc)
 
-    await session.refresh(operation)
-    if operation.status == "stale":
-        return {"operation_id": operation.operation_id, "status": "stale"}
-
     status = "failed" if saw_error else "succeeded"
-    await complete_processing_operation(session, operation, status=status)
+    if not await complete_processing_operation(session, operation, status=status):
+        return {"operation_id": operation.operation_id, "status": operation.status}
     await session.commit()
 
     if not saw_error:
@@ -123,12 +118,13 @@ async def fail_active_processing_operation(
         return {"operation_id": current.operation_id, "status": current.status}
 
     await append_processing_event(session, current, ErrorData())
-    await complete_processing_operation(
+    if not await complete_processing_operation(
         session,
         current,
         status="failed",
         error_code=type(exc).__name__,
-    )
+    ):
+        return {"operation_id": current.operation_id, "status": current.status}
     await session.commit()
     return {"operation_id": current.operation_id, "status": "failed"}
 
