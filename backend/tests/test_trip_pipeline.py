@@ -20,7 +20,7 @@ from app.logic.trip_pipeline import (
 )
 from app.logic.trip_processing import ErrorData, PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -203,6 +203,27 @@ def _cover_media() -> AlbumMedia:
     )
 
 
+def _page_media() -> StepPageMedia:
+    return StepPageMedia(
+        uid=UID,
+        aid=AID,
+        step_id=1,
+        page_index=0,
+        position_index=0,
+        media_name="cover.jpg",
+    )
+
+
+def _unused_media() -> StepUnusedMedia:
+    return StepUnusedMedia(
+        uid=UID,
+        aid=AID,
+        step_id=1,
+        position_index=0,
+        media_name="cover.jpg",
+    )
+
+
 async def _seed_album_state(engine: AsyncEngine, *objects: object) -> None:
     async with AsyncSession(engine) as session:
         session.add(_user())
@@ -230,6 +251,30 @@ async def _save_reuploaded_objects(
             existing_albums={AID: existing_album},
             trip_dirs=[trip_dir],
         )
+
+
+class TestSaveNew:
+    async def test_saves_step_media_after_parent_step_and_album_media(
+        self,
+    ) -> None:
+        engine = _sqlite_engine(foreign_keys=True)
+        await _create_schema(engine)
+        await _seed_album_state(engine)
+
+        saved = False
+        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+            saved = await _save_new(
+                UID,
+                [_album(), _cover_media(), _step(), _page_media(), _unused_media()],
+            )
+
+        async with AsyncSession(engine) as session:
+            page_media = (await session.exec(select(StepPageMedia))).all()
+            unused_media = (await session.exec(select(StepUnusedMedia))).all()
+
+        assert saved is True
+        assert page_media == [_page_media()]
+        assert unused_media == [_unused_media()]
 
 
 class TestProcessTripSegmentEvents:

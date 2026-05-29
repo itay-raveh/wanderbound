@@ -194,9 +194,7 @@ async def _save_new(
             if save_guard is not None and not await save_guard(session):
                 logger.info("processing.stale_during_save", user_id=uid)
                 return False
-            for layer in _db_save_layers(objects):
-                session.add_all(layer)
-                await session.flush()
+            await _add_new_objects(session, objects)
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -205,6 +203,14 @@ async def _save_new(
         new_user=True,
     )
     return True
+
+
+async def _add_new_objects(session: AsyncSession, objects: list[DbRow]) -> None:
+    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+        rows = [obj for obj in objects if isinstance(obj, model)]
+        if rows:
+            session.add_all(rows)
+            await session.flush()
 
 
 async def _save_reupload(  # noqa: PLR0913
@@ -269,10 +275,7 @@ async def _save_reupload(  # noqa: PLR0913
                 )
             await session.flush()
 
-            for layer in _db_save_layers(objects):
-                for obj in layer:
-                    await session.merge(obj)
-                await session.flush()
+            await _merge_objects(session, objects)
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -283,15 +286,13 @@ async def _save_reupload(  # noqa: PLR0913
     return True
 
 
-def _db_save_layers(objects: list[DbRow]) -> list[list[DbRow]]:
-    albums: list[DbRow] = [obj for obj in objects if isinstance(obj, Album)]
-    media: list[DbRow] = [obj for obj in objects if isinstance(obj, AlbumMedia)]
-    steps: list[DbRow] = [obj for obj in objects if isinstance(obj, Step)]
-    step_media: list[DbRow] = [
-        obj for obj in objects if isinstance(obj, StepPageMedia | StepUnusedMedia)
-    ]
-    segments: list[DbRow] = [obj for obj in objects if isinstance(obj, Segment)]
-    return [layer for layer in [albums, media, steps, step_media, segments] if layer]
+async def _merge_objects(session: AsyncSession, objects: list[DbRow]) -> None:
+    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+        rows = [obj for obj in objects if isinstance(obj, model)]
+        for obj in rows:
+            await session.merge(obj)
+        if rows:
+            await session.flush()
 
 
 def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
