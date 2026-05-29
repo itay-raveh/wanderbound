@@ -200,12 +200,6 @@ async def append_processing_event_once(
     payload = _EVENT_ADAPTER.dump_python(event, mode="json")
     existing = await session.get(ProcessingEventRow, (operation.operation_id, seq))
     if existing is not None:
-        if existing.payload != payload:
-            msg = (
-                "recovered processing event does not match persisted event "
-                f"at seq {seq}"
-            )
-            raise RuntimeError(msg)
         return existing
 
     row = ProcessingEventRow(

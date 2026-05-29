@@ -381,7 +381,7 @@ async def test_run_processing_workflow_payload_exits_when_operation_already_stal
     assert run_calls == 0
 
 
-async def test_recovered_processing_run_does_not_duplicate_persisted_events(
+async def test_recovered_processing_run_skips_nondeterministic_persisted_events(
     session: AsyncSession,
 ) -> None:
     user = User(
@@ -398,11 +398,21 @@ async def test_recovered_processing_run_does_not_duplicate_persisted_events(
     operation = await create_processing_operation(session, uid=42, upload_generation=1)
     await session.commit()
 
+    run_count = 0
+
     async def fake_run_processing(
         _http: object, _user: User, **_kwargs: object
     ) -> AsyncIterator[ProcessingEvent]:
+        nonlocal run_count
+        run_count += 1
         yield TripStart(trip_index=0)
-        yield PhaseUpdate(phase="layouts", done=1, total=1)
+        if run_count == 1:
+            yield PhaseUpdate(phase="weather", done=1, total=2)
+            yield PhaseUpdate(phase="elevations", done=1, total=2)
+        else:
+            yield PhaseUpdate(phase="elevations", done=1, total=2)
+            yield PhaseUpdate(phase="weather", done=1, total=2)
+            yield PhaseUpdate(phase="layouts", done=1, total=1)
 
     with patch("app.logic.workflows.processing.run_processing", fake_run_processing):
         await run_and_persist_processing_events(MagicMock(), user, operation, session)
@@ -412,6 +422,8 @@ async def test_recovered_processing_run_does_not_duplicate_persisted_events(
 
     assert events == [
         TripStart(trip_index=0),
+        PhaseUpdate(phase="weather", done=1, total=2),
+        PhaseUpdate(phase="elevations", done=1, total=2),
         PhaseUpdate(phase="layouts", done=1, total=1),
     ]
 
