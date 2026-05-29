@@ -8,11 +8,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.logic.processing_operations import (
-    append_processing_event,
+    append_processing_event_once,
+    append_processing_event_unless_last_matches,
     complete_processing_operation,
+    complete_processing_operation_by_id,
     mark_processing_operation_running,
     processing_operation_is_active,
-    processing_operation_is_active_for_update,
 )
 from app.logic.segment_routes import schedule_album_route_enrichment
 from app.logic.trip_pipeline import run_processing
@@ -94,12 +95,18 @@ async def run_processing_workflow_payload(
         )
         return await fail_active_processing_operation(session, operation, exc)
 
-    status = "failed" if saw_error else "succeeded"
-    if not await complete_processing_operation(session, operation, status=status):
+    await session.refresh(operation)
+    if operation.status == "succeeded":
+        status = "succeeded"
+    else:
+        status = "failed" if saw_error else "succeeded"
+    if operation.status != status and not await complete_processing_operation(
+        session, operation, status=status
+    ):
         return {"operation_id": operation.operation_id, "status": operation.status}
     await session.commit()
 
-    if not saw_error:
+    if status == "succeeded":
         for aid in user.album_ids:
             schedule_album_route_enrichment(http, user.id, aid)
 
@@ -117,7 +124,7 @@ async def fail_active_processing_operation(
     if not await processing_operation_is_active(session, current.operation_id):
         return {"operation_id": current.operation_id, "status": current.status}
 
-    await append_processing_event(session, current, ErrorData())
+    await append_processing_event_unless_last_matches(session, current, ErrorData())
     if not await complete_processing_operation(
         session,
         current,
@@ -139,18 +146,20 @@ async def run_and_persist_processing_events(
         return await processing_operation_is_active(session, operation.operation_id)
 
     async def save_guard(save_session: AsyncSession) -> bool:
-        return await processing_operation_is_active_for_update(
-            save_session, operation.operation_id
+        return await complete_processing_operation_by_id(
+            save_session, operation.operation_id, status="succeeded"
         )
 
     saw_error = False
+    seq = 0
     async for event in run_processing(
         http, user, should_continue=should_continue, save_guard=save_guard
     ):
         if isinstance(event, ErrorData):
             saw_error = True
-        await append_processing_event(session, operation, event)
+        await append_processing_event_once(session, operation, event, seq=seq)
         await session.commit()
+        seq += 1
     return saw_error
 
 

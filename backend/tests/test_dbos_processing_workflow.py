@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.logic.processing_operations import (
+    append_processing_event,
     create_processing_operation,
     read_processing_events,
 )
@@ -11,6 +12,7 @@ from app.logic.workflows.processing import (
     ProcessingWorkflowPayload,
     processing_upload_workflow,
     processing_workflow_payload,
+    run_and_persist_processing_events,
     run_processing_workflow_payload,
     start_processing_workflow,
 )
@@ -238,6 +240,47 @@ async def test_run_processing_workflow_payload_marks_failed_when_processing_rais
     schedule.assert_not_called()
 
 
+async def test_recovered_failed_processing_run_does_not_duplicate_error_event(
+    session: AsyncSession,
+) -> None:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    operation.status = "running"
+    session.add(operation)
+    await session.flush()
+    await append_processing_event(session, operation, TripStart(trip_index=0))
+    await append_processing_event(session, operation, ErrorData())
+    await session.commit()
+
+    async def fake_run_processing(
+        _http: object, _user: User, **_kwargs: object
+    ) -> AsyncIterator[ProcessingEvent]:
+        yield TripStart(trip_index=0)
+        msg = "boom"
+        raise RuntimeError(msg)
+
+    with patch("app.logic.workflows.processing.run_processing", fake_run_processing):
+        await run_processing_workflow_payload(
+            processing_workflow_payload(operation, user),
+            MagicMock(),
+            session,
+        )
+
+    events = await read_processing_events(session, operation.operation_id)
+
+    assert events == [TripStart(trip_index=0), ErrorData()]
+
+
 async def test_run_processing_workflow_payload_exits_when_user_was_deleted(
     session: AsyncSession,
 ) -> None:
@@ -336,3 +379,76 @@ async def test_run_processing_workflow_payload_exits_when_operation_already_stal
     assert result == {"operation_id": operation.operation_id, "status": "stale"}
     assert operation.status == "stale"
     assert run_calls == 0
+
+
+async def test_recovered_processing_run_does_not_duplicate_persisted_events(
+    session: AsyncSession,
+) -> None:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    await session.commit()
+
+    async def fake_run_processing(
+        _http: object, _user: User, **_kwargs: object
+    ) -> AsyncIterator[ProcessingEvent]:
+        yield TripStart(trip_index=0)
+        yield PhaseUpdate(phase="layouts", done=1, total=1)
+
+    with patch("app.logic.workflows.processing.run_processing", fake_run_processing):
+        await run_and_persist_processing_events(MagicMock(), user, operation, session)
+        await run_and_persist_processing_events(MagicMock(), user, operation, session)
+
+    events = await read_processing_events(session, operation.operation_id)
+
+    assert events == [
+        TripStart(trip_index=0),
+        PhaseUpdate(phase="layouts", done=1, total=1),
+    ]
+
+
+async def test_processing_save_guard_marks_operation_succeeded_in_save_transaction(
+    session: AsyncSession,
+) -> None:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    await session.commit()
+
+    async def fake_run_processing(
+        _http: object, _user: User, **kwargs: object
+    ) -> AsyncIterator[ProcessingEvent]:
+        yield TripStart(trip_index=0)
+        save_guard = cast(
+            "Callable[[AsyncSession], Awaitable[bool]]", kwargs["save_guard"]
+        )
+        assert await save_guard(session) is True
+        await session.commit()
+
+    with patch("app.logic.workflows.processing.run_processing", fake_run_processing):
+        saw_error = await run_and_persist_processing_events(
+            MagicMock(), user, operation, session
+        )
+
+    await session.refresh(operation)
+
+    assert saw_error is False
+    assert operation.status == "succeeded"

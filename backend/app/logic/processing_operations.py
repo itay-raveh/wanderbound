@@ -121,6 +121,32 @@ async def complete_processing_operation(
     return bool(result.rowcount)
 
 
+async def complete_processing_operation_by_id(
+    session: AsyncSession,
+    operation_id: str,
+    *,
+    status: ProcessingOperationStatus,
+    error_code: str | None = None,
+) -> bool:
+    if status not in _TERMINAL_STATUSES:
+        msg = f"{status!r} is not a terminal processing status"
+        raise ValueError(msg)
+    now = _now()
+    result = await session.exec(
+        update(ProcessingOperation)
+        .where(col(ProcessingOperation.operation_id) == operation_id)
+        .where(col(ProcessingOperation.status).in_(_ACTIVE_STATUSES))
+        .values(
+            status=status,
+            error_code=error_code,
+            completed_at=now,
+            updated_at=now,
+        )
+    )
+    await session.flush()
+    return bool(result.rowcount)
+
+
 async def processing_operation_is_active(
     session: AsyncSession, operation_id: str
 ) -> bool:
@@ -162,6 +188,55 @@ async def append_processing_event(
     session.add(operation)
     await session.flush()
     return row
+
+
+async def append_processing_event_once(
+    session: AsyncSession,
+    operation: ProcessingOperation,
+    event: ProcessingEvent,
+    *,
+    seq: int,
+) -> ProcessingEventRow:
+    payload = _EVENT_ADAPTER.dump_python(event, mode="json")
+    existing = await session.get(ProcessingEventRow, (operation.operation_id, seq))
+    if existing is not None:
+        if existing.payload != payload:
+            msg = (
+                "recovered processing event does not match persisted event "
+                f"at seq {seq}"
+            )
+            raise RuntimeError(msg)
+        return existing
+
+    row = ProcessingEventRow(
+        operation_id=operation.operation_id,
+        seq=seq,
+        event_type=str(payload["type"]),
+        payload=payload,
+    )
+    operation.updated_at = _now()
+    session.add(row)
+    session.add(operation)
+    await session.flush()
+    return row
+
+
+async def append_processing_event_unless_last_matches(
+    session: AsyncSession,
+    operation: ProcessingOperation,
+    event: ProcessingEvent,
+) -> ProcessingEventRow:
+    payload = _EVENT_ADAPTER.dump_python(event, mode="json")
+    last = (
+        await session.exec(
+            select(ProcessingEventRow)
+            .where(ProcessingEventRow.operation_id == operation.operation_id)
+            .order_by(col(ProcessingEventRow.seq).desc())
+        )
+    ).first()
+    if last is not None and last.payload == payload:
+        return last
+    return await append_processing_event(session, operation, event)
 
 
 async def read_processing_events(
