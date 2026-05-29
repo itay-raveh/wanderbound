@@ -1,4 +1,5 @@
 import { defineComponent } from "vue";
+import type { PropType } from "vue";
 import { makeAlbumMedia, mountWithPlugins } from "../helpers";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { defaultAlbum, defaultSteps } from "../mocks/handlers";
@@ -22,6 +23,22 @@ const ExpansionItemStub = defineComponent({
   },
   template:
     '<section class="expansion-stub" :data-group="group" :data-label="label"><slot /></section>',
+});
+
+const VirtualScrollStub = defineComponent({
+  name: "QVirtualScroll",
+  props: {
+    items: {
+      type: Array as PropType<unknown[]>,
+      required: true,
+    },
+    virtualScrollSliceSize: {
+      type: Number,
+      default: 10,
+    },
+  },
+  template:
+    '<div class="virtual-scroll-stub"><template v-for="(item, index) in items.slice(0, virtualScrollSliceSize)" :key="index"><slot :item="item" :index="index" /></template></div>',
 });
 
 describe("InspectorDrawer", () => {
@@ -77,6 +94,7 @@ describe("InspectorDrawer", () => {
           AlbumProperties: true,
           CoverCell: CoverCellStub,
           MediaPanel: true,
+          QVirtualScroll: VirtualScrollStub,
           QExpansionItem: ExpansionItemStub,
           QIcon: true,
           QSeparator: true,
@@ -88,5 +106,36 @@ describe("InspectorDrawer", () => {
     expect(wrapper.get(".cover-cell").attributes("src")).toBe(
       "http://localhost:8000/api/v1/albums/aid-1/media/cover.jpg?w=200&d=2026-05-13T12%3A34%3A56Z",
     );
+  });
+
+  it("virtualizes the cover picker for large albums", () => {
+    const media = Array.from({ length: 100 }, (_, index) =>
+      makeAlbumMedia({
+        name: `cover-${index}.jpg`,
+        aid: defaultAlbum.id,
+      }),
+    );
+
+    const wrapper = mountWithPlugins(InspectorDrawer, {
+      props: {
+        album: defaultAlbum,
+        sectionKey: "cover-front",
+        media,
+      },
+      global: {
+        stubs: {
+          AlbumProperties: true,
+          CoverCell: CoverCellStub,
+          MediaPanel: true,
+          QVirtualScroll: VirtualScrollStub,
+          QExpansionItem: ExpansionItemStub,
+          QIcon: true,
+          QSeparator: true,
+          UnusedDrawer: true,
+        },
+      },
+    });
+
+    expect(wrapper.findAll(".cover-cell").length).toBeLessThan(media.length);
   });
 });

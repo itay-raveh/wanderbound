@@ -70,13 +70,30 @@ const activeCoverPhoto = computed(() => props.album[coverField.value]);
 const landscapeMedia = computed(() =>
   props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
 );
+const COVER_GRID_COLUMNS = 2;
+const COVER_GRID_ROW_SIZE = 92;
+const COVER_GRID_SLICE_ROWS = 8;
 
-const coverGridRef = ref<HTMLElement | null>(null);
+const landscapeRows = computed(() => {
+  const rows: AlbumMedia[][] = [];
+  for (let i = 0; i < landscapeMedia.value.length; i += COVER_GRID_COLUMNS) {
+    rows.push(landscapeMedia.value.slice(i, i + COVER_GRID_COLUMNS));
+  }
+  return rows;
+});
+
 const propertiesOpen = ref(true);
 const externalMediaOpen = ref(false);
 
 function selectCoverPhoto(name: string) {
   albumMutation.mutate({ [coverField.value]: name });
+}
+
+function coverPhotoIndex(
+  rowIndex: number | string,
+  columnIndex: number | string,
+): number {
+  return Number(rowIndex) * COVER_GRID_COLUMNS + Number(columnIndex) + 1;
 }
 
 const resolutionWarningPreset = computed<MediaResolutionWarningPreset>(
@@ -161,29 +178,38 @@ const importTargetLabel = computed<string | null>(() => {
           <span>{{ panelLabel }}</span>
           <span class="text-faint">{{ landscapeMedia.length }}</span>
         </div>
-        <div v-if="landscapeMedia.length" ref="coverGridRef" class="cover-grid">
-          <CoverCell
-            v-for="(media, index) in landscapeMedia"
-            :key="media.name"
-            :src="
-              mediaThumbUrl(
-                media.name,
-                album.id,
-                THUMB_WIDTHS[0],
-                media.updated_at,
-              )
-            "
-            :selected="media.name === activeCoverPhoto"
-            :lazy-root="coverGridRef"
-            :label="
-              t('album.selectCoverPhoto', {
-                index: index + 1,
-                total: landscapeMedia.length,
-              })
-            "
-            @select="selectCoverPhoto(media.name)"
-          />
-        </div>
+        <q-virtual-scroll
+          v-if="landscapeMedia.length"
+          class="cover-grid"
+          :items="landscapeRows"
+          :virtual-scroll-item-size="COVER_GRID_ROW_SIZE"
+          :virtual-scroll-slice-size="COVER_GRID_SLICE_ROWS"
+        >
+          <template #default="{ item: row, index: rowIndex }">
+            <div class="cover-row">
+              <CoverCell
+                v-for="(media, columnIndex) in row"
+                :key="media.name"
+                :src="
+                  mediaThumbUrl(
+                    media.name,
+                    album.id,
+                    THUMB_WIDTHS[0],
+                    media.updated_at,
+                  )
+                "
+                :selected="media.name === activeCoverPhoto"
+                :label="
+                  t('album.selectCoverPhoto', {
+                    index: coverPhotoIndex(rowIndex, columnIndex),
+                    total: landscapeMedia.length,
+                  })
+                "
+                @select="selectCoverPhoto(media.name)"
+              />
+            </div>
+          </template>
+        </q-virtual-scroll>
         <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
       </div>
 
@@ -258,11 +284,7 @@ const importTargetLabel = computed<string | null>(() => {
 
 .cover-grid {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--gap-sm);
   overflow-y: auto;
-  align-content: start;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
 
@@ -274,6 +296,13 @@ const importTargetLabel = computed<string | null>(() => {
     background: var(--border-color);
     border-radius: var(--radius-xs);
   }
+}
+
+.cover-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--gap-sm);
+  padding-block-end: var(--gap-sm);
 }
 
 .cover-cell {

@@ -89,7 +89,7 @@ const allHidden = computed(() =>
       </q-item-section>
     </template>
 
-    <div :inert="!open">
+    <div v-if="open">
       <template
         v-for="entry in group.entries"
         :key="entry.type === 'step' ? entry.item.id : entry.key"
