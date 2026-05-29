@@ -10,6 +10,7 @@ import { useElementVisibility } from "@vueuse/core";
 import {
   isVideo as checkVideo,
   mediaUrl,
+  mediaThumbUrl,
   posterPath,
   SIZES_FULL,
   SIZES_HALF,
@@ -99,22 +100,43 @@ const isVideo = computed(() => checkVideo(props.media));
 
 const mediaCacheKey = computed(() => {
   const m = mediaByName.value.get(props.media);
-  return m ? encodeURIComponent(m.updated_at!) : undefined;
+  return m?.updated_at;
 });
 
 const src = computed(() => {
   const base = mediaUrl(props.media, albumId.value);
-  return mediaCacheKey.value ? `${base}?d=${mediaCacheKey.value}` : base;
+  return mediaCacheKey.value
+    ? `${base}?d=${encodeURIComponent(mediaCacheKey.value)}`
+    : base;
+});
+
+const imageSrc = computed(() => {
+  if (printMode) return src.value;
+  return mediaThumbUrl(
+    isVideo.value ? posterPath(props.media) : props.media,
+    albumId.value,
+    THUMB_WIDTHS.at(-1),
+    mediaCacheKey.value,
+  );
 });
 
 const posterCacheBust = ref<number>();
 const posterSrc = computed(() => {
   if (!isVideo.value) return "";
-  const base = mediaUrl(posterPath(props.media), albumId.value);
+  const base = printMode
+    ? mediaUrl(posterPath(props.media), albumId.value)
+    : mediaThumbUrl(
+        posterPath(props.media),
+        albumId.value,
+        THUMB_WIDTHS.at(-1),
+        mediaCacheKey.value,
+      );
   const params: string[] = [];
-  if (mediaCacheKey.value) params.push(`d=${mediaCacheKey.value}`);
+  if (printMode && mediaCacheKey.value)
+    params.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
   if (posterCacheBust.value != null) params.push(`v=${posterCacheBust.value}`);
-  return params.length ? `${base}?${params.join("&")}` : base;
+  if (!params.length) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}${params.join("&")}`;
 });
 
 const imgSrcset = computed(() => {
@@ -122,7 +144,7 @@ const imgSrcset = computed(() => {
   const name = isVideo.value ? posterPath(props.media) : props.media;
   const base = mediaUrl(name, albumId.value);
   const extra: string[] = [];
-  if (mediaCacheKey.value) extra.push(`d=${mediaCacheKey.value}`);
+  if (mediaCacheKey.value) extra.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
   if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
   const suffix = extra.length ? `&${extra.join("&")}` : "";
   return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");
@@ -274,7 +296,7 @@ function onVideoKey(e: KeyboardEvent) {
     </template>
     <template v-else>
       <img
-        :src="loadImg ? (isVideo ? posterSrc : src) : undefined"
+        :src="loadImg ? (isVideo ? posterSrc : imageSrc) : undefined"
         :srcset="loadImg ? imgSrcset : undefined"
         :sizes="imgSizes"
         :alt="alt"

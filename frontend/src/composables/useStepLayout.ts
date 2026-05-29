@@ -131,15 +131,19 @@ export function useStepLayout(
       if (el) dropDraggable.start(el);
     });
 
-    useDraggable(coverDropRef, coverDropList, {
+    const coverDraggable = useDraggable(coverDropRef, coverDropList, {
       group: "photos",
       animation: 200,
+      immediate: false,
       onAdd: () => {
         if (coverDropList.value.length === 0) return;
         const photo = coverDropList.value[0];
         coverDropList.value = [];
         onCoverUpdate(photo);
       },
+    });
+    watch(coverDropRef, (el) => {
+      if (el) coverDraggable.start(el);
     });
   }
 

@@ -5,6 +5,7 @@ import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { isPortraitByName } from "@/utils/media";
+import { useElementVisibility } from "@vueuse/core";
 import {
   enforceOrientationOrder,
   photoPageFraction,
@@ -40,6 +41,10 @@ watch(
 );
 
 const containerRef = ref<HTMLElement | null>(null);
+const pageVisible = useElementVisibility(containerRef, {
+  rootMargin: "800px",
+  initialValue: printMode,
+});
 
 function syncPage() {
   localPage.value = enforceOrientationOrder(localPage.value, isPortrait);
@@ -47,12 +52,28 @@ function syncPage() {
 }
 
 if (!printMode) {
-  useDraggable(containerRef, localPage, {
+  const sortable = useDraggable(containerRef, localPage, {
     group: "photos",
-    animation: 200,
+    animation: 0,
+    immediate: false,
     onUpdate: syncPage,
     onAdd: syncPage,
   });
+  let sortableActive = false;
+
+  watch(
+    pageVisible,
+    (visible) => {
+      if (visible && !sortableActive) {
+        sortable.start();
+        sortableActive = true;
+      } else if (!visible && sortableActive) {
+        sortable.destroy();
+        sortableActive = false;
+      }
+    },
+    { immediate: true },
+  );
 }
 
 const layoutClass = computed(() =>

@@ -21,7 +21,7 @@ let mutateFn:
       focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
     ) => void)
   | null = null;
-let scrollToStepFn: ((stepId: number) => void) | null = null;
+let scrollToPhotoFn: ((stepId: number, photoId: string) => void) | null = null;
 let scrollRafId = 0;
 let awaitingStepTransition = false;
 
@@ -54,11 +54,11 @@ function init(config: {
     update: StepMutationUpdate,
     focus?: { before: PhotoFocusSnapshot; after: PhotoFocusSnapshot },
   ) => void;
-  scrollToStep: (stepId: number) => void;
+  scrollToPhoto: (stepId: number, photoId: string) => void;
 }) {
   getSteps = config.steps;
   mutateFn = config.mutate;
-  scrollToStepFn = config.scrollToStep;
+  scrollToPhotoFn = config.scrollToPhoto;
 }
 
 function dispose() {
@@ -69,7 +69,7 @@ function dispose() {
   focusedPhotoId.value = null;
   getSteps = () => [];
   mutateFn = null;
-  scrollToStepFn = null;
+  scrollToPhotoFn = null;
 }
 
 /**
@@ -85,8 +85,10 @@ function scrollFocusedIntoView() {
     awaitingStepTransition = false;
     return;
   }
+  const targetPhotoId = photoId;
 
   let attempts = 0;
+  let requestedVirtualPage = false;
   function tryScroll() {
     const el = document.querySelector<HTMLElement>(".media-item.focused");
     if (el) {
@@ -95,6 +97,10 @@ function scrollFocusedIntoView() {
       el.scrollIntoView({ block: "center", behavior: "smooth" });
       el.focus({ preventScroll: true });
       return;
+    }
+    if (!requestedVirtualPage && focusedStepId.value != null) {
+      requestedVirtualPage = true;
+      scrollToPhotoFn?.(focusedStepId.value, targetPhotoId);
     }
     if (++attempts < 60) {
       scrollRafId = requestAnimationFrame(tryScroll);
@@ -145,7 +151,6 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
     focusedPhotoId.value =
       direction === "next" ? photos[0] : photos[photos.length - 1];
     awaitingStepTransition = true;
-    scrollToStepFn?.(nextStep.id);
     scrollFocusedIntoView();
     return true;
   }

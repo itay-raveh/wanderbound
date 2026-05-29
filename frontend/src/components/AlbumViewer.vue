@@ -29,25 +29,25 @@ import {
   visibleHeaderKeys,
   sectionKey,
   sectionPageCount,
+  filterCoverFromPages,
   segmentsOverlapping,
-  activeSectionId,
+  type Section,
 } from "./album/albumSections";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
-import type { VirtualItem } from "@tanstack/vue-virtual";
+import { layoutDescription } from "@/composables/useTextLayout";
+import { isPortrait } from "@/utils/media";
 import {
   computed,
   defineAsyncComponent,
   defineComponent,
   h,
-  nextTick,
   onMounted,
   onUnmounted,
   provide,
   readonly,
   ref,
-  watch,
   watchEffect,
 } from "vue";
 import { useI18n } from "vue-i18n";
@@ -70,6 +70,11 @@ const HikeMapPage = defineAsyncComponent({
 });
 const OverviewPage = defineAsyncComponent({
   loader: () => import("./album/overview/OverviewPage.vue"),
+  errorComponent: EmptyPage,
+  timeout: 10_000,
+});
+const StaticMapPreview = defineAsyncComponent({
+  loader: () => import("./album/map/StaticMapPreview.vue"),
   errorComponent: EmptyPage,
   timeout: 10_000,
 });
@@ -169,6 +174,19 @@ const sections = computed(() =>
 
 const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
 
+type EditorItem =
+  | { type: "header"; key: string }
+  | { type: "map"; key: string; section: Extract<Section, { type: "map" }> }
+  | { type: "hike"; key: string; section: Extract<Section, { type: "hike" }> }
+  | {
+      type: "step-page";
+      key: string;
+      step: Step;
+      pageIndex: number;
+      photoIds: string[];
+    }
+  | { type: "step-add-zone"; key: string; step: Step };
+
 const activeHeaders = computed(() =>
   visibleHeaderKeys(props.album.hidden_headers ?? []),
 );
@@ -178,63 +196,109 @@ const expectedPageCount = computed(
   () => headerCount.value + sectionPageCounts.value.reduce((n, c) => n + c, 0),
 );
 const listRef = ref<HTMLElement | null>(null);
-const itemEls = ref<HTMLElement[]>([]);
-let measuredEls = new WeakSet<Element>();
 const scrollMargin = ref(0);
 
 const pageH = computed(
   () => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12,
 );
+const editorPhotoDropZoneHeight = 96;
+
+function stepHasPhotoDropZone(step: Step) {
+  return (
+    step.pages.reduce((n, page) => n + page.length, 0) + step.unused.length >= 2
+  );
+}
+
+function stepEditorPagePhotoIds(step: Step): string[][] {
+  const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
+  const continuationPages = layoutDescription(step.description || "").pages.slice(
+    1,
+  );
+  const continuationPhotos: string[] = [];
+  for (const { page } of rawPhotoPages) {
+    for (const name of page) {
+      const media = mediaByName.value.get(name);
+      if (media && isPortrait(media)) continuationPhotos.push(name);
+      if (continuationPhotos.length >= continuationPages.length) break;
+    }
+    if (continuationPhotos.length >= continuationPages.length) break;
+  }
+
+  const used = new Set(continuationPhotos);
+  const photoPages = used.size
+    ? rawPhotoPages
+        .map(({ page }) => page.filter((p) => !used.has(p)))
+        .filter((page) => page.length > 0)
+    : rawPhotoPages.map(({ page }) => page);
+
+  return [
+    [],
+    ...continuationPages.map((_, i) =>
+      continuationPhotos[i] ? [continuationPhotos[i]] : [],
+    ),
+    ...photoPages,
+  ];
+}
+
+const editorItems = computed<EditorItem[]>(() => {
+  const result: EditorItem[] = activeHeaders.value.map((key) => ({
+    type: "header",
+    key,
+  }));
+  sections.value.forEach((section) => {
+    if (section.type === "map") {
+      result.push({ type: "map", key: sectionKey(section), section });
+      return;
+    }
+    if (section.type === "hike") {
+      result.push({ type: "hike", key: sectionKey(section), section });
+      return;
+    }
+    const stepPages = stepEditorPagePhotoIds(section.step);
+    for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
+      result.push({
+        type: "step-page",
+        key: `${sectionKey(section)}-page-${pageIndex}`,
+        step: section.step,
+        pageIndex,
+        photoIds: stepPages[pageIndex] ?? [],
+      });
+    }
+    if (stepHasPhotoDropZone(section.step)) {
+      result.push({
+        type: "step-add-zone",
+        key: `${sectionKey(section)}-add-zone`,
+        step: section.step,
+      });
+    }
+  });
+  return result;
+});
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(
   computed(() => {
-    const hc = headerCount.value;
-    const headers = activeHeaders.value;
     return {
-      count: hc + sections.value.length,
+      count: editorItems.value.length,
       estimateSize: (index: number) => {
-        if (index < hc) return pageH.value;
-        return (sectionPageCounts.value[index - hc] ?? 1) * pageH.value;
+        return editorItems.value[index]?.type === "step-add-zone"
+          ? editorPhotoDropZoneHeight
+          : pageH.value;
       },
       overscan: 1,
       gap: 16,
       scrollMargin: scrollMargin.value,
-      getItemKey: (index: number) => {
-        if (index < hc) return headers[index];
-        const sec = sections.value[index - hc];
-        return sec ? sectionKey(sec) : index;
-      },
+      getItemKey: (index: number) => editorItems.value[index]?.key ?? index,
     };
   }),
 );
 
 function sectionIdAt(vIndex: number) {
-  const hc = headerCount.value;
-  if (vIndex < hc) return activeHeaders.value[vIndex] ?? null;
-  return activeSectionId(sections.value, vIndex - hc) ?? null;
-}
-
-function measureNew() {
-  for (const el of itemEls.value) {
-    if (el && !measuredEls.has(el)) {
-      measuredEls.add(el);
-      virtualizer.measureElement(el);
-    }
-  }
-}
-
-const heavyRenderWindow = computed(() => {
-  void version.value;
-  if (typeof window === "undefined") return { top: 0, bottom: 0 };
-  const preload = pageH.value * 0.5;
-  const top = window.scrollY - scrollMargin.value - preload;
-  const bottom = top + window.innerHeight + preload * 2;
-  return { top, bottom };
-});
-
-function shouldRenderHeavyPage(vItem: VirtualItem) {
-  const { top, bottom } = heavyRenderWindow.value;
-  return vItem.end >= top && vItem.start <= bottom;
+  const item = editorItems.value[vIndex];
+  if (!item) return null;
+  if (item.type === "header") return item.key;
+  if (item.type === "step-page" || item.type === "step-add-zone")
+    return item.step.id;
+  return item.key;
 }
 
 function onWheel(e: WheelEvent) {
@@ -295,18 +359,31 @@ if (props.printMode) {
   }
 
   const stepIdToVIdx = computed(() => {
-    const hc = headerCount.value;
     const map = new Map<number, number>();
-    sections.value.forEach((s, i) => {
-      if (s.type === "step") map.set(s.step.id, hc + i);
+    editorItems.value.forEach((item, i) => {
+      if (item.type === "step-page" && item.pageIndex === 0) {
+        map.set(item.step.id, i);
+      }
+    });
+    return map;
+  });
+  const photoIdToVIdx = computed(() => {
+    const map = new Map<string, number>();
+    editorItems.value.forEach((item, i) => {
+      if (item.type !== "step-page") return;
+      for (const photoId of item.photoIds) {
+        map.set(`${item.step.id}\0${photoId}`, i);
+      }
     });
     return map;
   });
   const secKeyToVIdx = computed(() => {
-    const hc = headerCount.value;
     const map = new Map<string, number>();
-    activeHeaders.value.forEach((key, i) => map.set(key, i));
-    sections.value.forEach((s, i) => map.set(sectionKey(s), hc + i));
+    editorItems.value.forEach((item, i) => {
+      if (item.type === "header" || item.type === "map" || item.type === "hike") {
+        map.set(item.key, i);
+      }
+    });
     return map;
   });
 
@@ -335,6 +412,19 @@ if (props.printMode) {
     if (idx != null) scrollToVIdx(idx, behavior);
   }
 
+  function scrollToPhoto(
+    stepId: number,
+    photoId: string,
+    behavior: ScrollBehavior = "auto",
+  ) {
+    const idx = photoIdToVIdx.value.get(`${stepId}\0${photoId}`);
+    if (idx != null) {
+      scrollToVIdx(idx, behavior);
+      return;
+    }
+    scrollToStep(stepId, behavior);
+  }
+
   setScrollOverride({
     scrollTo: scrollToStep,
     scrollToSection(key: string): boolean {
@@ -349,12 +439,13 @@ if (props.printMode) {
   photoFocus.init({
     steps: () => visibleSteps.value,
     mutate: (sid, update, focus) => stepMut.mutate({ sid, update, focus }),
-    scrollToStep: (id) => scrollToStep(id, "smooth"),
+    scrollToPhoto,
   });
   onUnmounted(() => photoFocus.dispose());
 
   watchEffect(() => {
     void version.value; // subscribe to every scroll tick
+    if (programmaticScrolling.value) return;
     const vItems = items.value;
     if (!vItems.length) {
       setActive(null);
@@ -376,12 +467,6 @@ if (props.printMode) {
         listRef.value.getBoundingClientRect().top + window.scrollY,
       );
     }
-    measureNew();
-  });
-  watch(items, measureNew);
-  watch(editorZoom, () => {
-    measuredEls = new WeakSet();
-    void nextTick(measureNew);
   });
   onUnmounted(() => {
     setScrollOverride(null);
@@ -469,63 +554,57 @@ if (props.printMode) {
           v-for="vItem in items"
           :key="vItem.key as PropertyKey"
           :data-index="vItem.index"
-          ref="itemEls"
+          :style="{ minHeight: `${vItem.size}px` }"
         >
-          <!-- Header items -->
-          <template v-if="vItem.index < headerCount">
+          <template
+            v-for="item in [editorItems[vItem.index]!]"
+            :key="item.key"
+          >
             <CoverPage
-              v-if="activeHeaders[vItem.index] === 'cover-front'"
+              v-if="item.type === 'header' && item.key === 'cover-front'"
               :album="album"
               :steps="visibleSteps"
             />
             <CoverPage
-              v-else-if="activeHeaders[vItem.index] === 'cover-back'"
+              v-else-if="item.type === 'header' && item.key === 'cover-back'"
               :album="album"
               :steps="visibleSteps"
               is-back
             />
             <OverviewPage
-              v-else-if="activeHeaders[vItem.index] === 'overview'"
+              v-else-if="item.type === 'header' && item.key === 'overview'"
               :album="album"
               :segments="segments"
               :steps="visibleSteps"
             />
             <div
-              v-else-if="activeHeaders[vItem.index] === 'full-map'"
+              v-else-if="item.type === 'header' && item.key === 'full-map'"
               class="map-wrapper"
             >
-              <MapPage
-                v-if="shouldRenderHeavyPage(vItem)"
+              <StaticMapPreview
                 :segment-outlines="segments"
                 :steps="visibleSteps"
               />
-              <EmptyPage v-else />
             </div>
-          </template>
-
-          <!-- Section items -->
-          <template v-else>
-            <template
-              v-for="(sec, i) in [sections[vItem.index - headerCount]!]"
-              :key="i"
+            <div
+              v-else-if="item.type === 'map' || item.type === 'hike'"
+              class="map-wrapper"
             >
-              <div v-if="sec.type !== 'step'" class="map-wrapper">
-                <MapPage
-                  v-if="sec.type === 'map' && shouldRenderHeavyPage(vItem)"
-                  :segment-outlines="sec.segments"
-                  :steps="sec.steps"
-                />
-                <HikeMapPage
-                  v-else-if="sec.type === 'hike' && shouldRenderHeavyPage(vItem)"
-                  :segments="sec.segments"
-                  :steps="sec.steps"
-                  :hike-segment="sec.hikeSegment"
-                  :all-segments="segmentOutlines"
-                />
-                <EmptyPage v-else />
-              </div>
-              <StepEntry v-else :step="sec.step" />
-            </template>
+              <StaticMapPreview
+                :segment-outlines="item.section.segments"
+                :steps="item.section.steps"
+              />
+            </div>
+            <StepEntry
+              v-else-if="item.type === 'step-page'"
+              :step="item.step"
+              :page-index="item.pageIndex"
+            />
+            <StepEntry
+              v-else-if="item.type === 'step-add-zone'"
+              :step="item.step"
+              add-zone-only
+            />
           </template>
         </div>
       </div>
@@ -560,8 +639,6 @@ if (props.printMode) {
     zoom: var(--editor-zoom);
     border: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
     margin: 0 auto var(--gap-md-lg);
-    content-visibility: auto;
-    contain-intrinsic-height: auto var(--page-height);
 
     &.drag-over {
       border-color: var(--q-primary);

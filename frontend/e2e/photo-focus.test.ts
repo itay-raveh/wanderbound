@@ -35,6 +35,10 @@ async function selectedIndex(page: Page): Promise<number> {
   });
 }
 
+async function selectedMedia(page: Page): Promise<string | null> {
+  return selected(page).getAttribute("data-media");
+}
+
 async function press(page: Page, key: string, times: number) {
   for (let i = 0; i < times; i++) {
     await page.keyboard.press(key);
@@ -140,15 +144,15 @@ test.describe("Photo focus & arrow navigation", () => {
   }) => {
     await selectFirstPhoto(page);
 
-    const indices: number[] = [];
+    const mediaIds: string[] = [];
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press("ArrowRight");
       await expectOneSelected(page);
-      indices.push(await selectedIndex(page));
+      mediaIds.push((await selectedMedia(page)) ?? "");
     }
 
-    const unique = new Set(indices);
-    expect(unique.size).toBe(indices.length);
+    const unique = new Set(mediaIds);
+    expect(unique.size).toBe(mediaIds.length);
   });
 
   test("forward then backward is a round trip", async ({ focusPage: page }) => {
