@@ -28,7 +28,7 @@
     "@chenglou/pretext": "^0.0.7",
     "@mapbox/mapbox-gl-supported": "^3.0.0",
     "@pinia/colada": "^1.0.0",
-    "@quasar/extras": "^1.17.0",
+    "@quasar/extras": "^2.0.0",
     "@sentry/vue": "^10.45.0",
     "@tanstack/vue-virtual": "^3.13.23",
     "@turf/along": "^7.3.4",

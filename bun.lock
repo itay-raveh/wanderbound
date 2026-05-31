@@ -18,7 +18,7 @@
         "@chenglou/pretext": "^0.0.7",
         "@mapbox/mapbox-gl-supported": "^3.0.0",
         "@pinia/colada": "^1.0.0",
-        "@quasar/extras": "^1.17.0",
+        "@quasar/extras": "^2.0.0",
         "@sentry/vue": "^10.45.0",
         "@tanstack/vue-virtual": "^3.13.23",
         "@turf/along": "^7.3.4",
@@ -384,7 +384,7 @@
 
     "@playwright/test": ["@playwright/test@1.58.2", "", { "dependencies": { "playwright": "1.58.2" }, "bin": { "playwright": "cli.js" } }, "sha512-akea+6bHYBBfA9uQqSYmlJXn61cTa+jbO87xVLCWbTqbWadRVmhxlXATaOjOgcBaWU4ePo0wB41KMFv3o35IXA=="],
 
-    "@quasar/extras": ["@quasar/extras@1.17.0", "", {}, "sha512-KqAHdSJfIDauiR1nJ8rqHWT0diqD0QradZKoVIZJAilHAvgwyPIY7MbyR2z4RIMkUIMUSqBZcbshMpEw+9A30w=="],
+    "@quasar/extras": ["@quasar/extras@2.0.0", "", {}, "sha512-JiVq65j28Rp5AFLVpHBSv+MUV+NpE4x8cSGyfWquakOZe8FCV1E6qmbCDQhPY/e2fheFhaN8uGl1R3UbC8BxZw=="],
 
     "@quasar/vite-plugin": ["@quasar/vite-plugin@1.11.0", "", { "peerDependencies": { "@vitejs/plugin-vue": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0", "quasar": "^2.16.0", "vite": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.0.0" } }, "sha512-54wCsvuxyMvzrG9t0HauMRL+luA5LEf8yXFPnMkA6q9Hne7k6stw2p8pgFOIPbVFJCuGoYw5VInO5pbpcsI7Ew=="],
 
