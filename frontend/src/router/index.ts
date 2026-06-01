@@ -1,10 +1,17 @@
 import { authState } from "@/client";
-import type { AuthenticateData } from "@/client";
+import type { AuthenticateData, AuthState } from "@/client";
 import { useQueryCache } from "@pinia/colada";
 import { createRouter, createWebHistory } from "vue-router";
 import { queryKeys } from "@/queries/keys";
 
 export type Provider = AuthenticateData["path"]["provider"];
+
+const anonymousAuthState = {
+  state: "anonymous",
+  user: null,
+  pending_first_name: null,
+  pending_picture: null,
+} satisfies AuthState;
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -58,6 +65,8 @@ router.beforeEach(async (to, from) => {
     const result = await authState();
     state = result.data;
   } catch {
+    const cache = useQueryCache();
+    cache.setQueryData(queryKeys.authState(), anonymousAuthState);
     return to.name === "landing" ? undefined : { name: "landing" };
   }
   const cache = useQueryCache();
