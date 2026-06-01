@@ -42,9 +42,10 @@ app.use(PiniaColada);
 app.use(router);
 useChunkErrorRecovery(router);
 app.use(i18n);
-app.use(vue3GoogleLogin, {
-  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-});
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+if (googleClientId) {
+  app.use(vue3GoogleLogin, { clientId: googleClientId });
+}
 app.use(Quasar, {
   config: {
     loading: {},
