@@ -4,6 +4,7 @@ import { ref, type Ref } from "vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import type { AlbumMeta } from "@/client";
+import { useActiveSection } from "@/composables/useActiveSection";
 
 type TestVirtualItem = {
   key: string;
@@ -26,6 +27,10 @@ vi.mock("@/composables/useWindowVirtualizer", () => ({
   }),
 }));
 
+vi.mock("@/components/album/map/HikeMapPage.vue", () => ({
+  default: { template: '<div class="hike-map" />' },
+}));
+
 function makeAlbum(): AlbumMeta {
   return {
     uid: 1,
@@ -42,6 +47,7 @@ function makeAlbum(): AlbumMeta {
 }
 
 beforeEach(() => {
+  useActiveSection().resetActiveSection();
   virtualItems = ref([
     {
       key: "full-map",
@@ -105,5 +111,59 @@ describe("AlbumViewer", () => {
 
     await flushPromises();
     expect(wrapper.find(".static-map").exists()).toBe(true);
+  });
+
+  test("keeps hike map boundary editing in virtualized editor pages", () => {
+    virtualItems.value = [
+      {
+        key: "hike-2024-01-01-2024-01-01",
+        index: 0,
+        start: 0,
+        size: 2365,
+        end: 2365,
+      },
+    ];
+
+    const hikeSegment = {
+      start_time: 1704067100,
+      end_time: 1704067300,
+      kind: "hike" as const,
+      timezone_id: "UTC",
+      start_coord: [10, 20] as [number, number],
+      end_coord: [11, 21] as [number, number],
+    };
+    const wrapper = mountWithPlugins(AlbumViewer, {
+      props: {
+        album: {
+          ...makeAlbum(),
+          hidden_headers: ["cover-front", "cover-back", "overview", "full-map"],
+          maps_ranges: [["2024-01-01", "2024-01-01"]],
+        },
+        media: [],
+        steps: [
+          makeStep({
+            timestamp: 1704067200,
+            datetime: "2024-01-01T00:00:00Z",
+            location: {
+              lat: 10,
+              lon: 20,
+              name: "Trail",
+              detail: "",
+              country_code: "US",
+            },
+          }),
+        ],
+        segmentOutlines: [hikeSegment],
+      },
+      global: {
+        stubs: {
+          HikeMapPage: { template: '<div class="hike-map" />' },
+          StaticMapPreview: { template: '<div class="static-map" />' },
+        },
+      },
+    });
+
+    expect(wrapper.find(".hike-map").exists()).toBe(true);
+    expect(wrapper.find(".static-map").exists()).toBe(false);
   });
 });

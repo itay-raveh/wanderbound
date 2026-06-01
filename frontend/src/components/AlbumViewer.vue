@@ -211,9 +211,9 @@ function stepHasPhotoDropZone(step: Step) {
 
 function stepEditorPagePhotoIds(step: Step): string[][] {
   const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = layoutDescription(step.description || "").pages.slice(
-    1,
-  );
+  const continuationPages = layoutDescription(
+    step.description || "",
+  ).pages.slice(1);
   const continuationPhotos: string[] = [];
   for (const { page } of rawPhotoPages) {
     for (const name of page) {
@@ -380,7 +380,11 @@ if (props.printMode) {
   const secKeyToVIdx = computed(() => {
     const map = new Map<string, number>();
     editorItems.value.forEach((item, i) => {
-      if (item.type === "header" || item.type === "map" || item.type === "hike") {
+      if (
+        item.type === "header" ||
+        item.type === "map" ||
+        item.type === "hike"
+      ) {
         map.set(item.key, i);
       }
     });
@@ -556,10 +560,7 @@ if (props.printMode) {
           :data-index="vItem.index"
           :style="{ minHeight: `${vItem.size}px` }"
         >
-          <template
-            v-for="item in [editorItems[vItem.index]!]"
-            :key="item.key"
-          >
+          <template v-for="item in [editorItems[vItem.index]!]" :key="item.key">
             <CoverPage
               v-if="item.type === 'header' && item.key === 'cover-front'"
               :album="album"
@@ -586,13 +587,18 @@ if (props.printMode) {
                 :steps="visibleSteps"
               />
             </div>
-            <div
-              v-else-if="item.type === 'map' || item.type === 'hike'"
-              class="map-wrapper"
-            >
+            <div v-else-if="item.type === 'map'" class="map-wrapper">
               <StaticMapPreview
                 :segment-outlines="item.section.segments"
                 :steps="item.section.steps"
+              />
+            </div>
+            <div v-else-if="item.type === 'hike'" class="map-wrapper">
+              <HikeMapPage
+                :segments="item.section.segments"
+                :steps="item.section.steps"
+                :hike-segment="item.section.hikeSegment"
+                :all-segments="segmentOutlines"
               />
             </div>
             <StepEntry

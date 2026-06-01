@@ -53,7 +53,13 @@ router.beforeEach(async (to, from) => {
   if (to.meta.public && to.name !== "landing") return;
   if (from.name) return;
 
-  const { data: state } = await authState();
+  let state: Awaited<ReturnType<typeof authState>>["data"];
+  try {
+    const result = await authState();
+    state = result.data;
+  } catch {
+    return to.name === "landing" ? undefined : { name: "landing" };
+  }
   const cache = useQueryCache();
   cache.setQueryData(queryKeys.authState(), state);
   if (state?.user) cache.setQueryData(queryKeys.user(), state.user);

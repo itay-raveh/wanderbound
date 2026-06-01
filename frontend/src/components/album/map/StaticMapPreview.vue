@@ -30,12 +30,20 @@ const coords = computed<Coord[]>(() => {
 
 const bounds = computed(() => {
   const all = coords.value;
+  if (!all.length) {
+    return {
+      minLat: 0,
+      maxLat: 1,
+      minLon: 0,
+      maxLon: 1,
+    };
+  }
   const lats = all.map((c) => c.lat);
   const lons = all.map((c) => c.lon);
-  const minLat = Math.min(...lats, 0);
-  const maxLat = Math.max(...lats, 0);
-  const minLon = Math.min(...lons, 0);
-  const maxLon = Math.max(...lons, 0);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
   return {
     minLat,
     maxLat: maxLat === minLat ? minLat + 1 : maxLat,
@@ -46,8 +54,12 @@ const bounds = computed(() => {
 
 function project(coord: Coord): Point {
   const b = bounds.value;
-  const x = PAD + ((coord.lon - b.minLon) / (b.maxLon - b.minLon)) * (VIEW_W - PAD * 2);
-  const y = VIEW_H - PAD - ((coord.lat - b.minLat) / (b.maxLat - b.minLat)) * (VIEW_H - PAD * 2);
+  const x =
+    PAD + ((coord.lon - b.minLon) / (b.maxLon - b.minLon)) * (VIEW_W - PAD * 2);
+  const y =
+    VIEW_H -
+    PAD -
+    ((coord.lat - b.minLat) / (b.maxLat - b.minLat)) * (VIEW_H - PAD * 2);
   return { x, y };
 }
 

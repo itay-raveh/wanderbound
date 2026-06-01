@@ -36,4 +36,32 @@ describe("StaticMapPreview", () => {
     expect(wrapper.findAll(".static-map-route")).toHaveLength(1);
     expect(wrapper.findAll(".static-map-marker")).toHaveLength(2);
   });
+
+  test("fits non-empty positive-coordinate routes to their own bounds", () => {
+    const wrapper = mount(StaticMapPreview, {
+      props: {
+        steps: [
+          {
+            id: 1,
+            name: "Start",
+            location: { lat: 10, lon: 20 },
+          },
+        ],
+        segmentOutlines: [
+          {
+            start_time: 1,
+            end_time: 2,
+            kind: "driving",
+            timezone_id: "UTC",
+            start_coord: [10, 20],
+            end_coord: [15, 25],
+          },
+        ],
+      },
+    });
+
+    const route = wrapper.get(".static-map-route");
+    expect(Number(route.attributes("x1"))).toBeCloseTo(72);
+    expect(Number(route.attributes("y1"))).toBeCloseTo(635);
+  });
 });

@@ -135,8 +135,10 @@ const groups = computed<CountryVisit[]>(() => {
     const mapEntries = mapInsertions.value.get(item.id)?.map(toMapEntry) ?? [];
     const prev = visits.at(-1);
     if (prev && prev.code === item.country) {
+      const stepEntryIndex = prev.entries.length + mapEntries.length;
       prev.entries.push(...mapEntries, { type: "step", item });
       prev.stepIds.push(item.id);
+      prev.entryIndexByStepId.set(item.id, stepEntryIndex);
     } else {
       visits.push({
         key: `${item.country}-${visits.length}`,
@@ -145,6 +147,7 @@ const groups = computed<CountryVisit[]>(() => {
         color: item.color,
         entries: [...mapEntries, { type: "step", item }],
         stepIds: [item.id],
+        entryIndexByStepId: new Map([[item.id, mapEntries.length]]),
         dateRange: "",
       });
     }
