@@ -278,7 +278,7 @@ const { virtualizer, items, size, version } = useWindowVirtualizer(
           ? editorPhotoDropZoneHeight
           : pageH.value;
       },
-      overscan: 1,
+      overscan: 3,
       gap: 16,
       scrollMargin: scrollMargin.value,
       getItemKey: (index: number) => editorItems.value[index]?.key ?? index,
