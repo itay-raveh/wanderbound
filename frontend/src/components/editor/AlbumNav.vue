@@ -58,6 +58,7 @@ const {
   scrollTo,
   scrollToSection,
   scrollBehavior,
+  programmaticScrolling,
 } = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
@@ -237,8 +238,8 @@ function scrollToMap(dateRange: DateRange) {
 }
 
 function scrollToStep(id: number) {
-  setActive(id);
   scrollTo(id);
+  setActive(id);
 }
 
 function scrollToHeader(key: HeaderKey) {
@@ -291,12 +292,14 @@ function openGroupFor(predicate: (e: GroupEntry) => boolean) {
 watch(activeStepId, (id) => {
   if (id == null) return;
   openGroupFor((e) => e.type === "step" && e.item.id === id);
+  if (programmaticScrolling.value) return;
   scrollNavItemIntoView(`[data-nav-step="${id}"]`);
 });
 
 watch(activeSectionKey, (key) => {
   if (key == null) return;
   if (HEADER_KEY_SET.has(key)) {
+    if (programmaticScrolling.value) return;
     scrollNavItemIntoView(`[data-nav-section="${key}"]`);
     return;
   }
@@ -304,6 +307,7 @@ watch(activeSectionKey, (key) => {
     for (const e of g.entries) {
       if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
         if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
+        if (programmaticScrolling.value) return;
         scrollNavItemIntoView(`[data-nav-section="${e.key}"]`);
         return;
       }

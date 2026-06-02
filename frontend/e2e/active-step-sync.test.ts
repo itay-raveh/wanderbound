@@ -17,7 +17,14 @@ test.describe("Active step sync", () => {
 
     const nav = page.getByRole("navigation");
     await nav.getByText("Argentina").click();
+    const beforeClickScrollY = await page.evaluate(() => window.scrollY);
     await nav.locator('[data-nav-step="102"]').click();
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(beforeClickScrollY + 100);
+    await expect(
+      page.locator(".album-container").getByText("Ushuaia").first(),
+    ).toBeVisible();
     await expect(
       page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();

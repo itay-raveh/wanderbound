@@ -30,7 +30,14 @@ const NavCountryGroupStub = defineComponent({
     },
   },
   template:
-    '<div class="nav-country-group" :data-group-key="group.key" :data-open="String(open)" />',
+    `<div class="nav-country-group" :data-group-key="group.key" :data-open="String(open)">
+      <div
+        v-for="entry in group.entries"
+        :key="entry.type === 'step' ? entry.item.id : entry.key"
+        :data-nav-step="entry.type === 'step' ? entry.item.id : undefined"
+        :data-nav-section="entry.type === 'map' ? entry.key : undefined"
+      />
+    </div>`,
 });
 
 function makeSteps(count: number): Step[] {
@@ -85,5 +92,39 @@ describe("AlbumNav", () => {
     expect(wrapper.get('[data-group-key="c3-3"]').attributes("data-open")).toBe(
       "true",
     );
+  });
+
+  it("does not scroll the nav list while the viewer is programmatically scrolling", async () => {
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => {});
+    const steps = makeSteps(80);
+    mountWithPlugins(AlbumNav, {
+      props: {
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [],
+      },
+      global: {
+        stubs: {
+          NavCountryGroup: NavCountryGroupStub,
+          NavDateFilter: true,
+          NavMapRanges: true,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await nextTick();
+    const activeSection = useActiveSection();
+    activeSection.programmaticScrolling.value = true;
+    activeSection.setActive(41);
+    await nextTick();
+    await nextTick();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });
