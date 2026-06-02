@@ -104,13 +104,13 @@ describe("AlbumViewer", () => {
       },
       global: {
         stubs: {
-          StaticMapPreview: { template: '<div class="static-map" />' },
+          MapPage: { template: '<div class="map-page" />' },
         },
       },
     });
 
     await flushPromises();
-    expect(wrapper.find(".static-map").exists()).toBe(true);
+    expect(wrapper.find(".map-page").exists()).toBe(true);
   });
 
   test("keeps hike map boundary editing in virtualized editor pages", () => {
@@ -158,12 +158,12 @@ describe("AlbumViewer", () => {
       global: {
         stubs: {
           HikeMapPage: { template: '<div class="hike-map" />' },
-          StaticMapPreview: { template: '<div class="static-map" />' },
+          MapPage: { template: '<div class="map-page" />' },
         },
       },
     });
 
     expect(wrapper.find(".hike-map").exists()).toBe(true);
-    expect(wrapper.find(".static-map").exists()).toBe(false);
+    expect(wrapper.find(".map-page").exists()).toBe(false);
   });
 });

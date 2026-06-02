@@ -73,12 +73,6 @@ const OverviewPage = defineAsyncComponent({
   errorComponent: EmptyPage,
   timeout: 10_000,
 });
-const StaticMapPreview = defineAsyncComponent({
-  loader: () => import("./album/map/StaticMapPreview.vue"),
-  errorComponent: EmptyPage,
-  timeout: 10_000,
-});
-
 const props = defineProps<{
   album: AlbumMeta;
   media: AlbumMedia[];
@@ -582,13 +576,10 @@ if (props.printMode) {
               v-else-if="item.type === 'header' && item.key === 'full-map'"
               class="map-wrapper"
             >
-              <StaticMapPreview
-                :segment-outlines="segments"
-                :steps="visibleSteps"
-              />
+              <MapPage :segment-outlines="segments" :steps="visibleSteps" />
             </div>
             <div v-else-if="item.type === 'map'" class="map-wrapper">
-              <StaticMapPreview
+              <MapPage
                 :segment-outlines="item.section.segments"
                 :steps="item.section.steps"
               />
