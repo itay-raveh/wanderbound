@@ -5,6 +5,21 @@ import {
   test,
   expect,
 } from "./fixtures";
+import type { Page } from "@playwright/test";
+
+async function pageTopBelowHeader(page: Page, text: string) {
+  return page.evaluate((targetText) => {
+    const pageEl = Array.from(
+      document.querySelectorAll<HTMLElement>(".page-container.step-main"),
+    ).find((el) => el.textContent?.includes(targetText));
+    const headerEl = document.querySelector<HTMLElement>(".editor-header");
+    if (!pageEl || !headerEl) return Number.NEGATIVE_INFINITY;
+    return Math.round(
+      pageEl.getBoundingClientRect().top -
+        headerEl.getBoundingClientRect().bottom,
+    );
+  }, text);
+}
 
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
@@ -25,6 +40,22 @@ test.describe("Active step sync", () => {
     await expect(
       page.locator(".album-container").getByText("Ushuaia").first(),
     ).toBeVisible();
+    await expect
+      .poll(() => pageTopBelowHeader(page, "Ushuaia"))
+      .toBeGreaterThanOrEqual(0);
+    await nav.getByText("Chile").click();
+    await nav.locator('[data-nav-step="103"]').click();
+    await expect(
+      page.locator(".album-container").getByText("Santiago").first(),
+    ).toBeVisible();
+    await nav.getByText("Argentina").click();
+    await nav.locator('[data-nav-step="101"]').click();
+    await expect(
+      page.locator(".album-container").getByText("Buenos Aires").first(),
+    ).toBeVisible();
+    await expect
+      .poll(() => pageTopBelowHeader(page, "Buenos Aires"))
+      .toBeGreaterThanOrEqual(0);
     await expect(
       page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();
@@ -60,6 +91,6 @@ test.describe("Active step sync", () => {
       mimeType: "image/jpeg",
       buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
     });
-    await expect.poll(() => importedStepId).toBe("102");
+    await expect.poll(() => importedStepId).toBe("101");
   });
 });

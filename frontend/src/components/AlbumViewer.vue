@@ -191,6 +191,7 @@ const expectedPageCount = computed(
 );
 const listRef = ref<HTMLElement | null>(null);
 const scrollMargin = ref(0);
+const scrollPaddingStart = ref(0);
 
 const pageH = computed(
   () => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12,
@@ -281,6 +282,7 @@ const { virtualizer, items, size, version } = useWindowVirtualizer(
       overscan: 3,
       gap: 16,
       scrollMargin: scrollMargin.value,
+      scrollPaddingStart: scrollPaddingStart.value,
       getItemKey: (index: number) => editorItems.value[index]?.key ?? index,
     };
   }),
@@ -464,6 +466,10 @@ if (props.printMode) {
       scrollMargin.value = Math.round(
         listRef.value.getBoundingClientRect().top + window.scrollY,
       );
+      const headerBottom =
+        document.querySelector<HTMLElement>(".editor-header")
+          ?.getBoundingClientRect().bottom ?? 0;
+      scrollPaddingStart.value = Math.round(headerBottom + scrollMargin.value);
     }
   });
   onUnmounted(() => {
