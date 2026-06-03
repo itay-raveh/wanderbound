@@ -21,5 +21,6 @@ export interface CountryVisit {
   color: string;
   entries: GroupEntry[];
   stepIds: number[];
+  entryIndexByStepId: Map<number, number>;
   dateRange: string;
 }

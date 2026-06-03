@@ -1,4 +1,4 @@
-import { config } from "@vue/test-utils";
+import { config, enableAutoUnmount } from "@vue/test-utils";
 import { Quasar } from "quasar";
 import { server } from "./mocks/server";
 
@@ -11,6 +11,7 @@ vi.mock("vue3-google-login", () => ({
 }));
 
 beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
+enableAutoUnmount(afterEach);
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 

@@ -17,6 +17,8 @@ const { t } = useI18n();
 
 const props = defineProps<{
   step: Step;
+  pageIndex?: number;
+  addZoneOnly?: boolean;
 }>();
 
 const dropZoneRef = ref<HTMLElement | null>(null);
@@ -66,6 +68,22 @@ const photoPages = computed(() => {
     .filter(({ page }) => page.length > 0);
 });
 
+const selectedDescriptionPage = computed(() => {
+  if (props.pageIndex == null) return null;
+  const index = props.pageIndex - 1;
+  return index >= 0 && index < continuationPages.value.length
+    ? { lines: continuationPages.value[index], index }
+    : null;
+});
+
+const selectedPhotoPage = computed(() => {
+  if (props.pageIndex == null) return null;
+  const index = props.pageIndex - 1 - continuationPages.value.length;
+  return index >= 0 && index < photoPages.value.length
+    ? { ...photoPages.value[index], index }
+    : null;
+});
+
 // Steps with 0-1 photos have nothing to drag into a new page, so the drop zone is hidden.
 const totalPhotos = computed(
   () =>
@@ -76,8 +94,26 @@ const totalPhotos = computed(
 
 <template>
   <div class="step-entry">
-    <div class="step-pages column no-wrap items-center">
-      <div class="cover-drop-wrapper relative-position">
+    <div v-if="addZoneOnly" class="step-pages column no-wrap items-center">
+      <div v-if="!printMode && totalPhotos >= 2" class="add-zone relative-position">
+        <div
+          class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted"
+        >
+          <q-icon :name="matAddPhotoAlternate" size="1.5rem" />
+          <span>{{ t("album.dropPhotoToAdd") }}</span>
+        </div>
+        <div
+          ref="dropZoneRef"
+          class="drop-overlay absolute-full overflow-hidden"
+        />
+      </div>
+    </div>
+
+    <div v-else class="step-pages column no-wrap items-center">
+      <div
+        v-if="pageIndex == null || pageIndex === 0"
+        class="cover-drop-wrapper relative-position"
+      >
         <StepMainPage
           :step="step"
           :sidebar-lines="desc.pages[0]"
@@ -93,6 +129,14 @@ const totalPhotos = computed(
       </div>
 
       <StepDescriptionPage
+        v-if="selectedDescriptionPage"
+        :lines="selectedDescriptionPage.lines"
+        :description="step.description ?? ''"
+        :photo="continuationPhotos[selectedDescriptionPage.index] ?? null"
+        @update:description="saveField({ description: $event })"
+      />
+      <StepDescriptionPage
+        v-else-if="pageIndex == null"
         v-for="(pageLines, i) in continuationPages"
         :key="`desc-${i}`"
         :lines="pageLines"
@@ -102,6 +146,12 @@ const totalPhotos = computed(
       />
 
       <StepPhotoPage
+        v-if="selectedPhotoPage"
+        :page="selectedPhotoPage.page"
+        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event)"
+      />
+      <StepPhotoPage
+        v-else-if="pageIndex == null"
         v-for="{ originalIdx, page } in photoPages"
         :key="`page-${originalIdx}`"
         :page="page"
@@ -109,7 +159,7 @@ const totalPhotos = computed(
       />
 
       <div
-        v-if="!printMode && totalPhotos >= 2"
+        v-if="pageIndex == null && !printMode && totalPhotos >= 2"
         class="add-zone relative-position"
       >
         <div

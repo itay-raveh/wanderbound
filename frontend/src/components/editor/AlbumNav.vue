@@ -58,6 +58,7 @@ const {
   scrollTo,
   scrollToSection,
   scrollBehavior,
+  programmaticScrolling,
 } = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
@@ -135,8 +136,10 @@ const groups = computed<CountryVisit[]>(() => {
     const mapEntries = mapInsertions.value.get(item.id)?.map(toMapEntry) ?? [];
     const prev = visits.at(-1);
     if (prev && prev.code === item.country) {
+      const stepEntryIndex = prev.entries.length + mapEntries.length;
       prev.entries.push(...mapEntries, { type: "step", item });
       prev.stepIds.push(item.id);
+      prev.entryIndexByStepId.set(item.id, stepEntryIndex);
     } else {
       visits.push({
         key: `${item.country}-${visits.length}`,
@@ -145,6 +148,7 @@ const groups = computed<CountryVisit[]>(() => {
         color: item.color,
         entries: [...mapEntries, { type: "step", item }],
         stepIds: [item.id],
+        entryIndexByStepId: new Map([[item.id, mapEntries.length]]),
         dateRange: "",
       });
     }
@@ -234,8 +238,8 @@ function scrollToMap(dateRange: DateRange) {
 }
 
 function scrollToStep(id: number) {
-  setActive(id);
   scrollTo(id);
+  setActive(id);
 }
 
 function scrollToHeader(key: HeaderKey) {
@@ -288,12 +292,14 @@ function openGroupFor(predicate: (e: GroupEntry) => boolean) {
 watch(activeStepId, (id) => {
   if (id == null) return;
   openGroupFor((e) => e.type === "step" && e.item.id === id);
+  if (programmaticScrolling.value) return;
   scrollNavItemIntoView(`[data-nav-step="${id}"]`);
 });
 
 watch(activeSectionKey, (key) => {
   if (key == null) return;
   if (HEADER_KEY_SET.has(key)) {
+    if (programmaticScrolling.value) return;
     scrollNavItemIntoView(`[data-nav-section="${key}"]`);
     return;
   }
@@ -301,6 +307,7 @@ watch(activeSectionKey, (key) => {
     for (const e of g.entries) {
       if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
         if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
+        if (programmaticScrolling.value) return;
         scrollNavItemIntoView(`[data-nav-section="${e.key}"]`);
         return;
       }

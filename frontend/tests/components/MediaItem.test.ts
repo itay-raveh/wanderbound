@@ -166,14 +166,14 @@ describe("MediaItem video controls", () => {
     const img = wrapper.get("img");
 
     expect(img.attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
     );
 
     programmaticScrolling.value = true;
     await nextTick();
 
     expect(img.attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
     );
   });
 
@@ -185,7 +185,7 @@ describe("MediaItem video controls", () => {
     );
 
     expect(wrapper.get("img").attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=${MEDIA_UPDATED_AT_PARAM}`,
+      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
     );
   });
 

@@ -84,10 +84,10 @@ describe("active section highlighting", () => {
     expect(result.stepId).toBe(42);
   });
 
-  it("does not double-count window virtualizer scrollMargin", () => {
+  it("does not subtract window virtualizer scrollMargin from item positions", () => {
     const vItems = [item(0, 100), item(1, 900)];
-    const best = pickBestItem(vItems, 550, 100, 400);
-    expect(best?.index).toBe(1);
+    const best = pickBestItem(vItems, 400, 100, 400);
+    expect(best?.index).toBe(0);
   });
 
   it("section barely visible at top does not steal highlight from section filling the viewport", () => {

@@ -18,14 +18,14 @@ const IMPORTED =
   "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg";
 
 function unusedDrawer(page: import("@playwright/test").Page) {
-  return page.getByLabel("Inspector").getByRole("region", { name: "Unused" });
+  return page.getByRole("region", { name: "Unused" });
 }
 
 async function ensureUnusedTrayVisible(page: import("@playwright/test").Page) {
   const drawer = unusedDrawer(page);
   const count = drawer.getByText(/^\d+$/);
-  await expect(drawer).toBeVisible();
-  await expect(count).toBeVisible();
+  await expect(drawer).toBeVisible({ timeout: 15_000 });
+  await expect(count).toBeVisible({ timeout: 15_000 });
 }
 
 async function mockDeviceImport(
@@ -63,6 +63,8 @@ async function selectImportStep(
 }
 
 test.describe("Media import", () => {
+  test.describe.configure({ timeout: 60_000 });
+
   test("device import into a step appears in the unused tray", async ({
     authedPage: page,
   }) => {

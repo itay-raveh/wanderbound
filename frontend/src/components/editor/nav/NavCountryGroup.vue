@@ -1,12 +1,12 @@
 <script lang="ts" setup>
 import type { DateRange, StepRead as Step } from "@/client";
-import type { CountryVisit } from "./types";
+import type { CountryVisit, GroupEntry } from "./types";
 import { flagUrl } from "@/utils/media";
 import { SHORT_DATE } from "@/utils/date";
 import { sectionKeyMatchesRange } from "../../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import NavStepItem from "./NavStepItem.vue";
 import NavMapItem from "./NavMapItem.vue";
 import {
@@ -41,6 +41,28 @@ const emit = defineEmits<{
 
 const allHidden = computed(() =>
   props.group.stepIds.every((id) => props.hiddenSet.has(id)),
+);
+
+const NAV_ENTRY_ROW_SIZE = 44;
+const NAV_ENTRY_SLICE_SIZE = 24;
+const virtualScrollRef = ref<{ scrollTo: (index: number) => void } | null>(
+  null,
+);
+
+function entryKey(entry: GroupEntry) {
+  return entry.type === "step" ? `step-${entry.item.id}` : entry.key;
+}
+
+function scrollActiveIntoVirtualView() {
+  if (!props.open || props.activeStepId == null) return;
+  const index = props.group.entryIndexByStepId.get(props.activeStepId);
+  if (index != null) virtualScrollRef.value?.scrollTo(index);
+}
+
+watch(
+  () => [props.open, props.activeStepId, props.group.entries] as const,
+  scrollActiveIntoVirtualView,
+  { flush: "post" },
 );
 </script>
 
@@ -89,39 +111,45 @@ const allHidden = computed(() =>
       </q-item-section>
     </template>
 
-    <div :inert="!open">
-      <template
-        v-for="entry in group.entries"
-        :key="entry.type === 'step' ? entry.item.id : entry.key"
-      >
-        <NavMapItem
-          v-if="entry.type === 'map'"
-          :data-nav-section="entry.key"
-          :date-range="entry.dateRange"
-          :range-idx="entry.rangeIdx"
-          :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
-          :steps="steps"
-          :colors="colors"
-          :format-map-range="formatMapRange"
-          @click="emit('scrollToMap', entry.dateRange)"
-          @delete="emit('deleteMap', entry.rangeIdx)"
-          @date-change="(idx, range) => emit('mapDateChange', idx, range)"
-        />
-        <NavStepItem
-          v-else
-          :data-nav-step="entry.item.id"
-          :name="entry.item.name"
-          :date="formatDate(entry.item.date, SHORT_DATE)"
-          :thumb="entry.item.thumb"
-          :color="entry.item.color"
-          :active="activeStepId === entry.item.id"
-          :hidden="hiddenSet.has(entry.item.id)"
-          :lazy-root="lazyRoot"
-          @click="emit('scrollToStep', entry.item.id)"
-          @toggle="emit('toggleStep', entry.item.id)"
-        />
+    <q-virtual-scroll
+      v-if="open"
+      ref="virtualScrollRef"
+      :items="group.entries"
+      class="group-entries-virtual"
+      :virtual-scroll-item-size="NAV_ENTRY_ROW_SIZE"
+      :virtual-scroll-slice-size="NAV_ENTRY_SLICE_SIZE"
+    >
+      <template #default="{ item: entry }">
+        <div :key="entryKey(entry)" class="nav-virtual-row">
+          <NavMapItem
+            v-if="entry.type === 'map'"
+            :data-nav-section="entry.key"
+            :date-range="entry.dateRange"
+            :range-idx="entry.rangeIdx"
+            :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
+            :steps="steps"
+            :colors="colors"
+            :format-map-range="formatMapRange"
+            @click="emit('scrollToMap', entry.dateRange)"
+            @delete="emit('deleteMap', entry.rangeIdx)"
+            @date-change="(idx, range) => emit('mapDateChange', idx, range)"
+          />
+          <NavStepItem
+            v-else
+            :data-nav-step="entry.item.id"
+            :name="entry.item.name"
+            :date="formatDate(entry.item.date, SHORT_DATE)"
+            :thumb="entry.item.thumb"
+            :color="entry.item.color"
+            :active="activeStepId === entry.item.id"
+            :hidden="hiddenSet.has(entry.item.id)"
+            :lazy-root="lazyRoot"
+            @click="emit('scrollToStep', entry.item.id)"
+            @toggle="emit('toggleStep', entry.item.id)"
+          />
+        </div>
       </template>
-    </div>
+    </q-virtual-scroll>
   </q-expansion-item>
 </template>
 
@@ -174,6 +202,11 @@ const allHidden = computed(() =>
 
 .group-hidden .group-flag {
   opacity: var(--opacity-hidden);
+}
+
+.group-entries-virtual {
+  max-height: calc(100vh - 13rem);
+  overflow-y: auto;
 }
 
 .group-header .group-dates {

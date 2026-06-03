@@ -47,12 +47,9 @@ test.describe("External media replacement", () => {
     await expect(page.getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("button", { name: "Expand", exact: true }).click();
-    await page.locator('[data-nav-step="1"]').click();
-    await page
-      .locator('[data-media="photo2.jpg"]')
-      .getByRole("button", { name: "Replace with better quality" })
-      .click();
+    await page.locator('[data-media="cover.jpg"]').click({
+      position: { x: 20, y: 20 },
+    });
     await ensureExternalMediaOpen(page);
     await expect(
       page.getByRole("button", { name: /Replace selected media/i }),

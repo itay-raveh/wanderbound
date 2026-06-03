@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import { type CallbackTypes } from "vue3-google-login";
 
 const { t } = useI18n();
+const googleSignInEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 const emit = defineEmits<{
   google: [response: CallbackTypes.CredentialPopupResponse];
@@ -13,7 +14,7 @@ const emit = defineEmits<{
 <template>
   <div class="login-buttons column no-wrap items-center">
     <!-- Google: invisible real button on top captures clicks, custom visual beneath -->
-    <div class="auth-btn-wrapper">
+    <div v-if="googleSignInEnabled" class="auth-btn-wrapper">
       <span class="auth-btn">
         <img src="/google-logo.svg" alt="" class="auth-btn-icon" />
         <span class="auth-btn-text">{{ t("login.signInGoogle") }}</span>
