@@ -276,7 +276,7 @@ function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
     const el = listRef.value?.querySelector(selector);
     (el as HTMLElement | null)?.scrollIntoView({
-      block: "nearest",
+      block: "center",
       behavior: scrollBehavior(),
     });
   });

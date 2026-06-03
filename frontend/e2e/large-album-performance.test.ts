@@ -159,6 +159,25 @@ async function scrollNavStepIntoView(page: Page, step: number) {
   await expect(target).toBeVisible({ timeout: 1_000 });
 }
 
+async function activeNavStepCenterOffset(page: Page, step: number) {
+  return page.evaluate((targetStep) => {
+    const navList = document.querySelector<HTMLElement>(
+      ".group-entries-virtual",
+    );
+    const target = document.querySelector<HTMLElement>(
+      `[data-nav-step="${targetStep}"]`,
+    );
+    if (!navList || !target) return Number.POSITIVE_INFINITY;
+    const navRect = navList.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    return Math.round(
+      targetRect.top +
+        targetRect.height / 2 -
+        (navRect.top + navRect.height / 2),
+    );
+  }, step);
+}
+
 test.describe("Large album editor performance", () => {
   test("opens a 240-step album while keeping rendered media bounded", async ({
     page,
@@ -199,5 +218,39 @@ test.describe("Large album editor performance", () => {
         .poll(() => page.locator("[data-media]").count())
         .toBeLessThan(120);
     }
+  });
+
+  test("keeps the active step near the middle of the nav while scrolling", async ({
+    page,
+  }) => {
+    await mockLargeAlbum(page);
+    await page.goto("/editor");
+    await expect(page.getByText("Large Album").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole("navigation").getByText("Netherlands").click();
+
+    await scrollNavStepIntoView(page, 180);
+    await page.locator(`[data-nav-step="180"]`).click();
+    await expect(page.getByText("Large Step 180").first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.mouse.move(640, 360);
+    await page.mouse.wheel(0, 900);
+
+    await expect
+      .poll(() => page.locator("[data-nav-step].visible").textContent())
+      .toContain("Large Step");
+    const activeStep = await page
+      .locator("[data-nav-step].visible")
+      .getAttribute("data-nav-step");
+    expect(activeStep).not.toBeNull();
+
+    await expect
+      .poll(() => activeNavStepCenterOffset(page, Number(activeStep)))
+      .toBeGreaterThan(-90);
+    await expect
+      .poll(() => activeNavStepCenterOffset(page, Number(activeStep)))
+      .toBeLessThan(90);
   });
 });
