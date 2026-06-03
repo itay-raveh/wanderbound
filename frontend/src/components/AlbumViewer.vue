@@ -43,6 +43,7 @@ import {
   defineAsyncComponent,
   defineComponent,
   h,
+  nextTick,
   onMounted,
   onUnmounted,
   provide,
@@ -192,6 +193,9 @@ const expectedPageCount = computed(
 const listRef = ref<HTMLElement | null>(null);
 const scrollMargin = ref(0);
 const scrollPaddingStart = ref(0);
+const NAV_SCROLL_MIN_TOP_CLEARANCE = 48;
+const NAV_SCROLL_MAX_TOP_CLEARANCE = 88;
+const NAV_SCROLL_VIEWPORT_CLEARANCE_RATIO = 0.1;
 
 const pageH = computed(
   () => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12,
@@ -387,9 +391,78 @@ if (props.printMode) {
     return map;
   });
 
-  function scrollToVIdx(idx: number, behavior?: ScrollBehavior) {
+  function navScrollTopClearance(headerBottom: number) {
+    const viewportBelowHeader = Math.max(0, window.innerHeight - headerBottom);
+    return Math.min(
+      NAV_SCROLL_MAX_TOP_CLEARANCE,
+      Math.max(
+        NAV_SCROLL_MIN_TOP_CLEARANCE,
+        Math.round(viewportBelowHeader * NAV_SCROLL_VIEWPORT_CLEARANCE_RATIO),
+      ),
+    );
+  }
+
+  function correctScrollTarget(idx: number) {
+    function applyCorrection() {
+      const pageEl = listRef.value?.querySelector<HTMLElement>(
+        `[data-index="${idx}"] .page-container`,
+      );
+      const headerBottom =
+        document
+          .querySelector<HTMLElement>(".editor-header")
+          ?.getBoundingClientRect().bottom ?? 0;
+      if (!pageEl || headerBottom <= 0) return;
+      const hiddenBy =
+        headerBottom +
+        navScrollTopClearance(headerBottom) -
+        pageEl.getBoundingClientRect().top;
+      if (Math.abs(hiddenBy) > 1)
+        window.scrollBy({ top: -hiddenBy, behavior: "auto" });
+    }
+    void nextTick(() => {
+      requestAnimationFrame(() => {
+        applyCorrection();
+        requestAnimationFrame(() => {
+          applyCorrection();
+          setTimeout(clearProgrammaticScroll, 100);
+        });
+      });
+    });
+  }
+
+  function scrollToVIdx(
+    idx: number,
+    behavior?: ScrollBehavior,
+    correctForHeader = false,
+  ) {
     const b =
       behavior ?? (getScrollBehavior() === "smooth" ? "smooth" : "auto");
+    if (correctForHeader) {
+      const v = virtualizer as unknown as {
+        scrollState: null;
+        getMeasurements: () => Array<{ start: number }>;
+      };
+      v.scrollState = null;
+      const item = v.getMeasurements()[idx];
+      const headerBottom =
+        document
+          .querySelector<HTMLElement>(".editor-header")
+          ?.getBoundingClientRect().bottom ?? 0;
+      if (item) {
+        programmaticScrolling.value = true;
+        if (scrollClearTimer) clearTimeout(scrollClearTimer);
+        scrollClearTimer = setTimeout(clearProgrammaticScroll, 800);
+        window.scrollTo({
+          top: Math.max(
+            0,
+            item.start - headerBottom - navScrollTopClearance(headerBottom),
+          ),
+          behavior: "auto",
+        });
+        correctScrollTarget(idx);
+        return;
+      }
+    }
     if (b === "smooth") {
       programmaticScrolling.value = true;
       window.addEventListener("wheel", clearProgrammaticScroll, {
@@ -407,9 +480,13 @@ if (props.printMode) {
     virtualizer.scrollToIndex(idx, { align: "start", behavior: b });
   }
 
-  function scrollToStep(id: number, behavior?: ScrollBehavior) {
+  function scrollToStep(
+    id: number,
+    behavior?: ScrollBehavior,
+    correctForHeader = false,
+  ) {
     const idx = stepIdToVIdx.value.get(id);
-    if (idx != null) scrollToVIdx(idx, behavior);
+    if (idx != null) scrollToVIdx(idx, behavior, correctForHeader);
   }
 
   function scrollToPhoto(
@@ -426,11 +503,13 @@ if (props.printMode) {
   }
 
   setScrollOverride({
-    scrollTo: scrollToStep,
+    scrollTo(id: number) {
+      scrollToStep(id, undefined, true);
+    },
     scrollToSection(key: string): boolean {
       const idx = secKeyToVIdx.value.get(key);
       if (idx == null) return false;
-      scrollToVIdx(idx);
+      scrollToVIdx(idx, undefined, true);
       return true;
     },
   });
@@ -467,7 +546,8 @@ if (props.printMode) {
         listRef.value.getBoundingClientRect().top + window.scrollY,
       );
       const headerBottom =
-        document.querySelector<HTMLElement>(".editor-header")
+        document
+          .querySelector<HTMLElement>(".editor-header")
           ?.getBoundingClientRect().bottom ?? 0;
       scrollPaddingStart.value = Math.round(headerBottom + scrollMargin.value);
     }

@@ -7,6 +7,9 @@ import {
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 
+const NAV_SCROLL_MIN_TOP_CLEARANCE = 48;
+const NAV_SCROLL_MAX_TOP_CLEARANCE = 88;
+
 async function pageTopBelowHeader(page: Page, text: string) {
   return page.evaluate((targetText) => {
     const pageEl = Array.from(
@@ -42,7 +45,10 @@ test.describe("Active step sync", () => {
     ).toBeVisible();
     await expect
       .poll(() => pageTopBelowHeader(page, "Ushuaia"))
-      .toBeGreaterThanOrEqual(0);
+      .toBeGreaterThanOrEqual(NAV_SCROLL_MIN_TOP_CLEARANCE);
+    await expect
+      .poll(() => pageTopBelowHeader(page, "Ushuaia"))
+      .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
     await nav.getByText("Chile").click();
     await nav.locator('[data-nav-step="103"]').click();
     await expect(
@@ -55,7 +61,10 @@ test.describe("Active step sync", () => {
     ).toBeVisible();
     await expect
       .poll(() => pageTopBelowHeader(page, "Buenos Aires"))
-      .toBeGreaterThanOrEqual(0);
+      .toBeGreaterThanOrEqual(NAV_SCROLL_MIN_TOP_CLEARANCE);
+    await expect
+      .poll(() => pageTopBelowHeader(page, "Buenos Aires"))
+      .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
     await expect(
       page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();
