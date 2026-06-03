@@ -6,7 +6,7 @@ import { SHORT_DATE } from "@/utils/date";
 import { sectionKeyMatchesRange } from "../../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import NavStepItem from "./NavStepItem.vue";
 import NavMapItem from "./NavMapItem.vue";
 import {
@@ -43,11 +43,13 @@ const allHidden = computed(() =>
   props.group.stepIds.every((id) => props.hiddenSet.has(id)),
 );
 
-const NAV_ENTRY_ROW_SIZE = 44;
+const NAV_ENTRY_ROW_SIZE = 54;
 const NAV_ENTRY_SLICE_SIZE = 24;
-const virtualScrollRef = ref<{ scrollTo: (index: number) => void } | null>(
-  null,
-);
+type VirtualScrollExpose = {
+  scrollTo: (index: number) => void;
+  $el?: HTMLElement;
+};
+const virtualScrollRef = ref<VirtualScrollExpose | null>(null);
 
 function entryKey(entry: GroupEntry) {
   return entry.type === "step" ? `step-${entry.item.id}` : entry.key;
@@ -56,7 +58,19 @@ function entryKey(entry: GroupEntry) {
 function scrollActiveIntoVirtualView() {
   if (!props.open || props.activeStepId == null) return;
   const index = props.group.entryIndexByStepId.get(props.activeStepId);
-  if (index != null) virtualScrollRef.value?.scrollTo(index);
+  if (index == null) return;
+  virtualScrollRef.value?.scrollTo(index);
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const scrollEl = virtualScrollRef.value?.$el;
+      if (!scrollEl) return;
+      scrollEl.scrollTop = Math.max(
+        0,
+        index * NAV_ENTRY_ROW_SIZE -
+          (scrollEl.clientHeight - NAV_ENTRY_ROW_SIZE) / 2,
+      );
+    });
+  });
 }
 
 watch(
