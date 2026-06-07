@@ -9,10 +9,10 @@ from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.http_clients import HttpClients
-from app.logic.trip_pipeline import _process_trip, _save_reupload
+from app.logic.trip_pipeline import _process_trip, _save_new, _save_reupload
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, StepPageMedia
 from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -241,6 +241,53 @@ class TestProcessTripSegmentEvents:
         assert db_out == segments
 
 
+class TestSaveNew:
+    async def test_flushes_parent_rows_before_step_media(self) -> None:
+        engine = _sqlite_engine(foreign_keys=True)
+        await _create_schema(engine)
+
+        await _seed_album_state(engine)
+
+        album = _album()
+        media = make_album_media(
+            UID,
+            AID,
+            name="page.jpg",
+            kind="photo",
+            width=640,
+            height=480,
+            byte_size=10,
+        )
+        step = _step(step_id=191160695)
+        page_media = StepPageMedia(
+            uid=UID,
+            aid=AID,
+            step_id=step.id,
+            page_index=0,
+            position_index=0,
+            media_name=media.name,
+        )
+        expected = (UID, AID, step.id, 0, 0, media.name)
+
+        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+            await _save_new(UID, [album, media, step, page_media])
+
+        async with AsyncSession(engine) as session:
+            rows = (await session.exec(select(StepPageMedia))).all()
+
+        assert [
+            (
+                row.uid,
+                row.aid,
+                row.step_id,
+                row.page_index,
+                row.position_index,
+                row.media_name,
+            )
+            for row in rows
+        ] == [expected]
+
+
 class TestSaveReuploadDeletesSegments:
     async def test_reconciled_album_segments_are_deleted(self, tmp_path: Path) -> None:
         engine = _sqlite_engine()
@@ -296,3 +343,55 @@ class TestSaveReuploadDeletesSegments:
 
         assert [s.name for s in steps] == ["New Step"]
         assert media_rows == []
+
+    async def test_reupload_flushes_parent_rows_before_step_media(
+        self, tmp_path: Path
+    ) -> None:
+        engine = _sqlite_engine(foreign_keys=True)
+        await _create_schema(engine)
+
+        album = _album()
+        await _seed_album_state(engine, album, _step())
+        media = make_album_media(
+            UID,
+            AID,
+            name="page.jpg",
+            kind="photo",
+            width=640,
+            height=480,
+            byte_size=10,
+        )
+        step = _reuploaded_step()
+        page_media = StepPageMedia(
+            uid=UID,
+            aid=AID,
+            step_id=step.id,
+            page_index=0,
+            position_index=0,
+            media_name=media.name,
+        )
+
+        await _save_reuploaded_objects(
+            engine,
+            tmp_path,
+            album,
+            _reuploaded_album(),
+            media,
+            step,
+            page_media,
+        )
+
+        async with AsyncSession(engine) as session:
+            rows = (await session.exec(select(StepPageMedia))).all()
+
+        assert [
+            (
+                row.uid,
+                row.aid,
+                row.step_id,
+                row.page_index,
+                row.position_index,
+                row.media_name,
+            )
+            for row in rows
+        ] == [(UID, AID, 2, 0, 0, "page.jpg")]

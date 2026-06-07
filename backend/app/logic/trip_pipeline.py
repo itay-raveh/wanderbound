@@ -188,7 +188,9 @@ async def _save_new(
         },
     ):
         async with AsyncSession(get_engine()) as session:
-            session.add_all(objects)
+            for layer in _db_save_layers(objects):
+                session.add_all(layer)
+                await session.flush()
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -255,8 +257,10 @@ async def _save_reupload(
                 )
             await session.flush()
 
-            for obj in objects:
-                await session.merge(obj)
+            for layer in _db_save_layers(objects):
+                for obj in layer:
+                    await session.merge(obj)
+                await session.flush()
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -264,6 +268,17 @@ async def _save_reupload(
         object_count=len(objects),
         new_user=False,
     )
+
+
+def _db_save_layers(objects: list[DbRow]) -> list[list[DbRow]]:
+    albums: list[DbRow] = [obj for obj in objects if isinstance(obj, Album)]
+    media: list[DbRow] = [obj for obj in objects if isinstance(obj, AlbumMedia)]
+    steps: list[DbRow] = [obj for obj in objects if isinstance(obj, Step)]
+    step_media: list[DbRow] = [
+        obj for obj in objects if isinstance(obj, StepPageMedia | StepUnusedMedia)
+    ]
+    segments: list[DbRow] = [obj for obj in objects if isinstance(obj, Segment)]
+    return [layer for layer in [albums, media, steps, step_media, segments] if layer]
 
 
 def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
