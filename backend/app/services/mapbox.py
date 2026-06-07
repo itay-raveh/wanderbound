@@ -120,6 +120,9 @@ async def _fetch_matching(
                 status_code=e.response.status_code,
             )
             return None
+        except httpx.TimeoutException:
+            logger.warning("mapbox.matching_timeout")
+            return None
     data = _MatchingResponse.model_validate_json(resp.content)
     if not data.matchings:
         return None
@@ -164,6 +167,9 @@ async def _fetch_directions(
                 "mapbox.directions_api_error",
                 status_code=e.response.status_code,
             )
+            return None
+        except httpx.TimeoutException:
+            logger.warning("mapbox.directions_timeout")
             return None
     data = _DirectionsResponse.model_validate_json(resp.content)
     if not data.routes:

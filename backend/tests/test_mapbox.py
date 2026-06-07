@@ -62,6 +62,14 @@ class TestFetchMatching:
         result = await _fetch_matching(client, [(1, 2), (7, 8)], "driving", "tok")
         assert result == [(1, 2), (3, 4), (7, 8)]
 
+    async def test_timeout_returns_none(self) -> None:
+        client = async_client(get=httpx.ReadTimeout("timed out"))
+
+        assert (
+            await _fetch_matching(client, [(4.0, 52.0), (4.1, 52.1)], "driving", "tok")
+            is None
+        )
+
 
 class TestFetchDirections:
     @pytest.mark.parametrize(
@@ -73,6 +81,16 @@ class TestFetchDirections:
     )
     async def test_returns_none_without_route(self, response: MagicMock) -> None:
         client = async_client(get=response)
+        assert (
+            await _fetch_directions(
+                client, [(4.0, 52.0), (4.1, 52.1)], "walking", "tok"
+            )
+            is None
+        )
+
+    async def test_timeout_returns_none(self) -> None:
+        client = async_client(get=httpx.ReadTimeout("timed out"))
+
         assert (
             await _fetch_directions(
                 client, [(4.0, 52.0), (4.1, 52.1)], "walking", "tok"
