@@ -14,6 +14,8 @@ from .helpers.users import UserRoutes
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
 
 class TestInitChunkedUpload:
     async def test_returns_upload_id(self, user_routes: UserRoutes) -> None:
@@ -29,6 +31,14 @@ class TestInitChunkedUpload:
 class TestUploadChunk:
     async def test_accepts_valid_chunk(self, user_routes: UserRoutes) -> None:
         upload_id = await user_routes.start_chunked_upload()
+        await user_routes.put_chunk_ok(upload_id, 0, b"chunk-data")
+
+    async def test_init_is_committed_before_chunk_request(
+        self, user_routes: UserRoutes, session: AsyncSession
+    ) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        await session.rollback()
+
         await user_routes.put_chunk_ok(upload_id, 0, b"chunk-data")
 
     async def test_rejects_unknown_session(self, user_routes: UserRoutes) -> None:
@@ -87,6 +97,19 @@ class TestCompleteChunkedUpload:
         body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
         assert body["user"]["id"] == 999
         assert len(body["trips"]) == 1
+
+    async def test_chunk_is_committed_before_complete_request(
+        self,
+        user_routes: UserRoutes,
+        users_dir: Path,
+        session: AsyncSession,
+    ) -> None:
+        upload_id = await user_routes.start_chunked_upload()
+        await user_routes.put_chunk_ok(upload_id, 0, b"fake-zip")
+        await session.rollback()
+
+        body = await user_routes.complete_upload_with_extract_ok(upload_id, users_dir)
+        assert body["user"]["id"] == 999
 
     async def test_rejects_unknown_session(self, user_routes: UserRoutes) -> None:
         await user_routes.sign_in()

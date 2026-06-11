@@ -229,6 +229,7 @@ async def init_chunked_upload(
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     owner = _upload_owner(existing, identity)
     upload_id = await upload_store.create(session, max_bytes, owner=owner)
+    await session.commit()
     return {"upload_id": upload_id}
 
 
@@ -249,6 +250,7 @@ async def upload_chunk(
         await upload_store.write_chunk_stream(
             session, upload_id, chunk_index, request.stream()
         )
+        await session.commit()
     except ClientDisconnect:
         logger.info(
             "upload.chunk_client_disconnected",
@@ -284,6 +286,7 @@ async def complete_chunked_upload(
         assembled, upload_dir = await upload_store.assemble(
             session, upload_id, owner=owner
         )
+        await session.commit()
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"
