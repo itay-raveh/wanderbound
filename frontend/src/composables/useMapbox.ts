@@ -112,8 +112,10 @@ export function useMapbox(options: UseMapboxOptions) {
   function armIdleReady(el: HTMLElement, m: mapboxgl.Map) {
     disarmIdleReady(m);
     delete el.dataset.mapReady;
+    delete el.dataset.mapSnapshotReady;
     let attempts = 0;
     const markReady = () => {
+      if (options.preserveDrawingBuffer) snapshotCanvasForPrint(el, m);
       el.dataset.mapReady = "";
       pendingIdle = null;
       if (idleFallback !== null) {
@@ -135,6 +137,28 @@ export function useMapbox(options: UseMapboxOptions) {
     idleFallback = setTimeout(() => {
       if (!el.dataset.mapReady) markReady();
     }, 30_000);
+  }
+
+  function snapshotCanvasForPrint(el: HTMLElement, m: mapboxgl.Map) {
+    try {
+      const canvas = m.getCanvas();
+      if (canvas.width === 0 || canvas.height === 0) return;
+
+      let snapshot = el.querySelector<HTMLImageElement>(
+        ":scope > .mapbox-print-snapshot",
+      );
+      if (!snapshot) {
+        snapshot = document.createElement("img");
+        snapshot.className = "mapbox-print-snapshot";
+        snapshot.alt = "";
+        snapshot.setAttribute("aria-hidden", "true");
+        el.prepend(snapshot);
+      }
+      snapshot.src = canvas.toDataURL("image/png");
+      el.dataset.mapSnapshotReady = "";
+    } catch (e) {
+      console.warn("[mapbox] failed to snapshot print canvas:", e);
+    }
   }
 
   function disarmIdleReady(m: mapboxgl.Map) {
