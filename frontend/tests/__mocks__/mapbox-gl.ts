@@ -20,8 +20,14 @@ const Map = vi.fn(() => ({
   flyTo: vi.fn(),
   fitBounds: vi.fn(),
   resize: vi.fn(),
-  getCanvas: vi.fn(() => ({ style: {} })),
+  getCanvas: vi.fn(() => ({
+    style: {},
+    width: 800,
+    height: 600,
+    toDataURL: vi.fn(() => "data:image/png;base64,map"),
+  })),
   getContainer: vi.fn(() => document.createElement("div")),
+  areTilesLoaded: vi.fn(() => true),
   loaded: vi.fn(() => true),
   isStyleLoaded: vi.fn(() => true),
 }));
