@@ -253,7 +253,7 @@ async def _save_reuploaded_objects(
         )
 
 
-class TestSaveNew:
+class TestSaveNewDependencyOrder:
     async def test_saves_step_media_after_parent_step_and_album_media(
         self,
     ) -> None:
