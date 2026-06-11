@@ -93,7 +93,6 @@ run = "uv run vulture"
 
 [tasks."deadcode:frontend"]
 description = "Find dead JS/TS code (knip)"
-dir = "frontend"
 run = "bun x knip"
 
 # -- Formatting ---------------------------------------------------

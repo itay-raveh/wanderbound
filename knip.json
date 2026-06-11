@@ -1,0 +1,35 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/generate-og-image.ts",
+        "scripts/generate-landing.ts"
+      ],
+      "project": ["scripts/**/*.ts", "*.config.js"],
+      "ignoreDependencies": ["@commitlint/cli"]
+    },
+    "frontend": {
+      "entry": [
+        "vite.config.ts",
+        "postcss.config.js",
+        "public/oauth-connected.js",
+        "e2e/**/*.ts",
+        "smoke/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,vue}",
+        "e2e/**/*.ts",
+        "smoke/**/*.ts",
+        "tests/**/*.ts",
+        "!src/client/**"
+      ],
+      "vite": {
+        "config": []
+      },
+      "ignoreUnresolved": ["/src/client/index.ts"],
+      "ignoreBinaries": ["uv", "scripts/generate-og-image.ts"]
+    }
+  }
+}
