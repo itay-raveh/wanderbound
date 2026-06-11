@@ -167,7 +167,9 @@ const sections = computed(() =>
   ),
 );
 
-const sectionPageCounts = computed(() => sections.value.map(sectionPageCount));
+const sectionPageCounts = computed(() =>
+  sections.value.map((section) => sectionPageCount(section, mediaByName.value)),
+);
 
 type EditorItem =
   | { type: "header"; key: string }

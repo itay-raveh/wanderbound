@@ -1,11 +1,13 @@
 import type {
   AlbumMeta,
+  AlbumMedia,
   DateRange,
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
 import { layoutDescription } from "@/composables/useTextLayout";
 import { inDateRange, isoDate } from "@/utils/date";
+import { isPortrait } from "@/utils/media";
 
 /** Keys for fixed album pages that precede the data-driven sections. Validated against the API schema. */
 export const HEADER_KEYS = [
@@ -112,13 +114,40 @@ export function activeSectionId(
   return sec.type === "step" ? sec.step.id : sectionKey(sec);
 }
 
-export function sectionPageCount(section: Section): number {
-  if (section.type === "map" || section.type === "hike") return 1;
-  const step = section.step;
+export function stepPageCount(
+  step: Step,
+  mediaByName: ReadonlyMap<string, AlbumMedia> = new Map(),
+): number {
   const layout = layoutDescription(step.description || "");
   const photoPages = filterCoverFromPages(step.pages, step.cover);
   const continuationPages = Math.max(0, layout.pages.length - 1);
-  return 1 + continuationPages + photoPages.length;
+  const continuationPhotos = new Set<string>();
+  if (continuationPages > 0) {
+    for (const { page } of photoPages) {
+      for (const name of page) {
+        const media = mediaByName.get(name);
+        if (media && isPortrait(media)) continuationPhotos.add(name);
+        if (continuationPhotos.size >= continuationPages) break;
+      }
+      if (continuationPhotos.size >= continuationPages) break;
+    }
+  }
+  const remainingPhotoPages =
+    continuationPhotos.size > 0
+      ? photoPages.filter(({ page }) =>
+          page.some((name) => !continuationPhotos.has(name)),
+        )
+      : photoPages;
+  return 1 + continuationPages + remainingPhotoPages.length;
+}
+
+export function sectionPageCount(
+  section: Section,
+  mediaByName?: ReadonlyMap<string, AlbumMedia>,
+): number {
+  if (section.type === "map" || section.type === "hike") return 1;
+  const step = section.step;
+  return stepPageCount(step, mediaByName);
 }
 
 /** Group map ranges by the ID of their first overlapping step. */

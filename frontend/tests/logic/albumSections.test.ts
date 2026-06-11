@@ -4,6 +4,7 @@ import {
   buildSections,
   activeSectionId,
   sectionKey,
+  stepPageCount,
   type Section,
 } from "@/components/album/albumSections";
 import type { DateRange } from "@/client";
@@ -46,6 +47,22 @@ describe("filterCoverFromPages", () => {
     ],
   ])("filters cover entries from %j", (pages, expected) => {
     expect(filterCoverFromPages(pages, "cover")).toEqual(expected);
+  });
+});
+
+describe("stepPageCount", () => {
+  it("does not double count portrait photos used on continuation description pages", () => {
+    const step = makeStep({
+      description: "x".repeat(120),
+      cover: null,
+      pages: [["portrait.jpg"], ["landscape.jpg"]],
+    });
+    const mediaByName = new Map([
+      ["portrait.jpg", { name: "portrait.jpg", width: 800, height: 1200 }],
+      ["landscape.jpg", { name: "landscape.jpg", width: 1200, height: 800 }],
+    ]);
+
+    expect(stepPageCount(step, mediaByName)).toBe(3);
   });
 });
 
