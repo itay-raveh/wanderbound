@@ -1,9 +1,10 @@
 {
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["vite.config.ts"],
   "project": ["src/**/*.{ts,vue}", "!src/client/**"],
   "vite": {
     "config": []
   },
-  "ignoreDependencies": ["postcss-rtlcss", "@hey-api/client-fetch"],
+  "ignoreDependencies": ["postcss-rtlcss"],
   "ignoreBinaries": ["uv", "scripts/generate-og-image.ts"]
 }
