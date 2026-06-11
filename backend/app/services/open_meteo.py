@@ -10,9 +10,8 @@ from itertools import batched
 from typing import Protocol
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
-from app.core.async_helpers import yield_completed
 from app.models.polarsteps import HasLatLon
 from app.models.weather import Weather, WeatherData
 
@@ -37,6 +36,8 @@ class _ElevationResult(BaseModel):
 
 
 OPEN_METEO_MAX_PER_REQUEST = 100
+OPEN_METEO_WEATHER_MAX_PER_REQUEST = 100
+OPEN_METEO_WEATHER_MAX_DAYS = 14
 
 
 async def elevations(
@@ -118,6 +119,9 @@ class _LocationResult(BaseModel):
     daily: _DailyData
 
 
+_LOCATION_RESULTS = TypeAdapter(list[_LocationResult])
+
+
 def _weather_from_result(step: _StepLike, loc: _LocationResult) -> Weather | None:
     """Extract weather for a specific step's date from a location result."""
     date_str = str(step.datetime.date())
@@ -140,41 +144,90 @@ def _weather_from_result(step: _StepLike, loc: _LocationResult) -> Weather | Non
     )
 
 
-async def _fetch_one(client: httpx.AsyncClient, step: _StepLike) -> Weather:
-    """Fetch weather for a single step.  Raises on failure."""
-    date_str = str(step.datetime.date())
+async def _fetch_batch(
+    client: httpx.AsyncClient, steps: Sequence[_StepLike]
+) -> list[Weather]:
+    start_date = min(step.datetime.date() for step in steps)
+    end_date = max(step.datetime.date() for step in steps)
     try:
         response = await client.get(
             "https://archive-api.open-meteo.com/v1/archive",
             params={
-                "latitude": round(step.location.lat, 2),
-                "longitude": round(step.location.lon, 2),
-                "start_date": date_str,
-                "end_date": date_str,
+                "latitude": ",".join(
+                    str(round(step.location.lat, 2)) for step in steps
+                ),
+                "longitude": ",".join(
+                    str(round(step.location.lon, 2)) for step in steps
+                ),
+                "start_date": str(start_date),
+                "end_date": str(end_date),
                 "daily": _DAILY_FIELDS,
                 "timezone": "auto",
             },
         )
         response.raise_for_status()
     except httpx.HTTPError as e:
-        msg = f"Weather API error for {step.location.detail}"
+        locations = ", ".join(step.location.detail for step in steps)
+        msg = f"Weather API error for {locations}"
         raise RuntimeError(msg) from e
-    result = _LocationResult.model_validate_json(response.content)
-    weather = _weather_from_result(step, result)
-    if weather is None:
-        msg = f"No weather data for {step.location.detail} on {date_str}"
-        raise RuntimeError(msg)
-    return weather
+
+    if len(steps) == 1:
+        results = [_LocationResult.model_validate_json(response.content)]
+    else:
+        results = _LOCATION_RESULTS.validate_json(response.content)
+
+    weathers: list[Weather] = []
+    for step, result in zip(steps, results, strict=True):
+        weather = _weather_from_result(step, result)
+        if weather is None:
+            msg = (
+                f"No weather data for {step.location.detail} on {step.datetime.date()}"
+            )
+            raise RuntimeError(msg)
+        weathers.append(weather)
+    return weathers
 
 
 async def build_weathers(
     client: httpx.AsyncClient,
     steps: Sequence[_StepLike],
 ) -> AsyncIterator[tuple[int, Weather]]:
-    """Yield (index, weather) as each completes (concurrent, unordered)."""
+    """Yield (index, weather) using bounded Open-Meteo archive batches."""
+    for indexed_batch in _weather_batches(steps):
+        weathers = await _fetch_batch(client, [step for _idx, step in indexed_batch])
+        for (idx, _step), weather in zip(indexed_batch, weathers, strict=True):
+            yield idx, weather
 
-    async def _one(idx: int, step: _StepLike) -> tuple[int, Weather]:
-        return idx, await _fetch_one(client, step)
 
-    async for result in yield_completed(_one(i, s) for i, s in enumerate(steps)):
-        yield result
+def _weather_batches(
+    steps: Sequence[_StepLike],
+) -> list[list[tuple[int, _StepLike]]]:
+    batches: list[list[tuple[int, _StepLike]]] = []
+    batch: list[tuple[int, _StepLike]] = []
+    batch_start = batch_end = None
+
+    for idx, step in enumerate(steps):
+        step_date = step.datetime.date()
+        if batch_start is None or batch_end is None:
+            batch = [(idx, step)]
+            batch_start = batch_end = step_date
+            continue
+
+        next_start = min(batch_start, step_date)
+        next_end = max(batch_end, step_date)
+        date_count = (next_end - next_start).days + 1
+        if (
+            len(batch) >= OPEN_METEO_WEATHER_MAX_PER_REQUEST
+            or date_count > OPEN_METEO_WEATHER_MAX_DAYS
+        ):
+            batches.append(batch)
+            batch = [(idx, step)]
+            batch_start = batch_end = step_date
+        else:
+            batch.append((idx, step))
+            batch_start = next_start
+            batch_end = next_end
+
+    if batch:
+        batches.append(batch)
+    return batches

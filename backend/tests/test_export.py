@@ -4,12 +4,11 @@ import json
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.core.config import get_settings
-from app.core.tokens import FileTokenStore
 from app.logic.export import (
     _EXPORT_NAME,
     EXPORT_FILENAME,
@@ -21,6 +20,7 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.models.processing import ArtifactToken
 from app.models.user import User
 from tests.factories import (
     AID,
@@ -50,7 +50,7 @@ async def _export_events_and_path(
     user: User, session: AsyncSession
 ) -> tuple[list[ExportEvent], Path]:
     events: list[ExportEvent] = await collect_async(export_user_data(user, session))
-    path = pop_export_token(_done_event(events).token)
+    path = await pop_export_token(session, _done_event(events).token)
     assert path is not None
     return events, path
 
@@ -66,7 +66,10 @@ def _read_zip_json(path: Path, member: str) -> Any:
 
 
 def _export_download_token(path: Path | None) -> patch:
-    return patch("app.api.v1.routes.users.pop_export_token", return_value=path)
+    return patch(
+        "app.api.v1.routes.users.pop_export_token",
+        new=AsyncMock(return_value=path),
+    )
 
 
 class TestTokenManagement:
@@ -75,29 +78,20 @@ class TestTokenManagement:
         monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         export_tokens.cleanup()
 
-    async def test_store_and_pop(self, tmp_path: Path) -> None:
+    async def test_store_and_pop(self, tmp_path: Path, session: AsyncSession) -> None:
         path = tmp_path / "test.zip"
         path.write_bytes(b"fake zip")
 
-        token = export_tokens.store(path)
+        token = await export_tokens.store(session, path)
         assert isinstance(token, str)
         assert len(token) > 10
+        assert await session.get(ArtifactToken, token) is not None
+        assert not (tmp_path / "tokens" / _EXPORT_NAME / "manifests").exists()
 
-        result = pop_export_token(token)
+        result = await pop_export_token(session, token)
         assert result == path
 
-        assert pop_export_token(token) is None
-
-    async def test_file_tokens_can_be_popped_by_another_store_instance(self) -> None:
-        first = FileTokenStore(dir_name="shared", ttl=60, label="test")
-        second = FileTokenStore(dir_name="shared", ttl=60, label="test")
-        path = first.make_dest(".bin")
-        path.write_bytes(b"shared")
-
-        token = first.store({"path": str(path)})
-
-        assert second.pop(token) == {"path": str(path)}
-        assert first.pop(token) is None
+        assert await pop_export_token(session, token) is None
 
 
 class TestExportUserData:

@@ -7,8 +7,10 @@ from app.models.album_media import (
     StepUnusedMedia as StepUnusedMedia,
 )
 from app.models.processing import (
+    ArtifactToken as ArtifactToken,
     ProcessingEventRow as ProcessingEventRow,
     ProcessingOperation as ProcessingOperation,
+    UploadSession as UploadSession,
     WorkflowExecutorHeartbeat as WorkflowExecutorHeartbeat,
 )
 from app.models.segment import Segment as Segment

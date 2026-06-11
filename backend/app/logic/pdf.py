@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -8,7 +10,7 @@ from contextlib import (
     suppress,
 )
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 
 import structlog
 from playwright.async_api import Browser, Page, Playwright, async_playwright
@@ -18,7 +20,10 @@ from app.core.config import get_settings
 from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
 from app.core.resources import MiB, detect_memory_mb
-from app.core.tokens import FileTokenStore
+from app.core.tokens import ArtifactTokenStore
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 logger = structlog.get_logger(__name__)
 
@@ -63,7 +68,7 @@ PdfEvent = Annotated[
 
 class _PdfTokens:
     def __init__(self) -> None:
-        self._store = FileTokenStore(
+        self._store = ArtifactTokenStore(
             dir_name="wanderbound-pdf",
             ttl=60,
             label="PDF",
@@ -76,12 +81,12 @@ class _PdfTokens:
     def make_dest(self, suffix: str) -> Path:
         return self._store.make_dest(suffix)
 
-    def store(self, data: tuple[Path, str]) -> str:
+    async def store(self, session: AsyncSession, data: tuple[Path, str]) -> str:
         path, aid = data
-        return self._store.store({"path": str(path), "aid": aid})
+        return await self._store.store(session, {"path": str(path), "aid": aid})
 
-    def pop(self, token: str) -> tuple[Path, str] | None:
-        data = self._store.pop(token)
+    async def pop(self, session: AsyncSession, token: str) -> tuple[Path, str] | None:
+        data = await self._store.pop(session, token)
         return None if data is None else (Path(data["path"]), data["aid"])
 
     def lifespan(self) -> AbstractAsyncContextManager[None]:
@@ -143,8 +148,8 @@ async def lifespan() -> AsyncGenerator[BrowserManager]:
             logger.info("playwright.browser_closed")
 
 
-def store_pdf_token(path: Path, aid: str) -> str:
-    return _tokens.store((path, aid))
+async def store_pdf_token(session: AsyncSession, path: Path, aid: str) -> str:
+    return await _tokens.store(session, (path, aid))
 
 
 pop_pdf_token = _tokens.pop
@@ -324,6 +329,7 @@ async def _render_pdf(  # noqa: C901, PLR0915
 
 async def render_album_pdf_stream(
     browser: Browser,
+    session: AsyncSession,
     aid: str,
     *,
     session_cookie: str,
@@ -383,7 +389,7 @@ async def render_album_pdf_stream(
         if size == 0:
             yield PdfError(detail="PDF generation produced no output.")
             return
-        token = store_pdf_token(dest, aid)
+        token = await store_pdf_token(session, dest, aid)
         owned = True
         yield PdfDone(token=token)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -407,7 +407,7 @@ class TestDownloadPdf:
 
         with patch(
             "app.api.v1.routes.albums.pop_pdf_token",
-            return_value=(pdf_path, "my-album"),
+            new=AsyncMock(return_value=(pdf_path, "my-album")),
         ):
             resp = await album_routes.download_pdf("valid-token")
 

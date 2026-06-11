@@ -1,18 +1,22 @@
+from __future__ import annotations
+
 import asyncio
-import contextlib
-import json
 import secrets
 import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from time import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 import structlog
 
 from app.core.config import get_settings
+from app.models.processing import ArtifactToken
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 logger = structlog.get_logger(__name__)
 
@@ -80,7 +84,15 @@ class TokenStore[T]:
             )
 
 
-class FileTokenStore:
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+class ArtifactTokenStore:
     def __init__(
         self,
         *,
@@ -102,97 +114,47 @@ class FileTokenStore:
     def _files_dir(self) -> Path:
         return self._dir / "files"
 
-    @property
-    def _manifests_dir(self) -> Path:
-        return self._dir / "manifests"
-
     def cleanup(self) -> None:
-        self._evict_all()
         shutil.rmtree(self._dir, ignore_errors=True)
 
     @asynccontextmanager
     async def lifespan(self) -> AsyncGenerator[None]:
         self._files_dir.mkdir(parents=True, exist_ok=True)
-        self._manifests_dir.mkdir(parents=True, exist_ok=True)
-        await asyncio.to_thread(self._cleanup_expired)
-        task = asyncio.create_task(self._cleanup_loop())
-        try:
-            yield
-        finally:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-            await asyncio.to_thread(self._cleanup_expired)
+        yield
 
     def make_dest(self, suffix: str) -> Path:
         self._files_dir.mkdir(parents=True, exist_ok=True)
         return self._files_dir / f"{secrets.token_hex(16)}{suffix}"
 
-    def store(self, data: dict[str, str]) -> str:
-        self._manifests_dir.mkdir(parents=True, exist_ok=True)
+    async def store(self, session: AsyncSession, data: dict[str, str]) -> str:
         token = secrets.token_urlsafe()
-        payload: dict[str, Any] = {
-            "data": data,
-            "expires_at": time() + self._ttl,
-        }
-        path = self._manifest_path(token)
-        tmp_path = path.with_name(f"{path.name}.{secrets.token_hex(8)}.tmp")
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, sort_keys=True)
-        tmp_path.replace(path)
+        row = ArtifactToken(
+            token=token,
+            namespace=self._dir_name,
+            path=data["path"],
+            payload=data,
+            expires_at=_now() + timedelta(seconds=self._ttl),
+        )
+        session.add(row)
+        await session.commit()
         return token
 
-    def pop(self, token: str) -> dict[str, str] | None:
-        try:
-            path = self._manifest_path(token)
-            payload = self._read_payload(path)
-            path.unlink()
-        except OSError, TypeError, ValueError, KeyError:
+    async def pop(self, session: AsyncSession, token: str) -> dict[str, str] | None:
+        if not token or "/" in token or "\\" in token or token.startswith("."):
             return None
-
-        data = {str(k): str(v) for k, v in dict(payload["data"]).items()}
-        if float(payload["expires_at"]) <= time():
+        row = await session.get(ArtifactToken, token)
+        if row is None or row.namespace != self._dir_name:
+            return None
+        await session.delete(row)
+        data = row.payload
+        if _aware(row.expires_at) <= _now():
+            await session.commit()
             self._evict(data)
             return None
+        await session.commit()
         return data
-
-    def _cleanup_expired(self) -> None:
-        now = time()
-        for path in self._manifests_dir.glob("*.json"):
-            with contextlib.suppress(OSError, TypeError, ValueError, KeyError):
-                payload = self._read_payload(path)
-                if float(payload["expires_at"]) <= now:
-                    path.unlink(missing_ok=True)
-                    data = {str(k): str(v) for k, v in dict(payload["data"]).items()}
-                    self._evict(data)
-
-    def _evict_all(self) -> None:
-        for path in self._manifests_dir.glob("*.json"):
-            with contextlib.suppress(OSError, TypeError, ValueError, KeyError):
-                payload = self._read_payload(path)
-                path.unlink(missing_ok=True)
-                data = {str(k): str(v) for k, v in dict(payload["data"]).items()}
-                self._evict(data)
 
     def _evict(self, data: dict[str, str]) -> None:
         if self._on_evict is not None:
             self._on_evict(data)
         logger.debug("token.expired", token_label=self._label)
-
-    async def _cleanup_loop(self) -> None:
-        while True:
-            await asyncio.sleep(min(self._ttl, 60))
-            await asyncio.to_thread(self._cleanup_expired)
-
-    def _manifest_path(self, token: str) -> Path:
-        if not token or "/" in token or "\\" in token or token.startswith("."):
-            raise ValueError("invalid token")
-        return self._manifests_dir / f"{token}.json"
-
-    @staticmethod
-    def _read_payload(path: Path) -> dict[str, Any]:
-        with path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        if not isinstance(payload, dict):
-            raise TypeError("invalid token payload")
-        return payload

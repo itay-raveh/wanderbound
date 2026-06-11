@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.core.observability import start_span
-from app.core.tokens import FileTokenStore
+from app.core.tokens import ArtifactTokenStore
 from app.logic.layout.media import MEDIA_EXTENSIONS
 from app.logic.step_media import read_steps_with_media
 from app.models.album import Album
@@ -62,7 +62,7 @@ ExportEvent = Annotated[
 
 class _ExportTokens:
     def __init__(self) -> None:
-        self._store = FileTokenStore(
+        self._store = ArtifactTokenStore(
             dir_name=_EXPORT_NAME,
             ttl=300,
             label="export",
@@ -75,11 +75,11 @@ class _ExportTokens:
     def make_dest(self, suffix: str) -> Path:
         return self._store.make_dest(suffix)
 
-    def store(self, path: Path) -> str:
-        return self._store.store({"path": str(path)})
+    async def store(self, session: AsyncSession, path: Path) -> str:
+        return await self._store.store(session, {"path": str(path)})
 
-    def pop(self, token: str) -> Path | None:
-        data = self._store.pop(token)
+    async def pop(self, session: AsyncSession, token: str) -> Path | None:
+        data = await self._store.pop(session, token)
         return None if data is None else Path(data["path"])
 
     def lifespan(self) -> AbstractAsyncContextManager[None]:
@@ -187,6 +187,7 @@ async def _drain_queue(
 
 
 async def _run_zip_thread(
+    session: AsyncSession,
     spec: _ZipSpec,
     files_total: int,
 ) -> AsyncGenerator[ExportEvent]:
@@ -210,7 +211,7 @@ async def _run_zip_thread(
         async for event in _drain_queue(queue, files_total):
             yield event
 
-        token = _tokens.store(spec.dest)
+        token = await _tokens.store(session, spec.dest)
         logger.info("export.ready", files_total=files_total)
         yield ExportDone(token=token)
     except Exception:
@@ -293,5 +294,5 @@ async def export_user_data(
         media_by_album=media_by_album,
     )
 
-    async for event in _run_zip_thread(spec, files_total):
+    async for event in _run_zip_thread(session, spec, files_total):
         yield event

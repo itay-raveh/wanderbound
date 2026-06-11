@@ -93,3 +93,47 @@ class WorkflowExecutorHeartbeat(SQLModel, table=True):
         default_factory=_now,
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
+
+
+class UploadSession(SQLModel, table=True):
+    __tablename__ = "upload_session"
+
+    upload_id: str = Field(primary_key=True, max_length=255)
+    owner: str = Field(max_length=255, index=True)
+    max_bytes: int
+    max_chunks: int
+    accumulated_bytes: int = 0
+    chunks_written: list[int] = Field(
+        default_factory=list,
+        sa_column=Column(PydanticJSON(list[int]), nullable=False),
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
+    created_at: datetime = Field(
+        default_factory=_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ArtifactToken(SQLModel, table=True):
+    __tablename__ = "artifact_token"
+
+    token: str = Field(primary_key=True, max_length=255)
+    namespace: str = Field(max_length=100, index=True)
+    path: str
+    payload: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(PydanticJSON(dict[str, str]), nullable=False),
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
+    created_at: datetime = Field(
+        default_factory=_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
