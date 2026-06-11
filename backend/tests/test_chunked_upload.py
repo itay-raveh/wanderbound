@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import BigInteger
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import ClientDisconnect
 
@@ -45,6 +46,20 @@ async def store(tmp_path: Path) -> AsyncIterator[UploadStore]:
 
 
 class TestWriteChunkStream:
+    def test_upload_byte_counts_use_bigint_columns(self) -> None:
+        assert isinstance(UploadSession.__table__.c.max_bytes.type, BigInteger)
+        assert isinstance(UploadSession.__table__.c.accumulated_bytes.type, BigInteger)
+
+    async def test_allows_configured_four_gib_upload_limit(
+        self, store: UploadStore, session: AsyncSession
+    ) -> None:
+        four_gib = 4 * 1024 * 1024 * 1024
+
+        upload_id = await store.create(session, four_gib, owner=OWNER)
+        row = await session.get_one(UploadSession, upload_id)
+
+        assert row.max_bytes == four_gib
+
     async def test_chunks_can_continue_on_another_store_instance(
         self, tmp_path: Path, session: AsyncSession
     ) -> None:

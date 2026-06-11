@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import uuid4
 
 import sqlalchemy as sa
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import BigInteger, Column, DateTime, String
 from sqlmodel import Field, SQLModel
 
 from app.core.db import PydanticJSON
@@ -100,9 +100,11 @@ class UploadSession(SQLModel, table=True):
 
     upload_id: str = Field(primary_key=True, max_length=255)
     owner: str = Field(max_length=255, index=True)
-    max_bytes: int
+    max_bytes: int = Field(sa_column=Column(BigInteger, nullable=False))
     max_chunks: int
-    accumulated_bytes: int = 0
+    accumulated_bytes: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False)
+    )
     chunks_written: list[int] = Field(
         default_factory=list,
         sa_column=Column(PydanticJSON(list[int]), nullable=False),
