@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.tokens import ArtifactTokenStore
 from app.logic.export import (
     _EXPORT_NAME,
     EXPORT_FILENAME,
@@ -31,9 +36,6 @@ from tests.factories import (
     make_user,
 )
 from tests.helpers.users import UserRoutes
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def _export_path(*parts: str) -> str:
@@ -92,6 +94,39 @@ class TestTokenManagement:
         assert result == path
 
         assert await pop_export_token(session, token) is None
+
+    async def test_lifespan_periodically_evicts_undownloaded_tokens(
+        self, tmp_path: Path
+    ) -> None:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'tokens.db'}")
+        removed: list[Path] = []
+        store = ArtifactTokenStore(
+            dir_name="test-artifacts",
+            ttl=0,
+            label="test artifact",
+            cleanup_interval=0.01,
+            on_evict=lambda data: removed.append(Path(data["path"])),
+        )
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+            async with store.lifespan(engine=engine):
+                path = store.make_dest(".zip")
+                path.write_bytes(b"fake zip")
+                async with AsyncSession(engine, expire_on_commit=False) as session:
+                    token = await store.store(session, {"path": str(path)})
+
+                async def wait_until_deleted() -> None:
+                    async with AsyncSession(engine) as poll:
+                        while await poll.get(ArtifactToken, token) is not None:
+                            await poll.rollback()
+                            await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_until_deleted(), timeout=1)
+
+            assert removed == [path]
+        finally:
+            await engine.dispose()
 
 
 class TestExportUserData:

@@ -13,13 +13,15 @@ from typing import TYPE_CHECKING, BinaryIO
 import anyio
 import structlog
 from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.db import get_engine
 from app.core.observability import start_span
 from app.models.processing import UploadSession
 
 if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -71,12 +73,32 @@ class UploadStore:
         self._locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
-    async def lifespan(self) -> AsyncGenerator[None]:
+    async def lifespan(
+        self, *, engine: AsyncEngine | None = None
+    ) -> AsyncGenerator[None]:
         self._base = (
             self._base_override or get_settings().DATA_FOLDER / "chunked-uploads"
         )
         self._base.mkdir(parents=True, exist_ok=True)
-        yield
+        task = asyncio.create_task(self._cleanup_loop(engine))
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    async def _cleanup_loop(self, engine: AsyncEngine | None) -> None:
+        while True:
+            await asyncio.sleep(self._cleanup_interval)
+            try:
+                async with AsyncSession(
+                    engine or get_engine(), expire_on_commit=False
+                ) as session:
+                    await self.cleanup_expired(session)
+                    await session.commit()
+            except Exception:
+                logger.exception("upload.cleanup_failed")
 
     async def create(self, session: AsyncSession, max_bytes: int, *, owner: str) -> str:
         """Start a new upload session. Returns an opaque upload_id."""

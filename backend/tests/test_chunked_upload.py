@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import BigInteger
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import ClientDisconnect
 
@@ -322,6 +324,35 @@ class TestEviction:
 
             with pytest.raises(KeyError):
                 await store.assemble(session, upload_id, owner=OWNER)
+
+    async def test_lifespan_periodically_cleans_abandoned_sessions(
+        self, tmp_path: Path
+    ) -> None:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'cleanup.db'}")
+        store = UploadStore(base=tmp_path / "chunked-uploads", cleanup_interval=0.01)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+            async with store.lifespan(engine=engine):
+                async with AsyncSession(engine, expire_on_commit=False) as session:
+                    upload_id = await store.create(session, MAX_BYTES, owner=OWNER)
+                    await store.write_chunk_stream(session, upload_id, 0, _one(b"data"))
+                    row = await session.get_one(UploadSession, upload_id)
+                    row.expires_at = row.created_at
+                    session.add(row)
+                    await session.commit()
+
+                async def wait_until_deleted() -> None:
+                    async with AsyncSession(engine) as poll:
+                        while await poll.get(UploadSession, upload_id) is not None:
+                            await poll.rollback()
+                            await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_until_deleted(), timeout=1)
+
+                assert not store._upload_dir(upload_id).exists()
+        finally:
+            await engine.dispose()
 
     async def test_eviction_during_write_surfaces_as_key_error(
         self, store: UploadStore, session: AsyncSession
