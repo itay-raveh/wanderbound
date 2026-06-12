@@ -5,6 +5,7 @@ from dbos import DBOS, SetWorkflowID
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.logic.processing_operations import (
@@ -18,6 +19,7 @@ from app.logic.processing_operations import (
 from app.logic.segment_routes import schedule_album_route_enrichment
 from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ErrorData
+from app.logic.workflows.recovery import workflow_executor_id
 from app.models.processing import ProcessingOperation
 from app.models.user import User
 
@@ -77,7 +79,9 @@ async def run_processing_workflow_payload(
         )
         return {"operation_id": params.operation_id, "status": "cancelled"}
 
-    if not await mark_processing_operation_running(session, operation):
+    if not await mark_processing_operation_running(
+        session, operation, executor_id=workflow_executor_id(get_settings())
+    ):
         return {"operation_id": operation.operation_id, "status": operation.status}
     await session.commit()
 

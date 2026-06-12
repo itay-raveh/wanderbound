@@ -132,6 +132,10 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
         patch(
             "app.logic.workflows.processing.schedule_album_route_enrichment"
         ) as schedule,
+        patch(
+            "app.logic.workflows.processing.workflow_executor_id",
+            return_value="worker-test",
+        ),
     ):
         result = await run_processing_workflow_payload(
             processing_workflow_payload(operation, user),
@@ -144,6 +148,7 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
 
     assert result == {"operation_id": operation.operation_id, "status": "succeeded"}
     assert operation.status == "succeeded"
+    assert operation.started_by_executor_id == "worker-test"
     assert events == [
         TripStart(trip_index=0),
         PhaseUpdate(phase="layouts", done=1, total=1),

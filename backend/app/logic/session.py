@@ -204,7 +204,7 @@ async def _persisted_process_stream(
     if operation.status != "running":
         start_processing_workflow(operation, user)
 
-    async for event in _poll_persisted_operation(db_session, operation):
+    async for event in _poll_persisted_operation(db_session, operation.operation_id):
         yield event
 
 
@@ -231,21 +231,25 @@ async def lock_user_for_processing_request(
 
 
 async def _poll_persisted_operation(
-    db_session: AsyncSession, operation: ProcessingOperation
+    db_session: AsyncSession, operation_id: str
 ) -> AsyncIterator[ProcessingEvent]:
     after_seq = -1
     while True:
         events = await read_processing_events(
-            db_session, operation.operation_id, after_seq=after_seq
+            db_session, operation_id, after_seq=after_seq
         )
         for event in events:
             after_seq += 1
             yield event
 
-        await db_session.refresh(operation)
-        if operation.status not in {"queued", "running"}:
+        status = await db_session.scalar(
+            select(ProcessingOperation.status).where(
+                col(ProcessingOperation.operation_id) == operation_id
+            )
+        )
+        if status not in {"queued", "running"}:
             events = await read_processing_events(
-                db_session, operation.operation_id, after_seq=after_seq
+                db_session, operation_id, after_seq=after_seq
             )
             for event in events:
                 after_seq += 1
