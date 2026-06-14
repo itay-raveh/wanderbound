@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.tokens import ArtifactTokenStore
 from app.logic.export import (
     _EXPORT_NAME,
     EXPORT_FILENAME,
@@ -20,6 +25,7 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.models.processing import ArtifactToken
 from app.models.user import User
 from tests.factories import (
     AID,
@@ -30,9 +36,6 @@ from tests.factories import (
     make_user,
 )
 from tests.helpers.users import UserRoutes
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def _export_path(*parts: str) -> str:
@@ -49,7 +52,7 @@ async def _export_events_and_path(
     user: User, session: AsyncSession
 ) -> tuple[list[ExportEvent], Path]:
     events: list[ExportEvent] = await collect_async(export_user_data(user, session))
-    path = pop_export_token(_done_event(events).token)
+    path = await pop_export_token(session, _done_event(events).token)
     assert path is not None
     return events, path
 
@@ -65,26 +68,104 @@ def _read_zip_json(path: Path, member: str) -> Any:
 
 
 def _export_download_token(path: Path | None) -> patch:
-    return patch("app.api.v1.routes.users.pop_export_token", return_value=path)
+    return patch(
+        "app.api.v1.routes.users.pop_export_token",
+        new=AsyncMock(return_value=path),
+    )
 
 
 class TestTokenManagement:
     @pytest.fixture(autouse=True)
-    def _clean_tokens(self) -> None:
+    def _clean_tokens(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
         export_tokens.cleanup()
 
-    async def test_store_and_pop(self, tmp_path: Path) -> None:
+    async def test_store_and_pop(self, tmp_path: Path, session: AsyncSession) -> None:
         path = tmp_path / "test.zip"
         path.write_bytes(b"fake zip")
 
-        token = export_tokens.store(path)
+        token = await export_tokens.store(session, path)
         assert isinstance(token, str)
         assert len(token) > 10
+        assert await session.get(ArtifactToken, token) is not None
+        assert not (tmp_path / "tokens" / _EXPORT_NAME / "manifests").exists()
 
-        result = pop_export_token(token)
+        result = await pop_export_token(session, token)
         assert result == path
 
-        assert pop_export_token(token) is None
+        assert await pop_export_token(session, token) is None
+
+    async def test_concurrent_pop_only_returns_token_once(
+        self, tmp_path: Path, session: AsyncSession, engine: Any
+    ) -> None:
+        path = tmp_path / "test.zip"
+        path.write_bytes(b"fake zip")
+        token = await export_tokens.store(session, path)
+
+        ready = 0
+        release = asyncio.Event()
+
+        class CoordinatedSession:
+            def __init__(self, inner: AsyncSession) -> None:
+                self._inner = inner
+
+            async def get(self, *args: object, **kwargs: object) -> object:
+                nonlocal ready
+                row = await self._inner.get(*args, **kwargs)
+                ready += 1
+                if ready == 2:
+                    release.set()
+                await release.wait()
+                return row
+
+            def __getattr__(self, name: str) -> object:
+                return getattr(self._inner, name)
+
+        async def pop_once() -> Path | None:
+            async with AsyncSession(engine, expire_on_commit=False) as inner:
+                return await pop_export_token(
+                    CoordinatedSession(inner),  # type: ignore[arg-type]
+                    token,
+                )
+
+        results = await asyncio.wait_for(
+            asyncio.gather(pop_once(), pop_once()), timeout=1
+        )
+
+        assert sorted(results, key=lambda value: value is None) == [path, None]
+
+    async def test_lifespan_periodically_evicts_undownloaded_tokens(
+        self, tmp_path: Path
+    ) -> None:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'tokens.db'}")
+        removed: list[Path] = []
+        store = ArtifactTokenStore(
+            dir_name="test-artifacts",
+            ttl=0,
+            label="test artifact",
+            cleanup_interval=0.01,
+            on_evict=lambda data: removed.append(Path(data["path"])),
+        )
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+            async with store.lifespan(engine=engine):
+                path = store.make_dest(".zip")
+                path.write_bytes(b"fake zip")
+                async with AsyncSession(engine, expire_on_commit=False) as session:
+                    token = await store.store(session, {"path": str(path)})
+
+                async def wait_until_deleted() -> None:
+                    async with AsyncSession(engine) as poll:
+                        while await poll.get(ArtifactToken, token) is not None:
+                            await poll.rollback()
+                            await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_until_deleted(), timeout=1)
+
+            assert removed == [path]
+        finally:
+            await engine.dispose()
 
 
 class TestExportUserData:

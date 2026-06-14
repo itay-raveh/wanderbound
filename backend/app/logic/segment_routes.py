@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 import structlog
+from dbos import DBOS, SetWorkflowID
 from sqlalchemy import String, cast, or_, update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,7 +30,7 @@ logger = structlog.get_logger(__name__)
 type SegmentKey = tuple[int, str, float, float]
 type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float]], str]
 
-_route_tasks: set[asyncio.Task[None]] = set()
+_route_http_clients: list[HttpClients] = []
 
 
 @dataclass
@@ -60,13 +61,57 @@ def enqueue_album_route_enrichment(
     uid: int,
     aid: str,
 ) -> None:
-    background_tasks.add_task(match_album_segment_routes, http, uid, aid)
+    background_tasks.add_task(start_album_route_enrichment, uid, aid)
 
 
 def schedule_album_route_enrichment(http: HttpClients, uid: int, aid: str) -> None:
-    task = asyncio.create_task(match_album_segment_routes(http, uid, aid))
-    _route_tasks.add(task)
-    task.add_done_callback(_route_tasks.discard)
+    start_album_route_enrichment(uid, aid)
+
+
+def set_route_enrichment_http_clients(http: HttpClients | None) -> None:
+    _route_http_clients.clear()
+    if http is not None:
+        _route_http_clients.append(http)
+
+
+def get_route_enrichment_http_clients() -> HttpClients:
+    if not _route_http_clients:
+        msg = "route enrichment HTTP clients have not been initialized"
+        raise RuntimeError(msg)
+    return _route_http_clients[0]
+
+
+def route_enrichment_workflow_id(uid: int, aid: str) -> str:
+    return f"route-enrichment:{uid}:{aid}:{uuid4().hex}"
+
+
+def route_enrichment_payload(uid: int, aid: str) -> dict[str, Any]:
+    return {"uid": uid, "aid": aid}
+
+
+@DBOS.workflow(name="route.enrich_album")
+async def album_route_enrichment_workflow(payload: dict[str, Any]) -> dict[str, Any]:
+    uid = int(payload["uid"])
+    aid = str(payload["aid"])
+    await match_album_segment_routes(get_route_enrichment_http_clients(), uid, aid)
+    return route_enrichment_payload(uid, aid)
+
+
+def start_album_route_enrichment(uid: int, aid: str) -> object:
+    try:
+        with SetWorkflowID(route_enrichment_workflow_id(uid, aid)):
+            return DBOS.start_workflow(
+                album_route_enrichment_workflow,
+                route_enrichment_payload(uid, aid),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "route_enrichment.schedule_failed",
+            user_id=uid,
+            album_id=aid,
+            error_type=type(exc).__name__,
+        )
+        return None
 
 
 async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> None:

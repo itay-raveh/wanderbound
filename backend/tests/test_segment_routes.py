@@ -10,8 +10,12 @@ from fastapi import BackgroundTasks
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.segment_routes import (
+    album_route_enrichment_workflow,
     enqueue_album_route_enrichment,
     match_album_segment_routes,
+    route_enrichment_payload,
+    route_enrichment_workflow_id,
+    start_album_route_enrichment,
 )
 from app.models.segment import Segment, SegmentKind
 
@@ -100,9 +104,51 @@ def test_enqueue_album_route_enrichment_adds_background_task() -> None:
 
     assert len(background_tasks.tasks) == 1
     task = background_tasks.tasks[0]
-    assert task.func is match_album_segment_routes
-    assert task.args == (http, 123, "album-1")
+    assert task.func is start_album_route_enrichment
+    assert task.args == (123, "album-1")
     assert task.kwargs == {}
+
+
+def test_start_album_route_enrichment_uses_unique_workflow_id_per_run() -> None:
+    calls: list[tuple[object, dict[str, object]]] = []
+    workflow_ids: list[str] = []
+    handle = object()
+
+    class FakeSetWorkflowID:
+        def __init__(self, workflow_id: str) -> None:
+            self.workflow_id = workflow_id
+
+        def __enter__(self) -> None:
+            workflow_ids.append(self.workflow_id)
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    def fake_start_workflow(func: object, payload: dict[str, object]) -> object:
+        calls.append((func, payload))
+        return handle
+
+    with (
+        patch("app.logic.segment_routes.SetWorkflowID", FakeSetWorkflowID),
+        patch("app.logic.segment_routes.DBOS.start_workflow", fake_start_workflow),
+    ):
+        result = start_album_route_enrichment(123, "album-1")
+
+    assert result is handle
+    assert len(workflow_ids) == 1
+    assert workflow_ids[0].startswith("route-enrichment:123:album-1:")
+    assert calls == [
+        (album_route_enrichment_workflow, route_enrichment_payload(123, "album-1"))
+    ]
+
+
+def test_route_enrichment_workflow_id_is_unique_per_call() -> None:
+    first = route_enrichment_workflow_id(123, "album-1")
+    second = route_enrichment_workflow_id(123, "album-1")
+
+    assert first != second
+    assert first.startswith("route-enrichment:123:album-1:")
+    assert second.startswith("route-enrichment:123:album-1:")
 
 
 async def _route_for(

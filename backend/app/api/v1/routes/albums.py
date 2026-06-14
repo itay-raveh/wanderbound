@@ -56,8 +56,9 @@ router = APIRouter(prefix="/albums", tags=["albums"])
 async def download_pdf(
     token: str,
     background_tasks: BackgroundTasks,
+    session: SessionDep,
 ) -> FileResponse:
-    result = pop_pdf_token(token)
+    result = await pop_pdf_token(session, token)
     if result is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
@@ -289,10 +290,11 @@ async def generate_pdf(
     aid: str,
     browser: BrowserDep,
     request: Request,
+    session: SessionDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> AsyncIterable[PdfEvent]:
     session_cookie = request.cookies.get("session", "")
     async for event in render_album_pdf_stream(
-        browser, aid, session_cookie=session_cookie, dark=dark
+        browser, session, aid, session_cookie=session_cookie, dark=dark
     ):
         yield event

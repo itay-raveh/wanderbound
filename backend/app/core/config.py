@@ -8,6 +8,7 @@ from pydantic import (
     BeforeValidator,
     Field,
     PostgresDsn,
+    SecretStr,
     computed_field,
     model_validator,
 )
@@ -54,6 +55,14 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     APP_VERSION: str | None = None
+
+    DBOS_APP_NAME: str = "wanderbound"
+    DBOS_SYSTEM_DATABASE_URI: SecretStr | None = None
+    DBOS_EXECUTOR_ID: str | None = None
+    DBOS_ADMIN_PORT: int = 3001
+    DBOS_RUN_ADMIN_SERVER: bool = True
+    DBOS_HEARTBEAT_TTL_SECONDS: float = 60.0
+    DBOS_RECOVERY_INTERVAL_SECONDS: float = 10.0
 
     SENTRY_DSN: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)

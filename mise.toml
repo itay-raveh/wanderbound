@@ -126,6 +126,14 @@ description = "Tail Docker Compose logs"
 run = "docker compose logs -f"
 raw = true
 
+[tasks."workflow:dbos-recovery-check"]
+description = "Run a DBOS Postgres recovery smoke check"
+dir = "backend"
+usage = '''
+arg "<database_url>" help="Postgres SQLAlchemy URL for the DBOS system database"
+'''
+run = 'uv run python ../scripts/dbos_recovery_check.py run "$usage_database_url"'
+
 # -- Database -----------------------------------------------------
 
 [tasks."db:migrate"]

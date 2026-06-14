@@ -36,6 +36,7 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
+from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
@@ -126,6 +127,7 @@ async def _finalize_upload(  # noqa: PLR0913
             },
         ):
             cancel_session(ps_user.id)
+            await mark_user_processing_operations_stale(session, uid=ps_user.id)
 
             if existing is not None:
                 existing.album_ids = album_ids
@@ -226,7 +228,8 @@ async def init_chunked_upload(
 
     max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
     owner = _upload_owner(existing, identity)
-    upload_id = upload_store.create(max_bytes, owner=owner)
+    upload_id = await upload_store.create(session, max_bytes, owner=owner)
+    await session.commit()
     return {"upload_id": upload_id}
 
 
@@ -235,6 +238,7 @@ async def upload_chunk(
     upload_id: str,
     chunk_index: int,
     request: Request,
+    session: SessionDep,
 ) -> Response:
     """Stream a chunk body to disk without loading it into memory.
 
@@ -243,7 +247,10 @@ async def upload_chunk(
     verified when the session is finalized in ``complete_chunked_upload``.
     """
     try:
-        await upload_store.write_chunk_stream(upload_id, chunk_index, request.stream())
+        await upload_store.write_chunk_stream(
+            session, upload_id, chunk_index, request.stream()
+        )
+        await session.commit()
     except ClientDisconnect:
         logger.info(
             "upload.chunk_client_disconnected",
@@ -276,9 +283,10 @@ async def complete_chunked_upload(
 
     owner = _upload_owner(existing, identity)
     try:
-        assembled, upload_dir = await asyncio.to_thread(
-            upload_store.assemble, upload_id, owner=owner
+        assembled, upload_dir = await upload_store.assemble(
+            session, upload_id, owner=owner
         )
+        await session.commit()
     except KeyError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Upload session not found"
@@ -443,9 +451,9 @@ async def delete_demo(
     responses={200: {"model": list[ProcessingEvent]}},
 )
 async def process_user(
-    user: UserDep, http: HttpClientsDep
+    user: UserDep, http: HttpClientsDep, session: SessionDep
 ) -> AsyncIterable[ProcessingEvent]:
-    async for event in process_stream(http, user):
+    async for event in process_stream(http, user, session):
         yield event
 
 
@@ -461,9 +469,9 @@ async def export_data(user: UserDep, session: SessionDep) -> AsyncIterable[Expor
 
 @router.get("/export/download/{token}")
 async def download_export(
-    token: str, background_tasks: BackgroundTasks
+    token: str, background_tasks: BackgroundTasks, session: SessionDep
 ) -> FileResponse:
-    result = pop_export_token(token)
+    result = await pop_export_token(session, token)
     if result is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"

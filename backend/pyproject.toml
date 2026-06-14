@@ -37,6 +37,7 @@ dependencies = [
     "anyio~=4.13",
     "structlog~=25.0",
     "asgi-correlation-id~=5.0",
+    "dbos>=2.22.0",
 ]
 
 [dependency-groups]

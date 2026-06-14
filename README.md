@@ -66,9 +66,9 @@ For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
 The Compose stack runs the app, database, and frontend. Configure database and
 app data backups in your deployment infrastructure.
 
-> [!WARNING]
-> The backend uses in-memory state and must run as a single worker process.
-> Do not run multiple backend containers or uvicorn workers.
+The backend stores upload and processing progress in shared storage and Postgres,
+so multiple backend workers can serve the same user flow. All backend workers
+must use the same `DATA_FOLDER` volume and database.
 
 ## Development
 
