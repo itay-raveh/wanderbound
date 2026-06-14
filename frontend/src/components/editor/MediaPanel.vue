@@ -298,75 +298,76 @@ const replaceError = computed(() =>
           <span>{{ t("externalMedia.quality.allClear") }}</span>
         </span>
       </div>
-      <SegmentedControl
-        :model-value="resolutionWarningPreset"
-        :options="resolutionWarningOptions"
-        :aria-label="t('editor.photoQuality')"
-        @update:model-value="
-          (v: MediaResolutionWarningPreset) =>
-            emit('update:resolutionWarningPreset', v)
-        "
-      />
-      <UpgradeMediaButton :album-id="albumId" />
+      <div class="quality-controls">
+        <SegmentedControl
+          :model-value="resolutionWarningPreset"
+          :options="resolutionWarningOptions"
+          :aria-label="t('editor.photoQuality')"
+          @update:model-value="
+            (v: MediaResolutionWarningPreset) =>
+              emit('update:resolutionWarningPreset', v)
+          "
+        />
+        <UpgradeMediaButton :album-id="albumId" />
+        <div v-if="importTarget" class="import-cta">
+          <button
+            type="button"
+            class="media-cta primary import-cta-main"
+            :class="{ 'has-trailing': sources.googleAvailable.value }"
+            :disabled="addMedia.isBusy.value"
+            :aria-label="t('externalMedia.import.action')"
+            @click="pickDeviceImport"
+          >
+            <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
+            <span class="cta-label">{{ importLabel }}</span>
+          </button>
+          <button
+            v-if="sources.googleAvailable.value"
+            type="button"
+            class="import-cta-trigger"
+            :disabled="addMedia.isBusy.value"
+            :aria-label="t('externalMedia.import.moreOptions')"
+            aria-haspopup="menu"
+            :aria-expanded="importMenuOpen"
+          >
+            <q-icon :name="matKeyboardArrowDown" size="var(--type-sm)" />
+            <q-menu
+              v-model="importMenuOpen"
+              anchor="bottom end"
+              self="top end"
+              :offset="[0, 4]"
+            >
+              <div class="cta-menu" role="menu">
+                <button
+                  type="button"
+                  class="cta-menu-item"
+                  role="menuitem"
+                  v-close-popup
+                  @click="pickDeviceImport"
+                >
+                  <q-icon :name="matComputer" size="var(--type-md)" />
+                  <span>{{ t("mediaImport.device") }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="cta-menu-item"
+                  role="menuitem"
+                  v-close-popup
+                  @click="runGoogleImport"
+                >
+                  <q-icon name="img:/google-photos.svg" size="var(--type-md)" />
+                  <span>{{ t("mediaImport.googlePhotos") }}</span>
+                </button>
+              </div>
+            </q-menu>
+          </button>
+        </div>
+        <p v-else class="media-helper">{{ importHelper }}</p>
+      </div>
     </section>
     <span class="sr-only" role="status" aria-live="polite">{{
       liveAnnouncement
     }}</span>
-
-    <div v-if="importTarget" class="import-cta">
-      <button
-        type="button"
-        class="media-cta primary import-cta-main"
-        :class="{ 'has-trailing': sources.googleAvailable.value }"
-        :disabled="addMedia.isBusy.value"
-        :aria-label="t('externalMedia.import.action')"
-        @click="pickDeviceImport"
-      >
-        <q-icon :name="matAddPhotoAlternate" size="var(--type-md)" />
-        <span class="cta-label">{{ importLabel }}</span>
-      </button>
-      <button
-        v-if="sources.googleAvailable.value"
-        type="button"
-        class="import-cta-trigger"
-        :disabled="addMedia.isBusy.value"
-        :aria-label="t('externalMedia.import.moreOptions')"
-        aria-haspopup="menu"
-        :aria-expanded="importMenuOpen"
-      >
-        <q-icon :name="matKeyboardArrowDown" size="var(--type-sm)" />
-        <q-menu
-          v-model="importMenuOpen"
-          anchor="bottom end"
-          self="top end"
-          :offset="[0, 4]"
-        >
-          <div class="cta-menu" role="menu">
-            <button
-              type="button"
-              class="cta-menu-item"
-              role="menuitem"
-              v-close-popup
-              @click="pickDeviceImport"
-            >
-              <q-icon :name="matComputer" size="var(--type-md)" />
-              <span>{{ t("mediaImport.device") }}</span>
-            </button>
-            <button
-              type="button"
-              class="cta-menu-item"
-              role="menuitem"
-              v-close-popup
-              @click="runGoogleImport"
-            >
-              <q-icon name="img:/google-photos.svg" size="var(--type-md)" />
-              <span>{{ t("mediaImport.googlePhotos") }}</span>
-            </button>
-          </div>
-        </q-menu>
-      </button>
-    </div>
-    <p v-else class="media-helper">{{ importHelper }}</p>
 
     <div
       v-if="hasSelectedMedia || undo.currentUndo.value"
@@ -526,6 +527,12 @@ const replaceError = computed(() =>
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
+}
+
+.quality-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
 }
 
 .quality-header {
