@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useQueryCache } from "@pinia/colada";
-import { supported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
+import { isSupported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
 import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -20,7 +20,7 @@ useMeta({ title: "Upload" });
 
 const { t } = useI18n();
 
-const mapboxSupported = supported();
+const mapboxSupported = isSupported();
 const mapboxReason = mapboxSupported ? null : notSupportedReason();
 
 const router = useRouter();
