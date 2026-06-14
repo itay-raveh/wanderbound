@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+from sqlalchemy import delete
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -167,12 +168,20 @@ class ArtifactTokenStore:
     async def pop(self, session: AsyncSession, token: str) -> dict[str, str] | None:
         if not token or "/" in token or "\\" in token or token.startswith("."):
             return None
-        row = await session.get(ArtifactToken, token)
-        if row is None or row.namespace != self._dir_name:
+        result = await session.exec(
+            delete(ArtifactToken)
+            .where(col(ArtifactToken.token) == token)
+            .where(col(ArtifactToken.namespace) == self._dir_name)
+            .returning(
+                col(ArtifactToken.payload),
+                col(ArtifactToken.expires_at),
+            )
+        )
+        row = result.one_or_none()
+        if row is None:
             return None
-        await session.delete(row)
-        data = row.payload
-        if _aware(row.expires_at) <= _now():
+        data, expires_at = row
+        if _aware(expires_at) <= _now():
             await session.commit()
             self._evict(data)
             return None

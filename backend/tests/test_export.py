@@ -95,6 +95,45 @@ class TestTokenManagement:
 
         assert await pop_export_token(session, token) is None
 
+    async def test_concurrent_pop_only_returns_token_once(
+        self, tmp_path: Path, session: AsyncSession, engine: Any
+    ) -> None:
+        path = tmp_path / "test.zip"
+        path.write_bytes(b"fake zip")
+        token = await export_tokens.store(session, path)
+
+        ready = 0
+        release = asyncio.Event()
+
+        class CoordinatedSession:
+            def __init__(self, inner: AsyncSession) -> None:
+                self._inner = inner
+
+            async def get(self, *args: object, **kwargs: object) -> object:
+                nonlocal ready
+                row = await self._inner.get(*args, **kwargs)
+                ready += 1
+                if ready == 2:
+                    release.set()
+                await release.wait()
+                return row
+
+            def __getattr__(self, name: str) -> object:
+                return getattr(self._inner, name)
+
+        async def pop_once() -> Path | None:
+            async with AsyncSession(engine, expire_on_commit=False) as inner:
+                return await pop_export_token(
+                    CoordinatedSession(inner),  # type: ignore[arg-type]
+                    token,
+                )
+
+        results = await asyncio.wait_for(
+            asyncio.gather(pop_once(), pop_once()), timeout=1
+        )
+
+        assert sorted(results, key=lambda value: value is None) == [path, None]
+
     async def test_lifespan_periodically_evicts_undownloaded_tokens(
         self, tmp_path: Path
     ) -> None:
