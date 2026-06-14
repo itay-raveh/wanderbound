@@ -63,6 +63,9 @@ Open `http://localhost:5173`.
 For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
 `docker compose -f compose.yml up -d`.
 
+The Compose stack runs the app, database, and frontend. Configure database and
+app data backups in your deployment infrastructure.
+
 > [!WARNING]
 > The backend uses in-memory state and must run as a single worker process.
 > Do not run multiple backend containers or uvicorn workers.
