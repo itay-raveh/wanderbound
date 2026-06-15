@@ -1094,6 +1094,22 @@
               "type": "string",
               "title": "Aid"
             }
+          },
+          {
+            "name": "chapter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapter"
+            }
           }
         ],
         "responses": {
@@ -1127,6 +1143,118 @@
         ],
         "summary": "Generate Pdf",
         "operationId": "generate_pdf",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "dark",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Dark"
+            }
+          },
+          {
+            "name": "chapter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapter"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/PdfQueued"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfProgress"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfDone"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PdfError"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "queued": "#/components/schemas/PdfQueued",
+                        "progress": "#/components/schemas/PdfProgress",
+                        "done": "#/components/schemas/PdfDone",
+                        "error": "#/components/schemas/PdfError"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Generate Pdf"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/pdf/generate-chapters": {
+      "post": {
+        "tags": [
+          "albums"
+        ],
+        "summary": "Generate Chapters Pdf",
+        "operationId": "generate_chapters_pdf",
         "parameters": [
           {
             "name": "aid",
@@ -1198,7 +1326,7 @@
                       }
                     }
                   },
-                  "title": "Response 200 Generate Pdf"
+                  "title": "Response 200 Generate Chapters Pdf"
                 }
               }
             }
@@ -2074,6 +2202,63 @@
   },
   "components": {
     "schemas": {
+      "AlbumChapter": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "step_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Step Ids"
+          },
+          "front_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Front Cover Photo"
+          },
+          "back_cover_photo": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Back Cover Photo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "front_cover_photo",
+          "back_cover_photo"
+        ],
+        "title": "AlbumChapter"
+      },
       "AlbumMedia": {
         "properties": {
           "uid": {
@@ -2171,6 +2356,13 @@
             },
             "type": "array",
             "title": "Maps Ranges"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumChapter"
+            },
+            "type": "array",
+            "title": "Chapters"
           },
           "front_cover_photo": {
             "type": "string",
@@ -2313,6 +2505,20 @@
             ],
             "title": "Maps Ranges"
           },
+          "chapters": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AlbumChapter"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapters"
+          },
           "front_cover_photo": {
             "anyOf": [
               {
@@ -2432,6 +2638,13 @@
             },
             "type": "array",
             "title": "Maps Ranges"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumChapter"
+            },
+            "type": "array",
+            "title": "Chapters"
           },
           "front_cover_photo": {
             "type": "string",

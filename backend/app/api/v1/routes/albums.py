@@ -16,15 +16,25 @@ from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
-from app.logic.pdf import PdfEvent, pop_pdf_token, render_album_pdf_stream
+from app.logic.album_scope import ChapterNotFoundError, build_print_bundle_scope
+from app.logic.chapters import (
+    ChapterValidationError,
+    find_chapter,
+    validate_album_chapters,
+)
+from app.logic.pdf import (
+    PdfEvent,
+    pop_pdf_token,
+    render_album_pdf_stream,
+)
+from app.logic.pdf_chapters import render_album_chapters_zip_stream
 from app.logic.segment_routes import enqueue_album_route_enrichment
-from app.logic.spatial.geo import total_length_km
 from app.logic.step_media import (
     read_step_with_media,
     read_steps_with_media,
     replace_step_media_layout,
 )
-from app.models.album import Album, AlbumMeta, AlbumUpdate, AlbumWithMedia, PrintBundle
+from app.models.album import Album, AlbumMeta, AlbumUpdate, PrintBundle
 from app.models.album_media import AlbumMedia
 from app.models.segment import (
     BoundaryAdjust,
@@ -51,6 +61,15 @@ AlbumDep = Annotated[Album, Depends(_get_album)]
 router = APIRouter(prefix="/albums", tags=["albums"])
 
 
+def _validate_pdf_chapter(
+    album: AlbumDep,
+    chapter: Annotated[str | None, Query()] = None,
+) -> str | None:
+    if chapter is not None and find_chapter(album, chapter) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapter not found")
+    return chapter
+
+
 # Static-prefix routes must be declared before /{aid} to avoid shadowing.
 @router.get("/pdf/download/{token}")
 async def download_pdf(
@@ -63,12 +82,11 @@ async def download_pdf(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, detail="Invalid or expired token"
         )
-    path, aid = result
-    background_tasks.add_task(path.unlink, missing_ok=True)
+    background_tasks.add_task(result.path.unlink, missing_ok=True)
     return FileResponse(
-        path,
-        media_type="application/pdf",
-        filename=f"{aid}.pdf",
+        result.path,
+        media_type=result.media_type,
+        filename=result.filename,
     )
 
 
@@ -134,7 +152,17 @@ async def update_album(
     album: AlbumDep,
     session: SessionDep,
 ) -> AlbumMeta:
-    await apply_update(session, album, update)
+    try:
+        await validate_album_chapters(session, album, update)
+    except ChapterValidationError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    payload = update.model_dump(exclude_unset=True, exclude={"chapters"})
+    album.sqlmodel_update(payload)
+    if "chapters" in update.model_fields_set:
+        album.chapters = update.chapters or []
+    session.add(album)
+    await session.commit()
+    await session.refresh(album)
     return AlbumMeta.model_validate(album)
 
 
@@ -245,16 +273,13 @@ async def adjust_segment_boundary(  # noqa: PLR0913
     return [SegmentOutline.from_segment(s) for s in result.all()]
 
 
-def _total_distance_km(segments: list[Segment]) -> float:
-    return round(
-        sum(total_length_km([(p.lon, p.lat) for p in seg.points]) for seg in segments),
-        1,
-    )
-
-
 @router.get("/{aid}/print-bundle")
 async def read_print_bundle(
-    aid: str, album: AlbumDep, user: UserDep, session: SessionDep
+    aid: str,
+    album: AlbumDep,
+    user: UserDep,
+    session: SessionDep,
+    chapter: Annotated[str | None, Query()] = None,
 ) -> PrintBundle:
     media_result = await session.exec(
         select(AlbumMedia)
@@ -269,15 +294,16 @@ async def read_print_bundle(
     media_rows = list(media_result.all())
     steps = await read_steps_with_media(session, user.id, aid)
     segments = list(segments_result.all())
-    return PrintBundle(
-        album=AlbumWithMedia(
-            **album.model_dump(),
-            media=media_rows,
-        ),
-        steps=steps,
-        segments=segments,
-        total_distance_km=_total_distance_km(segments),
-    )
+    try:
+        return build_print_bundle_scope(
+            album,
+            media_rows,
+            steps,
+            segments,
+            chapter_id=chapter,
+        )
+    except ChapterNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.post(
@@ -286,15 +312,48 @@ async def read_print_bundle(
     responses={200: {"model": list[PdfEvent]}},
     dependencies=[Depends(_get_album)],
 )
-async def generate_pdf(
+async def generate_pdf(  # noqa: PLR0913
     aid: str,
+    browser: BrowserDep,
+    request: Request,
+    session: SessionDep,
+    dark: Annotated[bool, Query()] = True,  # noqa: FBT002
+    chapter: Annotated[str | None, Depends(_validate_pdf_chapter)] = None,
+) -> AsyncIterable[PdfEvent]:
+    session_cookie = request.cookies.get("session", "")
+    async for event in render_album_pdf_stream(
+        browser,
+        session,
+        aid,
+        session_cookie=session_cookie,
+        dark=dark,
+        chapter=chapter,
+    ):
+        yield event
+
+
+@router.post(
+    "/{aid}/pdf/generate-chapters",
+    response_class=EventSourceResponse,
+    responses={200: {"model": list[PdfEvent]}},
+    dependencies=[Depends(_get_album)],
+)
+async def generate_chapters_pdf(  # noqa: PLR0913
+    aid: str,
+    album: AlbumDep,
     browser: BrowserDep,
     request: Request,
     session: SessionDep,
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> AsyncIterable[PdfEvent]:
     session_cookie = request.cookies.get("session", "")
-    async for event in render_album_pdf_stream(
-        browser, session, aid, session_cookie=session_cookie, dark=dark
+    chapter_ids = [chapter.id for chapter in album.chapters]
+    async for event in render_album_chapters_zip_stream(
+        browser,
+        session,
+        aid,
+        chapter_ids,
+        session_cookie=session_cookie,
+        dark=dark,
     ):
         yield event

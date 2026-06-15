@@ -24,6 +24,15 @@ DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset = "relaxed
 DEMO_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset = "off"
 
 
+class AlbumChapter(SQLModel):
+    id: str = Field(max_length=80)
+    title: str | None = Field(default=None, max_length=255)
+    subtitle: str | None = Field(default=None, max_length=255)
+    step_ids: list[int] = Field(default_factory=list)
+    front_cover_photo: str = Field(max_length=255)
+    back_cover_photo: str = Field(max_length=255)
+
+
 class AlbumBase(SQLModel):
     """User-editable settings."""
 
@@ -39,6 +48,10 @@ class AlbumBase(SQLModel):
     )
     maps_ranges: list[DateRange] = Field(
         sa_column=Column(PydanticJSON(list[DateRange]), nullable=False),
+        default_factory=list,
+    )
+    chapters: list[AlbumChapter] = Field(
+        sa_column=Column(PydanticJSON(list[AlbumChapter]), nullable=False),
         default_factory=list,
     )
     front_cover_photo: str = Field(max_length=255)
