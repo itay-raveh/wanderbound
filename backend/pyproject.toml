@@ -22,7 +22,7 @@ dependencies = [
     "playwright~=1.52",
     "coloraide~=8.7",
     "aiolimiter~=1.2",
-    "simplification~=0.7",
+    "simplification~=1.0",
     "itsdangerous~=2.2",
     "pyjwt[crypto]~=2.0",
     "puremagic>=2.1.0",
@@ -35,7 +35,7 @@ dependencies = [
     "sqlalchemy-dlock>=0.8.1",
     "av~=17.0",
     "anyio~=4.13",
-    "structlog~=25.0",
+    "structlog~=26.1",
     "asgi-correlation-id~=5.0",
     "dbos>=2.22.0",
 ]

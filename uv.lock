@@ -179,11 +179,11 @@ requires-dist = [
     { name = "python-multipart", specifier = "<1" },
     { name = "scipy", specifier = "~=1.15" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = "~=2.35" },
-    { name = "simplification", specifier = "~=0.7" },
+    { name = "simplification", specifier = "~=1.0" },
     { name = "sqlalchemy", specifier = "~=2.0" },
     { name = "sqlalchemy-dlock", specifier = ">=0.8.1" },
     { name = "sqlmodel", specifier = "<1" },
-    { name = "structlog", specifier = "~=25.0" },
+    { name = "structlog", specifier = "~=26.1" },
     { name = "uvicorn", specifier = "<1" },
 ]
 
@@ -1424,18 +1424,18 @@ wheels = [
 
 [[package]]
 name = "simplification"
-version = "0.7.14"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/87/5b8c915eb053d0353604d07a30727b533bd5ebf323351e12b94a031c1538/simplification-0.7.14.tar.gz", hash = "sha256:cfb8ba09dd4dd4b4d236ddd51c4ab084b3040af4a5a37a713b5ab219fe154a47", size = 1437445, upload-time = "2025-10-20T22:45:24.512Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/e4/acaf8400d85ced98c4a371818fcde69c202fdbd3942666e374989cb370be/simplification-1.0.0.tar.gz", hash = "sha256:c1e33379455f5da02462b2d674b816a5f385bbbde216652101465fd33e4a2e3c", size = 1451089, upload-time = "2026-06-08T12:00:07.849Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/77/bc7ed55e0c06e08e65f034bc8cbeec4e43e1fc07c1148e9383dc30770946/simplification-0.7.14-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:c7dda5fe7fad775da1a184dad846fbb0c7fc0edad9e2df61f2632f43e382402f", size = 280923, upload-time = "2025-10-20T22:45:17.733Z" },
-    { url = "https://files.pythonhosted.org/packages/cd/36/471be47e1689dc060fbce4f7e43a2572427bc856611952e927e09607fa24/simplification-0.7.14-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a3619edfdc431b1b3144a6109c2157912833b8e7ccc0fea3692aff5dd3c3adcf", size = 264750, upload-time = "2025-10-20T22:45:18.963Z" },
-    { url = "https://files.pythonhosted.org/packages/20/dd/29d25819cf526ddfddf7872ce8dc69482ea76468d77437f2fb84750c32a7/simplification-0.7.14-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:350e9bf19d962892bbdf5bbd2a982da24cb2e4c86b471b6bb8f9b6a367d9dc55", size = 727399, upload-time = "2025-10-20T22:45:20.168Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/38/b2170dad2977604a1ad90268b9721cc122d3d26de9d6bd3ecb88cded260f/simplification-0.7.14-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:15389a0a5bbb0d406a43e609ec17c139b3cdfb9be397b80abf0ee009c5aabe77", size = 749181, upload-time = "2025-10-20T22:45:21.532Z" },
-    { url = "https://files.pythonhosted.org/packages/64/a9/9214a52d775ab280971e9b98a7755d9546a77fcff033b0a49d0bcf946c36/simplification-0.7.14-cp314-cp314-win_amd64.whl", hash = "sha256:3cce00c7a14bbf7682443dee9e6b9f05a7645491a8d09e81c385218475e9ebe7", size = 183593, upload-time = "2025-10-20T22:45:23.21Z" },
+    { url = "https://files.pythonhosted.org/packages/54/a4/38cfcf4d209748ad543b8fde594f66513227fb74b0840cceba0192ef3ded/simplification-1.0.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:8def6393614096bfcb69e889f0da371a58009de8fc3d6660e31dfda3d0f35e61", size = 243223, upload-time = "2026-06-08T12:00:00.562Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/2e/b0a647c7757b432dbc2a5b84ae49c8e01a8a78380442d3d67b1352e2f141/simplification-1.0.0-cp311-abi3-macosx_11_0_x86_64.whl", hash = "sha256:4e0fa16ea12cdce014d0cf649a36bf91733bddbfab8e6fd7bab7251bbd5c28f1", size = 261130, upload-time = "2026-06-08T12:00:01.84Z" },
+    { url = "https://files.pythonhosted.org/packages/09/7a/55f40b9a903bf45ac24da8bb4f2fbc3419c80462e6c43dd6b5713d53383c/simplification-1.0.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:249ec6b7bbf2baed3655246dde003a9607ae7cb182e7c7053ada52c01ceef808", size = 274461, upload-time = "2026-06-08T12:00:03.918Z" },
+    { url = "https://files.pythonhosted.org/packages/69/1c/083b6a0d5909741620581f6730f23357ca308bc6fb33823d35b9be9587cb/simplification-1.0.0-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:e533dd74ee873728de1eda7a456c2ebd021243137c59c5c674e5d9665b930d22", size = 290118, upload-time = "2026-06-08T12:00:05.333Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/67/08db7eabb5f2fb74702ec5b478a0c206177d68d9875a7b13c3b8bbda15b9/simplification-1.0.0-cp311-abi3-win_amd64.whl", hash = "sha256:e114c5feaa44fa6272dbf2a455f901b9c6196fb653b45652db0741c0770fe154", size = 333377, upload-time = "2026-06-08T12:00:06.486Z" },
 ]
 
 [[package]]
@@ -1518,11 +1518,11 @@ wheels = [
 
 [[package]]
 name = "structlog"
-version = "25.5.0"
+version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ef/52/9ba0f43b686e7f3ddfeaa78ac3af750292662284b3661e91ad5494f21dbc/structlog-25.5.0.tar.gz", hash = "sha256:098522a3bebed9153d4570c6d0288abf80a031dfdb2048d59a49e9dc2190fc98", size = 1460830, upload-time = "2025-10-27T08:28:23.028Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/89/b4a0bcfdf4f71a3dea31379f095929613d7e4528a0996bca6aa964cd0dca/structlog-26.1.0.tar.gz", hash = "sha256:f63a716cbd1b1291cf7661de7794b455acfa4c43c5bcf1630e6ad5ddc1adb3b7", size = 1459881, upload-time = "2026-06-06T07:33:39.348Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/45/a132b9074aa18e799b891b91ad72133c98d8042c70f6240e4c5f9dabee2f/structlog-25.5.0-py3-none-any.whl", hash = "sha256:a8453e9b9e636ec59bd9e79bbd4a72f025981b3ba0f5837aebf48f02f37a7f9f", size = 72510, upload-time = "2025-10-27T08:28:21.535Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/18/489c97b834dfff9cf2fc2507cede4bcd4b11e67f84bc462acd1992496f86/structlog-26.1.0-py3-none-any.whl", hash = "sha256:e081a26d6c373e6d201eca24eede26d8ffab07f88f477822e679183428d3d91e", size = 73764, upload-time = "2026-06-06T07:33:38.046Z" },
 ]
 
 [[package]]
