@@ -1,4 +1,4 @@
-import type { DateRange } from "@/client";
+import type { AlbumChapter, DateRange } from "@/client";
 
 export interface StepItem {
   id: number;
@@ -28,6 +28,9 @@ export interface CountryVisit {
 export interface ChapterVisit {
   key: string;
   name: string;
+  chapter: AlbumChapter | null;
+  chapterIndex: number | null;
+  isUnassigned: boolean;
   entries: GroupEntry[];
   stepIds: number[];
 }

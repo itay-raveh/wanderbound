@@ -264,11 +264,13 @@
   "chapters": {
     "title": "פרקים",
     "add": "הוספת פרק",
+    "edit": "עריכת פרק",
     "unassigned": "לא משויך",
     "untitled": "פרק {number}",
     "chapterTitle": "כותרת",
     "chapterSubtitle": "כותרת משנה",
     "steps": "צעדים",
+    "stepCount": "{count} צעדים",
     "rangeFrom": "טווח מ־",
     "rangeTo": "טווח עד",
     "applyRange": "החלת טווח",

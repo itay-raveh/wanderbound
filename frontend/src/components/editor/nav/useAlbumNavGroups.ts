@@ -133,11 +133,14 @@ export function buildChapterGroups({
   unassignedLabel,
   untitledLabel,
 }: ChapterGroupsInput): ChapterVisit[] {
-  const groups = chapters.map((chapter, index) => {
+  const groups: ChapterVisit[] = chapters.map((chapter, index) => {
     const chapterSteps = stepsForChapter(steps, chapter);
     return {
       key: chapter.id,
       name: chapter.title || untitledLabel(index),
+      chapter,
+      chapterIndex: index,
+      isUnassigned: false,
       entries: entriesForSteps(chapterSteps, stepItems, mapsRanges),
       stepIds: chapterSteps.map((step) => step.id),
     };
@@ -148,6 +151,9 @@ export function buildChapterGroups({
     groups.push({
       key: "__unassigned__",
       name: unassignedLabel,
+      chapter: null,
+      chapterIndex: null,
+      isUnassigned: true,
       entries: entriesForSteps(looseSteps, stepItems, mapsRanges),
       stepIds: looseSteps.map((step) => step.id),
     });

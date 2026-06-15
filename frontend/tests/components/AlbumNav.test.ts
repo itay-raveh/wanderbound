@@ -4,6 +4,9 @@ import AlbumNav from "@/components/editor/AlbumNav.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
 import type { CountryVisit } from "@/components/editor/nav/types";
 import type { AlbumChapter, StepRead as Step } from "@/client";
+import { mockAlbum, mockMedia } from "../fixtures/mocks";
+
+const mutate = vi.fn();
 
 vi.mock("@/queries/useUserQuery", () => ({
   useUserQuery: () => ({
@@ -14,7 +17,7 @@ vi.mock("@/queries/useUserQuery", () => ({
 }));
 
 vi.mock("@/queries/useAlbumMutation", () => ({
-  useAlbumMutation: () => ({ mutate: vi.fn() }),
+  useAlbumMutation: () => ({ mutate }),
 }));
 
 const NavCountryGroupStub = defineComponent({
@@ -72,6 +75,7 @@ function makeSteps(count: number): Step[] {
 describe("AlbumNav", () => {
   afterEach(() => {
     useActiveSection().resetActiveSection();
+    mutate.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -79,6 +83,8 @@ describe("AlbumNav", () => {
     const steps = makeSteps(240);
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
+        album: mockAlbum,
+        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -113,6 +119,8 @@ describe("AlbumNav", () => {
     const steps = makeSteps(80);
     mountWithPlugins(AlbumNav, {
       props: {
+        album: mockAlbum,
+        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -154,6 +162,8 @@ describe("AlbumNav", () => {
     ];
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
+        album: { ...mockAlbum, chapters },
+        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -162,13 +172,13 @@ describe("AlbumNav", () => {
           ["2024-01-01", "2024-01-02"],
           ["2024-01-03", "2024-01-04"],
         ],
-        chapters,
       },
       global: {
         stubs: {
           NavCountryGroup: NavCountryGroupStub,
           NavDateFilter: true,
           NavMapRanges: true,
+          NavChapterGroup: false,
           NavMapItem: {
             props: ["dateRange"],
             template: `<div class="chapter-map" :data-range="dateRange.join('|')" />`,
@@ -194,5 +204,47 @@ describe("AlbumNav", () => {
     expect(chapter.find('[data-range="2024-01-03|2024-01-04"]').exists()).toBe(
       false,
     );
+  });
+
+  it("creates chapters from the nav drawer unassigned group", async () => {
+    const steps = [
+      makeStep({ id: 1, name: "Buenos Aires" }),
+      makeStep({ id: 2, name: "Ushuaia" }),
+    ];
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        album: { ...mockAlbum, chapters: [] },
+        media: mockMedia,
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [],
+      },
+      global: {
+        stubs: {
+          NavCountryGroup: NavCountryGroupStub,
+          NavDateFilter: true,
+          NavMapRanges: true,
+          NavMapItem: true,
+          NavStepItem: true,
+          QBtnToggle: QBtnToggleStub,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await wrapper.get(".chapter-mode").trigger("click");
+    await wrapper.get(".chapter-action").trigger("click");
+
+    expect(mutate).toHaveBeenCalledWith({
+      chapters: [
+        expect.objectContaining({
+          id: "chapter-1",
+          step_ids: [1, 2],
+        }),
+      ],
+    });
   });
 });

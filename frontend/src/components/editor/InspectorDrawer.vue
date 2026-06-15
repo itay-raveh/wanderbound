@@ -138,7 +138,7 @@ const importTargetLabel = computed<string | null>(() => {
       expand-icon-class="text-faint"
       :label="t('editor.properties')"
     >
-      <AlbumProperties :album="album" :steps="steps" :media="media" />
+      <AlbumProperties :album="album" :media="media" />
     </q-expansion-item>
 
     <q-expansion-item

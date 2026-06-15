@@ -264,11 +264,13 @@
   "chapters": {
     "title": "Chapters",
     "add": "Add chapter",
+    "edit": "Edit chapter",
     "unassigned": "Unassigned",
     "untitled": "Chapter {number}",
     "chapterTitle": "Title",
     "chapterSubtitle": "Subtitle",
     "steps": "Steps",
+    "stepCount": "{count} steps",
     "rangeFrom": "Range from",
     "rangeTo": "Range to",
     "applyRange": "Apply range",

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AlbumChapter, DateRange, StepRead as Step } from "@/client";
+import type { AlbumMedia, AlbumMeta, DateRange, StepRead as Step } from "@/client";
 import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
@@ -14,8 +14,8 @@ import {
 import {
   buildChapterGroups,
   buildCountryVisits,
-  entryKey,
 } from "./nav/useAlbumNavGroups";
+import { useChapterEditor } from "./useChapterEditor";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -24,8 +24,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavCountryGroup from "./nav/NavCountryGroup.vue";
-import NavMapItem from "./nav/NavMapItem.vue";
-import NavStepItem from "./nav/NavStepItem.vue";
+import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
   symOutlinedMap,
   symOutlinedFlightTakeoff,
@@ -40,13 +39,14 @@ const { formatDateRange, countryName } = useUserQuery();
 
 const props = withDefaults(
   defineProps<{
+    album: AlbumMeta;
+    media: AlbumMedia[];
     steps: Step[];
     albumIds?: string[];
     hiddenSteps?: number[];
     hiddenHeaders?: HeaderKey[];
     colors?: Record<string, unknown>;
     mapsRanges?: DateRange[];
-    chapters?: AlbumChapter[];
   }>(),
   {
     albumIds: () => [],
@@ -54,11 +54,21 @@ const props = withDefaults(
     hiddenHeaders: () => [],
     colors: () => ({}),
     mapsRanges: () => [],
-    chapters: () => [],
   },
 );
 
 const selectedAlbumId = defineModel<string | null>("albumId");
+const {
+  chapters,
+  coverOptions,
+  optionalText,
+  addChapter,
+  updateChapter,
+  deleteChapter,
+  rangeDraft,
+  stepOptionsFor,
+  applyRange,
+} = useChapterEditor(props);
 
 const {
   activeStepId,
@@ -137,7 +147,7 @@ const chapterGroups = computed(() =>
     steps: props.steps,
     stepItems: stepItems.value,
     mapsRanges: props.mapsRanges,
-    chapters: props.chapters,
+    chapters: chapters.value,
     unassignedLabel: t("chapters.unassigned"),
     untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
   }),
@@ -149,6 +159,10 @@ function formatMapRange(dr: DateRange): string {
     parseLocalDate(dr[1]),
     SHORT_DATE,
   );
+}
+
+function formatStepDate(date: Date): string {
+  return formatDateRange(date, date, SHORT_DATE);
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────
@@ -337,7 +351,6 @@ watch(activeSectionKey, (key) => {
 
     <div v-if="steps.length" class="nav-controls">
       <q-btn-toggle
-        v-if="chapters.length"
         v-model="navMode"
         class="nav-mode-toggle"
         dense
@@ -431,59 +444,37 @@ watch(activeSectionKey, (key) => {
         />
       </template>
       <template v-else>
-        <q-expansion-item
+        <NavChapterGroup
           v-for="group in chapterGroups"
           :key="group.key"
-          dense
-          :data-chapter-group="group.key"
-          :model-value="openGroupKey === group.key"
-          header-class="chapter-group-header"
-          expand-icon-class="text-faint"
-          @update:model-value="
+          :group="group"
+          :open="openGroupKey === group.key"
+          :active-step-id="activeStepId"
+          :active-section-key="activeSectionKey"
+          :hidden-set="hiddenSet"
+          :steps="steps"
+          :colors="albumColors"
+          :format-map-range="formatMapRange"
+          :format-step-date="formatStepDate"
+          :section-key-matches-range="sectionKeyMatchesRange"
+          :lazy-root="listRef ?? null"
+          :cover-options="coverOptions"
+          :step-options-for="stepOptionsFor"
+          :range-draft="rangeDraft"
+          :optional-text="optionalText"
+          @toggle-open="
             openGroupKey = openGroupKey === group.key ? null : group.key
           "
-        >
-          <template #header>
-            <q-item-section class="chapter-group-name" dir="auto">
-              {{ group.name }}
-            </q-item-section>
-            <q-item-section side class="chapter-count text-muted">
-              {{ group.stepIds.length }}
-            </q-item-section>
-          </template>
-          <template v-for="entry in group.entries" :key="entryKey(entry)">
-            <NavMapItem
-              v-if="entry.type === 'map'"
-              :data-nav-section="entry.key"
-              :date-range="entry.dateRange"
-              :range-idx="entry.rangeIdx"
-              :active="
-                sectionKeyMatchesRange(activeSectionKey, entry.dateRange)
-              "
-              :steps="steps"
-              :colors="albumColors"
-              :format-map-range="formatMapRange"
-              @click="scrollToMap(entry.dateRange)"
-              @delete="deleteMap(entry.rangeIdx)"
-              @date-change="(idx, range) => mapDateChange(idx, range)"
-            />
-            <NavStepItem
-              v-else
-              :data-nav-step="entry.item.id"
-              :name="entry.item.name"
-              :date="
-                formatDateRange(entry.item.date, entry.item.date, SHORT_DATE)
-              "
-              :thumb="entry.item.thumb"
-              :color="entry.item.color"
-              :active="activeStepId === entry.item.id"
-              :hidden="hiddenSet.has(entry.item.id)"
-              :lazy-root="listRef ?? null"
-              @click="scrollToStep(entry.item.id)"
-              @toggle="toggleStep(entry.item.id)"
-            />
-          </template>
-        </q-expansion-item>
+          @scroll-to-step="scrollToStep"
+          @scroll-to-map="scrollToMap"
+          @toggle-step="toggleStep"
+          @delete-map="deleteMap"
+          @map-date-change="mapDateChange"
+          @add-chapter="addChapter"
+          @update-chapter="updateChapter"
+          @delete-chapter="deleteChapter"
+          @apply-range="applyRange"
+        />
       </template>
     </div>
   </nav>
@@ -591,28 +582,6 @@ watch(activeSectionKey, (key) => {
   .header-item.nav-hidden & {
     opacity: 1;
   }
-}
-
-.chapter-group-header {
-  min-height: 2.75rem;
-  padding: var(--gap-sm) var(--gap-md-lg);
-  border-top: 1px solid var(--border-color);
-}
-
-.chapter-group-name {
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.chapter-count {
-  font-size: var(--type-xs);
-  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

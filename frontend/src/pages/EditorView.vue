@@ -102,15 +102,16 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <AlbumNav
-      v-if="album && displayedSteps"
+      v-if="album && displayedSteps && media"
       v-model:album-id="selectedAlbumId"
       :album-ids="albumIds ?? undefined"
       :steps="displayedSteps"
+      :album="album"
+      :media="media"
       :hidden-steps="album.hidden_steps ?? undefined"
       :hidden-headers="album.hidden_headers ?? undefined"
       :colors="album.colors ?? undefined"
       :maps-ranges="album.maps_ranges ?? undefined"
-      :chapters="album.chapters ?? undefined"
     />
     <div v-else class="fit flex flex-center" role="status">
       <q-spinner-dots
