@@ -1,5 +1,7 @@
+from collections.abc import AsyncIterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy import event
@@ -8,11 +10,17 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.http_clients import HttpClients
-from app.logic.trip_pipeline import _process_trip, _save_new, _save_reupload
-from app.logic.trip_processing import PhaseUpdate, SegmentsFound
+from app.logic.trip_pipeline import (
+    _process_trip,
+    _save_new,
+    _save_reupload,
+    run_processing,
+)
+from app.logic.trip_processing import ErrorData, PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia
+from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -56,6 +64,57 @@ async def _create_schema(engine: AsyncEngine) -> None:
 
 def _user() -> User:
     return make_user(UID, google_sub="test-sub")
+
+
+async def test_run_processing_stale_guard_skips_db_save(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    user = _user()
+    trip_dir = user.trips_folder / AID
+    trip_dir.mkdir(parents=True)
+
+    async def cancelled() -> bool:
+        return False
+
+    async def fake_process_trip(*args: object) -> AsyncIterator[PhaseUpdate]:
+        yield PhaseUpdate(phase="layouts", done=1, total=1)
+
+    with (
+        patch(
+            "app.logic.trip_pipeline._load_existing",
+            new=AsyncMock(return_value=({}, {}, {})),
+        ),
+        patch("app.logic.trip_pipeline._process_trip", fake_process_trip),
+        patch("app.logic.trip_pipeline._save_new", new=AsyncMock()) as save_new,
+    ):
+        events = await collect_async(
+            run_processing(_MOCK_HTTP, user, should_continue=cancelled)
+        )
+
+    save_new.assert_not_awaited()
+    assert events[-1] == ErrorData()
+
+
+async def test_save_new_guard_skips_commit_inside_save_transaction(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    engine = _sqlite_engine()
+    await _create_schema(engine)
+    album = _album()
+
+    async def stale(_session: AsyncSession) -> bool:
+        return False
+
+    with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+        saved = await _save_new(UID, [album], save_guard=stale)
+
+    async with AsyncSession(engine) as session:
+        rows = (await session.exec(select(Album))).all()
+
+    assert saved is False
+    assert rows == []
 
 
 def _album(
@@ -144,6 +203,27 @@ def _cover_media() -> AlbumMedia:
     )
 
 
+def _page_media() -> StepPageMedia:
+    return StepPageMedia(
+        uid=UID,
+        aid=AID,
+        step_id=1,
+        page_index=0,
+        position_index=0,
+        media_name="cover.jpg",
+    )
+
+
+def _unused_media() -> StepUnusedMedia:
+    return StepUnusedMedia(
+        uid=UID,
+        aid=AID,
+        step_id=1,
+        position_index=0,
+        media_name="cover.jpg",
+    )
+
+
 async def _seed_album_state(engine: AsyncEngine, *objects: object) -> None:
     async with AsyncSession(engine) as session:
         session.add(_user())
@@ -171,6 +251,30 @@ async def _save_reuploaded_objects(
             existing_albums={AID: existing_album},
             trip_dirs=[trip_dir],
         )
+
+
+class TestSaveNewDependencyOrder:
+    async def test_saves_step_media_after_parent_step_and_album_media(
+        self,
+    ) -> None:
+        engine = _sqlite_engine(foreign_keys=True)
+        await _create_schema(engine)
+        await _seed_album_state(engine)
+
+        saved = False
+        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
+            saved = await _save_new(
+                UID,
+                [_album(), _cover_media(), _step(), _page_media(), _unused_media()],
+            )
+
+        async with AsyncSession(engine) as session:
+            page_media = (await session.exec(select(StepPageMedia))).all()
+            unused_media = (await session.exec(select(StepUnusedMedia))).all()
+
+        assert saved is True
+        assert page_media == [_page_media()]
+        assert unused_media == [_unused_media()]
 
 
 class TestProcessTripSegmentEvents:

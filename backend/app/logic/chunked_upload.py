@@ -1,37 +1,45 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import secrets
 import shutil
-import threading
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import BinaryIO
+from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
 import structlog
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.db import get_engine
 from app.core.observability import start_span
+from app.models.processing import UploadSession
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = structlog.get_logger(__name__)
 
 _UPLOAD_TTL = 3600  # 1 hour
 _CHUNK_LIMIT = 80 * 1024 * 1024 + 1024  # 80 MiB + 1 KiB margin
 _FLUSH_AT = 1024 * 1024  # flush buffer to disk every 1 MiB
+_CLEANUP_INTERVAL = 60
+_UPLOAD_ID_CHARS = frozenset(
+    "-_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
 
 
-@dataclass
-class _Session:
-    dir: Path
-    timer: asyncio.TimerHandle
-    max_bytes: int
-    max_chunks: int
-    owner: str
-    lock: threading.Lock = field(default_factory=threading.Lock)
-    accumulated_bytes: int = 0
-    chunks_written: set[int] = field(default_factory=set)
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 async def _stream_to_file(path: Path, stream: AsyncIterator[bytes], index: int) -> int:
@@ -54,142 +62,153 @@ async def _stream_to_file(path: Path, stream: AsyncIterator[bytes], index: int) 
 
 
 class UploadStore:
-    """Manages in-progress chunked uploads with automatic TTL eviction."""
+    """Manages in-progress chunked uploads with DB-backed session metadata."""
 
-    def __init__(self, base: Path | None = None) -> None:
+    def __init__(
+        self, base: Path | None = None, *, cleanup_interval: float = _CLEANUP_INTERVAL
+    ) -> None:
         self._base_override = base
+        self._cleanup_interval = cleanup_interval
         self._base: Path  # resolved in lifespan()
-        self._sessions: dict[str, _Session] = {}
-
-    # -- lifecycle --------------------------------------------------------
+        self._locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
-    async def lifespan(self) -> AsyncGenerator[None]:
+    async def lifespan(
+        self, *, engine: AsyncEngine | None = None
+    ) -> AsyncGenerator[None]:
         self._base = (
             self._base_override or get_settings().DATA_FOLDER / "chunked-uploads"
         )
-        shutil.rmtree(self._base, ignore_errors=True)
         self._base.mkdir(parents=True, exist_ok=True)
+        task = asyncio.create_task(self._cleanup_loop(engine))
         try:
             yield
         finally:
-            for session in self._sessions.values():
-                session.timer.cancel()
-                shutil.rmtree(session.dir, ignore_errors=True)
-            self._sessions.clear()
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
-    # -- public API -------------------------------------------------------
+    async def _cleanup_loop(self, engine: AsyncEngine | None) -> None:
+        while True:
+            await asyncio.sleep(self._cleanup_interval)
+            try:
+                async with AsyncSession(
+                    engine or get_engine(), expire_on_commit=False
+                ) as session:
+                    await self.cleanup_expired(session)
+                    await session.commit()
+            except Exception:
+                logger.exception("upload.cleanup_failed")
 
-    def create(self, max_bytes: int, *, owner: str) -> str:
+    async def create(self, session: AsyncSession, max_bytes: int, *, owner: str) -> str:
         """Start a new upload session. Returns an opaque upload_id."""
         upload_id = secrets.token_urlsafe()
-        upload_dir = self._base / secrets.token_hex(16)
+        upload_dir = self._upload_dir(upload_id)
         upload_dir.mkdir(parents=True, exist_ok=True)
-        timer = asyncio.get_running_loop().call_later(
-            _UPLOAD_TTL, self._evict, upload_id
-        )
-        max_chunks = max_bytes // _CHUNK_LIMIT + 2  # +2 for rounding and final runt
-        self._sessions[upload_id] = _Session(
-            dir=upload_dir,
-            timer=timer,
+        row = UploadSession(
+            upload_id=upload_id,
             max_bytes=max_bytes,
-            max_chunks=max_chunks,
+            max_chunks=max_bytes // _CHUNK_LIMIT + 2,
             owner=owner,
+            accumulated_bytes=0,
+            chunks_written=[],
+            expires_at=_now() + timedelta(seconds=_UPLOAD_TTL),
         )
+        session.add(row)
+        await session.flush()
         logger.info("upload.session_created", upload_id_prefix=upload_id[:8])
         return upload_id
 
     async def write_chunk_stream(
-        self, upload_id: str, index: int, stream: AsyncIterator[bytes]
+        self,
+        session: AsyncSession,
+        upload_id: str,
+        index: int,
+        stream: AsyncIterator[bytes],
     ) -> None:
-        """Stream a chunk body to disk without buffering it in memory.
-
-        Raises KeyError if session not found, ValueError on bad input,
-        OverflowError if accumulated size exceeds max_bytes.
-        """
-        session = self._sessions.get(upload_id)
-        if session is None:
-            raise KeyError(upload_id)
+        """Stream a chunk body to disk without buffering it in memory."""
+        upload_dir = await self._existing_upload_dir(session, upload_id)
         if not 0 <= index < 10_000:
             msg = f"Chunk index out of range: {index}"
             raise ValueError(msg)
 
-        # Pre-check the chunk-count limit for *new* indices (under lock).
-        with session.lock:
-            if (
-                index not in session.chunks_written
-                and len(session.chunks_written) >= session.max_chunks
-            ):
-                msg = f"Too many chunks (limit {session.max_chunks})"
+        lock = self._locks.setdefault(upload_id, asyncio.Lock())
+        async with lock:
+            row = await self._get_session_for_update(session, upload_id)
+            chunks_written = set(row.chunks_written)
+            if index not in chunks_written and len(chunks_written) >= row.max_chunks:
+                msg = f"Too many chunks (limit {row.max_chunks})"
                 raise ValueError(msg)
 
-        tmp_path = session.dir / f"{index:04d}.{secrets.token_hex(8)}.part"
-        try:
-            written = await _stream_to_file(tmp_path, stream, index)
-            self._commit_stream_chunk(session, index, tmp_path, written)
-        except Exception:
-            if upload_id not in self._sessions:
-                raise KeyError(upload_id) from None
-            raise
-        finally:
-            with contextlib.suppress(OSError):
-                tmp_path.unlink(missing_ok=True)
-
-    @staticmethod
-    def _commit_stream_chunk(
-        session: _Session, index: int, tmp_path: Path, written: int
-    ) -> None:
-        """Atomically promote tmp_path to the final chunk path under the lock."""
-        final_path = session.dir / f"{index:04d}"
-        with session.lock:
-            effective = session.accumulated_bytes
-            if index in session.chunks_written:
+            tmp_path = upload_dir / f"{index:04d}.{secrets.token_hex(8)}.part"
+            try:
+                written = await _stream_to_file(tmp_path, stream, index)
+                await self._commit_stream_chunk(session, row, index, tmp_path, written)
+            except Exception:
+                if not upload_dir.exists():
+                    raise KeyError(upload_id) from None
+                raise
+            finally:
                 with contextlib.suppress(OSError):
-                    effective -= final_path.stat().st_size
+                    tmp_path.unlink(missing_ok=True)
 
-            if effective + written > session.max_bytes:
-                raise OverflowError("Upload exceeds maximum size")
+    async def _commit_stream_chunk(
+        self,
+        session: AsyncSession,
+        row: UploadSession,
+        index: int,
+        tmp_path: Path,
+        written: int,
+    ) -> None:
+        upload_dir = self._upload_dir(row.upload_id)
+        final_path = upload_dir / f"{index:04d}"
+        chunks_written = set(row.chunks_written)
+        effective = row.accumulated_bytes
+        if index in chunks_written:
+            with contextlib.suppress(OSError):
+                effective -= final_path.stat().st_size
 
-            tmp_path.rename(final_path)
-            session.accumulated_bytes = effective + written
-            session.chunks_written.add(index)
+        if effective + written > row.max_bytes:
+            raise OverflowError("Upload exceeds maximum size")
 
-    def assemble(self, upload_id: str, *, owner: str) -> tuple[BinaryIO, Path]:
-        """Concatenate all chunks into a single seekable file.
+        await anyio.Path(tmp_path).rename(final_path)
+        chunks_written.add(index)
+        row.accumulated_bytes = effective + written
+        row.chunks_written = sorted(chunks_written)
+        row.updated_at = _now()
+        session.add(row)
+        await session.flush()
 
-        Returns ``(file, session_dir)``.  The caller owns both and must
-        clean them up (close the file, then ``shutil.rmtree`` the dir).
-
-        Raises PermissionError if *owner* doesn't match the session creator.
-        """
-        session = self._sessions.get(upload_id)
-        if session is None:
-            raise KeyError(upload_id)
-        if session.owner != owner:
+    async def assemble(
+        self, session: AsyncSession, upload_id: str, *, owner: str
+    ) -> tuple[BinaryIO, Path]:
+        """Concatenate all chunks into a single seekable file."""
+        upload_dir = await self._existing_upload_dir(session, upload_id)
+        row = await self._get_session_for_update(session, upload_id)
+        if row.owner != owner:
             raise PermissionError("Upload session belongs to a different user")
-        self._sessions.pop(upload_id)
-        session.timer.cancel()
 
-        if not session.chunks_written:
-            shutil.rmtree(session.dir, ignore_errors=True)
+        chunks_written = set(row.chunks_written)
+        if not chunks_written:
+            await self._delete_row_and_dir(session, row)
             msg = "No chunks uploaded"
             raise ValueError(msg)
 
-        expected = set(range(len(session.chunks_written)))
-        if session.chunks_written != expected:
-            shutil.rmtree(session.dir, ignore_errors=True)
+        expected = set(range(len(chunks_written)))
+        if chunks_written != expected:
+            await self._delete_row_and_dir(session, row)
             msg = "Chunks are not contiguous from 0"
             raise ValueError(msg)
 
-        chunks = sorted(session.dir.glob("[0-9][0-9][0-9][0-9]"))
-        assembled = session.dir / "assembled.zip"
+        chunks = [upload_dir / f"{index:04d}" for index in sorted(chunks_written)]
+        assembled = upload_dir / "assembled.zip"
         with start_span(
             "upload.assemble",
             "Assemble chunked upload",
             **{
                 "app.workflow": "upload",
                 "chunk.count": len(chunks),
-                "size.bytes": session.accumulated_bytes,
+                "size.bytes": row.accumulated_bytes,
             },
         ):
             with assembled.open("wb") as out:
@@ -199,23 +218,64 @@ class UploadStore:
 
             for chunk_path in chunks:
                 chunk_path.unlink()
+            await session.delete(row)
+            await session.flush()
 
         try:
-            return assembled.open("rb"), session.dir
+            return assembled.open("rb"), upload_dir
         except OSError:
-            shutil.rmtree(session.dir, ignore_errors=True)
+            shutil.rmtree(upload_dir, ignore_errors=True)
             raise
 
-    # -- internals --------------------------------------------------------
+    async def cleanup_expired(self, session: AsyncSession) -> None:
+        rows = (
+            await session.exec(
+                select(UploadSession).where(col(UploadSession.expires_at) <= _now())
+            )
+        ).all()
+        for row in rows:
+            await self._delete_row_and_dir(session, row)
 
-    def _evict(self, upload_id: str) -> None:
-        session = self._sessions.pop(upload_id, None)
-        if session is None:
+    async def _evict(self, session: AsyncSession, upload_id: str) -> None:
+        row = await session.get(UploadSession, upload_id)
+        if row is None:
             return
-        asyncio.get_running_loop().run_in_executor(
-            None, lambda: shutil.rmtree(session.dir, ignore_errors=True)
-        )
+        await self._delete_row_and_dir(session, row)
         logger.info("upload.session_expired", upload_id_prefix=upload_id[:8])
+
+    async def _delete_row_and_dir(
+        self, session: AsyncSession, row: UploadSession
+    ) -> None:
+        shutil.rmtree(self._upload_dir(row.upload_id), ignore_errors=True)
+        await session.delete(row)
+        await session.flush()
+
+    async def _existing_upload_dir(self, session: AsyncSession, upload_id: str) -> Path:
+        upload_dir = self._upload_dir(upload_id)
+        row = await session.get(UploadSession, upload_id)
+        if row is None or not upload_dir.exists() or _aware(row.expires_at) <= _now():
+            if row is not None:
+                await self._delete_row_and_dir(session, row)
+            raise KeyError(upload_id)
+        return upload_dir
+
+    async def _get_session_for_update(
+        self, session: AsyncSession, upload_id: str
+    ) -> UploadSession:
+        result = await session.exec(
+            select(UploadSession)
+            .where(col(UploadSession.upload_id) == upload_id)
+            .with_for_update()
+        )
+        row = result.one_or_none()
+        if row is None:
+            raise KeyError(upload_id)
+        return row
+
+    def _upload_dir(self, upload_id: str) -> Path:
+        if not upload_id or any(char not in _UPLOAD_ID_CHARS for char in upload_id):
+            raise KeyError(upload_id)
+        return self._base / upload_id
 
 
 upload_store = UploadStore()

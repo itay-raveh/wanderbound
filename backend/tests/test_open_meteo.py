@@ -175,6 +175,93 @@ class TestBuildWeathers:
             night_temp=-2.0,
         )
 
+    async def test_multiple_steps_use_one_archive_request(self) -> None:
+        steps = [
+            _make_step(40.84, 14.25, 1641168000.0),
+            _make_step(40.63, 14.38, 1641254400.0),
+        ]
+        client = async_client(
+            get=json_response(
+                [
+                    _om_response(
+                        ["2022-01-03", "2022-01-04"],
+                        temp_max=[11.0, 12.0],
+                    ),
+                    _om_response(
+                        ["2022-01-03", "2022-01-04"],
+                        temp_max=[13.0, 14.0],
+                    ),
+                ]
+            )
+        )
+
+        result = [w async for w in build_weathers(client, steps)]
+
+        assert [idx for idx, _weather in result] == [0, 1]
+        assert [weather.day.temp for _idx, weather in result] == [11.0, 14.0]
+        client.get.assert_awaited_once()
+        params = client.get.await_args.kwargs["params"]
+        assert params["latitude"] == "40.84,40.63"
+        assert params["longitude"] == "14.25,14.38"
+        assert params["start_date"] == "2022-01-03"
+        assert params["end_date"] == "2022-01-04"
+
+    async def test_long_date_ranges_are_split_into_bounded_batches(self) -> None:
+        steps = [
+            _make_step(40.84, 14.25, datetime(2022, 1, 1, tzinfo=UTC).timestamp()),
+            _make_step(40.63, 14.38, datetime(2022, 1, 14, tzinfo=UTC).timestamp()),
+            _make_step(40.62, 14.57, datetime(2022, 1, 20, tzinfo=UTC).timestamp()),
+        ]
+        client = async_client(
+            get=[
+                json_response(
+                    [
+                        _om_response(["2022-01-01", "2022-01-14"], temp_max=[1, 2]),
+                        _om_response(["2022-01-01", "2022-01-14"], temp_max=[3, 4]),
+                    ]
+                ),
+                json_response(_om_response(["2022-01-20"], temp_max=[5])),
+            ]
+        )
+
+        result = [w async for w in build_weathers(client, steps)]
+
+        assert [idx for idx, _weather in result] == [0, 1, 2]
+        assert [weather.day.temp for _idx, weather in result] == [1, 4, 5]
+        assert client.get.await_count == 2
+        first_params = client.get.await_args_list[0].kwargs["params"]
+        second_params = client.get.await_args_list[1].kwargs["params"]
+        assert first_params["latitude"] == "40.84,40.63"
+        assert first_params["start_date"] == "2022-01-01"
+        assert first_params["end_date"] == "2022-01-14"
+        assert second_params["latitude"] == "40.62"
+        assert second_params["start_date"] == "2022-01-20"
+        assert second_params["end_date"] == "2022-01-20"
+
+    async def test_large_step_sets_are_split_by_location_limit(self) -> None:
+        timestamp = datetime(2022, 1, 1, tzinfo=UTC).timestamp()
+        steps = [_make_step(float(idx), 14.25, timestamp) for idx in range(101)]
+        client = async_client(
+            get=[
+                json_response(
+                    [
+                        _om_response(["2022-01-01"], temp_max=[float(idx)])
+                        for idx in range(100)
+                    ]
+                ),
+                json_response(_om_response(["2022-01-01"], temp_max=[100.0])),
+            ]
+        )
+
+        result = [w async for w in build_weathers(client, steps)]
+
+        assert len(result) == 101
+        assert client.get.await_count == 2
+        first_params = client.get.await_args_list[0].kwargs["params"]
+        second_params = client.get.await_args_list[1].kwargs["params"]
+        assert len(first_params["latitude"].split(",")) == 100
+        assert second_params["latitude"] == "100.0"
+
     async def test_http_error_raises(self) -> None:
         step = _make_step(0, 0, 1704067200.0)
         client = async_client(get=httpx.HTTPError("fail"))

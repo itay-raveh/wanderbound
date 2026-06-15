@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
 from app.core.config import get_settings
+from app.logic.processing_operations import create_processing_operation
 from app.logic.upload import TripMeta
 
 from .factories import (
@@ -16,6 +18,9 @@ from .factories import (
     mock_jwt,
 )
 from .helpers.users import UserRoutes
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.mark.parametrize(
@@ -126,6 +131,25 @@ class TestUpload:
         assert resp.status_code == 200
         user = resp.json()["user"]
         assert user["first_name"] == "Zip"
+
+    @pytest.mark.usefixtures("uploaded_user")
+    async def test_reupload_marks_active_processing_stale(
+        self,
+        user_routes: UserRoutes,
+        users_dir: Path,
+        session: AsyncSession,
+        uploaded_user: dict,
+    ) -> None:
+        operation = await create_processing_operation(
+            session, uid=uploaded_user["id"], upload_generation=1
+        )
+        await session.flush()
+
+        resp = await user_routes.upload_with_extract(users_dir)
+
+        assert resp.status_code == 200
+        await session.refresh(operation)
+        assert operation.status == "stale"
 
     @pytest.mark.usefixtures("uploaded_user")
     async def test_reupload_updates_trips(

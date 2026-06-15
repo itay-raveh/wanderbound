@@ -76,6 +76,12 @@ services:
       VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
       ENVIRONMENT: ${ENVIRONMENT:?Variable not set}
       APP_VERSION: ${APP_VERSION:-}
+      DBOS_SYSTEM_DATABASE_URI: ${DBOS_SYSTEM_DATABASE_URI:-}
+      DBOS_EXECUTOR_ID: ${DBOS_EXECUTOR_ID:-}
+      DBOS_ADMIN_PORT: ${DBOS_ADMIN_PORT:-3001}
+      DBOS_RUN_ADMIN_SERVER: ${DBOS_RUN_ADMIN_SERVER:-true}
+      DBOS_HEARTBEAT_TTL_SECONDS: ${DBOS_HEARTBEAT_TTL_SECONDS:-60}
+      DBOS_RECOVERY_INTERVAL_SECONDS: ${DBOS_RECOVERY_INTERVAL_SECONDS:-10}
       SENTRY_DSN: ${SENTRY_DSN:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
@@ -89,55 +95,6 @@ services:
       dockerfile: backend/Dockerfile
     volumes:
       - app-data:/app/backend/data
-
-  db-backup:
-    image: prodrigestivill/postgres-backup-local
-    restart: always
-    <<: *security
-    tmpfs:
-      - /tmp
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-          pids: 64
-    networks: [backend]
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
-      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
-      SCHEDULE: ${BACKUP_DB_SCHEDULE:-0 3 * * *}
-      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
-      BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-4}
-      BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-6}
-    volumes:
-      - backup-data:/backups
-
-  data-backup:
-    image: offen/docker-volume-backup:v2
-    restart: always
-    <<: *security
-    network_mode: none
-    tmpfs:
-      - /tmp
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-          pids: 64
-    environment:
-      BACKUP_CRON_EXPRESSION: ${BACKUP_DATA_SCHEDULE:-0 4 * * *}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
-      BACKUP_FILENAME: data-%Y-%m-%dT%H-%M-%S.tar.gz
-    volumes:
-      - app-data:/backup/app-data:ro
-      - backup-data:/archive
 
   frontend:
     image: 'frontend:${TAG:-latest}'
@@ -187,4 +144,3 @@ networks:
 volumes:
   db-data:
   app-data:
-  backup-data:

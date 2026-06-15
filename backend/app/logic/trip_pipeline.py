@@ -2,7 +2,7 @@ import asyncio
 import shutil
 import time
 from collections import defaultdict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 import structlog
@@ -43,6 +43,7 @@ from app.models.user import User
 logger = structlog.get_logger(__name__)
 
 _POLARSTEPS_METADATA = {"trip.json", "locations.json"}
+SaveGuard = Callable[[AsyncSession], Awaitable[bool]]
 
 
 def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
@@ -176,7 +177,9 @@ async def _load_existing(
 async def _save_new(
     uid: int,
     objects: list[DbRow],
-) -> None:
+    *,
+    save_guard: SaveGuard | None = None,
+) -> bool:
     with start_span(
         "processing.db_save",
         "Save processing results",
@@ -188,9 +191,10 @@ async def _save_new(
         },
     ):
         async with AsyncSession(get_engine()) as session:
-            for layer in _db_save_layers(objects):
-                session.add_all(layer)
-                await session.flush()
+            if save_guard is not None and not await save_guard(session):
+                logger.info("processing.stale_during_save", user_id=uid)
+                return False
+            await _add_new_objects(session, objects)
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -198,15 +202,26 @@ async def _save_new(
         object_count=len(objects),
         new_user=True,
     )
+    return True
 
 
-async def _save_reupload(
+async def _add_new_objects(session: AsyncSession, objects: list[DbRow]) -> None:
+    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+        rows = [obj for obj in objects if isinstance(obj, model)]
+        if rows:
+            session.add_all(rows)
+            await session.flush()
+
+
+async def _save_reupload(  # noqa: PLR0913
     uid: int,
     objects: list[DbRow],
     reconciled_aids: set[str],
     existing_albums: dict[str, Album],
     trip_dirs: list[Path],
-) -> None:
+    *,
+    save_guard: SaveGuard | None = None,
+) -> bool:
     with start_span(
         "processing.db_save",
         "Save processing results",
@@ -220,6 +235,9 @@ async def _save_reupload(
         },
     ):
         async with AsyncSession(get_engine()) as session:
+            if save_guard is not None and not await save_guard(session):
+                logger.info("processing.stale_during_save", user_id=uid)
+                return False
             if reconciled_aids:
                 await session.exec(
                     delete(StepPageMedia)
@@ -257,10 +275,7 @@ async def _save_reupload(
                 )
             await session.flush()
 
-            for layer in _db_save_layers(objects):
-                for obj in layer:
-                    await session.merge(obj)
-                await session.flush()
+            await _merge_objects(session, objects)
             await session.commit()
     logger.info(
         "processing.db_saved",
@@ -268,17 +283,16 @@ async def _save_reupload(
         object_count=len(objects),
         new_user=False,
     )
+    return True
 
 
-def _db_save_layers(objects: list[DbRow]) -> list[list[DbRow]]:
-    albums: list[DbRow] = [obj for obj in objects if isinstance(obj, Album)]
-    media: list[DbRow] = [obj for obj in objects if isinstance(obj, AlbumMedia)]
-    steps: list[DbRow] = [obj for obj in objects if isinstance(obj, Step)]
-    step_media: list[DbRow] = [
-        obj for obj in objects if isinstance(obj, StepPageMedia | StepUnusedMedia)
-    ]
-    segments: list[DbRow] = [obj for obj in objects if isinstance(obj, Segment)]
-    return [layer for layer in [albums, media, steps, step_media, segments] if layer]
+async def _merge_objects(session: AsyncSession, objects: list[DbRow]) -> None:
+    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+        rows = [obj for obj in objects if isinstance(obj, model)]
+        for obj in rows:
+            await session.merge(obj)
+        if rows:
+            await session.flush()
 
 
 def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
@@ -302,8 +316,21 @@ def _apply_demo_i18n(user: User, all_objects: list[DbRow]) -> None:
     logger.info("demo.i18n_overlay_applied", user_id=user.id, locale=user.locale)
 
 
-async def run_processing(
-    http: HttpClients, user: User
+async def _processing_should_continue(
+    user: User, should_continue: Callable[[], Awaitable[bool]] | None
+) -> bool:
+    if should_continue is None or await should_continue():
+        return True
+    logger.info("processing.stale_before_save", user_id=user.id)
+    return False
+
+
+async def run_processing(  # noqa: C901
+    http: HttpClients,
+    user: User,
+    *,
+    should_continue: Callable[[], Awaitable[bool]] | None = None,
+    save_guard: SaveGuard | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
     trip_dirs = sorted(user.trips_folder.iterdir())
@@ -357,15 +384,27 @@ async def run_processing(
 
         _apply_demo_i18n(user, all_objects)
 
+        if not await _processing_should_continue(user, should_continue):
+            yield ErrorData()
+            return
+
         try:
             if existing_albums:
-                await _save_reupload(
-                    user.id, all_objects, reconciled_aids, existing_albums, trip_dirs
+                saved = await _save_reupload(
+                    user.id,
+                    all_objects,
+                    reconciled_aids,
+                    existing_albums,
+                    trip_dirs,
+                    save_guard=save_guard,
                 )
             else:
-                await _save_new(user.id, all_objects)
+                saved = await _save_new(user.id, all_objects, save_guard=save_guard)
         except SQLAlchemyError:
             logger.exception("processing.db_save_failed", user_id=user.id)
+            yield ErrorData()
+            return
+        if not saved:
             yield ErrorData()
             return
         with start_span(
