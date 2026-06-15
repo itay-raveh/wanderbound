@@ -35,7 +35,20 @@ export const useSegmentsQuery = createAlbumQuery(
   queryKeys.segments,
   readSegments,
 );
-export const usePrintBundleQuery = createAlbumQuery(
-  queryKeys.printBundle,
-  readPrintBundle,
-);
+export const usePrintBundleQuery = (
+  aid: Ref<string | null>,
+  chapter: Ref<string | null>,
+) =>
+  useQuery({
+    key: () => queryKeys.printBundle(aid.value, chapter.value),
+    query: async () => {
+      if (!aid.value) throw new Error("No album selected");
+      const { data } = await readPrintBundle({
+        path: { aid: aid.value },
+        query: { chapter: chapter.value },
+      });
+      return markRaw(data);
+    },
+    enabled: () => !!aid.value,
+    staleTime: STALE_TIME,
+  });

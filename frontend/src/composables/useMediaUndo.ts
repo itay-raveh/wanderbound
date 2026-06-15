@@ -1,5 +1,5 @@
 import { undoReplacement } from "@/client";
-import { queryKeys } from "@/queries/keys";
+import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { useQueryCache } from "@pinia/colada";
 import { Notify } from "quasar";
 import { computed, ref } from "vue";
@@ -74,7 +74,7 @@ export function useMediaUndo(albumId: () => string) {
       });
       await Promise.all(
         mediaUndoInvalidationKeys(state.aid).map((key) =>
-          cache.invalidateQueries({ key }),
+          cache.invalidateQueries(invalidateAlbumKey(key)),
         ),
       );
       Notify.create({
@@ -104,6 +104,6 @@ export function mediaUndoInvalidationKeys(aid: string) {
     queryKeys.album(aid),
     queryKeys.media(aid),
     queryKeys.steps(aid),
-    queryKeys.printBundle(aid),
+    queryKeys.printBundles(aid),
   ];
 }

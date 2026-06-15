@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import type { AlbumMeta } from "@/client";
+import type { AlbumMedia, AlbumMeta, StepRead as Step } from "@/client";
+import ChapterManager from "./ChapterManager.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import {
   ALLOWED_FONTS,
@@ -15,6 +16,8 @@ const { t } = useI18n();
 
 const props = defineProps<{
   album: AlbumMeta;
+  media: AlbumMedia[];
+  steps: Step[];
 }>();
 
 const albumMutation = useAlbumMutation(() => props.album.id);
@@ -104,6 +107,7 @@ function updateSafeMargin(mm: number) {
         @change="updateSafeMargin"
       />
     </div>
+    <ChapterManager :album="album" :steps="steps" :media="media" />
   </div>
 </template>
 

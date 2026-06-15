@@ -24,3 +24,10 @@ export interface CountryVisit {
   entryIndexByStepId: Map<number, number>;
   dateRange: string;
 }
+
+export interface ChapterVisit {
+  key: string;
+  name: string;
+  entries: GroupEntry[];
+  stepIds: number[];
+}

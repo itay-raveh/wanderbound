@@ -25,6 +25,7 @@ const { t } = useI18n();
 const props = defineProps<{
   album: AlbumMeta;
   media: AlbumMedia[];
+  steps: Step[];
   step?: Step;
   sectionKey?: string | null;
 }>();
@@ -137,7 +138,7 @@ const importTargetLabel = computed<string | null>(() => {
       expand-icon-class="text-faint"
       :label="t('editor.properties')"
     >
-      <AlbumProperties :album="album" />
+      <AlbumProperties :album="album" :steps="steps" :media="media" />
     </q-expansion-item>
 
     <q-expansion-item

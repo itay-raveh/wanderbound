@@ -1,5 +1,9 @@
 <script lang="ts" setup>
-import { usePdfExportStream } from "@/composables/usePdfExportStream";
+import type { AlbumChapter } from "@/client";
+import {
+  usePdfExportStream,
+  type PdfExportTarget,
+} from "@/composables/usePdfExportStream";
 import { qualitySummary } from "@/composables/usePhotoQuality";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import QualityWarningDialog from "./QualityWarningDialog.vue";
@@ -9,9 +13,13 @@ import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{ albumId: string }>();
+const props = defineProps<{ albumId: string; chapters?: AlbumChapter[] }>();
 
-const pdf = usePdfExportStream(() => props.albumId);
+const exportTarget = ref<PdfExportTarget>({ type: "album" });
+const pdf = usePdfExportStream(
+  () => props.albumId,
+  () => exportTarget.value,
+);
 const showQualityDialog = ref(false);
 
 const progressFraction = computed(() => {
@@ -27,7 +35,8 @@ const buttonState = computed(() =>
     : "idle",
 );
 
-function onExportPdf() {
+function startExport(target: PdfExportTarget) {
+  exportTarget.value = target;
   const q = qualitySummary.value;
   if (q.caution > 0 || q.warning > 0) {
     showQualityDialog.value = true;
@@ -40,6 +49,8 @@ function onConfirmExport() {
   showQualityDialog.value = false;
   pdf.start();
 }
+
+const chapterOptions = computed(() => props.chapters ?? []);
 </script>
 
 <template>
@@ -50,9 +61,50 @@ function onConfirmExport() {
     :progress-fraction="progressFraction"
     :progress-message="pdf.progress.value.message"
     :done-message="t('pdf.ready')"
-    @start="onExportPdf"
+    @start="startExport({ type: 'album' })"
     @cancel="pdf.abort()"
   />
+
+  <q-btn-dropdown
+    v-if="chapterOptions.length"
+    flat
+    dense
+    no-caps
+    class="chapter-export-menu"
+    :label="t('editor.moreExports')"
+  >
+    <q-list dense>
+      <q-item
+        v-for="(chapter, index) in chapterOptions"
+        :key="chapter.id"
+        clickable
+        v-close-popup
+        @click="
+          startExport({
+            type: 'chapter',
+            id: chapter.id,
+          })
+        "
+      >
+        <q-item-section>
+          {{
+            t("editor.exportChapter", {
+              name:
+                chapter.title || t("chapters.untitled", { number: index + 1 }),
+            })
+          }}
+        </q-item-section>
+      </q-item>
+      <q-separator />
+      <q-item
+        clickable
+        v-close-popup
+        @click="startExport({ type: 'chapters' })"
+      >
+        <q-item-section>{{ t("editor.exportAllChapters") }}</q-item-section>
+      </q-item>
+    </q-list>
+  </q-btn-dropdown>
 
   <QualityWarningDialog
     v-model="showQualityDialog"
@@ -61,3 +113,9 @@ function onConfirmExport() {
     @confirm="onConfirmExport"
   />
 </template>
+
+<style lang="scss" scoped>
+.chapter-export-menu {
+  color: var(--text-muted);
+}
+</style>

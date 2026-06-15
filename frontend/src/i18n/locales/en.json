@@ -94,6 +94,9 @@
   "editor": {
     "toolbar": "Album tools",
     "exportPdf": "Export PDF",
+    "moreExports": "More exports",
+    "exportChapter": "Export {name}",
+    "exportAllChapters": "Export all chapters",
     "font": "Heading font",
     "bodyFont": "Body font",
     "properties": "Properties",
@@ -258,6 +261,21 @@
     "preparing": "Preparing export...",
     "progress": "Exporting data... {done} / {total} files"
   },
+  "chapters": {
+    "title": "Chapters",
+    "add": "Add chapter",
+    "unassigned": "Unassigned",
+    "untitled": "Chapter {number}",
+    "chapterTitle": "Title",
+    "chapterSubtitle": "Subtitle",
+    "steps": "Steps",
+    "rangeFrom": "Range from",
+    "rangeTo": "Range to",
+    "applyRange": "Apply range",
+    "frontCover": "Front cover",
+    "backCover": "Back cover",
+    "delete": "Delete chapter"
+  },
   "error": {
     "loadAlbum": "Failed to load album:",
     "updatePreference": "Couldn't save your preference. @:common.retry",
@@ -275,6 +293,7 @@
     "queued": "Waiting to start...",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "Generating PDF...",
+    "renderingChapters": "Generating chapter PDFs... {done}/{total}",
     "renderingBytes": "Generating PDF... {size}",
     "ready": "Ready",
     "cancel": "Cancel export"
@@ -298,6 +317,8 @@
   },
   "nav": {
     "steps": "Steps",
+    "countries": "Countries",
+    "chapters": "Chapters",
     "cover": "Cover",
     "map": "Map",
     "stepNavigation": "Step navigation",

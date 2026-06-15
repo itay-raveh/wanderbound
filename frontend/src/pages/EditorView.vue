@@ -110,6 +110,7 @@ const activeStep = computed(() =>
       :hidden-headers="album.hidden_headers ?? undefined"
       :colors="album.colors ?? undefined"
       :maps-ranges="album.maps_ranges ?? undefined"
+      :chapters="album.chapters ?? undefined"
     />
     <div v-else class="fit flex flex-center" role="status">
       <q-spinner-dots
@@ -130,9 +131,10 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <InspectorDrawer
-      v-if="album && media"
+      v-if="album && media && displayedSteps"
       :album="album"
       :media="media"
+      :steps="displayedSteps"
       :step="activeStep"
       :section-key="activeSectionKey"
     />

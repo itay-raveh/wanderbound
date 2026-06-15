@@ -1,5 +1,6 @@
 import { Dark, format } from "quasar";
 import {
+  generateChaptersPdf,
   generatePdf,
   type PdfDone,
   type PdfError,
@@ -16,6 +17,11 @@ import { ref, watch, type Ref } from "vue";
 
 type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError;
 
+export type PdfExportTarget =
+  | { type: "album" }
+  | { type: "chapter"; id: string }
+  | { type: "chapters" };
+
 interface PdfProgress {
   phase: "queued" | "loading" | "rendering" | "done";
   done: number;
@@ -29,7 +35,10 @@ interface PdfExportHandle extends PolledExportHandle {
 
 const { humanStorageSize } = format;
 
-export function usePdfExportStream(aid: () => string): PdfExportHandle {
+export function usePdfExportStream(
+  aid: () => string,
+  target: () => PdfExportTarget = () => ({ type: "album" }),
+): PdfExportHandle {
   const progress = ref<PdfProgress>({
     phase: "queued",
     done: 0,
@@ -40,12 +49,24 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
   const handle = usePolledExportDownload<PdfEvent>({
     headless: true,
     async connect(signal) {
-      const { stream } = await generatePdf({
-        path: { aid: aid() },
-        query: { dark: Dark.isActive },
-        signal,
-        sseMaxRetryAttempts: 0,
-      });
+      const current = target();
+      const { stream } =
+        current.type === "chapters"
+          ? await generateChaptersPdf({
+              path: { aid: aid() },
+              query: { dark: Dark.isActive },
+              signal,
+              sseMaxRetryAttempts: 0,
+            })
+          : await generatePdf({
+              path: { aid: aid() },
+              query: {
+                dark: Dark.isActive,
+                chapter: current.type === "chapter" ? current.id : undefined,
+              },
+              signal,
+              sseMaxRetryAttempts: 0,
+            });
       return stream as AsyncIterable<PdfEvent>;
     },
     onEvent(event) {
@@ -67,11 +88,13 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
               ? total != null
                 ? t("pdf.loadingProgress", { done: event.done, total })
                 : t("common.loadingAlbum")
-              : event.done > 0
-                ? t("pdf.renderingBytes", {
-                    size: humanStorageSize(event.done),
-                  })
-                : t("pdf.renderingSingle");
+              : total != null
+                ? t("pdf.renderingChapters", { done: event.done, total })
+                : event.done > 0
+                  ? t("pdf.renderingBytes", {
+                      size: humanStorageSize(event.done),
+                    })
+                  : t("pdf.renderingSingle");
           progress.value = {
             phase: event.phase,
             done: event.done,
@@ -96,7 +119,12 @@ export function usePdfExportStream(aid: () => string): PdfExportHandle {
     },
     downloadUrl: (token) =>
       `${client.getConfig().baseUrl}/api/v1/albums/pdf/download/${encodeURIComponent(token)}`,
-    filename: () => `${aid()}.pdf`,
+    filename: () => {
+      const current = target();
+      if (current.type === "chapters") return `${aid()}-chapters.zip`;
+      if (current.type === "chapter") return `${aid()}-${current.id}.pdf`;
+      return `${aid()}.pdf`;
+    },
     errorMessage: () => t("error.pdfExport"),
     initialMessage: () => t("pdf.queued"),
   });

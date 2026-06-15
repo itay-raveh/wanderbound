@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, StepRead as Step } from "@/client";
+import type { AlbumChapter, DateRange, StepRead as Step } from "@/client";
 import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
@@ -11,6 +11,11 @@ import {
   rangeSectionKey,
   sectionKeyMatchesRange,
 } from "../album/albumSections";
+import {
+  buildChapterGroups,
+  buildCountryVisits,
+  entryKey,
+} from "./nav/useAlbumNavGroups";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -19,6 +24,8 @@ import { ref, computed, watch, nextTick } from "vue";
 import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavCountryGroup from "./nav/NavCountryGroup.vue";
+import NavMapItem from "./nav/NavMapItem.vue";
+import NavStepItem from "./nav/NavStepItem.vue";
 import {
   symOutlinedMap,
   symOutlinedFlightTakeoff,
@@ -39,6 +46,7 @@ const props = withDefaults(
     hiddenHeaders?: HeaderKey[];
     colors?: Record<string, unknown>;
     mapsRanges?: DateRange[];
+    chapters?: AlbumChapter[];
   }>(),
   {
     albumIds: () => [],
@@ -46,6 +54,7 @@ const props = withDefaults(
     hiddenHeaders: () => [],
     colors: () => ({}),
     mapsRanges: () => [],
+    chapters: () => [],
   },
 );
 
@@ -63,6 +72,7 @@ const {
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
 const openGroupKey = ref<string | null>(null);
+const navMode = ref<"countries" | "chapters">("countries");
 
 // ── Album selector ────────────────────────────────────────────────────
 
@@ -113,49 +123,25 @@ const mapInsertions = computed(() => {
   return mapInsertionsByStep(props.steps, entries);
 });
 
-function toMapEntry(m: {
-  rangeIdx: number;
-  dateRange: DateRange;
-}): Extract<GroupEntry, { type: "map" }> {
-  return { type: "map", ...m, key: rangeSectionKey("map", m.dateRange) };
-}
+const groups = computed<CountryVisit[]>(() =>
+  buildCountryVisits({
+    stepItems: stepItems.value,
+    mapInsertions: mapInsertions.value,
+    countryName,
+    dateRangeLabel: (first, last) => formatDateRange(first, last, SHORT_DATE),
+  }),
+);
 
-function computeGroupDateRange(entries: GroupEntry[]): string {
-  const steps = entries.filter(
-    (e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step",
-  );
-  const first = steps[0]?.item.date;
-  const last = steps.at(-1)?.item.date;
-  if (!first || !last) return "";
-  return formatDateRange(first, last, SHORT_DATE);
-}
-
-const groups = computed<CountryVisit[]>(() => {
-  const visits: CountryVisit[] = [];
-  for (const item of stepItems.value) {
-    const mapEntries = mapInsertions.value.get(item.id)?.map(toMapEntry) ?? [];
-    const prev = visits.at(-1);
-    if (prev && prev.code === item.country) {
-      const stepEntryIndex = prev.entries.length + mapEntries.length;
-      prev.entries.push(...mapEntries, { type: "step", item });
-      prev.stepIds.push(item.id);
-      prev.entryIndexByStepId.set(item.id, stepEntryIndex);
-    } else {
-      visits.push({
-        key: `${item.country}-${visits.length}`,
-        code: item.country,
-        name: countryName(item.country, item.detail),
-        color: item.color,
-        entries: [...mapEntries, { type: "step", item }],
-        stepIds: [item.id],
-        entryIndexByStepId: new Map([[item.id, mapEntries.length]]),
-        dateRange: "",
-      });
-    }
-  }
-  for (const v of visits) v.dateRange = computeGroupDateRange(v.entries);
-  return visits;
-});
+const chapterGroups = computed(() =>
+  buildChapterGroups({
+    steps: props.steps,
+    stepItems: stepItems.value,
+    mapsRanges: props.mapsRanges,
+    chapters: props.chapters,
+    unassignedLabel: t("chapters.unassigned"),
+    untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
+  }),
+);
 
 function formatMapRange(dr: DateRange): string {
   return formatDateRange(
@@ -291,7 +277,12 @@ function openGroupFor(predicate: (e: GroupEntry) => boolean) {
 
 watch(activeStepId, (id) => {
   if (id == null) return;
-  openGroupFor((e) => e.type === "step" && e.item.id === id);
+  if (navMode.value === "countries") {
+    openGroupFor((e) => e.type === "step" && e.item.id === id);
+  } else {
+    const group = chapterGroups.value.find((g) => g.stepIds.includes(id));
+    if (group) openGroupKey.value = group.key;
+  }
   if (programmaticScrolling.value) return;
   scrollNavItemIntoView(`[data-nav-step="${id}"]`);
 });
@@ -303,7 +294,9 @@ watch(activeSectionKey, (key) => {
     scrollNavItemIntoView(`[data-nav-section="${key}"]`);
     return;
   }
-  for (const g of groups.value) {
+  const activeGroups =
+    navMode.value === "countries" ? groups.value : chapterGroups.value;
+  for (const g of activeGroups) {
     for (const e of g.entries) {
       if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
         if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
@@ -343,6 +336,19 @@ watch(activeSectionKey, (key) => {
     </q-select>
 
     <div v-if="steps.length" class="nav-controls">
+      <q-btn-toggle
+        v-if="chapters.length"
+        v-model="navMode"
+        class="nav-mode-toggle"
+        dense
+        no-caps
+        unelevated
+        toggle-color="primary"
+        :options="[
+          { label: t('nav.countries'), value: 'countries' },
+          { label: t('nav.chapters'), value: 'chapters' },
+        ]"
+      />
       <NavDateFilter
         :steps="steps"
         :hidden-steps="hiddenSteps"
@@ -400,28 +406,85 @@ watch(activeSectionKey, (key) => {
         </div>
       </div>
 
-      <NavCountryGroup
-        v-for="group in groups"
-        :key="group.key"
-        :group="group"
-        :open="openGroupKey === group.key"
-        :active-step-id="activeStepId"
-        :active-section-key="activeSectionKey"
-        :hidden-set="hiddenSet"
-        :steps="steps"
-        :colors="albumColors"
-        :format-map-range="formatMapRange"
-        :lazy-root="listRef ?? null"
-        @toggle-open="
-          openGroupKey = openGroupKey === group.key ? null : group.key
-        "
-        @scroll-to-step="scrollToStep"
-        @scroll-to-map="scrollToMap"
-        @toggle-step="toggleStep"
-        @toggle-country="toggleCountry(group)"
-        @delete-map="deleteMap"
-        @map-date-change="mapDateChange"
-      />
+      <template v-if="navMode === 'countries'">
+        <NavCountryGroup
+          v-for="group in groups"
+          :key="group.key"
+          :group="group"
+          :open="openGroupKey === group.key"
+          :active-step-id="activeStepId"
+          :active-section-key="activeSectionKey"
+          :hidden-set="hiddenSet"
+          :steps="steps"
+          :colors="albumColors"
+          :format-map-range="formatMapRange"
+          :lazy-root="listRef ?? null"
+          @toggle-open="
+            openGroupKey = openGroupKey === group.key ? null : group.key
+          "
+          @scroll-to-step="scrollToStep"
+          @scroll-to-map="scrollToMap"
+          @toggle-step="toggleStep"
+          @toggle-country="toggleCountry(group)"
+          @delete-map="deleteMap"
+          @map-date-change="mapDateChange"
+        />
+      </template>
+      <template v-else>
+        <q-expansion-item
+          v-for="group in chapterGroups"
+          :key="group.key"
+          dense
+          :data-chapter-group="group.key"
+          :model-value="openGroupKey === group.key"
+          header-class="chapter-group-header"
+          expand-icon-class="text-faint"
+          @update:model-value="
+            openGroupKey = openGroupKey === group.key ? null : group.key
+          "
+        >
+          <template #header>
+            <q-item-section class="chapter-group-name" dir="auto">
+              {{ group.name }}
+            </q-item-section>
+            <q-item-section side class="chapter-count text-muted">
+              {{ group.stepIds.length }}
+            </q-item-section>
+          </template>
+          <template v-for="entry in group.entries" :key="entryKey(entry)">
+            <NavMapItem
+              v-if="entry.type === 'map'"
+              :data-nav-section="entry.key"
+              :date-range="entry.dateRange"
+              :range-idx="entry.rangeIdx"
+              :active="
+                sectionKeyMatchesRange(activeSectionKey, entry.dateRange)
+              "
+              :steps="steps"
+              :colors="albumColors"
+              :format-map-range="formatMapRange"
+              @click="scrollToMap(entry.dateRange)"
+              @delete="deleteMap(entry.rangeIdx)"
+              @date-change="(idx, range) => mapDateChange(idx, range)"
+            />
+            <NavStepItem
+              v-else
+              :data-nav-step="entry.item.id"
+              :name="entry.item.name"
+              :date="
+                formatDateRange(entry.item.date, entry.item.date, SHORT_DATE)
+              "
+              :thumb="entry.item.thumb"
+              :color="entry.item.color"
+              :active="activeStepId === entry.item.id"
+              :hidden="hiddenSet.has(entry.item.id)"
+              :lazy-root="listRef ?? null"
+              @click="scrollToStep(entry.item.id)"
+              @toggle="toggleStep(entry.item.id)"
+            />
+          </template>
+        </q-expansion-item>
+      </template>
     </div>
   </nav>
 </template>
@@ -458,6 +521,10 @@ watch(activeSectionKey, (key) => {
   gap: var(--gap-sm);
   padding: var(--gap-sm) var(--gap-md-lg) var(--gap-md);
   flex-shrink: 0;
+}
+
+.nav-mode-toggle {
+  width: 100%;
 }
 
 .nav-list {
@@ -524,6 +591,28 @@ watch(activeSectionKey, (key) => {
   .header-item.nav-hidden & {
     opacity: 1;
   }
+}
+
+.chapter-group-header {
+  min-height: 2.75rem;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.chapter-group-name {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chapter-count {
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

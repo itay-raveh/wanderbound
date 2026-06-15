@@ -3,7 +3,7 @@ import { useAlbum } from "@/composables/useAlbum";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { t } from "@/i18n";
-import { queryKeys } from "@/queries/keys";
+import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { useQueryCache } from "@pinia/colada";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -277,7 +277,7 @@ export function useReplaceExternalMedia() {
   async function invalidateQueries() {
     await Promise.all(
       replacementInvalidationKeys(albumId.value).map((key) =>
-        cache.invalidateQueries({ key }),
+        cache.invalidateQueries(invalidateAlbumKey(key)),
       ),
     );
   }
@@ -329,7 +329,7 @@ export function replacementInvalidationKeys(aid: string) {
     queryKeys.album(aid),
     queryKeys.media(aid),
     queryKeys.steps(aid),
-    queryKeys.printBundle(aid),
+    queryKeys.printBundles(aid),
   ];
 }
 
