@@ -25,6 +25,7 @@ import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavCountryGroup from "./nav/NavCountryGroup.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
+import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import {
   symOutlinedMap,
   symOutlinedFlightTakeoff,
@@ -332,7 +333,7 @@ watch(activeSectionKey, (key) => {
       :aria-label="t('nav.selectAlbum')"
       class="nav-album-select"
       dense
-      outlined
+      borderless
       options-dense
       emit-value
       map-options
@@ -350,30 +351,29 @@ watch(activeSectionKey, (key) => {
     </q-select>
 
     <div v-if="steps.length" class="nav-controls">
-      <q-btn-toggle
+      <SegmentedControl
         v-model="navMode"
         class="nav-mode-toggle"
-        dense
-        no-caps
-        unelevated
-        toggle-color="primary"
+        :aria-label="t('nav.steps')"
         :options="[
           { label: t('nav.countries'), value: 'countries' },
           { label: t('nav.chapters'), value: 'chapters' },
         ]"
       />
-      <NavDateFilter
-        :steps="steps"
-        :hidden-steps="hiddenSteps"
-        :colors="albumColors"
-        @update:hidden-steps="onHiddenStepsChange"
-      />
-      <NavMapRanges
-        :steps="steps"
-        :maps-ranges="mapsRanges"
-        :colors="albumColors"
-        @update:maps-ranges="onMapsRangesChange"
-      />
+      <div class="nav-filter-row">
+        <NavDateFilter
+          :steps="steps"
+          :hidden-steps="hiddenSteps"
+          :colors="albumColors"
+          @update:hidden-steps="onHiddenStepsChange"
+        />
+        <NavMapRanges
+          :steps="steps"
+          :maps-ranges="mapsRanges"
+          :colors="albumColors"
+          @update:maps-ranges="onMapsRangesChange"
+        />
+      </div>
     </div>
 
     <div ref="listRef" class="nav-list">
@@ -496,26 +496,56 @@ watch(activeSectionKey, (key) => {
 }
 
 .nav-album-select {
-  margin: var(--gap-md) var(--gap-md-lg) 0;
+  margin: var(--gap-sm) var(--gap-md-lg) 0;
   flex-shrink: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+
+  &:hover {
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+
+  &:focus-within {
+    color: var(--text-bright);
+  }
+
+  :deep(.q-field__control) {
+    min-height: 2.125rem;
+    padding-inline: var(--gap-xs);
+  }
+
+  :deep(.q-field__prepend) {
+    padding-inline-end: var(--gap-xs);
+  }
 }
 
 .album-select-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--type-xs);
+  font-weight: 600;
 }
 
 .nav-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-sm);
-  padding: var(--gap-sm) var(--gap-md-lg) var(--gap-md);
+  flex-direction: column;
+  gap: var(--gap-xs);
+  padding: var(--gap-sm) var(--gap-md-lg) var(--gap-sm-md);
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .nav-mode-toggle {
   width: 100%;
+}
+
+.nav-filter-row {
+  display: flex;
+  gap: var(--gap-xs);
 }
 
 .nav-list {
@@ -539,7 +569,7 @@ watch(activeSectionKey, (key) => {
   flex-direction: column;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: var(--gap-sm);
-  margin-bottom: var(--gap-sm);
+  margin-bottom: var(--gap-xs);
 }
 
 .header-item {

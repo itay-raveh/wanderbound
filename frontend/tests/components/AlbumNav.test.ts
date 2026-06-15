@@ -43,18 +43,6 @@ const NavCountryGroupStub = defineComponent({
     </div>`,
 });
 
-const QBtnToggleStub = defineComponent({
-  name: "QBtnToggle",
-  props: {
-    modelValue: {
-      type: String,
-      required: true,
-    },
-  },
-  emits: ["update:modelValue"],
-  template: `<button type="button" class="chapter-mode" @click="$emit('update:modelValue', 'chapters')">chapters</button>`,
-});
-
 function makeSteps(count: number): Step[] {
   return Array.from({ length: count }, (_, index) =>
     makeStep({
@@ -187,14 +175,13 @@ describe("AlbumNav", () => {
             props: ["name"],
             template: `<div class="chapter-step">{{ name }}</div>`,
           },
-          QBtnToggle: QBtnToggleStub,
           QIcon: true,
           QSelect: true,
         },
       },
     });
 
-    await wrapper.get(".chapter-mode").trigger("click");
+    await wrapper.get(".nav-mode-toggle button:last-child").trigger("click");
     await nextTick();
 
     const chapter = wrapper.get('[data-chapter-group="chapter-1"]');
@@ -228,14 +215,13 @@ describe("AlbumNav", () => {
           NavMapRanges: true,
           NavMapItem: true,
           NavStepItem: true,
-          QBtnToggle: QBtnToggleStub,
           QIcon: true,
           QSelect: true,
         },
       },
     });
 
-    await wrapper.get(".chapter-mode").trigger("click");
+    await wrapper.get(".nav-mode-toggle button:last-child").trigger("click");
     await wrapper.get(".chapter-action").trigger("click");
 
     expect(mutate).toHaveBeenCalledWith({
