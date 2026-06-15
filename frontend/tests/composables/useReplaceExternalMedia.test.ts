@@ -95,7 +95,7 @@ describe("useReplaceExternalMedia", () => {
       queryKeys.album("album-1"),
       queryKeys.media("album-1"),
       queryKeys.steps("album-1"),
-      queryKeys.printBundle("album-1"),
+      queryKeys.printBundles("album-1"),
     ]);
   });
 });

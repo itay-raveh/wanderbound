@@ -343,6 +343,7 @@ def make_album(
         "hidden_steps": [],
         "hidden_headers": [],
         "maps_ranges": [],
+        "chapters": [],
         "front_cover_photo": front_cover_photo,
         "back_cover_photo": back_cover_photo,
         "colors": colors if colors is not None else {"nl": "#0000ff"},

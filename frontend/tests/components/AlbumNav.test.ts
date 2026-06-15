@@ -3,7 +3,7 @@ import { mountWithPlugins, makeStep } from "../helpers";
 import AlbumNav from "@/components/editor/AlbumNav.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
 import type { CountryVisit } from "@/components/editor/nav/types";
-import type { StepRead as Step } from "@/client";
+import type { AlbumChapter, StepRead as Step } from "@/client";
 
 vi.mock("@/queries/useUserQuery", () => ({
   useUserQuery: () => ({
@@ -38,6 +38,18 @@ const NavCountryGroupStub = defineComponent({
         :data-nav-section="entry.type === 'map' ? entry.key : undefined"
       />
     </div>`,
+});
+
+const QBtnToggleStub = defineComponent({
+  name: "QBtnToggle",
+  props: {
+    modelValue: {
+      type: String,
+      required: true,
+    },
+  },
+  emits: ["update:modelValue"],
+  template: `<button type="button" class="chapter-mode" @click="$emit('update:modelValue', 'chapters')">chapters</button>`,
 });
 
 function makeSteps(count: number): Step[] {
@@ -126,5 +138,61 @@ describe("AlbumNav", () => {
     await nextTick();
 
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("shows only chapter map ranges in chapter mode", async () => {
+    const steps = makeSteps(4);
+    const chapters: AlbumChapter[] = [
+      {
+        id: "chapter-1",
+        title: "First chapter",
+        subtitle: null,
+        step_ids: [1, 2],
+        front_cover_photo: "cover.jpg",
+        back_cover_photo: "cover.jpg",
+      },
+    ];
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [
+          ["2024-01-01", "2024-01-02"],
+          ["2024-01-03", "2024-01-04"],
+        ],
+        chapters,
+      },
+      global: {
+        stubs: {
+          NavCountryGroup: NavCountryGroupStub,
+          NavDateFilter: true,
+          NavMapRanges: true,
+          NavMapItem: {
+            props: ["dateRange"],
+            template: `<div class="chapter-map" :data-range="dateRange.join('|')" />`,
+          },
+          NavStepItem: {
+            props: ["name"],
+            template: `<div class="chapter-step">{{ name }}</div>`,
+          },
+          QBtnToggle: QBtnToggleStub,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await wrapper.get(".chapter-mode").trigger("click");
+    await nextTick();
+
+    const chapter = wrapper.get('[data-chapter-group="chapter-1"]');
+    expect(chapter.find('[data-range="2024-01-01|2024-01-02"]').exists()).toBe(
+      true,
+    );
+    expect(chapter.find('[data-range="2024-01-03|2024-01-04"]').exists()).toBe(
+      false,
+    );
   });
 });
