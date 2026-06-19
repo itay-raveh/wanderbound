@@ -165,11 +165,10 @@ export function photoButtons(page: Page) {
 
 export async function scrollToStep(
   page: Page,
-  country: string,
+  _country: string,
   stepName: string,
 ) {
   const nav = page.getByRole("navigation");
-  await nav.getByText(country).click();
   const step = nav.getByText(stepName);
   await expect(step).toBeVisible({ timeout: 3_000 });
   await step.click();
