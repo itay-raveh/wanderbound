@@ -36,7 +36,7 @@ const stepItems = [
 ];
 
 describe("buildChapterGroups", () => {
-  it("builds chapter and unassigned groups with scoped map entries", () => {
+  it("builds chapter groups with scoped map entries", () => {
     const steps = [
       makeStep({ id: 1, datetime: "2024-01-01T00:00:00Z" }),
       makeStep({ id: 2, datetime: "2024-01-02T00:00:00Z" }),
@@ -62,22 +62,15 @@ describe("buildChapterGroups", () => {
       stepItems,
       mapsRanges,
       chapters,
-      unassignedLabel: "Unassigned",
       untitledLabel: (index) => `Chapter ${index + 1}`,
     });
 
-    expect(groups).toHaveLength(2);
+    expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe("First");
     expect(groups[0].stepIds).toEqual([1, 2]);
     expect(groups[0].entries.map((entry) => entry.type)).toEqual([
       "map",
       "step",
-      "step",
-    ]);
-    expect(groups[1].name).toBe("Unassigned");
-    expect(groups[1].stepIds).toEqual([3]);
-    expect(groups[1].entries.map((entry) => entry.type)).toEqual([
-      "map",
       "step",
     ]);
   });

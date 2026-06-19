@@ -193,14 +193,23 @@ describe("AlbumNav", () => {
     );
   });
 
-  it("creates chapters from the nav drawer unassigned group", async () => {
-    const steps = [
-      makeStep({ id: 1, name: "Buenos Aires" }),
-      makeStep({ id: 2, name: "Ushuaia" }),
-    ];
+  it("does not create chapters from the nav drawer", async () => {
+    const steps = [makeStep({ id: 1, name: "Buenos Aires" })];
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
-        album: { ...mockAlbum, chapters: [] },
+        album: {
+          ...mockAlbum,
+          chapters: [
+            {
+              id: "chapter-1",
+              title: null,
+              subtitle: null,
+              step_ids: [1],
+              front_cover_photo: "cover.jpg",
+              back_cover_photo: "cover.jpg",
+            },
+          ],
+        },
         media: mockMedia,
         steps,
         hiddenSteps: [],
@@ -222,15 +231,9 @@ describe("AlbumNav", () => {
     });
 
     await wrapper.get(".nav-mode-toggle button:last-child").trigger("click");
-    await wrapper.get(".chapter-action").trigger("click");
 
-    expect(mutate).toHaveBeenCalledWith({
-      chapters: [
-        expect.objectContaining({
-          id: "chapter-1",
-          step_ids: [1, 2],
-        }),
-      ],
-    });
+    expect(wrapper.find(".chapter-editor").exists()).toBe(false);
+    expect(wrapper.find(".chapter-action").exists()).toBe(false);
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,6 @@
 import {
-  applyStepRange,
   mapRangesForSteps,
-  stepOptionsForChapter,
   stepsForChapter,
-  unassignedSteps,
 } from "@/components/album/albumChapters";
 import type { AlbumChapter } from "@/client";
 import { makeStep } from "../helpers";
@@ -41,12 +38,6 @@ describe("album chapter logic", () => {
     ]);
   });
 
-  it("returns unassigned steps", () => {
-    expect(unassignedSteps(steps, chapters).map((step) => step.id)).toEqual([
-      3,
-    ]);
-  });
-
   it("filters map ranges to ranges containing visible steps", () => {
     const datedSteps = [
       makeStep({ id: 1, datetime: "2024-01-10T00:00:00Z" }),
@@ -64,18 +55,4 @@ describe("album chapter logic", () => {
     ).toEqual([["2024-01-01", "2024-01-31"]]);
   });
 
-  it("disables steps assigned to other chapters", () => {
-    expect(stepOptionsForChapter(steps, chapters, chapters[0])).toEqual([
-      { label: "One", value: 1, disable: false },
-      { label: "Two", value: 2, disable: false },
-      { label: "Three", value: 3, disable: false },
-      { label: "Four", value: 4, disable: true },
-    ]);
-  });
-
-  it("applies ranges while excluding steps assigned elsewhere", () => {
-    expect(applyStepRange(steps, chapters, chapters[0], 1, 4)).toEqual([
-      1, 2, 3,
-    ]);
-  });
 });

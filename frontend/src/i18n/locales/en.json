@@ -263,20 +263,7 @@
   },
   "chapters": {
     "title": "Chapters",
-    "add": "Add chapter",
-    "edit": "Edit chapter",
-    "unassigned": "Unassigned",
-    "untitled": "Chapter {number}",
-    "chapterTitle": "Title",
-    "chapterSubtitle": "Subtitle",
-    "steps": "Steps",
-    "stepCount": "{count} steps",
-    "rangeFrom": "Range from",
-    "rangeTo": "Range to",
-    "applyRange": "Apply range",
-    "frontCover": "Front cover",
-    "backCover": "Back cover",
-    "delete": "Delete chapter"
+    "untitled": "Chapter {number}"
   },
   "error": {
     "loadAlbum": "Failed to load album:",

@@ -28,9 +28,8 @@ export interface CountryVisit {
 export interface ChapterVisit {
   key: string;
   name: string;
-  chapter: AlbumChapter | null;
-  chapterIndex: number | null;
-  isUnassigned: boolean;
+  chapter: AlbumChapter;
+  chapterIndex: number;
   entries: GroupEntry[];
   stepIds: number[];
 }

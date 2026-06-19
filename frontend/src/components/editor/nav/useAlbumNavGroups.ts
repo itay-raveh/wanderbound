@@ -2,7 +2,6 @@ import type { AlbumChapter, DateRange, StepRead as Step } from "@/client";
 import {
   mapRangesForSteps,
   stepsForChapter,
-  unassignedSteps,
 } from "@/components/album/albumChapters";
 import {
   mapInsertionsByStep,
@@ -20,7 +19,6 @@ type ChapterGroupsInput = {
   stepItems: StepItem[];
   mapsRanges: DateRange[];
   chapters: AlbumChapter[];
-  unassignedLabel: string;
   untitledLabel: (index: number) => string;
 };
 
@@ -130,33 +128,17 @@ export function buildChapterGroups({
   stepItems,
   mapsRanges,
   chapters,
-  unassignedLabel,
   untitledLabel,
 }: ChapterGroupsInput): ChapterVisit[] {
-  const groups: ChapterVisit[] = chapters.map((chapter, index) => {
+  return chapters.map((chapter, index) => {
     const chapterSteps = stepsForChapter(steps, chapter);
     return {
       key: chapter.id,
       name: chapter.title || untitledLabel(index),
       chapter,
       chapterIndex: index,
-      isUnassigned: false,
       entries: entriesForSteps(chapterSteps, stepItems, mapsRanges),
       stepIds: chapterSteps.map((step) => step.id),
     };
   });
-
-  const looseSteps = unassignedSteps(steps, chapters);
-  if (looseSteps.length) {
-    groups.push({
-      key: "__unassigned__",
-      name: unassignedLabel,
-      chapter: null,
-      chapterIndex: null,
-      isUnassigned: true,
-      entries: entriesForSteps(looseSteps, stepItems, mapsRanges),
-      stepIds: looseSteps.map((step) => step.id),
-    });
-  }
-  return groups;
 }

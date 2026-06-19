@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import type { AlbumMedia, AlbumMeta, DateRange, StepRead as Step } from "@/client";
+import type {
+  AlbumMedia,
+  AlbumMeta,
+  DateRange,
+  StepRead as Step,
+} from "@/client";
 import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
@@ -15,7 +20,6 @@ import {
   buildChapterGroups,
   buildCountryVisits,
 } from "./nav/useAlbumNavGroups";
-import { useChapterEditor } from "./useChapterEditor";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -59,17 +63,6 @@ const props = withDefaults(
 );
 
 const selectedAlbumId = defineModel<string | null>("albumId");
-const {
-  chapters,
-  coverOptions,
-  optionalText,
-  addChapter,
-  updateChapter,
-  deleteChapter,
-  rangeDraft,
-  stepOptionsFor,
-  applyRange,
-} = useChapterEditor(props);
 
 const {
   activeStepId,
@@ -148,8 +141,7 @@ const chapterGroups = computed(() =>
     steps: props.steps,
     stepItems: stepItems.value,
     mapsRanges: props.mapsRanges,
-    chapters: chapters.value,
-    unassignedLabel: t("chapters.unassigned"),
+    chapters: props.album.chapters ?? [],
     untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
   }),
 );
@@ -458,10 +450,6 @@ watch(activeSectionKey, (key) => {
           :format-step-date="formatStepDate"
           :section-key-matches-range="sectionKeyMatchesRange"
           :lazy-root="listRef ?? null"
-          :cover-options="coverOptions"
-          :step-options-for="stepOptionsFor"
-          :range-draft="rangeDraft"
-          :optional-text="optionalText"
           @toggle-open="
             openGroupKey = openGroupKey === group.key ? null : group.key
           "
@@ -470,10 +458,6 @@ watch(activeSectionKey, (key) => {
           @toggle-step="toggleStep"
           @delete-map="deleteMap"
           @map-date-change="mapDateChange"
-          @add-chapter="addChapter"
-          @update-chapter="updateChapter"
-          @delete-chapter="deleteChapter"
-          @apply-range="applyRange"
         />
       </template>
     </div>
