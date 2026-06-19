@@ -62,6 +62,30 @@ class TestReadAlbum:
         assert "steps" not in data
         assert "segments" not in data
 
+    async def test_read_backfills_default_chapter_for_legacy_album(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=2, timestamp=200.0)
+        await insert_step(session, signed_album.uid, step_id=1, timestamp=100.0)
+        await session.commit()
+
+        resp = await album_routes.get_album()
+
+        assert resp.status_code == 200
+        assert resp.json()["chapters"] == [
+            {
+                "id": "chapter-1",
+                "title": None,
+                "subtitle": None,
+                "step_ids": [1, 2],
+                "front_cover_photo": "photo1.jpg",
+                "back_cover_photo": "photo2.jpg",
+            }
+        ]
+
 
 class TestReadSegments:
     async def test_returns_outlines_without_points(
@@ -149,7 +173,15 @@ class TestChapterPrintBundle:
                     "step_ids": [1, 2],
                     "front_cover_photo": "chapter-front.jpg",
                     "back_cover_photo": "chapter-back.jpg",
-                }
+                },
+                {
+                    "id": "chapter-2",
+                    "title": None,
+                    "subtitle": None,
+                    "step_ids": [3],
+                    "front_cover_photo": "chapter-front.jpg",
+                    "back_cover_photo": "chapter-back.jpg",
+                },
             ],
         )
 
@@ -361,6 +393,30 @@ class TestUpdateAlbum:
 
         assert resp.status_code == 400
         assert "Unknown chapter step IDs: 999" in resp.json()["detail"]
+
+    async def test_update_chapters_rejects_missing_steps(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await insert_step(session, signed_album.uid, step_id=2)
+        await session.commit()
+
+        resp = await album_routes.update_album(
+            chapters=[
+                {
+                    "id": "partial",
+                    "step_ids": [1],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                }
+            ]
+        )
+
+        assert resp.status_code == 400
+        assert "Missing chapter step IDs: 2" in resp.json()["detail"]
 
 
 class TestUpdateStep:

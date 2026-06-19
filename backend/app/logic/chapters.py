@@ -21,6 +21,25 @@ class ChapterValidationError(ValueError):
     pass
 
 
+DEFAULT_CHAPTER_ID = "chapter-1"
+
+
+def default_album_chapter(
+    *,
+    step_ids: list[int],
+    front_cover_photo: str,
+    back_cover_photo: str,
+) -> AlbumChapter:
+    return AlbumChapter(
+        id=DEFAULT_CHAPTER_ID,
+        title=None,
+        subtitle=None,
+        step_ids=step_ids,
+        front_cover_photo=front_cover_photo,
+        back_cover_photo=back_cover_photo,
+    )
+
+
 async def validate_album_chapters(  # noqa: C901
     session: AsyncSession,
     album: Album,
@@ -30,6 +49,9 @@ async def validate_album_chapters(  # noqa: C901
         return
 
     chapters = update.chapters or []
+    if not chapters:
+        raise ChapterValidationError("Album must have at least one chapter")
+
     assigned: set[int] = set()
     duplicates: list[int] = []
     requested: set[int] = set()
@@ -54,14 +76,10 @@ async def validate_album_chapters(  # noqa: C901
             f"Step {step_id} is already assigned to another chapter"
         )
 
-    if not requested:
-        return
-
     result = await session.exec(
         select(Step.id).where(
             Step.uid == album.uid,
             Step.aid == album.id,
-            col(Step.id).in_(requested),
         )
     )
     existing = set(result.all())
@@ -69,6 +87,40 @@ async def validate_album_chapters(  # noqa: C901
     if missing:
         joined = ", ".join(str(step_id) for step_id in missing)
         raise ChapterValidationError(f"Unknown chapter step IDs: {joined}")
+
+    unassigned = sorted(existing - requested)
+    if unassigned:
+        joined = ", ".join(str(step_id) for step_id in unassigned)
+        raise ChapterValidationError(f"Missing chapter step IDs: {joined}")
+
+
+async def ensure_album_chapters(session: AsyncSession, album: Album) -> Album:
+    if album.chapters:
+        return album
+
+    result = await session.exec(
+        select(Step.id)
+        .where(
+            Step.uid == album.uid,
+            Step.aid == album.id,
+        )
+        .order_by(col(Step.timestamp))
+    )
+    step_ids = list(result.all())
+    if not step_ids:
+        return album
+
+    album.chapters = [
+        default_album_chapter(
+            step_ids=step_ids,
+            front_cover_photo=album.front_cover_photo,
+            back_cover_photo=album.back_cover_photo,
+        )
+    ]
+    session.add(album)
+    await session.commit()
+    await session.refresh(album)
+    return album
 
 
 def find_chapter(album: Album, chapter_id: str) -> AlbumChapter | None:

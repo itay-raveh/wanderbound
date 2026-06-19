@@ -19,6 +19,7 @@ from sqlmodel import col, select
 from app.logic.album_scope import ChapterNotFoundError, build_print_bundle_scope
 from app.logic.chapters import (
     ChapterValidationError,
+    ensure_album_chapters,
     find_chapter,
     validate_album_chapters,
 )
@@ -53,7 +54,8 @@ logger = structlog.get_logger(__name__)
 async def _get_album(
     aid: Annotated[str, Path()], user: UserDep, session: SessionDep
 ) -> Album:
-    return await session.get_one(Album, (user.id, aid))
+    album = await session.get_one(Album, (user.id, aid))
+    return await ensure_album_chapters(session, album)
 
 
 AlbumDep = Annotated[Album, Depends(_get_album)]
