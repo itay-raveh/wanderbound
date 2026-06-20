@@ -7,7 +7,12 @@ import {
   mapInsertionsByStep,
   rangeSectionKey,
 } from "@/components/album/albumSections";
-import type { ChapterVisit, CountryVisit, GroupEntry, StepItem } from "./types";
+import type {
+  ChapterCountryRun,
+  ChapterVisit,
+  GroupEntry,
+  StepItem,
+} from "./types";
 
 type MapEntrySource = {
   rangeIdx: number;
@@ -20,12 +25,6 @@ type ChapterGroupsInput = {
   mapsRanges: DateRange[];
   chapters: AlbumChapter[];
   untitledLabel: (index: number) => string;
-};
-
-type CountryVisitsInput = {
-  stepItems: StepItem[];
-  mapInsertions: Map<number, MapEntrySource[]>;
-  countryName: (code: string, detail: string) => string;
   dateRangeLabel: (first: Date, last: Date) => string;
 };
 
@@ -76,51 +75,46 @@ function entriesForSteps(
   return entries;
 }
 
-function computeGroupDateRange(
-  entries: GroupEntry[],
+function computeStepDateRange(
+  steps: Extract<GroupEntry, { type: "step" }>[],
   dateRangeLabel: (first: Date, last: Date) => string,
 ): string {
-  const steps = entries.filter(
-    (e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step",
-  );
   const first = steps[0]?.item.date;
   const last = steps.at(-1)?.item.date;
   if (!first || !last) return "";
   return dateRangeLabel(first, last);
 }
 
-export function buildCountryVisits({
-  stepItems,
-  mapInsertions,
-  countryName,
-  dateRangeLabel,
-}: CountryVisitsInput): CountryVisit[] {
-  const visits: CountryVisit[] = [];
-  for (const item of stepItems) {
-    const mapEntries = mapInsertions.get(item.id)?.map(toMapEntry) ?? [];
-    const prev = visits.at(-1);
-    if (prev && prev.code === item.country) {
-      const stepEntryIndex = prev.entries.length + mapEntries.length;
-      prev.entries.push(...mapEntries, { type: "step", item });
-      prev.stepIds.push(item.id);
-      prev.entryIndexByStepId.set(item.id, stepEntryIndex);
+function computeCountryRuns(
+  entries: GroupEntry[],
+  dateRangeLabel: (first: Date, last: Date) => string,
+): ChapterCountryRun[] {
+  const runs: Array<
+    Omit<ChapterCountryRun, "dateRange"> & {
+      stepEntries: Extract<GroupEntry, { type: "step" }>[];
+    }
+  > = [];
+  entries.forEach((entry, entryIndex) => {
+    if (entry.type !== "step") return;
+    const prev = runs.at(-1);
+    if (prev && prev.code === entry.item.country) {
+      prev.stepIds.push(entry.item.id);
+      prev.stepEntries.push(entry);
     } else {
-      visits.push({
-        key: `${item.country}-${visits.length}`,
-        code: item.country,
-        name: countryName(item.country, item.detail),
-        color: item.color,
-        entries: [...mapEntries, { type: "step", item }],
-        stepIds: [item.id],
-        entryIndexByStepId: new Map([[item.id, mapEntries.length]]),
-        dateRange: "",
+      runs.push({
+        code: entry.item.country,
+        name: entry.item.countryLabel,
+        color: entry.item.color,
+        stepIds: [entry.item.id],
+        firstEntryIndex: entryIndex,
+        stepEntries: [entry],
       });
     }
-  }
-  for (const visit of visits) {
-    visit.dateRange = computeGroupDateRange(visit.entries, dateRangeLabel);
-  }
-  return visits;
+  });
+  return runs.map(({ stepEntries, ...run }) => ({
+    ...run,
+    dateRange: computeStepDateRange(stepEntries, dateRangeLabel),
+  }));
 }
 
 export function buildChapterGroups({
@@ -129,16 +123,26 @@ export function buildChapterGroups({
   mapsRanges,
   chapters,
   untitledLabel,
+  dateRangeLabel,
 }: ChapterGroupsInput): ChapterVisit[] {
   return chapters.map((chapter, index) => {
     const chapterSteps = stepsForChapter(steps, chapter);
+    const entries = entriesForSteps(chapterSteps, stepItems, mapsRanges);
+    const entryIndexByStepId = new Map<number, number>();
+    entries.forEach((entry, entryIndex) => {
+      if (entry.type === "step") {
+        entryIndexByStepId.set(entry.item.id, entryIndex);
+      }
+    });
     return {
       key: chapter.id,
       name: chapter.title || untitledLabel(index),
       chapter,
       chapterIndex: index,
-      entries: entriesForSteps(chapterSteps, stepItems, mapsRanges),
+      entries,
       stepIds: chapterSteps.map((step) => step.id),
+      countryRuns: computeCountryRuns(entries, dateRangeLabel),
+      entryIndexByStepId,
     };
   });
 }

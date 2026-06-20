@@ -4,6 +4,7 @@ export interface StepItem {
   id: number;
   name: string;
   country: string;
+  countryLabel: string;
   color: string;
   date: Date;
   thumb: string | null;
@@ -14,14 +15,12 @@ export type GroupEntry =
   | { type: "step"; item: StepItem }
   | { type: "map"; rangeIdx: number; dateRange: DateRange; key: string };
 
-export interface CountryVisit {
-  key: string;
+export interface ChapterCountryRun {
   code: string;
   name: string;
   color: string;
-  entries: GroupEntry[];
   stepIds: number[];
-  entryIndexByStepId: Map<number, number>;
+  firstEntryIndex: number;
   dateRange: string;
 }
 
@@ -32,4 +31,6 @@ export interface ChapterVisit {
   chapterIndex: number;
   entries: GroupEntry[];
   stepIds: number[];
+  countryRuns: ChapterCountryRun[];
+  entryIndexByStepId: Map<number, number>;
 }
