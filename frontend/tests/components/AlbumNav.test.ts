@@ -2,7 +2,7 @@ import { defineComponent, nextTick, type PropType } from "vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import AlbumNav from "@/components/editor/AlbumNav.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
-import type { CountryVisit } from "@/components/editor/nav/types";
+import type { ChapterVisit } from "@/components/editor/nav/types";
 import type { AlbumChapter, StepRead as Step } from "@/client";
 import { mockAlbum, mockMedia } from "../fixtures/mocks";
 
@@ -20,11 +20,11 @@ vi.mock("@/queries/useAlbumMutation", () => ({
   useAlbumMutation: () => ({ mutate }),
 }));
 
-const NavCountryGroupStub = defineComponent({
-  name: "NavCountryGroup",
+const NavChapterGroupStub = defineComponent({
+  name: "NavChapterGroup",
   props: {
     group: {
-      type: Object as PropType<CountryVisit>,
+      type: Object as PropType<ChapterVisit>,
       required: true,
     },
     open: {
@@ -33,12 +33,13 @@ const NavCountryGroupStub = defineComponent({
     },
   },
   template:
-    `<div class="nav-country-group" :data-group-key="group.key" :data-open="String(open)">
+    `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
       <div
         v-for="entry in group.entries"
         :key="entry.type === 'step' ? entry.item.id : entry.key"
         :data-nav-step="entry.type === 'step' ? entry.item.id : undefined"
         :data-nav-section="entry.type === 'map' ? entry.key : undefined"
+        :data-range="entry.type === 'map' ? entry.dateRange.join('|') : undefined"
       />
     </div>`,
 });
@@ -81,7 +82,7 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
+          NavChapterGroup: NavChapterGroupStub,
           NavDateFilter: true,
           NavMapRanges: true,
           QIcon: true,
@@ -95,9 +96,9 @@ describe("AlbumNav", () => {
     await nextTick();
     await nextTick();
 
-    expect(wrapper.get('[data-group-key="c3-3"]').attributes("data-open")).toBe(
-      "true",
-    );
+    expect(
+      wrapper.get('[data-group-key="chapter-1"]').attributes("data-open"),
+    ).toBe("true");
   });
 
   it("does not scroll the nav list while the viewer is programmatically scrolling", async () => {
@@ -117,7 +118,7 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
+          NavChapterGroup: NavChapterGroupStub,
           NavDateFilter: true,
           NavMapRanges: true,
           QIcon: true,
@@ -136,7 +137,7 @@ describe("AlbumNav", () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it("shows only chapter map ranges in chapter mode", async () => {
+  it("shows only map ranges that belong to a chapter", async () => {
     const steps = makeSteps(4);
     const chapters: AlbumChapter[] = [
       {
@@ -163,28 +164,18 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
           NavDateFilter: true,
           NavMapRanges: true,
-          NavChapterGroup: false,
-          NavMapItem: {
-            props: ["dateRange"],
-            template: `<div class="chapter-map" :data-range="dateRange.join('|')" />`,
-          },
-          NavStepItem: {
-            props: ["name"],
-            template: `<div class="chapter-step">{{ name }}</div>`,
-          },
+          NavChapterGroup: NavChapterGroupStub,
           QIcon: true,
           QSelect: true,
         },
       },
     });
 
-    await wrapper.get(".nav-mode-toggle button:last-child").trigger("click");
     await nextTick();
 
-    const chapter = wrapper.get('[data-chapter-group="chapter-1"]');
+    const chapter = wrapper.get('[data-group-key="chapter-1"]');
     expect(chapter.find('[data-range="2024-01-01|2024-01-02"]').exists()).toBe(
       true,
     );
@@ -219,7 +210,7 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
+          NavChapterGroup: NavChapterGroupStub,
           NavDateFilter: true,
           NavMapRanges: true,
           NavMapItem: true,
@@ -230,7 +221,7 @@ describe("AlbumNav", () => {
       },
     });
 
-    await wrapper.get(".nav-mode-toggle button:last-child").trigger("click");
+    await nextTick();
 
     expect(wrapper.find(".chapter-editor").exists()).toBe(false);
     expect(wrapper.find(".chapter-action").exists()).toBe(false);

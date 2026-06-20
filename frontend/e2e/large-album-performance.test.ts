@@ -143,7 +143,7 @@ async function mockLargeAlbum(page: Page) {
 }
 
 async function scrollNavStepIntoView(page: Page, step: number) {
-  const navList = page.locator(".group-entries-virtual");
+  const navList = page.locator(".chapter-entries-virtual");
   const target = page.locator(`[data-nav-step="${step}"]`);
   for (let scrollTop = 0; scrollTop <= 14_000; scrollTop += 700) {
     await navList.evaluate((el, top) => {
@@ -162,7 +162,7 @@ async function scrollNavStepIntoView(page: Page, step: number) {
 async function activeNavStepCenterOffset(page: Page, step: number) {
   return page.evaluate((targetStep) => {
     const navList = document.querySelector<HTMLElement>(
-      ".group-entries-virtual",
+      ".chapter-entries-virtual",
     );
     const target = document.querySelector<HTMLElement>(
       `[data-nav-step="${targetStep}"]`,
@@ -203,7 +203,6 @@ test.describe("Large album editor performance", () => {
     await expect(page.getByText("Large Album").first()).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("navigation").getByText("Netherlands").click();
     await expect
       .poll(() => page.locator("[data-nav-step]").count())
       .toBeLessThan(80);
@@ -228,8 +227,6 @@ test.describe("Large album editor performance", () => {
     await expect(page.getByText("Large Album").first()).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("navigation").getByText("Netherlands").click();
-
     await scrollNavStepIntoView(page, 180);
     await page.locator(`[data-nav-step="180"]`).click();
     await expect(page.getByText("Large Step 180").first()).toBeVisible({

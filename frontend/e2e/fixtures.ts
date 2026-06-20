@@ -154,7 +154,7 @@ export async function blockPopup(page: Page) {
 
 export async function openEditor(page: Page) {
   await page.goto("/editor");
-  await expect(page.getByText("South America")).toBeVisible({
+  await expect(page.getByRole("main").getByText("South America")).toBeVisible({
     timeout: 15_000,
   });
 }
@@ -165,11 +165,10 @@ export function photoButtons(page: Page) {
 
 export async function scrollToStep(
   page: Page,
-  country: string,
+  _country: string,
   stepName: string,
 ) {
   const nav = page.getByRole("navigation");
-  await nav.getByText(country).click();
   const step = nav.getByText(stepName);
   await expect(step).toBeVisible({ timeout: 3_000 });
   await step.click();

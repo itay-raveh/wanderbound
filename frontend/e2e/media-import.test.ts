@@ -87,10 +87,9 @@ test.describe("Media import", () => {
     });
 
     await page.goto("/editor");
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("button", { name: "Expand", exact: true }).click();
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
 
@@ -174,10 +173,9 @@ test.describe("Media import", () => {
     });
 
     await page.goto("/editor");
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("button", { name: "Expand", exact: true }).click();
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
 
@@ -198,7 +196,6 @@ test.describe("Media import", () => {
 
     await page.getByLabel("Select album").click();
     await page.getByRole("option", { name: "Aid 2" }).click();
-    await page.getByRole("button", { name: "Expand", exact: true }).click();
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
     await ensureUnusedTrayVisible(page);

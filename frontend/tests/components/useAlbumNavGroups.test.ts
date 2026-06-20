@@ -1,7 +1,4 @@
-import {
-  buildChapterGroups,
-  buildCountryVisits,
-} from "@/components/editor/nav/useAlbumNavGroups";
+import { buildChapterGroups } from "@/components/editor/nav/useAlbumNavGroups";
 import type { AlbumChapter, DateRange } from "@/client";
 import { makeStep } from "../helpers";
 
@@ -10,8 +7,9 @@ const stepItems = [
     id: 1,
     name: "One",
     country: "AR",
+    countryLabel: "Argentina",
     color: "#111111",
-    date: new Date(),
+    date: new Date("2024-01-01T00:00:00Z"),
     thumb: null,
     detail: "",
   },
@@ -19,8 +17,9 @@ const stepItems = [
     id: 2,
     name: "Two",
     country: "AR",
+    countryLabel: "Argentina",
     color: "#111111",
-    date: new Date(),
+    date: new Date("2024-01-02T00:00:00Z"),
     thumb: null,
     detail: "",
   },
@@ -28,8 +27,9 @@ const stepItems = [
     id: 3,
     name: "Three",
     country: "CL",
+    countryLabel: "Chile",
     color: "#222222",
-    date: new Date(),
+    date: new Date("2024-02-01T00:00:00Z"),
     thumb: null,
     detail: "",
   },
@@ -63,6 +63,8 @@ describe("buildChapterGroups", () => {
       mapsRanges,
       chapters,
       untitledLabel: (index) => `Chapter ${index + 1}`,
+      dateRangeLabel: (first, last) =>
+        `${first.toISOString()} - ${last.toISOString()}`,
     });
 
     expect(groups).toHaveLength(1);
@@ -73,31 +75,17 @@ describe("buildChapterGroups", () => {
       "step",
       "step",
     ]);
-  });
-});
-
-describe("buildCountryVisits", () => {
-  it("groups consecutive steps by country and preserves map insertion indexes", () => {
-    const groups = buildCountryVisits({
-      stepItems,
-      mapInsertions: new Map([
-        [2, [{ rangeIdx: 0, dateRange: ["2024-01-01", "2024-01-31"] }]],
-      ]),
-      countryName: (code, detail) => `${code}:${detail}`,
-      dateRangeLabel: (first, last) =>
-        `${first.toISOString()} - ${last.toISOString()}`,
-    });
-
-    expect(groups).toHaveLength(2);
-    expect(groups[0].key).toBe("AR-0");
-    expect(groups[0].name).toBe("AR:");
-    expect(groups[0].stepIds).toEqual([1, 2]);
     expect(groups[0].entryIndexByStepId.get(2)).toBe(2);
-    expect(groups[0].entries.map((entry) => entry.type)).toEqual([
-      "step",
-      "map",
-      "step",
+    expect(groups[0].countryRuns).toEqual([
+      {
+        code: "AR",
+        name: "Argentina",
+        color: "#111111",
+        stepIds: [1, 2],
+        firstEntryIndex: 1,
+        dateRange:
+          "2024-01-01T00:00:00.000Z - 2024-01-02T00:00:00.000Z",
+      },
     ]);
-    expect(groups[1].key).toBe("CL-1");
   });
 });

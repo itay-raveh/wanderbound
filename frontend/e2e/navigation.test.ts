@@ -11,7 +11,7 @@ test.describe("Editor", () => {
   test("displays the album title", async ({ editorPage: page }) => {
     await page.waitForURL("/editor");
     // The album title "South America" should appear somewhere
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
   });

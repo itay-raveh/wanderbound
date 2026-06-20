@@ -9,10 +9,9 @@ test.describe("External media panel", () => {
   test("shows source status, upgrade action, and import target", async ({
     editorPage: page,
   }) => {
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole("button", { name: "Expand", exact: true }).click();
     await page.locator('[data-nav-step="1"]').click();
 
     await ensureExternalMediaOpen(page);
