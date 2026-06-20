@@ -308,6 +308,8 @@
     "steps": "Steps",
     "countries": "Countries",
     "chapters": "Chapters",
+    "route": "Route",
+    "jump": "Jump",
     "cover": "Cover",
     "map": "Map",
     "stepNavigation": "Step navigation",

@@ -1,11 +1,17 @@
 <script lang="ts" setup>
 import type { DateRange, StepRead as Step } from "@/client";
 import type { ChapterVisit, GroupEntry } from "./types";
-import { flagUrl } from "@/utils/media";
 import NavMapItem from "./NavMapItem.vue";
 import NavStepItem from "./NavStepItem.vue";
 import { entryKey } from "./useAlbumNavGroups";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import {
+  symOutlinedAltRoute,
+  symOutlinedKeyboardArrowDown,
+} from "@quasar/extras/material-symbols-outlined";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   group: ChapterVisit;
@@ -39,6 +45,11 @@ type VirtualScrollExpose = {
 };
 
 const virtualScrollRef = ref<VirtualScrollExpose | null>(null);
+const countrySummary = computed(() => {
+  const names = props.group.countryRuns.map((run) => run.name);
+  if (names.length <= 3) return names.join(" · ");
+  return `${names.slice(0, 3).join(" · ")} · +${names.length - 3}`;
+});
 
 function centerVirtualIndex(index: number) {
   virtualScrollRef.value?.scrollTo(index);
@@ -95,24 +106,44 @@ watch(
       </q-item-section>
     </template>
 
-    <div v-if="open && group.countryRuns.length > 1" class="country-jumps">
-      <button
-        v-for="run in group.countryRuns"
-        :key="`${run.code}-${run.firstEntryIndex}`"
-        type="button"
-        class="country-jump"
-        :style="{ '--country-color': run.color }"
-        @click.stop="scrollToEntry(run.firstEntryIndex)"
-      >
-        <img
-          :src="flagUrl(run.code)"
-          alt=""
-          width="14"
-          height="10"
-          class="country-jump-flag"
+    <div v-if="open && group.countryRuns.length > 1" class="chapter-route">
+      <div class="chapter-route-main">
+        <q-icon
+          :name="symOutlinedAltRoute"
+          size="var(--type-xs)"
+          class="chapter-route-icon"
         />
-        <span class="country-jump-name" dir="auto">{{ run.name }}</span>
-        <span class="country-jump-dates">{{ run.dateRange }}</span>
+        <span class="chapter-route-label">{{ t("nav.route") }}</span>
+        <span class="chapter-route-summary" dir="auto">
+          {{ countrySummary }}
+        </span>
+      </div>
+      <button type="button" class="route-menu-button">
+        <span>{{ t("nav.jump") }}</span>
+        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" />
+        <q-menu class="route-menu" anchor="bottom end" self="top end">
+          <q-list dense class="route-menu-list">
+            <q-item
+              v-for="run in group.countryRuns"
+              :key="`${run.code}-${run.firstEntryIndex}`"
+              v-close-popup
+              clickable
+              class="route-menu-item"
+              @click="scrollToEntry(run.firstEntryIndex)"
+            >
+              <q-item-section avatar class="route-menu-marker-wrap">
+                <span
+                  class="route-menu-marker"
+                  :style="{ '--country-color': run.color }"
+                />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label dir="auto">{{ run.name }}</q-item-label>
+                <q-item-label caption>{{ run.dateRange }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
       </button>
     </div>
 
@@ -186,27 +217,54 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 
-.country-jumps {
-  display: flex;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-md-lg) var(--gap-sm);
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
-}
-
-.country-jump {
-  display: inline-flex;
+.chapter-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--gap-xs);
+  padding: var(--gap-xs) var(--gap-md-lg) var(--gap-sm);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+}
+
+.chapter-route-main {
+  display: flex;
+  align-items: center;
   min-width: 0;
-  max-width: 12rem;
-  padding: 0.1875rem var(--gap-xs);
-  border: 1px solid color-mix(in srgb, var(--country-color) 44%, transparent);
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--country-color) 16%, transparent);
+  gap: var(--gap-xs);
   color: var(--text-muted);
   font-size: var(--type-xs);
+}
+
+.chapter-route-icon {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.chapter-route-label {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+
+.chapter-route-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-2xs, 0.25rem);
+  min-height: 1.625rem;
+  padding: 0 var(--gap-xs);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: 700;
   cursor: pointer;
   transition:
     background var(--duration-fast),
@@ -214,30 +272,31 @@ watch(
     color var(--duration-fast);
 
   &:hover {
-    background: color-mix(in srgb, var(--country-color) 24%, transparent);
-    border-color: color-mix(in srgb, var(--country-color) 64%, transparent);
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    border-color: color-mix(in srgb, var(--text) 18%, transparent);
     color: var(--text-bright);
   }
 }
 
-.country-jump-flag {
-  width: 0.875rem;
-  height: 0.625rem;
-  flex: 0 0 auto;
-  border-radius: var(--radius-xs);
+.route-menu-list {
+  min-width: 12rem;
+  max-width: 18rem;
 }
 
-.country-jump-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
+.route-menu-item {
+  min-height: 2.625rem;
 }
 
-.country-jump-dates {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
+.route-menu-marker-wrap {
+  min-width: 1rem;
+  padding-inline-end: var(--gap-xs);
+}
+
+.route-menu-marker {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999rem;
+  background: var(--country-color);
 }
 
 .chapter-entries-virtual {
@@ -247,7 +306,7 @@ watch(
 
 @media (prefers-reduced-motion: reduce) {
   :deep(.chapter-group-header),
-  .country-jump {
+  .route-menu-button {
     transition: none;
   }
 }
