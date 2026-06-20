@@ -309,7 +309,7 @@
     "countries": "מדינות",
     "chapters": "פרקים",
     "route": "מסלול",
-    "jump": "מעבר",
+    "stepCount": "אין צעדים | צעד אחד | {n} צעדים",
     "cover": "שער",
     "map": "מפה",
     "stepNavigation": "ניווט צעדים",

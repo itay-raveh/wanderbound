@@ -4,12 +4,9 @@ import type { ChapterVisit, GroupEntry } from "./types";
 import NavMapItem from "./NavMapItem.vue";
 import NavStepItem from "./NavStepItem.vue";
 import { entryKey } from "./useAlbumNavGroups";
-import { computed, nextTick, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  symOutlinedAltRoute,
-  symOutlinedKeyboardArrowDown,
-} from "@quasar/extras/material-symbols-outlined";
+import { symOutlinedAltRoute } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
@@ -45,11 +42,6 @@ type VirtualScrollExpose = {
 };
 
 const virtualScrollRef = ref<VirtualScrollExpose | null>(null);
-const countrySummary = computed(() => {
-  const names = props.group.countryRuns.map((run) => run.name);
-  if (names.length <= 3) return names.join(" · ");
-  return `${names.slice(0, 3).join(" · ")} · +${names.length - 3}`;
-});
 
 function centerVirtualIndex(index: number) {
   virtualScrollRef.value?.scrollTo(index);
@@ -68,6 +60,18 @@ function centerVirtualIndex(index: number) {
 
 function scrollToEntry(index: number) {
   centerVirtualIndex(index);
+}
+
+function countryCode(code: string): string {
+  return code.toUpperCase();
+}
+
+function countryStepCount(stepIds: number[]): string {
+  return t("nav.stepCount", stepIds.length);
+}
+
+function isRunActive(stepIds: number[]): boolean {
+  return props.activeStepId != null && stepIds.includes(props.activeStepId);
 }
 
 function scrollActiveIntoVirtualView() {
@@ -106,45 +110,43 @@ watch(
       </q-item-section>
     </template>
 
-    <div v-if="open && group.countryRuns.length > 1" class="chapter-route">
-      <div class="chapter-route-main">
+    <section v-if="open && group.countryRuns.length > 1" class="chapter-route">
+      <div class="chapter-section-label">
         <q-icon
           :name="symOutlinedAltRoute"
           size="var(--type-xs)"
           class="chapter-route-icon"
         />
-        <span class="chapter-route-label">{{ t("nav.route") }}</span>
-        <span class="chapter-route-summary" dir="auto">
-          {{ countrySummary }}
-        </span>
+        <span>{{ t("nav.route") }}</span>
       </div>
-      <button type="button" class="route-menu-button">
-        <span>{{ t("nav.jump") }}</span>
-        <q-icon :name="symOutlinedKeyboardArrowDown" size="var(--type-xs)" />
-        <q-menu class="route-menu" anchor="bottom end" self="top end">
-          <q-list dense class="route-menu-list">
-            <q-item
-              v-for="run in group.countryRuns"
-              :key="`${run.code}-${run.firstEntryIndex}`"
-              v-close-popup
-              clickable
-              class="route-menu-item"
-              @click="scrollToEntry(run.firstEntryIndex)"
-            >
-              <q-item-section avatar class="route-menu-marker-wrap">
-                <span
-                  class="route-menu-marker"
-                  :style="{ '--country-color': run.color }"
-                />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label dir="auto">{{ run.name }}</q-item-label>
-                <q-item-label caption>{{ run.dateRange }}</q-item-label>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
-      </button>
+      <div class="country-outline">
+        <button
+          v-for="run in group.countryRuns"
+          :key="`${run.code}-${run.firstEntryIndex}`"
+          type="button"
+          :class="[
+            'country-outline-row',
+            { 'country-outline-row-active': isRunActive(run.stepIds) },
+          ]"
+          :style="{ '--country-color': run.color }"
+          @click.stop="scrollToEntry(run.firstEntryIndex)"
+        >
+          <span class="country-code">{{ countryCode(run.code) }}</span>
+          <span class="country-name" dir="auto">{{ run.name }}</span>
+          <span class="country-meta">
+            {{ run.dateRange }}
+            <span class="country-meta-dot" aria-hidden="true">·</span>
+            {{ countryStepCount(run.stepIds) }}
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <div
+      v-if="open && group.countryRuns.length > 1"
+      class="chapter-section-label steps-label"
+    >
+      {{ t("nav.steps") }}
     </div>
 
     <q-virtual-scroll
@@ -218,95 +220,105 @@ watch(
 }
 
 .chapter-route {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-md-lg) var(--gap-sm);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  padding: var(--gap-sm) 0;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--border-color) 72%, transparent);
 }
 
-.chapter-route-main {
+.chapter-section-label {
   display: flex;
   align-items: center;
-  min-width: 0;
   gap: var(--gap-xs);
-  color: var(--text-muted);
+  padding: 0 var(--gap-md-lg) var(--gap-xs);
+  color: var(--text-faint);
   font-size: var(--type-xs);
+  font-weight: 700;
 }
 
 .chapter-route-icon {
   flex: 0 0 auto;
-  color: var(--text-faint);
 }
 
-.chapter-route-label {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-weight: 700;
+.country-outline {
+  display: flex;
+  flex-direction: column;
 }
 
-.chapter-route-summary {
+.country-outline-row {
+  display: grid;
+  grid-template-columns: 2.125rem minmax(0, 1fr);
+  gap: var(--gap-xs);
+  align-items: baseline;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.route-menu-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gap-2xs, 0.25rem);
-  min-height: 1.625rem;
-  padding: 0 var(--gap-xs);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
+  min-height: 2.125rem;
+  padding: var(--gap-xs) var(--gap-md-lg);
+  border: 0;
+  border-inline-start: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   font-size: var(--type-xs);
-  font-weight: 700;
+  text-align: start;
   cursor: pointer;
   transition:
     background var(--duration-fast),
-    border-color var(--duration-fast),
     color var(--duration-fast);
 
   &:hover {
-    background: color-mix(in srgb, var(--text) 6%, transparent);
-    border-color: color-mix(in srgb, var(--text) 18%, transparent);
+    background: color-mix(in srgb, var(--text) 5%, transparent);
     color: var(--text-bright);
   }
 }
 
-.route-menu-list {
-  min-width: 12rem;
-  max-width: 18rem;
+.country-outline-row-active {
+  border-inline-start-color: var(--country-color);
+  background: color-mix(in srgb, var(--country-color) 14%, transparent);
+  color: var(--text-bright);
 }
 
-.route-menu-item {
-  min-height: 2.625rem;
+.country-code {
+  color: color-mix(in srgb, var(--country-color) 76%, var(--text-muted));
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
-.route-menu-marker-wrap {
-  min-width: 1rem;
-  padding-inline-end: var(--gap-xs);
+.country-name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.route-menu-marker {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999rem;
-  background: var(--country-color);
+.country-meta {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.country-meta-dot {
+  margin: 0 var(--gap-xs);
 }
 
 .chapter-entries-virtual {
-  max-height: calc(100vh - 15rem);
+  max-height: calc(100vh - 18rem);
   overflow-y: auto;
+}
+
+.steps-label {
+  padding-top: var(--gap-sm);
+  border-top: 1px solid
+    color-mix(in srgb, var(--border-color) 72%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :deep(.chapter-group-header),
-  .route-menu-button {
+  .country-outline-row {
     transition: none;
   }
 }
