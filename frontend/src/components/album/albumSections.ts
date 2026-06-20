@@ -1,4 +1,5 @@
 import type {
+  AlbumChapter,
   AlbumMeta,
   AlbumMedia,
   DateRange,
@@ -20,6 +21,28 @@ export const HEADER_KEYS = [
 >[number][];
 
 export type HeaderKey = (typeof HEADER_KEYS)[number];
+
+export function chapterHeaderSectionKey(
+  chapterId: string,
+  headerKey: HeaderKey,
+): string {
+  return `chapter-${chapterId}-${headerKey}`;
+}
+
+export function parseChapterHeaderSectionKey(
+  key: string | null | undefined,
+): { chapterId: string; headerKey: HeaderKey } | null {
+  if (!key?.startsWith("chapter-")) return null;
+  const headerKey = HEADER_KEYS.find((candidate) =>
+    key.endsWith(`-${candidate}`),
+  );
+  if (!headerKey) return null;
+  const chapterId = key.slice(
+    "chapter-".length,
+    key.length - headerKey.length - 1,
+  );
+  return chapterId ? { chapterId, headerKey } : null;
+}
 
 /** Return only the header keys not present in the hidden list. */
 export function visibleHeaderKeys(
@@ -54,6 +77,7 @@ export function filterCoverFromPages(
 export type Section =
   | {
       type: "map";
+      chapterId?: string;
       steps: Step[];
       segments: SegmentOutline[];
       rangeIdx: number;
@@ -61,6 +85,7 @@ export type Section =
     }
   | {
       type: "hike";
+      chapterId?: string;
       steps: Step[];
       segments: SegmentOutline[];
       hikeSegment: SegmentOutline;
@@ -80,18 +105,11 @@ export function segmentsOverlapping(
 export function rangeSectionKey(
   type: "map" | "hike",
   dateRange: DateRange,
+  chapter?: AlbumChapter | string,
 ): string {
-  return `${type}-${dateRange[0]}-${dateRange[1]}`;
-}
-
-export function sectionKeyMatchesRange(
-  key: string | null,
-  dr: DateRange,
-): boolean {
-  if (!key) return false;
-  return (
-    key === rangeSectionKey("map", dr) || key === rangeSectionKey("hike", dr)
-  );
+  const chapterId = typeof chapter === "string" ? chapter : chapter?.id;
+  const suffix = `${type}-${dateRange[0]}-${dateRange[1]}`;
+  return chapterId ? `chapter-${chapterId}-${suffix}` : suffix;
 }
 
 export function sectionKey(section: Section): string {
@@ -100,7 +118,7 @@ export function sectionKey(section: Section): string {
       return `step-${section.step.id}`;
     case "map":
     case "hike":
-      return rangeSectionKey(section.type, section.dateRange);
+      return rangeSectionKey(section.type, section.dateRange, section.chapterId);
   }
 }
 
@@ -178,6 +196,7 @@ export function buildSections(
   allSteps: Step[],
   allSegments: SegmentOutline[],
   mapRanges: DateRange[],
+  chapter?: AlbumChapter,
 ): Section[] {
   type MapEntry = {
     rangeIdx: number;
@@ -215,9 +234,14 @@ export function buildSections(
           (s) => s.kind === "driving" || s.kind === "flight",
         );
         if (hikeSegment && !hasTransport) {
-          result.push({ type: "hike" as const, ...m, hikeSegment });
+          result.push({
+            type: "hike" as const,
+            ...m,
+            chapterId: chapter?.id,
+            hikeSegment,
+          });
         } else {
-          result.push({ type: "map" as const, ...m });
+          result.push({ type: "map" as const, ...m, chapterId: chapter?.id });
         }
       }
     }

@@ -35,13 +35,19 @@ function makeAlbum(): AlbumMeta {
   return {
     uid: 1,
     id: "album-1",
-    title: "Album",
-    subtitle: "",
     hidden_headers: ["cover-front", "cover-back", "overview"],
     hidden_steps: [],
     maps_ranges: [],
-    front_cover_photo: "",
-    back_cover_photo: "",
+    chapters: [
+      {
+        id: "chapter-1",
+        title: "Album",
+        subtitle: "",
+        step_ids: [1],
+        front_cover_photo: "",
+        back_cover_photo: "",
+      },
+    ],
     colors: {},
   };
 }
@@ -50,7 +56,7 @@ beforeEach(() => {
   useActiveSection().resetActiveSection();
   virtualItems = ref([
     {
-      key: "full-map",
+      key: "chapter-chapter-1-full-map",
       index: 0,
       start: 0,
       size: 2365,
@@ -78,7 +84,7 @@ describe("AlbumViewer", () => {
   test("renders virtualized editor maps without a second scroll-window gate", async () => {
     virtualItems.value = [
       {
-        key: "full-map",
+        key: "chapter-chapter-1-full-map",
         index: 0,
         start: 100_000,
         size: 2365,
@@ -116,7 +122,7 @@ describe("AlbumViewer", () => {
   test("keeps hike map boundary editing in virtualized editor pages", () => {
     virtualItems.value = [
       {
-        key: "hike-2024-01-01-2024-01-01",
+        key: "hike-test",
         index: 0,
         start: 0,
         size: 2365,

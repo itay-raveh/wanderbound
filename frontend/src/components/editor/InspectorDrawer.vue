@@ -16,6 +16,7 @@ import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
   type MediaResolutionWarningPreset,
 } from "@/utils/photoQuality";
+import { parseChapterHeaderSectionKey } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -51,22 +52,36 @@ const context = computed<Context>(() => {
   if (props.step) return "step";
   const key = props.sectionKey;
   if (!key) return "empty";
-  if (key === "cover-front" || key === "cover-back") return "cover";
-  if (key === "overview") return "overview";
-  if (key === "full-map" || key.startsWith("map-") || key.startsWith("hike-"))
+  const header = parseChapterHeaderSectionKey(key);
+  if (header?.headerKey === "cover-front" || header?.headerKey === "cover-back")
+    return "cover";
+  if (header?.headerKey === "overview") return "overview";
+  if (
+    header?.headerKey === "full-map" ||
+    key.startsWith("map-") ||
+    key.startsWith("hike-") ||
+    key.includes("-map-") ||
+    key.includes("-hike-")
+  )
     return "map";
   return "empty";
 });
 
 // ── Cover photo selection ──────────────────────────────────────────────
 const albumMutation = useAlbumMutation(() => props.album.id);
-const isCoverBack = computed(() => props.sectionKey === "cover-back");
+const coverContext = computed(() => parseChapterHeaderSectionKey(props.sectionKey));
+const activeChapter = computed(() =>
+  (props.album.chapters ?? []).find(
+    (chapter) => chapter.id === coverContext.value?.chapterId,
+  ),
+);
+const isCoverBack = computed(() => coverContext.value?.headerKey === "cover-back");
 const coverField = computed(() =>
   isCoverBack.value
     ? ("back_cover_photo" as const)
     : ("front_cover_photo" as const),
 );
-const activeCoverPhoto = computed(() => props.album[coverField.value]);
+const activeCoverPhoto = computed(() => activeChapter.value?.[coverField.value] ?? "");
 
 const landscapeMedia = computed(() =>
   props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
@@ -87,7 +102,13 @@ const propertiesOpen = ref(true);
 const externalMediaOpen = ref(false);
 
 function selectCoverPhoto(name: string) {
-  albumMutation.mutate({ [coverField.value]: name });
+  const chapterId = activeChapter.value?.id;
+  if (!chapterId) return;
+  albumMutation.mutate({
+    chapters: (props.album.chapters ?? []).map((chapter) =>
+      chapter.id === chapterId ? { ...chapter, [coverField.value]: name } : chapter,
+    ),
+  });
 }
 
 function coverPhotoIndex(

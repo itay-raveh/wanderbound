@@ -61,6 +61,18 @@ function makeSteps(count: number): Step[] {
   );
 }
 
+function albumForSteps(steps: Step[]) {
+  return {
+    ...mockAlbum,
+    chapters: [
+      {
+        ...mockAlbum.chapters[0],
+        step_ids: steps.map((step) => step.id),
+      },
+    ],
+  };
+}
+
 describe("AlbumNav", () => {
   afterEach(() => {
     useActiveSection().resetActiveSection();
@@ -72,7 +84,7 @@ describe("AlbumNav", () => {
     const steps = makeSteps(240);
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
-        album: mockAlbum,
+        album: albumForSteps(steps),
         media: mockMedia,
         steps,
         hiddenSteps: [],
@@ -108,7 +120,7 @@ describe("AlbumNav", () => {
     const steps = makeSteps(80);
     mountWithPlugins(AlbumNav, {
       props: {
-        album: mockAlbum,
+        album: albumForSteps(steps),
         media: mockMedia,
         steps,
         hiddenSteps: [],

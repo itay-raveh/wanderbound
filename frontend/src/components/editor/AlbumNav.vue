@@ -13,8 +13,6 @@ import { getCountryColor } from "../album/colors";
 import {
   HEADER_KEYS,
   type HeaderKey,
-  rangeSectionKey,
-  sectionKeyMatchesRange,
 } from "../album/albumSections";
 import { buildChapterGroups } from "./nav/useAlbumNavGroups";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -30,8 +28,6 @@ import {
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
   symOutlinedBarChart,
-  symOutlinedVisibility,
-  symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
@@ -116,17 +112,7 @@ const stepItems = computed<StepItem[]>(() =>
 
 const chaptersForNav = computed<AlbumChapter[]>(() => {
   if (props.album.chapters?.length) return props.album.chapters;
-  if (!props.steps.length) return [];
-  return [
-    {
-      id: "chapter-1",
-      title: props.album.title || null,
-      subtitle: props.album.subtitle || null,
-      step_ids: props.steps.map((step) => step.id),
-      front_cover_photo: props.album.front_cover_photo,
-      back_cover_photo: props.album.back_cover_photo,
-    },
-  ];
+  return [];
 });
 
 const chapterGroups = computed(() =>
@@ -135,6 +121,9 @@ const chapterGroups = computed(() =>
     stepItems: stepItems.value,
     mapsRanges: props.mapsRanges,
     chapters: chaptersForNav.value,
+    headerKeys: HEADER_KEYS,
+    headerLabel: (key) => t(HEADER_LABELS[key]),
+    headerIcon: (key) => HEADER_ICONS[key],
     untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
     dateRangeLabel: (first, last) => formatDateRange(first, last, SHORT_DATE),
   }),
@@ -197,16 +186,13 @@ function mapDateChange(rangeIdx: number, range: DateRange) {
   }
 }
 
-function scrollToMap(dateRange: DateRange) {
-  const mapKey = rangeSectionKey("map", dateRange);
-  if (scrollToSection(mapKey)) {
-    setActive(mapKey);
+function scrollToMap(key: string) {
+  if (scrollToSection(key)) {
+    setActive(key);
     return;
   }
-  const hikeKey = rangeSectionKey("hike", dateRange);
-  if (scrollToSection(hikeKey)) {
-    setActive(hikeKey);
-  }
+  const hikeKey = key.replace("-map-", "-hike-");
+  if (hikeKey !== key && scrollToSection(hikeKey)) setActive(hikeKey);
 }
 
 function scrollToStep(id: number) {
@@ -214,7 +200,7 @@ function scrollToStep(id: number) {
   setActive(id);
 }
 
-function scrollToHeader(key: HeaderKey) {
+function scrollToHeader(key: string) {
   if (scrollToSection(key)) setActive(key);
 }
 
@@ -232,17 +218,7 @@ const HEADER_LABELS: Record<HeaderKey, string> = {
   overview: "inspector.overview",
   "full-map": "album.tripRouteMap",
 };
-const headerNavItems = computed(() =>
-  HEADER_KEYS.map((key) => ({
-    key,
-    icon: HEADER_ICONS[key],
-    label: t(HEADER_LABELS[key]),
-  })),
-);
-
 // ── Scroll sync ───────────────────────────────────────────────────────
-
-const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
 
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
@@ -280,14 +256,9 @@ watch(
 
 watch(activeSectionKey, (key) => {
   if (key == null) return;
-  if (HEADER_KEY_SET.has(key)) {
-    if (programmaticScrolling.value) return;
-    scrollNavItemIntoView(`[data-nav-section="${key}"]`);
-    return;
-  }
   for (const g of chapterGroups.value) {
     for (const e of g.entries) {
-      if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
+      if ((e.type === "map" || e.type === "header") && e.key === key) {
         if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
         if (programmaticScrolling.value) return;
         scrollNavItemIntoView(`[data-nav-section="${e.key}"]`);
@@ -342,48 +313,6 @@ watch(activeSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <div class="header-items">
-        <div
-          v-for="item in headerNavItems"
-          :key="item.key"
-          role="button"
-          tabindex="0"
-          :data-nav-section="item.key"
-          :class="[
-            'nav-item',
-            'header-item',
-            {
-              visible: activeSectionKey === item.key,
-              'nav-hidden': hiddenHeaderSet.has(item.key),
-            },
-          ]"
-          @click="scrollToHeader(item.key)"
-          @keydown.enter="scrollToHeader(item.key)"
-        >
-          <q-icon :name="item.icon" size="var(--type-sm)" />
-          <span>{{ item.label }}</span>
-          <button
-            type="button"
-            class="header-toggle"
-            :aria-label="
-              hiddenHeaderSet.has(item.key)
-                ? t('nav.showStep')
-                : t('nav.hideStep')
-            "
-            @click.stop="toggleHeader(item.key)"
-          >
-            <q-icon
-              :name="
-                hiddenHeaderSet.has(item.key)
-                  ? symOutlinedVisibilityOff
-                  : symOutlinedVisibility
-              "
-              size="var(--type-xs)"
-            />
-          </button>
-        </div>
-      </div>
-
       <NavChapterGroup
         v-for="group in chapterGroups"
         :key="group.key"
@@ -392,18 +321,20 @@ watch(activeSectionKey, (key) => {
         :active-step-id="activeStepId"
         :active-section-key="activeSectionKey"
         :hidden-set="hiddenSet"
+        :hidden-header-set="hiddenHeaderSet"
         :steps="steps"
         :colors="albumColors"
         :format-map-range="formatMapRange"
         :format-step-date="formatStepDate"
-        :section-key-matches-range="sectionKeyMatchesRange"
         :lazy-root="listRef ?? null"
         @toggle-open="
           openGroupKey = openGroupKey === group.key ? null : group.key
         "
         @scroll-to-step="scrollToStep"
         @scroll-to-map="scrollToMap"
+        @scroll-to-header="scrollToHeader"
         @toggle-step="toggleStep"
+        @toggle-header="toggleHeader"
         @delete-map="deleteMap"
         @map-date-change="mapDateChange"
       />

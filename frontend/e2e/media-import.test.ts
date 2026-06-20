@@ -144,7 +144,15 @@ test.describe("Media import", () => {
         json: {
           ...mockAlbum,
           id: aid,
-          title: aid === "aid-2" ? "Second Album" : mockAlbum.title,
+          chapters: [
+            {
+              ...mockAlbum.chapters[0],
+              title:
+                aid === "aid-2"
+                  ? "Second Album"
+                  : mockAlbum.chapters[0].title,
+            },
+          ],
         },
       });
     });

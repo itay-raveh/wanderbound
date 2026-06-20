@@ -4,6 +4,8 @@ import {
   stepsForChapter,
 } from "@/components/album/albumChapters";
 import {
+  chapterHeaderSectionKey,
+  type HeaderKey,
   mapInsertionsByStep,
   rangeSectionKey,
 } from "@/components/album/albumSections";
@@ -24,18 +26,22 @@ type ChapterGroupsInput = {
   stepItems: StepItem[];
   mapsRanges: DateRange[];
   chapters: AlbumChapter[];
+  headerKeys: readonly HeaderKey[];
+  headerLabel: (key: HeaderKey) => string;
+  headerIcon: (key: HeaderKey) => string;
   untitledLabel: (index: number) => string;
   dateRangeLabel: (first: Date, last: Date) => string;
 };
 
 function toMapEntry(
   source: MapEntrySource,
+  chapter: AlbumChapter,
 ): Extract<GroupEntry, { type: "map" }> {
   return {
     type: "map",
     rangeIdx: source.rangeIdx,
     dateRange: source.dateRange,
-    key: rangeSectionKey("map", source.dateRange),
+    key: rangeSectionKey("map", source.dateRange, chapter),
   };
 }
 
@@ -60,6 +66,7 @@ function entriesForSteps(
   steps: Step[],
   stepItems: StepItem[],
   mapsRanges: DateRange[],
+  chapter: AlbumChapter,
 ): GroupEntry[] {
   const byStepId = new Map(stepItems.map((item) => [item.id, item]));
   const insertions = mapInsertionsByStep(
@@ -68,7 +75,10 @@ function entriesForSteps(
   );
   const entries: GroupEntry[] = [];
   for (const step of steps) {
-    entries.push(...(insertions.get(step.id)?.map(toMapEntry) ?? []));
+    entries.push(
+      ...(insertions.get(step.id)?.map((entry) => toMapEntry(entry, chapter)) ??
+        []),
+    );
     const item = byStepId.get(step.id);
     if (item) entries.push({ type: "step", item });
   }
@@ -122,12 +132,24 @@ export function buildChapterGroups({
   stepItems,
   mapsRanges,
   chapters,
+  headerKeys,
+  headerLabel,
+  headerIcon,
   untitledLabel,
   dateRangeLabel,
 }: ChapterGroupsInput): ChapterVisit[] {
   return chapters.map((chapter, index) => {
     const chapterSteps = stepsForChapter(steps, chapter);
-    const entries = entriesForSteps(chapterSteps, stepItems, mapsRanges);
+    const entries: GroupEntry[] = [
+      ...headerKeys.map((headerKey) => ({
+        type: "header" as const,
+        key: chapterHeaderSectionKey(chapter.id, headerKey),
+        headerKey,
+        label: headerLabel(headerKey),
+        icon: headerIcon(headerKey),
+      })),
+      ...entriesForSteps(chapterSteps, stepItems, mapsRanges, chapter),
+    ];
     const entryIndexByStepId = new Map<number, number>();
     entries.forEach((entry, entryIndex) => {
       if (entry.type === "step") {

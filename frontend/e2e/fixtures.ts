@@ -17,6 +17,18 @@ const API = "**/api/v1";
 
 const mediaBody = Buffer.from(TINY_JPEG_BASE64, "base64");
 
+function albumForSteps(steps: Array<{ id: number }>) {
+  return {
+    ...mockAlbum,
+    chapters: [
+      {
+        ...mockAlbum.chapters[0],
+        step_ids: steps.map((step) => step.id),
+      },
+    ],
+  };
+}
+
 // Strict mock guard: register first so it matches last (Playwright is LIFO).
 // Any /api/v1/** request not handled by a later, more specific route lands
 // here and is recorded. Tests fail in teardown if anything was recorded  -
@@ -93,6 +105,10 @@ export async function mockGooglePendingSignupTransition(page: Page) {
 }
 
 async function mockDefaultSteps(page: Page) {
+  const album = albumForSteps(mockSteps);
+  await page.route(`${API}/albums/*`, (route) =>
+    route.fulfill({ json: album }),
+  );
   await page.route(`${API}/albums/*/steps`, (route) =>
     route.fulfill({ json: mockSteps }),
   );
@@ -102,6 +118,15 @@ async function mockDefaultSteps(page: Page) {
 }
 
 async function mockFocusData(page: Page) {
+  const album = albumForSteps(mockFocusSteps);
+  await page.route(`${API}/albums/*`, (route) => {
+    if (route.request().method() === "PATCH") {
+      return route.fulfill({
+        json: { ...album, ...(route.request().postDataJSON() as object) },
+      });
+    }
+    return route.fulfill({ json: album });
+  });
   // Step updates used by focus shortcuts - accept optimistically.
   await page.route(`${API}/albums/*/steps/*/media-layout`, (route) => {
     if (route.request().method() === "PUT") {

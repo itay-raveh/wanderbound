@@ -1,4 +1,5 @@
 import type { AlbumChapter, DateRange } from "@/client";
+import type { HeaderKey } from "@/components/album/albumSections";
 
 export interface StepItem {
   id: number;
@@ -12,6 +13,13 @@ export interface StepItem {
 }
 
 export type GroupEntry =
+  | {
+      type: "header";
+      key: string;
+      headerKey: HeaderKey;
+      label: string;
+      icon: string;
+    }
   | { type: "step"; item: StepItem }
   | { type: "map"; rangeIdx: number; dateRange: DateRange; key: string };
 

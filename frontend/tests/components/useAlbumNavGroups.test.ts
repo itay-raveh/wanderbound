@@ -46,7 +46,7 @@ describe("buildChapterGroups", () => {
       {
         id: "chapter-1",
         title: "First",
-        subtitle: null,
+        subtitle: "",
         step_ids: [1, 2],
         front_cover_photo: "cover.jpg",
         back_cover_photo: "cover.jpg",
@@ -62,6 +62,9 @@ describe("buildChapterGroups", () => {
       stepItems,
       mapsRanges,
       chapters,
+      headerKeys: ["cover-front", "cover-back", "overview", "full-map"],
+      headerLabel: (key) => key,
+      headerIcon: (key) => key,
       untitledLabel: (index) => `Chapter ${index + 1}`,
       dateRangeLabel: (first, last) =>
         `${first.toISOString()} - ${last.toISOString()}`,
@@ -71,18 +74,22 @@ describe("buildChapterGroups", () => {
     expect(groups[0].name).toBe("First");
     expect(groups[0].stepIds).toEqual([1, 2]);
     expect(groups[0].entries.map((entry) => entry.type)).toEqual([
+      "header",
+      "header",
+      "header",
+      "header",
       "map",
       "step",
       "step",
     ]);
-    expect(groups[0].entryIndexByStepId.get(2)).toBe(2);
+    expect(groups[0].entryIndexByStepId.get(2)).toBe(6);
     expect(groups[0].countryRuns).toEqual([
       {
         code: "AR",
         name: "Argentina",
         color: "#111111",
         stepIds: [1, 2],
-        firstEntryIndex: 1,
+        firstEntryIndex: 5,
         dateRange:
           "2024-01-01T00:00:00.000Z - 2024-01-02T00:00:00.000Z",
       },

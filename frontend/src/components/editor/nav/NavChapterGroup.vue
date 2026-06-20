@@ -1,12 +1,17 @@
 <script lang="ts" setup>
 import type { DateRange, StepRead as Step } from "@/client";
 import type { ChapterVisit, GroupEntry } from "./types";
+import type { HeaderKey } from "@/components/album/albumSections";
 import { flagUrl } from "@/utils/media";
 import NavMapItem from "./NavMapItem.vue";
 import NavStepItem from "./NavStepItem.vue";
 import { entryKey } from "./useAlbumNavGroups";
 import { nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import {
+  symOutlinedVisibility,
+  symOutlinedVisibilityOff,
+} from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
@@ -16,19 +21,21 @@ const props = defineProps<{
   activeStepId: number | null;
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
+  hiddenHeaderSet: ReadonlySet<string>;
   steps: Step[];
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
   formatStepDate: (date: Date) => string;
-  sectionKeyMatchesRange: (key: string | null, range: DateRange) => boolean;
   lazyRoot?: HTMLElement | null;
 }>();
 
 const emit = defineEmits<{
   toggleOpen: [];
   scrollToStep: [id: number];
-  scrollToMap: [range: DateRange];
+  scrollToMap: [key: string];
+  scrollToHeader: [key: string];
   toggleStep: [id: number];
+  toggleHeader: [headerKey: HeaderKey];
   deleteMap: [rangeIdx: number];
   mapDateChange: [rangeIdx: number, range: DateRange];
 }>();
@@ -158,16 +165,16 @@ watch(
             :data-nav-section="entry.key"
             :date-range="entry.dateRange"
             :range-idx="entry.rangeIdx"
-            :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
+            :active="activeSectionKey === entry.key"
             :steps="steps"
             :colors="colors"
             :format-map-range="formatMapRange"
-            @click="emit('scrollToMap', entry.dateRange)"
+            @click="emit('scrollToMap', entry.key)"
             @delete="emit('deleteMap', entry.rangeIdx)"
             @date-change="(idx, range) => emit('mapDateChange', idx, range)"
           />
           <NavStepItem
-            v-else
+            v-else-if="entry.type === 'step'"
             :data-nav-step="entry.item.id"
             :name="entry.item.name"
             :date="formatStepDate(entry.item.date)"
@@ -179,6 +186,44 @@ watch(
             @click="emit('scrollToStep', entry.item.id)"
             @toggle="emit('toggleStep', entry.item.id)"
           />
+          <div
+            v-else
+            role="button"
+            tabindex="0"
+            :data-nav-section="entry.key"
+            :class="[
+              'nav-item',
+              'chapter-header-item',
+              {
+                visible: activeSectionKey === entry.key,
+                'nav-hidden': hiddenHeaderSet.has(entry.headerKey),
+              },
+            ]"
+            @click="emit('scrollToHeader', entry.key)"
+            @keydown.enter="emit('scrollToHeader', entry.key)"
+          >
+            <q-icon :name="entry.icon" size="var(--type-sm)" />
+            <span>{{ entry.label }}</span>
+            <button
+              type="button"
+              class="header-toggle"
+              :aria-label="
+                hiddenHeaderSet.has(entry.headerKey)
+                  ? t('nav.showStep')
+                  : t('nav.hideStep')
+              "
+              @click.stop="emit('toggleHeader', entry.headerKey)"
+            >
+              <q-icon
+                :name="
+                  hiddenHeaderSet.has(entry.headerKey)
+                    ? symOutlinedVisibilityOff
+                    : symOutlinedVisibility
+                "
+                size="var(--type-xs)"
+              />
+            </button>
+          </div>
         </div>
       </template>
     </q-virtual-scroll>
@@ -300,6 +345,29 @@ watch(
 .chapter-entries-virtual {
   max-height: calc(100vh - 18rem);
   overflow-y: auto;
+}
+
+.chapter-header-item {
+  gap: var(--gap-sm);
+  height: 100%;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+
+  > span {
+    flex: 1;
+  }
+
+  &:hover {
+    color: var(--text-bright);
+  }
+
+  &.visible {
+    color: var(--q-primary);
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+    border-inline-start-color: var(--q-primary);
+  }
 }
 
 .steps-label {
