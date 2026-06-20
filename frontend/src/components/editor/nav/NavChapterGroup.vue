@@ -7,7 +7,6 @@ import NavStepItem from "./NavStepItem.vue";
 import { entryKey } from "./useAlbumNavGroups";
 import { nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { symOutlinedAltRoute } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
@@ -108,14 +107,6 @@ watch(
     </template>
 
     <section v-if="open && group.countryRuns.length > 1" class="chapter-route">
-      <div class="chapter-section-label">
-        <q-icon
-          :name="symOutlinedAltRoute"
-          size="var(--type-xs)"
-          class="chapter-route-icon"
-        />
-        <span>{{ t("nav.route") }}</span>
-      </div>
       <div class="country-outline">
         <button
           v-for="run in group.countryRuns"
@@ -223,7 +214,7 @@ watch(
 }
 
 .chapter-route {
-  padding: var(--gap-sm) 0;
+  padding: var(--gap-xs) 0 var(--gap-sm);
   border-bottom: 1px solid
     color-mix(in srgb, var(--border-color) 72%, transparent);
 }
@@ -236,10 +227,6 @@ watch(
   color: var(--text-faint);
   font-size: var(--type-xs);
   font-weight: 700;
-}
-
-.chapter-route-icon {
-  flex: 0 0 auto;
 }
 
 .country-outline {
