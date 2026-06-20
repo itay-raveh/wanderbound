@@ -13,7 +13,6 @@ const { t } = useI18n();
 const props = defineProps<{
   name: string;
   date: string;
-  meta?: string;
   thumb: string | null;
   color: string;
   active: boolean;
@@ -66,9 +65,7 @@ watchEffect(() => {
     </div>
     <div class="item-info">
       <span class="item-name" dir="auto">{{ name }}</span>
-      <span class="item-date text-muted">
-        <template v-if="meta">{{ meta }} · </template>{{ date }}
-      </span>
+      <span class="item-date text-muted">{{ date }}</span>
     </div>
     <button
       type="button"

@@ -306,6 +306,8 @@
   },
   "nav": {
     "steps": "Steps",
+    "countries": "Countries",
+    "chapters": "Chapters",
     "cover": "Cover",
     "map": "Map",
     "stepNavigation": "Step navigation",
