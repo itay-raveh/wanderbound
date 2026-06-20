@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { DateRange, StepRead as Step } from "@/client";
 import type { ChapterVisit, GroupEntry } from "./types";
+import { flagUrl } from "@/utils/media";
 import NavMapItem from "./NavMapItem.vue";
 import NavStepItem from "./NavStepItem.vue";
 import { entryKey } from "./useAlbumNavGroups";
@@ -60,10 +61,6 @@ function centerVirtualIndex(index: number) {
 
 function scrollToEntry(index: number) {
   centerVirtualIndex(index);
-}
-
-function countryCode(code: string): string {
-  return code.toUpperCase();
 }
 
 function countryStepCount(stepIds: number[]): string {
@@ -131,7 +128,13 @@ watch(
           :style="{ '--country-color': run.color }"
           @click.stop="scrollToEntry(run.firstEntryIndex)"
         >
-          <span class="country-code">{{ countryCode(run.code) }}</span>
+          <img
+            :src="flagUrl(run.code)"
+            alt=""
+            width="18"
+            height="13"
+            class="country-flag"
+          />
           <span class="country-name" dir="auto">{{ run.name }}</span>
           <span class="country-meta">
             {{ run.dateRange }}
@@ -246,7 +249,7 @@ watch(
 
 .country-outline-row {
   display: grid;
-  grid-template-columns: 2.125rem minmax(0, 1fr);
+  grid-template-columns: 1.625rem minmax(0, 1fr);
   gap: var(--gap-xs);
   align-items: baseline;
   min-width: 0;
@@ -275,11 +278,13 @@ watch(
   color: var(--text-bright);
 }
 
-.country-code {
-  color: color-mix(in srgb, var(--country-color) 76%, var(--text-muted));
-  font-family: var(--font-mono, monospace);
-  font-weight: 700;
-  letter-spacing: 0;
+.country-flag {
+  width: 1.125rem;
+  height: 0.8125rem;
+  align-self: center;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent);
+  object-fit: cover;
 }
 
 .country-name {
