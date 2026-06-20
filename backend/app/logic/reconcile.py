@@ -135,16 +135,17 @@ def _fix_album_covers(
     cover_name: str,
     steps: list[StepRead],
 ) -> None:
-    """Ensure album cover photos reference files that exist on disk."""
+    """Ensure chapter cover photos reference files that exist on disk."""
     first_step_cover = next((s.cover for s in steps if s.cover), None)
     cover_fallback = (
         cover_name
         if cover_name in all_on_disk
         else (first_step_cover or next(iter(all_on_disk), ""))
     )
-    for attr in ("front_cover_photo", "back_cover_photo"):
-        if getattr(album, attr) not in all_on_disk:
-            setattr(album, attr, cover_fallback)
+    for chapter in album.chapters:
+        for attr in ("front_cover_photo", "back_cover_photo"):
+            if getattr(chapter, attr) not in all_on_disk:
+                setattr(chapter, attr, cover_fallback)
 
 
 async def _process_new_steps(  # noqa: PLR0913
@@ -350,14 +351,15 @@ async def reconcile_trip(  # noqa: PLR0913
         {row.name: row.upgrade_candidate for row in existing_media_rows},
     )
 
-    _fix_album_covers(album, all_on_disk, cover_name, reconciled_steps)
-    album.title = trip.title
-    album.subtitle = trip.subtitle
-
     # Rebuild segments from GPS data (segments are not persisted across
     # re-uploads; always rebuild from GPS locations).
     all_steps = [*reconciled_steps, *new_step_objects]
     all_steps.sort(key=lambda s: s.timestamp)
+    if album.chapters:
+        album.chapters[0].title = trip.title
+        album.chapters[0].subtitle = trip.subtitle
+    _fix_album_covers(album, all_on_disk, cover_name, all_steps)
+
     yield PhaseUpdate(phase="segments", done=0, total=1)
     segments = await asyncio.to_thread(
         build_segment_objects,

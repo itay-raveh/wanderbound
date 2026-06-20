@@ -300,12 +300,10 @@ def build_trip_objects(  # noqa: PLR0913
         ),
         hidden_steps=[],
         maps_ranges=multi_day_hike_ranges(segments),
-        title=trip.title,
-        subtitle=trip.subtitle,
-        front_cover_photo=results.cover_name,
-        back_cover_photo=results.cover_name,
         chapters=[
             default_album_chapter(
+                title=trip.title,
+                subtitle=trip.subtitle,
                 step_ids=[step.id for step in steps],
                 front_cover_photo=results.cover_name,
                 back_cover_photo=results.cover_name,

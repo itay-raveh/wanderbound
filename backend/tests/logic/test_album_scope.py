@@ -61,10 +61,10 @@ def test_build_print_bundle_scope_projects_chapter_fields_and_filters_content() 
         chapter_id="chapter-1",
     )
 
-    assert bundle.album.title == "First Chapter"
-    assert bundle.album.subtitle == ""
-    assert bundle.album.front_cover_photo == "chapter-front.jpg"
-    assert bundle.album.back_cover_photo == "chapter-back.jpg"
+    assert bundle.album.chapters[0].title == "First Chapter"
+    assert bundle.album.chapters[0].subtitle == ""
+    assert bundle.album.chapters[0].front_cover_photo == "chapter-front.jpg"
+    assert bundle.album.chapters[0].back_cover_photo == "chapter-back.jpg"
     assert [step.id for step in bundle.steps] == [1, 2]
     assert [segment.start_time for segment in bundle.segments] == [
         _timestamp(2024, 1, 9)

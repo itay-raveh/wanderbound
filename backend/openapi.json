@@ -2210,27 +2210,13 @@
             "title": "Id"
           },
           "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "maxLength": 255,
             "title": "Title"
           },
           "subtitle": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "maxLength": 255,
             "title": "Subtitle"
           },
           "step_ids": {
@@ -2254,6 +2240,8 @@
         "type": "object",
         "required": [
           "id",
+          "title",
+          "subtitle",
           "front_cover_photo",
           "back_cover_photo"
         ],
@@ -2320,16 +2308,6 @@
       },
       "AlbumMeta": {
         "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Title"
-          },
-          "subtitle": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Subtitle"
-          },
           "hidden_steps": {
             "items": {
               "type": "integer"
@@ -2363,16 +2341,6 @@
             },
             "type": "array",
             "title": "Chapters"
-          },
-          "front_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Front Cover Photo"
-          },
-          "back_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Back Cover Photo"
           },
           "font": {
             "type": "string",
@@ -2420,10 +2388,6 @@
         },
         "type": "object",
         "required": [
-          "title",
-          "subtitle",
-          "front_cover_photo",
-          "back_cover_photo",
           "uid",
           "id",
           "colors"
@@ -2433,30 +2397,6 @@
       },
       "AlbumUpdate": {
         "properties": {
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "subtitle": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtitle"
-          },
           "hidden_steps": {
             "anyOf": [
               {
@@ -2519,30 +2459,6 @@
             ],
             "title": "Chapters"
           },
-          "front_cover_photo": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Front Cover Photo"
-          },
-          "back_cover_photo": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Back Cover Photo"
-          },
           "font": {
             "anyOf": [
               {
@@ -2602,16 +2518,6 @@
       },
       "AlbumWithMedia": {
         "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Title"
-          },
-          "subtitle": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Subtitle"
-          },
           "hidden_steps": {
             "items": {
               "type": "integer"
@@ -2645,16 +2551,6 @@
             },
             "type": "array",
             "title": "Chapters"
-          },
-          "front_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Front Cover Photo"
-          },
-          "back_cover_photo": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Back Cover Photo"
           },
           "font": {
             "type": "string",
@@ -2709,10 +2605,6 @@
         },
         "type": "object",
         "required": [
-          "title",
-          "subtitle",
-          "front_cover_photo",
-          "back_cover_photo",
           "uid",
           "id",
           "colors"

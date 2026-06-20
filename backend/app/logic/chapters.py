@@ -26,14 +26,16 @@ DEFAULT_CHAPTER_ID = "chapter-1"
 
 def default_album_chapter(
     *,
+    title: str,
+    subtitle: str,
     step_ids: list[int],
     front_cover_photo: str,
     back_cover_photo: str,
 ) -> AlbumChapter:
     return AlbumChapter(
         id=DEFAULT_CHAPTER_ID,
-        title=None,
-        subtitle=None,
+        title=title,
+        subtitle=subtitle,
         step_ids=step_ids,
         front_cover_photo=front_cover_photo,
         back_cover_photo=back_cover_photo,
@@ -95,7 +97,7 @@ async def validate_album_chapters(  # noqa: C901
 
 
 async def ensure_album_chapters(session: AsyncSession, album: Album) -> Album:
-    if album.chapters:
+    if album.chapters and any(chapter.step_ids for chapter in album.chapters):
         return album
 
     result = await session.exec(
@@ -110,11 +112,14 @@ async def ensure_album_chapters(session: AsyncSession, album: Album) -> Album:
     if not step_ids:
         return album
 
+    existing = album.chapters[0] if album.chapters else None
     album.chapters = [
         default_album_chapter(
+            title=existing.title if existing else "",
+            subtitle=existing.subtitle if existing else "",
             step_ids=step_ids,
-            front_cover_photo=album.front_cover_photo,
-            back_cover_photo=album.back_cover_photo,
+            front_cover_photo=existing.front_cover_photo if existing else "",
+            back_cover_photo=existing.back_cover_photo if existing else "",
         )
     ]
     session.add(album)
@@ -165,12 +170,8 @@ def album_for_chapter(
     chapter: AlbumChapter,
     steps: list[StepRead],
 ) -> AlbumWithMedia:
-    projected = AlbumWithMedia.model_validate({**album.model_dump(), "media": media})
-    projected.title = chapter.title if chapter.title is not None else album.title
-    projected.subtitle = (
-        chapter.subtitle if chapter.subtitle is not None else album.subtitle
+    projected = AlbumWithMedia.model_validate(
+        {**album.model_dump(), "chapters": [chapter], "media": media}
     )
-    projected.front_cover_photo = chapter.front_cover_photo
-    projected.back_cover_photo = chapter.back_cover_photo
     projected.maps_ranges = map_ranges_for_steps(album.maps_ranges, steps)
     return projected

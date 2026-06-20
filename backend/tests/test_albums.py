@@ -78,8 +78,8 @@ class TestReadAlbum:
         assert resp.json()["chapters"] == [
             {
                 "id": "chapter-1",
-                "title": None,
-                "subtitle": None,
+                "title": "Test Album",
+                "subtitle": "A subtitle",
                 "step_ids": [1, 2],
                 "front_cover_photo": "photo1.jpg",
                 "back_cover_photo": "photo2.jpg",
@@ -162,8 +162,6 @@ class TestChapterPrintBundle:
             end_time=350.0,
         )
         await album_routes.update_album_ok(
-            title="Whole Trip",
-            subtitle="Full route",
             maps_ranges=[["1970-01-01", "1970-01-01"]],
             chapters=[
                 {
@@ -176,8 +174,8 @@ class TestChapterPrintBundle:
                 },
                 {
                     "id": "chapter-2",
-                    "title": None,
-                    "subtitle": None,
+                    "title": "Second Chapter",
+                    "subtitle": "",
                     "step_ids": [3],
                     "front_cover_photo": "chapter-front.jpg",
                     "back_cover_photo": "chapter-back.jpg",
@@ -189,10 +187,10 @@ class TestChapterPrintBundle:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["album"]["title"] == "First Chapter"
-        assert data["album"]["subtitle"] == ""
-        assert data["album"]["front_cover_photo"] == "chapter-front.jpg"
-        assert data["album"]["back_cover_photo"] == "chapter-back.jpg"
+        assert data["album"]["chapters"][0]["title"] == "First Chapter"
+        assert data["album"]["chapters"][0]["subtitle"] == ""
+        assert data["album"]["chapters"][0]["front_cover_photo"] == "chapter-front.jpg"
+        assert data["album"]["chapters"][0]["back_cover_photo"] == "chapter-back.jpg"
         assert [step["id"] for step in data["steps"]] == [1, 2]
         assert [segment["start_time"] for segment in data["segments"]] == [90.0]
         assert data["album"]["maps_ranges"] == [["1970-01-01", "1970-01-01"]]
@@ -208,6 +206,8 @@ class TestChapterPrintBundle:
             chapters=[
                 {
                     "id": "chapter-1",
+                    "title": "Chapter",
+                    "subtitle": "",
                     "step_ids": [1],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -269,21 +269,54 @@ class TestSegmentPointsReadOnly:
 
 @pytest.mark.usefixtures("signed_album")
 class TestUpdateAlbum:
-    async def test_update_cover_photos(self, album_routes: AlbumRoutes) -> None:
+    async def test_update_cover_photos(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await session.commit()
+
         data = await album_routes.update_album_ok(
-            front_cover_photo="new_front.jpg",
-            back_cover_photo="new_back.jpg",
+            chapters=[
+                {
+                    "id": "chapter-1",
+                    "title": "Test Album",
+                    "subtitle": "A subtitle",
+                    "step_ids": [1],
+                    "front_cover_photo": "new_front.jpg",
+                    "back_cover_photo": "new_back.jpg",
+                }
+            ],
         )
-        assert data["front_cover_photo"] == "new_front.jpg"
-        assert data["back_cover_photo"] == "new_back.jpg"
+        assert data["chapters"][0]["front_cover_photo"] == "new_front.jpg"
+        assert data["chapters"][0]["back_cover_photo"] == "new_back.jpg"
 
     async def test_partial_update_preserves_other_fields(
-        self, album_routes: AlbumRoutes
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
     ) -> None:
-        data = await album_routes.update_album_ok(title="Changed")
-        assert data["title"] == "Changed"
-        assert data["subtitle"] == "A subtitle"
-        assert data["front_cover_photo"] == "photo1.jpg"
+        await insert_step(session, signed_album.uid, step_id=1)
+        await session.commit()
+
+        data = await album_routes.update_album_ok(
+            chapters=[
+                {
+                    "id": "chapter-1",
+                    "title": "Changed",
+                    "subtitle": "A subtitle",
+                    "step_ids": [1],
+                    "front_cover_photo": "photo1.jpg",
+                    "back_cover_photo": "photo2.jpg",
+                }
+            ],
+        )
+        assert data["chapters"][0]["title"] == "Changed"
+        assert data["chapters"][0]["subtitle"] == "A subtitle"
+        assert data["chapters"][0]["front_cover_photo"] == "photo1.jpg"
 
     async def test_update_chapters_persists_manual_step_groups(
         self,
@@ -300,7 +333,7 @@ class TestUpdateAlbum:
                 {
                     "id": "andes",
                     "title": "The Andes",
-                    "subtitle": None,
+                    "subtitle": "",
                     "step_ids": [1, 2],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -312,7 +345,7 @@ class TestUpdateAlbum:
             {
                 "id": "andes",
                 "title": "The Andes",
-                "subtitle": None,
+                "subtitle": "",
                 "step_ids": [1, 2],
                 "front_cover_photo": "front.jpg",
                 "back_cover_photo": "back.jpg",
@@ -337,12 +370,16 @@ class TestUpdateAlbum:
             chapters=[
                 {
                     "id": "north",
+                    "title": "North",
+                    "subtitle": "",
                     "step_ids": [1, 2],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
                 },
                 {
                     "id": "south",
+                    "title": "South",
+                    "subtitle": "",
                     "step_ids": [2],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -361,6 +398,8 @@ class TestUpdateAlbum:
             chapters=[
                 {
                     "id": "empty",
+                    "title": "Empty",
+                    "subtitle": "",
                     "step_ids": [],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -384,6 +423,8 @@ class TestUpdateAlbum:
             chapters=[
                 {
                     "id": "ghost",
+                    "title": "Ghost",
+                    "subtitle": "",
                     "step_ids": [1, 999],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -408,6 +449,8 @@ class TestUpdateAlbum:
             chapters=[
                 {
                     "id": "partial",
+                    "title": "Partial",
+                    "subtitle": "",
                     "step_ids": [1],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -705,12 +748,16 @@ class TestGenerateChapterPdf:
             chapters=[
                 {
                     "id": "first",
+                    "title": "First",
+                    "subtitle": "",
                     "step_ids": [1],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
                 },
                 {
                     "id": "second",
+                    "title": "Second",
+                    "subtitle": "",
                     "step_ids": [2],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
@@ -756,6 +803,8 @@ class TestGenerateChapterPdf:
             chapters=[
                 {
                     "id": "first",
+                    "title": "First",
+                    "subtitle": "",
                     "step_ids": [1],
                     "front_cover_photo": "front.jpg",
                     "back_cover_photo": "back.jpg",
