@@ -206,7 +206,7 @@ watch(
             <span>{{ entry.label }}</span>
             <button
               type="button"
-              class="header-toggle"
+              class="chapter-header-toggle"
               :aria-label="
                 hiddenHeaderSet.has(entry.headerKey)
                   ? t('nav.showStep')
@@ -357,6 +357,10 @@ watch(
 
   > span {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &:hover {
@@ -367,6 +371,40 @@ watch(
     color: var(--q-primary);
     background: color-mix(in srgb, var(--q-primary) 12%, transparent);
     border-inline-start-color: var(--q-primary);
+  }
+}
+
+.chapter-header-toggle {
+  appearance: none;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 1.75rem;
+  place-items: center;
+  margin-inline-start: auto;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.82;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    opacity var(--duration-fast);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--q-primary) 44%, transparent);
+    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+    color: var(--q-primary);
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 1px;
   }
 }
 
