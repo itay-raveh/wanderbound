@@ -128,7 +128,7 @@ watch(
       v-if="open"
       ref="virtualScrollRef"
       :items="group.entries"
-      class="group-entries-virtual"
+      class="group-entries-virtual chapter-entries-virtual"
       :virtual-scroll-item-size="NAV_ENTRY_ROW_SIZE"
       :virtual-scroll-slice-size="NAV_ENTRY_SLICE_SIZE"
     >

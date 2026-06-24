@@ -190,11 +190,23 @@ export function photoButtons(page: Page) {
 
 export async function scrollToStep(
   page: Page,
-  _country: string,
+  country: string,
   stepName: string,
 ) {
   const nav = page.getByRole("navigation");
+  const countryHeader = nav.getByText(new RegExp(country, "i")).first();
   const step = nav.getByText(stepName);
+  await expect(countryHeader).toBeVisible({ timeout: 3_000 });
+  const countryOpen = await countryHeader.evaluate((el) =>
+    Boolean(
+      el.closest(".q-expansion-item")?.classList.contains(
+        "q-expansion-item--expanded",
+      ),
+    ),
+  );
+  if (!countryOpen) {
+    await countryHeader.click();
+  }
   await expect(step).toBeVisible({ timeout: 3_000 });
   await step.click();
   await expect(photoButtons(page).first()).toBeVisible({ timeout: 5_000 });

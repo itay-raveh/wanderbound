@@ -6,7 +6,12 @@ import type {
   DateRange,
   StepRead as Step,
 } from "@/client";
-import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
+import type {
+  ChapterVisit,
+  CountryVisit,
+  GroupEntry,
+  StepItem,
+} from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
@@ -183,6 +188,16 @@ function toggleCountry(group: CountryVisit) {
   }
 }
 
+function toggleChapter(group: ChapterVisit) {
+  if (openChapterKey.value === group.key) {
+    openChapterKey.value = null;
+    openCountryKey.value = null;
+    return;
+  }
+  openChapterKey.value = group.key;
+  openCountryKey.value = group.countries[0]?.key ?? null;
+}
+
 function deleteMap(rangeIdx: number) {
   const ranges = [...props.mapsRanges];
   ranges.splice(rangeIdx, 1);
@@ -266,6 +281,7 @@ watch(
   (groups) => {
     if (!openChapterKey.value && groups[0]) {
       openChapterKey.value = groups[0].key;
+      openCountryKey.value = groups[0].countries[0]?.key ?? null;
     }
   },
   { immediate: true },
@@ -350,9 +366,7 @@ watch(activeSectionKey, (key) => {
         :colors="albumColors"
         :format-map-range="formatMapRange"
         :lazy-root="listRef ?? null"
-        @toggle-open="
-          openChapterKey = openChapterKey === group.key ? null : group.key
-        "
+        @toggle-open="toggleChapter(group)"
         @toggle-country-open="
           openCountryKey = openCountryKey === $event ? null : $event
         "
