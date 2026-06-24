@@ -120,6 +120,7 @@ const emit = defineEmits<{
 </template>
 
 <style lang="scss" scoped>
+@use "nav-item";
 @use "nav-toggle" as *;
 
 .chapter-group-header {
