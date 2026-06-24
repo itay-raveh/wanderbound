@@ -6,7 +6,7 @@ import type {
   DateRange,
   StepRead as Step,
 } from "@/client";
-import type { GroupEntry, StepItem } from "./nav/types";
+import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
@@ -66,7 +66,8 @@ const {
 } = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
-const openGroupKey = ref<string | null>(null);
+const openChapterKey = ref<string | null>(null);
+const openCountryKey = ref<string | null>(null);
 
 // ── Album selector ────────────────────────────────────────────────────
 
@@ -137,10 +138,6 @@ function formatMapRange(dr: DateRange): string {
   );
 }
 
-function formatStepDate(date: Date): string {
-  return formatDateRange(date, date, SHORT_DATE);
-}
-
 // ── Mutations ─────────────────────────────────────────────────────────
 
 function onHiddenStepsChange(ids: number[]) {
@@ -169,6 +166,21 @@ function toggleHeader(key: HeaderKey) {
   albumMutation.mutate({
     hidden_headers: toggleInList(props.hiddenHeaders, key),
   });
+}
+
+function toggleCountry(group: CountryVisit) {
+  const { stepIds } = group;
+  const allHidden = stepIds.every((id) => hiddenSet.value.has(id));
+  if (allHidden) {
+    const toRemove = new Set(stepIds);
+    albumMutation.mutate({
+      hidden_steps: props.hiddenSteps.filter((id) => !toRemove.has(id)),
+    });
+  } else {
+    albumMutation.mutate({
+      hidden_steps: [...new Set([...props.hiddenSteps, ...stepIds])],
+    });
+  }
 }
 
 function deleteMap(rangeIdx: number) {
@@ -231,11 +243,14 @@ function scrollNavItemIntoView(selector: string) {
 }
 
 function openGroupFor(predicate: (e: GroupEntry) => boolean) {
-  const groupKey = chapterGroups.value.find((g) =>
-    g.entries.some(predicate),
-  )?.key;
-  if (groupKey && groupKey !== openGroupKey.value) {
-    openGroupKey.value = groupKey;
+  for (const chapter of chapterGroups.value) {
+    const country = chapter.countries.find((candidate) =>
+      candidate.entries.some(predicate),
+    );
+    if (!country) continue;
+    if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+    if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
+    return;
   }
 }
 
@@ -249,19 +264,29 @@ watch(activeStepId, (id) => {
 watch(
   chapterGroups,
   (groups) => {
-    if (!openGroupKey.value && groups[0]) openGroupKey.value = groups[0].key;
+    if (!openChapterKey.value && groups[0]) {
+      openChapterKey.value = groups[0].key;
+    }
   },
   { immediate: true },
 );
 
 watch(activeSectionKey, (key) => {
   if (key == null) return;
-  for (const g of chapterGroups.value) {
-    for (const e of g.entries) {
-      if ((e.type === "map" || e.type === "header") && e.key === key) {
-        if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
+  for (const chapter of chapterGroups.value) {
+    if (chapter.headerItems.some((item) => item.key === key)) {
+      if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+      if (programmaticScrolling.value) return;
+      scrollNavItemIntoView(`[data-nav-section="${key}"]`);
+      return;
+    }
+    for (const country of chapter.countries) {
+      for (const entry of country.entries) {
+        if (entry.type !== "map" || entry.key !== key) continue;
+        if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+        if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
         if (programmaticScrolling.value) return;
-        scrollNavItemIntoView(`[data-nav-section="${e.key}"]`);
+        scrollNavItemIntoView(`[data-nav-section="${entry.key}"]`);
         return;
       }
     }
@@ -278,7 +303,7 @@ watch(activeSectionKey, (key) => {
       :aria-label="t('nav.selectAlbum')"
       class="nav-album-select"
       dense
-      borderless
+      outlined
       options-dense
       emit-value
       map-options
@@ -296,20 +321,18 @@ watch(activeSectionKey, (key) => {
     </q-select>
 
     <div v-if="steps.length" class="nav-controls">
-      <div class="nav-filter-row">
-        <NavDateFilter
-          :steps="steps"
-          :hidden-steps="hiddenSteps"
-          :colors="albumColors"
-          @update:hidden-steps="onHiddenStepsChange"
-        />
-        <NavMapRanges
-          :steps="steps"
-          :maps-ranges="mapsRanges"
-          :colors="albumColors"
-          @update:maps-ranges="onMapsRangesChange"
-        />
-      </div>
+      <NavDateFilter
+        :steps="steps"
+        :hidden-steps="hiddenSteps"
+        :colors="albumColors"
+        @update:hidden-steps="onHiddenStepsChange"
+      />
+      <NavMapRanges
+        :steps="steps"
+        :maps-ranges="mapsRanges"
+        :colors="albumColors"
+        @update:maps-ranges="onMapsRangesChange"
+      />
     </div>
 
     <div ref="listRef" class="nav-list">
@@ -317,7 +340,8 @@ watch(activeSectionKey, (key) => {
         v-for="group in chapterGroups"
         :key="group.key"
         :group="group"
-        :open="openGroupKey === group.key"
+        :open="openChapterKey === group.key"
+        :open-country-key="openCountryKey"
         :active-step-id="activeStepId"
         :active-section-key="activeSectionKey"
         :hidden-set="hiddenSet"
@@ -325,16 +349,19 @@ watch(activeSectionKey, (key) => {
         :steps="steps"
         :colors="albumColors"
         :format-map-range="formatMapRange"
-        :format-step-date="formatStepDate"
         :lazy-root="listRef ?? null"
         @toggle-open="
-          openGroupKey = openGroupKey === group.key ? null : group.key
+          openChapterKey = openChapterKey === group.key ? null : group.key
+        "
+        @toggle-country-open="
+          openCountryKey = openCountryKey === $event ? null : $event
         "
         @scroll-to-step="scrollToStep"
         @scroll-to-map="scrollToMap"
         @scroll-to-header="scrollToHeader"
         @toggle-step="toggleStep"
         @toggle-header="toggleHeader"
+        @toggle-country="toggleCountry"
         @delete-map="deleteMap"
         @map-date-change="mapDateChange"
       />
@@ -344,7 +371,6 @@ watch(activeSectionKey, (key) => {
 
 <style lang="scss" scoped>
 @use "nav/nav-item";
-@use "nav/nav-toggle" as *;
 
 .album-nav {
   --opacity-hidden: 0.45;
@@ -358,52 +384,22 @@ watch(activeSectionKey, (key) => {
 }
 
 .nav-album-select {
-  margin: var(--gap-sm) var(--gap-md-lg) 0;
+  margin: var(--gap-md) var(--gap-md-lg) 0;
   flex-shrink: 0;
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  transition:
-    background var(--duration-fast),
-    color var(--duration-fast);
-
-  &:hover {
-    background: color-mix(in srgb, var(--text) 4%, transparent);
-  }
-
-  &:focus-within {
-    color: var(--text-bright);
-  }
-
-  :deep(.q-field__control) {
-    min-height: 2.125rem;
-    padding-inline: var(--gap-xs);
-  }
-
-  :deep(.q-field__prepend) {
-    padding-inline-end: var(--gap-xs);
-  }
 }
 
 .album-select-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--type-xs);
-  font-weight: 600;
 }
 
 .nav-controls {
   display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  padding: var(--gap-sm) var(--gap-md-lg);
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md-lg) var(--gap-md);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.nav-filter-row {
-  display: flex;
-  gap: var(--gap-xs);
 }
 
 .nav-list {
@@ -419,62 +415,6 @@ watch(activeSectionKey, (key) => {
   &::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: var(--radius-xs);
-  }
-}
-
-.header-items {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: var(--gap-sm);
-  margin-bottom: var(--gap-xs);
-}
-
-.header-item {
-  gap: var(--gap-sm);
-  padding: var(--gap-sm) var(--gap-md-lg);
-  font-size: var(--type-xs);
-  font-weight: 600;
-  color: var(--text-muted);
-
-  > span {
-    flex: 1;
-  }
-
-  &:hover {
-    color: var(--text-bright);
-  }
-
-  &.visible {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-    border-inline-start-color: var(--q-primary);
-
-    &:hover {
-      background: color-mix(in srgb, var(--q-primary) 18%, transparent);
-    }
-
-    &:active {
-      background: color-mix(in srgb, var(--q-primary) 24%, transparent);
-    }
-  }
-}
-
-.header-toggle {
-  @include nav-toggle;
-
-  .header-item:hover & {
-    opacity: 1;
-  }
-
-  .header-item.nav-hidden & {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .header-item {
-    transition: none;
   }
 }
 </style>

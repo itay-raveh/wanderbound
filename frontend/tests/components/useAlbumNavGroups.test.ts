@@ -73,23 +73,28 @@ describe("buildChapterGroups", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe("First");
     expect(groups[0].stepIds).toEqual([1, 2]);
-    expect(groups[0].entries.map((entry) => entry.type)).toEqual([
-      "header",
-      "header",
-      "header",
-      "header",
+    expect(groups[0].headerItems.map((entry) => entry.headerKey)).toEqual([
+      "cover-front",
+      "cover-back",
+      "overview",
+      "full-map",
+    ]);
+    expect(groups[0].countries).toHaveLength(1);
+    expect(groups[0].countries[0].entries.map((entry) => entry.type)).toEqual([
       "map",
       "step",
       "step",
     ]);
-    expect(groups[0].entryIndexByStepId.get(2)).toBe(6);
-    expect(groups[0].countryRuns).toEqual([
+    expect(groups[0].countries[0].entryIndexByStepId.get(2)).toBe(2);
+    expect(groups[0].countries).toEqual([
       {
+        key: "AR-1",
         code: "AR",
         name: "Argentina",
         color: "#111111",
+        entries: groups[0].countries[0].entries,
         stepIds: [1, 2],
-        firstEntryIndex: 5,
+        entryIndexByStepId: groups[0].countries[0].entryIndexByStepId,
         dateRange:
           "2024-01-01T00:00:00.000Z - 2024-01-02T00:00:00.000Z",
       },

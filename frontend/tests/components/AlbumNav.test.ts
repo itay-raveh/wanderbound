@@ -35,12 +35,19 @@ const NavChapterGroupStub = defineComponent({
   template:
     `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
       <div
-        v-for="entry in group.entries"
-        :key="entry.type === 'step' ? entry.item.id : entry.key"
-        :data-nav-step="entry.type === 'step' ? entry.item.id : undefined"
-        :data-nav-section="entry.type === 'map' ? entry.key : undefined"
-        :data-range="entry.type === 'map' ? entry.dateRange.join('|') : undefined"
+        v-for="item in group.headerItems"
+        :key="item.key"
+        :data-nav-section="item.key"
       />
+      <template v-for="country in group.countries" :key="country.key">
+        <div
+          v-for="entry in country.entries"
+          :key="entry.type === 'step' ? entry.item.id : entry.key"
+          :data-nav-step="entry.type === 'step' ? entry.item.id : undefined"
+          :data-nav-section="entry.type === 'map' ? entry.key : undefined"
+          :data-range="entry.type === 'map' ? entry.dateRange.join('|') : undefined"
+        />
+      </template>
     </div>`,
 });
 
