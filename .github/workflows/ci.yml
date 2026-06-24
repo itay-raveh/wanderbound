@@ -22,7 +22,7 @@ jobs:
       docker: ${{ steps.filter.outputs.docker }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v4
@@ -65,7 +65,7 @@ jobs:
   gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install gitleaks
@@ -82,7 +82,7 @@ jobs:
       needs.changes.outputs.frontend == 'true' ||
       needs.changes.outputs.ci == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -116,7 +116,7 @@ jobs:
       SECRET_KEY: ci
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg://ci:ci@localhost:5432/ci
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -133,7 +133,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.ci == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: frontend
@@ -151,7 +151,7 @@ jobs:
       VITE_ENVIRONMENT: local
       VITE_FRONTEND_URL: http://localhost
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: frontend
@@ -188,7 +188,7 @@ jobs:
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg://ci:ci@localhost:5432/ci
       SECRET_KEY: ci
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -220,7 +220,7 @@ jobs:
       DOMAIN: localhost
       ENVIRONMENT: local
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           lfs: true
       - uses: oven-sh/setup-bun@v2
