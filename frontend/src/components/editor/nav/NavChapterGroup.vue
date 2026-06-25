@@ -5,6 +5,11 @@ import type { HeaderKey } from "@/components/album/albumSections";
 import NavCountryGroup from "./NavCountryGroup.vue";
 import { useI18n } from "vue-i18n";
 import {
+  symOutlinedAdd,
+  symOutlinedArrowDownward,
+  symOutlinedArrowUpward,
+  symOutlinedDelete,
+  symOutlinedMoreVert,
   symOutlinedVisibility,
   symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
@@ -23,10 +28,17 @@ defineProps<{
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
   lazyRoot?: HTMLElement | null;
+  canSplit?: boolean;
+  canDelete?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }>();
 
 const emit = defineEmits<{
   toggleOpen: [];
+  splitChapter: [];
+  deleteChapter: [];
+  moveChapter: [direction: -1 | 1];
   toggleCountryOpen: [countryKey: string];
   scrollToStep: [id: number];
   scrollToMap: [key: string];
@@ -50,6 +62,64 @@ const emit = defineEmits<{
     <template #header>
       <q-item-section class="chapter-group-name" dir="auto">
         {{ group.name }}
+      </q-item-section>
+      <q-item-section side class="chapter-actions">
+        <q-btn
+          type="button"
+          dense
+          flat
+          round
+          class="chapter-action"
+          :icon="symOutlinedAdd"
+          :aria-label="t('chapters.add')"
+          :disable="!canSplit"
+          @click.stop="emit('splitChapter')"
+        />
+        <q-btn
+          type="button"
+          dense
+          flat
+          round
+          class="chapter-action"
+          :icon="symOutlinedMoreVert"
+          :aria-label="t('chapters.actions')"
+          @click.stop
+        >
+          <q-menu auto-close>
+            <q-list dense class="chapter-action-menu">
+              <q-item
+                clickable
+                :disable="!canMoveUp"
+                @click="emit('moveChapter', -1)"
+              >
+                <q-item-section side>
+                  <q-icon :name="symOutlinedArrowUpward" />
+                </q-item-section>
+                <q-item-section>{{ t("chapters.moveUp") }}</q-item-section>
+              </q-item>
+              <q-item
+                clickable
+                :disable="!canMoveDown"
+                @click="emit('moveChapter', 1)"
+              >
+                <q-item-section side>
+                  <q-icon :name="symOutlinedArrowDownward" />
+                </q-item-section>
+                <q-item-section>{{ t("chapters.moveDown") }}</q-item-section>
+              </q-item>
+              <q-item
+                clickable
+                :disable="!canDelete"
+                @click="emit('deleteChapter')"
+              >
+                <q-item-section side>
+                  <q-icon :name="symOutlinedDelete" />
+                </q-item-section>
+                <q-item-section>{{ t("chapters.delete") }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
       </q-item-section>
       <q-item-section side class="chapter-count text-muted">
         {{ group.stepIds.length }}
@@ -149,6 +219,28 @@ const emit = defineEmits<{
   white-space: nowrap;
 }
 
+.chapter-actions {
+  display: flex;
+  flex-direction: row;
+  gap: var(--gap-xs);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+
+  .chapter-group-header:hover &,
+  .q-expansion-item--expanded &,
+  &:focus-within {
+    opacity: 1;
+  }
+}
+
+.chapter-action {
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-bright);
+  }
+}
+
 .chapter-count {
   font-size: var(--type-xs);
   font-variant-numeric: tabular-nums;
@@ -206,6 +298,7 @@ const emit = defineEmits<{
 
 @media (prefers-reduced-motion: reduce) {
   .chapter-group-header,
+  .chapter-actions,
   .header-item {
     transition: none;
   }

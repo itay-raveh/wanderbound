@@ -33,8 +33,6 @@ test.describe("Editor", () => {
     const nav = page.getByRole("navigation");
     await nav.getByRole("button", { name: "Add chapter" }).click();
 
-    await expect(
-      nav.getByRole("button", { name: "Chapter 2 1 step" }),
-    ).toBeVisible();
+    await expect(nav.getByText("Chapter 2")).toBeVisible();
   });
 });

@@ -22,6 +22,7 @@ import {
 import { buildChapterGroups } from "./nav/useAlbumNavGroups";
 import {
   adjustChapterBoundary,
+  chapterCanSplit,
   deleteChapter as deleteChapterFromList,
   moveChapter as moveChapterInList,
   splitChapter,
@@ -33,7 +34,6 @@ import { useActiveSection } from "@/composables/useActiveSection";
 import { ref, computed, watch, nextTick } from "vue";
 import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
-import ChapterOutlineEditor from "./nav/ChapterOutlineEditor.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
   symOutlinedMap,
@@ -150,6 +150,19 @@ function formatMapRange(dr: DateRange): string {
   );
 }
 
+function stepLabel(stepId: number): string {
+  const step = props.steps.find((candidate) => candidate.id === stepId);
+  return step?.name || step?.location.name || String(stepId);
+}
+
+function boundaryOptions(left: AlbumChapter, right: AlbumChapter) {
+  const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
+  return combined.slice(1).map((stepId) => ({
+    label: stepLabel(stepId),
+    value: stepId,
+  }));
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────
 
 function onHiddenStepsChange(ids: number[]) {
@@ -207,12 +220,6 @@ function toggleChapter(group: ChapterVisit) {
   }
   openChapterKey.value = group.key;
   openCountryKey.value = group.countries[0]?.key ?? null;
-}
-
-function selectChapter(chapterId: string) {
-  openChapterKey.value = chapterId;
-  const group = chapterGroups.value.find((candidate) => candidate.key === chapterId);
-  openCountryKey.value = group?.countries[0]?.key ?? null;
 }
 
 function onSplitChapter(chapterId: string) {
@@ -409,46 +416,60 @@ watch(activeSectionKey, (key) => {
       />
     </div>
 
-    <ChapterOutlineEditor
-      v-if="chaptersForNav.length"
-      :chapters="chaptersForNav"
-      :steps="steps"
-      :open-chapter-key="openChapterKey"
-      @select-chapter="selectChapter"
-      @split-chapter="onSplitChapter"
-      @delete-chapter="onDeleteChapter"
-      @move-chapter="onMoveChapter"
-      @adjust-boundary="onAdjustChapterBoundary"
-    />
-
     <div ref="listRef" class="nav-list">
-      <NavChapterGroup
-        v-for="group in chapterGroups"
-        :key="group.key"
-        :group="group"
-        :open="openChapterKey === group.key"
-        :open-country-key="openCountryKey"
-        :active-step-id="activeStepId"
-        :active-section-key="activeSectionKey"
-        :hidden-set="hiddenSet"
-        :hidden-header-set="hiddenHeaderSet"
-        :steps="steps"
-        :colors="albumColors"
-        :format-map-range="formatMapRange"
-        :lazy-root="listRef ?? null"
-        @toggle-open="toggleChapter(group)"
-        @toggle-country-open="
-          openCountryKey = openCountryKey === $event ? null : $event
-        "
-        @scroll-to-step="scrollToStep"
-        @scroll-to-map="scrollToMap"
-        @scroll-to-header="scrollToHeader"
-        @toggle-step="toggleStep"
-        @toggle-header="toggleHeader"
-        @toggle-country="toggleCountry"
-        @delete-map="deleteMap"
-        @map-date-change="mapDateChange"
-      />
+      <template v-for="(group, index) in chapterGroups" :key="group.key">
+        <q-select
+          v-if="index > 0"
+          :model-value="group.chapter.step_ids?.[0]"
+          :options="boundaryOptions(chapterGroups[index - 1].chapter, group.chapter)"
+          class="chapter-boundary"
+          dense
+          borderless
+          emit-value
+          map-options
+          options-dense
+          :aria-label="t('chapters.boundary')"
+          @update:model-value="
+            onAdjustChapterBoundary(
+              chapterGroups[index - 1].chapter.id,
+              group.chapter.id,
+              Number($event),
+            )
+          "
+        />
+        <NavChapterGroup
+          :group="group"
+          :open="openChapterKey === group.key"
+          :open-country-key="openCountryKey"
+          :active-step-id="activeStepId"
+          :active-section-key="activeSectionKey"
+          :hidden-set="hiddenSet"
+          :hidden-header-set="hiddenHeaderSet"
+          :steps="steps"
+          :colors="albumColors"
+          :format-map-range="formatMapRange"
+          :lazy-root="listRef ?? null"
+          :can-split="chapterCanSplit(group.chapter)"
+          :can-delete="chapterGroups.length > 1"
+          :can-move-up="index > 0"
+          :can-move-down="index < chapterGroups.length - 1"
+          @toggle-open="toggleChapter(group)"
+          @split-chapter="onSplitChapter(group.chapter.id)"
+          @delete-chapter="onDeleteChapter(group.chapter.id)"
+          @move-chapter="onMoveChapter(group.chapter.id, $event)"
+          @toggle-country-open="
+            openCountryKey = openCountryKey === $event ? null : $event
+          "
+          @scroll-to-step="scrollToStep"
+          @scroll-to-map="scrollToMap"
+          @scroll-to-header="scrollToHeader"
+          @toggle-step="toggleStep"
+          @toggle-header="toggleHeader"
+          @toggle-country="toggleCountry"
+          @delete-map="deleteMap"
+          @map-date-change="mapDateChange"
+        />
+      </template>
     </div>
   </nav>
 </template>
@@ -500,5 +521,14 @@ watch(activeSectionKey, (key) => {
     background: var(--border-color);
     border-radius: var(--radius-xs);
   }
+}
+
+.chapter-boundary {
+  margin: var(--gap-xs) var(--gap-md-lg);
+  padding-inline: var(--gap-sm);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-radius: var(--radius-xs);
+  font-size: var(--type-xs);
 }
 </style>

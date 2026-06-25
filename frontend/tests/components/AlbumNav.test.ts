@@ -31,9 +31,22 @@ const NavChapterGroupStub = defineComponent({
       type: Boolean,
       required: true,
     },
+    canSplit: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ["split-chapter"],
   template:
     `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
+      <button
+        v-if="canSplit"
+        class="chapter-action"
+        type="button"
+        @click="$emit('split-chapter')"
+      >
+        split
+      </button>
       <div
         v-for="item in group.headerItems"
         :key="item.key"
@@ -49,27 +62,6 @@ const NavChapterGroupStub = defineComponent({
         />
       </template>
     </div>`,
-});
-
-const ChapterOutlineEditorStub = defineComponent({
-  name: "ChapterOutlineEditor",
-  props: {
-    chapters: {
-      type: Array as PropType<AlbumChapter[]>,
-      required: true,
-    },
-    steps: {
-      type: Array as PropType<Step[]>,
-      required: true,
-    },
-    openChapterKey: {
-      type: String,
-      default: null,
-    },
-  },
-  emits: ["split-chapter"],
-  template:
-    `<button class="chapter-action" type="button" @click="$emit('split-chapter', chapters[0].id)">split</button>`,
 });
 
 function makeSteps(count: number): Step[] {
@@ -255,7 +247,6 @@ describe("AlbumNav", () => {
       global: {
         stubs: {
           NavChapterGroup: NavChapterGroupStub,
-          ChapterOutlineEditor: ChapterOutlineEditorStub,
           NavDateFilter: true,
           NavMapRanges: true,
           NavMapItem: true,
