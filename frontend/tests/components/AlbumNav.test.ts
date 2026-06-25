@@ -51,6 +51,27 @@ const NavChapterGroupStub = defineComponent({
     </div>`,
 });
 
+const ChapterOutlineEditorStub = defineComponent({
+  name: "ChapterOutlineEditor",
+  props: {
+    chapters: {
+      type: Array as PropType<AlbumChapter[]>,
+      required: true,
+    },
+    steps: {
+      type: Array as PropType<Step[]>,
+      required: true,
+    },
+    openChapterKey: {
+      type: String,
+      default: null,
+    },
+  },
+  emits: ["split-chapter"],
+  template:
+    `<button class="chapter-action" type="button" @click="$emit('split-chapter', chapters[0].id)">split</button>`,
+});
+
 function makeSteps(count: number): Step[] {
   return Array.from({ length: count }, (_, index) =>
     makeStep({
@@ -203,8 +224,12 @@ describe("AlbumNav", () => {
     );
   });
 
-  it("does not create chapters from the nav drawer", async () => {
-    const steps = [makeStep({ id: 1, name: "Buenos Aires" })];
+  it("splits chapters from the nav drawer", async () => {
+    const steps = [
+      makeStep({ id: 1, name: "Buenos Aires", cover: "one.jpg" }),
+      makeStep({ id: 2, name: "Ushuaia", cover: "two.jpg" }),
+      makeStep({ id: 3, name: "Santiago", cover: "three.jpg" }),
+    ];
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: {
@@ -212,9 +237,9 @@ describe("AlbumNav", () => {
           chapters: [
             {
               id: "chapter-1",
-              title: null,
-              subtitle: null,
-              step_ids: [1],
+              title: "",
+              subtitle: "",
+              step_ids: [1, 2, 3],
               front_cover_photo: "cover.jpg",
               back_cover_photo: "cover.jpg",
             },
@@ -230,6 +255,7 @@ describe("AlbumNav", () => {
       global: {
         stubs: {
           NavChapterGroup: NavChapterGroupStub,
+          ChapterOutlineEditor: ChapterOutlineEditorStub,
           NavDateFilter: true,
           NavMapRanges: true,
           NavMapItem: true,
@@ -241,9 +267,27 @@ describe("AlbumNav", () => {
     });
 
     await nextTick();
+    await wrapper.get(".chapter-action").trigger("click");
 
-    expect(wrapper.find(".chapter-editor").exists()).toBe(false);
-    expect(wrapper.find(".chapter-action").exists()).toBe(false);
-    expect(mutate).not.toHaveBeenCalled();
+    expect(mutate).toHaveBeenCalledWith({
+      chapters: [
+        {
+          id: "chapter-1",
+          title: "",
+          subtitle: "",
+          step_ids: [1, 2],
+          front_cover_photo: "cover.jpg",
+          back_cover_photo: "cover.jpg",
+        },
+        {
+          id: "chapter-2",
+          title: "",
+          subtitle: "",
+          step_ids: [3],
+          front_cover_photo: "three.jpg",
+          back_cover_photo: "three.jpg",
+        },
+      ],
+    });
   });
 });

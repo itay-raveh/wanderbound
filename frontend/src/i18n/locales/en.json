@@ -263,7 +263,12 @@
   },
   "chapters": {
     "title": "Chapters",
-    "untitled": "Chapter {number}"
+    "untitled": "Chapter {number}",
+    "add": "Add chapter",
+    "delete": "Delete chapter",
+    "moveUp": "Move chapter up",
+    "moveDown": "Move chapter down",
+    "boundary": "Chapter start"
   },
   "error": {
     "loadAlbum": "Failed to load album:",

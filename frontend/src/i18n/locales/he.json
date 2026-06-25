@@ -263,7 +263,12 @@
   },
   "chapters": {
     "title": "פרקים",
-    "untitled": "פרק {number}"
+    "untitled": "פרק {number}",
+    "add": "הוספת פרק",
+    "delete": "מחיקת פרק",
+    "moveUp": "העלאת פרק",
+    "moveDown": "הורדת פרק",
+    "boundary": "תחילת פרק"
   },
   "error": {
     "loadAlbum": "טעינת האלבום נכשלה:",

@@ -20,6 +20,12 @@ import {
   type HeaderKey,
 } from "../album/albumSections";
 import { buildChapterGroups } from "./nav/useAlbumNavGroups";
+import {
+  adjustChapterBoundary,
+  deleteChapter as deleteChapterFromList,
+  moveChapter as moveChapterInList,
+  splitChapter,
+} from "./nav/chapterEditing";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -27,6 +33,7 @@ import { useActiveSection } from "@/composables/useActiveSection";
 import { ref, computed, watch, nextTick } from "vue";
 import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
+import ChapterOutlineEditor from "./nav/ChapterOutlineEditor.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
   symOutlinedMap,
@@ -153,6 +160,10 @@ function onMapsRangesChange(ranges: DateRange[]) {
   albumMutation.mutate({ maps_ranges: ranges });
 }
 
+function updateChapters(chapters: AlbumChapter[]) {
+  albumMutation.mutate({ chapters });
+}
+
 function toggleInList<T>(list: readonly T[], item: T): T[] {
   const copy = [...list];
   const idx = copy.indexOf(item);
@@ -196,6 +207,53 @@ function toggleChapter(group: ChapterVisit) {
   }
   openChapterKey.value = group.key;
   openCountryKey.value = group.countries[0]?.key ?? null;
+}
+
+function selectChapter(chapterId: string) {
+  openChapterKey.value = chapterId;
+  const group = chapterGroups.value.find((candidate) => candidate.key === chapterId);
+  openCountryKey.value = group?.countries[0]?.key ?? null;
+}
+
+function onSplitChapter(chapterId: string) {
+  const chapters = splitChapter(chaptersForNav.value, props.steps, chapterId);
+  if (chapters === chaptersForNav.value) return;
+  updateChapters(chapters);
+  const sourceIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
+  const nextChapter = chapters[sourceIndex + 1];
+  if (nextChapter) openChapterKey.value = nextChapter.id;
+}
+
+function onDeleteChapter(chapterId: string) {
+  const chapters = deleteChapterFromList(chaptersForNav.value, chapterId);
+  if (chapters === chaptersForNav.value) return;
+  const deletedIndex = chaptersForNav.value.findIndex(
+    (chapter) => chapter.id === chapterId,
+  );
+  updateChapters(chapters);
+  if (openChapterKey.value === chapterId) {
+    openChapterKey.value =
+      chapters[Math.min(deletedIndex, chapters.length - 1)]?.id ?? null;
+  }
+}
+
+function onMoveChapter(chapterId: string, direction: -1 | 1) {
+  const chapters = moveChapterInList(chaptersForNav.value, chapterId, direction);
+  if (chapters !== chaptersForNav.value) updateChapters(chapters);
+}
+
+function onAdjustChapterBoundary(
+  leftChapterId: string,
+  rightChapterId: string,
+  firstRightStepId: number,
+) {
+  const chapters = adjustChapterBoundary(
+    chaptersForNav.value,
+    leftChapterId,
+    rightChapterId,
+    firstRightStepId,
+  );
+  if (chapters !== chaptersForNav.value) updateChapters(chapters);
 }
 
 function deleteMap(rangeIdx: number) {
@@ -350,6 +408,18 @@ watch(activeSectionKey, (key) => {
         @update:maps-ranges="onMapsRangesChange"
       />
     </div>
+
+    <ChapterOutlineEditor
+      v-if="chaptersForNav.length"
+      :chapters="chaptersForNav"
+      :steps="steps"
+      :open-chapter-key="openChapterKey"
+      @select-chapter="selectChapter"
+      @split-chapter="onSplitChapter"
+      @delete-chapter="onDeleteChapter"
+      @move-chapter="onMoveChapter"
+      @adjust-boundary="onAdjustChapterBoundary"
+    />
 
     <div ref="listRef" class="nav-list">
       <NavChapterGroup
