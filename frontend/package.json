@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@azure/msal-browser": "^5.6.1",
-    "@chenglou/pretext": "^0.0.7",
+    "@chenglou/pretext": "^0.0.8",
     "@mapbox/mapbox-gl-supported": "^4.0.0",
     "@pinia/colada": "^1.0.0",
     "@quasar/extras": "^2.0.0",
