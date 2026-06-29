@@ -36,6 +36,7 @@ import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
+  symOutlinedAdd,
   symOutlinedMap,
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
@@ -142,6 +143,10 @@ const chapterGroups = computed(() =>
   }),
 );
 
+const canAddChapter = computed(() =>
+  chaptersForNav.value.some((chapter) => chapterCanSplit(chapter)),
+);
+
 function formatMapRange(dr: DateRange): string {
   return formatDateRange(
     parseLocalDate(dr[0]),
@@ -229,6 +234,15 @@ function onSplitChapter(chapterId: string) {
   const sourceIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
   const nextChapter = chapters[sourceIndex + 1];
   if (nextChapter) openChapterKey.value = nextChapter.id;
+}
+
+function onAddChapter() {
+  const chapter =
+    chaptersForNav.value.find(
+      (candidate) =>
+        candidate.id === openChapterKey.value && chapterCanSplit(candidate),
+    ) ?? chaptersForNav.value.find((candidate) => chapterCanSplit(candidate));
+  if (chapter) onSplitChapter(chapter.id);
 }
 
 function onDeleteChapter(chapterId: string) {
@@ -417,26 +431,21 @@ watch(activeSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <template v-for="(group, index) in chapterGroups" :key="group.key">
-        <q-select
-          v-if="index > 0"
-          :model-value="group.chapter.step_ids?.[0]"
-          :options="boundaryOptions(chapterGroups[index - 1].chapter, group.chapter)"
-          class="chapter-boundary"
+      <div v-if="chapterGroups.length" class="chapter-list-header">
+        <span>{{ t("chapters.title") }}</span>
+        <q-btn
+          type="button"
           dense
-          borderless
-          emit-value
-          map-options
-          options-dense
-          :aria-label="t('chapters.boundary')"
-          @update:model-value="
-            onAdjustChapterBoundary(
-              chapterGroups[index - 1].chapter.id,
-              group.chapter.id,
-              Number($event),
-            )
-          "
+          flat
+          round
+          class="chapter-add-button"
+          :icon="symOutlinedAdd"
+          :aria-label="t('chapters.add')"
+          :disable="!canAddChapter"
+          @click="onAddChapter"
         />
+      </div>
+      <template v-for="(group, index) in chapterGroups" :key="group.key">
         <NavChapterGroup
           :group="group"
           :open="openChapterKey === group.key"
@@ -449,14 +458,25 @@ watch(activeSectionKey, (key) => {
           :colors="albumColors"
           :format-map-range="formatMapRange"
           :lazy-root="listRef ?? null"
-          :can-split="chapterCanSplit(group.chapter)"
           :can-delete="chapterGroups.length > 1"
           :can-move-up="index > 0"
           :can-move-down="index < chapterGroups.length - 1"
+          :start-step-id="group.chapter.step_ids?.[0] ?? null"
+          :start-options="
+            index > 0
+              ? boundaryOptions(chapterGroups[index - 1].chapter, group.chapter)
+              : []
+          "
           @toggle-open="toggleChapter(group)"
-          @split-chapter="onSplitChapter(group.chapter.id)"
           @delete-chapter="onDeleteChapter(group.chapter.id)"
           @move-chapter="onMoveChapter(group.chapter.id, $event)"
+          @adjust-boundary="
+            onAdjustChapterBoundary(
+              chapterGroups[index - 1].chapter.id,
+              group.chapter.id,
+              $event,
+            )
+          "
           @toggle-country-open="
             openCountryKey = openCountryKey === $event ? null : $event
           "
@@ -523,12 +543,23 @@ watch(activeSectionKey, (key) => {
   }
 }
 
-.chapter-boundary {
-  margin: var(--gap-xs) var(--gap-md-lg);
-  padding-inline: var(--gap-sm);
+.chapter-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md-lg);
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  border-radius: var(--radius-xs);
   font-size: var(--type-xs);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.chapter-add-button {
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-bright);
+  }
 }
 </style>

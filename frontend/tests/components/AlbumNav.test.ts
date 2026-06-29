@@ -31,22 +31,10 @@ const NavChapterGroupStub = defineComponent({
       type: Boolean,
       required: true,
     },
-    canSplit: {
-      type: Boolean,
-      default: false,
-    },
   },
-  emits: ["split-chapter"],
+  emits: [],
   template:
     `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
-      <button
-        v-if="canSplit"
-        class="chapter-action"
-        type="button"
-        @click="$emit('split-chapter')"
-      >
-        split
-      </button>
       <div
         v-for="item in group.headerItems"
         :key="item.key"
@@ -258,7 +246,7 @@ describe("AlbumNav", () => {
     });
 
     await nextTick();
-    await wrapper.get(".chapter-action").trigger("click");
+    await wrapper.get(".chapter-add-button").trigger("click");
 
     expect(mutate).toHaveBeenCalledWith({
       chapters: [

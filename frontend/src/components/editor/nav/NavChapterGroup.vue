@@ -5,7 +5,6 @@ import type { HeaderKey } from "@/components/album/albumSections";
 import NavCountryGroup from "./NavCountryGroup.vue";
 import { useI18n } from "vue-i18n";
 import {
-  symOutlinedAdd,
   symOutlinedArrowDownward,
   symOutlinedArrowUpward,
   symOutlinedDelete,
@@ -28,17 +27,18 @@ defineProps<{
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
   lazyRoot?: HTMLElement | null;
-  canSplit?: boolean;
   canDelete?: boolean;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  startOptions?: { label: string; value: number }[];
+  startStepId?: number | null;
 }>();
 
 const emit = defineEmits<{
   toggleOpen: [];
-  splitChapter: [];
   deleteChapter: [];
   moveChapter: [direction: -1 | 1];
+  adjustBoundary: [firstStepId: number];
   toggleCountryOpen: [countryKey: string];
   scrollToStep: [id: number];
   scrollToMap: [key: string];
@@ -70,26 +70,31 @@ const emit = defineEmits<{
           flat
           round
           class="chapter-action"
-          :icon="symOutlinedAdd"
-          :aria-label="t('chapters.add')"
-          :disable="!canSplit"
-          @click.stop="emit('splitChapter')"
-        />
-        <q-btn
-          type="button"
-          dense
-          flat
-          round
-          class="chapter-action"
           :icon="symOutlinedMoreVert"
           :aria-label="t('chapters.actions')"
           @click.stop
         >
-          <q-menu auto-close>
+          <q-menu>
             <q-list dense class="chapter-action-menu">
+              <q-item v-if="startOptions?.length" class="chapter-start-item">
+                <q-item-section>
+                  <q-select
+                    :model-value="startStepId"
+                    :options="startOptions"
+                    :label="t('chapters.startsAt')"
+                    dense
+                    borderless
+                    emit-value
+                    map-options
+                    options-dense
+                    @update:model-value="emit('adjustBoundary', Number($event))"
+                  />
+                </q-item-section>
+              </q-item>
               <q-item
                 clickable
                 :disable="!canMoveUp"
+                v-close-popup
                 @click="emit('moveChapter', -1)"
               >
                 <q-item-section side>
@@ -100,6 +105,7 @@ const emit = defineEmits<{
               <q-item
                 clickable
                 :disable="!canMoveDown"
+                v-close-popup
                 @click="emit('moveChapter', 1)"
               >
                 <q-item-section side>
@@ -110,6 +116,7 @@ const emit = defineEmits<{
               <q-item
                 clickable
                 :disable="!canDelete"
+                v-close-popup
                 @click="emit('deleteChapter')"
               >
                 <q-item-section side>
@@ -211,11 +218,10 @@ const emit = defineEmits<{
 .chapter-group-name {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  font-weight: 700;
+  color: var(--text-bright);
+  font-size: var(--type-sm);
+  font-weight: 650;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -239,6 +245,15 @@ const emit = defineEmits<{
   &:hover {
     color: var(--text-bright);
   }
+}
+
+.chapter-action-menu {
+  min-width: 12rem;
+}
+
+.chapter-start-item {
+  padding-block: var(--gap-xs);
+  min-height: 3rem;
 }
 
 .chapter-count {

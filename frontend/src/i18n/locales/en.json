@@ -269,7 +269,8 @@
     "delete": "Delete chapter",
     "moveUp": "Move chapter up",
     "moveDown": "Move chapter down",
-    "boundary": "Chapter start"
+    "boundary": "Chapter start",
+    "startsAt": "Starts at"
   },
   "error": {
     "loadAlbum": "Failed to load album:",

@@ -269,7 +269,8 @@
     "delete": "מחיקת פרק",
     "moveUp": "העלאת פרק",
     "moveDown": "הורדת פרק",
-    "boundary": "תחילת פרק"
+    "boundary": "תחילת פרק",
+    "startsAt": "מתחיל ב"
   },
   "error": {
     "loadAlbum": "טעינת האלבום נכשלה:",
