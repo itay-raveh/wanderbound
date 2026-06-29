@@ -17,6 +17,18 @@ const API = "**/api/v1";
 
 const mediaBody = Buffer.from(TINY_JPEG_BASE64, "base64");
 
+function albumForSteps(steps: Array<{ id: number }>) {
+  return {
+    ...mockAlbum,
+    chapters: [
+      {
+        ...mockAlbum.chapters[0],
+        step_ids: steps.map((step) => step.id),
+      },
+    ],
+  };
+}
+
 // Strict mock guard: register first so it matches last (Playwright is LIFO).
 // Any /api/v1/** request not handled by a later, more specific route lands
 // here and is recorded. Tests fail in teardown if anything was recorded  -
@@ -93,6 +105,10 @@ export async function mockGooglePendingSignupTransition(page: Page) {
 }
 
 async function mockDefaultSteps(page: Page) {
+  const album = albumForSteps(mockSteps);
+  await page.route(`${API}/albums/*`, (route) =>
+    route.fulfill({ json: album }),
+  );
   await page.route(`${API}/albums/*/steps`, (route) =>
     route.fulfill({ json: mockSteps }),
   );
@@ -102,6 +118,15 @@ async function mockDefaultSteps(page: Page) {
 }
 
 async function mockFocusData(page: Page) {
+  const album = albumForSteps(mockFocusSteps);
+  await page.route(`${API}/albums/*`, (route) => {
+    if (route.request().method() === "PATCH") {
+      return route.fulfill({
+        json: { ...album, ...(route.request().postDataJSON() as object) },
+      });
+    }
+    return route.fulfill({ json: album });
+  });
   // Step updates used by focus shortcuts - accept optimistically.
   await page.route(`${API}/albums/*/steps/*/media-layout`, (route) => {
     if (route.request().method() === "PUT") {
@@ -154,7 +179,7 @@ export async function blockPopup(page: Page) {
 
 export async function openEditor(page: Page) {
   await page.goto("/editor");
-  await expect(page.getByText("South America")).toBeVisible({
+  await expect(page.getByRole("main").getByText("South America")).toBeVisible({
     timeout: 15_000,
   });
 }
@@ -169,8 +194,19 @@ export async function scrollToStep(
   stepName: string,
 ) {
   const nav = page.getByRole("navigation");
-  await nav.getByText(country).click();
+  const countryHeader = nav.getByText(new RegExp(country, "i")).first();
   const step = nav.getByText(stepName);
+  await expect(countryHeader).toBeVisible({ timeout: 3_000 });
+  const countryOpen = await countryHeader.evaluate((el) =>
+    Boolean(
+      el.closest(".q-expansion-item")?.classList.contains(
+        "q-expansion-item--expanded",
+      ),
+    ),
+  );
+  if (!countryOpen) {
+    await countryHeader.click();
+  }
   await expect(step).toBeVisible({ timeout: 3_000 });
   await step.click();
   await expect(photoButtons(page).first()).toBeVisible({ timeout: 5_000 });

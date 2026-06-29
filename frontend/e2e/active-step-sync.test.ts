@@ -24,19 +24,35 @@ async function pageTopBelowHeader(page: Page, text: string) {
   }, text);
 }
 
+async function clickNavStep(page: Page, country: string, stepId: number) {
+  const nav = page.getByRole("navigation");
+  const countryHeader = nav.getByText(new RegExp(country, "i")).first();
+  const step = nav.locator(`[data-nav-step="${stepId}"]`);
+  await expect(countryHeader).toBeVisible({ timeout: 3_000 });
+  const countryOpen = await countryHeader.evaluate((el) =>
+    Boolean(
+      el.closest(".q-expansion-item")?.classList.contains(
+        "q-expansion-item--expanded",
+      ),
+    ),
+  );
+  if (!countryOpen) {
+    await countryHeader.click();
+  }
+  await step.click();
+}
+
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
     focusPage: page,
   }) => {
     await page.goto("/editor");
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
 
-    const nav = page.getByRole("navigation");
-    await nav.getByText("Argentina").click();
     const beforeClickScrollY = await page.evaluate(() => window.scrollY);
-    await nav.locator('[data-nav-step="102"]').click();
+    await clickNavStep(page, "Argentina", 102);
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeGreaterThan(beforeClickScrollY + 100);
@@ -49,13 +65,11 @@ test.describe("Active step sync", () => {
     await expect
       .poll(() => pageTopBelowHeader(page, "Ushuaia"))
       .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
-    await nav.getByText("Chile").click();
-    await nav.locator('[data-nav-step="103"]').click();
+    await clickNavStep(page, "Chile", 103);
     await expect(
       page.locator(".album-container").getByText("Santiago").first(),
     ).toBeVisible();
-    await nav.getByText("Argentina").click();
-    await nav.locator('[data-nav-step="101"]').click();
+    await clickNavStep(page, "Argentina", 101);
     await expect(
       page.locator(".album-container").getByText("Buenos Aires").first(),
     ).toBeVisible();

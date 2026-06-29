@@ -1,16 +1,32 @@
 <script lang="ts" setup>
-import type { DateRange, StepRead as Step } from "@/client";
-import type { CountryVisit, GroupEntry, StepItem } from "./nav/types";
+import type {
+  AlbumChapter,
+  AlbumMedia,
+  AlbumMeta,
+  DateRange,
+  StepRead as Step,
+} from "@/client";
+import type {
+  ChapterVisit,
+  CountryVisit,
+  GroupEntry,
+  StepItem,
+} from "./nav/types";
 import { mediaThumbUrl } from "@/utils/media";
 import { parseLocalDate, SHORT_DATE } from "@/utils/date";
 import { getCountryColor } from "../album/colors";
 import {
   HEADER_KEYS,
   type HeaderKey,
-  mapInsertionsByStep,
-  rangeSectionKey,
-  sectionKeyMatchesRange,
 } from "../album/albumSections";
+import { buildChapterGroups } from "./nav/useAlbumNavGroups";
+import {
+  adjustChapterBoundary,
+  chapterCanSplit,
+  deleteChapter as deleteChapterFromList,
+  moveChapter as moveChapterInList,
+  splitChapter,
+} from "./nav/chapterEditing";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
@@ -18,14 +34,13 @@ import { useActiveSection } from "@/composables/useActiveSection";
 import { ref, computed, watch, nextTick } from "vue";
 import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
-import NavCountryGroup from "./nav/NavCountryGroup.vue";
+import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
+  symOutlinedAdd,
   symOutlinedMap,
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
   symOutlinedBarChart,
-  symOutlinedVisibility,
-  symOutlinedVisibilityOff,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
@@ -33,6 +48,8 @@ const { formatDateRange, countryName } = useUserQuery();
 
 const props = withDefaults(
   defineProps<{
+    album: AlbumMeta;
+    media: AlbumMedia[];
     steps: Step[];
     albumIds?: string[];
     hiddenSteps?: number[];
@@ -62,7 +79,8 @@ const {
 } = useActiveSection();
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
-const openGroupKey = ref<string | null>(null);
+const openChapterKey = ref<string | null>(null);
+const openCountryKey = ref<string | null>(null);
 
 // ── Album selector ────────────────────────────────────────────────────
 
@@ -92,6 +110,7 @@ const stepItems = computed<StepItem[]>(() =>
     id: s.id,
     name: s.name,
     country: s.location.country_code,
+    countryLabel: countryName(s.location.country_code, s.location.detail),
     color: getCountryColor(
       props.colors as Record<string, string>,
       s.location.country_code,
@@ -105,57 +124,28 @@ const stepItems = computed<StepItem[]>(() =>
   })),
 );
 
-const mapInsertions = computed(() => {
-  const entries = props.mapsRanges.map((dateRange, rangeIdx) => ({
-    rangeIdx,
-    dateRange,
-  }));
-  return mapInsertionsByStep(props.steps, entries);
+const chaptersForNav = computed<AlbumChapter[]>(() => {
+  if (props.album.chapters?.length) return props.album.chapters;
+  return [];
 });
 
-function toMapEntry(m: {
-  rangeIdx: number;
-  dateRange: DateRange;
-}): Extract<GroupEntry, { type: "map" }> {
-  return { type: "map", ...m, key: rangeSectionKey("map", m.dateRange) };
-}
+const chapterGroups = computed(() =>
+  buildChapterGroups({
+    steps: props.steps,
+    stepItems: stepItems.value,
+    mapsRanges: props.mapsRanges,
+    chapters: chaptersForNav.value,
+    headerKeys: HEADER_KEYS,
+    headerLabel: (key) => t(HEADER_LABELS[key]),
+    headerIcon: (key) => HEADER_ICONS[key],
+    untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
+    dateRangeLabel: (first, last) => formatDateRange(first, last, SHORT_DATE),
+  }),
+);
 
-function computeGroupDateRange(entries: GroupEntry[]): string {
-  const steps = entries.filter(
-    (e): e is Extract<GroupEntry, { type: "step" }> => e.type === "step",
-  );
-  const first = steps[0]?.item.date;
-  const last = steps.at(-1)?.item.date;
-  if (!first || !last) return "";
-  return formatDateRange(first, last, SHORT_DATE);
-}
-
-const groups = computed<CountryVisit[]>(() => {
-  const visits: CountryVisit[] = [];
-  for (const item of stepItems.value) {
-    const mapEntries = mapInsertions.value.get(item.id)?.map(toMapEntry) ?? [];
-    const prev = visits.at(-1);
-    if (prev && prev.code === item.country) {
-      const stepEntryIndex = prev.entries.length + mapEntries.length;
-      prev.entries.push(...mapEntries, { type: "step", item });
-      prev.stepIds.push(item.id);
-      prev.entryIndexByStepId.set(item.id, stepEntryIndex);
-    } else {
-      visits.push({
-        key: `${item.country}-${visits.length}`,
-        code: item.country,
-        name: countryName(item.country, item.detail),
-        color: item.color,
-        entries: [...mapEntries, { type: "step", item }],
-        stepIds: [item.id],
-        entryIndexByStepId: new Map([[item.id, mapEntries.length]]),
-        dateRange: "",
-      });
-    }
-  }
-  for (const v of visits) v.dateRange = computeGroupDateRange(v.entries);
-  return visits;
-});
+const canAddChapter = computed(() =>
+  chaptersForNav.value.some((chapter) => chapterCanSplit(chapter)),
+);
 
 function formatMapRange(dr: DateRange): string {
   return formatDateRange(
@@ -163,6 +153,19 @@ function formatMapRange(dr: DateRange): string {
     parseLocalDate(dr[1]),
     SHORT_DATE,
   );
+}
+
+function stepLabel(stepId: number): string {
+  const step = props.steps.find((candidate) => candidate.id === stepId);
+  return step?.name || step?.location.name || String(stepId);
+}
+
+function boundaryOptions(left: AlbumChapter, right: AlbumChapter) {
+  const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
+  return combined.slice(1).map((stepId) => ({
+    label: stepLabel(stepId),
+    value: stepId,
+  }));
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────
@@ -173,6 +176,10 @@ function onHiddenStepsChange(ids: number[]) {
 
 function onMapsRangesChange(ranges: DateRange[]) {
   albumMutation.mutate({ maps_ranges: ranges });
+}
+
+function updateChapters(chapters: AlbumChapter[]) {
+  albumMutation.mutate({ chapters });
 }
 
 function toggleInList<T>(list: readonly T[], item: T): T[] {
@@ -210,6 +217,66 @@ function toggleCountry(group: CountryVisit) {
   }
 }
 
+function toggleChapter(group: ChapterVisit) {
+  if (openChapterKey.value === group.key) {
+    openChapterKey.value = null;
+    openCountryKey.value = null;
+    return;
+  }
+  openChapterKey.value = group.key;
+  openCountryKey.value = group.countries[0]?.key ?? null;
+}
+
+function onSplitChapter(chapterId: string) {
+  const chapters = splitChapter(chaptersForNav.value, props.steps, chapterId);
+  if (chapters === chaptersForNav.value) return;
+  updateChapters(chapters);
+  const sourceIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
+  const nextChapter = chapters[sourceIndex + 1];
+  if (nextChapter) openChapterKey.value = nextChapter.id;
+}
+
+function onAddChapter() {
+  const chapter =
+    chaptersForNav.value.find(
+      (candidate) =>
+        candidate.id === openChapterKey.value && chapterCanSplit(candidate),
+    ) ?? chaptersForNav.value.find((candidate) => chapterCanSplit(candidate));
+  if (chapter) onSplitChapter(chapter.id);
+}
+
+function onDeleteChapter(chapterId: string) {
+  const chapters = deleteChapterFromList(chaptersForNav.value, chapterId);
+  if (chapters === chaptersForNav.value) return;
+  const deletedIndex = chaptersForNav.value.findIndex(
+    (chapter) => chapter.id === chapterId,
+  );
+  updateChapters(chapters);
+  if (openChapterKey.value === chapterId) {
+    openChapterKey.value =
+      chapters[Math.min(deletedIndex, chapters.length - 1)]?.id ?? null;
+  }
+}
+
+function onMoveChapter(chapterId: string, direction: -1 | 1) {
+  const chapters = moveChapterInList(chaptersForNav.value, chapterId, direction);
+  if (chapters !== chaptersForNav.value) updateChapters(chapters);
+}
+
+function onAdjustChapterBoundary(
+  leftChapterId: string,
+  rightChapterId: string,
+  firstRightStepId: number,
+) {
+  const chapters = adjustChapterBoundary(
+    chaptersForNav.value,
+    leftChapterId,
+    rightChapterId,
+    firstRightStepId,
+  );
+  if (chapters !== chaptersForNav.value) updateChapters(chapters);
+}
+
 function deleteMap(rangeIdx: number) {
   const ranges = [...props.mapsRanges];
   ranges.splice(rangeIdx, 1);
@@ -225,16 +292,13 @@ function mapDateChange(rangeIdx: number, range: DateRange) {
   }
 }
 
-function scrollToMap(dateRange: DateRange) {
-  const mapKey = rangeSectionKey("map", dateRange);
-  if (scrollToSection(mapKey)) {
-    setActive(mapKey);
+function scrollToMap(key: string) {
+  if (scrollToSection(key)) {
+    setActive(key);
     return;
   }
-  const hikeKey = rangeSectionKey("hike", dateRange);
-  if (scrollToSection(hikeKey)) {
-    setActive(hikeKey);
-  }
+  const hikeKey = key.replace("-map-", "-hike-");
+  if (hikeKey !== key && scrollToSection(hikeKey)) setActive(hikeKey);
 }
 
 function scrollToStep(id: number) {
@@ -242,7 +306,7 @@ function scrollToStep(id: number) {
   setActive(id);
 }
 
-function scrollToHeader(key: HeaderKey) {
+function scrollToHeader(key: string) {
   if (scrollToSection(key)) setActive(key);
 }
 
@@ -260,17 +324,7 @@ const HEADER_LABELS: Record<HeaderKey, string> = {
   overview: "inspector.overview",
   "full-map": "album.tripRouteMap",
 };
-const headerNavItems = computed(() =>
-  HEADER_KEYS.map((key) => ({
-    key,
-    icon: HEADER_ICONS[key],
-    label: t(HEADER_LABELS[key]),
-  })),
-);
-
 // ── Scroll sync ───────────────────────────────────────────────────────
-
-const HEADER_KEY_SET: ReadonlySet<string> = new Set(HEADER_KEYS);
 
 function scrollNavItemIntoView(selector: string) {
   void nextTick(() => {
@@ -283,9 +337,14 @@ function scrollNavItemIntoView(selector: string) {
 }
 
 function openGroupFor(predicate: (e: GroupEntry) => boolean) {
-  const groupKey = groups.value.find((g) => g.entries.some(predicate))?.key;
-  if (groupKey && groupKey !== openGroupKey.value) {
-    openGroupKey.value = groupKey;
+  for (const chapter of chapterGroups.value) {
+    const country = chapter.countries.find((candidate) =>
+      candidate.entries.some(predicate),
+    );
+    if (!country) continue;
+    if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+    if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
+    return;
   }
 }
 
@@ -296,19 +355,33 @@ watch(activeStepId, (id) => {
   scrollNavItemIntoView(`[data-nav-step="${id}"]`);
 });
 
+watch(
+  chapterGroups,
+  (groups) => {
+    if (!openChapterKey.value && groups[0]) {
+      openChapterKey.value = groups[0].key;
+      openCountryKey.value = groups[0].countries[0]?.key ?? null;
+    }
+  },
+  { immediate: true },
+);
+
 watch(activeSectionKey, (key) => {
   if (key == null) return;
-  if (HEADER_KEY_SET.has(key)) {
-    if (programmaticScrolling.value) return;
-    scrollNavItemIntoView(`[data-nav-section="${key}"]`);
-    return;
-  }
-  for (const g of groups.value) {
-    for (const e of g.entries) {
-      if (e.type === "map" && sectionKeyMatchesRange(key, e.dateRange)) {
-        if (g.key !== openGroupKey.value) openGroupKey.value = g.key;
+  for (const chapter of chapterGroups.value) {
+    if (chapter.headerItems.some((item) => item.key === key)) {
+      if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+      if (programmaticScrolling.value) return;
+      scrollNavItemIntoView(`[data-nav-section="${key}"]`);
+      return;
+    }
+    for (const country of chapter.countries) {
+      for (const entry of country.entries) {
+        if (entry.type !== "map" || entry.key !== key) continue;
+        if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+        if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
         if (programmaticScrolling.value) return;
-        scrollNavItemIntoView(`[data-nav-section="${e.key}"]`);
+        scrollNavItemIntoView(`[data-nav-section="${entry.key}"]`);
         return;
       }
     }
@@ -358,77 +431,71 @@ watch(activeSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <div class="header-items">
-        <div
-          v-for="item in headerNavItems"
-          :key="item.key"
-          role="button"
-          tabindex="0"
-          :data-nav-section="item.key"
-          :class="[
-            'nav-item',
-            'header-item',
-            {
-              visible: activeSectionKey === item.key,
-              'nav-hidden': hiddenHeaderSet.has(item.key),
-            },
-          ]"
-          @click="scrollToHeader(item.key)"
-          @keydown.enter="scrollToHeader(item.key)"
-        >
-          <q-icon :name="item.icon" size="var(--type-sm)" />
-          <span>{{ item.label }}</span>
-          <button
-            type="button"
-            class="header-toggle"
-            :aria-label="
-              hiddenHeaderSet.has(item.key)
-                ? t('nav.showStep')
-                : t('nav.hideStep')
-            "
-            @click.stop="toggleHeader(item.key)"
-          >
-            <q-icon
-              :name="
-                hiddenHeaderSet.has(item.key)
-                  ? symOutlinedVisibilityOff
-                  : symOutlinedVisibility
-              "
-              size="var(--type-xs)"
-            />
-          </button>
-        </div>
+      <div v-if="chapterGroups.length" class="chapter-list-header">
+        <span>{{ t("chapters.title") }}</span>
+        <q-btn
+          type="button"
+          dense
+          flat
+          round
+          class="chapter-add-button"
+          :icon="symOutlinedAdd"
+          :aria-label="t('chapters.add')"
+          :disable="!canAddChapter"
+          @click="onAddChapter"
+        />
       </div>
-
-      <NavCountryGroup
-        v-for="group in groups"
-        :key="group.key"
-        :group="group"
-        :open="openGroupKey === group.key"
-        :active-step-id="activeStepId"
-        :active-section-key="activeSectionKey"
-        :hidden-set="hiddenSet"
-        :steps="steps"
-        :colors="albumColors"
-        :format-map-range="formatMapRange"
-        :lazy-root="listRef ?? null"
-        @toggle-open="
-          openGroupKey = openGroupKey === group.key ? null : group.key
-        "
-        @scroll-to-step="scrollToStep"
-        @scroll-to-map="scrollToMap"
-        @toggle-step="toggleStep"
-        @toggle-country="toggleCountry(group)"
-        @delete-map="deleteMap"
-        @map-date-change="mapDateChange"
-      />
+      <template v-for="(group, index) in chapterGroups" :key="group.key">
+        <NavChapterGroup
+          :group="group"
+          :open="openChapterKey === group.key"
+          :open-country-key="openCountryKey"
+          :active-step-id="activeStepId"
+          :active-section-key="activeSectionKey"
+          :hidden-set="hiddenSet"
+          :hidden-header-set="hiddenHeaderSet"
+          :steps="steps"
+          :colors="albumColors"
+          :format-map-range="formatMapRange"
+          :lazy-root="listRef ?? null"
+          :can-delete="chapterGroups.length > 1"
+          :can-move-up="index > 0"
+          :can-move-down="index < chapterGroups.length - 1"
+          :start-step-id="group.chapter.step_ids?.[0] ?? null"
+          :start-options="
+            index > 0
+              ? boundaryOptions(chapterGroups[index - 1].chapter, group.chapter)
+              : []
+          "
+          @toggle-open="toggleChapter(group)"
+          @delete-chapter="onDeleteChapter(group.chapter.id)"
+          @move-chapter="onMoveChapter(group.chapter.id, $event)"
+          @adjust-boundary="
+            onAdjustChapterBoundary(
+              chapterGroups[index - 1].chapter.id,
+              group.chapter.id,
+              $event,
+            )
+          "
+          @toggle-country-open="
+            openCountryKey = openCountryKey === $event ? null : $event
+          "
+          @scroll-to-step="scrollToStep"
+          @scroll-to-map="scrollToMap"
+          @scroll-to-header="scrollToHeader"
+          @toggle-step="toggleStep"
+          @toggle-header="toggleHeader"
+          @toggle-country="toggleCountry"
+          @delete-map="deleteMap"
+          @map-date-change="mapDateChange"
+        />
+      </template>
     </div>
   </nav>
 </template>
 
 <style lang="scss" scoped>
 @use "nav/nav-item";
-@use "nav/nav-toggle" as *;
 
 .album-nav {
   --opacity-hidden: 0.45;
@@ -476,59 +543,23 @@ watch(activeSectionKey, (key) => {
   }
 }
 
-.header-items {
+.chapter-list-header {
   display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: var(--gap-sm);
-  margin-bottom: var(--gap-sm);
-}
-
-.header-item {
+  align-items: center;
+  justify-content: space-between;
   gap: var(--gap-sm);
   padding: var(--gap-sm) var(--gap-md-lg);
-  font-size: var(--type-xs);
-  font-weight: 600;
   color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: 700;
+  letter-spacing: 0;
+}
 
-  > span {
-    flex: 1;
-  }
+.chapter-add-button {
+  color: var(--text-muted);
 
   &:hover {
     color: var(--text-bright);
-  }
-
-  &.visible {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
-    border-inline-start-color: var(--q-primary);
-
-    &:hover {
-      background: color-mix(in srgb, var(--q-primary) 18%, transparent);
-    }
-
-    &:active {
-      background: color-mix(in srgb, var(--q-primary) 24%, transparent);
-    }
-  }
-}
-
-.header-toggle {
-  @include nav-toggle;
-
-  .header-item:hover & {
-    opacity: 1;
-  }
-
-  .header-item.nav-hidden & {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .header-item {
-    transition: none;
   }
 }
 </style>

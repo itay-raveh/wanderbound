@@ -2,7 +2,7 @@ import type { StepRead as Step } from "@/client";
 import { client } from "@/client/client.gen";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
-import { queryKeys } from "@/queries/keys";
+import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { sleep } from "@/utils/async";
 import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 import { useQueryCache } from "@pinia/colada";
@@ -98,7 +98,7 @@ export function useAddExternalMedia(albumId: () => string) {
     const aid = albumId();
     await Promise.all(
       externalMediaInvalidationKeys(aid, target).map((key) =>
-        cache.invalidateQueries({ key, exact: true }),
+        cache.invalidateQueries(invalidateAlbumKey(key)),
       ),
     );
   }
@@ -317,10 +317,10 @@ export function externalMediaInvalidationKeys(
     | ReturnType<typeof queryKeys.album>
     | ReturnType<typeof queryKeys.media>
     | ReturnType<typeof queryKeys.steps>
-    | ReturnType<typeof queryKeys.printBundle>
+    | ReturnType<typeof queryKeys.printBundles>
   > = [queryKeys.album(aid), queryKeys.media(aid)];
   if (target.context === "step") keys.push(queryKeys.steps(aid));
-  keys.push(queryKeys.printBundle(aid));
+  keys.push(queryKeys.printBundles(aid));
   return keys;
 }
 

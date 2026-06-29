@@ -17,7 +17,7 @@ from PIL import Image
 
 from app.core.config import get_settings
 from app.logic.upload import TripMeta
-from app.models.album import Album
+from app.models.album import Album, AlbumChapter
 from app.models.album_media import (
     AlbumMedia,
     AlbumMediaUndoSnapshot,
@@ -338,13 +338,19 @@ def make_album(
     values: dict[str, object] = {
         "uid": uid,
         "id": aid,
-        "title": title,
-        "subtitle": subtitle,
         "hidden_steps": [],
         "hidden_headers": [],
         "maps_ranges": [],
-        "front_cover_photo": front_cover_photo,
-        "back_cover_photo": back_cover_photo,
+        "chapters": [
+            AlbumChapter(
+                id="chapter-1",
+                title=title,
+                subtitle=subtitle,
+                step_ids=[],
+                front_cover_photo=front_cover_photo,
+                back_cover_photo=back_cover_photo,
+            )
+        ],
         "colors": colors if colors is not None else {"nl": "#0000ff"},
         "body_font": body_font,
     }

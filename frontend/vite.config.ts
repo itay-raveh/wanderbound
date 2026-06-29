@@ -54,6 +54,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     resolve: {
+      dedupe: ["@mapbox/mapbox-gl-supported"],
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "@fonts": path.resolve(__dirname, "fonts.json"),

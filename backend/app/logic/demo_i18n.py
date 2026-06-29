@@ -25,13 +25,19 @@ def load_overlay(locale: str, fixtures_dir: Path) -> Overlay | None:
     return None
 
 
+def _apply_chapter_overlay(album_patch: dict[str, Any], album: Album) -> None:
+    if not album_patch or not album.chapters:
+        return
+    first_chapter = album.chapters[0]
+    if "title" in album_patch:
+        first_chapter.title = album_patch["title"]
+    if "subtitle" in album_patch:
+        first_chapter.subtitle = album_patch["subtitle"]
+
+
 def apply_overlay(overlay: Overlay, album: Album, steps: list[Step]) -> None:
     """Patch *album* and *steps* in place from *overlay*."""
-    album_patch: dict[str, Any] = overlay.get("album", {})
-    if "title" in album_patch:
-        album.title = album_patch["title"]
-    if "subtitle" in album_patch:
-        album.subtitle = album_patch["subtitle"]
+    _apply_chapter_overlay(overlay.get("album", {}), album)
 
     step_patches: dict[str, Any] = overlay.get("steps", {})
     for step in steps:

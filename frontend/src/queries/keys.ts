@@ -1,3 +1,5 @@
+import type { EntryKey, UseQueryEntryFilter } from "@pinia/colada";
+
 /** Placeholder ID used when no album is selected yet (query is disabled). */
 const NONE = "__none__";
 
@@ -13,8 +15,18 @@ export const queryKeys = {
     [...queryKeys.album(aid), "segments"] as const,
   segmentPoints: (aid: string | null, from: number, to: number) =>
     [...queryKeys.album(aid), "segment-points", from, to] as const,
-  printBundle: (aid: string | null) =>
+  printBundles: (aid: string | null) =>
     [...queryKeys.album(aid), "print-bundle"] as const,
+  printBundle: (aid: string | null, chapter: string | null = null) =>
+    [...queryKeys.printBundles(aid), chapter ?? NONE] as const,
   user: () => ["user"] as const,
   authState: () => ["auth-state"] as const,
 };
+
+function isPrintBundlesKey(key: EntryKey): boolean {
+  return key[2] === "print-bundle" && key.length === 3;
+}
+
+export function invalidateAlbumKey(key: EntryKey): UseQueryEntryFilter {
+  return { key, exact: !isPrintBundlesKey(key) };
+}

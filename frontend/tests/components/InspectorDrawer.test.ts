@@ -48,6 +48,7 @@ describe("InspectorDrawer", () => {
         album: defaultAlbum,
         sectionKey: "step-1",
         step: { ...defaultSteps[0], unused: ["unused.jpg"] },
+        steps: defaultSteps,
         media: [
           makeAlbumMedia({
             name: "unused.jpg",
@@ -81,7 +82,8 @@ describe("InspectorDrawer", () => {
     const wrapper = mountWithPlugins(InspectorDrawer, {
       props: {
         album: defaultAlbum,
-        sectionKey: "cover-front",
+        sectionKey: "chapter-chapter-1-cover-front",
+        steps: defaultSteps,
         media: [
           makeAlbumMedia({
             name: "cover.jpg",
@@ -119,7 +121,8 @@ describe("InspectorDrawer", () => {
     const wrapper = mountWithPlugins(InspectorDrawer, {
       props: {
         album: defaultAlbum,
-        sectionKey: "cover-front",
+        sectionKey: "chapter-chapter-1-cover-front",
+        steps: defaultSteps,
         media,
       },
       global: {

@@ -102,10 +102,12 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <AlbumNav
-      v-if="album && displayedSteps"
+      v-if="album && displayedSteps && media"
       v-model:album-id="selectedAlbumId"
       :album-ids="albumIds ?? undefined"
       :steps="displayedSteps"
+      :album="album"
+      :media="media"
       :hidden-steps="album.hidden_steps ?? undefined"
       :hidden-headers="album.hidden_headers ?? undefined"
       :colors="album.colors ?? undefined"
@@ -130,9 +132,10 @@ const activeStep = computed(() =>
     class="print-hide"
   >
     <InspectorDrawer
-      v-if="album && media"
+      v-if="album && media && displayedSteps"
       :album="album"
       :media="media"
+      :steps="displayedSteps"
       :step="activeStep"
       :section-key="activeSectionKey"
     />

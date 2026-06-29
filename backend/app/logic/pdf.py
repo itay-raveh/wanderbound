@@ -11,6 +11,7 @@ from contextlib import (
 )
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
+from urllib.parse import quote, urlencode
 
 import structlog
 from playwright.async_api import Browser, Page, Playwright, async_playwright
@@ -33,7 +34,7 @@ _PER_RENDER_MB = 768
 _memory_mb = detect_memory_mb()
 _max_concurrent = max(1, (_memory_mb - _PDF_BASELINE_MB) // _PER_RENDER_MB)
 
-_QUEUE_TIMEOUT = 120
+PDF_QUEUE_TIMEOUT = 120
 _RENDER_TIMEOUT = 300
 _PROGRESS_CHUNK_BYTES = 512 * 1024
 _RENDER_SLOT_POLL_INTERVAL = 0.25
@@ -60,6 +61,12 @@ class PdfError(BaseModel):
     detail: str
 
 
+class PdfArtifact(BaseModel):
+    path: Path
+    filename: str
+    media_type: str
+
+
 PdfEvent = Annotated[
     PdfQueued | PdfProgress | PdfDone | PdfError,
     Field(discriminator="type"),
@@ -81,19 +88,31 @@ class _PdfTokens:
     def make_dest(self, suffix: str) -> Path:
         return self._store.make_dest(suffix)
 
-    async def store(self, session: AsyncSession, data: tuple[Path, str]) -> str:
-        path, aid = data
-        return await self._store.store(session, {"path": str(path), "aid": aid})
+    async def store(self, session: AsyncSession, artifact: PdfArtifact) -> str:
+        return await self._store.store(
+            session,
+            {
+                "path": str(artifact.path),
+                "filename": artifact.filename,
+                "media_type": artifact.media_type,
+            },
+        )
 
-    async def pop(self, session: AsyncSession, token: str) -> tuple[Path, str] | None:
+    async def pop(self, session: AsyncSession, token: str) -> PdfArtifact | None:
         data = await self._store.pop(session, token)
-        return None if data is None else (Path(data["path"]), data["aid"])
+        if data is None:
+            return None
+        return PdfArtifact(
+            path=Path(data["path"]),
+            filename=data["filename"],
+            media_type=data["media_type"],
+        )
 
     def lifespan(self) -> AbstractAsyncContextManager[None]:
         return self._store.lifespan()
 
 
-_tokens = _PdfTokens()
+pdf_tokens = _PdfTokens()
 
 
 class BrowserManager:
@@ -136,7 +155,7 @@ class BrowserManager:
 @asynccontextmanager
 async def lifespan() -> AsyncGenerator[BrowserManager]:
     """Setup/teardown for PDF rendering: tmp dir cleanup + Playwright browser."""
-    async with _tokens.lifespan():
+    async with pdf_tokens.lifespan():
         pw = await async_playwright().start()
         manager = BrowserManager(pw)
         await manager.launch()
@@ -149,16 +168,27 @@ async def lifespan() -> AsyncGenerator[BrowserManager]:
 
 
 async def store_pdf_token(session: AsyncSession, path: Path, aid: str) -> str:
-    return await _tokens.store(session, (path, aid))
+    return await pdf_tokens.store(
+        session,
+        PdfArtifact(
+            path=path,
+            filename=f"{aid}.pdf",
+            media_type="application/pdf",
+        ),
+    )
 
 
-pop_pdf_token = _tokens.pop
+async def store_pdf_artifact(session: AsyncSession, artifact: PdfArtifact) -> str:
+    return await pdf_tokens.store(session, artifact)
+
+
+pop_pdf_token = pdf_tokens.pop
 
 
 @asynccontextmanager
-async def _render_slot() -> AsyncGenerator[None]:
+async def render_pdf_slot() -> AsyncGenerator[None]:
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + _QUEUE_TIMEOUT
+    deadline = loop.time() + PDF_QUEUE_TIMEOUT
     while True:
         for slot in range(_max_concurrent):
             lock = try_advisory_lock(f"pdf-render:{slot}")
@@ -216,13 +246,27 @@ async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
             await cdp.detach()
 
 
-async def _render_pdf(  # noqa: C901, PLR0915
+def _print_url(
+    frontend_url: str,
+    aid: str,
+    *,
+    dark: bool,
+    chapter: str | None,
+) -> str:
+    query = {"dark": "true" if dark else "false"}
+    if chapter is not None:
+        query["chapter"] = chapter
+    return f"{frontend_url.rstrip('/')}/print/{quote(aid)}?{urlencode(query)}"
+
+
+async def render_pdf_file(  # noqa: C901, PLR0913, PLR0915
     browser: Browser,
     aid: str,
     dest: Path,
     *,
     session_cookie: str,
     dark: bool,
+    chapter: str | None = None,
 ) -> AsyncGenerator[PdfProgress]:
     settings = get_settings()
     frontend_url = str(settings.FRONTEND_URL or settings.VITE_FRONTEND_URL).rstrip("/")
@@ -271,8 +315,7 @@ async def _render_pdf(  # noqa: C901, PLR0915
         page.on("requestfinished", _on_finished)
         page.on("requestfailed", _on_finished)
         await page.emulate_media(media="print")
-        dark_param = "true" if dark else "false"
-        url = f"{frontend_url}/print/{aid}?dark={dark_param}"
+        url = _print_url(frontend_url, aid, dark=dark, chapter=chapter)
         with start_span(
             "pdf.load_page",
             "Load print page",
@@ -327,13 +370,14 @@ async def _render_pdf(  # noqa: C901, PLR0915
         await context.close()
 
 
-async def render_album_pdf_stream(
+async def render_album_pdf_stream(  # noqa: PLR0913
     browser: Browser,
     session: AsyncSession,
     aid: str,
     *,
     session_cookie: str,
     dark: bool = True,
+    chapter: str | None = None,
 ) -> AsyncIterator[PdfEvent]:
     """Top-level SSE generator: queued -> loading -> rendering -> done/error."""
     logger.info("pdf.render_queued", album_id=aid)
@@ -345,20 +389,20 @@ async def render_album_pdf_stream(
             "Wait for PDF render slot",
             **{"app.workflow": "pdf", "album.id": aid},
         ):
-            slot = _render_slot()
+            slot = render_pdf_slot()
             await slot.__aenter__()
     except TimeoutError:
         logger.warning(
             "pdf.queue_timeout",
             album_id=aid,
-            timeout_s=_QUEUE_TIMEOUT,
+            timeout_s=PDF_QUEUE_TIMEOUT,
         )
         yield PdfError(
             detail="Timed out waiting for a PDF render slot. Please try again."
         )
         return
 
-    dest = _tokens.make_dest(".pdf")
+    dest = pdf_tokens.make_dest(".pdf")
     size = 0
     owned = False
     try:
@@ -369,12 +413,13 @@ async def render_album_pdf_stream(
         ) as span:
             async with asyncio.timeout(_RENDER_TIMEOUT):
                 async with aclosing(
-                    _render_pdf(
+                    render_pdf_file(
                         browser,
                         aid,
                         dest,
                         session_cookie=session_cookie,
                         dark=dark,
+                        chapter=chapter,
                     )
                 ) as events:
                     async for event in events:

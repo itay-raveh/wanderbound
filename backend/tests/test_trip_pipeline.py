@@ -417,7 +417,7 @@ class TestSaveReuploadDeletesSegments:
         assert len(steps) == 1
         assert steps[0].name == "New Step"
         assert len(albums) == 1
-        assert albums[0].title == "Reconciled Trip"
+        assert albums[0].chapters[0].title == "Reconciled Trip"
 
     async def test_reupload_deletes_steps_before_cover_media(
         self, tmp_path: Path

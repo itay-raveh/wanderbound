@@ -98,7 +98,11 @@ const undoStack = useUndoStack();
         >
       </div>
       <q-separator vertical class="action-divider" />
-      <PdfExportButton v-if="album" :album-id="album.id" />
+      <PdfExportButton
+        v-if="album"
+        :album-id="album.id"
+        :chapters="album.chapters ?? undefined"
+      />
     </div>
   </div>
 </template>

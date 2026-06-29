@@ -18,7 +18,7 @@ import {
   type MatchSummary,
 } from "./matchAccumulator";
 import { useQueryCache } from "@pinia/colada";
-import { queryKeys } from "@/queries/keys";
+import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
 import { sleep } from "@/utils/async";
 import {
@@ -223,7 +223,7 @@ export function useMediaUpgrade() {
       phase.value = "done";
       await Promise.all(
         mediaUpgradeInvalidationKeys(albumId).map((key) =>
-          cache.invalidateQueries({ key, exact: true }),
+          cache.invalidateQueries(invalidateAlbumKey(key)),
         ),
       );
       scheduleDoneReset();
@@ -457,6 +457,6 @@ export function mediaUpgradeInvalidationKeys(aid: string) {
   return [
     queryKeys.album(aid),
     queryKeys.media(aid),
-    queryKeys.printBundle(aid),
+    queryKeys.printBundles(aid),
   ];
 }

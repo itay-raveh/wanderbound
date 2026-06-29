@@ -94,6 +94,9 @@
   "editor": {
     "toolbar": "כלים",
     "exportPdf": "הורדת PDF",
+    "moreExports": "ייצואים נוספים",
+    "exportChapter": "ייצוא {name}",
+    "exportAllChapters": "ייצוא כל הפרקים",
     "font": "גופן כותרות",
     "bodyFont": "גופן גוף",
     "properties": "מאפיינים",
@@ -258,6 +261,17 @@
     "preparing": "מכין...",
     "progress": "מייצא... {done} / {total} קבצים"
   },
+  "chapters": {
+    "title": "פרקים",
+    "untitled": "פרק {number}",
+    "add": "הוספת פרק",
+    "actions": "פעולות פרק",
+    "delete": "מחיקת פרק",
+    "moveUp": "העלאת פרק",
+    "moveDown": "הורדת פרק",
+    "boundary": "תחילת פרק",
+    "startsAt": "מתחיל ב"
+  },
   "error": {
     "loadAlbum": "טעינת האלבום נכשלה:",
     "updatePreference": "לא הצלחנו לשמור את ההעדפה. @:common.retry",
@@ -275,6 +289,7 @@
     "queued": "ממתין בתור...",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
+    "renderingChapters": "מייצר קובצי PDF לפרקים... {done}/{total}",
     "renderingBytes": "מייצר PDF... {size}",
     "ready": "מוכן",
     "cancel": "ביטול"
@@ -298,6 +313,9 @@
   },
   "nav": {
     "steps": "צעדים",
+    "countries": "מדינות",
+    "chapters": "פרקים",
+    "stepCount": "אין צעדים | צעד אחד | {n} צעדים",
     "cover": "שער",
     "map": "מפה",
     "stepNavigation": "ניווט צעדים",

@@ -212,8 +212,8 @@ class TestFixAlbumCovers:
         steps = [_step(cover="step_cover.jpg")]
 
         _fix_album_covers(album, all_on_disk, "cover.jpg", steps)
-        assert album.front_cover_photo == "cover.jpg"
-        assert album.back_cover_photo == "cover.jpg"
+        assert album.chapters[0].front_cover_photo == "cover.jpg"
+        assert album.chapters[0].back_cover_photo == "cover.jpg"
 
     def test_cover_name_missing_falls_back_to_step_cover(self) -> None:
         album = _album(front_cover_photo="gone.jpg", back_cover_photo="also_gone.jpg")
@@ -221,8 +221,8 @@ class TestFixAlbumCovers:
         steps = [_step(cover="step_cover.jpg")]
 
         _fix_album_covers(album, all_on_disk, "missing_cover.jpg", steps)
-        assert album.front_cover_photo == "step_cover.jpg"
-        assert album.back_cover_photo == "step_cover.jpg"
+        assert album.chapters[0].front_cover_photo == "step_cover.jpg"
+        assert album.chapters[0].back_cover_photo == "step_cover.jpg"
 
 
 _RECONCILE_AID = "test-trip_1"

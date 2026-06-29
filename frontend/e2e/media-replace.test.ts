@@ -7,7 +7,7 @@ test.describe("External media replacement", () => {
   test("cover media can be selected for replacement", async ({
     editorPage: page,
   }) => {
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
     await page.locator('[data-media="cover.jpg"]').click({
@@ -44,7 +44,7 @@ test.describe("External media replacement", () => {
     );
 
     await page.goto("/editor");
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
     await page.locator('[data-media="cover.jpg"]').click({

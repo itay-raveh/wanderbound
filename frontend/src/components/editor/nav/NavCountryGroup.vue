@@ -3,7 +3,6 @@ import type { DateRange, StepRead as Step } from "@/client";
 import type { CountryVisit, GroupEntry } from "./types";
 import { flagUrl } from "@/utils/media";
 import { SHORT_DATE } from "@/utils/date";
-import { sectionKeyMatchesRange } from "../../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
 import { computed, nextTick, ref, watch } from "vue";
@@ -22,7 +21,7 @@ const props = defineProps<{
   open: boolean;
   activeStepId: number | null;
   activeSectionKey: string | null;
-  hiddenSet: Set<number>;
+  hiddenSet: ReadonlySet<number>;
   steps: Step[];
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
@@ -32,7 +31,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleOpen: [];
   scrollToStep: [id: number];
-  scrollToMap: [dateRange: DateRange];
+  scrollToMap: [key: string];
   toggleStep: [id: number];
   toggleCountry: [];
   deleteMap: [rangeIdx: number];
@@ -129,7 +128,7 @@ watch(
       v-if="open"
       ref="virtualScrollRef"
       :items="group.entries"
-      class="group-entries-virtual"
+      class="group-entries-virtual chapter-entries-virtual"
       :virtual-scroll-item-size="NAV_ENTRY_ROW_SIZE"
       :virtual-scroll-slice-size="NAV_ENTRY_SLICE_SIZE"
     >
@@ -140,11 +139,11 @@ watch(
             :data-nav-section="entry.key"
             :date-range="entry.dateRange"
             :range-idx="entry.rangeIdx"
-            :active="sectionKeyMatchesRange(activeSectionKey, entry.dateRange)"
+            :active="activeSectionKey === entry.key"
             :steps="steps"
             :colors="colors"
             :format-map-range="formatMapRange"
-            @click="emit('scrollToMap', entry.dateRange)"
+            @click="emit('scrollToMap', entry.key)"
             @delete="emit('deleteMap', entry.rangeIdx)"
             @date-change="(idx, range) => emit('mapDateChange', idx, range)"
           />
