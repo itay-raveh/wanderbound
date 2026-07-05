@@ -132,6 +132,8 @@
   "album": {
     "day": "יום {n}",
     "stepNamePlaceholder": "שם הצעד...",
+    "chapterTitlePlaceholder": "כותרת פרק",
+    "chapterSubtitlePlaceholder": "כותרת משנה",
     "descriptionPlaceholder": "כתבו תיאור...",
     "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
     "frontCover": "שער קדמי",

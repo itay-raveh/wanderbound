@@ -8,8 +8,10 @@ import { mediaQuality, COVER_FRACTION } from "@/utils/photoQuality";
 import EditableText from "./EditableText.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 const { formatDateRange } = useUserQuery();
+const { t } = useI18n();
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
@@ -65,6 +67,7 @@ function saveText(field: "title" | "subtitle", value: string) {
       :media="coverMedia"
       fit-cover
       :quality="coverQuality"
+      :focusable="false"
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />
 
@@ -76,6 +79,7 @@ function saveText(field: "title" | "subtitle", value: string) {
 
         <EditableText
           :model-value="chapter.title"
+          :placeholder="t('album.chapterTitlePlaceholder')"
           dir="auto"
           class="front-title"
           @update:model-value="saveText('title', $event)"
@@ -83,6 +87,7 @@ function saveText(field: "title" | "subtitle", value: string) {
 
         <EditableText
           :model-value="chapter.subtitle"
+          :placeholder="t('album.chapterSubtitlePlaceholder')"
           dir="auto"
           class="front-subtitle"
           @update:model-value="saveText('subtitle', $event)"
@@ -139,6 +144,8 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 85%;
+  min-width: 9rem;
+  min-height: 1.1em;
   pointer-events: auto;
 }
 
@@ -150,6 +157,8 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 70%;
+  min-width: 7rem;
+  min-height: 1.2em;
   pointer-events: auto;
 }
 

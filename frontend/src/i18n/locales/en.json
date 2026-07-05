@@ -132,6 +132,8 @@
   "album": {
     "day": "DAY {n}",
     "stepNamePlaceholder": "Step name",
+    "chapterTitlePlaceholder": "Chapter title",
+    "chapterSubtitlePlaceholder": "Chapter subtitle",
     "descriptionPlaceholder": "Add a description...",
     "dropPhotoToAdd": "Drop a photo to add a page",
     "frontCover": "Front Cover",

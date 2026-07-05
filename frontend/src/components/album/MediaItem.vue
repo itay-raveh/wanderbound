@@ -227,7 +227,7 @@ function onVideoKey(e: KeyboardEvent) {
 <template>
   <div
     ref="rootRef"
-    :class="['media-item', { focused: isFocused }]"
+    :class="['media-item', { focused: isFocused, selectable: canSelect }]"
     class="relative-position overflow-hidden non-selectable"
     :data-media="media"
     :tabindex="keyboardNavigable ? 0 : undefined"
@@ -333,12 +333,15 @@ function onVideoKey(e: KeyboardEvent) {
 <style lang="scss" scoped>
 .media-item {
   container-type: size;
-  cursor: grab;
   background: transparent;
   width: 100%;
   height: 100%;
 
-  &:active {
+  &.selectable {
+    cursor: grab;
+  }
+
+  &.selectable:active {
     cursor: grabbing;
   }
 
