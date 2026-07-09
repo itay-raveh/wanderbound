@@ -4,6 +4,7 @@ import type { ChapterVisit, CountryVisit } from "./types";
 import type { HeaderKey } from "@/components/album/albumSections";
 import NavCountryGroup from "./NavCountryGroup.vue";
 import { useI18n } from "vue-i18n";
+import { ref } from "vue";
 import {
   symOutlinedCallSplit,
   symOutlinedDelete,
@@ -13,6 +14,7 @@ import {
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
+const menuOpen = ref(false);
 
 defineProps<{
   group: ChapterVisit;
@@ -61,20 +63,8 @@ const emit = defineEmits<{
       <q-item-section class="chapter-group-name" dir="auto">
         {{ group.name }}
       </q-item-section>
-      <q-item-section side class="chapter-actions">
-        <q-btn
-          type="button"
-          dense
-          flat
-          round
-          class="chapter-action"
-          :icon="symOutlinedCallSplit"
-          :aria-label="t('chapters.split')"
-          :disable="!canSplit"
-          @click.stop="emit('splitChapter')"
-        >
-          <q-tooltip>{{ t("chapters.split") }}</q-tooltip>
-        </q-btn>
+      <q-item-section side class="chapter-meta-actions text-muted">
+        <span class="chapter-date-range">{{ group.dateRange }}</span>
         <q-btn
           type="button"
           dense
@@ -83,10 +73,21 @@ const emit = defineEmits<{
           class="chapter-action"
           :icon="symOutlinedMoreVert"
           :aria-label="t('chapters.actions')"
-          @click.stop
+          @click.stop="menuOpen = true"
         >
-          <q-menu>
+          <q-menu v-model="menuOpen" no-parent-event>
             <q-list dense class="chapter-action-menu">
+              <q-item
+                clickable
+                :disable="!canSplit"
+                v-close-popup
+                @click="emit('splitChapter')"
+              >
+                <q-item-section side>
+                  <q-icon :name="symOutlinedCallSplit" />
+                </q-item-section>
+                <q-item-section>{{ t("chapters.split") }}</q-item-section>
+              </q-item>
               <q-item v-if="startOptions?.length" class="chapter-start-item">
                 <q-item-section>
                   <q-select
@@ -116,9 +117,6 @@ const emit = defineEmits<{
             </q-list>
           </q-menu>
         </q-btn>
-      </q-item-section>
-      <q-item-section side class="chapter-count text-muted">
-        {{ group.stepIds.length }}
       </q-item-section>
     </template>
 
@@ -214,22 +212,44 @@ const emit = defineEmits<{
   white-space: nowrap;
 }
 
-.chapter-actions {
-  display: flex;
-  flex-direction: row;
-  gap: var(--gap-xs);
-  opacity: 0;
+.chapter-meta-actions {
+  display: grid;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  font-size: var(--type-xs);
+  white-space: nowrap;
+
+  > * {
+    grid-area: 1 / 1;
+    justify-self: end;
+    align-self: center;
+  }
+}
+
+.chapter-date-range {
+  overflow: hidden;
+  max-width: 8rem;
+  text-overflow: ellipsis;
   transition: opacity var(--duration-fast);
 
   .chapter-group-header:hover &,
-  .q-expansion-item--expanded &,
-  &:focus-within {
-    opacity: 1;
+  .chapter-meta-actions:focus-within & {
+    opacity: 0;
   }
 }
 
 .chapter-action {
   color: var(--text-muted);
+  opacity: 0;
+  transition:
+    color var(--duration-fast),
+    opacity var(--duration-fast);
+
+  .chapter-group-header:hover &,
+  .chapter-meta-actions:focus-within & {
+    opacity: 1;
+  }
 
   &:hover {
     color: var(--text-bright);
@@ -243,11 +263,6 @@ const emit = defineEmits<{
 .chapter-start-item {
   padding-block: var(--gap-xs);
   min-height: 3rem;
-}
-
-.chapter-count {
-  font-size: var(--type-xs);
-  font-variant-numeric: tabular-nums;
 }
 
 .header-items {
@@ -302,7 +317,8 @@ const emit = defineEmits<{
 
 @media (prefers-reduced-motion: reduce) {
   .chapter-group-header,
-  .chapter-actions,
+  .chapter-action,
+  .chapter-date-range,
   .header-item {
     transition: none;
   }

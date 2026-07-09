@@ -159,6 +159,10 @@ export function buildChapterGroups({
         icon: headerIcon(headerKey),
       })),
       stepIds: chapterSteps.map((step) => step.id),
+      dateRange: computeStepDateRange(
+        entries.filter((entry) => entry.type === "step"),
+        dateRangeLabel,
+      ),
       countries: computeCountryRuns(entries, dateRangeLabel),
     };
   });

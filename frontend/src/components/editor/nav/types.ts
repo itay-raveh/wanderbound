@@ -42,4 +42,5 @@ export interface ChapterVisit {
   headerItems: ChapterHeaderNavItem[];
   countries: CountryVisit[];
   stepIds: number[];
+  dateRange: string;
 }

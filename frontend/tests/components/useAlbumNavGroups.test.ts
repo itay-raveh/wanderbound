@@ -73,6 +73,9 @@ describe("buildChapterGroups", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe("First");
     expect(groups[0].stepIds).toEqual([1, 2]);
+    expect(groups[0].dateRange).toBe(
+      "2024-01-01T00:00:00.000Z - 2024-01-02T00:00:00.000Z",
+    );
     expect(groups[0].headerItems.map((entry) => entry.headerKey)).toEqual([
       "cover-front",
       "cover-back",

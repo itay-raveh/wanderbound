@@ -31,7 +31,8 @@ test.describe("Editor", () => {
     });
 
     const nav = page.getByRole("navigation");
-    await nav.getByRole("button", { name: "Split chapter" }).first().click();
+    await nav.getByRole("button", { name: "Chapter actions" }).first().click();
+    await page.getByText("Split chapter").click();
 
     await expect(nav.getByText("Chapter 2")).toBeVisible();
   });
