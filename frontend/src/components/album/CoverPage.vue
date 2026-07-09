@@ -67,7 +67,6 @@ function saveText(field: "title" | "subtitle", value: string) {
       :media="coverMedia"
       fit-cover
       :quality="coverQuality"
-      :focusable="false"
       :class="['fit', { 'cover-dimmed': !isBack }]"
     />
 

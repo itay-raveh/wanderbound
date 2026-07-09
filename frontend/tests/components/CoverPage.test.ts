@@ -57,12 +57,12 @@ describe("CoverPage", () => {
     mutate.mockReset();
   });
 
-  test("keeps empty cover text editable instead of selecting the cover image", () => {
+  test("keeps empty cover text editable while preserving cover media selection", () => {
     const wrapper = mountCoverPage();
 
-    expect(wrapper.get(".media-item-stub").attributes("data-focusable")).toBe(
-      "false",
-    );
+    expect(
+      wrapper.get(".media-item-stub").attributes("data-focusable"),
+    ).not.toBe("false");
     expect(wrapper.get(".front-title").attributes("data-placeholder")).toBe(
       "Chapter title",
     );
