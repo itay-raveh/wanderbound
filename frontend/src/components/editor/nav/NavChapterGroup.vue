@@ -77,17 +77,6 @@ const emit = defineEmits<{
         >
           <q-menu v-model="menuOpen" no-parent-event>
             <q-list dense class="chapter-action-menu">
-              <q-item
-                clickable
-                :disable="!canSplit"
-                v-close-popup
-                @click="emit('splitChapter')"
-              >
-                <q-item-section side>
-                  <q-icon :name="symOutlinedCallSplit" />
-                </q-item-section>
-                <q-item-section>{{ t("chapters.split") }}</q-item-section>
-              </q-item>
               <q-item v-if="startOptions?.length" class="chapter-start-item">
                 <q-item-section>
                   <q-select
@@ -103,13 +92,28 @@ const emit = defineEmits<{
                   />
                 </q-item-section>
               </q-item>
+              <q-separator v-if="startOptions?.length" class="chapter-menu-separator" />
+              <q-item
+                clickable
+                :disable="!canSplit"
+                v-close-popup
+                class="chapter-menu-action"
+                @click="emit('splitChapter')"
+              >
+                <q-item-section side class="chapter-menu-icon">
+                  <q-icon :name="symOutlinedCallSplit" />
+                </q-item-section>
+                <q-item-section>{{ t("chapters.split") }}</q-item-section>
+              </q-item>
+              <q-separator class="chapter-menu-separator" />
               <q-item
                 clickable
                 :disable="!canDelete"
                 v-close-popup
+                class="chapter-menu-action chapter-menu-danger"
                 @click="emit('deleteChapter')"
               >
-                <q-item-section side>
+                <q-item-section side class="chapter-menu-icon">
                   <q-icon :name="symOutlinedDelete" />
                 </q-item-section>
                 <q-item-section>{{ t("chapters.delete") }}</q-item-section>
@@ -257,12 +261,68 @@ const emit = defineEmits<{
 }
 
 .chapter-action-menu {
-  min-width: 12rem;
+  min-width: 13.5rem;
+  padding: var(--gap-xs);
+  color: var(--text-bright);
 }
 
 .chapter-start-item {
-  padding-block: var(--gap-xs);
-  min-height: 3rem;
+  min-height: 3.25rem;
+  padding: 0 var(--gap-sm);
+  border-radius: var(--radius-sm);
+
+  :deep(.q-field__control) {
+    min-height: 2.75rem;
+    padding-inline: 0;
+  }
+
+  :deep(.q-field__label) {
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+    font-weight: 650;
+  }
+
+  :deep(.q-field__native) {
+    color: var(--text-bright);
+    font-size: var(--type-sm);
+    font-weight: 600;
+  }
+}
+
+.chapter-menu-separator {
+  margin: var(--gap-xs) 0;
+  background: var(--border-color);
+}
+
+.chapter-menu-action {
+  min-height: 2.5rem;
+  padding-inline: var(--gap-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-bright);
+  font-size: var(--type-sm);
+  font-weight: 600;
+
+  &:hover {
+    background: color-mix(in srgb, var(--q-primary) 14%, transparent);
+  }
+}
+
+.chapter-menu-icon {
+  min-width: 2rem;
+  padding-inline-end: var(--gap-sm);
+  color: var(--text-muted);
+}
+
+.chapter-menu-danger {
+  color: var(--q-negative);
+
+  .chapter-menu-icon {
+    color: currentColor;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--q-negative) 14%, transparent);
+  }
 }
 
 .header-items {
