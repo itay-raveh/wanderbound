@@ -268,7 +268,8 @@
     "untitled": "פרק {number}",
     "split": "פיצול פרק",
     "actions": "פעולות פרק",
-    "delete": "מחיקת פרק",
+    "mergePrevious": "מיזוג עם הפרק הקודם",
+    "mergeNext": "מיזוג עם הפרק הבא",
     "boundary": "תחילת פרק",
     "startsAt": "מתחיל ב"
   },

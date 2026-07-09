@@ -429,6 +429,7 @@ watch(activeSectionKey, (key) => {
           :lazy-root="listRef ?? null"
           :can-delete="chapterGroups.length > 1"
           :can-split="chapterCanSplit(group.chapter)"
+          :merge-target="index === 0 ? 'next' : 'previous'"
           :start-step-id="group.chapter.step_ids?.[0] ?? null"
           :start-options="
             index > 0

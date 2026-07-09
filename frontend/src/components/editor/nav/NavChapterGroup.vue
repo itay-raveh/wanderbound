@@ -6,8 +6,8 @@ import NavCountryGroup from "./NavCountryGroup.vue";
 import { useI18n } from "vue-i18n";
 import { ref } from "vue";
 import {
+  symOutlinedCallMerge,
   symOutlinedCallSplit,
-  symOutlinedDelete,
   symOutlinedMoreVert,
   symOutlinedVisibility,
   symOutlinedVisibilityOff,
@@ -30,6 +30,7 @@ defineProps<{
   lazyRoot?: HTMLElement | null;
   canDelete?: boolean;
   canSplit?: boolean;
+  mergeTarget?: "previous" | "next";
   startOptions?: { label: string; value: number }[];
   startStepId?: number | null;
 }>();
@@ -110,13 +111,21 @@ const emit = defineEmits<{
                 clickable
                 :disable="!canDelete"
                 v-close-popup
-                class="chapter-menu-action chapter-menu-danger"
+                class="chapter-menu-action"
                 @click="emit('deleteChapter')"
               >
                 <q-item-section side class="chapter-menu-icon">
-                  <q-icon :name="symOutlinedDelete" />
+                  <q-icon :name="symOutlinedCallMerge" />
                 </q-item-section>
-                <q-item-section>{{ t("chapters.delete") }}</q-item-section>
+                <q-item-section>
+                  {{
+                    t(
+                      mergeTarget === "next"
+                        ? "chapters.mergeNext"
+                        : "chapters.mergePrevious",
+                    )
+                  }}
+                </q-item-section>
               </q-item>
             </q-list>
           </q-menu>
@@ -311,18 +320,6 @@ const emit = defineEmits<{
   min-width: 2rem;
   padding-inline-end: var(--gap-sm);
   color: var(--text-muted);
-}
-
-.chapter-menu-danger {
-  color: var(--q-negative);
-
-  .chapter-menu-icon {
-    color: currentColor;
-  }
-
-  &:hover {
-    background: color-mix(in srgb, var(--q-negative) 14%, transparent);
-  }
 }
 
 .header-items {

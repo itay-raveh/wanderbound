@@ -268,7 +268,8 @@
     "untitled": "Chapter {number}",
     "split": "Split chapter",
     "actions": "Chapter actions",
-    "delete": "Delete chapter",
+    "mergePrevious": "Merge with previous chapter",
+    "mergeNext": "Merge with next chapter",
     "boundary": "Chapter start",
     "startsAt": "Starts at"
   },
