@@ -266,11 +266,9 @@
   "chapters": {
     "title": "Chapters",
     "untitled": "Chapter {number}",
-    "add": "Add chapter",
+    "split": "Split chapter",
     "actions": "Chapter actions",
     "delete": "Delete chapter",
-    "moveUp": "Move chapter up",
-    "moveDown": "Move chapter down",
     "boundary": "Chapter start",
     "startsAt": "Starts at"
   },

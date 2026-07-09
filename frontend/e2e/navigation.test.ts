@@ -24,14 +24,14 @@ test.describe("Editor", () => {
     });
   });
 
-  test("adds a chapter from the nav drawer", async ({ focusPage: page }) => {
+  test("splits a chapter from the nav drawer", async ({ focusPage: page }) => {
     await page.goto("/editor");
     await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
 
     const nav = page.getByRole("navigation");
-    await nav.getByRole("button", { name: "Add chapter" }).click();
+    await nav.getByRole("button", { name: "Split chapter" }).first().click();
 
     await expect(nav.getByText("Chapter 2")).toBeVisible();
   });

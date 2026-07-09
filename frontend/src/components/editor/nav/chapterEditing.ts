@@ -86,20 +86,6 @@ export function deleteChapter(
   return result;
 }
 
-export function moveChapter(
-  chapters: AlbumChapter[],
-  chapterId: string,
-  direction: -1 | 1,
-): AlbumChapter[] {
-  const index = chapters.findIndex((chapter) => chapter.id === chapterId);
-  const target = index + direction;
-  if (index < 0 || target < 0 || target >= chapters.length) return chapters;
-
-  const result = chapters.map(cloneChapter);
-  [result[index], result[target]] = [result[target], result[index]];
-  return result;
-}
-
 export function adjustChapterBoundary(
   chapters: AlbumChapter[],
   leftChapterId: string,

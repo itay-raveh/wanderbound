@@ -266,11 +266,9 @@
   "chapters": {
     "title": "פרקים",
     "untitled": "פרק {number}",
-    "add": "הוספת פרק",
+    "split": "פיצול פרק",
     "actions": "פעולות פרק",
     "delete": "מחיקת פרק",
-    "moveUp": "העלאת פרק",
-    "moveDown": "הורדת פרק",
     "boundary": "תחילת פרק",
     "startsAt": "מתחיל ב"
   },

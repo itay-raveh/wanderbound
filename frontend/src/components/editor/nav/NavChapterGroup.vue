@@ -5,8 +5,7 @@ import type { HeaderKey } from "@/components/album/albumSections";
 import NavCountryGroup from "./NavCountryGroup.vue";
 import { useI18n } from "vue-i18n";
 import {
-  symOutlinedArrowDownward,
-  symOutlinedArrowUpward,
+  symOutlinedCallSplit,
   symOutlinedDelete,
   symOutlinedMoreVert,
   symOutlinedVisibility,
@@ -28,16 +27,15 @@ defineProps<{
   formatMapRange: (dr: DateRange) => string;
   lazyRoot?: HTMLElement | null;
   canDelete?: boolean;
-  canMoveUp?: boolean;
-  canMoveDown?: boolean;
+  canSplit?: boolean;
   startOptions?: { label: string; value: number }[];
   startStepId?: number | null;
 }>();
 
 const emit = defineEmits<{
   toggleOpen: [];
+  splitChapter: [];
   deleteChapter: [];
-  moveChapter: [direction: -1 | 1];
   adjustBoundary: [firstStepId: number];
   toggleCountryOpen: [countryKey: string];
   scrollToStep: [id: number];
@@ -70,6 +68,19 @@ const emit = defineEmits<{
           flat
           round
           class="chapter-action"
+          :icon="symOutlinedCallSplit"
+          :aria-label="t('chapters.split')"
+          :disable="!canSplit"
+          @click.stop="emit('splitChapter')"
+        >
+          <q-tooltip>{{ t("chapters.split") }}</q-tooltip>
+        </q-btn>
+        <q-btn
+          type="button"
+          dense
+          flat
+          round
+          class="chapter-action"
           :icon="symOutlinedMoreVert"
           :aria-label="t('chapters.actions')"
           @click.stop
@@ -90,28 +101,6 @@ const emit = defineEmits<{
                     @update:model-value="emit('adjustBoundary', Number($event))"
                   />
                 </q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                :disable="!canMoveUp"
-                v-close-popup
-                @click="emit('moveChapter', -1)"
-              >
-                <q-item-section side>
-                  <q-icon :name="symOutlinedArrowUpward" />
-                </q-item-section>
-                <q-item-section>{{ t("chapters.moveUp") }}</q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                :disable="!canMoveDown"
-                v-close-popup
-                @click="emit('moveChapter', 1)"
-              >
-                <q-item-section side>
-                  <q-icon :name="symOutlinedArrowDownward" />
-                </q-item-section>
-                <q-item-section>{{ t("chapters.moveDown") }}</q-item-section>
               </q-item>
               <q-item
                 clickable

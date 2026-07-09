@@ -24,7 +24,6 @@ import {
   adjustChapterBoundary,
   chapterCanSplit,
   deleteChapter as deleteChapterFromList,
-  moveChapter as moveChapterInList,
   splitChapter,
 } from "./nav/chapterEditing";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -36,7 +35,6 @@ import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
-  symOutlinedAdd,
   symOutlinedMap,
   symOutlinedFlightTakeoff,
   symOutlinedMenuBook,
@@ -143,10 +141,6 @@ const chapterGroups = computed(() =>
   }),
 );
 
-const canAddChapter = computed(() =>
-  chaptersForNav.value.some((chapter) => chapterCanSplit(chapter)),
-);
-
 function formatMapRange(dr: DateRange): string {
   return formatDateRange(
     parseLocalDate(dr[0]),
@@ -236,15 +230,6 @@ function onSplitChapter(chapterId: string) {
   if (nextChapter) openChapterKey.value = nextChapter.id;
 }
 
-function onAddChapter() {
-  const chapter =
-    chaptersForNav.value.find(
-      (candidate) =>
-        candidate.id === openChapterKey.value && chapterCanSplit(candidate),
-    ) ?? chaptersForNav.value.find((candidate) => chapterCanSplit(candidate));
-  if (chapter) onSplitChapter(chapter.id);
-}
-
 function onDeleteChapter(chapterId: string) {
   const chapters = deleteChapterFromList(chaptersForNav.value, chapterId);
   if (chapters === chaptersForNav.value) return;
@@ -256,11 +241,6 @@ function onDeleteChapter(chapterId: string) {
     openChapterKey.value =
       chapters[Math.min(deletedIndex, chapters.length - 1)]?.id ?? null;
   }
-}
-
-function onMoveChapter(chapterId: string, direction: -1 | 1) {
-  const chapters = moveChapterInList(chaptersForNav.value, chapterId, direction);
-  if (chapters !== chaptersForNav.value) updateChapters(chapters);
 }
 
 function onAdjustChapterBoundary(
@@ -433,17 +413,6 @@ watch(activeSectionKey, (key) => {
     <div ref="listRef" class="nav-list">
       <div v-if="chapterGroups.length" class="chapter-list-header">
         <span>{{ t("chapters.title") }}</span>
-        <q-btn
-          type="button"
-          dense
-          flat
-          round
-          class="chapter-add-button"
-          :icon="symOutlinedAdd"
-          :aria-label="t('chapters.add')"
-          :disable="!canAddChapter"
-          @click="onAddChapter"
-        />
       </div>
       <template v-for="(group, index) in chapterGroups" :key="group.key">
         <NavChapterGroup
@@ -459,8 +428,7 @@ watch(activeSectionKey, (key) => {
           :format-map-range="formatMapRange"
           :lazy-root="listRef ?? null"
           :can-delete="chapterGroups.length > 1"
-          :can-move-up="index > 0"
-          :can-move-down="index < chapterGroups.length - 1"
+          :can-split="chapterCanSplit(group.chapter)"
           :start-step-id="group.chapter.step_ids?.[0] ?? null"
           :start-options="
             index > 0
@@ -468,8 +436,8 @@ watch(activeSectionKey, (key) => {
               : []
           "
           @toggle-open="toggleChapter(group)"
+          @split-chapter="onSplitChapter(group.chapter.id)"
           @delete-chapter="onDeleteChapter(group.chapter.id)"
-          @move-chapter="onMoveChapter(group.chapter.id, $event)"
           @adjust-boundary="
             onAdjustChapterBoundary(
               chapterGroups[index - 1].chapter.id,
@@ -555,11 +523,4 @@ watch(activeSectionKey, (key) => {
   letter-spacing: 0;
 }
 
-.chapter-add-button {
-  color: var(--text-muted);
-
-  &:hover {
-    color: var(--text-bright);
-  }
-}
 </style>

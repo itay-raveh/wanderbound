@@ -1,7 +1,6 @@
 import {
   adjustChapterBoundary,
   deleteChapter,
-  moveChapter,
   splitChapter,
 } from "@/components/editor/nav/chapterEditing";
 import { makeStep } from "../helpers";
@@ -78,15 +77,4 @@ describe("chapterEditing", () => {
     ]);
   });
 
-  it("reorders chapters without moving steps between them", () => {
-    const chapters = [
-      chapter({ id: "chapter-1", step_ids: [1, 2] }),
-      chapter({ id: "chapter-2", step_ids: [3, 4] }),
-    ];
-
-    expect(moveChapter(chapters, "chapter-2", -1)).toEqual([
-      chapter({ id: "chapter-2", step_ids: [3, 4] }),
-      chapter({ id: "chapter-1", step_ids: [1, 2] }),
-    ]);
-  });
 });
