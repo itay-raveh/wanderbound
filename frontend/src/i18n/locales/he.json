@@ -149,7 +149,6 @@
     "nextFrame": "פריים הבא (.)",
     "selectPhoto": "בחרו תמונה",
     "selectCoverPhoto": "בחרו תמונת שער {index} מתוך {total}",
-    "allDates": "כל התאריכים",
     "tripRouteMap": "מפת מסלול הטיול",
     "playVideo": "הפעלת סרטון"
   },
@@ -321,7 +320,6 @@
     "map": "מפה",
     "stepNavigation": "ניווט צעדים",
     "selectAlbum": "בחירת אלבום",
-    "dateFilter": "סינון לפי תאריכים",
     "hideStep": "הסתרת צעד",
     "showStep": "הצגת צעד",
     "hideAll": "הסתרת הכל",
@@ -329,11 +327,9 @@
     "maps": "מפות",
     "mapRanges": "טווחי תאריכי מפות",
     "clear": "ניקוי",
-    "clearFilter": "ניקוי סינון",
     "removeAllMaps": "להסיר את כל המפות?",
     "remove": "הסרה",
     "mapsCleared": "כל המפות הוסרו",
-    "filterCleared": "הסינון נוקה",
     "inspector": "מאפיינים"
   },
   "screen": {

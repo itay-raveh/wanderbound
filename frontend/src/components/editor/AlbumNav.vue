@@ -31,7 +31,6 @@ import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { ref, computed, watch, nextTick } from "vue";
-import NavDateFilter from "./nav/NavDateFilter.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import {
@@ -171,10 +170,6 @@ function boundaryOptions(left: AlbumChapter, right: AlbumChapter) {
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────
-
-function onHiddenStepsChange(ids: number[]) {
-  albumMutation.mutate({ hidden_steps: ids });
-}
 
 function onMapsRangesChange(ranges: DateRange[]) {
   albumMutation.mutate({ maps_ranges: ranges });
@@ -404,12 +399,6 @@ watch(activeSectionKey, (key) => {
     </q-select>
 
     <div v-if="steps.length" class="nav-controls">
-      <NavDateFilter
-        :steps="steps"
-        :hidden-steps="hiddenSteps"
-        :colors="albumColors"
-        @update:hidden-steps="onHiddenStepsChange"
-      />
       <NavMapRanges
         :steps="steps"
         :maps-ranges="mapsRanges"

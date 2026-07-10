@@ -149,7 +149,6 @@
     "nextFrame": "Next frame (.)",
     "selectPhoto": "Select photo",
     "selectCoverPhoto": "Select cover photo {index} of {total}",
-    "allDates": "All dates",
     "tripRouteMap": "Trip route map",
     "playVideo": "Play video"
   },
@@ -321,7 +320,6 @@
     "map": "Map",
     "stepNavigation": "Step navigation",
     "selectAlbum": "Select album",
-    "dateFilter": "Filter by date range",
     "hideStep": "Hide step",
     "showStep": "Show step",
     "hideAll": "Hide all",
@@ -329,11 +327,9 @@
     "maps": "Maps",
     "mapRanges": "Map date ranges",
     "clear": "Clear",
-    "clearFilter": "Clear filter",
     "removeAllMaps": "Remove all maps?",
     "remove": "Remove",
     "mapsCleared": "All maps removed",
-    "filterCleared": "Filter cleared",
     "inspector": "Inspector"
   },
   "screen": {

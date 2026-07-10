@@ -104,7 +104,6 @@ describe("AlbumNav", () => {
       global: {
         stubs: {
           NavChapterGroup: NavChapterGroupStub,
-          NavDateFilter: true,
           NavMapRanges: true,
           QIcon: true,
           QSelect: true,
@@ -140,7 +139,6 @@ describe("AlbumNav", () => {
       global: {
         stubs: {
           NavChapterGroup: NavChapterGroupStub,
-          NavDateFilter: true,
           NavMapRanges: true,
           QIcon: true,
           QSelect: true,
@@ -185,7 +183,6 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavDateFilter: true,
           NavMapRanges: true,
           NavChapterGroup: NavChapterGroupStub,
           QIcon: true,
@@ -236,7 +233,6 @@ describe("AlbumNav", () => {
       global: {
         stubs: {
           NavChapterGroup: NavChapterGroupStub,
-          NavDateFilter: true,
           NavMapRanges: true,
           NavMapItem: true,
           NavStepItem: true,
