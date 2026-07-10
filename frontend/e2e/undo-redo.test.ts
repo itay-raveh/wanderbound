@@ -19,7 +19,7 @@ function unusedBadge(page: Page): Locator {
 test.describe("Undo & redo", () => {
   test.beforeEach(async ({ focusPage: page }) => {
     await openEditor(page);
-    await scrollToStep(page, "Argentina", "Buenos Aires");
+    await scrollToStep(page, "Buenos Aires");
   });
 
   test("Ctrl+Z after sendToUnused restores the photo", async ({

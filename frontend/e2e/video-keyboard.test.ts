@@ -13,19 +13,6 @@ function playOverlay(page: Page): Locator {
 async function scrollToVideo(page: Page) {
   const nav = page.getByRole("navigation");
   const santiago = nav.getByText("Santiago");
-  const chile = nav.getByText(/Chile/i).first();
-
-  await expect(chile).toBeVisible({ timeout: 3_000 });
-  const chileOpen = await chile.evaluate((el) =>
-    Boolean(
-      el.closest(".q-expansion-item")?.classList.contains(
-        "q-expansion-item--expanded",
-      ),
-    ),
-  );
-  if (!chileOpen) {
-    await chile.click();
-  }
 
   if (!(await santiago.isVisible())) {
     await nav.locator('[data-nav-step="103"]').scrollIntoViewIfNeeded();

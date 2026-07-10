@@ -21,7 +21,7 @@ async function expectOneSelected(page: Page, timeout = 3_000) {
 }
 
 async function selectFirstPhoto(page: Page): Promise<Locator> {
-  await scrollToStep(page, "Argentina", "Buenos Aires");
+  await scrollToStep(page, "Buenos Aires");
   const first = photos(page).first();
   await first.click();
   await expectOneSelected(page);
@@ -99,7 +99,7 @@ test.describe("Photo focus & arrow navigation", () => {
   test("ArrowLeft moves selection to previous photo", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
+    await scrollToStep(page, "Buenos Aires");
 
     const second = photos(page).nth(1);
     await second.click();
@@ -240,7 +240,7 @@ test.describe("Send to unused & set as cover", () => {
   test("empty unused tray keeps a usable drop target", async ({
     focusPage: page,
   }) => {
-    await scrollToStep(page, "Argentina", "Buenos Aires");
+    await scrollToStep(page, "Buenos Aires");
     const track = page.locator(".unused-drawer .drawer-track");
 
     await expect

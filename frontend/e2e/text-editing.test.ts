@@ -22,7 +22,7 @@ async function editStepName(page: Page, value: string, commitKey: string) {
 test.describe("Text editing", () => {
   test.beforeEach(async ({ focusPage: page }) => {
     await openEditor(page);
-    await scrollToStep(page, "Argentina", "Buenos Aires");
+    await scrollToStep(page, "Buenos Aires");
   });
 
   test("editing step name persists on blur", async ({ focusPage: page }) => {
