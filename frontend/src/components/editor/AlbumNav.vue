@@ -156,10 +156,18 @@ function stepLabel(stepId: number): string {
 
 function boundaryOptions(left: AlbumChapter, right: AlbumChapter) {
   const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
-  return combined.slice(1).map((stepId) => ({
-    label: stepLabel(stepId),
-    value: stepId,
-  }));
+  return combined.slice(1).map((stepId) => {
+    const step = props.steps.find((candidate) => candidate.id === stepId);
+    const countryCode = step?.location.country_code ?? "";
+    return {
+      label: stepLabel(stepId),
+      value: stepId,
+      countryCode,
+      countryLabel: step
+        ? countryName(countryCode, step.location.detail)
+        : String(stepId),
+    };
+  });
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────

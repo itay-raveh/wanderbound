@@ -68,4 +68,49 @@ describe("NavChapterGroup", () => {
     expect(document.body.textContent).toContain("Merge with previous chapter");
     expect(document.body.textContent).not.toContain("Delete chapter");
   });
+
+  it("shows a left-to-right chapter start value with its country flag", async () => {
+    const wrapper = mountWithPlugins(NavChapterGroup, {
+      props: {
+        group,
+        open: false,
+        openCountryKey: null,
+        activeStepId: null,
+        activeSectionKey: null,
+        hiddenSet: new Set<number>(),
+        hiddenHeaderSet: new Set<string>(),
+        steps: [makeStep({ id: 1 }), makeStep({ id: 2 })],
+        colors: {},
+        formatMapRange: () => "",
+        canDelete: true,
+        canSplit: true,
+        mergeTarget: "previous",
+        startOptions: [
+          {
+            label: "Buenos Aires",
+            value: 2,
+            countryCode: "AR",
+            countryLabel: "Argentina",
+          },
+        ],
+        startStepId: 2,
+      },
+      attachTo: document.body,
+    });
+
+    await wrapper.get('button[aria-label="Chapter actions"]').trigger("click");
+    await nextTick();
+
+    const selected = document.body.querySelector(".chapter-start-selected");
+    expect(selected).toBeInstanceOf(HTMLElement);
+    expect(selected?.getAttribute("dir")).toBe("ltr");
+    expect(selected?.querySelector(".chapter-start-label")?.getAttribute("dir")).toBe(
+      "auto",
+    );
+    expect(selected?.querySelector("img")?.getAttribute("src")).toBe(
+      "/flags/ar.png",
+    );
+    expect(selected?.textContent).toContain("Buenos Aires");
+  });
+
 });
