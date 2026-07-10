@@ -13,7 +13,7 @@
   padding-block: var(--gap-md);
   padding-inline: 2rem var(--gap-md-lg);
   border: none;
-  border-inline-start: 0.1875rem solid transparent;
+  border-inline-start: 0.1875rem solid var(--country-color, transparent);
   transition:
     background var(--duration-fast),
     border-color var(--duration-fast);

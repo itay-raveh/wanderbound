@@ -16,7 +16,8 @@ const group: ChapterVisit = {
     step_ids: [1, 2],
   },
   headerItems: [],
-  countries: [],
+  entries: [],
+  entryIndexByStepId: new Map(),
   stepIds: [1, 2],
   dateRange: "Jan 1 - Jan 2",
 };
@@ -26,7 +27,6 @@ function mountChapterGroup(mergeTarget: "previous" | "next") {
     props: {
       group,
       open: false,
-      openCountryKey: null,
       activeStepId: null,
       activeSectionKey: null,
       hiddenSet: new Set<number>(),
@@ -74,7 +74,6 @@ describe("NavChapterGroup", () => {
       props: {
         group,
         open: false,
-        openCountryKey: null,
         activeStepId: null,
         activeSectionKey: null,
         hiddenSet: new Set<number>(),

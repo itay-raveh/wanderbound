@@ -82,25 +82,16 @@ describe("buildChapterGroups", () => {
       "overview",
       "full-map",
     ]);
-    expect(groups[0].countries).toHaveLength(1);
-    expect(groups[0].countries[0].entries.map((entry) => entry.type)).toEqual([
+    expect(groups[0].entries.map((entry) => entry.type)).toEqual([
       "map",
       "step",
       "step",
     ]);
-    expect(groups[0].countries[0].entryIndexByStepId.get(2)).toBe(2);
-    expect(groups[0].countries).toEqual([
-      {
-        key: "AR-1",
-        code: "AR",
-        name: "Argentina",
-        color: "#111111",
-        entries: groups[0].countries[0].entries,
-        stepIds: [1, 2],
-        entryIndexByStepId: groups[0].countries[0].entryIndexByStepId,
-        dateRange:
-          "2024-01-01T00:00:00.000Z - 2024-01-02T00:00:00.000Z",
-      },
-    ]);
+    expect(groups[0].entryIndexByStepId.get(2)).toBe(2);
+    expect(groups[0].entries[0]).toMatchObject({
+      type: "map",
+      color: "#111111",
+      dateRange: ["2024-01-01", "2024-01-31"],
+    });
   });
 });

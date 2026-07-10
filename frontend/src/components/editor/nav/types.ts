@@ -14,18 +14,13 @@ export interface StepItem {
 
 export type GroupEntry =
   | { type: "step"; item: StepItem }
-  | { type: "map"; rangeIdx: number; dateRange: DateRange; key: string };
-
-export interface CountryVisit {
-  key: string;
-  code: string;
-  name: string;
-  color: string;
-  entries: GroupEntry[];
-  stepIds: number[];
-  entryIndexByStepId: Map<number, number>;
-  dateRange: string;
-}
+  | {
+      type: "map";
+      rangeIdx: number;
+      dateRange: DateRange;
+      key: string;
+      color: string;
+    };
 
 interface ChapterHeaderNavItem {
   key: string;
@@ -40,7 +35,8 @@ export interface ChapterVisit {
   chapter: AlbumChapter;
   chapterIndex: number;
   headerItems: ChapterHeaderNavItem[];
-  countries: CountryVisit[];
+  entries: GroupEntry[];
+  entryIndexByStepId: Map<number, number>;
   stepIds: number[];
   dateRange: string;
 }

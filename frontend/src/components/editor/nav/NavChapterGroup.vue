@@ -1,11 +1,14 @@
 <script lang="ts" setup>
 import type { DateRange, StepRead as Step } from "@/client";
-import type { ChapterVisit, CountryVisit } from "./types";
+import type { ChapterVisit, GroupEntry } from "./types";
 import type { HeaderKey } from "@/components/album/albumSections";
+import { SHORT_DATE } from "@/utils/date";
 import { flagUrl } from "@/utils/media";
-import NavCountryGroup from "./NavCountryGroup.vue";
+import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import NavStepItem from "./NavStepItem.vue";
+import NavMapItem from "./NavMapItem.vue";
 import {
   symOutlinedCallMerge,
   symOutlinedCallSplit,
@@ -15,6 +18,7 @@ import {
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
+const { formatDate } = useUserQuery();
 const menuOpen = ref(false);
 
 type StartOption = {
@@ -27,7 +31,6 @@ type StartOption = {
 const props = defineProps<{
   group: ChapterVisit;
   open: boolean;
-  openCountryKey: string | null;
   activeStepId: number | null;
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
@@ -49,18 +52,52 @@ const selectedStartOption = computed(
     null,
 );
 
+const NAV_ENTRY_ROW_SIZE = 54;
+const NAV_ENTRY_SLICE_SIZE = 24;
+type VirtualScrollExpose = {
+  scrollTo: (index: number) => void;
+  $el?: HTMLElement;
+};
+const virtualScrollRef = ref<VirtualScrollExpose | null>(null);
+
+function entryKey(entry: GroupEntry) {
+  return entry.type === "step" ? `step-${entry.item.id}` : entry.key;
+}
+
+function scrollActiveIntoVirtualView() {
+  if (!props.open || props.activeStepId == null) return;
+  const index = props.group.entryIndexByStepId.get(props.activeStepId);
+  if (index == null) return;
+  virtualScrollRef.value?.scrollTo(index);
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const scrollEl = virtualScrollRef.value?.$el;
+      if (!scrollEl) return;
+      scrollEl.scrollTop = Math.max(
+        0,
+        index * NAV_ENTRY_ROW_SIZE -
+          (scrollEl.clientHeight - NAV_ENTRY_ROW_SIZE) / 2,
+      );
+    });
+  });
+}
+
+watch(
+  () => [props.open, props.activeStepId, props.group.entries] as const,
+  scrollActiveIntoVirtualView,
+  { flush: "post" },
+);
+
 const emit = defineEmits<{
   toggleOpen: [];
   splitChapter: [];
   deleteChapter: [];
   adjustBoundary: [firstStepId: number];
-  toggleCountryOpen: [countryKey: string];
   scrollToStep: [id: number];
   scrollToMap: [key: string];
   scrollToHeader: [key: string];
   toggleStep: [id: number];
   toggleHeader: [headerKey: HeaderKey];
-  toggleCountry: [country: CountryVisit];
   deleteMap: [rangeIdx: number];
   mapDateChange: [rangeIdx: number, range: DateRange];
 }>();
@@ -226,26 +263,46 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <NavCountryGroup
-      v-for="country in group.countries"
-      :key="country.key"
-      :group="country"
-      :open="openCountryKey === country.key"
-      :active-step-id="activeStepId"
-      :active-section-key="activeSectionKey"
-      :hidden-set="hiddenSet"
-      :steps="steps"
-      :colors="colors"
-      :format-map-range="formatMapRange"
-      :lazy-root="lazyRoot ?? null"
-      @toggle-open="emit('toggleCountryOpen', country.key)"
-      @scroll-to-step="emit('scrollToStep', $event)"
-      @scroll-to-map="emit('scrollToMap', $event)"
-      @toggle-step="emit('toggleStep', $event)"
-      @toggle-country="emit('toggleCountry', country)"
-      @delete-map="emit('deleteMap', $event)"
-      @map-date-change="(idx, range) => emit('mapDateChange', idx, range)"
-    />
+    <q-virtual-scroll
+      v-if="open"
+      ref="virtualScrollRef"
+      :items="group.entries"
+      class="chapter-entries-virtual"
+      :virtual-scroll-item-size="NAV_ENTRY_ROW_SIZE"
+      :virtual-scroll-slice-size="NAV_ENTRY_SLICE_SIZE"
+    >
+      <template #default="{ item: entry }">
+        <div :key="entryKey(entry)" class="nav-virtual-row">
+          <NavMapItem
+            v-if="entry.type === 'map'"
+            :data-nav-section="entry.key"
+            :date-range="entry.dateRange"
+            :range-idx="entry.rangeIdx"
+            :active="activeSectionKey === entry.key"
+            :color="entry.color"
+            :steps="steps"
+            :colors="colors"
+            :format-map-range="formatMapRange"
+            @click="emit('scrollToMap', entry.key)"
+            @delete="emit('deleteMap', entry.rangeIdx)"
+            @date-change="(idx, range) => emit('mapDateChange', idx, range)"
+          />
+          <NavStepItem
+            v-else
+            :data-nav-step="entry.item.id"
+            :name="entry.item.name"
+            :date="formatDate(entry.item.date, SHORT_DATE)"
+            :thumb="entry.item.thumb"
+            :color="entry.item.color"
+            :active="activeStepId === entry.item.id"
+            :hidden="hiddenSet.has(entry.item.id)"
+            :lazy-root="lazyRoot"
+            @click="emit('scrollToStep', entry.item.id)"
+            @toggle="emit('toggleStep', entry.item.id)"
+          />
+        </div>
+      </template>
+    </q-virtual-scroll>
   </q-expansion-item>
 </template>
 
@@ -432,6 +489,11 @@ const emit = defineEmits<{
   border-bottom: 1px solid var(--border-color);
   padding-bottom: var(--gap-sm);
   margin-bottom: var(--gap-sm);
+}
+
+.chapter-entries-virtual {
+  max-height: calc(100vh - 13rem);
+  overflow-y: auto;
 }
 
 .header-item {

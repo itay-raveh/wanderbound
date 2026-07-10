@@ -8,7 +8,6 @@ import type {
 } from "@/client";
 import type {
   ChapterVisit,
-  CountryVisit,
   GroupEntry,
   StepItem,
 } from "./nav/types";
@@ -77,7 +76,6 @@ const {
 const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
 const listRef = ref<HTMLElement>();
 const openChapterKey = ref<string | null>(null);
-const openCountryKey = ref<string | null>(null);
 
 // ── Album selector ────────────────────────────────────────────────────
 
@@ -199,29 +197,12 @@ function toggleHeader(key: HeaderKey) {
   });
 }
 
-function toggleCountry(group: CountryVisit) {
-  const { stepIds } = group;
-  const allHidden = stepIds.every((id) => hiddenSet.value.has(id));
-  if (allHidden) {
-    const toRemove = new Set(stepIds);
-    albumMutation.mutate({
-      hidden_steps: props.hiddenSteps.filter((id) => !toRemove.has(id)),
-    });
-  } else {
-    albumMutation.mutate({
-      hidden_steps: [...new Set([...props.hiddenSteps, ...stepIds])],
-    });
-  }
-}
-
 function toggleChapter(group: ChapterVisit) {
   if (openChapterKey.value === group.key) {
     openChapterKey.value = null;
-    openCountryKey.value = null;
     return;
   }
   openChapterKey.value = group.key;
-  openCountryKey.value = group.countries[0]?.key ?? null;
 }
 
 function onSplitChapter(chapterId: string) {
@@ -321,12 +302,8 @@ function scrollNavItemIntoView(selector: string) {
 
 function openGroupFor(predicate: (e: GroupEntry) => boolean) {
   for (const chapter of chapterGroups.value) {
-    const country = chapter.countries.find((candidate) =>
-      candidate.entries.some(predicate),
-    );
-    if (!country) continue;
+    if (!chapter.entries.some(predicate)) continue;
     if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
-    if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
     return;
   }
 }
@@ -343,7 +320,6 @@ watch(
   (groups) => {
     if (!openChapterKey.value && groups[0]) {
       openChapterKey.value = groups[0].key;
-      openCountryKey.value = groups[0].countries[0]?.key ?? null;
     }
   },
   { immediate: true },
@@ -358,15 +334,12 @@ watch(activeSectionKey, (key) => {
       scrollNavItemIntoView(`[data-nav-section="${key}"]`);
       return;
     }
-    for (const country of chapter.countries) {
-      for (const entry of country.entries) {
-        if (entry.type !== "map" || entry.key !== key) continue;
-        if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
-        if (country.key !== openCountryKey.value) openCountryKey.value = country.key;
-        if (programmaticScrolling.value) return;
-        scrollNavItemIntoView(`[data-nav-section="${entry.key}"]`);
-        return;
-      }
+    for (const entry of chapter.entries) {
+      if (entry.type !== "map" || entry.key !== key) continue;
+      if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
+      if (programmaticScrolling.value) return;
+      scrollNavItemIntoView(`[data-nav-section="${entry.key}"]`);
+      return;
     }
   }
 });
@@ -415,7 +388,6 @@ watch(activeSectionKey, (key) => {
         <NavChapterGroup
           :group="group"
           :open="openChapterKey === group.key"
-          :open-country-key="openCountryKey"
           :active-step-id="activeStepId"
           :active-section-key="activeSectionKey"
           :hidden-set="hiddenSet"
@@ -443,15 +415,11 @@ watch(activeSectionKey, (key) => {
               $event,
             )
           "
-          @toggle-country-open="
-            openCountryKey = openCountryKey === $event ? null : $event
-          "
           @scroll-to-step="scrollToStep"
           @scroll-to-map="scrollToMap"
           @scroll-to-header="scrollToHeader"
           @toggle-step="toggleStep"
           @toggle-header="toggleHeader"
-          @toggle-country="toggleCountry"
           @delete-map="deleteMap"
           @map-date-change="mapDateChange"
         />

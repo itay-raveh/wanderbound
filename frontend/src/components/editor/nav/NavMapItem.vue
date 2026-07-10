@@ -20,6 +20,7 @@ const props = defineProps<{
   dateRange: DateRange;
   rangeIdx: number;
   active: boolean;
+  color: string;
   steps: Step[];
   colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
@@ -55,6 +56,7 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
     role="button"
     tabindex="0"
     :class="['nav-item', 'map-item', { visible: active }]"
+    :style="{ '--country-color': color }"
     :aria-label="`${t('nav.map')}: ${formatMapRange(dateRange)}`"
     @click="$emit('click')"
     @keydown.enter="$emit('click')"

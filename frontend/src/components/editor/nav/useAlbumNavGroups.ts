@@ -11,7 +11,6 @@ import {
 } from "@/components/album/albumSections";
 import type {
   ChapterVisit,
-  CountryVisit,
   GroupEntry,
   StepItem,
 } from "./types";
@@ -36,12 +35,14 @@ type ChapterGroupsInput = {
 function toMapEntry(
   source: MapEntrySource,
   chapter: AlbumChapter,
+  color: string,
 ): Extract<GroupEntry, { type: "map" }> {
   return {
     type: "map",
     rangeIdx: source.rangeIdx,
     dateRange: source.dateRange,
     key: rangeSectionKey("map", source.dateRange, chapter),
+    color,
   };
 }
 
@@ -71,11 +72,12 @@ function entriesForSteps(
   );
   const entries: GroupEntry[] = [];
   for (const step of steps) {
-    entries.push(
-      ...(insertions.get(step.id)?.map((entry) => toMapEntry(entry, chapter)) ??
-        []),
-    );
     const item = byStepId.get(step.id);
+    entries.push(
+      ...(insertions
+        .get(step.id)
+        ?.map((entry) => toMapEntry(entry, chapter, item?.color ?? "")) ?? []),
+    );
     if (item) entries.push({ type: "step", item });
   }
   return entries;
@@ -89,48 +91,6 @@ function computeStepDateRange(
   const last = steps.at(-1)?.item.date;
   if (!first || !last) return "";
   return dateRangeLabel(first, last);
-}
-
-function computeCountryRuns(
-  entries: GroupEntry[],
-  dateRangeLabel: (first: Date, last: Date) => string,
-): CountryVisit[] {
-  const runs: Array<
-    Omit<CountryVisit, "dateRange"> & {
-      stepEntries: Extract<GroupEntry, { type: "step" }>[];
-    }
-  > = [];
-  let pendingMaps: Extract<GroupEntry, { type: "map" }>[] = [];
-  entries.forEach((entry, entryIndex) => {
-    if (entry.type === "map") {
-      pendingMaps.push(entry);
-      return;
-    }
-    const prev = runs.at(-1);
-    if (prev && prev.code === entry.item.country) {
-      const stepEntryIndex = prev.entries.length + pendingMaps.length;
-      prev.entries.push(...pendingMaps, entry);
-      prev.stepIds.push(entry.item.id);
-      prev.stepEntries.push(entry);
-      prev.entryIndexByStepId.set(entry.item.id, stepEntryIndex);
-    } else {
-      runs.push({
-        key: `${entry.item.country}-${entryIndex}`,
-        code: entry.item.country,
-        name: entry.item.countryLabel,
-        color: entry.item.color,
-        entries: [...pendingMaps, entry],
-        stepIds: [entry.item.id],
-        entryIndexByStepId: new Map([[entry.item.id, pendingMaps.length]]),
-        stepEntries: [entry],
-      });
-    }
-    pendingMaps = [];
-  });
-  return runs.map(({ stepEntries, ...run }) => ({
-    ...run,
-    dateRange: computeStepDateRange(stepEntries, dateRangeLabel),
-  }));
 }
 
 export function buildChapterGroups({
@@ -147,6 +107,10 @@ export function buildChapterGroups({
   return chapters.map((chapter, index) => {
     const chapterSteps = stepsForChapter(steps, chapter);
     const entries = entriesForSteps(chapterSteps, stepItems, mapsRanges, chapter);
+    const entryIndexByStepId = new Map<number, number>();
+    entries.forEach((entry, entryIndex) => {
+      if (entry.type === "step") entryIndexByStepId.set(entry.item.id, entryIndex);
+    });
     return {
       key: chapter.id,
       name: chapter.title || untitledLabel(index),
@@ -159,11 +123,12 @@ export function buildChapterGroups({
         icon: headerIcon(headerKey),
       })),
       stepIds: chapterSteps.map((step) => step.id),
+      entries,
+      entryIndexByStepId,
       dateRange: computeStepDateRange(
         entries.filter((entry) => entry.type === "step"),
         dateRangeLabel,
       ),
-      countries: computeCountryRuns(entries, dateRangeLabel),
     };
   });
 }

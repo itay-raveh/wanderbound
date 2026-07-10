@@ -47,6 +47,7 @@ watchEffect(() => {
     role="button"
     tabindex="0"
     :class="['nav-item', { visible: active, 'nav-hidden': hidden }]"
+    :style="{ '--country-color': color }"
     :aria-current="active ? 'step' : undefined"
     @click="$emit('click')"
     @keydown.enter="$emit('click')"
