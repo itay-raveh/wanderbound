@@ -124,7 +124,7 @@ function onConfirmExport() {
     :icon="symOutlinedPictureAsPdf"
     variant="primary"
     :title="t('editor.exportChaptersTitle')"
-    :body="t('editor.exportChaptersBody')"
+    body=""
     :confirm-label="t('editor.exportSelectedChapters')"
     :cancel-label="t('common.cancel')"
     :confirm-disabled="selectedCount === 0"
