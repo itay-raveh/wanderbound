@@ -59,11 +59,6 @@ const someChaptersSelected = computed(
     selectedChapterIds.value.length < chapterOptions.value.length,
 );
 
-const exportSummary = computed(() => {
-  if (selectedCount.value === 1) return t("editor.exportSelectionSingle");
-  return t("editor.exportSelectionZip", { count: selectedCount.value });
-});
-
 watch(
   chapterOptions,
   (chapters) => {
@@ -154,13 +149,6 @@ function onConfirmExport() {
         "
         class="chapter-export-options"
       />
-      <p
-        class="chapter-export-summary text-muted"
-        aria-live="polite"
-        data-testid="chapter-export-summary"
-      >
-        {{ exportSummary }}
-      </p>
     </div>
   </PromptDialog>
 
@@ -200,8 +188,4 @@ function onConfirmExport() {
   }
 }
 
-.chapter-export-summary {
-  font-size: var(--type-xs);
-  margin: var(--gap-sm) 0 0;
-}
 </style>

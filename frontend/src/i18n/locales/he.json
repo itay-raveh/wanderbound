@@ -98,8 +98,6 @@
     "exportChaptersBody": "בחרו אילו פרקים לייצא. פרק אחד יורד כ-PDF. כמה פרקים יורדים כ-ZIP של קובצי PDF.",
     "allChapters": "כל הפרקים",
     "exportSelectedChapters": "ייצוא הבחירה",
-    "exportSelectionSingle": "פרק אחד נבחר. יירד קובץ PDF.",
-    "exportSelectionZip": "{count} פרקים נבחרו. יירד קובץ ZIP.",
     "font": "גופן כותרות",
     "bodyFont": "גופן גוף",
     "properties": "מאפיינים",
