@@ -72,6 +72,18 @@ def _validate_pdf_chapter(
     return chapter
 
 
+def _validate_pdf_chapters(
+    album: AlbumDep,
+    chapters: Annotated[list[str] | None, Query()] = None,
+) -> list[str]:
+    if not chapters:
+        return [chapter.id for chapter in album.chapters]
+    selected = set(chapters)
+    if any(find_chapter(album, chapter_id) is None for chapter_id in selected):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapter not found")
+    return [chapter.id for chapter in album.chapters if chapter.id in selected]
+
+
 # Static-prefix routes must be declared before /{aid} to avoid shadowing.
 @router.get("/pdf/download/{token}")
 async def download_pdf(
@@ -342,14 +354,13 @@ async def generate_pdf(  # noqa: PLR0913
 )
 async def generate_chapters_pdf(  # noqa: PLR0913
     aid: str,
-    album: AlbumDep,
     browser: BrowserDep,
     request: Request,
     session: SessionDep,
+    chapter_ids: Annotated[list[str], Depends(_validate_pdf_chapters)],
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
 ) -> AsyncIterable[PdfEvent]:
     session_cookie = request.cookies.get("session", "")
-    chapter_ids = [chapter.id for chapter in album.chapters]
     async for event in render_album_chapters_zip_stream(
         browser,
         session,

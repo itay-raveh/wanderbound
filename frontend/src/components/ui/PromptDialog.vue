@@ -41,6 +41,7 @@ defineEmits<{
       </h3>
       <p v-if="body" :id="`${id}-body`" class="prompt-text text-muted">{{ body }}</p>
       <p v-if="tip" class="prompt-tip text-faint">{{ tip }}</p>
+      <slot />
       <div class="prompt-actions">
         <q-btn v-close-popup flat no-caps class="text-body2 cancel-btn">{{
           cancelLabel

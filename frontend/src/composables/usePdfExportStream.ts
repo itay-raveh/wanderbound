@@ -20,7 +20,7 @@ type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError;
 export type PdfExportTarget =
   | { type: "album" }
   | { type: "chapter"; id: string }
-  | { type: "chapters" };
+  | { type: "chapters"; ids: string[] };
 
 interface PdfProgress {
   phase: "queued" | "loading" | "rendering" | "done";
@@ -54,7 +54,7 @@ export function usePdfExportStream(
         current.type === "chapters"
           ? await generateChaptersPdf({
               path: { aid: aid() },
-              query: { dark: Dark.isActive },
+              query: { dark: Dark.isActive, chapters: current.ids },
               signal,
               sseMaxRetryAttempts: 0,
             })

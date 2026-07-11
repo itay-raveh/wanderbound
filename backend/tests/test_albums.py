@@ -791,6 +791,105 @@ class TestGenerateChapterPdf:
         assert isinstance(args, tuple)
         assert args[3] == ["first", "second"]
 
+    async def test_generate_chapters_pdf_uses_selected_chapters_in_album_order(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await insert_step(session, signed_album.uid, step_id=2)
+        await insert_step(session, signed_album.uid, step_id=3)
+        await album_routes.update_album_ok(
+            chapters=[
+                {
+                    "id": "first",
+                    "title": "First",
+                    "subtitle": "",
+                    "step_ids": [1],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                },
+                {
+                    "id": "second",
+                    "title": "Second",
+                    "subtitle": "",
+                    "step_ids": [2],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                },
+                {
+                    "id": "third",
+                    "title": "Third",
+                    "subtitle": "",
+                    "step_ids": [3],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                },
+            ],
+        )
+        captured: dict[str, object] = {}
+
+        async def render_zip(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[PdfEvent]:
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            download_id = "selected-chapters-token"
+            yield PdfDone(token=download_id)
+
+        monkeypatch.setattr(
+            app.state,
+            "browser_manager",
+            SimpleNamespace(get=AsyncMock(return_value=object())),
+            raising=False,
+        )
+        with patch(
+            "app.api.v1.routes.albums.render_album_chapters_zip_stream",
+            render_zip,
+        ):
+            resp = await album_routes.generate_chapters_pdf(
+                chapters=["third", "first"],
+            )
+
+        assert resp.status_code == 200
+        args = captured["args"]
+        assert isinstance(args, tuple)
+        assert args[3] == ["first", "third"]
+
+    async def test_generate_chapters_pdf_rejects_unknown_selected_chapter(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await album_routes.update_album_ok(
+            chapters=[
+                {
+                    "id": "first",
+                    "title": "First",
+                    "subtitle": "",
+                    "step_ids": [1],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                }
+            ],
+        )
+        monkeypatch.setattr(
+            app.state,
+            "browser_manager",
+            SimpleNamespace(get=AsyncMock(return_value=object())),
+            raising=False,
+        )
+
+        resp = await album_routes.generate_chapters_pdf(chapters=["missing"])
+
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Chapter not found"
+
     async def test_generate_pdf_rejects_unknown_chapter_before_rendering(
         self,
         session: AsyncSession,

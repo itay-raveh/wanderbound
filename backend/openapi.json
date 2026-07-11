@@ -1274,6 +1274,25 @@
               "default": true,
               "title": "Dark"
             }
+          },
+          {
+            "name": "chapters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapters"
+            }
           }
         ],
         "responses": {

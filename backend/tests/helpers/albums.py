@@ -126,5 +126,14 @@ class AlbumRoutes:
     async def download_pdf(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/albums/pdf/download/{token}")
 
-    async def generate_chapters_pdf(self, aid: str = AID) -> Response:
-        return await self.client.post(f"/api/v1/albums/{aid}/pdf/generate-chapters")
+    async def generate_chapters_pdf(
+        self,
+        aid: str = AID,
+        *,
+        chapters: list[str] | None = None,
+    ) -> Response:
+        params = [("chapters", chapter) for chapter in chapters or []]
+        return await self.client.post(
+            f"/api/v1/albums/{aid}/pdf/generate-chapters",
+            params=params,
+        )

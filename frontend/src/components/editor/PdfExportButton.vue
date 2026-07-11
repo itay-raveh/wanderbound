@@ -6,10 +6,11 @@ import {
 } from "@/composables/usePdfExportStream";
 import { qualitySummary } from "@/composables/usePhotoQuality";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 import QualityWarningDialog from "./QualityWarningDialog.vue";
 import { symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -20,7 +21,9 @@ const pdf = usePdfExportStream(
   () => props.albumId,
   () => exportTarget.value,
 );
+const showChapterDialog = ref(false);
 const showQualityDialog = ref(false);
+const selectedChapterIds = ref<string[]>([]);
 
 const progressFraction = computed(() => {
   const p = pdf.progress.value;
@@ -34,6 +37,64 @@ const buttonState = computed(() =>
     ? pdf.state.value
     : "idle",
 );
+
+const chapterOptions = computed(() => props.chapters ?? []);
+
+const selectedCount = computed(() => selectedChapterIds.value.length);
+
+const allChaptersSelected = computed({
+  get: () =>
+    chapterOptions.value.length > 0 &&
+    selectedChapterIds.value.length === chapterOptions.value.length,
+  set: (checked: boolean) => {
+    selectedChapterIds.value = checked
+      ? chapterOptions.value.map((chapter) => chapter.id)
+      : [];
+  },
+});
+
+const someChaptersSelected = computed(
+  () =>
+    selectedChapterIds.value.length > 0 &&
+    selectedChapterIds.value.length < chapterOptions.value.length,
+);
+
+const exportSummary = computed(() => {
+  if (selectedCount.value === 1) return t("editor.exportSelectionSingle");
+  return t("editor.exportSelectionZip", { count: selectedCount.value });
+});
+
+watch(
+  chapterOptions,
+  (chapters) => {
+    const valid = new Set(chapters.map((chapter) => chapter.id));
+    const kept = selectedChapterIds.value.filter((id) => valid.has(id));
+    selectedChapterIds.value =
+      kept.length > 0 ? kept : chapters.map((chapter) => chapter.id);
+  },
+  { immediate: true },
+);
+
+function chapterLabel(chapter: AlbumChapter, index: number) {
+  return chapter.title || t("chapters.untitled", { number: index + 1 });
+}
+
+function openExportDialog() {
+  if (chapterOptions.value.length === 0) {
+    startExport({ type: "album" });
+    return;
+  }
+  showChapterDialog.value = true;
+}
+
+function confirmChapterExport() {
+  const ids = selectedChapterIds.value;
+  if (ids.length === 0) return;
+  showChapterDialog.value = false;
+  startExport(
+    ids.length === 1 ? { type: "chapter", id: ids[0] } : { type: "chapters", ids },
+  );
+}
 
 function startExport(target: PdfExportTarget) {
   exportTarget.value = target;
@@ -49,8 +110,6 @@ function onConfirmExport() {
   showQualityDialog.value = false;
   pdf.start();
 }
-
-const chapterOptions = computed(() => props.chapters ?? []);
 </script>
 
 <template>
@@ -61,50 +120,49 @@ const chapterOptions = computed(() => props.chapters ?? []);
     :progress-fraction="progressFraction"
     :progress-message="pdf.progress.value.message"
     :done-message="t('pdf.ready')"
-    @start="startExport({ type: 'album' })"
+    @start="openExportDialog"
     @cancel="pdf.abort()"
   />
 
-  <q-btn-dropdown
-    v-if="chapterOptions.length"
-    flat
-    dense
-    no-caps
-    class="chapter-export-menu"
-    :label="t('editor.moreExports')"
+  <PromptDialog
+    v-model="showChapterDialog"
+    :icon="symOutlinedPictureAsPdf"
+    variant="primary"
+    :title="t('editor.exportChaptersTitle')"
+    :body="t('editor.exportChaptersBody')"
+    :confirm-label="t('editor.exportSelectedChapters')"
+    :cancel-label="t('common.cancel')"
+    :confirm-disabled="selectedCount === 0"
+    @confirm="confirmChapterExport"
   >
-    <q-list dense>
-      <q-item
-        v-for="(chapter, index) in chapterOptions"
-        :key="chapter.id"
-        clickable
-        v-close-popup
-        @click="
-          startExport({
-            type: 'chapter',
-            id: chapter.id,
-          })
-        "
-      >
-        <q-item-section>
-          {{
-            t("editor.exportChapter", {
-              name:
-                chapter.title || t("chapters.untitled", { number: index + 1 }),
-            })
-          }}
-        </q-item-section>
-      </q-item>
+    <div class="chapter-export-selector">
+      <q-checkbox
+        v-model="allChaptersSelected"
+        :indeterminate="someChaptersSelected"
+        :label="t('editor.allChapters')"
+        class="chapter-export-check all"
+      />
       <q-separator />
-      <q-item
-        clickable
-        v-close-popup
-        @click="startExport({ type: 'chapters' })"
+      <q-option-group
+        v-model="selectedChapterIds"
+        type="checkbox"
+        :options="
+          chapterOptions.map((chapter, index) => ({
+            label: chapterLabel(chapter, index),
+            value: chapter.id,
+          }))
+        "
+        class="chapter-export-options"
+      />
+      <p
+        class="chapter-export-summary text-muted"
+        aria-live="polite"
+        data-testid="chapter-export-summary"
       >
-        <q-item-section>{{ t("editor.exportAllChapters") }}</q-item-section>
-      </q-item>
-    </q-list>
-  </q-btn-dropdown>
+        {{ exportSummary }}
+      </p>
+    </div>
+  </PromptDialog>
 
   <QualityWarningDialog
     v-model="showQualityDialog"
@@ -115,7 +173,35 @@ const chapterOptions = computed(() => props.chapters ?? []);
 </template>
 
 <style lang="scss" scoped>
-.chapter-export-menu {
-  color: var(--text-muted);
+.chapter-export-selector {
+  text-align: start;
+  min-width: min(24rem, calc(100vw - 6rem));
+  margin: 0 0 var(--gap-lg);
+}
+
+.chapter-export-check {
+  width: 100%;
+  font-size: var(--type-sm);
+  color: var(--text-bright);
+
+  &.all {
+    margin-block-end: var(--gap-sm);
+    font-weight: 600;
+  }
+}
+
+.chapter-export-options {
+  margin-block: var(--gap-sm);
+
+  :deep(.q-checkbox) {
+    width: 100%;
+    padding-block: var(--gap-xs);
+    font-size: var(--type-sm);
+  }
+}
+
+.chapter-export-summary {
+  font-size: var(--type-xs);
+  margin: var(--gap-sm) 0 0;
 }
 </style>
