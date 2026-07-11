@@ -79,6 +79,7 @@ describe("PdfExportButton", () => {
   it("opens chapter selection from the primary export button", async () => {
     const wrapper = mountExportButton();
 
+    expect(wrapper.get("button").text()).toContain("Export PDF");
     expect(wrapper.text()).not.toContain("More exports");
     await wrapper.get("button").trigger("click");
     await nextTick();
