@@ -381,9 +381,6 @@ watch(activeSectionKey, (key) => {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <div v-if="chapterGroups.length" class="chapter-list-header">
-        <span>{{ t("chapters.title") }}</span>
-      </div>
       <template v-for="(group, index) in chapterGroups" :key="group.key">
         <NavChapterGroup
           :group="group"
@@ -475,18 +472,6 @@ watch(activeSectionKey, (key) => {
     background: var(--border-color);
     border-radius: var(--radius-xs);
   }
-}
-
-.chapter-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  padding: var(--gap-sm) var(--gap-md-lg);
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  font-weight: 700;
-  letter-spacing: 0;
 }
 
 </style>

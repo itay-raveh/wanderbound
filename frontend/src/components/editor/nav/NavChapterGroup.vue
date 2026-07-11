@@ -12,6 +12,7 @@ import NavMapItem from "./NavMapItem.vue";
 import {
   symOutlinedCallMerge,
   symOutlinedCallSplit,
+  symOutlinedMenuBook,
   symOutlinedMoreVert,
   symOutlinedVisibility,
   symOutlinedVisibilityOff,
@@ -112,6 +113,9 @@ const emit = defineEmits<{
     @update:model-value="emit('toggleOpen')"
   >
     <template #header>
+      <q-item-section avatar class="chapter-group-mark">
+        <q-icon :name="symOutlinedMenuBook" size="var(--type-md)" />
+      </q-item-section>
       <q-item-section class="chapter-group-name" dir="auto">
         {{ group.name }}
       </q-item-section>
@@ -310,18 +314,40 @@ const emit = defineEmits<{
 @use "nav-item";
 @use "nav-toggle" as *;
 
-.chapter-group-header {
-  min-height: 2.75rem;
-  padding: var(--gap-sm) var(--gap-md-lg);
-  border-top: 1px solid var(--border-color);
-  transition: background var(--duration-fast);
+:deep(.chapter-group-header) {
+  min-height: 3.25rem;
+  padding-block: var(--gap-md);
+  padding-inline: var(--gap-md-lg);
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 48%, transparent);
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    box-shadow var(--duration-fast);
+}
 
-  .q-expansion-item:first-child & {
-    border-top: none;
+:deep(.q-expansion-item:first-child .chapter-group-header) {
+  border-top: none;
+}
+
+:deep(.q-expansion-item--expanded .chapter-group-header) {
+  background: color-mix(in srgb, var(--text) 5%, var(--bg-secondary));
+  border-bottom-color: color-mix(in srgb, var(--text-muted) 34%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-bright) 5%, transparent);
+}
+
+.chapter-group-mark {
+  min-width: 1.5rem;
+  padding-inline-end: var(--gap-xs);
+  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
+
+  :deep(.q-icon) {
+    display: block;
   }
 
   .q-expansion-item--expanded & {
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+    color: var(--text-bright);
   }
 }
 
@@ -330,7 +356,7 @@ const emit = defineEmits<{
   overflow: hidden;
   color: var(--text-bright);
   font-size: var(--type-sm);
-  font-weight: 650;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -356,7 +382,7 @@ const emit = defineEmits<{
   text-overflow: ellipsis;
   transition: opacity var(--duration-fast);
 
-  .chapter-group-header:hover &,
+  :deep(.chapter-group-header:hover) &,
   .chapter-meta-actions:focus-within & {
     opacity: 0;
   }
@@ -369,7 +395,7 @@ const emit = defineEmits<{
     color var(--duration-fast),
     opacity var(--duration-fast);
 
-  .chapter-group-header:hover &,
+  :deep(.chapter-group-header:hover) &,
   .chapter-meta-actions:focus-within & {
     opacity: 1;
   }
