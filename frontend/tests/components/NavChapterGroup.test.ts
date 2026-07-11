@@ -49,23 +49,23 @@ describe("NavChapterGroup", () => {
     document.body.innerHTML = "";
   });
 
-  it("labels first-chapter removal as a merge with the next chapter", async () => {
+  it("labels first-chapter merge direction", async () => {
     const wrapper = mountChapterGroup("next");
 
     await wrapper.get('button[aria-label="Chapter actions"]').trigger("click");
     await nextTick();
 
-    expect(document.body.textContent).toContain("Merge with next chapter");
+    expect(document.body.textContent).toContain("Merge into next chapter");
     expect(document.body.textContent).not.toContain("Delete chapter");
   });
 
-  it("labels later chapter removal as a merge with the previous chapter", async () => {
+  it("labels later-chapter merge direction", async () => {
     const wrapper = mountChapterGroup("previous");
 
     await wrapper.get('button[aria-label="Chapter actions"]').trigger("click");
     await nextTick();
 
-    expect(document.body.textContent).toContain("Merge with previous chapter");
+    expect(document.body.textContent).toContain("Merge into previous chapter");
     expect(document.body.textContent).not.toContain("Delete chapter");
   });
 

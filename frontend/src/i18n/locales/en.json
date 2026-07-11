@@ -267,8 +267,8 @@
     "untitled": "Chapter {number}",
     "split": "Split chapter",
     "actions": "Chapter actions",
-    "mergePrevious": "Merge with previous chapter",
-    "mergeNext": "Merge with next chapter",
+    "mergePrevious": "Merge into previous chapter",
+    "mergeNext": "Merge into next chapter",
     "boundary": "Chapter start",
     "startsAt": "Starts at"
   },

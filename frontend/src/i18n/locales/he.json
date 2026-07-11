@@ -267,8 +267,8 @@
     "untitled": "פרק {number}",
     "split": "פיצול פרק",
     "actions": "פעולות פרק",
-    "mergePrevious": "מיזוג עם הפרק הקודם",
-    "mergeNext": "מיזוג עם הפרק הבא",
+    "mergePrevious": "איחוד לתוך הפרק הקודם",
+    "mergeNext": "איחוד לתוך הפרק הבא",
     "boundary": "תחילת פרק",
     "startsAt": "מתחיל ב"
   },
