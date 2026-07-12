@@ -105,8 +105,8 @@ class TestApplyOverlay:
         overlay = {"album": {"title": "New Title", "subtitle": "New Sub"}, "steps": {}}
         album = make_album()
         apply_overlay(overlay, album, [])
-        assert album.title == "New Title"
-        assert album.subtitle == "New Sub"
+        assert album.chapters[0].title == "New Title"
+        assert album.chapters[0].subtitle == "New Sub"
 
     def test_patches_step_name_and_location(self) -> None:
         overlay = {
@@ -136,5 +136,5 @@ class TestApplyOverlay:
         overlay = {"album": {"title": "Only Title"}, "steps": {}}
         album = make_album()
         apply_overlay(overlay, album, [])
-        assert album.title == "Only Title"
-        assert album.subtitle == "Original Subtitle"
+        assert album.chapters[0].title == "Only Title"
+        assert album.chapters[0].subtitle == "Original Subtitle"

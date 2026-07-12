@@ -1,7 +1,10 @@
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+import app.logic.reconcile as reconcile_mod
 from app.core.http_clients import HttpClients
 from app.logic.layout.media import Media
 from app.logic.reconcile import (
@@ -26,6 +29,9 @@ from tests.factories import (
     make_user,
     make_weather,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
@@ -212,8 +218,8 @@ class TestFixAlbumCovers:
         steps = [_step(cover="step_cover.jpg")]
 
         _fix_album_covers(album, all_on_disk, "cover.jpg", steps)
-        assert album.front_cover_photo == "cover.jpg"
-        assert album.back_cover_photo == "cover.jpg"
+        assert album.chapters[0].front_cover_photo == "cover.jpg"
+        assert album.chapters[0].back_cover_photo == "cover.jpg"
 
     def test_cover_name_missing_falls_back_to_step_cover(self) -> None:
         album = _album(front_cover_photo="gone.jpg", back_cover_photo="also_gone.jpg")
@@ -221,8 +227,8 @@ class TestFixAlbumCovers:
         steps = [_step(cover="step_cover.jpg")]
 
         _fix_album_covers(album, all_on_disk, "missing_cover.jpg", steps)
-        assert album.front_cover_photo == "step_cover.jpg"
-        assert album.back_cover_photo == "step_cover.jpg"
+        assert album.chapters[0].front_cover_photo == "step_cover.jpg"
+        assert album.chapters[0].back_cover_photo == "step_cover.jpg"
 
 
 _RECONCILE_AID = "test-trip_1"
@@ -369,3 +375,44 @@ class TestReconcileTripRebuildsSegments:
         media_rows = [obj for obj in db_out if isinstance(obj, AlbumMedia)]
         row = next(obj for obj in media_rows if obj.name == media_name)
         assert row.upgrade_candidate is False
+
+    async def test_new_reuploaded_steps_are_added_to_existing_chapter(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ps_steps = [
+            _ps_step(1, slug="start"),
+            _ps_step(2, slug="new", location=_LOC_B),
+        ]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+        album = _existing_album()
+        album.chapters[0].step_ids = [1]
+
+        async def empty_events(
+            events: list[PhaseUpdate],
+        ) -> AsyncIterator[PhaseUpdate]:
+            for event in events:
+                yield event
+
+        def fake_process_new_steps(
+            *args: object,
+            **_kwargs: object,
+        ) -> AsyncIterator[PhaseUpdate]:
+            step_out = args[5]
+            assert isinstance(step_out, list)
+            step_out.append(_existing_step(2, name="New"))
+            return empty_events([])
+
+        monkeypatch.setattr(
+            reconcile_mod,
+            "_process_new_steps",
+            fake_process_new_steps,
+        )
+
+        _, db_out = await _collect_reconcile(
+            trip_dir,
+            album,
+            [_existing_step(1, name="Start")],
+        )
+
+        reconciled_album = next(obj for obj in db_out if isinstance(obj, Album))
+        assert reconciled_album.chapters[0].step_ids == [1, 2]

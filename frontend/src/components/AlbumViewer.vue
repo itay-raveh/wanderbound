@@ -24,20 +24,16 @@ import {
 } from "@/utils/photoQuality";
 import { setSafeMargin } from "@/composables/useSafeMargin";
 import { setQualitySummary } from "@/composables/usePhotoQuality";
+import { visibleHeaderKeys, sectionKey } from "./album/albumSections";
 import {
-  buildSections,
-  visibleHeaderKeys,
-  sectionKey,
-  sectionPageCount,
-  filterCoverFromPages,
-  segmentsOverlapping,
-  type Section,
-} from "./album/albumSections";
+  buildChapterRenderGroups,
+  buildEditorItems,
+  countChapterRenderPages,
+  type ChapterRenderGroup,
+} from "./album/albumRenderPlan";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
-import { layoutDescription } from "@/composables/useTextLayout";
-import { isPortrait } from "@/utils/media";
 import {
   computed,
   defineAsyncComponent,
@@ -113,16 +109,6 @@ const visibleSteps = computed(() => {
   return props.steps.filter((s) => !hidden.has(s.id));
 });
 
-const segments = computed(() => {
-  const s = visibleSteps.value;
-  if (s.length === 0) return [];
-  return segmentsOverlapping(
-    props.segmentOutlines,
-    s[0].timestamp,
-    s[s.length - 1].timestamp,
-  );
-});
-
 const tripStart = computed(() => visibleSteps.value[0]?.datetime ?? "");
 const totalDays = computed(() => {
   const s = visibleSteps.value;
@@ -145,52 +131,39 @@ const { mediaByName } = provideAlbum({
   mediaResolutionWarningPreset,
 });
 
-if (!props.printMode) {
-  watchEffect(() => {
-    setQualitySummary(
-      summarizeQuality(
-        visibleSteps.value,
-        props.album.front_cover_photo,
-        props.album.back_cover_photo,
-        mediaByName.value,
-        mediaResolutionWarningPreset.value,
-      ),
-    );
-  });
-}
-
-const sections = computed(() =>
-  buildSections(
-    visibleSteps.value,
-    segments.value,
-    props.album.maps_ranges ?? [],
-  ),
-);
-
-const sectionPageCounts = computed(() =>
-  sections.value.map((section) => sectionPageCount(section, mediaByName.value)),
-);
-
-type EditorItem =
-  | { type: "header"; key: string }
-  | { type: "map"; key: string; section: Extract<Section, { type: "map" }> }
-  | { type: "hike"; key: string; section: Extract<Section, { type: "hike" }> }
-  | {
-      type: "step-page";
-      key: string;
-      step: Step;
-      pageIndex: number;
-      photoIds: string[];
-    }
-  | { type: "step-add-zone"; key: string; step: Step };
-
 const activeHeaders = computed(() =>
   visibleHeaderKeys(props.album.hidden_headers ?? []),
 );
-const headerCount = computed(() => activeHeaders.value.length);
+
+const chapterRenderGroups = computed<ChapterRenderGroup[]>(() =>
+  buildChapterRenderGroups(
+    props.album,
+    visibleSteps.value,
+    props.segmentOutlines,
+    activeHeaders.value,
+  ),
+);
+
+if (!props.printMode) {
+  watchEffect(() => {
+    const summary = { caution: 0, warning: 0 };
+    for (const group of chapterRenderGroups.value) {
+      const chapterSummary = summarizeQuality(
+        group.steps,
+        group.chapter.front_cover_photo,
+        group.chapter.back_cover_photo,
+        mediaByName.value,
+        mediaResolutionWarningPreset.value,
+      );
+      summary.caution += chapterSummary.caution;
+      summary.warning += chapterSummary.warning;
+    }
+    setQualitySummary(summary);
+  });
+}
 
 const expectedPageCount = computed(
-  () => headerCount.value + sectionPageCounts.value.reduce((n, c) => n + c, 0),
+  () => countChapterRenderPages(chapterRenderGroups.value, mediaByName.value),
 );
 const listRef = ref<HTMLElement | null>(null);
 const scrollMargin = ref(0);
@@ -204,77 +177,9 @@ const pageH = computed(
 );
 const editorPhotoDropZoneHeight = 96;
 
-function stepHasPhotoDropZone(step: Step) {
-  return (
-    step.pages.reduce((n, page) => n + page.length, 0) + step.unused.length >= 2
-  );
-}
-
-function stepEditorPagePhotoIds(step: Step): string[][] {
-  const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = layoutDescription(
-    step.description || "",
-  ).pages.slice(1);
-  const continuationPhotos: string[] = [];
-  for (const { page } of rawPhotoPages) {
-    for (const name of page) {
-      const media = mediaByName.value.get(name);
-      if (media && isPortrait(media)) continuationPhotos.push(name);
-      if (continuationPhotos.length >= continuationPages.length) break;
-    }
-    if (continuationPhotos.length >= continuationPages.length) break;
-  }
-
-  const used = new Set(continuationPhotos);
-  const photoPages = used.size
-    ? rawPhotoPages
-        .map(({ page }) => page.filter((p) => !used.has(p)))
-        .filter((page) => page.length > 0)
-    : rawPhotoPages.map(({ page }) => page);
-
-  return [
-    [],
-    ...continuationPages.map((_, i) =>
-      continuationPhotos[i] ? [continuationPhotos[i]] : [],
-    ),
-    ...photoPages,
-  ];
-}
-
-const editorItems = computed<EditorItem[]>(() => {
-  const result: EditorItem[] = activeHeaders.value.map((key) => ({
-    type: "header",
-    key,
-  }));
-  sections.value.forEach((section) => {
-    if (section.type === "map") {
-      result.push({ type: "map", key: sectionKey(section), section });
-      return;
-    }
-    if (section.type === "hike") {
-      result.push({ type: "hike", key: sectionKey(section), section });
-      return;
-    }
-    const stepPages = stepEditorPagePhotoIds(section.step);
-    for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
-      result.push({
-        type: "step-page",
-        key: `${sectionKey(section)}-page-${pageIndex}`,
-        step: section.step,
-        pageIndex,
-        photoIds: stepPages[pageIndex] ?? [],
-      });
-    }
-    if (stepHasPhotoDropZone(section.step)) {
-      result.push({
-        type: "step-add-zone",
-        key: `${sectionKey(section)}-add-zone`,
-        step: section.step,
-      });
-    }
-  });
-  return result;
-});
+const editorItems = computed(() =>
+  buildEditorItems(chapterRenderGroups.value, mediaByName.value),
+);
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(
   computed(() => {
@@ -569,45 +474,49 @@ if (props.printMode) {
     :data-expected-pages="expectedPageCount"
     :style="albumStyle"
   >
-    <CoverPage
-      v-if="activeHeaders.includes('cover-front')"
-      :album="album"
-      :steps="visibleSteps"
-    />
-    <CoverPage
-      v-if="activeHeaders.includes('cover-back')"
-      :album="album"
-      :steps="visibleSteps"
-      is-back
-    />
-    <OverviewPage
-      v-if="activeHeaders.includes('overview')"
-      :album="album"
-      :segments="segments"
-      :steps="visibleSteps"
-    />
-    <div v-if="activeHeaders.includes('full-map')" class="map-wrapper">
-      <MapPage :segment-outlines="segments" :steps="visibleSteps" />
-    </div>
+    <template v-for="group in chapterRenderGroups" :key="group.chapter.id">
+      <CoverPage
+        v-if="group.headerKeys.includes('cover-front')"
+        :album="album"
+        :chapter="group.chapter"
+        :steps="group.steps"
+      />
+      <CoverPage
+        v-if="group.headerKeys.includes('cover-back')"
+        :album="album"
+        :chapter="group.chapter"
+        :steps="group.steps"
+        is-back
+      />
+      <OverviewPage
+        v-if="group.headerKeys.includes('overview')"
+        :album="album"
+        :segments="group.segments"
+        :steps="group.steps"
+      />
+      <div v-if="group.headerKeys.includes('full-map')" class="map-wrapper">
+        <MapPage :segment-outlines="group.segments" :steps="group.steps" />
+      </div>
 
-    <template v-for="section in sections" :key="sectionKey(section)">
-      <template v-if="section.type === 'map' || section.type === 'hike'">
-        <div class="map-wrapper">
-          <MapPage
-            v-if="section.type === 'map'"
-            :segment-outlines="section.segments"
-            :steps="section.steps"
-          />
-          <HikeMapPage
-            v-else
-            :segments="section.segments"
-            :steps="section.steps"
-            :hike-segment="section.hikeSegment"
-            :all-segments="segmentOutlines"
-          />
-        </div>
+      <template v-for="section in group.sections" :key="sectionKey(section)">
+        <template v-if="section.type === 'map' || section.type === 'hike'">
+          <div class="map-wrapper">
+            <MapPage
+              v-if="section.type === 'map'"
+              :segment-outlines="section.segments"
+              :steps="section.steps"
+            />
+            <HikeMapPage
+              v-else
+              :segments="section.segments"
+              :steps="section.steps"
+              :hike-segment="section.hikeSegment"
+              :all-segments="segmentOutlines"
+            />
+          </div>
+        </template>
+        <StepEntry v-else :step="section.step" />
       </template>
-      <StepEntry v-else :step="section.step" />
     </template>
   </div>
 
@@ -642,29 +551,35 @@ if (props.printMode) {
           :data-index="vItem.index"
           :style="{ minHeight: `${vItem.size}px` }"
         >
-          <template v-for="item in [editorItems[vItem.index]!]" :key="item.key">
+          <template v-if="editorItems[vItem.index]">
+            <template
+              v-for="item in [editorItems[vItem.index]!]"
+              :key="item.key"
+            >
             <CoverPage
-              v-if="item.type === 'header' && item.key === 'cover-front'"
+              v-if="item.type === 'header' && item.headerKey === 'cover-front'"
               :album="album"
-              :steps="visibleSteps"
+              :chapter="item.chapter"
+              :steps="item.steps"
             />
             <CoverPage
-              v-else-if="item.type === 'header' && item.key === 'cover-back'"
+              v-else-if="item.type === 'header' && item.headerKey === 'cover-back'"
               :album="album"
-              :steps="visibleSteps"
+              :chapter="item.chapter"
+              :steps="item.steps"
               is-back
             />
             <OverviewPage
-              v-else-if="item.type === 'header' && item.key === 'overview'"
+              v-else-if="item.type === 'header' && item.headerKey === 'overview'"
               :album="album"
-              :segments="segments"
-              :steps="visibleSteps"
+              :segments="item.segments"
+              :steps="item.steps"
             />
             <div
-              v-else-if="item.type === 'header' && item.key === 'full-map'"
+              v-else-if="item.type === 'header' && item.headerKey === 'full-map'"
               class="map-wrapper"
             >
-              <MapPage :segment-outlines="segments" :steps="visibleSteps" />
+              <MapPage :segment-outlines="item.segments" :steps="item.steps" />
             </div>
             <div v-else-if="item.type === 'map'" class="map-wrapper">
               <MapPage
@@ -690,6 +605,7 @@ if (props.printMode) {
               :step="item.step"
               add-zone-only
             />
+            </template>
           </template>
         </div>
       </div>
@@ -698,7 +614,7 @@ if (props.printMode) {
 
   <div v-else class="fit relative-position">
     <q-inner-loading
-      :label="t('album.loading', { name: album.title || album.id })"
+      :label="t('album.loading', { name: album.chapters?.[0]?.title || album.id })"
       showing
     />
   </div>

@@ -31,8 +31,8 @@ class TestApplyDemoI18n:
 
         _apply_demo_i18n(_make_demo_user(), [album, step])
 
-        assert HEBREW_RE.search(album.title)
-        assert HEBREW_RE.search(album.subtitle)
+        assert HEBREW_RE.search(album.chapters[0].title)
+        assert HEBREW_RE.search(album.chapters[0].subtitle)
         assert HEBREW_RE.search(step.name)
         assert HEBREW_RE.search(step.location.name)
         assert HEBREW_RE.search(step.location.detail)
@@ -52,11 +52,11 @@ class TestApplyDemoI18n:
         )
         _apply_demo_i18n(user, [album])
 
-        assert album.title == "Original Title"  # Unchanged
+        assert album.chapters[0].title == "Original Title"
 
     def test_skips_locale_without_overlay(self) -> None:
         album = make_album(uid=42, id=DEMO_AID)
 
         _apply_demo_i18n(_make_demo_user(locale="en"), [album])
 
-        assert album.title == "Original Title"  # No en overlay exists
+        assert album.chapters[0].title == "Original Title"

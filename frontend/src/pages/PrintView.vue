@@ -13,10 +13,14 @@ import type { SegmentOutline } from "@/client";
 const route = useRoute();
 const aid = computed(() => (route.params.aid as string) || null);
 const darkMode = computed(() => route.query.dark === "true");
+const chapterId = computed(() => {
+  const value = route.query.chapter;
+  return typeof value === "string" && value ? value : null;
+});
 
 onMounted(() => Dark.set(darkMode.value));
 
-const { data: bundle, error } = usePrintBundleQuery(aid);
+const { data: bundle, error } = usePrintBundleQuery(aid, chapterId);
 const { locale } = useUserQuery();
 const { t } = useI18n();
 useLocale(locale);

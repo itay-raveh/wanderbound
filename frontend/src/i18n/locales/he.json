@@ -94,6 +94,9 @@
   "editor": {
     "toolbar": "כלים",
     "exportPdf": "הורדת PDF",
+    "exportChaptersTitle": "ייצוא פרקים",
+    "allChapters": "כל הפרקים",
+    "exportSelectedChapters": "ייצוא הבחירה",
     "font": "גופן כותרות",
     "bodyFont": "גופן גוף",
     "properties": "מאפיינים",
@@ -129,6 +132,8 @@
   "album": {
     "day": "יום {n}",
     "stepNamePlaceholder": "שם הצעד...",
+    "chapterTitlePlaceholder": "כותרת פרק",
+    "chapterSubtitlePlaceholder": "כותרת משנה",
     "descriptionPlaceholder": "כתבו תיאור...",
     "dropPhotoToAdd": "גררו תמונה להוספת עמוד",
     "frontCover": "שער קדמי",
@@ -144,7 +149,6 @@
     "nextFrame": "פריים הבא (.)",
     "selectPhoto": "בחרו תמונה",
     "selectCoverPhoto": "בחרו תמונת שער {index} מתוך {total}",
-    "allDates": "כל התאריכים",
     "tripRouteMap": "מפת מסלול הטיול",
     "playVideo": "הפעלת סרטון"
   },
@@ -258,6 +262,16 @@
     "preparing": "מכין...",
     "progress": "מייצא... {done} / {total} קבצים"
   },
+  "chapters": {
+    "title": "פרקים",
+    "untitled": "פרק {number}",
+    "split": "פיצול פרק",
+    "actions": "פעולות פרק",
+    "mergePrevious": "איחוד לתוך הפרק הקודם",
+    "mergeNext": "איחוד לתוך הפרק הבא",
+    "boundary": "תחילת פרק",
+    "startsAt": "מתחיל ב"
+  },
   "error": {
     "loadAlbum": "טעינת האלבום נכשלה:",
     "updatePreference": "לא הצלחנו לשמור את ההעדפה. @:common.retry",
@@ -275,6 +289,7 @@
     "queued": "ממתין בתור...",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
+    "renderingChapters": "מייצר קובצי PDF לפרקים... {done}/{total}",
     "renderingBytes": "מייצר PDF... {size}",
     "ready": "מוכן",
     "cancel": "ביטול"
@@ -298,11 +313,13 @@
   },
   "nav": {
     "steps": "צעדים",
+    "countries": "מדינות",
+    "chapters": "פרקים",
+    "stepCount": "אין צעדים | צעד אחד | {n} צעדים",
     "cover": "שער",
     "map": "מפה",
     "stepNavigation": "ניווט צעדים",
     "selectAlbum": "בחירת אלבום",
-    "dateFilter": "סינון לפי תאריכים",
     "hideStep": "הסתרת צעד",
     "showStep": "הצגת צעד",
     "hideAll": "הסתרת הכל",
@@ -310,11 +327,9 @@
     "maps": "מפות",
     "mapRanges": "טווחי תאריכי מפות",
     "clear": "ניקוי",
-    "clearFilter": "ניקוי סינון",
     "removeAllMaps": "להסיר את כל המפות?",
     "remove": "הסרה",
     "mapsCleared": "כל המפות הוסרו",
-    "filterCleared": "הסינון נוקה",
     "inspector": "מאפיינים"
   },
   "screen": {

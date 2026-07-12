@@ -1,29 +1,39 @@
 .nav-chip {
   appearance: none;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  border: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   display: flex;
   align-items: center;
-  gap: var(--gap-sm);
+  gap: var(--gap-xs);
   flex: 1;
+  min-width: 0;
   font: inherit;
   font-size: var(--type-xs);
-  color: var(--text);
+  color: var(--text-muted);
   cursor: pointer;
-  padding: var(--gap-sm) var(--gap-sm-md);
-  border-radius: var(--radius-md);
+  padding: var(--gap-xs) var(--gap-sm);
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   transition:
     color var(--duration-fast),
-    background var(--duration-fast);
+    background var(--duration-fast),
+    border-color var(--duration-fast);
 
   &:hover {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 12%, transparent);
+    color: var(--text);
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+    border-color: color-mix(in srgb, var(--border-color) 95%, transparent);
   }
 
   &:active {
-    background: color-mix(in srgb, var(--q-primary) 18%, transparent);
+    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--q-primary) 45%, transparent);
+  }
+
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &:focus-visible {
@@ -82,7 +92,7 @@
 
 @media (pointer: coarse) {
   .nav-chip {
-    padding: var(--gap-sm-md) var(--gap-md);
+    padding: var(--gap-sm) var(--gap-sm-md);
   }
 }
 

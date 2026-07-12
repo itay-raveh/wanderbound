@@ -2,8 +2,11 @@ import { defineComponent, nextTick, type PropType } from "vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import AlbumNav from "@/components/editor/AlbumNav.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
-import type { CountryVisit } from "@/components/editor/nav/types";
-import type { StepRead as Step } from "@/client";
+import type { ChapterVisit } from "@/components/editor/nav/types";
+import type { AlbumChapter, StepRead as Step } from "@/client";
+import { mockAlbum } from "../fixtures/mocks";
+
+const mutate = vi.fn();
 
 vi.mock("@/queries/useUserQuery", () => ({
   useUserQuery: () => ({
@@ -14,14 +17,14 @@ vi.mock("@/queries/useUserQuery", () => ({
 }));
 
 vi.mock("@/queries/useAlbumMutation", () => ({
-  useAlbumMutation: () => ({ mutate: vi.fn() }),
+  useAlbumMutation: () => ({ mutate }),
 }));
 
-const NavCountryGroupStub = defineComponent({
-  name: "NavCountryGroup",
+const NavChapterGroupStub = defineComponent({
+  name: "NavChapterGroup",
   props: {
     group: {
-      type: Object as PropType<CountryVisit>,
+      type: Object as PropType<ChapterVisit>,
       required: true,
     },
     open: {
@@ -29,13 +32,21 @@ const NavCountryGroupStub = defineComponent({
       required: true,
     },
   },
+  emits: ["splitChapter"],
   template:
-    `<div class="nav-country-group" :data-group-key="group.key" :data-open="String(open)">
+    `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
+      <button type="button" class="chapter-split-button" @click="$emit('splitChapter')" />
+      <div
+        v-for="item in group.headerItems"
+        :key="item.key"
+        :data-nav-section="item.key"
+      />
       <div
         v-for="entry in group.entries"
         :key="entry.type === 'step' ? entry.item.id : entry.key"
         :data-nav-step="entry.type === 'step' ? entry.item.id : undefined"
         :data-nav-section="entry.type === 'map' ? entry.key : undefined"
+        :data-range="entry.type === 'map' ? entry.dateRange.join('|') : undefined"
       />
     </div>`,
 });
@@ -57,9 +68,22 @@ function makeSteps(count: number): Step[] {
   );
 }
 
+function albumForSteps(steps: Step[]) {
+  return {
+    ...mockAlbum,
+    chapters: [
+      {
+        ...mockAlbum.chapters[0],
+        step_ids: steps.map((step) => step.id),
+      },
+    ],
+  };
+}
+
 describe("AlbumNav", () => {
   afterEach(() => {
     useActiveSection().resetActiveSection();
+    mutate.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -67,6 +91,7 @@ describe("AlbumNav", () => {
     const steps = makeSteps(240);
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
+        album: albumForSteps(steps),
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -75,8 +100,7 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
-          NavDateFilter: true,
+          NavChapterGroup: NavChapterGroupStub,
           NavMapRanges: true,
           QIcon: true,
           QSelect: true,
@@ -89,9 +113,9 @@ describe("AlbumNav", () => {
     await nextTick();
     await nextTick();
 
-    expect(wrapper.get('[data-group-key="c3-3"]').attributes("data-open")).toBe(
-      "true",
-    );
+    expect(
+      wrapper.get('[data-group-key="chapter-1"]').attributes("data-open"),
+    ).toBe("true");
   });
 
   it("does not scroll the nav list while the viewer is programmatically scrolling", async () => {
@@ -101,6 +125,7 @@ describe("AlbumNav", () => {
     const steps = makeSteps(80);
     mountWithPlugins(AlbumNav, {
       props: {
+        album: albumForSteps(steps),
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -109,8 +134,7 @@ describe("AlbumNav", () => {
       },
       global: {
         stubs: {
-          NavCountryGroup: NavCountryGroupStub,
-          NavDateFilter: true,
+          NavChapterGroup: NavChapterGroupStub,
           NavMapRanges: true,
           QIcon: true,
           QSelect: true,
@@ -126,5 +150,114 @@ describe("AlbumNav", () => {
     await nextTick();
 
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("shows only map ranges that belong to a chapter", async () => {
+    const steps = makeSteps(4);
+    const chapters: AlbumChapter[] = [
+      {
+        id: "chapter-1",
+        title: "First chapter",
+        subtitle: null,
+        step_ids: [1, 2],
+        front_cover_photo: "cover.jpg",
+        back_cover_photo: "cover.jpg",
+      },
+    ];
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        album: { ...mockAlbum, chapters },
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [
+          ["2024-01-01", "2024-01-02"],
+          ["2024-01-03", "2024-01-04"],
+        ],
+      },
+      global: {
+        stubs: {
+          NavMapRanges: true,
+          NavChapterGroup: NavChapterGroupStub,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await nextTick();
+
+    const chapter = wrapper.get('[data-group-key="chapter-1"]');
+    expect(chapter.find('[data-range="2024-01-01|2024-01-02"]').exists()).toBe(
+      true,
+    );
+    expect(chapter.find('[data-range="2024-01-03|2024-01-04"]').exists()).toBe(
+      false,
+    );
+  });
+
+  it("splits chapters from the nav drawer", async () => {
+    const steps = [
+      makeStep({ id: 1, name: "Buenos Aires", cover: "one.jpg" }),
+      makeStep({ id: 2, name: "Ushuaia", cover: "two.jpg" }),
+      makeStep({ id: 3, name: "Santiago", cover: "three.jpg" }),
+    ];
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        album: {
+          ...mockAlbum,
+          chapters: [
+            {
+              id: "chapter-1",
+              title: "",
+              subtitle: "",
+              step_ids: [1, 2, 3],
+              front_cover_photo: "cover.jpg",
+              back_cover_photo: "cover.jpg",
+            },
+          ],
+        },
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [],
+      },
+      global: {
+        stubs: {
+          NavChapterGroup: NavChapterGroupStub,
+          NavMapRanges: true,
+          NavMapItem: true,
+          NavStepItem: true,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await nextTick();
+    await wrapper.get(".chapter-split-button").trigger("click");
+
+    expect(mutate).toHaveBeenCalledWith({
+      chapters: [
+        {
+          id: "chapter-1",
+          title: "",
+          subtitle: "",
+          step_ids: [1, 2],
+          front_cover_photo: "cover.jpg",
+          back_cover_photo: "cover.jpg",
+        },
+        {
+          id: "chapter-2",
+          title: "",
+          subtitle: "",
+          step_ids: [3],
+          front_cover_photo: "three.jpg",
+          back_cover_photo: "three.jpg",
+        },
+      ],
+    });
   });
 });

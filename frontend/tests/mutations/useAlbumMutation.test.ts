@@ -27,20 +27,23 @@ describe("useAlbumMutation", () => {
       const result = mountAlbumMutation();
 
       await flushPromises();
-      expect(result.query.data.value?.title).toBe("South America");
+      expect(result.query.data.value?.chapters?.[0]?.title).toBe("South America");
 
       const updateResponse = deferred<Response>();
       server.use(
         http.patch(`${BASE}/albums/:aid`, () => updateResponse.promise),
       );
 
-      result.mutation.mutate({ title: "Updated Title" });
+      const chapters = [
+        { ...defaultAlbum.chapters[0], title: "Updated Title" },
+      ];
+      result.mutation.mutate({ chapters });
       await flushPromises();
 
-      expect(result.query.data.value?.title).toBe("Updated Title");
+      expect(result.query.data.value?.chapters?.[0]?.title).toBe("Updated Title");
 
       updateResponse.resolve(
-        HttpResponse.json({ ...defaultAlbum, title: "Updated Title" }),
+        HttpResponse.json({ ...defaultAlbum, chapters }),
       );
       await flushPromises();
     });
@@ -57,12 +60,14 @@ describe("useAlbumMutation", () => {
       const result = mountAlbumMutation();
 
       await flushPromises();
-      expect(result.query.data.value?.title).toBe("South America");
+      expect(result.query.data.value?.chapters?.[0]?.title).toBe("South America");
 
-      result.mutation.mutate({ title: "Will Fail" });
+      result.mutation.mutate({
+        chapters: [{ ...defaultAlbum.chapters[0], title: "Will Fail" }],
+      });
       await flushPromises();
 
-      expect(result.query.data.value?.title).toBe("South America");
+      expect(result.query.data.value?.chapters?.[0]?.title).toBe("South America");
     });
   });
 });

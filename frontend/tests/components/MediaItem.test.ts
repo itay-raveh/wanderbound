@@ -177,6 +177,14 @@ describe("MediaItem video controls", () => {
     );
   });
 
+  test("marks only selectable media as draggable", () => {
+    const selectable = mountPhotoItem();
+    const staticItem = mountPhotoItem(ref(false), { focusable: false });
+
+    expect(selectable.get(".media-item").classes()).toContain("selectable");
+    expect(staticItem.get(".media-item").classes()).not.toContain("selectable");
+  });
+
   test("uses updated_at to bust immutable media URLs after same-size replacements", () => {
     const wrapper = mountPhotoItem(
       ref(false),

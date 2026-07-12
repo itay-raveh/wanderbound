@@ -15,7 +15,7 @@ async function scrollToVideo(page: Page) {
   const santiago = nav.getByText("Santiago");
 
   if (!(await santiago.isVisible())) {
-    await nav.getByText("Chile").click();
+    await nav.locator('[data-nav-step="103"]').scrollIntoViewIfNeeded();
     await expect(santiago).toBeVisible({ timeout: 3_000 });
   }
 

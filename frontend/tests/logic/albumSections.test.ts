@@ -1,5 +1,4 @@
 import {
-  filterCoverFromPages,
   segmentsOverlapping,
   buildSections,
   activeSectionId,
@@ -7,6 +6,10 @@ import {
   stepPageCount,
   type Section,
 } from "@/components/album/albumSections";
+import {
+  filterCoverFromPages,
+  planStepPages,
+} from "@/components/album/stepPages";
 import type { DateRange } from "@/client";
 import { makeStep, makeSegment } from "../helpers";
 
@@ -63,6 +66,11 @@ describe("stepPageCount", () => {
     ]);
 
     expect(stepPageCount(step, mediaByName)).toBe(3);
+    expect(planStepPages(step, mediaByName).editorPagePhotoIds).toEqual([
+      [],
+      ["portrait.jpg"],
+      ["landscape.jpg"],
+    ]);
   });
 });
 

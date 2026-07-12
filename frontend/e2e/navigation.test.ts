@@ -11,7 +11,7 @@ test.describe("Editor", () => {
   test("displays the album title", async ({ editorPage: page }) => {
     await page.waitForURL("/editor");
     // The album title "South America" should appear somewhere
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -22,5 +22,18 @@ test.describe("Editor", () => {
     await expect(page.getByRole("main")).toContainText("Amsterdam", {
       timeout: 15_000,
     });
+  });
+
+  test("splits a chapter from the nav drawer", async ({ focusPage: page }) => {
+    await page.goto("/editor");
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const nav = page.getByRole("navigation");
+    await nav.getByRole("button", { name: "Chapter actions" }).first().click();
+    await page.getByText("Split chapter").click();
+
+    await expect(nav.getByText("Chapter 2")).toBeVisible();
   });
 });

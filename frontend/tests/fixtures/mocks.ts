@@ -37,14 +37,20 @@ export const mockAuthStatePending = {
 export const mockAlbum = {
   id: "aid-1",
   uid: 1,
-  title: "South America",
-  subtitle: "A great adventure",
   hidden_steps: [],
   hidden_headers: [],
   maps_ranges: [],
   safe_margin_mm: 0,
-  front_cover_photo: "cover.jpg",
-  back_cover_photo: "back.jpg",
+  chapters: [
+    {
+      id: "chapter-1",
+      title: "South America",
+      subtitle: "A great adventure",
+      step_ids: [1],
+      front_cover_photo: "cover.jpg",
+      back_cover_photo: "back.jpg",
+    },
+  ],
   colors: { nl: "#e77c31" },
 };
 

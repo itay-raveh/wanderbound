@@ -24,19 +24,25 @@ async function pageTopBelowHeader(page: Page, text: string) {
   }, text);
 }
 
+async function clickNavStep(page: Page, stepId: number) {
+  const nav = page.getByRole("navigation");
+  const step = nav.locator(`[data-nav-step="${stepId}"]`);
+  await step.scrollIntoViewIfNeeded();
+  await expect(step).toBeVisible({ timeout: 3_000 });
+  await step.click();
+}
+
 test.describe("Active step sync", () => {
   test("nav click keeps viewer, nav active state, and inspector target aligned", async ({
     focusPage: page,
   }) => {
     await page.goto("/editor");
-    await expect(page.getByText("South America")).toBeVisible({
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
       timeout: 15_000,
     });
 
-    const nav = page.getByRole("navigation");
-    await nav.getByText("Argentina").click();
     const beforeClickScrollY = await page.evaluate(() => window.scrollY);
-    await nav.locator('[data-nav-step="102"]').click();
+    await clickNavStep(page, 102);
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeGreaterThan(beforeClickScrollY + 100);
@@ -49,13 +55,11 @@ test.describe("Active step sync", () => {
     await expect
       .poll(() => pageTopBelowHeader(page, "Ushuaia"))
       .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
-    await nav.getByText("Chile").click();
-    await nav.locator('[data-nav-step="103"]').click();
+    await clickNavStep(page, 103);
     await expect(
       page.locator(".album-container").getByText("Santiago").first(),
     ).toBeVisible();
-    await nav.getByText("Argentina").click();
-    await nav.locator('[data-nav-step="101"]').click();
+    await clickNavStep(page, 101);
     await expect(
       page.locator(".album-container").getByText("Buenos Aires").first(),
     ).toBeVisible();

@@ -116,8 +116,24 @@ class AlbumRoutes:
         assert resp.status_code == 200
         return resp.json()
 
-    async def print_bundle(self) -> Response:
-        return await self.client.get(f"/api/v1/albums/{AID}/print-bundle")
+    async def print_bundle(self, *, chapter: str | None = None) -> Response:
+        params = {} if chapter is None else {"chapter": chapter}
+        return await self.client.get(
+            f"/api/v1/albums/{AID}/print-bundle",
+            params=params,
+        )
 
     async def download_pdf(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/albums/pdf/download/{token}")
+
+    async def generate_chapters_pdf(
+        self,
+        aid: str = AID,
+        *,
+        chapters: list[str] | None = None,
+    ) -> Response:
+        params = [("chapters", chapter) for chapter in chapters or []]
+        return await self.client.post(
+            f"/api/v1/albums/{aid}/pdf/generate-chapters",
+            params=params,
+        )

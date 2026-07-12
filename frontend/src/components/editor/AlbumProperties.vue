@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AlbumMeta } from "@/client";
+import type { AlbumMedia, AlbumMeta } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import {
   ALLOWED_FONTS,
@@ -15,6 +15,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   album: AlbumMeta;
+  media: AlbumMedia[];
 }>();
 
 const albumMutation = useAlbumMutation(() => props.album.id);

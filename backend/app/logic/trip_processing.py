@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.core.async_helpers import yield_completed
 from app.core.http_clients import HttpClients
 from app.core.observability import start_span
+from app.logic.chapters import default_album_chapter
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
 from app.logic.layout.media import (
@@ -299,10 +300,15 @@ def build_trip_objects(  # noqa: PLR0913
         ),
         hidden_steps=[],
         maps_ranges=multi_day_hike_ranges(segments),
-        title=trip.title,
-        subtitle=trip.subtitle,
-        front_cover_photo=results.cover_name,
-        back_cover_photo=results.cover_name,
+        chapters=[
+            default_album_chapter(
+                title=trip.title,
+                subtitle=trip.subtitle,
+                step_ids=[step.id for step in steps],
+                front_cover_photo=results.cover_name,
+                back_cover_photo=results.cover_name,
+            )
+        ],
         font=DEFAULT_FONT,
         body_font=DEFAULT_FONT if user.locale.startswith("he") else DEFAULT_BODY_FONT,
         media_resolution_warning_preset=default_media_resolution_warning_preset(user),

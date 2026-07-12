@@ -1,13 +1,13 @@
 import type {
+  AlbumChapter,
   AlbumMeta,
   AlbumMedia,
   DateRange,
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
-import { layoutDescription } from "@/composables/useTextLayout";
-import { inDateRange, isoDate } from "@/utils/date";
-import { isPortrait } from "@/utils/media";
+import { mapRangeEntriesForSteps } from "./albumChapters";
+import { planStepPages } from "./stepPages";
 
 /** Keys for fixed album pages that precede the data-driven sections. Validated against the API schema. */
 export const HEADER_KEYS = [
@@ -21,6 +21,28 @@ export const HEADER_KEYS = [
 
 export type HeaderKey = (typeof HEADER_KEYS)[number];
 
+export function chapterHeaderSectionKey(
+  chapterId: string,
+  headerKey: HeaderKey,
+): string {
+  return `chapter-${chapterId}-${headerKey}`;
+}
+
+export function parseChapterHeaderSectionKey(
+  key: string | null | undefined,
+): { chapterId: string; headerKey: HeaderKey } | null {
+  if (!key?.startsWith("chapter-")) return null;
+  const headerKey = HEADER_KEYS.find((candidate) =>
+    key.endsWith(`-${candidate}`),
+  );
+  if (!headerKey) return null;
+  const chapterId = key.slice(
+    "chapter-".length,
+    key.length - headerKey.length - 1,
+  );
+  return chapterId ? { chapterId, headerKey } : null;
+}
+
 /** Return only the header keys not present in the hidden list. */
 export function visibleHeaderKeys(
   hiddenHeaders: readonly HeaderKey[],
@@ -30,30 +52,10 @@ export function visibleHeaderKeys(
   return HEADER_KEYS.filter((k) => !hidden.has(k));
 }
 
-interface IndexedPage {
-  originalIdx: number;
-  page: string[];
-}
-
-/** Filter out the cover photo from photo pages (cover is always shown on the main page). */
-export function filterCoverFromPages(
-  pages: string[][],
-  cover: string | null | undefined,
-): IndexedPage[] {
-  if (!cover) {
-    return pages.map((page, i) => ({ originalIdx: i, page }));
-  }
-  return pages
-    .map((page, i) => ({
-      originalIdx: i,
-      page: page.filter((p) => p !== cover),
-    }))
-    .filter(({ page }) => page.length > 0);
-}
-
 export type Section =
   | {
       type: "map";
+      chapterId?: string;
       steps: Step[];
       segments: SegmentOutline[];
       rangeIdx: number;
@@ -61,6 +63,7 @@ export type Section =
     }
   | {
       type: "hike";
+      chapterId?: string;
       steps: Step[];
       segments: SegmentOutline[];
       hikeSegment: SegmentOutline;
@@ -80,18 +83,11 @@ export function segmentsOverlapping(
 export function rangeSectionKey(
   type: "map" | "hike",
   dateRange: DateRange,
+  chapter?: AlbumChapter | string,
 ): string {
-  return `${type}-${dateRange[0]}-${dateRange[1]}`;
-}
-
-export function sectionKeyMatchesRange(
-  key: string | null,
-  dr: DateRange,
-): boolean {
-  if (!key) return false;
-  return (
-    key === rangeSectionKey("map", dr) || key === rangeSectionKey("hike", dr)
-  );
+  const chapterId = typeof chapter === "string" ? chapter : chapter?.id;
+  const suffix = `${type}-${dateRange[0]}-${dateRange[1]}`;
+  return chapterId ? `chapter-${chapterId}-${suffix}` : suffix;
 }
 
 export function sectionKey(section: Section): string {
@@ -100,7 +96,7 @@ export function sectionKey(section: Section): string {
       return `step-${section.step.id}`;
     case "map":
     case "hike":
-      return rangeSectionKey(section.type, section.dateRange);
+      return rangeSectionKey(section.type, section.dateRange, section.chapterId);
   }
 }
 
@@ -118,27 +114,8 @@ export function stepPageCount(
   step: Step,
   mediaByName: ReadonlyMap<string, AlbumMedia> = new Map(),
 ): number {
-  const layout = layoutDescription(step.description || "");
-  const photoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = Math.max(0, layout.pages.length - 1);
-  const continuationPhotos = new Set<string>();
-  if (continuationPages > 0) {
-    for (const { page } of photoPages) {
-      for (const name of page) {
-        const media = mediaByName.get(name);
-        if (media && isPortrait(media)) continuationPhotos.add(name);
-        if (continuationPhotos.size >= continuationPages) break;
-      }
-      if (continuationPhotos.size >= continuationPages) break;
-    }
-  }
-  const remainingPhotoPages =
-    continuationPhotos.size > 0
-      ? photoPages.filter(({ page }) =>
-          page.some((name) => !continuationPhotos.has(name)),
-        )
-      : photoPages;
-  return 1 + continuationPages + remainingPhotoPages.length;
+  const plan = planStepPages(step, mediaByName);
+  return plan.editorPagePhotoIds.length;
 }
 
 export function sectionPageCount(
@@ -151,15 +128,12 @@ export function sectionPageCount(
 }
 
 /** Group map ranges by the ID of their first overlapping step. */
-export function mapInsertionsByStep<T extends { dateRange: DateRange }>(
-  steps: Step[],
+export function mapInsertionsByStep<T extends { steps: Step[] }>(
   entries: T[],
 ): Map<number, T[]> {
   const result = new Map<number, T[]>();
   for (const entry of entries) {
-    const first = steps.find((s) =>
-      inDateRange(isoDate(s.datetime), entry.dateRange),
-    );
+    const first = entry.steps[0];
     if (!first) continue;
     if (!result.has(first.id)) result.set(first.id, []);
     result.get(first.id)!.push(entry);
@@ -178,17 +152,10 @@ export function buildSections(
   allSteps: Step[],
   allSegments: SegmentOutline[],
   mapRanges: DateRange[],
+  chapter?: AlbumChapter,
 ): Section[] {
-  type MapEntry = {
-    rangeIdx: number;
-    dateRange: DateRange;
-    steps: Step[];
-    segments: SegmentOutline[];
-  };
-  const mapEntries: MapEntry[] = mapRanges.map((dr, i) => {
-    const rangeSteps = allSteps.filter((s) =>
-      inDateRange(isoDate(s.datetime), dr),
-    );
+  const mapEntries = mapRangeEntriesForSteps(mapRanges, allSteps).map((entry) => {
+    const rangeSteps = entry.steps;
     const rangeStart = rangeSteps[0]?.timestamp;
     const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
     const rangeSegments =
@@ -196,15 +163,14 @@ export function buildSections(
         ? []
         : segmentsOverlapping(allSegments, rangeStart, rangeEnd);
     return {
-      rangeIdx: i,
-      dateRange: dr,
+      ...entry,
       steps: rangeSteps,
       segments: rangeSegments,
     };
   });
 
   const result: Section[] = [];
-  const mapInsertionPoints = mapInsertionsByStep(allSteps, mapEntries);
+  const mapInsertionPoints = mapInsertionsByStep(mapEntries);
 
   for (const step of allSteps) {
     const maps = mapInsertionPoints.get(step.id);
@@ -215,9 +181,14 @@ export function buildSections(
           (s) => s.kind === "driving" || s.kind === "flight",
         );
         if (hikeSegment && !hasTransport) {
-          result.push({ type: "hike" as const, ...m, hikeSegment });
+          result.push({
+            type: "hike" as const,
+            ...m,
+            chapterId: chapter?.id,
+            hikeSegment,
+          });
         } else {
-          result.push({ type: "map" as const, ...m });
+          result.push({ type: "map" as const, ...m, chapterId: chapter?.id });
         }
       }
     }

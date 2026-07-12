@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { parseLocalDate } from "@/utils/date";
-import type { AlbumMeta, StepRead as Step } from "@/client";
+import type { AlbumChapter, AlbumMeta, StepRead as Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useAlbum } from "@/composables/useAlbum";
@@ -8,12 +8,15 @@ import { mediaQuality, COVER_FRACTION } from "@/utils/photoQuality";
 import EditableText from "./EditableText.vue";
 import MediaItem from "./MediaItem.vue";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 const { formatDateRange } = useUserQuery();
+const { t } = useI18n();
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
   album: AlbumMeta;
+  chapter: AlbumChapter;
   steps: Step[];
   isBack?: boolean;
 }>();
@@ -21,7 +24,9 @@ const props = defineProps<{
 const albumMutation = useAlbumMutation(() => props.album.id);
 
 const coverMedia = computed(() =>
-  props.isBack ? props.album.back_cover_photo : props.album.front_cover_photo,
+  props.isBack
+    ? props.chapter.back_cover_photo
+    : props.chapter.front_cover_photo,
 );
 
 const coverQuality = computed(() =>
@@ -46,7 +51,11 @@ const dates = computed(() => {
 });
 
 function saveText(field: "title" | "subtitle", value: string) {
-  albumMutation.mutate({ [field]: value });
+  albumMutation.mutate({
+    chapters: (props.album.chapters ?? []).map((chapter) =>
+      chapter.id === props.chapter.id ? { ...chapter, [field]: value } : chapter,
+    ),
+  });
 }
 </script>
 
@@ -68,14 +77,16 @@ function saveText(field: "title" | "subtitle", value: string) {
         <div class="cover-rule" aria-hidden="true" />
 
         <EditableText
-          :model-value="album.title"
+          :model-value="chapter.title"
+          :placeholder="t('album.chapterTitlePlaceholder')"
           dir="auto"
           class="front-title"
           @update:model-value="saveText('title', $event)"
         />
 
         <EditableText
-          :model-value="album.subtitle"
+          :model-value="chapter.subtitle"
+          :placeholder="t('album.chapterSubtitlePlaceholder')"
           dir="auto"
           class="front-subtitle"
           @update:model-value="saveText('subtitle', $event)"
@@ -132,6 +143,8 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 85%;
+  min-width: 9rem;
+  min-height: 1.1em;
   pointer-events: auto;
 }
 
@@ -143,6 +156,8 @@ function saveText(field: "title" | "subtitle", value: string) {
   text-align: center;
   text-wrap: balance;
   max-width: 70%;
+  min-width: 7rem;
+  min-height: 1.2em;
   pointer-events: auto;
 }
 
