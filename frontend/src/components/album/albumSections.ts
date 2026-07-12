@@ -6,9 +6,8 @@ import type {
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
-import { layoutDescription } from "@/composables/useTextLayout";
 import { inDateRange, isoDate } from "@/utils/date";
-import { isPortrait } from "@/utils/media";
+import { planStepPages } from "./stepPages";
 
 /** Keys for fixed album pages that precede the data-driven sections. Validated against the API schema. */
 export const HEADER_KEYS = [
@@ -51,27 +50,6 @@ export function visibleHeaderKeys(
   if (!hiddenHeaders.length) return [...HEADER_KEYS];
   const hidden = new Set(hiddenHeaders);
   return HEADER_KEYS.filter((k) => !hidden.has(k));
-}
-
-interface IndexedPage {
-  originalIdx: number;
-  page: string[];
-}
-
-/** Filter out the cover photo from photo pages (cover is always shown on the main page). */
-export function filterCoverFromPages(
-  pages: string[][],
-  cover: string | null | undefined,
-): IndexedPage[] {
-  if (!cover) {
-    return pages.map((page, i) => ({ originalIdx: i, page }));
-  }
-  return pages
-    .map((page, i) => ({
-      originalIdx: i,
-      page: page.filter((p) => p !== cover),
-    }))
-    .filter(({ page }) => page.length > 0);
 }
 
 export type Section =
@@ -136,27 +114,8 @@ export function stepPageCount(
   step: Step,
   mediaByName: ReadonlyMap<string, AlbumMedia> = new Map(),
 ): number {
-  const layout = layoutDescription(step.description || "");
-  const photoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = Math.max(0, layout.pages.length - 1);
-  const continuationPhotos = new Set<string>();
-  if (continuationPages > 0) {
-    for (const { page } of photoPages) {
-      for (const name of page) {
-        const media = mediaByName.get(name);
-        if (media && isPortrait(media)) continuationPhotos.add(name);
-        if (continuationPhotos.size >= continuationPages) break;
-      }
-      if (continuationPhotos.size >= continuationPages) break;
-    }
-  }
-  const remainingPhotoPages =
-    continuationPhotos.size > 0
-      ? photoPages.filter(({ page }) =>
-          page.some((name) => !continuationPhotos.has(name)),
-        )
-      : photoPages;
-  return 1 + continuationPages + remainingPhotoPages.length;
+  const plan = planStepPages(step, mediaByName);
+  return plan.editorPagePhotoIds.length;
 }
 
 export function sectionPageCount(

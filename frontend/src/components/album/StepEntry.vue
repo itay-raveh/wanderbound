@@ -7,8 +7,7 @@ import { useStepLayout } from "@/composables/useStepLayout";
 import { STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextLayout } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
-import { isPortrait } from "@/utils/media";
-import { filterCoverFromPages } from "./albumSections";
+import { planStepPages } from "./stepPages";
 import { useI18n } from "vue-i18n";
 import { computed, provide, ref, toRef } from "vue";
 import { matAddPhotoAlternate } from "@quasar/extras/material-icons";
@@ -32,41 +31,13 @@ const { printMode, isDragging, saveField, onPageUpdate } = useStepLayout(
 provide(STEP_ID_KEY, props.step.id);
 
 const desc = useTextLayout(computed(() => props.step.description ?? ""));
-const continuationPages = computed(() => desc.value.pages.slice(1));
-
-// Portraits from photo pages fill the right column of continuation description pages,
-// keeping text and photos together instead of leaving text-only pages.
 const { mediaByName } = useAlbum();
-
-const rawPhotoPages = computed(() =>
-  filterCoverFromPages(props.step.pages, props.step.cover),
+const stepPagePlan = computed(() =>
+  planStepPages(props.step, mediaByName.value, desc.value.pages),
 );
-
-const continuationPhotos = computed(() => {
-  const needed = continuationPages.value.length;
-  if (needed === 0) return [];
-  const result: string[] = [];
-  for (const { page } of rawPhotoPages.value) {
-    for (const name of page) {
-      const m = mediaByName.value.get(name);
-      if (m && isPortrait(m)) result.push(name);
-      if (result.length >= needed) return result;
-    }
-  }
-  return result;
-});
-
-const photoPages = computed(() => {
-  const raw = rawPhotoPages.value;
-  const used = new Set(continuationPhotos.value);
-  if (used.size === 0) return raw;
-  return raw
-    .map(({ originalIdx, page }) => ({
-      originalIdx,
-      page: page.filter((p) => !used.has(p)),
-    }))
-    .filter(({ page }) => page.length > 0);
-});
+const continuationPages = computed(() => stepPagePlan.value.continuationPages);
+const continuationPhotos = computed(() => stepPagePlan.value.continuationPhotos);
+const photoPages = computed(() => stepPagePlan.value.photoPages);
 
 const selectedDescriptionPage = computed(() => {
   if (props.pageIndex == null) return null;
@@ -84,18 +55,18 @@ const selectedPhotoPage = computed(() => {
     : null;
 });
 
-// Steps with 0-1 photos have nothing to drag into a new page, so the drop zone is hidden.
-const totalPhotos = computed(
-  () =>
-    props.step.pages.reduce((n, p) => n + p.length, 0) +
-    props.step.unused.length,
+const hasPhotoDropZone = computed(
+  () => stepPagePlan.value.hasPhotoDropZone,
 );
 </script>
 
 <template>
   <div class="step-entry">
     <div v-if="addZoneOnly" class="step-pages column no-wrap items-center">
-      <div v-if="!printMode && totalPhotos >= 2" class="add-zone relative-position">
+      <div
+        v-if="!printMode && hasPhotoDropZone"
+        class="add-zone relative-position"
+      >
         <div
           class="add-zone-content column no-wrap items-center justify-center text-weight-medium text-muted"
         >
@@ -116,7 +87,7 @@ const totalPhotos = computed(
       >
         <StepMainPage
           :step="step"
-          :sidebar-lines="desc.pages[0]"
+          :sidebar-lines="stepPagePlan.sidebarLines"
           @update:name="saveField({ name: $event })"
           @update:description="saveField({ description: $event })"
         />
@@ -159,7 +130,7 @@ const totalPhotos = computed(
       />
 
       <div
-        v-if="pageIndex == null && !printMode && totalPhotos >= 2"
+        v-if="pageIndex == null && !printMode && hasPhotoDropZone"
         class="add-zone relative-position"
       >
         <div

@@ -8,9 +8,10 @@ import { qualitySummary } from "@/composables/usePhotoQuality";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 import QualityWarningDialog from "./QualityWarningDialog.vue";
+import { usePdfChapterSelection } from "./usePdfChapterSelection";
 import { symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 
 const { t } = useI18n();
 
@@ -23,7 +24,15 @@ const pdf = usePdfExportStream(
 );
 const showChapterDialog = ref(false);
 const showQualityDialog = ref(false);
-const selectedChapterIds = ref<string[]>([]);
+const {
+  chapterOptions,
+  chapterOptionItems,
+  selectedChapterIds,
+  selectedCount,
+  allChaptersSelected,
+  someChaptersSelected,
+  selectedExportTarget,
+} = usePdfChapterSelection(() => props.chapters ?? []);
 
 const progressFraction = computed(() => {
   const p = pdf.progress.value;
@@ -38,42 +47,6 @@ const buttonState = computed(() =>
     : "idle",
 );
 
-const chapterOptions = computed(() => props.chapters ?? []);
-
-const selectedCount = computed(() => selectedChapterIds.value.length);
-
-const allChaptersSelected = computed({
-  get: () =>
-    chapterOptions.value.length > 0 &&
-    selectedChapterIds.value.length === chapterOptions.value.length,
-  set: (checked: boolean) => {
-    selectedChapterIds.value = checked
-      ? chapterOptions.value.map((chapter) => chapter.id)
-      : [];
-  },
-});
-
-const someChaptersSelected = computed(
-  () =>
-    selectedChapterIds.value.length > 0 &&
-    selectedChapterIds.value.length < chapterOptions.value.length,
-);
-
-watch(
-  chapterOptions,
-  (chapters) => {
-    const valid = new Set(chapters.map((chapter) => chapter.id));
-    const kept = selectedChapterIds.value.filter((id) => valid.has(id));
-    selectedChapterIds.value =
-      kept.length > 0 ? kept : chapters.map((chapter) => chapter.id);
-  },
-  { immediate: true },
-);
-
-function chapterLabel(chapter: AlbumChapter, index: number) {
-  return chapter.title || t("chapters.untitled", { number: index + 1 });
-}
-
 function openExportDialog() {
   if (chapterOptions.value.length === 0) {
     startExport({ type: "album" });
@@ -83,12 +56,10 @@ function openExportDialog() {
 }
 
 function confirmChapterExport() {
-  const ids = selectedChapterIds.value;
-  if (ids.length === 0) return;
+  const target = selectedExportTarget();
+  if (!target) return;
   showChapterDialog.value = false;
-  startExport(
-    ids.length === 1 ? { type: "chapter", id: ids[0] } : { type: "chapters", ids },
-  );
+  startExport(target);
 }
 
 function startExport(target: PdfExportTarget) {
@@ -141,12 +112,7 @@ function onConfirmExport() {
       <q-option-group
         v-model="selectedChapterIds"
         type="checkbox"
-        :options="
-          chapterOptions.map((chapter, index) => ({
-            label: chapterLabel(chapter, index),
-            value: chapter.id,
-          }))
-        "
+        :options="chapterOptionItems"
         class="chapter-export-options"
       />
     </div>

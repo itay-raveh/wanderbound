@@ -5,12 +5,9 @@ import type {
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
-import { layoutDescription } from "@/composables/useTextLayout";
-import { isPortrait } from "@/utils/media";
 import {
   buildSections,
   chapterHeaderSectionKey,
-  filterCoverFromPages,
   sectionKey,
   sectionPageCount,
   segmentsOverlapping,
@@ -18,6 +15,7 @@ import {
   type Section,
 } from "./albumSections";
 import { mapRangesForSteps, stepsForChapter } from "./albumChapters";
+import { planStepPages } from "./stepPages";
 
 export type ChapterRenderGroup = {
   chapter: AlbumChapter;
@@ -100,46 +98,6 @@ export function countChapterRenderPages(
   );
 }
 
-function stepHasPhotoDropZone(step: Step): boolean {
-  return (
-    step.pages.reduce((n, page) => n + page.length, 0) + step.unused.length >= 2
-  );
-}
-
-function stepEditorPagePhotoIds(
-  step: Step,
-  mediaByName: ReadonlyMap<string, AlbumMedia>,
-): string[][] {
-  const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = layoutDescription(
-    step.description || "",
-  ).pages.slice(1);
-  const continuationPhotos: string[] = [];
-  for (const { page } of rawPhotoPages) {
-    for (const name of page) {
-      const media = mediaByName.get(name);
-      if (media && isPortrait(media)) continuationPhotos.push(name);
-      if (continuationPhotos.length >= continuationPages.length) break;
-    }
-    if (continuationPhotos.length >= continuationPages.length) break;
-  }
-
-  const used = new Set(continuationPhotos);
-  const photoPages = used.size
-    ? rawPhotoPages
-        .map(({ page }) => page.filter((p) => !used.has(p)))
-        .filter((page) => page.length > 0)
-    : rawPhotoPages.map(({ page }) => page);
-
-  return [
-    [],
-    ...continuationPages.map((_, i) =>
-      continuationPhotos[i] ? [continuationPhotos[i]] : [],
-    ),
-    ...photoPages,
-  ];
-}
-
 export function buildEditorItems(
   groups: ChapterRenderGroup[],
   mediaByName: ReadonlyMap<string, AlbumMedia>,
@@ -165,7 +123,8 @@ export function buildEditorItems(
         result.push({ type: "hike", key: sectionKey(section), section });
         return;
       }
-      const stepPages = stepEditorPagePhotoIds(section.step, mediaByName);
+      const stepPlan = planStepPages(section.step, mediaByName);
+      const stepPages = stepPlan.editorPagePhotoIds;
       for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
         result.push({
           type: "step-page",
@@ -175,7 +134,7 @@ export function buildEditorItems(
           photoIds: stepPages[pageIndex] ?? [],
         });
       }
-      if (stepHasPhotoDropZone(section.step)) {
+      if (stepPlan.hasPhotoDropZone) {
         result.push({
           type: "step-add-zone",
           key: `${sectionKey(section)}-add-zone`,

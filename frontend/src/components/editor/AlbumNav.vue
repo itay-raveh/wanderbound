@@ -1,56 +1,17 @@
 <script lang="ts" setup>
-import type {
-  AlbumChapter,
-  AlbumMeta,
-  DateRange,
-  StepRead as Step,
-} from "@/client";
-import type {
-  ChapterVisit,
-  GroupEntry,
-  StepItem,
-} from "./nav/types";
-import { mediaThumbUrl } from "@/utils/media";
-import { parseLocalDate, SHORT_DATE } from "@/utils/date";
-import { getCountryColor } from "../album/colors";
+import { chapterCanSplit } from "./nav/chapterEditing";
+import { useAlbumNavScrollSync } from "./nav/useAlbumNavScrollSync";
 import {
-  HEADER_KEYS,
-  type HeaderKey,
-} from "../album/albumSections";
-import { buildChapterGroups } from "./nav/useAlbumNavGroups";
-import {
-  adjustChapterBoundary,
-  chapterCanSplit,
-  deleteChapter as deleteChapterFromList,
-  splitChapter,
-} from "./nav/chapterEditing";
-import { useUserQuery } from "@/queries/useUserQuery";
-import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { useI18n } from "vue-i18n";
-import { useActiveSection } from "@/composables/useActiveSection";
-import { ref, computed, watch, nextTick } from "vue";
+  useAlbumNavModel,
+  type AlbumNavProps,
+} from "./nav/useAlbumNavModel";
+import { ref } from "vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
-import {
-  symOutlinedMap,
-  symOutlinedFlightTakeoff,
-  symOutlinedMenuBook,
-  symOutlinedBarChart,
-} from "@quasar/extras/material-symbols-outlined";
-
-const { t } = useI18n();
-const { formatDateRange, countryName } = useUserQuery();
+import { symOutlinedFlightTakeoff } from "@quasar/extras/material-symbols-outlined";
 
 const props = withDefaults(
-  defineProps<{
-    album: AlbumMeta;
-    steps: Step[];
-    albumIds?: string[];
-    hiddenSteps?: number[];
-    hiddenHeaders?: HeaderKey[];
-    colors?: Record<string, unknown>;
-    mapsRanges?: DateRange[];
-  }>(),
+  defineProps<AlbumNavProps>(),
   {
     albumIds: () => [],
     hiddenSteps: () => [],
@@ -62,284 +23,37 @@ const props = withDefaults(
 
 const selectedAlbumId = defineModel<string | null>("albumId");
 
+const listRef = ref<HTMLElement>();
+const {
+  t,
+  albumOptions,
+  hiddenSet,
+  hiddenHeaderSet,
+  albumColors,
+  chapterGroups,
+  openChapterKey,
+  formatMapRange,
+  boundaryOptions,
+  onMapsRangesChange,
+  toggleStep,
+  toggleHeader,
+  toggleChapter,
+  onSplitChapter,
+  onDeleteChapter,
+  onAdjustChapterBoundary,
+  deleteMap,
+  mapDateChange,
+} = useAlbumNavModel(props, selectedAlbumId);
 const {
   activeStepId,
   activeSectionKey,
-  setActive,
-  scrollTo,
-  scrollToSection,
-  scrollBehavior,
-  programmaticScrolling,
-} = useActiveSection();
-const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
-const listRef = ref<HTMLElement>();
-const openChapterKey = ref<string | null>(null);
-
-// ── Album selector ────────────────────────────────────────────────────
-
-const toTitleCase = (str: string) =>
-  str
-    .replace(/([a-z])-/g, "$1 ")
-    .replace(/_\d+$/, "")
-    .replace(
-      /\w\S*/g,
-      (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase(),
-    );
-
-const albumOptions = computed(() =>
-  props.albumIds.map((value) => ({ label: toTitleCase(value), value })),
-);
-
-// ── Derived state ─────────────────────────────────────────────────────
-
-const hiddenSet = computed(() => new Set(props.hiddenSteps));
-const hiddenHeaderSet = computed(() => new Set(props.hiddenHeaders));
-const albumColors = computed(
-  () => (props.colors ?? {}) as Record<string, string>,
-);
-
-const stepItems = computed<StepItem[]>(() =>
-  props.steps.map((s) => ({
-    id: s.id,
-    name: s.name,
-    country: s.location.country_code,
-    countryLabel: countryName(s.location.country_code, s.location.detail),
-    color: getCountryColor(
-      props.colors as Record<string, string>,
-      s.location.country_code,
-    ),
-    date: parseLocalDate(s.datetime),
-    thumb:
-      s.cover && selectedAlbumId.value
-        ? mediaThumbUrl(s.cover, selectedAlbumId.value)
-        : null,
-    detail: s.location.detail,
-  })),
-);
-
-const chaptersForNav = computed<AlbumChapter[]>(() => {
-  if (props.album.chapters?.length) return props.album.chapters;
-  return [];
-});
-
-const chapterGroups = computed(() =>
-  buildChapterGroups({
-    steps: props.steps,
-    stepItems: stepItems.value,
-    mapsRanges: props.mapsRanges,
-    chapters: chaptersForNav.value,
-    headerKeys: HEADER_KEYS,
-    headerLabel: (key) => t(HEADER_LABELS[key]),
-    headerIcon: (key) => HEADER_ICONS[key],
-    untitledLabel: (index) => t("chapters.untitled", { number: index + 1 }),
-    dateRangeLabel: (first, last) => formatDateRange(first, last, SHORT_DATE),
-  }),
-);
-
-function formatMapRange(dr: DateRange): string {
-  return formatDateRange(
-    parseLocalDate(dr[0]),
-    parseLocalDate(dr[1]),
-    SHORT_DATE,
-  );
-}
-
-function stepLabel(stepId: number): string {
-  const step = props.steps.find((candidate) => candidate.id === stepId);
-  return step?.name || step?.location.name || String(stepId);
-}
-
-function boundaryOptions(left: AlbumChapter, right: AlbumChapter) {
-  const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
-  return combined.slice(1).map((stepId) => {
-    const step = props.steps.find((candidate) => candidate.id === stepId);
-    const countryCode = step?.location.country_code ?? "";
-    return {
-      label: stepLabel(stepId),
-      value: stepId,
-      countryCode,
-      countryLabel: step
-        ? countryName(countryCode, step.location.detail)
-        : String(stepId),
-    };
-  });
-}
-
-// ── Mutations ─────────────────────────────────────────────────────────
-
-function onMapsRangesChange(ranges: DateRange[]) {
-  albumMutation.mutate({ maps_ranges: ranges });
-}
-
-function updateChapters(chapters: AlbumChapter[]) {
-  albumMutation.mutate({ chapters });
-}
-
-function toggleInList<T>(list: readonly T[], item: T): T[] {
-  const copy = [...list];
-  const idx = copy.indexOf(item);
-  if (idx >= 0) copy.splice(idx, 1);
-  else copy.push(item);
-  return copy;
-}
-
-function toggleStep(stepId: number) {
-  albumMutation.mutate({
-    hidden_steps: toggleInList(props.hiddenSteps, stepId),
-  });
-}
-
-function toggleHeader(key: HeaderKey) {
-  albumMutation.mutate({
-    hidden_headers: toggleInList(props.hiddenHeaders, key),
-  });
-}
-
-function toggleChapter(group: ChapterVisit) {
-  if (openChapterKey.value === group.key) {
-    openChapterKey.value = null;
-    return;
-  }
-  openChapterKey.value = group.key;
-}
-
-function onSplitChapter(chapterId: string) {
-  const chapters = splitChapter(chaptersForNav.value, props.steps, chapterId);
-  if (chapters === chaptersForNav.value) return;
-  updateChapters(chapters);
-  const sourceIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
-  const nextChapter = chapters[sourceIndex + 1];
-  if (nextChapter) openChapterKey.value = nextChapter.id;
-}
-
-function onDeleteChapter(chapterId: string) {
-  const chapters = deleteChapterFromList(chaptersForNav.value, chapterId);
-  if (chapters === chaptersForNav.value) return;
-  const deletedIndex = chaptersForNav.value.findIndex(
-    (chapter) => chapter.id === chapterId,
-  );
-  updateChapters(chapters);
-  if (openChapterKey.value === chapterId) {
-    openChapterKey.value =
-      chapters[Math.min(deletedIndex, chapters.length - 1)]?.id ?? null;
-  }
-}
-
-function onAdjustChapterBoundary(
-  leftChapterId: string,
-  rightChapterId: string,
-  firstRightStepId: number,
-) {
-  const chapters = adjustChapterBoundary(
-    chaptersForNav.value,
-    leftChapterId,
-    rightChapterId,
-    firstRightStepId,
-  );
-  if (chapters !== chaptersForNav.value) updateChapters(chapters);
-}
-
-function deleteMap(rangeIdx: number) {
-  const ranges = [...props.mapsRanges];
-  ranges.splice(rangeIdx, 1);
-  albumMutation.mutate({ maps_ranges: ranges });
-}
-
-function mapDateChange(rangeIdx: number, range: DateRange) {
-  const ranges = [...props.mapsRanges] as DateRange[];
-  const existing = ranges[rangeIdx];
-  if (existing) {
-    ranges[rangeIdx] = [existing[0], range[1]];
-    albumMutation.mutate({ maps_ranges: ranges });
-  }
-}
-
-function scrollToMap(key: string) {
-  if (scrollToSection(key)) {
-    setActive(key);
-    return;
-  }
-  const hikeKey = key.replace("-map-", "-hike-");
-  if (hikeKey !== key && scrollToSection(hikeKey)) setActive(hikeKey);
-}
-
-function scrollToStep(id: number) {
-  scrollTo(id);
-  setActive(id);
-}
-
-function scrollToHeader(key: string) {
-  if (scrollToSection(key)) setActive(key);
-}
-
-// ── Header nav items ──────────────────────────────────────────────────
-
-const HEADER_ICONS: Record<HeaderKey, string> = {
-  "cover-front": symOutlinedMenuBook,
-  "cover-back": symOutlinedMenuBook,
-  overview: symOutlinedBarChart,
-  "full-map": symOutlinedMap,
-};
-const HEADER_LABELS: Record<HeaderKey, string> = {
-  "cover-front": "nav.cover",
-  "cover-back": "album.backCover",
-  overview: "inspector.overview",
-  "full-map": "album.tripRouteMap",
-};
-// ── Scroll sync ───────────────────────────────────────────────────────
-
-function scrollNavItemIntoView(selector: string) {
-  void nextTick(() => {
-    const el = listRef.value?.querySelector(selector);
-    (el as HTMLElement | null)?.scrollIntoView({
-      block: "center",
-      behavior: scrollBehavior(),
-    });
-  });
-}
-
-function openGroupFor(predicate: (e: GroupEntry) => boolean) {
-  for (const chapter of chapterGroups.value) {
-    if (!chapter.entries.some(predicate)) continue;
-    if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
-    return;
-  }
-}
-
-watch(activeStepId, (id) => {
-  if (id == null) return;
-  openGroupFor((e) => e.type === "step" && e.item.id === id);
-  if (programmaticScrolling.value) return;
-  scrollNavItemIntoView(`[data-nav-step="${id}"]`);
-});
-
-watch(
+  scrollToStep,
+  scrollToMap,
+  scrollToHeader,
+} = useAlbumNavScrollSync({
   chapterGroups,
-  (groups) => {
-    if (!openChapterKey.value && groups[0]) {
-      openChapterKey.value = groups[0].key;
-    }
-  },
-  { immediate: true },
-);
-
-watch(activeSectionKey, (key) => {
-  if (key == null) return;
-  for (const chapter of chapterGroups.value) {
-    if (chapter.headerItems.some((item) => item.key === key)) {
-      if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
-      if (programmaticScrolling.value) return;
-      scrollNavItemIntoView(`[data-nav-section="${key}"]`);
-      return;
-    }
-    for (const entry of chapter.entries) {
-      if (entry.type !== "map" || entry.key !== key) continue;
-      if (chapter.key !== openChapterKey.value) openChapterKey.value = chapter.key;
-      if (programmaticScrolling.value) return;
-      scrollNavItemIntoView(`[data-nav-section="${entry.key}"]`);
-      return;
-    }
-  }
+  openChapterKey,
+  listRef,
 });
 </script>
 
