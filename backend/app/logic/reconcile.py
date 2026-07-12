@@ -148,6 +148,24 @@ def _fix_album_covers(
                 setattr(chapter, attr, cover_fallback)
 
 
+def _assign_new_steps_to_chapters(album: Album, new_steps: list[StepRead]) -> None:
+    if not album.chapters or not new_steps:
+        return
+
+    new_step_ids = [step.id for step in sorted(new_steps, key=lambda s: s.timestamp)]
+    assigned = {step_id for chapter in album.chapters for step_id in chapter.step_ids}
+    missing = [step_id for step_id in new_step_ids if step_id not in assigned]
+    if not missing:
+        return
+
+    chapters = [
+        chapter.model_copy(update={"step_ids": list(chapter.step_ids)})
+        for chapter in album.chapters
+    ]
+    chapters[-1].step_ids = [*chapters[-1].step_ids, *missing]
+    album.chapters = chapters
+
+
 async def _process_new_steps(  # noqa: PLR0913
     http: HttpClients,
     user: User,
@@ -358,6 +376,7 @@ async def reconcile_trip(  # noqa: PLR0913
     if album.chapters:
         album.chapters[0].title = trip.title
         album.chapters[0].subtitle = trip.subtitle
+    _assign_new_steps_to_chapters(album, new_step_objects)
     _fix_album_covers(album, all_on_disk, cover_name, all_steps)
 
     yield PhaseUpdate(phase="segments", done=0, total=1)
