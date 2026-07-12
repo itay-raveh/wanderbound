@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type {
   AlbumChapter,
-  AlbumMedia,
   AlbumMeta,
   DateRange,
   StepRead as Step,
@@ -45,7 +44,6 @@ const { formatDateRange, countryName } = useUserQuery();
 const props = withDefaults(
   defineProps<{
     album: AlbumMeta;
-    media: AlbumMedia[];
     steps: Step[];
     albumIds?: string[];
     hiddenSteps?: number[];

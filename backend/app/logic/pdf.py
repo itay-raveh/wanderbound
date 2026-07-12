@@ -67,6 +67,10 @@ class PdfArtifact(BaseModel):
     media_type: str
 
 
+class PdfQueueTimeoutError(TimeoutError):
+    pass
+
+
 PdfEvent = Annotated[
     PdfQueued | PdfProgress | PdfDone | PdfError,
     Field(discriminator="type"),
@@ -204,6 +208,32 @@ async def render_pdf_slot() -> AsyncGenerator[None]:
         if loop.time() >= deadline:
             raise TimeoutError
         await asyncio.sleep(_RENDER_SLOT_POLL_INTERVAL)
+
+
+async def acquire_pdf_render_slot(
+    aid: str,
+    span_name: str,
+) -> AbstractAsyncContextManager[None]:
+    try:
+        with start_span(
+            span_name,
+            "Wait for PDF render slot",
+            **{"app.workflow": "pdf", "album.id": aid},
+        ):
+            slot = render_pdf_slot()
+            await slot.__aenter__()
+            return slot
+    except TimeoutError as e:
+        logger.warning(
+            "pdf.queue_timeout",
+            album_id=aid,
+            timeout_s=PDF_QUEUE_TIMEOUT,
+        )
+        raise PdfQueueTimeoutError from e
+
+
+def pdf_queue_timeout_event() -> PdfError:
+    return PdfError(detail="Timed out waiting for a PDF render slot. Please try again.")
 
 
 async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:
@@ -384,22 +414,9 @@ async def render_album_pdf_stream(  # noqa: PLR0913
     yield PdfQueued()
 
     try:
-        with start_span(
-            "pdf.queue_wait",
-            "Wait for PDF render slot",
-            **{"app.workflow": "pdf", "album.id": aid},
-        ):
-            slot = render_pdf_slot()
-            await slot.__aenter__()
-    except TimeoutError:
-        logger.warning(
-            "pdf.queue_timeout",
-            album_id=aid,
-            timeout_s=PDF_QUEUE_TIMEOUT,
-        )
-        yield PdfError(
-            detail="Timed out waiting for a PDF render slot. Please try again."
-        )
+        slot = await acquire_pdf_render_slot(aid, "pdf.queue_wait")
+    except PdfQueueTimeoutError:
+        yield pdf_queue_timeout_event()
         return
 
     dest = pdf_tokens.make_dest(".pdf")

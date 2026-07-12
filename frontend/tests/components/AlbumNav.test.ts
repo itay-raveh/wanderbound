@@ -4,7 +4,7 @@ import AlbumNav from "@/components/editor/AlbumNav.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
 import type { ChapterVisit } from "@/components/editor/nav/types";
 import type { AlbumChapter, StepRead as Step } from "@/client";
-import { mockAlbum, mockMedia } from "../fixtures/mocks";
+import { mockAlbum } from "../fixtures/mocks";
 
 const mutate = vi.fn();
 
@@ -92,7 +92,6 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
-        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -127,7 +126,6 @@ describe("AlbumNav", () => {
     mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
-        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -169,7 +167,6 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: { ...mockAlbum, chapters },
-        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -221,7 +218,6 @@ describe("AlbumNav", () => {
             },
           ],
         },
-        media: mockMedia,
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],

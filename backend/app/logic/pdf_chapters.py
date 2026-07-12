@@ -9,18 +9,18 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from app.core.observability import start_span
 from app.logic.pdf import (
-    PDF_QUEUE_TIMEOUT,
     PdfArtifact,
     PdfDone,
     PdfError,
     PdfEvent,
     PdfProgress,
     PdfQueued,
+    PdfQueueTimeoutError,
+    acquire_pdf_render_slot,
+    pdf_queue_timeout_event,
     pdf_tokens,
     render_pdf_file,
-    render_pdf_slot,
     store_pdf_artifact,
 )
 
@@ -61,22 +61,9 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
         return
 
     try:
-        with start_span(
-            "pdf.chapter_zip_queue_wait",
-            "Wait for PDF render slot",
-            **{"app.workflow": "pdf", "album.id": aid},
-        ):
-            slot = render_pdf_slot()
-            await slot.__aenter__()
-    except TimeoutError:
-        logger.warning(
-            "pdf.queue_timeout",
-            album_id=aid,
-            timeout_s=PDF_QUEUE_TIMEOUT,
-        )
-        yield PdfError(
-            detail="Timed out waiting for a PDF render slot. Please try again."
-        )
+        slot = await acquire_pdf_render_slot(aid, "pdf.chapter_zip_queue_wait")
+    except PdfQueueTimeoutError:
+        yield pdf_queue_timeout_event()
         return
 
     zip_dest = pdf_tokens.make_dest(".zip")

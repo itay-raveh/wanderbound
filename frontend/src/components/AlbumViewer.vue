@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import type {
-  AlbumChapter,
   AlbumMedia,
   AlbumMeta,
   SegmentOutline,
@@ -25,26 +24,16 @@ import {
 } from "@/utils/photoQuality";
 import { setSafeMargin } from "@/composables/useSafeMargin";
 import { setQualitySummary } from "@/composables/usePhotoQuality";
+import { visibleHeaderKeys, sectionKey } from "./album/albumSections";
 import {
-  buildSections,
-  visibleHeaderKeys,
-  sectionKey,
-  sectionPageCount,
-  filterCoverFromPages,
-  segmentsOverlapping,
-  chapterHeaderSectionKey,
-  type Section,
-  type HeaderKey,
-} from "./album/albumSections";
-import {
-  mapRangesForSteps,
-  stepsForChapter,
-} from "./album/albumChapters";
+  buildChapterRenderGroups,
+  buildEditorItems,
+  countChapterRenderPages,
+  type ChapterRenderGroup,
+} from "./album/albumRenderPlan";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
-import { layoutDescription } from "@/composables/useTextLayout";
-import { isPortrait } from "@/utils/media";
 import {
   computed,
   defineAsyncComponent,
@@ -142,49 +131,17 @@ const { mediaByName } = provideAlbum({
   mediaResolutionWarningPreset,
 });
 
-const chapters = computed(() => props.album.chapters ?? []);
 const activeHeaders = computed(() =>
   visibleHeaderKeys(props.album.hidden_headers ?? []),
 );
 
-type ChapterRenderGroup = {
-  chapter: AlbumChapter;
-  headerKeys: HeaderKey[];
-  steps: Step[];
-  segments: SegmentOutline[];
-  sections: Section[];
-};
-
 const chapterRenderGroups = computed<ChapterRenderGroup[]>(() =>
-  chapters.value
-    .map((chapter) => {
-      const chapterSteps = stepsForChapter(visibleSteps.value, chapter);
-      const chapterSegments =
-        chapterSteps.length === 0
-          ? []
-          : segmentsOverlapping(
-              props.segmentOutlines,
-              chapterSteps[0].timestamp,
-              chapterSteps[chapterSteps.length - 1].timestamp,
-            );
-      const chapterMapRanges = mapRangesForSteps(
-        props.album.maps_ranges ?? [],
-        chapterSteps,
-      );
-      return {
-        chapter,
-        headerKeys: activeHeaders.value,
-        steps: chapterSteps,
-        segments: chapterSegments,
-        sections: buildSections(
-          chapterSteps,
-          chapterSegments,
-          chapterMapRanges,
-          chapter,
-        ),
-      };
-    })
-    .filter((group) => group.steps.length > 0),
+  buildChapterRenderGroups(
+    props.album,
+    visibleSteps.value,
+    props.segmentOutlines,
+    activeHeaders.value,
+  ),
 );
 
 if (!props.printMode) {
@@ -205,40 +162,8 @@ if (!props.printMode) {
   });
 }
 
-const sectionPageCounts = computed(() =>
-  chapterRenderGroups.value.flatMap((group) =>
-    group.sections.map((section) =>
-      sectionPageCount(section, mediaByName.value),
-    ),
-  ),
-);
-
-type EditorItem =
-  | {
-      type: "header";
-      key: string;
-      headerKey: HeaderKey;
-      chapter: AlbumChapter;
-      steps: Step[];
-      segments: SegmentOutline[];
-    }
-  | { type: "map"; key: string; section: Extract<Section, { type: "map" }> }
-  | { type: "hike"; key: string; section: Extract<Section, { type: "hike" }> }
-  | {
-      type: "step-page";
-      key: string;
-      step: Step;
-      pageIndex: number;
-      photoIds: string[];
-    }
-  | { type: "step-add-zone"; key: string; step: Step };
-
-const headerCount = computed(() => activeHeaders.value.length);
-
 const expectedPageCount = computed(
-  () =>
-    headerCount.value * chapterRenderGroups.value.length +
-    sectionPageCounts.value.reduce((n, c) => n + c, 0),
+  () => countChapterRenderPages(chapterRenderGroups.value, mediaByName.value),
 );
 const listRef = ref<HTMLElement | null>(null);
 const scrollMargin = ref(0);
@@ -252,86 +177,9 @@ const pageH = computed(
 );
 const editorPhotoDropZoneHeight = 96;
 
-function stepHasPhotoDropZone(step: Step) {
-  return (
-    step.pages.reduce((n, page) => n + page.length, 0) + step.unused.length >= 2
-  );
-}
-
-function stepEditorPagePhotoIds(step: Step): string[][] {
-  const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
-  const continuationPages = layoutDescription(
-    step.description || "",
-  ).pages.slice(1);
-  const continuationPhotos: string[] = [];
-  for (const { page } of rawPhotoPages) {
-    for (const name of page) {
-      const media = mediaByName.value.get(name);
-      if (media && isPortrait(media)) continuationPhotos.push(name);
-      if (continuationPhotos.length >= continuationPages.length) break;
-    }
-    if (continuationPhotos.length >= continuationPages.length) break;
-  }
-
-  const used = new Set(continuationPhotos);
-  const photoPages = used.size
-    ? rawPhotoPages
-        .map(({ page }) => page.filter((p) => !used.has(p)))
-        .filter((page) => page.length > 0)
-    : rawPhotoPages.map(({ page }) => page);
-
-  return [
-    [],
-    ...continuationPages.map((_, i) =>
-      continuationPhotos[i] ? [continuationPhotos[i]] : [],
-    ),
-    ...photoPages,
-  ];
-}
-
-const editorItems = computed<EditorItem[]>(() => {
-  const result: EditorItem[] = [];
-  chapterRenderGroups.value.forEach((group) => {
-    result.push(
-      ...group.headerKeys.map((headerKey) => ({
-        type: "header" as const,
-        key: chapterHeaderSectionKey(group.chapter.id, headerKey),
-        headerKey,
-        chapter: group.chapter,
-        steps: group.steps,
-        segments: group.segments,
-      })),
-    );
-    group.sections.forEach((section) => {
-      if (section.type === "map") {
-        result.push({ type: "map", key: sectionKey(section), section });
-        return;
-      }
-      if (section.type === "hike") {
-        result.push({ type: "hike", key: sectionKey(section), section });
-        return;
-      }
-      const stepPages = stepEditorPagePhotoIds(section.step);
-      for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
-        result.push({
-          type: "step-page",
-          key: `${sectionKey(section)}-page-${pageIndex}`,
-          step: section.step,
-          pageIndex,
-          photoIds: stepPages[pageIndex] ?? [],
-        });
-      }
-      if (stepHasPhotoDropZone(section.step)) {
-        result.push({
-          type: "step-add-zone",
-          key: `${sectionKey(section)}-add-zone`,
-          step: section.step,
-        });
-      }
-    });
-  });
-  return result;
-});
+const editorItems = computed(() =>
+  buildEditorItems(chapterRenderGroups.value, mediaByName.value),
+);
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(
   computed(() => {

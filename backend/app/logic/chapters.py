@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlmodel import col, select
+from sqlmodel import select
 
 from app.models.album import (
     Album,
@@ -96,32 +96,16 @@ async def validate_album_chapters(  # noqa: C901
         raise ChapterValidationError(f"Missing chapter step IDs: {joined}")
 
 
-async def ensure_album_chapters(session: AsyncSession, album: Album) -> Album:
-    if album.chapters and any(chapter.step_ids for chapter in album.chapters):
-        return album
-
-    result = await session.exec(
-        select(Step.id)
-        .where(
-            Step.uid == album.uid,
-            Step.aid == album.id,
-        )
-        .order_by(col(Step.timestamp))
-    )
-    step_ids = list(result.all())
-    if not step_ids:
-        return album
-
-    existing = album.chapters[0] if album.chapters else None
-    album.chapters = [
-        default_album_chapter(
-            title=existing.title if existing else "",
-            subtitle=existing.subtitle if existing else "",
-            step_ids=step_ids,
-            front_cover_photo=existing.front_cover_photo if existing else "",
-            back_cover_photo=existing.back_cover_photo if existing else "",
-        )
-    ]
+async def update_album_settings(
+    session: AsyncSession,
+    album: Album,
+    update: AlbumUpdate,
+) -> Album:
+    await validate_album_chapters(session, album, update)
+    payload = update.model_dump(exclude_unset=True, exclude={"chapters"})
+    album.sqlmodel_update(payload)
+    if "chapters" in update.model_fields_set:
+        album.chapters = update.chapters or []
     session.add(album)
     await session.commit()
     await session.refresh(album)

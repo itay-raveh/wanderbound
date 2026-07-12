@@ -1,6 +1,6 @@
 import zipfile
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +45,14 @@ async def test_render_album_chapters_zip_stream_creates_zip_artifact(
     async def render_slot() -> AsyncGenerator[None]:
         yield
 
+    async def acquire_slot(
+        _aid: str,
+        _span_name: str,
+    ) -> AbstractAsyncContextManager[None]:
+        slot = render_slot()
+        await slot.__aenter__()
+        return slot
+
     async def render_pdf(
         _browser: object,
         _aid: str,
@@ -58,7 +66,7 @@ async def test_render_album_chapters_zip_stream_creates_zip_artifact(
         assert dark is False
         yield pdf.PdfProgress(phase="rendering", done=write_fake_pdf(dest, chapter))
 
-    monkeypatch.setattr(pdf_chapters, "render_pdf_slot", render_slot)
+    monkeypatch.setattr(pdf_chapters, "acquire_pdf_render_slot", acquire_slot)
     monkeypatch.setattr(pdf_chapters, "render_pdf_file", render_pdf)
 
     events = await collect_async(

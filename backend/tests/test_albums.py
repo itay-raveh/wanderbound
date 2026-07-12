@@ -62,30 +62,6 @@ class TestReadAlbum:
         assert "steps" not in data
         assert "segments" not in data
 
-    async def test_read_backfills_default_chapter_for_legacy_album(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid, step_id=2, timestamp=200.0)
-        await insert_step(session, signed_album.uid, step_id=1, timestamp=100.0)
-        await session.commit()
-
-        resp = await album_routes.get_album()
-
-        assert resp.status_code == 200
-        assert resp.json()["chapters"] == [
-            {
-                "id": "chapter-1",
-                "title": "Test Album",
-                "subtitle": "A subtitle",
-                "step_ids": [1, 2],
-                "front_cover_photo": "photo1.jpg",
-                "back_cover_photo": "photo2.jpg",
-            }
-        ]
-
 
 class TestReadSegments:
     async def test_returns_outlines_without_points(

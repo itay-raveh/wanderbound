@@ -19,9 +19,8 @@ from sqlmodel import col, select
 from app.logic.album_scope import ChapterNotFoundError, build_print_bundle_scope
 from app.logic.chapters import (
     ChapterValidationError,
-    ensure_album_chapters,
     find_chapter,
-    validate_album_chapters,
+    update_album_settings,
 )
 from app.logic.pdf import (
     PdfEvent,
@@ -54,8 +53,7 @@ logger = structlog.get_logger(__name__)
 async def _get_album(
     aid: Annotated[str, Path()], user: UserDep, session: SessionDep
 ) -> Album:
-    album = await session.get_one(Album, (user.id, aid))
-    return await ensure_album_chapters(session, album)
+    return await session.get_one(Album, (user.id, aid))
 
 
 AlbumDep = Annotated[Album, Depends(_get_album)]
@@ -167,16 +165,9 @@ async def update_album(
     session: SessionDep,
 ) -> AlbumMeta:
     try:
-        await validate_album_chapters(session, album, update)
+        await update_album_settings(session, album, update)
     except ChapterValidationError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    payload = update.model_dump(exclude_unset=True, exclude={"chapters"})
-    album.sqlmodel_update(payload)
-    if "chapters" in update.model_fields_set:
-        album.chapters = update.chapters or []
-    session.add(album)
-    await session.commit()
-    await session.refresh(album)
     return AlbumMeta.model_validate(album)
 
 
