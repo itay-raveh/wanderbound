@@ -24,6 +24,10 @@ class ChapterValidationError(ValueError):
 DEFAULT_CHAPTER_ID = "chapter-1"
 
 
+def _format_step_ids(step_ids: list[int]) -> str:
+    return ", ".join(str(step_id) for step_id in step_ids)
+
+
 def default_album_chapter(
     *,
     title: str,
@@ -42,7 +46,7 @@ def default_album_chapter(
     )
 
 
-async def validate_album_chapters(  # noqa: C901
+async def validate_album_chapters(
     session: AsyncSession,
     album: Album,
     update: AlbumUpdate,
@@ -54,6 +58,12 @@ async def validate_album_chapters(  # noqa: C901
     if not chapters:
         raise ChapterValidationError("Album must have at least one chapter")
 
+    requested = _validate_chapter_payload(chapters)
+    existing = await _album_step_ids(session, album)
+    _validate_step_coverage(requested, existing)
+
+
+def _validate_chapter_payload(chapters: list[AlbumChapter]) -> set[int]:
     assigned: set[int] = set()
     duplicates: list[int] = []
     requested: set[int] = set()
@@ -78,22 +88,31 @@ async def validate_album_chapters(  # noqa: C901
             f"Step {step_id} is already assigned to another chapter"
         )
 
+    return requested
+
+
+async def _album_step_ids(session: AsyncSession, album: Album) -> set[int]:
     result = await session.exec(
         select(Step.id).where(
             Step.uid == album.uid,
             Step.aid == album.id,
         )
     )
-    existing = set(result.all())
+    return set(result.all())
+
+
+def _validate_step_coverage(requested: set[int], existing: set[int]) -> None:
     missing = sorted(requested - existing)
     if missing:
-        joined = ", ".join(str(step_id) for step_id in missing)
-        raise ChapterValidationError(f"Unknown chapter step IDs: {joined}")
+        raise ChapterValidationError(
+            f"Unknown chapter step IDs: {_format_step_ids(missing)}"
+        )
 
     unassigned = sorted(existing - requested)
     if unassigned:
-        joined = ", ".join(str(step_id) for step_id in unassigned)
-        raise ChapterValidationError(f"Missing chapter step IDs: {joined}")
+        raise ChapterValidationError(
+            f"Missing chapter step IDs: {_format_step_ids(unassigned)}"
+        )
 
 
 async def update_album_settings(

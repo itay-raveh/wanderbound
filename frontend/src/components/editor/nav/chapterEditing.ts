@@ -7,6 +7,18 @@ function cloneChapter(chapter: AlbumChapter): AlbumChapter {
   };
 }
 
+function cloneChapters(chapters: AlbumChapter[]): AlbumChapter[] {
+  return chapters.map(cloneChapter);
+}
+
+function chapterIndex(chapters: AlbumChapter[], chapterId: string): number {
+  return chapters.findIndex((chapter) => chapter.id === chapterId);
+}
+
+function withStepIds(chapter: AlbumChapter, stepIds: number[]): AlbumChapter {
+  return { ...chapter, step_ids: stepIds };
+}
+
 function nextChapterId(chapters: AlbumChapter[]): string {
   const used = new Set(chapters.map((chapter) => chapter.id));
   for (let index = chapters.length + 1; ; index += 1) {
@@ -24,7 +36,7 @@ export function splitChapter(
   steps: Step[],
   chapterId: string,
 ): AlbumChapter[] {
-  const index = chapters.findIndex((chapter) => chapter.id === chapterId);
+  const index = chapterIndex(chapters, chapterId);
   if (index < 0) return chapters;
 
   const source = chapters[index];
@@ -49,8 +61,8 @@ export function splitChapter(
     back_cover_photo: cover,
   };
 
-  const result = chapters.map(cloneChapter);
-  result[index] = { ...result[index], step_ids: firstStepIds };
+  const result = cloneChapters(chapters);
+  result[index] = withStepIds(result[index], firstStepIds);
   result.splice(index + 1, 0, nextChapter);
   return result;
 }
@@ -60,27 +72,21 @@ export function deleteChapter(
   chapterId: string,
 ): AlbumChapter[] {
   if (chapters.length <= 1) return chapters;
-  const index = chapters.findIndex((chapter) => chapter.id === chapterId);
+  const index = chapterIndex(chapters, chapterId);
   if (index < 0) return chapters;
 
-  const result = chapters.map(cloneChapter);
+  const result = cloneChapters(chapters);
   const removed = result[index];
   if (index > 0) {
-    result[index - 1] = {
-      ...result[index - 1],
-      step_ids: [
-        ...(result[index - 1].step_ids ?? []),
-        ...(removed.step_ids ?? []),
-      ],
-    };
+    result[index - 1] = withStepIds(result[index - 1], [
+      ...(result[index - 1].step_ids ?? []),
+      ...(removed.step_ids ?? []),
+    ]);
   } else {
-    result[index + 1] = {
-      ...result[index + 1],
-      step_ids: [
-        ...(removed.step_ids ?? []),
-        ...(result[index + 1].step_ids ?? []),
-      ],
-    };
+    result[index + 1] = withStepIds(result[index + 1], [
+      ...(removed.step_ids ?? []),
+      ...(result[index + 1].step_ids ?? []),
+    ]);
   }
   result.splice(index, 1);
   return result;
@@ -92,10 +98,8 @@ export function adjustChapterBoundary(
   rightChapterId: string,
   firstRightStepId: number,
 ): AlbumChapter[] {
-  const leftIndex = chapters.findIndex((chapter) => chapter.id === leftChapterId);
-  const rightIndex = chapters.findIndex(
-    (chapter) => chapter.id === rightChapterId,
-  );
+  const leftIndex = chapterIndex(chapters, leftChapterId);
+  const rightIndex = chapterIndex(chapters, rightChapterId);
   if (leftIndex < 0 || rightIndex !== leftIndex + 1) return chapters;
 
   const left = chapters[leftIndex];
@@ -104,12 +108,9 @@ export function adjustChapterBoundary(
   const splitAt = combined.indexOf(firstRightStepId);
   if (splitAt <= 0 || splitAt >= combined.length) return chapters;
 
-  const result = chapters.map(cloneChapter);
-  result[leftIndex] = { ...result[leftIndex], step_ids: combined.slice(0, splitAt) };
-  result[rightIndex] = {
-    ...result[rightIndex],
-    step_ids: combined.slice(splitAt),
-  };
+  const result = cloneChapters(chapters);
+  result[leftIndex] = withStepIds(result[leftIndex], combined.slice(0, splitAt));
+  result[rightIndex] = withStepIds(result[rightIndex], combined.slice(splitAt));
   return result;
 }
 

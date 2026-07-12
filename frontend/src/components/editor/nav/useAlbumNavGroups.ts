@@ -1,12 +1,11 @@
 import type { AlbumChapter, DateRange, StepRead as Step } from "@/client";
-import {
-  mapRangesForSteps,
-  stepsForChapter,
-} from "@/components/album/albumChapters";
+import { stepsForChapter } from "@/components/album/albumChapters";
 import {
   chapterHeaderSectionKey,
   type HeaderKey,
   mapInsertionsByStep,
+  mapRangeEntriesForSteps,
+  type MapRangeEntry,
   rangeSectionKey,
 } from "@/components/album/albumSections";
 import type {
@@ -14,11 +13,6 @@ import type {
   GroupEntry,
   StepItem,
 } from "./types";
-
-type MapEntrySource = {
-  rangeIdx: number;
-  dateRange: DateRange;
-};
 
 type ChapterGroupsInput = {
   steps: Step[];
@@ -33,7 +27,7 @@ type ChapterGroupsInput = {
 };
 
 function toMapEntry(
-  source: MapEntrySource,
+  source: MapRangeEntry,
   chapter: AlbumChapter,
   color: string,
 ): Extract<GroupEntry, { type: "map" }> {
@@ -46,19 +40,6 @@ function toMapEntry(
   };
 }
 
-function mapEntriesForSteps(
-  mapsRanges: DateRange[],
-  chapterSteps: Step[],
-): MapEntrySource[] {
-  const ranges = mapRangesForSteps(mapsRanges, chapterSteps);
-  return ranges
-    .map((dateRange) => ({
-      rangeIdx: mapsRanges.indexOf(dateRange),
-      dateRange,
-    }))
-    .filter((entry) => entry.rangeIdx >= 0);
-}
-
 function entriesForSteps(
   steps: Step[],
   stepItems: StepItem[],
@@ -68,7 +49,7 @@ function entriesForSteps(
   const byStepId = new Map(stepItems.map((item) => [item.id, item]));
   const insertions = mapInsertionsByStep(
     steps,
-    mapEntriesForSteps(mapsRanges, steps),
+    mapRangeEntriesForSteps(steps, mapsRanges),
   );
   const entries: GroupEntry[] = [];
   for (const step of steps) {

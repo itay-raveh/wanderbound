@@ -80,6 +80,25 @@ export function segmentsOverlapping(
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
 }
 
+export type MapRangeEntry = {
+  rangeIdx: number;
+  dateRange: DateRange;
+  steps: Step[];
+};
+
+export function mapRangeEntriesForSteps(
+  steps: Step[],
+  mapRanges: DateRange[],
+): MapRangeEntry[] {
+  return mapRanges
+    .map((dateRange, rangeIdx) => ({
+      rangeIdx,
+      dateRange,
+      steps: steps.filter((step) => inDateRange(isoDate(step.datetime), dateRange)),
+    }))
+    .filter((entry) => entry.steps.length > 0);
+}
+
 export function rangeSectionKey(
   type: "map" | "hike",
   dateRange: DateRange,
@@ -157,16 +176,8 @@ export function buildSections(
   mapRanges: DateRange[],
   chapter?: AlbumChapter,
 ): Section[] {
-  type MapEntry = {
-    rangeIdx: number;
-    dateRange: DateRange;
-    steps: Step[];
-    segments: SegmentOutline[];
-  };
-  const mapEntries: MapEntry[] = mapRanges.map((dr, i) => {
-    const rangeSteps = allSteps.filter((s) =>
-      inDateRange(isoDate(s.datetime), dr),
-    );
+  const mapEntries = mapRangeEntriesForSteps(allSteps, mapRanges).map((entry) => {
+    const rangeSteps = entry.steps;
     const rangeStart = rangeSteps[0]?.timestamp;
     const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
     const rangeSegments =
@@ -174,8 +185,7 @@ export function buildSections(
         ? []
         : segmentsOverlapping(allSegments, rangeStart, rangeEnd);
     return {
-      rangeIdx: i,
-      dateRange: dr,
+      ...entry,
       steps: rangeSteps,
       segments: rangeSegments,
     };

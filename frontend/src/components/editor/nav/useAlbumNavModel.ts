@@ -1,9 +1,10 @@
 import type { AlbumChapter, DateRange } from "@/client";
 import type { HeaderKey } from "@/components/album/albumSections";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { ref, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import {
   adjustChapterBoundary,
+  chapterCanSplit,
   deleteChapter as deleteChapterFromList,
   splitChapter,
 } from "./chapterEditing";
@@ -29,6 +30,20 @@ export function useAlbumNavModel(
   function updateChapters(chapters: AlbumChapter[]) {
     albumMutation.mutate({ chapters });
   }
+
+  const chapterRows = computed(() =>
+    data.chapterGroups.value.map((group, index, groups) => ({
+      group,
+      canDelete: groups.length > 1,
+      canSplit: chapterCanSplit(group.chapter),
+      mergeTarget: index === 0 ? ("next" as const) : ("previous" as const),
+      startStepId: group.chapter.step_ids?.[0] ?? null,
+      startOptions:
+        index > 0
+          ? data.boundaryOptions(groups[index - 1].chapter, group.chapter)
+          : [],
+    })),
+  );
 
   function onMapsRangesChange(ranges: DateRange[]) {
     albumMutation.mutate({ maps_ranges: ranges });
@@ -90,6 +105,13 @@ export function useAlbumNavModel(
     if (chapters !== data.chaptersForNav.value) updateChapters(chapters);
   }
 
+  function onAdjustChapterBoundaryFromRow(index: number, firstRightStepId: number) {
+    const leftChapterId = data.chapterGroups.value[index - 1]?.chapter.id;
+    const rightChapterId = data.chapterGroups.value[index]?.chapter.id;
+    if (!leftChapterId || !rightChapterId) return;
+    onAdjustChapterBoundary(leftChapterId, rightChapterId, firstRightStepId);
+  }
+
   function deleteMap(rangeIdx: number) {
     const ranges = [...(props.mapsRanges ?? [])];
     ranges.splice(rangeIdx, 1);
@@ -108,13 +130,14 @@ export function useAlbumNavModel(
   return {
     ...data,
     openChapterKey,
+    chapterRows,
     onMapsRangesChange,
     toggleStep,
     toggleHeader,
     toggleChapter,
     onSplitChapter,
     onDeleteChapter,
-    onAdjustChapterBoundary,
+    onAdjustChapterBoundaryFromRow,
     deleteMap,
     mapDateChange,
   };

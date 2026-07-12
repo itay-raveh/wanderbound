@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { chapterCanSplit } from "./nav/chapterEditing";
 import type { AlbumNavProps } from "./nav/types";
 import { useAlbumNavScrollSync } from "./nav/useAlbumNavScrollSync";
 import { useAlbumNavModel } from "./nav/useAlbumNavModel";
@@ -29,16 +28,16 @@ const {
   hiddenHeaderSet,
   albumColors,
   chapterGroups,
+  chapterRows,
   openChapterKey,
   formatMapRange,
-  boundaryOptions,
   onMapsRangesChange,
   toggleStep,
   toggleHeader,
   toggleChapter,
   onSplitChapter,
   onDeleteChapter,
-  onAdjustChapterBoundary,
+  onAdjustChapterBoundaryFromRow,
   deleteMap,
   mapDateChange,
 } = useAlbumNavModel(props, selectedAlbumId);
@@ -91,10 +90,10 @@ const {
     </div>
 
     <div ref="listRef" class="nav-list">
-      <template v-for="(group, index) in chapterGroups" :key="group.key">
+      <template v-for="(row, index) in chapterRows" :key="row.group.key">
         <NavChapterGroup
-          :group="group"
-          :open="openChapterKey === group.key"
+          :group="row.group"
+          :open="openChapterKey === row.group.key"
           :active-step-id="activeStepId"
           :active-section-key="activeSectionKey"
           :hidden-set="hiddenSet"
@@ -103,25 +102,15 @@ const {
           :colors="albumColors"
           :format-map-range="formatMapRange"
           :lazy-root="listRef ?? null"
-          :can-delete="chapterGroups.length > 1"
-          :can-split="chapterCanSplit(group.chapter)"
-          :merge-target="index === 0 ? 'next' : 'previous'"
-          :start-step-id="group.chapter.step_ids?.[0] ?? null"
-          :start-options="
-            index > 0
-              ? boundaryOptions(chapterGroups[index - 1].chapter, group.chapter)
-              : []
-          "
-          @toggle-open="toggleChapter(group)"
-          @split-chapter="onSplitChapter(group.chapter.id)"
-          @delete-chapter="onDeleteChapter(group.chapter.id)"
-          @adjust-boundary="
-            onAdjustChapterBoundary(
-              chapterGroups[index - 1].chapter.id,
-              group.chapter.id,
-              $event,
-            )
-          "
+          :can-delete="row.canDelete"
+          :can-split="row.canSplit"
+          :merge-target="row.mergeTarget"
+          :start-step-id="row.startStepId"
+          :start-options="row.startOptions"
+          @toggle-open="toggleChapter(row.group)"
+          @split-chapter="onSplitChapter(row.group.chapter.id)"
+          @delete-chapter="onDeleteChapter(row.group.chapter.id)"
+          @adjust-boundary="onAdjustChapterBoundaryFromRow(index, $event)"
           @scroll-to-step="scrollToStep"
           @scroll-to-map="scrollToMap"
           @scroll-to-header="scrollToHeader"
