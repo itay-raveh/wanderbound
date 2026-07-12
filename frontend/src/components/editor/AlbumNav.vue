@@ -1,10 +1,8 @@
 <script lang="ts" setup>
 import { chapterCanSplit } from "./nav/chapterEditing";
+import type { AlbumNavProps } from "./nav/types";
 import { useAlbumNavScrollSync } from "./nav/useAlbumNavScrollSync";
-import {
-  useAlbumNavModel,
-  type AlbumNavProps,
-} from "./nav/useAlbumNavModel";
+import { useAlbumNavModel } from "./nav/useAlbumNavModel";
 import { ref } from "vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";

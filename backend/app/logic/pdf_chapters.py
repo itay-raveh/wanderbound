@@ -4,6 +4,7 @@ import re
 import zipfile
 from collections.abc import AsyncIterator
 from contextlib import aclosing
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,6 +32,20 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
+@dataclass(frozen=True)
+class ChapterPdfRender:
+    browser: Browser
+    aid: str
+    chapter_id: str
+    dest: Path
+    session_cookie: str
+    dark: bool
+
+
+def _has_output(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
 def chapter_pdf_member_names(chapter_ids: list[str]) -> list[str]:
     used: dict[str, int] = {}
     names: list[str] = []
@@ -43,6 +58,44 @@ def chapter_pdf_member_names(chapter_ids: list[str]) -> list[str]:
         suffix = "" if count == 1 else f"-{count}"
         names.append(f"{stem}{suffix}.pdf")
     return names
+
+
+async def _render_chapter_pdf_file(
+    render: ChapterPdfRender,
+) -> AsyncIterator[PdfEvent]:
+    async with aclosing(
+        render_pdf_file(
+            render.browser,
+            render.aid,
+            render.dest,
+            session_cookie=render.session_cookie,
+            dark=render.dark,
+            chapter=render.chapter_id,
+        )
+    ) as events:
+        async for event in events:
+            if isinstance(event, PdfProgress):
+                yield event
+    if not _has_output(render.dest):
+        yield PdfError(detail="PDF generation produced no output.")
+
+
+async def _store_chapters_zip(
+    session: AsyncSession,
+    aid: str,
+    zip_dest: Path,
+) -> PdfDone | PdfError:
+    if not _has_output(zip_dest):
+        return PdfError(detail="Chapter ZIP generation produced no output.")
+    token = await store_pdf_artifact(
+        session,
+        PdfArtifact(
+            path=zip_dest,
+            filename=f"{aid}-chapters.zip",
+            media_type="application/zip",
+        ),
+    )
+    return PdfDone(token=token)
 
 
 async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
@@ -78,22 +131,19 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
             ):
                 pdf_dest = pdf_tokens.make_dest(".pdf")
                 pdf_paths.append(pdf_dest)
-                async with aclosing(
-                    render_pdf_file(
-                        browser,
-                        aid,
-                        pdf_dest,
+                async for event in _render_chapter_pdf_file(
+                    ChapterPdfRender(
+                        browser=browser,
+                        aid=aid,
+                        chapter_id=chapter_id,
+                        dest=pdf_dest,
                         session_cookie=session_cookie,
                         dark=dark,
-                        chapter=chapter_id,
                     )
-                ) as events:
-                    async for event in events:
-                        if isinstance(event, PdfProgress):
-                            yield event
-                if not pdf_dest.exists() or pdf_dest.stat().st_size == 0:
-                    yield PdfError(detail="PDF generation produced no output.")
-                    return
+                ):
+                    yield event
+                    if isinstance(event, PdfError):
+                        return
                 zf.write(pdf_dest, member_name)
                 yield PdfProgress(
                     phase="rendering",
@@ -101,19 +151,11 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
                     total=len(chapter_ids),
                 )
 
-        if zip_dest.stat().st_size == 0:
-            yield PdfError(detail="Chapter ZIP generation produced no output.")
+        done = await _store_chapters_zip(session, aid, zip_dest)
+        yield done
+        if isinstance(done, PdfError):
             return
-        token = await store_pdf_artifact(
-            session,
-            PdfArtifact(
-                path=zip_dest,
-                filename=f"{aid}-chapters.zip",
-                media_type="application/zip",
-            ),
-        )
         owned = True
-        yield PdfDone(token=token)
     except Exception:
         logger.exception("pdf.chapter_zip_generation_failed", album_id=aid)
         yield PdfError(detail="Chapter ZIP generation failed. Please try again.")

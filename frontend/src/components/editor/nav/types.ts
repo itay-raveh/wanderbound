@@ -1,5 +1,15 @@
-import type { AlbumChapter, DateRange } from "@/client";
+import type { AlbumChapter, AlbumMeta, DateRange, StepRead as Step } from "@/client";
 import type { HeaderKey } from "@/components/album/albumSections";
+
+export type AlbumNavProps = {
+  album: AlbumMeta;
+  steps: Step[];
+  albumIds?: string[];
+  hiddenSteps?: number[];
+  hiddenHeaders?: HeaderKey[];
+  colors?: Record<string, unknown>;
+  mapsRanges?: DateRange[];
+};
 
 export interface StepItem {
   id: number;
@@ -10,6 +20,13 @@ export interface StepItem {
   date: Date;
   thumb: string | null;
   detail: string;
+}
+
+export interface ChapterStartOption {
+  label: string;
+  value: number;
+  countryCode: string;
+  countryLabel: string;
 }
 
 export type GroupEntry =
