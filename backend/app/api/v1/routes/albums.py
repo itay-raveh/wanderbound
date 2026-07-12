@@ -19,7 +19,6 @@ from sqlmodel import col, select
 from app.logic.album_scope import ChapterNotFoundError, build_print_bundle_scope
 from app.logic.chapters import (
     ChapterValidationError,
-    find_chapter,
     update_album_settings,
 )
 from app.logic.pdf import (
@@ -65,21 +64,29 @@ def _validate_pdf_chapter(
     album: AlbumDep,
     chapter: Annotated[str | None, Query()] = None,
 ) -> str | None:
-    if chapter is not None and find_chapter(album, chapter) is None:
+    if chapter is not None and not _ordered_existing_chapter_ids(album, [chapter]):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapter not found")
     return chapter
+
+
+def _ordered_existing_chapter_ids(
+    album: Album,
+    chapter_ids: list[str] | None,
+) -> list[str]:
+    if not chapter_ids:
+        return [chapter.id for chapter in album.chapters]
+    selected = set(chapter_ids)
+    return [chapter.id for chapter in album.chapters if chapter.id in selected]
 
 
 def _validate_pdf_chapters(
     album: AlbumDep,
     chapters: Annotated[list[str] | None, Query()] = None,
 ) -> list[str]:
-    if not chapters:
-        return [chapter.id for chapter in album.chapters]
-    selected = set(chapters)
-    if any(find_chapter(album, chapter_id) is None for chapter_id in selected):
+    ordered = _ordered_existing_chapter_ids(album, chapters)
+    if chapters and len(ordered) != len(set(chapters)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapter not found")
-    return [chapter.id for chapter in album.chapters if chapter.id in selected]
+    return ordered
 
 
 # Static-prefix routes must be declared before /{aid} to avoid shadowing.

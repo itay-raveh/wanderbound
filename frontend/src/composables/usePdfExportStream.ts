@@ -35,39 +35,69 @@ interface PdfExportHandle extends PolledExportHandle {
 
 const { humanStorageSize } = format;
 
+async function openPdfStream(
+  aid: string,
+  current: PdfExportTarget,
+  signal: AbortSignal,
+): Promise<AsyncIterable<PdfEvent>> {
+  const common = {
+    path: { aid },
+    signal,
+    sseMaxRetryAttempts: 0,
+  };
+  const { stream } =
+    current.type === "chapters"
+      ? await generateChaptersPdf({
+          ...common,
+          query: { dark: Dark.isActive, chapters: current.ids },
+        })
+      : await generatePdf({
+          ...common,
+          query: {
+            dark: Dark.isActive,
+            chapter: current.type === "chapter" ? current.id : undefined,
+          },
+        });
+  return stream as AsyncIterable<PdfEvent>;
+}
+
+function progressMessage(event: PdfProgressEvent, total: number | null): string {
+  if (event.phase === "loading") {
+    return total != null
+      ? t("pdf.loadingProgress", { done: event.done, total })
+      : t("common.loadingAlbum");
+  }
+  if (total != null) {
+    return t("pdf.renderingChapters", { done: event.done, total });
+  }
+  return event.done > 0
+    ? t("pdf.renderingBytes", { size: humanStorageSize(event.done) })
+    : t("pdf.renderingSingle");
+}
+
+function exportFilename(aid: string, current: PdfExportTarget): string {
+  if (current.type === "chapters") return `${aid}-chapters.zip`;
+  if (current.type === "chapter") return `${aid}-${current.id}.pdf`;
+  return `${aid}.pdf`;
+}
+
+const idleProgress = (): PdfProgress => ({
+  phase: "queued",
+  done: 0,
+  total: null,
+  message: "",
+});
+
 export function usePdfExportStream(
   aid: () => string,
   target: () => PdfExportTarget = () => ({ type: "album" }),
 ): PdfExportHandle {
-  const progress = ref<PdfProgress>({
-    phase: "queued",
-    done: 0,
-    total: null,
-    message: "",
-  });
+  const progress = ref<PdfProgress>(idleProgress());
 
   const handle = usePolledExportDownload<PdfEvent>({
     headless: true,
     async connect(signal) {
-      const current = target();
-      const { stream } =
-        current.type === "chapters"
-          ? await generateChaptersPdf({
-              path: { aid: aid() },
-              query: { dark: Dark.isActive, chapters: current.ids },
-              signal,
-              sseMaxRetryAttempts: 0,
-            })
-          : await generatePdf({
-              path: { aid: aid() },
-              query: {
-                dark: Dark.isActive,
-                chapter: current.type === "chapter" ? current.id : undefined,
-              },
-              signal,
-              sseMaxRetryAttempts: 0,
-            });
-      return stream as AsyncIterable<PdfEvent>;
+      return openPdfStream(aid(), target(), signal);
     },
     onEvent(event) {
       switch (event.type) {
@@ -83,18 +113,7 @@ export function usePdfExportStream(
         }
         case "progress": {
           const total = event.total ?? null;
-          const msg =
-            event.phase === "loading"
-              ? total != null
-                ? t("pdf.loadingProgress", { done: event.done, total })
-                : t("common.loadingAlbum")
-              : total != null
-                ? t("pdf.renderingChapters", { done: event.done, total })
-                : event.done > 0
-                  ? t("pdf.renderingBytes", {
-                      size: humanStorageSize(event.done),
-                    })
-                  : t("pdf.renderingSingle");
+          const msg = progressMessage(event, total);
           progress.value = {
             phase: event.phase,
             done: event.done,
@@ -119,12 +138,7 @@ export function usePdfExportStream(
     },
     downloadUrl: (token) =>
       `${client.getConfig().baseUrl}/api/v1/albums/pdf/download/${encodeURIComponent(token)}`,
-    filename: () => {
-      const current = target();
-      if (current.type === "chapters") return `${aid()}-chapters.zip`;
-      if (current.type === "chapter") return `${aid()}-${current.id}.pdf`;
-      return `${aid()}.pdf`;
-    },
+    filename: () => exportFilename(aid(), target()),
     errorMessage: () => t("error.pdfExport"),
     initialMessage: () => t("pdf.queued"),
   });
@@ -132,7 +146,7 @@ export function usePdfExportStream(
   // Reset progress when stream returns to idle (after done timer or abort).
   watch(handle.state, (s) => {
     if (s === "idle") {
-      progress.value = { phase: "queued", done: 0, total: null, message: "" };
+      progress.value = idleProgress();
     }
   });
 

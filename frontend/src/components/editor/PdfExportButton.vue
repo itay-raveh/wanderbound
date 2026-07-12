@@ -1,81 +1,34 @@
 <script lang="ts" setup>
 import type { AlbumChapter } from "@/client";
-import {
-  usePdfExportStream,
-  type PdfExportTarget,
-} from "@/composables/usePdfExportStream";
-import { qualitySummary } from "@/composables/usePhotoQuality";
 import AsyncActionButton from "@/components/ui/AsyncActionButton.vue";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 import QualityWarningDialog from "./QualityWarningDialog.vue";
-import { usePdfChapterSelection } from "./usePdfChapterSelection";
+import { usePdfExportController } from "./usePdfExportController";
 import { symOutlinedPictureAsPdf } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
 
 const { t } = useI18n();
-
 const props = defineProps<{ albumId: string; chapters?: AlbumChapter[] }>();
 
-const exportTarget = ref<PdfExportTarget>({ type: "album" });
-const pdf = usePdfExportStream(
-  () => props.albumId,
-  () => exportTarget.value,
-);
-const showChapterDialog = ref(false);
-const showQualityDialog = ref(false);
 const {
-  chapterOptions,
+  pdf,
+  qualitySummary,
+  showChapterDialog,
+  showQualityDialog,
+  progressFraction,
+  buttonState,
   chapterOptionItems,
   selectedChapterIds,
   selectedCount,
   allChaptersSelected,
   someChaptersSelected,
-  selectedExportTarget,
-} = usePdfChapterSelection(() => props.chapters ?? []);
-
-const progressFraction = computed(() => {
-  const p = pdf.progress.value;
-  if (p.phase === "loading" && p.total) return p.done / p.total;
-  if (p.phase === "rendering") return 1; // full bar with shimmer
-  return 0;
-});
-
-const buttonState = computed(() =>
-  pdf.state.value === "done" || pdf.state.value === "running"
-    ? pdf.state.value
-    : "idle",
+  openExportDialog,
+  confirmChapterExport,
+  confirmQualityWarning,
+} = usePdfExportController(
+  () => props.albumId,
+  () => props.chapters ?? [],
 );
-
-function openExportDialog() {
-  if (chapterOptions.value.length === 0) {
-    startExport({ type: "album" });
-    return;
-  }
-  showChapterDialog.value = true;
-}
-
-function confirmChapterExport() {
-  const target = selectedExportTarget();
-  if (!target) return;
-  showChapterDialog.value = false;
-  startExport(target);
-}
-
-function startExport(target: PdfExportTarget) {
-  exportTarget.value = target;
-  const q = qualitySummary.value;
-  if (q.caution > 0 || q.warning > 0) {
-    showQualityDialog.value = true;
-    return;
-  }
-  pdf.start();
-}
-
-function onConfirmExport() {
-  showQualityDialog.value = false;
-  pdf.start();
-}
 </script>
 
 <template>
@@ -122,7 +75,7 @@ function onConfirmExport() {
     v-model="showQualityDialog"
     :caution="qualitySummary.caution"
     :warning="qualitySummary.warning"
-    @confirm="onConfirmExport"
+    @confirm="confirmQualityWarning"
   />
 </template>
 

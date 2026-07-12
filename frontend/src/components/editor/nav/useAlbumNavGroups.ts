@@ -1,11 +1,13 @@
 import type { AlbumChapter, DateRange, StepRead as Step } from "@/client";
-import { stepsForChapter } from "@/components/album/albumChapters";
+import {
+  mapRangeEntriesForSteps,
+  stepsForChapter,
+  type MapRangeEntry,
+} from "@/components/album/albumChapters";
 import {
   chapterHeaderSectionKey,
   type HeaderKey,
   mapInsertionsByStep,
-  mapRangeEntriesForSteps,
-  type MapRangeEntry,
   rangeSectionKey,
 } from "@/components/album/albumSections";
 import type {
@@ -47,10 +49,7 @@ function entriesForSteps(
   chapter: AlbumChapter,
 ): GroupEntry[] {
   const byStepId = new Map(stepItems.map((item) => [item.id, item]));
-  const insertions = mapInsertionsByStep(
-    steps,
-    mapRangeEntriesForSteps(steps, mapsRanges),
-  );
+  const insertions = mapInsertionsByStep(mapRangeEntriesForSteps(mapsRanges, steps));
   const entries: GroupEntry[] = [];
   for (const step of steps) {
     const item = byStepId.get(step.id);

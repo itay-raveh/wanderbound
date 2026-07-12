@@ -6,7 +6,7 @@ import type {
   SegmentOutline,
   StepRead as Step,
 } from "@/client";
-import { inDateRange, isoDate } from "@/utils/date";
+import { mapRangeEntriesForSteps } from "./albumChapters";
 import { planStepPages } from "./stepPages";
 
 /** Keys for fixed album pages that precede the data-driven sections. Validated against the API schema. */
@@ -80,25 +80,6 @@ export function segmentsOverlapping(
   return segs.filter((seg) => seg.start_time <= tEnd && seg.end_time >= tStart);
 }
 
-export type MapRangeEntry = {
-  rangeIdx: number;
-  dateRange: DateRange;
-  steps: Step[];
-};
-
-export function mapRangeEntriesForSteps(
-  steps: Step[],
-  mapRanges: DateRange[],
-): MapRangeEntry[] {
-  return mapRanges
-    .map((dateRange, rangeIdx) => ({
-      rangeIdx,
-      dateRange,
-      steps: steps.filter((step) => inDateRange(isoDate(step.datetime), dateRange)),
-    }))
-    .filter((entry) => entry.steps.length > 0);
-}
-
 export function rangeSectionKey(
   type: "map" | "hike",
   dateRange: DateRange,
@@ -147,15 +128,12 @@ export function sectionPageCount(
 }
 
 /** Group map ranges by the ID of their first overlapping step. */
-export function mapInsertionsByStep<T extends { dateRange: DateRange }>(
-  steps: Step[],
+export function mapInsertionsByStep<T extends { steps: Step[] }>(
   entries: T[],
 ): Map<number, T[]> {
   const result = new Map<number, T[]>();
   for (const entry of entries) {
-    const first = steps.find((s) =>
-      inDateRange(isoDate(s.datetime), entry.dateRange),
-    );
+    const first = entry.steps[0];
     if (!first) continue;
     if (!result.has(first.id)) result.set(first.id, []);
     result.get(first.id)!.push(entry);
@@ -176,7 +154,7 @@ export function buildSections(
   mapRanges: DateRange[],
   chapter?: AlbumChapter,
 ): Section[] {
-  const mapEntries = mapRangeEntriesForSteps(allSteps, mapRanges).map((entry) => {
+  const mapEntries = mapRangeEntriesForSteps(mapRanges, allSteps).map((entry) => {
     const rangeSteps = entry.steps;
     const rangeStart = rangeSteps[0]?.timestamp;
     const rangeEnd = rangeSteps[rangeSteps.length - 1]?.timestamp;
@@ -192,7 +170,7 @@ export function buildSections(
   });
 
   const result: Section[] = [];
-  const mapInsertionPoints = mapInsertionsByStep(allSteps, mapEntries);
+  const mapInsertionPoints = mapInsertionsByStep(mapEntries);
 
   for (const step of allSteps) {
     const maps = mapInsertionPoints.get(step.id);

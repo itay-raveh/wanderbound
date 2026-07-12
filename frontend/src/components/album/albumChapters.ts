@@ -10,12 +10,28 @@ export function stepsForChapter(
   return steps.filter((step) => wanted.has(step.id));
 }
 
+export type MapRangeEntry = {
+  rangeIdx: number;
+  dateRange: DateRange;
+  steps: Step[];
+};
+
+export function mapRangeEntriesForSteps(
+  ranges: DateRange[],
+  steps: Step[],
+): MapRangeEntry[] {
+  return ranges
+    .map((dateRange, rangeIdx) => ({
+      rangeIdx,
+      dateRange,
+      steps: steps.filter((step) => inDateRange(isoDate(step.datetime), dateRange)),
+    }))
+    .filter((entry) => entry.steps.length > 0);
+}
+
 export function mapRangesForSteps(
   ranges: DateRange[],
   steps: Step[],
 ): DateRange[] {
-  const stepDates = new Set(steps.map((step) => isoDate(step.datetime)));
-  return ranges.filter((range) =>
-    [...stepDates].some((date) => inDateRange(date, range)),
-  );
+  return mapRangeEntriesForSteps(ranges, steps).map((entry) => entry.dateRange);
 }
