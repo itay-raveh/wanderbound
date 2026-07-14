@@ -61,9 +61,9 @@ describe("ZipUploader", () => {
     upload.state!.progress.value = 0.42;
     await nextTick();
 
-    expect(wrapper.get('[role="progressbar"]').attributes("aria-valuenow")).toBe(
-      "0.42",
-    );
+    expect(
+      wrapper.get('[role="progressbar"]').attributes("aria-valuenow"),
+    ).toBe("0.42");
     await wrapper.get("button").trigger("click");
     expect(upload.cancel).toHaveBeenCalledOnce();
   });
@@ -79,13 +79,19 @@ describe("ZipUploader", () => {
     expect(upload.reset).toHaveBeenCalledOnce();
   });
 
-  it("shows the current ingestion phase", async () => {
+  it("shows determinate progress for the current ingestion phase", async () => {
     const wrapper = mountWithPlugins(ZipUploader);
     upload.state!.file.value = new File(["zip"], "polarsteps.zip");
     upload.state!.status.value = "processing";
+    upload.state!.progress.value = 0.5;
     upload.state!.processingPhase.value = "importing";
     await nextTick();
 
     expect(wrapper.text()).toContain("Importing your trips and photos");
+    expect(wrapper.text()).toContain("50%");
+    expect(
+      wrapper.get('[role="progressbar"]').attributes("aria-valuenow"),
+    ).toBe("0.5");
+    expect(wrapper.find(".q-spinner").exists()).toBe(false);
   });
 });

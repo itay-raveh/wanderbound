@@ -16,7 +16,11 @@ from app.logic.uploads.progress import (
     UploadErrorEvent,
     UploadProgressEvent,
 )
-from app.logic.workflows.uploads import start_upload_workflow, upload_workflow_id
+from app.logic.workflows.uploads import (
+    PROGRESS_STREAM_KEY,
+    start_upload_workflow,
+    upload_workflow_id,
+)
 from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
 from app.models.upload import UploadResult
 from app.models.user import User
@@ -311,18 +315,13 @@ async def upload_progress(
     upload_id: str, request: Request, session: SessionDep
 ) -> AsyncIterable[UploadProgressEvent]:
     await _owned_upload(request, session, upload_id)
-    sequence = 0
-    while True:
-        raw = await DBOS.get_event_async(
-            upload_workflow_id(upload_id), str(sequence), timeout_seconds=15
-        )
-        if raw is None:
-            continue
+    async for raw in DBOS.read_stream_async(
+        upload_workflow_id(upload_id), PROGRESS_STREAM_KEY
+    ):
         event = UPLOAD_WORKFLOW_EVENT_ADAPTER.validate_python(raw)
         yield event
         if isinstance(event, UploadCompleteEvent | UploadErrorEvent):
             return
-        sequence += 1
 
 
 @router.post("/{upload_id}/complete")

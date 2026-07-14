@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -137,7 +138,7 @@ async def test_uploads_are_scoped_to_the_owner(
     assert response.status_code == 404
 
 
-async def test_upload_progress_stream_replays_phases_and_failure(
+async def test_upload_progress_stream_replays_counters_and_failure(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     store = MagicMock()
@@ -152,14 +153,29 @@ async def test_upload_progress_stream_replays_phases_and_failure(
     await session.commit()
 
     events = [
-        {"type": "phase", "phase": "downloading"},
-        {"type": "phase", "phase": "validating"},
+        {
+            "type": "progress",
+            "phase": "downloading",
+            "done": 50,
+            "total": 100,
+        },
+        {
+            "type": "progress",
+            "phase": "validating",
+            "done": 25,
+            "total": 50,
+        },
         {"type": "error", "error_code": "upload_invalid_zip"},
     ]
+
+    async def stream_events() -> AsyncIterator[object]:
+        for event in events:
+            yield event
+
     with patch(
-        "app.api.v1.routes.uploads.DBOS.get_event_async",
-        new=AsyncMock(side_effect=events),
-    ):
+        "app.api.v1.routes.uploads.DBOS.read_stream_async",
+        new=MagicMock(return_value=stream_events()),
+    ) as read:
         response = await client.get(f"/api/v1/users/uploads/{row.upload_id}/stream")
 
     assert response.status_code == 200
@@ -169,10 +185,21 @@ async def test_upload_progress_stream_replays_phases_and_failure(
         for line in response.text.splitlines()
         if line.startswith("data: ")
     ] == [
-        {"type": "phase", "phase": "downloading"},
-        {"type": "phase", "phase": "validating"},
+        {
+            "type": "progress",
+            "phase": "downloading",
+            "done": 50,
+            "total": 100,
+        },
+        {
+            "type": "progress",
+            "phase": "validating",
+            "done": 25,
+            "total": 50,
+        },
         {"type": "error", "error_code": "upload_invalid_zip"},
     ]
+    read.assert_called_once_with(f"upload:{row.upload_id}", "progress")
 
 
 async def test_complete_ingestion_claims_pending_signup_before_response_headers(

@@ -24,22 +24,64 @@ async function* events(items: unknown[]) {
 test("reconnects an interrupted ingestion stream before finalizing", async () => {
   mockedUploadProgress
     .mockResolvedValueOnce({
-      stream: events([{ type: "phase", phase: "validating" }]),
+      stream: events([
+        { type: "progress", phase: "validating", done: 25, total: 50 },
+      ]),
     } as Awaited<ReturnType<typeof uploadProgress>>)
     .mockResolvedValueOnce({
       stream: events([{ type: "complete" }]),
     } as Awaited<ReturnType<typeof uploadProgress>>);
   const result = { user: { id: 42 }, trips: [] };
   mockedCompleteIngestion.mockResolvedValue({ data: result } as never);
-  const onPhase = vi.fn();
+  const onProgress = vi.fn();
 
   await expect(
-    followUploadIngestion("upload-1", new AbortController().signal, onPhase),
+    followUploadIngestion("upload-1", new AbortController().signal, onProgress),
   ).resolves.toBe(result);
 
   expect(mockedUploadProgress).toHaveBeenCalledTimes(2);
-  expect(onPhase).toHaveBeenCalledWith("validating");
+  expect(onProgress).toHaveBeenCalledWith({
+    type: "progress",
+    phase: "validating",
+    done: 25,
+    total: 50,
+  });
   expect(mockedCompleteIngestion).toHaveBeenCalledOnce();
+});
+
+test("ignores replayed or regressive ingestion counters", async () => {
+  mockedUploadProgress.mockResolvedValue({
+    stream: events([
+      { type: "progress", phase: "validating", done: 25, total: 50 },
+      { type: "progress", phase: "validating", done: 25, total: 50 },
+      { type: "progress", phase: "validating", done: 10, total: 50 },
+      { type: "progress", phase: "downloading", done: 50, total: 50 },
+      { type: "progress", phase: "importing", done: 0, total: 1 },
+      { type: "complete" },
+    ]),
+  } as Awaited<ReturnType<typeof uploadProgress>>);
+  mockedCompleteIngestion.mockResolvedValue({
+    data: { user: { id: 42 }, trips: [] },
+  } as never);
+  const onProgress = vi.fn();
+
+  await followUploadIngestion(
+    "upload-1",
+    new AbortController().signal,
+    onProgress,
+  );
+
+  expect(onProgress.mock.calls).toEqual([
+    [
+      {
+        type: "progress",
+        phase: "validating",
+        done: 25,
+        total: 50,
+      },
+    ],
+    [{ type: "progress", phase: "importing", done: 0, total: 1 }],
+  ]);
 });
 
 test("retries the idempotent completion claim", async () => {
@@ -68,9 +110,7 @@ test("stops after the SSE client exhausts a failed connection", async () => {
   mockedUploadProgress.mockImplementation(async (options) => {
     await Promise.resolve();
     options.onSseError?.(new Error("SSE failed: 401 Unauthorized"));
-    return { stream: events([]) } as Awaited<
-      ReturnType<typeof uploadProgress>
-    >;
+    return { stream: events([]) } as Awaited<ReturnType<typeof uploadProgress>>;
   });
 
   await expect(

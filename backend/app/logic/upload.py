@@ -1,6 +1,7 @@
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO
 
@@ -20,6 +21,9 @@ _MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
 
 _INNER_MIMES = {"image/jpeg", "video/mp4", "application/json", "text/plain"}
 _HEADER_BYTES = 2048
+_PROGRESS_CHUNK_BYTES = 16 * 1024 * 1024
+
+ProgressCallback = Callable[[tuple[int, int]], None]
 
 
 def _detect_mime(data: bytes) -> str | None:
@@ -37,7 +41,50 @@ def _check_zip_mime(file: BinaryIO) -> None:
     file.seek(0)
 
 
-def _safe_extract(file: BinaryIO, dest: Path) -> None:
+def _extract_entries(
+    zf: zipfile.ZipFile,
+    entries: list[zipfile.ZipInfo],
+    dest: Path,
+    total: int,
+    progress: ProgressCallback | None,
+) -> None:
+    done = 0
+    reported = 0
+    interval = max(1, min(_PROGRESS_CHUNK_BYTES, max(1, total // 100)))
+    if progress is not None:
+        progress((0, total))
+
+    def advance(amount: int) -> None:
+        nonlocal done, reported
+        done += amount
+        if progress is not None and (done - reported >= interval or done >= total):
+            reported = done
+            progress((done, total))
+
+    for info in entries:
+        target = dest / info.filename
+        if info.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        with zf.open(info) as src:
+            header = src.read(_HEADER_BYTES)
+            mime = _detect_mime(header)
+            if mime not in _INNER_MIMES:
+                raise zipfile.BadZipFile(
+                    f"Disallowed file type: {info.filename} ({mime})"
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("wb") as out:
+                out.write(header)
+                advance(len(header))
+                while chunk := src.read(_PROGRESS_CHUNK_BYTES):
+                    out.write(chunk)
+                    advance(len(chunk))
+
+
+def _safe_extract(
+    file: BinaryIO, dest: Path, progress: ProgressCallback | None = None
+) -> None:
     """Extract ZIP with MIME, path-traversal, symlink, size, and file-count checks."""
     _check_zip_mime(file)
     with zipfile.ZipFile(file) as zf:
@@ -67,21 +114,7 @@ def _safe_extract(file: BinaryIO, dest: Path) -> None:
                 msg = "ZIP uncompressed size exceeds limit"
                 raise zipfile.BadZipFile(msg)
 
-            if info.is_dir():
-                target.mkdir(parents=True, exist_ok=True)
-            else:
-                # MIME check + extract in one pass (single decompression)
-                with zf.open(info) as src:
-                    header = src.read(_HEADER_BYTES)
-                    mime = _detect_mime(header)
-                    if mime not in _INNER_MIMES:
-                        raise zipfile.BadZipFile(
-                            f"Disallowed file type: {info.filename} ({mime})"
-                        )
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with target.open("wb") as out:
-                        out.write(header)
-                        shutil.copyfileobj(src, out)
+        _extract_entries(zf, entries, dest, total, progress)
 
 
 def scan_user_folder(folder: Path) -> tuple[PSUser, list[TripMeta]]:

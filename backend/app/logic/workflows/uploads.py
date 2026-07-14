@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,7 +21,8 @@ from app.logic.uploads.finalize import finalize_upload_session
 from app.logic.uploads.progress import (
     UploadCompleteEvent,
     UploadErrorEvent,
-    UploadPhaseEvent,
+    UploadIngestionPhase,
+    UploadProgressUpdate,
     UploadWorkflowEvent,
 )
 from app.logic.workflows.processing import processing_upload_workflow
@@ -27,6 +30,10 @@ from app.models.processing import UploadSession
 from app.services.upload_store import UploadStoreService
 
 logger = structlog.get_logger(__name__)
+PROGRESS_STREAM_KEY = "progress"
+_MAX_PROGRESS_INTERVAL_BYTES = 16 * 1024 * 1024
+
+ProgressCallback = Callable[[tuple[int, int]], None]
 
 
 class UploadWorkflowCancelledError(RuntimeError):
@@ -55,16 +62,31 @@ async def _current_upload(session: AsyncSession, upload_id: str) -> UploadSessio
 
 
 def download_verified_object(
-    store: UploadStoreService, object_key: str, destination: Path, expected_size: int
+    store: UploadStoreService,
+    object_key: str,
+    destination: Path,
+    expected_size: int,
+    progress: ProgressCallback,
 ) -> Path:
+    progress((0, expected_size))
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file() and destination.stat().st_size == expected_size:
+        progress((expected_size, expected_size))
         return destination
     partial = destination.with_suffix(".part")
     partial.unlink(missing_ok=True)
+    reported = 0
+    interval = max(1, min(_MAX_PROGRESS_INTERVAL_BYTES, max(1, expected_size // 100)))
+
+    def report(done: int) -> None:
+        nonlocal reported
+        if done - reported >= interval or done >= expected_size:
+            reported = done
+            progress((min(done, expected_size), expected_size))
+
     try:
         with partial.open("wb") as target:
-            written = store.download(object_key, target)
+            written = store.download(object_key, target, report)
     except Exception:
         partial.unlink(missing_ok=True)
         raise
@@ -75,12 +97,16 @@ def download_verified_object(
     return destination
 
 
-def _extract_archive(source: Path, destination: Path) -> None:
+def _extract_archive(
+    source: Path,
+    destination: Path,
+    progress: ProgressCallback | None = None,
+) -> None:
     remove_tree_if_present(destination)
     try:
         destination.mkdir(parents=True)
         with source.open("rb") as archive:
-            _safe_extract(archive, destination)
+            _safe_extract(archive, destination, progress)
         scan_user_folder(destination)
     except (
         BadZipFile,
@@ -93,6 +119,36 @@ def _extract_archive(source: Path, destination: Path) -> None:
         raise InvalidUploadArchiveError from exc
 
 
+async def _run_with_progress(
+    phase: UploadIngestionPhase,
+    operation: Callable[[ProgressCallback], Any],
+) -> Any:
+    queue: asyncio.Queue[tuple[int, int] | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def report(update: tuple[int, int]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, update)
+
+    def run() -> Any:
+        try:
+            return operation(report)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    task = asyncio.create_task(asyncio.to_thread(run))
+    try:
+        while (update := await queue.get()) is not None:
+            done, total = update
+            await _write_progress(
+                UploadProgressUpdate(phase=phase, done=done, total=total)
+            )
+    except Exception:
+        with suppress(Exception):
+            await task
+        raise
+    return await task
+
+
 @DBOS.step(retries_allowed=True, max_attempts=3)
 async def download_upload(upload_id: str) -> str:
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
@@ -103,12 +159,15 @@ async def download_upload(upload_id: str) -> str:
         destination = (
             get_settings().DATA_FOLDER / "upload-work" / upload_id / "source.zip"
         )
-        path = await asyncio.to_thread(
-            download_verified_object,
-            _store(),
-            row.object_key,
-            destination,
-            row.size_bytes,
+        path = await _run_with_progress(
+            "downloading",
+            lambda progress: download_verified_object(
+                _store(),
+                row.object_key,
+                destination,
+                row.size_bytes,
+                progress,
+            ),
         )
     return str(path)
 
@@ -121,7 +180,10 @@ async def extract_upload(upload_id: str, source_path: str) -> str:
         session.add(row)
         await session.commit()
     destination = Path(source_path).parent / "extracted"
-    await asyncio.to_thread(_extract_archive, Path(source_path), destination)
+    await _run_with_progress(
+        "validating",
+        lambda progress: _extract_archive(Path(source_path), destination, progress),
+    )
     return str(destination)
 
 
@@ -189,40 +251,36 @@ async def evict_after_upload(uid: int) -> None:
     await run_eviction(uid)
 
 
-async def _emit_progress(sequence: int, event: UploadWorkflowEvent) -> int:
-    await DBOS.set_event_async(str(sequence), event.model_dump(mode="json"))
-    return sequence + 1
+async def _write_progress(event: UploadWorkflowEvent) -> None:
+    await DBOS.write_stream_async(PROGRESS_STREAM_KEY, event.model_dump(mode="json"))
 
 
 @DBOS.workflow(name="upload.import")
 async def upload_import_workflow(upload_id: str) -> None:
-    sequence = await _emit_progress(0, UploadPhaseEvent(phase="downloading"))
     try:
         source = await download_upload(upload_id)
-        sequence = await _emit_progress(sequence, UploadPhaseEvent(phase="validating"))
         extracted = await extract_upload(upload_id, source)
-        sequence = await _emit_progress(sequence, UploadPhaseEvent(phase="importing"))
+        await _write_progress(UploadProgressUpdate(phase="importing", done=0, total=1))
         processing = await finalize_upload(upload_id, extracted)
+        await _write_progress(UploadProgressUpdate(phase="importing", done=1, total=1))
         operation_id = str(processing["operation_id"])
         with SetWorkflowID(f"processing:{operation_id}"):
             await DBOS.start_workflow_async(processing_upload_workflow, processing)
         uid = await complete_upload(upload_id)
         await evict_after_upload(uid)
-        await _emit_progress(sequence, UploadCompleteEvent())
+        await _write_progress(UploadCompleteEvent())
     except UploadWorkflowCancelledError:
         return
     except InvalidUploadArchiveError:
         await mark_upload_failed(upload_id, "upload_invalid_zip")
-        await _emit_progress(
-            sequence, UploadErrorEvent(error_code="upload_invalid_zip")
-        )
+        await _write_progress(UploadErrorEvent(error_code="upload_invalid_zip"))
     except Exception as exc:
         logger.exception("upload.import_failed", upload_id=upload_id)
         sentry_sdk.capture_exception(exc)
         await mark_upload_failed(upload_id, "upload_processing_failed")
-        await _emit_progress(
-            sequence, UploadErrorEvent(error_code="upload_processing_failed")
-        )
+        await _write_progress(UploadErrorEvent(error_code="upload_processing_failed"))
+    finally:
+        await DBOS.close_stream_async(PROGRESS_STREAM_KEY)
 
 
 async def start_upload_workflow(upload_id: str) -> object:

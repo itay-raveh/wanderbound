@@ -720,7 +720,7 @@
                   "items": {
                     "oneOf": [
                       {
-                        "$ref": "#/components/schemas/UploadPhaseEvent"
+                        "$ref": "#/components/schemas/UploadProgressUpdate"
                       },
                       {
                         "$ref": "#/components/schemas/UploadCompleteEvent"
@@ -732,7 +732,7 @@
                     "discriminator": {
                       "propertyName": "type",
                       "mapping": {
-                        "phase": "#/components/schemas/UploadPhaseEvent",
+                        "progress": "#/components/schemas/UploadProgressUpdate",
                         "complete": "#/components/schemas/UploadCompleteEvent",
                         "error": "#/components/schemas/UploadErrorEvent"
                       }
@@ -4290,13 +4290,13 @@
         ],
         "title": "UploadMetadata"
       },
-      "UploadPhaseEvent": {
+      "UploadProgressUpdate": {
         "properties": {
           "type": {
             "type": "string",
-            "const": "phase",
+            "const": "progress",
             "title": "Type",
-            "default": "phase"
+            "default": "progress"
           },
           "phase": {
             "type": "string",
@@ -4306,13 +4306,23 @@
               "importing"
             ],
             "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
           }
         },
         "type": "object",
         "required": [
-          "phase"
+          "phase",
+          "done",
+          "total"
         ],
-        "title": "UploadPhaseEvent"
+        "title": "UploadProgressUpdate"
       },
       "UploadResult": {
         "properties": {

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any, BinaryIO, TypedDict
 
 import boto3
@@ -124,7 +125,12 @@ class UploadStoreService:
             if exc.code != "NoSuchUpload":
                 raise
 
-    def download(self, key: str, target: BinaryIO) -> int:
+    def download(
+        self,
+        key: str,
+        target: BinaryIO,
+        progress: Callable[[int], None] | None = None,
+    ) -> int:
         response = self._run(
             self.internal_client.get_object, Bucket=self._bucket, Key=key
         )
@@ -134,6 +140,8 @@ class UploadStoreService:
             while chunk := body.read(1024 * 1024):
                 target.write(chunk)
                 written += len(chunk)
+                if progress is not None:
+                    progress(written)
         finally:
             body.close()
         return written

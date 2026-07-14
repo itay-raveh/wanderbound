@@ -27,9 +27,9 @@ const {
   cancel,
   reset,
 } = useDirectZipUpload({
-    maxFileSize,
-    onUploaded: (result) => emit("uploaded", result),
-  });
+  maxFileSize,
+  onUploaded: (result) => emit("uploaded", result),
+});
 
 function pickFiles() {
   fileInputRef.value?.click();
@@ -103,14 +103,12 @@ function handleFile(selected: File) {
         class="uploader-header row no-wrap items-center q-gutter-x-sm"
       >
         <span class="text-body2 text-bright ellipsis">{{ file.name }}</span>
-        <span v-if="status === 'uploading'" class="text-caption text-faint">
+        <span
+          v-if="status === 'uploading' || status === 'processing'"
+          class="text-caption text-faint"
+        >
           {{ Math.round(progress * 100) }}%
         </span>
-        <q-spinner
-          v-if="status === 'uploading' || status === 'processing'"
-          size="1rem"
-          class="text-primary"
-        />
         <q-space />
         <q-btn
           v-if="status === 'uploading'"
@@ -148,7 +146,6 @@ function handleFile(selected: File) {
       >
         <q-linear-progress
           :value="progress"
-          :indeterminate="status === 'processing'"
           color="primary"
           class="upload-bar"
           :aria-label="t('register.uploadProgress')"
@@ -163,7 +160,7 @@ function handleFile(selected: File) {
       </div>
 
       <div v-else class="upload-error" aria-live="polite">
-        <p>{{ t(`register.uploadErrors.${errorCode ?? 'upload_failed'}`) }}</p>
+        <p>{{ t(`register.uploadErrors.${errorCode ?? "upload_failed"}`) }}</p>
         <q-btn
           color="primary"
           :label="t('register.uploadAgain')"

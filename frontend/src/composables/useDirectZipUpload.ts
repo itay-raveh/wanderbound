@@ -1,8 +1,8 @@
 import {
   completeIngestion,
   uploadProgress as streamUploadProgress,
-  type UploadPhaseEvent,
   type UploadProgressResponse,
+  type UploadProgressUpdate,
   type UploadResult,
 } from "@/client";
 import AwsS3 from "@uppy/aws-s3";
@@ -14,12 +14,18 @@ const COMPLETION_ATTEMPTS = 3;
 const STREAM_CONNECTIONS = 3;
 
 type UploadState = "idle" | "uploading" | "processing" | "failed";
-type UploadIngestionPhase = UploadPhaseEvent["phase"];
+type UploadIngestionPhase = UploadProgressUpdate["phase"];
 type UploadProgressEvent = UploadProgressResponse[number];
 type UploadMeta = { size_bytes?: number };
 type UploadBody = Record<string, unknown>;
 type MultipartFile = UppyFile<UploadMeta, UploadBody> & {
   s3Multipart?: { uploadId?: string };
+};
+
+const INGESTION_PHASE_ORDER: Record<UploadIngestionPhase, number> = {
+  downloading: 0,
+  validating: 1,
+  importing: 2,
 };
 
 class UploadIngestionError extends Error {
@@ -45,9 +51,7 @@ async function claimCompletedUpload(
       return data;
     } catch (error) {
       if (signal.aborted || attempt === COMPLETION_ATTEMPTS - 1) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, 250 * 2 ** attempt),
-      );
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
     }
   }
   throw new UploadIngestionError("upload_failed");
@@ -56,8 +60,9 @@ async function claimCompletedUpload(
 export async function followUploadIngestion(
   uploadId: string,
   signal: AbortSignal,
-  onPhase: (phase: UploadIngestionPhase) => void,
+  onProgress: (event: UploadProgressUpdate) => void,
 ): Promise<UploadResult> {
+  let lastProgress: UploadProgressUpdate | null = null;
   for (let connection = 0; connection < STREAM_CONNECTIONS; connection += 1) {
     if (signal.aborted) break;
     let lastStreamError: unknown = null;
@@ -74,8 +79,21 @@ export async function followUploadIngestion(
     for await (const raw of stream) {
       lastStreamError = null;
       const event = raw as unknown as UploadProgressEvent;
-      if (event.type === "phase") {
-        onPhase(event.phase);
+      if (event.type === "progress") {
+        const phaseOrder = INGESTION_PHASE_ORDER[event.phase];
+        const lastPhaseOrder = lastProgress
+          ? INGESTION_PHASE_ORDER[lastProgress.phase]
+          : -1;
+        if (
+          phaseOrder < lastPhaseOrder ||
+          (phaseOrder === lastPhaseOrder &&
+            lastProgress !== null &&
+            event.done <= lastProgress.done)
+        ) {
+          continue;
+        }
+        lastProgress = event;
+        onProgress(event);
       } else if (event.type === "complete") {
         return await claimCompletedUpload(uploadId, signal);
       } else if (event.type === "error") {
@@ -138,8 +156,10 @@ export function useDirectZipUpload(options: {
       const result = await followUploadIngestion(
         uploadId,
         streamController.signal,
-        (phase) => {
-          processingPhase.value = phase;
+        (event) => {
+          processingPhase.value = event.phase;
+          progress.value =
+            event.total > 0 ? Math.min(event.done / event.total, 1) : 0;
         },
       );
       uppy.clear();
@@ -165,7 +185,7 @@ export function useDirectZipUpload(options: {
       return;
     }
     status.value = "processing";
-    progress.value = 1;
+    progress.value = 0;
     processingPhase.value = "downloading";
     void followIngestion(uploadId);
   });

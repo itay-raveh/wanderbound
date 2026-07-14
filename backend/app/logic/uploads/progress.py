@@ -5,9 +5,11 @@ from pydantic import BaseModel, Field, TypeAdapter
 UploadIngestionPhase = Literal["downloading", "validating", "importing"]
 
 
-class UploadPhaseEvent(BaseModel):
-    type: Literal["phase"] = "phase"
+class UploadProgressUpdate(BaseModel):
+    type: Literal["progress"] = "progress"
     phase: UploadIngestionPhase
+    done: int
+    total: int
 
 
 class UploadCompleteEvent(BaseModel):
@@ -20,7 +22,7 @@ class UploadErrorEvent(BaseModel):
 
 
 UploadWorkflowEvent = Annotated[
-    UploadPhaseEvent | UploadCompleteEvent | UploadErrorEvent,
+    UploadProgressUpdate | UploadCompleteEvent | UploadErrorEvent,
     Field(discriminator="type"),
 ]
 UploadProgressEvent = UploadWorkflowEvent
