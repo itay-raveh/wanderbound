@@ -12,6 +12,9 @@ const upload = vi.hoisted(() => ({
         file: { value: File | null };
         status: { value: "idle" | "uploading" | "processing" | "failed" };
         progress: { value: number };
+        processingPhase: {
+          value: "downloading" | "validating" | "importing" | null;
+        };
         errorCode: { value: string | null };
       },
 }));
@@ -24,6 +27,7 @@ vi.mock("@/composables/useDirectZipUpload", async () => {
         file: ref<File | null>(null),
         status: ref("idle"),
         progress: ref(0),
+        processingPhase: ref(null),
         errorCode: ref<string | null>(null),
       };
       return { ...upload.state, ...upload };
@@ -73,5 +77,15 @@ describe("ZipUploader", () => {
     expect(wrapper.text()).toContain("not a valid Polarsteps export");
     await wrapper.get("button").trigger("click");
     expect(upload.reset).toHaveBeenCalledOnce();
+  });
+
+  it("shows the current ingestion phase", async () => {
+    const wrapper = mountWithPlugins(ZipUploader);
+    upload.state!.file.value = new File(["zip"], "polarsteps.zip");
+    upload.state!.status.value = "processing";
+    upload.state!.processingPhase.value = "importing";
+    await nextTick();
+
+    expect(wrapper.text()).toContain("Importing your trips and photos");
   });
 });

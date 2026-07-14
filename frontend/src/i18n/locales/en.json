@@ -60,9 +60,11 @@
     "uploadFailed": "Upload failed. @:common.retry",
     "uploadProgress": "Upload progress",
     "uploadPhases": {
-      "uploading": "Uploading your export..."
+      "uploading": "Uploading your export...",
+      "downloading": "Preparing your uploaded file...",
+      "validating": "Checking your Polarsteps export...",
+      "importing": "Importing your trips and photos..."
     },
-    "uploadProcessing": "Processing your export...",
     "uploadErrors": {
       "upload_invalid_zip": "This file is not a valid Polarsteps export. Select a new ZIP.",
       "upload_failed": "Upload failed. Try again."

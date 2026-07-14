@@ -674,13 +674,95 @@
         }
       }
     },
-    "/api/v1/users/uploads/{upload_id}": {
+    "/api/v1/users/uploads/{upload_id}/stream": {
       "get": {
         "tags": [
           "users"
         ],
-        "summary": "Upload Status",
-        "operationId": "upload_status",
+        "summary": "Upload Progress",
+        "operationId": "upload_progress",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/UploadPhaseEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UploadCompleteEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UploadErrorEvent"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "phase": "#/components/schemas/UploadPhaseEvent",
+                        "complete": "#/components/schemas/UploadCompleteEvent",
+                        "error": "#/components/schemas/UploadErrorEvent"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Upload Progress"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Complete Ingestion",
+        "operationId": "complete_ingestion",
         "parameters": [
           {
             "name": "upload_id",
@@ -698,7 +780,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UploadStatusResponse"
+                  "$ref": "#/components/schemas/UploadResult"
                 }
               }
             }
@@ -4164,6 +4246,37 @@
         ],
         "title": "UpgradeRequest"
       },
+      "UploadCompleteEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "complete",
+            "title": "Type",
+            "default": "complete"
+          }
+        },
+        "type": "object",
+        "title": "UploadCompleteEvent"
+      },
+      "UploadErrorEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error",
+            "title": "Type",
+            "default": "error"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error_code"
+        ],
+        "title": "UploadErrorEvent"
+      },
       "UploadMetadata": {
         "properties": {
           "size_bytes": {
@@ -4176,6 +4289,30 @@
           "size_bytes"
         ],
         "title": "UploadMetadata"
+      },
+      "UploadPhaseEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "phase",
+            "title": "Type",
+            "default": "phase"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "downloading",
+              "validating",
+              "importing"
+            ],
+            "title": "Phase"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase"
+        ],
+        "title": "UploadPhaseEvent"
       },
       "UploadResult": {
         "properties": {
@@ -4196,49 +4333,6 @@
           "trips"
         ],
         "title": "UploadResult"
-      },
-      "UploadStatusResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "uploading",
-              "processing",
-              "succeeded",
-              "failed",
-              "aborted"
-            ],
-            "title": "Status"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UploadResult"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "error_code",
-          "result"
-        ],
-        "title": "UploadStatusResponse"
       },
       "UserPublic": {
         "properties": {

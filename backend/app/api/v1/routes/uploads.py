@@ -1,14 +1,23 @@
 import asyncio
+from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from typing import Literal
 
+from dbos import DBOS
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.v1.deps import SessionDep, UploadStoreDep, login_session
 from app.core.config import get_settings
-from app.logic.workflows.uploads import start_upload_workflow
-from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession, UploadStatus
+from app.logic.uploads.progress import (
+    UPLOAD_WORKFLOW_EVENT_ADAPTER,
+    UploadCompleteEvent,
+    UploadErrorEvent,
+    UploadProgressEvent,
+)
+from app.logic.workflows.uploads import start_upload_workflow, upload_workflow_id
+from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
 from app.models.upload import UploadResult
 from app.models.user import User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
@@ -59,12 +68,6 @@ class CompleteUploadResponse(BaseModel):
     location: str
 
 
-class UploadStatusResponse(BaseModel):
-    status: UploadStatus
-    error_code: str | None
-    result: UploadResult | None
-
-
 def _error(code: str, http_status: int) -> UploadHTTPException:
     return UploadHTTPException(http_status, code)
 
@@ -82,6 +85,25 @@ async def _owned_upload(
     if row is None or row.owner != owner:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
     return row
+
+
+async def _claimable_upload(
+    request: Request, session: SessionDep, upload_id: str
+) -> UploadSession:
+    existing, identity = await _resolve_auth(request, session)
+    row = await session.get(UploadSession, upload_id)
+    if row is None:
+        raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
+    if row.owner == _upload_owner(existing, identity):
+        return row
+    if identity is not None and row.result is not None:
+        user = row.result.user
+        provider_sub = (
+            user.google_sub if identity.provider == "google" else user.microsoft_sub
+        )
+        if provider_sub == identity.sub and row.owner == f"uid:{user.id}":
+            return row
+    raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
 
 
 def _require_key(row: UploadSession, key: str) -> None:
@@ -247,13 +269,14 @@ async def abort_upload(
     return {}
 
 
-@router.get("/{upload_id}")
-async def upload_status(
-    upload_id: str, request: Request, session: SessionDep
-) -> UploadStatusResponse:
-    row = await _owned_upload(request, session, upload_id)
+async def _completed_upload_result(
+    request: Request, session: SessionDep, row: UploadSession
+) -> UploadResult:
+    await session.refresh(row)
+    if row.status != "succeeded" or row.result is None:
+        raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
     pending = get_pending_signup(request)
-    if row.status == "succeeded" and row.result is not None and pending is not None:
+    if pending is not None:
         user = row.result.user
         db_user = await session.get(User, user.id)
         if db_user is None:
@@ -276,8 +299,35 @@ async def upload_status(
         await session.commit()
         login_session(request, db_user.id)
         clear_pending_signup(request)
-    return UploadStatusResponse(
-        status=row.status,
-        error_code=row.error_code,
-        result=row.result,
-    )
+    return row.result
+
+
+@router.get(
+    "/{upload_id}/stream",
+    response_class=EventSourceResponse,
+    responses={200: {"model": list[UploadProgressEvent]}},
+)
+async def upload_progress(
+    upload_id: str, request: Request, session: SessionDep
+) -> AsyncIterable[UploadProgressEvent]:
+    await _owned_upload(request, session, upload_id)
+    sequence = 0
+    while True:
+        raw = await DBOS.get_event_async(
+            upload_workflow_id(upload_id), str(sequence), timeout_seconds=15
+        )
+        if raw is None:
+            continue
+        event = UPLOAD_WORKFLOW_EVENT_ADAPTER.validate_python(raw)
+        yield event
+        if isinstance(event, UploadCompleteEvent | UploadErrorEvent):
+            return
+        sequence += 1
+
+
+@router.post("/{upload_id}/complete")
+async def complete_ingestion(
+    upload_id: str, request: Request, session: SessionDep
+) -> UploadResult:
+    row = await _claimable_upload(request, session, upload_id)
+    return await _completed_upload_result(request, session, row)

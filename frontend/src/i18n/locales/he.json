@@ -60,9 +60,11 @@
     "uploadFailed": "ההעלאה נכשלה. @:common.retry",
     "uploadProgress": "התקדמות ההעלאה",
     "uploadPhases": {
-      "uploading": "מעלה את קובץ הייצוא..."
+      "uploading": "מעלה את קובץ הייצוא...",
+      "downloading": "מכינים את הקובץ שהועלה...",
+      "validating": "בודקים את קובץ הייצוא מ-Polarsteps...",
+      "importing": "מייבאים את הטיולים והתמונות..."
     },
-    "uploadProcessing": "מעבד את קובץ הייצוא...",
     "uploadErrors": {
       "upload_invalid_zip": "הקובץ אינו ייצוא תקין של Polarsteps. בחרו קובץ ZIP חדש.",
       "upload_failed": "ההעלאה נכשלה. נסו שוב."

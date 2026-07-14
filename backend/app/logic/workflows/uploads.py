@@ -16,6 +16,12 @@ from app.logic.eviction import run_eviction
 from app.logic.upload import _safe_extract, scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
 from app.logic.uploads.finalize import finalize_upload_session
+from app.logic.uploads.progress import (
+    UploadCompleteEvent,
+    UploadErrorEvent,
+    UploadPhaseEvent,
+    UploadWorkflowEvent,
+)
 from app.logic.workflows.processing import processing_upload_workflow
 from app.models.processing import UploadSession
 from app.services.upload_store import UploadStoreService
@@ -183,25 +189,40 @@ async def evict_after_upload(uid: int) -> None:
     await run_eviction(uid)
 
 
+async def _emit_progress(sequence: int, event: UploadWorkflowEvent) -> int:
+    await DBOS.set_event_async(str(sequence), event.model_dump(mode="json"))
+    return sequence + 1
+
+
 @DBOS.workflow(name="upload.import")
 async def upload_import_workflow(upload_id: str) -> None:
+    sequence = await _emit_progress(0, UploadPhaseEvent(phase="downloading"))
     try:
         source = await download_upload(upload_id)
+        sequence = await _emit_progress(sequence, UploadPhaseEvent(phase="validating"))
         extracted = await extract_upload(upload_id, source)
+        sequence = await _emit_progress(sequence, UploadPhaseEvent(phase="importing"))
         processing = await finalize_upload(upload_id, extracted)
         operation_id = str(processing["operation_id"])
         with SetWorkflowID(f"processing:{operation_id}"):
             await DBOS.start_workflow_async(processing_upload_workflow, processing)
         uid = await complete_upload(upload_id)
         await evict_after_upload(uid)
+        await _emit_progress(sequence, UploadCompleteEvent())
     except UploadWorkflowCancelledError:
         return
     except InvalidUploadArchiveError:
         await mark_upload_failed(upload_id, "upload_invalid_zip")
+        await _emit_progress(
+            sequence, UploadErrorEvent(error_code="upload_invalid_zip")
+        )
     except Exception as exc:
         logger.exception("upload.import_failed", upload_id=upload_id)
         sentry_sdk.capture_exception(exc)
         await mark_upload_failed(upload_id, "upload_processing_failed")
+        await _emit_progress(
+            sequence, UploadErrorEvent(error_code="upload_processing_failed")
+        )
 
 
 async def start_upload_workflow(upload_id: str) -> object:

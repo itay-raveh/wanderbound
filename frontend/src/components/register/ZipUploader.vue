@@ -17,8 +17,16 @@ const { t } = useI18n();
 const dragging = ref(false);
 const dragDepth = ref(0);
 const fileInputRef = ref<HTMLInputElement>();
-const { file, status, progress, errorCode, addFile, cancel, reset } =
-  useDirectZipUpload({
+const {
+  file,
+  status,
+  progress,
+  processingPhase,
+  errorCode,
+  addFile,
+  cancel,
+  reset,
+} = useDirectZipUpload({
     maxFileSize,
     onUploaded: (result) => emit("uploaded", result),
   });
@@ -148,7 +156,7 @@ function handleFile(selected: File) {
         <p class="text-caption text-faint">
           {{
             status === "processing"
-              ? t("register.uploadProcessing")
+              ? t(`register.uploadPhases.${processingPhase}`)
               : t("register.uploadPhases.uploading")
           }}
         </p>

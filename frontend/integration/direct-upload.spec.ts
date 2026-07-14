@@ -110,19 +110,7 @@ test("uploads a multipart ZIP directly to Garage and imports it", async ({
   const uploadId = ((await (await created).json()) as { uploadId: string })
     .uploadId;
 
-  await expect
-    .poll(
-      async () => {
-        const response = await page
-          .context()
-          .request.get(`${frontendOrigin}/api/v1/users/uploads/${uploadId}`);
-        return response.ok()
-          ? ((await response.json()) as { status: string }).status
-          : "unavailable";
-      },
-      { timeout: 90_000 },
-    )
-    .toBe("succeeded");
+  await expect(fileInput).not.toBeAttached({ timeout: 90_000 });
 
   expect(directPartUploads).toBeGreaterThan(1);
   await verifyTemporaryDataRemoved(uploadId);

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.v1.deps import _get_upload_store
 from app.main import app
 from app.models.processing import UploadSession
-from tests.factories import sign_in
+from app.models.upload import UploadResult
+from app.models.user import UserPublic
+from tests.factories import make_user, sign_in
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -76,7 +79,7 @@ async def test_uppy_multipart_contract(
     store.abort.assert_called_once_with(key, "provider-id")
 
 
-async def test_completion_starts_finalization_and_exposes_status(
+async def test_completion_starts_finalization(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     store = MagicMock()
@@ -110,13 +113,6 @@ async def test_completion_starts_finalization_and_exposes_status(
     row = await session.get(UploadSession, upload_id)
     assert row is not None
     assert row.status == "processing"
-    status = await client.get(f"/api/v1/users/uploads/{upload_id}")
-    assert status.status_code == 200
-    assert status.json() == {
-        "status": "processing",
-        "error_code": None,
-        "result": None,
-    }
 
 
 async def test_uploads_are_scoped_to_the_owner(
@@ -139,3 +135,74 @@ async def test_uploads_are_scoped_to_the_owner(
         params={"key": row.object_key},
     )
     assert response.status_code == 404
+
+
+async def test_upload_progress_stream_replays_phases_and_failure(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get(UploadSession, created.json()["uploadId"])
+    assert row is not None
+    row.status = "processing"
+    session.add(row)
+    await session.commit()
+
+    events = [
+        {"type": "phase", "phase": "downloading"},
+        {"type": "phase", "phase": "validating"},
+        {"type": "error", "error_code": "upload_invalid_zip"},
+    ]
+    with patch(
+        "app.api.v1.routes.uploads.DBOS.get_event_async",
+        new=AsyncMock(side_effect=events),
+    ):
+        response = await client.get(f"/api/v1/users/uploads/{row.upload_id}/stream")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert [
+        json.loads(line.removeprefix("data: "))
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ] == [
+        {"type": "phase", "phase": "downloading"},
+        {"type": "phase", "phase": "validating"},
+        {"type": "error", "error_code": "upload_invalid_zip"},
+    ]
+
+
+async def test_complete_ingestion_claims_pending_signup_before_response_headers(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get(UploadSession, created.json()["uploadId"])
+    assert row is not None
+
+    user = make_user(uid=42, google_sub="google-123")
+    session.add(user)
+    await session.flush()
+    row.status = "succeeded"
+    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
+    session.add(row)
+    await session.commit()
+    pending_cookie = client.cookies.get("session")
+    assert pending_cookie is not None
+
+    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+
+    assert completed.status_code == 200, completed.text
+    client.cookies.clear()
+    client.cookies.set("session", pending_cookie)
+    retried = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+    assert retried.status_code == 200, retried.text
+    auth = await client.get("/api/v1/auth/state")
+    assert auth.json()["state"] == "authenticated"
+    assert auth.json()["user"]["id"] == 42

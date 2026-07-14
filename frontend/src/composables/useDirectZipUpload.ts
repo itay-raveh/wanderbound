@@ -1,23 +1,94 @@
-import type { UploadResult } from "@/client";
-import { client } from "@/client/client.gen";
+import {
+  completeIngestion,
+  uploadProgress as streamUploadProgress,
+  type UploadPhaseEvent,
+  type UploadProgressResponse,
+  type UploadResult,
+} from "@/client";
 import AwsS3 from "@uppy/aws-s3";
 import Uppy, { type UppyFile } from "@uppy/core";
 import { onScopeDispose, ref } from "vue";
 
 const PART_SIZE = 64 * 1024 * 1024;
-const STATUS_POLL_INTERVAL = 2_000;
+const COMPLETION_ATTEMPTS = 3;
+const STREAM_CONNECTIONS = 3;
 
 type UploadState = "idle" | "uploading" | "processing" | "failed";
+type UploadIngestionPhase = UploadPhaseEvent["phase"];
+type UploadProgressEvent = UploadProgressResponse[number];
 type UploadMeta = { size_bytes?: number };
 type UploadBody = Record<string, unknown>;
 type MultipartFile = UppyFile<UploadMeta, UploadBody> & {
   s3Multipart?: { uploadId?: string };
 };
 
-interface StatusResponse {
-  status: "processing" | "succeeded" | "failed";
-  error_code: string | null;
-  result: UploadResult | null;
+class UploadIngestionError extends Error {
+  readonly code: string;
+
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
+}
+
+async function claimCompletedUpload(
+  uploadId: string,
+  signal: AbortSignal,
+): Promise<UploadResult> {
+  for (let attempt = 0; attempt < COMPLETION_ATTEMPTS; attempt += 1) {
+    try {
+      const { data } = await completeIngestion({
+        path: { upload_id: uploadId },
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    } catch (error) {
+      if (signal.aborted || attempt === COMPLETION_ATTEMPTS - 1) throw error;
+      await new Promise((resolve) =>
+        setTimeout(resolve, 250 * 2 ** attempt),
+      );
+    }
+  }
+  throw new UploadIngestionError("upload_failed");
+}
+
+export async function followUploadIngestion(
+  uploadId: string,
+  signal: AbortSignal,
+  onPhase: (phase: UploadIngestionPhase) => void,
+): Promise<UploadResult> {
+  for (let connection = 0; connection < STREAM_CONNECTIONS; connection += 1) {
+    if (signal.aborted) break;
+    let lastStreamError: unknown = null;
+    const { stream } = await streamUploadProgress({
+      path: { upload_id: uploadId },
+      signal,
+      sseMaxRetryAttempts: 4,
+      sseMaxRetryDelay: 5_000,
+      onSseError: (error) => {
+        lastStreamError = error;
+      },
+      throwOnError: true,
+    });
+    for await (const raw of stream) {
+      lastStreamError = null;
+      const event = raw as unknown as UploadProgressEvent;
+      if (event.type === "phase") {
+        onPhase(event.phase);
+      } else if (event.type === "complete") {
+        return await claimCompletedUpload(uploadId, signal);
+      } else if (event.type === "error") {
+        throw new UploadIngestionError(event.error_code);
+      } else {
+        throw new UploadIngestionError("upload_failed");
+      }
+    }
+    if (lastStreamError instanceof Error) throw lastStreamError;
+    if (lastStreamError) throw new UploadIngestionError("upload_failed");
+  }
+  if (!signal.aborted) throw new UploadIngestionError("upload_failed");
+  throw new DOMException("Upload cancelled", "AbortError");
 }
 
 export function useDirectZipUpload(options: {
@@ -27,8 +98,9 @@ export function useDirectZipUpload(options: {
   const file = ref<File | null>(null);
   const status = ref<UploadState>("idle");
   const progress = ref(0);
+  const processingPhase = ref<UploadIngestionPhase | null>(null);
   const errorCode = ref<string | null>(null);
-  let pollTimer: ReturnType<typeof setTimeout> | undefined;
+  let streamController: AbortController | null = null;
 
   const uppy = new Uppy<UploadMeta, UploadBody>({
     autoProceed: true,
@@ -46,11 +118,12 @@ export function useDirectZipUpload(options: {
   });
 
   function clearState() {
-    clearTimeout(pollTimer);
-    pollTimer = undefined;
+    streamController?.abort();
+    streamController = null;
     file.value = null;
     status.value = "idle";
     progress.value = 0;
+    processingPhase.value = null;
     errorCode.value = null;
   }
 
@@ -59,28 +132,24 @@ export function useDirectZipUpload(options: {
     errorCode.value = code === "upload_invalid_zip" ? code : "upload_failed";
   }
 
-  async function poll(uploadId: string): Promise<void> {
+  async function followIngestion(uploadId: string): Promise<void> {
+    streamController = new AbortController();
     try {
-      const response = await fetch(
-        `${client.getConfig().baseUrl}/api/v1/users/uploads/${encodeURIComponent(uploadId)}`,
-        { credentials: "include" },
+      const result = await followUploadIngestion(
+        uploadId,
+        streamController.signal,
+        (phase) => {
+          processingPhase.value = phase;
+        },
       );
-      if (!response.ok) throw new Error("upload status unavailable");
-      const body = (await response.json()) as StatusResponse;
-      if (body.status === "succeeded" && body.result) {
-        uppy.clear();
-        clearState();
-        options.onUploaded(body.result);
-        return;
+      uppy.clear();
+      clearState();
+      options.onUploaded(result);
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") {
+        fail(error instanceof UploadIngestionError ? error.code : null);
       }
-      if (body.status === "failed") {
-        fail(body.error_code);
-        return;
-      }
-    } catch {
-      // A later poll can recover from a transient API failure.
     }
-    pollTimer = setTimeout(() => void poll(uploadId), STATUS_POLL_INTERVAL);
   }
 
   uppy.on("upload-progress", (_uploadingFile, uploadProgress) => {
@@ -97,7 +166,8 @@ export function useDirectZipUpload(options: {
     }
     status.value = "processing";
     progress.value = 1;
-    void poll(uploadId);
+    processingPhase.value = "downloading";
+    void followIngestion(uploadId);
   });
   uppy.on("upload-error", () => fail());
 
@@ -105,6 +175,7 @@ export function useDirectZipUpload(options: {
     file.value = selected;
     status.value = "uploading";
     progress.value = 0;
+    processingPhase.value = null;
     errorCode.value = null;
     uppy.addFile({
       name: selected.name,
@@ -125,9 +196,18 @@ export function useDirectZipUpload(options: {
   }
 
   onScopeDispose(() => {
-    clearTimeout(pollTimer);
+    streamController?.abort();
     uppy.destroy();
   });
 
-  return { file, status, progress, errorCode, addFile, cancel, reset };
+  return {
+    file,
+    status,
+    progress,
+    processingPhase,
+    errorCode,
+    addFile,
+    cancel,
+    reset,
+  };
 }
