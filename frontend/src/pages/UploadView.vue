@@ -29,13 +29,18 @@ const cache = useQueryCache();
 const { data: authStateData } = useAuthStateQuery();
 const { user } = useUserQuery();
 const stream = useTripProcessingStream();
-const handoff = (history.state ?? {}) as { uploadResult?: UploadResult };
+const handoff = (history.state ?? {}) as {
+  uploadResult?: UploadResult;
+  reupload?: boolean;
+};
 const justUploaded = ref<UploadResult | null>(handoff.uploadResult ?? null);
+const reuploadRequested = ref(handoff.reupload === true);
 
 type UploadState = "new" | "evicted" | "reupload" | "processing";
 const pageState = computed<UploadState>(() => {
   if (justUploaded.value || stream.state.value === "running")
     return "processing";
+  if (reuploadRequested.value) return "reupload";
   if (authStateData.value?.state === "pending_signup") return "new";
   const u = user.value;
   if (!u || (!u.has_data && !u.album_ids?.length)) return "new";
@@ -69,8 +74,14 @@ watch(
   { immediate: true },
 );
 
+watch(stream.state, async (state) => {
+  if (state !== "done") return;
+  await cache.invalidateQueries({ key: queryKeys.user(), exact: true });
+});
+
 function onUploaded(data: UploadResult) {
   justUploaded.value = data;
+  reuploadRequested.value = false;
   void cache.invalidateQueries({ key: queryKeys.authState() });
   void cache.invalidateQueries({ key: queryKeys.user() });
   startProcessing();
@@ -83,6 +94,7 @@ function onRetry() {
 function onReupload() {
   stream.abort();
   justUploaded.value = null;
+  reuploadRequested.value = true;
 }
 
 function onDone() {
