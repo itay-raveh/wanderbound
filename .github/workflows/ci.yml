@@ -14,7 +14,6 @@ permissions:
   pull-requests: read
 
 env:
-  COMPOSE_PROFILES: local-s3
   UPLOAD_S3_BUCKET: wanderbound-ci-uploads
   UPLOAD_S3_REGION: garage
   UPLOAD_S3_INTERNAL_ENDPOINT_URL: http://object-storage:3900

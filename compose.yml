@@ -38,7 +38,6 @@ services:
 
   object-storage:
     image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
-    profiles: [local-s3]
     restart: always
     <<: *security
     init: true
@@ -72,7 +71,6 @@ services:
 
   object-storage-init:
     image: amazon/aws-cli:2.35.21@sha256:238583846e731f31c9848dae26c5a560769ff35c4c5368a4cb6be5816683e485
-    profiles: [local-s3]
     restart: "no"
     <<: *security
     networks: [backend]

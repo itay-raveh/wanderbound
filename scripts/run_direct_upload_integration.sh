@@ -27,7 +27,6 @@ cleanup() {
 trap cleanup EXIT
 
 printf '%s\n' \
-  "COMPOSE_PROFILES=local-s3" \
   "COMPOSE_PROJECT_NAME=$project_name" \
   "TAG=direct-upload-integration" \
   "SECRET_KEY=integration-only-session-secret" \
