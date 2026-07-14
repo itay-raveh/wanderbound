@@ -37,6 +37,8 @@
     "@turf/helpers": "^7.3.4",
     "@turf/length": "^7.3.4",
     "@turf/nearest-point-on-line": "^7.3.4",
+    "@uppy/aws-s3": "5.1.0",
+    "@uppy/core": "5.2.0",
     "@vueuse/core": "^14.2.1",
     "canvas-confetti": "^1.9.4",
     "d3-scale": "^4.0.2",

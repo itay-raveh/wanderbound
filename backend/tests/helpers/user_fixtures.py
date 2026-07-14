@@ -10,13 +10,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from httpx import AsyncClient
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.fixture
-def user_routes(client: AsyncClient) -> UserRoutes:
-    return UserRoutes(client)
+def user_routes(client: AsyncClient, session: AsyncSession) -> UserRoutes:
+    return UserRoutes(client, session)
 
 
 @pytest.fixture
 async def uploaded_user(user_routes: UserRoutes, users_dir: Path) -> dict:
-    return await user_routes.sign_in_and_upload(users_dir)
+    return await user_routes.sign_in_user(users_dir)

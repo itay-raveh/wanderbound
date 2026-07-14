@@ -13,18 +13,19 @@ from sqlalchemy.exc import NoResultFound
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
+from app.api.v1.routes.uploads import UploadHTTPException
 from app.core.config import get_settings
 from app.core.http_clients import lifespan_clients
 from app.core.locks import try_advisory_lock
 from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
-from app.logic.chunked_upload import upload_store
 from app.logic.export import lifespan as export_lifespan
 from app.logic.external_media.undo import lifespan as undo_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.segment_routes import set_route_enrichment_http_clients
 from app.logic.session import cancel_all_sessions
+from app.logic.uploads.cleanup import upload_cleanup_loop
 from app.logic.workflows.processing import set_processing_workflow_http_clients
 from app.logic.workflows.recovery import (
     WorkflowAdminState,
@@ -33,6 +34,7 @@ from app.logic.workflows.recovery import (
     workflow_recovery_loop,
 )
 from app.logic.workflows.runtime import destroy_dbos, launch_dbos
+from app.services.upload_store import build_upload_store
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
@@ -49,9 +51,10 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
     await cleanup_orphaned_tmp(settings.USERS_FOLDER)
+    upload_store = build_upload_store(settings)
 
     # ffmpeg is still used for HDR tonemap + transcoding in media upgrade.
     # Probing moved to PyAV; ffprobe is no longer needed.
@@ -65,11 +68,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         pdf_lifespan() as browser_manager,
         export_lifespan(),
         undo_lifespan(),
-        upload_store.lifespan(),
         lifespan_clients() as http,
     ):
         app.state.browser_manager = browser_manager
         app.state.http = http
+        app.state.upload_store = upload_store
         set_processing_workflow_http_clients(http)
         set_route_enrichment_http_clients(http)
         try:
@@ -92,6 +95,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                         has_admin_server=lambda: admin_state.has_admin_server,
                     )
                 )
+                upload_cleanup_task = asyncio.create_task(
+                    upload_cleanup_loop(
+                        upload_store, settings.DATA_FOLDER / "upload-work"
+                    )
+                )
                 recovery_task = (
                     asyncio.create_task(workflow_recovery_loop(settings))
                     if admin_state.has_admin_server
@@ -112,6 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 try:
                     yield
                 finally:
+                    upload_cleanup_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await upload_cleanup_task
                     heartbeat_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await heartbeat_task
@@ -125,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                             await election_task
                     destroy_dbos()
         finally:
+            upload_store.close()
             set_route_enrichment_http_clients(None)
             set_processing_workflow_http_clients(None)
             cancel_all_sessions()
@@ -158,6 +170,11 @@ app.add_middleware(
 )
 
 app.include_router(v1_router, prefix=settings.API_V1_STR)
+
+
+@app.exception_handler(UploadHTTPException)
+async def _upload_error(_request: Request, exc: UploadHTTPException) -> JSONResponse:
+    return JSONResponse({"message": exc.detail}, status_code=exc.status_code)
 
 
 @app.exception_handler(NoResultFound)

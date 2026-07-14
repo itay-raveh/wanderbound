@@ -8,8 +8,10 @@
   },
   "include": [
     "e2e/**/*.ts",
+    "integration/**/*.ts",
     "smoke/**/*.ts",
     "playwright.config.ts",
+    "playwright.upload-integration.config.ts",
     "playwright.smoke.config.ts"
   ]
 }

@@ -60,6 +60,10 @@ description = "Smoke tests against running Docker stack"
 dir = "frontend"
 run = "bun run test:smoke"
 
+[tasks."test:upload-integration"]
+description = "Run real browser direct-upload scenarios against the Compose Garage stack"
+run = "scripts/run_direct_upload_integration.sh"
+
 [tasks.test]
 description = "Run all tests"
 depends = ["test:backend", "test:frontend", "test:e2e"]

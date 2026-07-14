@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import tempfile
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -147,17 +146,6 @@ def mock_jwt(
         setattr(settings, attr, prev)
 
 
-def mock_extract(users_dir: Path) -> patch:
-    def _side_effect(*_args: object, **_kwargs: object) -> tuple:
-        folder = Path(tempfile.mkdtemp(dir=users_dir))
-        return folder, PS_USER, TRIPS
-
-    return patch(
-        "app.api.v1.routes.users.extract_and_scan",
-        side_effect=_side_effect,
-    )
-
-
 async def sign_in(
     client: AsyncClient, provider: str = "google", payload: dict | None = None
 ) -> None:
@@ -169,31 +157,48 @@ async def sign_in(
     assert resp.status_code == 200
 
 
-async def sign_in_and_upload(
+async def sign_in_user(
     client: AsyncClient,
+    session: AsyncSession,
     users_dir: Path,
     provider: str = "google",
     payload: dict | None = None,
 ) -> dict:
-    await sign_in(client, provider, payload)
-    with mock_extract(users_dir):
+    claims = payload or _DEFAULT_PAYLOADS[provider]
+    first_name = (
+        claims.get("given_name")
+        or (claims.get("name") if provider == "microsoft" else None)
+        or PS_USER.first_name
+        or "Anonymous"
+    )
+    user = make_user(
+        uid=PS_USER.id,
+        google_sub=claims["sub"] if provider == "google" else None,
+        microsoft_sub=claims["sub"] if provider == "microsoft" else None,
+        first_name=first_name,
+    )
+    user.profile_image_url = claims.get("picture")
+    session.add(user)
+    await session.commit()
+
+    with mock_jwt(provider, payload=claims):
         resp = await client.post(
-            "/api/v1/users/upload",
-            files={"file": ("data.zip", b"fake", "application/zip")},
+            f"/api/v1/auth/{provider}", json={"credential": "fake"}
         )
     assert resp.status_code == 200
-    return resp.json()["user"]
+    return resp.json()
 
 
 async def sign_in_uploaded_user(
     client: AsyncClient,
+    session: AsyncSession,
     *,
     provider: str = "google",
     payload: dict | None = None,
 ) -> dict:
     users_dir = get_settings().USERS_FOLDER
     users_dir.mkdir(parents=True, exist_ok=True)
-    return await sign_in_and_upload(client, users_dir, provider, payload)
+    return await sign_in_user(client, session, users_dir, provider, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +213,7 @@ def make_user(
     *,
     album_ids: list[str] | None = None,
     google_sub: str | None = None,
+    microsoft_sub: str | None = None,
     first_name: str = "Test",
     locale: str = "en-US",
     unit_is_km: bool = True,
@@ -216,11 +222,12 @@ def make_user(
     last_active_at: datetime | None = None,
 ) -> User:
     resolved_google_sub = google_sub
-    if resolved_google_sub is None and not is_demo:
+    if resolved_google_sub is None and microsoft_sub is None and not is_demo:
         resolved_google_sub = f"google-{uid}"
     user = User(
         id=uid,
         google_sub=resolved_google_sub,
+        microsoft_sub=microsoft_sub,
         first_name=first_name,
         locale=locale,
         unit_is_km=unit_is_km,
@@ -247,7 +254,7 @@ async def sign_in_connected_google_photos(
     client: AsyncClient,
     session: AsyncSession,
 ) -> int:
-    user_data = await sign_in_uploaded_user(client, provider="google")
+    user_data = await sign_in_uploaded_user(client, session, provider="google")
     uid = user_data["id"]
     await connect_google_photos(session, uid)
     return uid
@@ -610,8 +617,9 @@ async def sign_in_with_album(
     provider: str = "google",
     aid: str = AID,
 ) -> AlbumScenario:
-    user_data = await sign_in_and_upload(
+    user_data = await sign_in_user(
         client,
+        session,
         get_settings().USERS_FOLDER,
         provider=provider,
     )
@@ -630,8 +638,9 @@ async def sign_in_with_album_media(
     height: int = 480,
     write_media: bool = False,
 ) -> AlbumMediaScenario:
-    user_data = await sign_in_and_upload(
+    user_data = await sign_in_user(
         client,
+        session,
         get_settings().USERS_FOLDER,
         provider=provider,
     )

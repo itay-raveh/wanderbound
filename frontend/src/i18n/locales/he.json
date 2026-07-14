@@ -59,6 +59,14 @@
     "uploadTitle": "העלו את ה-{file}",
     "uploadFailed": "ההעלאה נכשלה. @:common.retry",
     "uploadProgress": "התקדמות ההעלאה",
+    "uploadPhases": {
+      "uploading": "מעלה את קובץ הייצוא..."
+    },
+    "uploadProcessing": "מעבד את קובץ הייצוא...",
+    "uploadErrors": {
+      "upload_invalid_zip": "הקובץ אינו ייצוא תקין של Polarsteps. בחרו קובץ ZIP חדש.",
+      "upload_failed": "ההעלאה נכשלה. נסו שוב."
+    },
     "fileTooLarge": "הקובץ גדול מדי. מקסימום {max} GB.",
     "badZip": "הקובץ לא נראה כמו ייצוא תקין של Polarsteps.",
     "greeting": "היי, {name}",

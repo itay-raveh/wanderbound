@@ -5,11 +5,13 @@ from pathlib import Path
 from typing import BinaryIO
 
 import puremagic
-from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.models.polarsteps import CountryCode, PSTrip
-from app.models.user import PSUser, UserPublic
+from app.models.polarsteps import PSTrip
+from app.models.upload import TripMeta, UploadResult
+from app.models.user import PSUser
+
+__all__ = ["TripMeta", "UploadResult", "extract_and_scan", "scan_user_folder"]
 
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.
@@ -80,18 +82,6 @@ def _safe_extract(file: BinaryIO, dest: Path) -> None:
                     with target.open("wb") as out:
                         out.write(header)
                         shutil.copyfileobj(src, out)
-
-
-class TripMeta(BaseModel):
-    id: str
-    title: str
-    step_count: int
-    country_codes: list[CountryCode]
-
-
-class UploadResult(BaseModel):
-    user: UserPublic
-    trips: list[TripMeta]
 
 
 def scan_user_folder(folder: Path) -> tuple[PSUser, list[TripMeta]]:

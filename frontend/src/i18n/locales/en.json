@@ -59,6 +59,14 @@
     "uploadTitle": "Upload your {file}",
     "uploadFailed": "Upload failed. @:common.retry",
     "uploadProgress": "Upload progress",
+    "uploadPhases": {
+      "uploading": "Uploading your export..."
+    },
+    "uploadProcessing": "Processing your export...",
+    "uploadErrors": {
+      "upload_invalid_zip": "This file is not a valid Polarsteps export. Select a new ZIP.",
+      "upload_failed": "Upload failed. Try again."
+    },
     "fileTooLarge": "File is too large. Maximum size is {max} GB.",
     "badZip": "This file doesn't look like a valid Polarsteps export.",
     "greeting": "Hey, {name}",

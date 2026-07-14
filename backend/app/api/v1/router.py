@@ -7,6 +7,7 @@ from .routes import (
     external_media,
     google_photos,
     health,
+    uploads,
     users,
 )
 
@@ -14,6 +15,7 @@ router = APIRouter()
 router.include_router(health.router)
 router.include_router(auth.router)
 router.include_router(users.router)
+router.include_router(uploads.router)
 router.include_router(albums.router)
 router.include_router(external_media.router)
 router.include_router(assets.router)

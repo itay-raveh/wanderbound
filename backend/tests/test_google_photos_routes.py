@@ -50,9 +50,12 @@ def _clear_upgrade_caches_between_tests() -> Iterator[None]:
 
 class TestRequireGoogleUser:
     async def test_microsoft_user_gets_403(
-        self, client: AsyncClient, google_photos_routes: GooglePhotosRoutes
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        google_photos_routes: GooglePhotosRoutes,
     ) -> None:
-        await sign_in_uploaded_user(client, provider="microsoft")
+        await sign_in_uploaded_user(client, session, provider="microsoft")
         resp = await google_photos_routes.create_session()
         assert resp.status_code == 403
 

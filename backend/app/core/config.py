@@ -70,7 +70,17 @@ class Settings(BaseSettings):
     VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    VITE_MAX_UPLOAD_GB: int = 4
+    VITE_MAX_UPLOAD_GB: int = Field(default=4, ge=1, le=4)
+
+    UPLOAD_S3_BUCKET: str
+    UPLOAD_S3_REGION: str
+    UPLOAD_S3_INTERNAL_ENDPOINT_URL: AnyHttpUrl
+    UPLOAD_S3_PUBLIC_ENDPOINT_URL: AnyHttpUrl
+    UPLOAD_S3_ADDRESSING_STYLE: Literal["path", "virtual"]
+    UPLOAD_S3_ACCESS_KEY_ID: str
+    UPLOAD_S3_SECRET_ACCESS_KEY: SecretStr
+    UPLOAD_S3_PRESIGN_TTL_SECONDS: int = Field(default=900, ge=1, le=900)
+    UPLOAD_SESSION_TTL_SECONDS: int = 86_400
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
