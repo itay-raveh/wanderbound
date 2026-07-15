@@ -130,6 +130,7 @@ export function useDirectZipUpload(options: {
   }).use(AwsS3, {
     endpoint: `${window.location.origin}/api/v1/users/uploads`,
     cookiesRule: "same-origin",
+    limit: 8,
     shouldUseMultipart: true,
     allowedMetaFields: ["size_bytes"],
     getChunkSize: () => PART_SIZE,
