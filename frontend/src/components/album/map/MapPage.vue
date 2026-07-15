@@ -9,7 +9,7 @@ import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
 import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
 import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
-import { useTemplateRef, computed, watch } from "vue";
+import { useTemplateRef, computed, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -32,9 +32,13 @@ const toTime = computed(() =>
     : 0,
 );
 
-const { data: segments } = useSegmentPointsQuery(fromTime, toTime);
-
 const printMode = usePrintMode();
+const loadSegments = ref(printMode);
+const { data: segments } = useSegmentPointsQuery(
+  fromTime,
+  toTime,
+  loadSegments,
+);
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({
   container,
@@ -42,6 +46,9 @@ const { map, fitBounds } = useMapbox({
   onReady: draw,
   preserveDrawingBuffer: printMode,
   deferInit: !printMode,
+  onNearViewport: () => {
+    loadSegments.value = true;
+  },
 });
 
 function draw(m: Map) {

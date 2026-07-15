@@ -22,12 +22,13 @@ type SegmentHandlerResult = Segment[] | Promise<Response>;
 function mountQuery(
   fromTime: Ref<number> = ref(0),
   toTime: Ref<number> = ref(100),
+  enabled: Ref<boolean> = ref(true),
 ) {
   const { result: query, unmount } = withParentSetup(
     () => {
       provideTestAlbum({ albumId: "aid-1" });
     },
-    () => useSegmentPointsQuery(fromTime, toTime),
+    () => useSegmentPointsQuery(fromTime, toTime, enabled),
   );
 
   return { query, unmount };
@@ -60,6 +61,19 @@ describe("useSegmentPointsQuery", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("waits until it is enabled before loading segment points", async () => {
+    const enabled = ref(false);
+    const calls = mockSegmentPoints(() => []);
+
+    mountQuery(ref(0), ref(100), enabled);
+    await flushPromises();
+    expect(calls()).toBe(0);
+
+    enabled.value = true;
+    await flushPromises();
+    expect(calls()).toBe(1);
   });
 
   it("refetches about every minute while driving routes are missing", async () => {

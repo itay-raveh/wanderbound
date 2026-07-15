@@ -11,13 +11,13 @@ function photoName(stepIndex: number, photoIndex: number) {
   return `large-step-${stepIndex}-photo-${photoIndex}.jpg`;
 }
 
-function makeLargeMedia() {
+function makeLargeMedia(photosPerStep = PHOTOS_PER_STEP) {
   const media = [
     { name: "cover.jpg", width: 1920, height: 1080 },
     { name: "back.jpg", width: 1920, height: 1080 },
   ];
   for (let step = 1; step <= STEP_COUNT; step++) {
-    for (let photo = 1; photo <= PHOTOS_PER_STEP; photo++) {
+    for (let photo = 1; photo <= photosPerStep; photo++) {
       media.push({
         name: photoName(step, photo),
         width: photo % 2 === 0 ? 1080 : 1920,
@@ -28,10 +28,10 @@ function makeLargeMedia() {
   return media;
 }
 
-function makeLargeSteps() {
+function makeLargeSteps(photosPerStep = PHOTOS_PER_STEP) {
   return Array.from({ length: STEP_COUNT }, (_, index) => {
     const stepNumber = index + 1;
-    const photos = Array.from({ length: PHOTOS_PER_STEP }, (_, photoIndex) =>
+    const photos = Array.from({ length: photosPerStep }, (_, photoIndex) =>
       photoName(stepNumber, photoIndex + 1),
     );
     const timestamp = 1_704_067_200 + index * 86_400;
@@ -54,16 +54,35 @@ function makeLargeSteps() {
         night: null,
       },
       cover: photos[0],
-      pages: [photos],
+      pages: Array.from({ length: Math.ceil(photos.length / 4) }, (_, pageIndex) =>
+        photos.slice(pageIndex * 4, pageIndex * 4 + 4),
+      ),
       unused: [],
       datetime: new Date(timestamp * 1000).toISOString(),
     };
   });
 }
 
-async function mockLargeAlbum(page: Page) {
-  const steps = makeLargeSteps();
-  const media = makeLargeMedia();
+function makeLargeSegmentOutlines(steps: ReturnType<typeof makeLargeSteps>) {
+  return steps.slice(0, -1).map((step, index) => {
+    const nextStep = steps[index + 1];
+    return {
+      start_time: step.timestamp,
+      end_time: nextStep.timestamp,
+      kind: "driving",
+      timezone_id: "Europe/Amsterdam",
+      start_coord: [step.location.lat, step.location.lon],
+      end_coord: [nextStep.location.lat, nextStep.location.lon],
+    };
+  });
+}
+
+async function mockLargeAlbum(page: Page, chaptered = false) {
+  const photosPerStep = chaptered ? 16 : PHOTOS_PER_STEP;
+  const steps = makeLargeSteps(photosPerStep);
+  const media = makeLargeMedia(photosPerStep);
+  const segmentOutlines = chaptered ? makeLargeSegmentOutlines(steps) : [];
+  const segmentPointRequests: string[] = [];
   await page.addInitScript(() =>
     localStorage.setItem("last-album-id", "large-album"),
   );
@@ -117,26 +136,54 @@ async function mockLargeAlbum(page: Page) {
         hidden_headers: [],
         maps_ranges: [],
         safe_margin_mm: 0,
-        chapters: [
-          {
-            id: "chapter-1",
-            title: "Large Album",
-            subtitle: "Performance fixture",
-            step_ids: steps.map((step) => step.id),
-            front_cover_photo: "cover.jpg",
-            back_cover_photo: "back.jpg",
-          },
-        ],
+        chapters: chaptered
+          ? [
+              {
+                id: "chapter-1",
+                title: "Large Album",
+                subtitle: "Performance fixture",
+                step_ids: steps.slice(0, 120).map((step) => step.id),
+                front_cover_photo: "cover.jpg",
+                back_cover_photo: "back.jpg",
+              },
+              {
+                id: "chapter-2",
+                title: "Chapter 2",
+                subtitle: "",
+                step_ids: steps.slice(120, 180).map((step) => step.id),
+                front_cover_photo: "",
+                back_cover_photo: "",
+              },
+              {
+                id: "chapter-3",
+                title: "Chapter 3",
+                subtitle: "",
+                step_ids: steps.slice(180).map((step) => step.id),
+                front_cover_photo: "",
+                back_cover_photo: "",
+              },
+            ]
+          : [
+              {
+                id: "chapter-1",
+                title: "Large Album",
+                subtitle: "Performance fixture",
+                step_ids: steps.map((step) => step.id),
+                front_cover_photo: "cover.jpg",
+                back_cover_photo: "back.jpg",
+              },
+            ],
         colors: { nl: "#e77c31", be: "#3d7a5f", de: "#496b94" },
       },
     }),
   );
   await page.route(`${API}/albums/*/segments`, (route) =>
-    route.fulfill({ json: [] }),
+    route.fulfill({ json: segmentOutlines }),
   );
-  await page.route(`${API}/albums/*/segments/points*`, (route) =>
-    route.fulfill({ json: [] }),
-  );
+  await page.route(`${API}/albums/*/segments/points*`, (route) => {
+    segmentPointRequests.push(route.request().url());
+    return route.fulfill({ json: [] });
+  });
   await page.route(`${API}/albums/*/steps`, (route) =>
     route.fulfill({ json: steps }),
   );
@@ -146,6 +193,7 @@ async function mockLargeAlbum(page: Page) {
   await page.route("**/media/**", (route) =>
     route.fulfill({ contentType: "image/jpeg", body: mediaBody }),
   );
+  return segmentPointRequests;
 }
 
 async function scrollNavStepIntoView(page: Page, step: number) {
@@ -225,38 +273,6 @@ test.describe("Large album editor performance", () => {
     }
   });
 
-  test("jumps to a distant chapter cover without mounting the whole album", async ({
-    page,
-  }) => {
-    await mockLargeAlbum(page);
-    await page.goto("/editor");
-    await expect(page.getByText("Large Album").first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    const nav = page.getByRole("navigation");
-    await nav.getByRole("button", { name: "Chapter actions" }).first().click();
-    await page.getByText("Split chapter").click();
-    await expect(nav.getByText("Chapter 2")).toBeVisible();
-    await nav.getByRole("button", { name: "Chapter actions" }).last().click();
-    await page.getByText("Split chapter").click();
-    await expect(nav.getByText("Chapter 3")).toBeVisible();
-
-    const chapterCover = nav.locator(
-      '[data-nav-section="chapter-chapter-3-cover-front"]',
-    );
-    const beforeScrollY = await page.evaluate(() => window.scrollY);
-    await chapterCover.click();
-
-    await expect
-      .poll(() => page.evaluate(() => window.scrollY))
-      .toBeGreaterThan(beforeScrollY + 10_000);
-    await expect(chapterCover).toHaveClass(/visible/);
-    await expect
-      .poll(() => page.locator("[data-media]").count())
-      .toBeLessThan(120);
-  });
-
   test("keeps the active step near the middle of the nav while scrolling", async ({
     page,
   }) => {
@@ -287,5 +303,41 @@ test.describe("Large album editor performance", () => {
     await expect
       .poll(() => activeNavStepCenterOffset(page, Number(activeStep)))
       .toBeLessThan(90);
+  });
+
+  test("defers a distant chapter map until its page is opened", async ({
+    page,
+  }) => {
+    const segmentPointRequests = await mockLargeAlbum(page, true);
+    await page.goto("/editor");
+    await expect(page.getByText("Large Album").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const nav = page.getByRole("navigation");
+    await expect(nav.getByText("Chapter 3")).toBeVisible();
+    await nav.getByText("Chapter 3").click();
+
+    const chapterCover = nav.locator(
+      '[data-nav-section="chapter-chapter-3-cover-front"]',
+    );
+    const beforeScrollY = await page.evaluate(() => window.scrollY);
+    segmentPointRequests.length = 0;
+    await chapterCover.click();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(beforeScrollY + 10_000);
+    await expect(chapterCover).toHaveClass(/visible/);
+    await page.waitForTimeout(2_000);
+    expect(segmentPointRequests).toHaveLength(0);
+
+    await nav
+      .locator('[data-nav-section="chapter-chapter-3-full-map"]')
+      .click();
+    await expect.poll(() => segmentPointRequests.length).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.locator("[data-media]").count())
+      .toBeLessThan(120);
   });
 });
