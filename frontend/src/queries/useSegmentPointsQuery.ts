@@ -1,5 +1,12 @@
 import { useQuery } from "@pinia/colada";
-import { markRaw, onScopeDispose, watch, type Ref } from "vue";
+import {
+  markRaw,
+  onScopeDispose,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+  type Ref,
+} from "vue";
 import { readSegmentPoints, type Segment } from "@/client";
 import { queryKeys, STALE_TIME } from "./keys";
 import { useAlbum } from "@/composables/useAlbum";
@@ -18,6 +25,7 @@ function hasUnmatchedRoute(segments: Segment[] | undefined): boolean {
 export function useSegmentPointsQuery(
   fromTime: Ref<number>,
   toTime: Ref<number>,
+  enabled: MaybeRefOrGetter<boolean> = true,
 ) {
   const { albumId } = useAlbum();
 
@@ -32,6 +40,7 @@ export function useSegmentPointsQuery(
       return markRaw(data);
     },
     staleTime: STALE_TIME,
+    enabled,
   });
 
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -55,6 +64,7 @@ export function useSegmentPointsQuery(
     }
     if (
       disposed ||
+      !toValue(enabled) ||
       !hasUnmatchedRoute(query.data.value) ||
       attempts >= ROUTE_REFETCH_LIMIT
     )
@@ -71,7 +81,7 @@ export function useSegmentPointsQuery(
   }
 
   watch(
-    query.data,
+    [query.data, () => toValue(enabled)],
     () => {
       if (!hasUnmatchedRoute(query.data.value)) attempts = 0;
       schedule();

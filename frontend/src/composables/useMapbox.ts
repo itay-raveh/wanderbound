@@ -28,6 +28,9 @@ mapboxgl.setRTLTextPlugin(
   true, // lazy: only load when RTL text is encountered
 );
 
+const MAP_INIT_ROOT_MARGIN_PX = 200;
+const MAP_VISIBILITY_SETTLE_MS = 100;
+
 interface UseMapboxOptions {
   container: Ref<HTMLElement | null>;
   style?: string;
@@ -35,6 +38,7 @@ interface UseMapboxOptions {
   onReady?: (map: mapboxgl.Map) => void;
   preserveDrawingBuffer?: boolean;
   deferInit?: boolean;
+  onNearViewport?: () => void;
   /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Accepts ref/getter. */
   locale?: MaybeRefOrGetter<string>;
 }
@@ -48,6 +52,7 @@ export function useMapbox(options: UseMapboxOptions) {
   let pendingIdle: (() => void) | null = null;
   let initIdleHandle: number | null = null;
   let initTimeout: ReturnType<typeof setTimeout> | null = null;
+  let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
   let initIntersectionObserver: IntersectionObserver | null = null;
 
   function init() {
@@ -204,6 +209,7 @@ export function useMapbox(options: UseMapboxOptions) {
     }
 
     const scheduleIdleInit = () => {
+      options.onNearViewport?.();
       if ("requestIdleCallback" in window) {
         initIdleHandle = window.requestIdleCallback(() => {
           initIdleHandle = null;
@@ -225,12 +231,27 @@ export function useMapbox(options: UseMapboxOptions) {
 
     initIntersectionObserver = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        initIntersectionObserver?.disconnect();
-        initIntersectionObserver = null;
-        scheduleIdleInit();
+        if (
+          !entries.some((entry) => entry.isIntersecting) ||
+          visibilityTimeout !== null
+        )
+          return;
+        // Header correction can briefly move an overscanned map through the viewport.
+        // Recheck after layout settles before loading its full GPS payload.
+        visibilityTimeout = setTimeout(() => {
+          visibilityTimeout = null;
+          const rect = el.getBoundingClientRect();
+          if (
+            rect.bottom < -MAP_INIT_ROOT_MARGIN_PX ||
+            rect.top > window.innerHeight + MAP_INIT_ROOT_MARGIN_PX
+          )
+            return;
+          initIntersectionObserver?.disconnect();
+          initIntersectionObserver = null;
+          scheduleIdleInit();
+        }, MAP_VISIBILITY_SETTLE_MS);
       },
-      { rootMargin: "200px" },
+      { rootMargin: `${MAP_INIT_ROOT_MARGIN_PX}px` },
     );
     initIntersectionObserver.observe(el);
   }
@@ -238,6 +259,10 @@ export function useMapbox(options: UseMapboxOptions) {
   function cancelScheduledInit() {
     initIntersectionObserver?.disconnect();
     initIntersectionObserver = null;
+    if (visibilityTimeout !== null) {
+      clearTimeout(visibilityTimeout);
+      visibilityTimeout = null;
+    }
     if (initIdleHandle !== null) {
       window.cancelIdleCallback(initIdleHandle);
       initIdleHandle = null;

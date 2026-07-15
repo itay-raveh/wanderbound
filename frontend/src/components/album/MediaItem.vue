@@ -16,7 +16,7 @@ import {
   SIZES_HALF,
   THUMB_WIDTHS,
 } from "@/utils/media";
-import { computed, inject, nextTick, ref, watchEffect } from "vue";
+import { computed, inject, nextTick, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   matPlayArrow,
@@ -197,18 +197,14 @@ function scrub(delta: number) {
 }
 
 const qualityBadgeRef = ref<HTMLElement | null>(null);
-let unregisterBadge: (() => void) | null = null;
-watchEffect((onCleanup) => {
-  unregisterBadge?.();
-  unregisterBadge = null;
-  const el = qualityBadgeRef.value;
-  if (!el) return;
-  unregisterBadge = registerQualityBadge(el);
-  onCleanup(() => {
-    unregisterBadge?.();
-    unregisterBadge = null;
-  });
-});
+watch(
+  qualityBadgeRef,
+  (el, _previous, onCleanup) => {
+    if (!el) return;
+    onCleanup(registerQualityBadge(el));
+  },
+  { flush: "post" },
+);
 
 function onVideoKey(e: KeyboardEvent) {
   if (e.key === "Enter") {

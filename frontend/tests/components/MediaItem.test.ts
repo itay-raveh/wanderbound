@@ -206,6 +206,22 @@ describe("MediaItem video controls", () => {
     expect(wrapper.find(".quality-badge.warning").exists()).toBe(true);
   });
 
+  test("registers multiple resolution badges without recursive updates", async () => {
+    const first = mountPhotoItem(ref(false), {
+      quality: { tier: "warning", dpi: 72 },
+    });
+    const second = mountPhotoItem(ref(false), {
+      quality: { tier: "warning", dpi: 72 },
+    });
+
+    await nextTick();
+
+    expect(first.find(".quality-badge.warning").exists()).toBe(true);
+    expect(second.find(".quality-badge.warning").exists()).toBe(true);
+    first.unmount();
+    second.unmount();
+  });
+
   test("does not route quality badge keyboard events through photo shortcuts", () => {
     const focus = vi.spyOn(usePhotoFocus(), "focus");
     const wrapper = mountPhotoItem(ref(false), {
