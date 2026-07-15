@@ -166,6 +166,7 @@ const expectedPageCount = computed(
   () => countChapterRenderPages(chapterRenderGroups.value, mediaByName.value),
 );
 const listRef = ref<HTMLElement | null>(null);
+const pageContentSuspended = ref(false);
 const scrollMargin = ref(0);
 const scrollPaddingStart = ref(0);
 const NAV_SCROLL_MIN_TOP_CLEARANCE = 48;
@@ -239,6 +240,7 @@ if (props.printMode) {
   provide(PROGRAMMATIC_SCROLL_KEY, readonly(programmaticScrolling));
 
   let scrollClearTimer: ReturnType<typeof setTimeout> | null = null;
+  let distantJumpId = 0;
 
   function clearProgrammaticScroll() {
     programmaticScrolling.value = false;
@@ -337,6 +339,22 @@ if (props.printMode) {
     });
   }
 
+  async function jumpToDistantItem(idx: number, top: number) {
+    const jumpId = ++distantJumpId;
+    // Firefox can lock while a far window jump replaces heavyweight virtual pages.
+    // Keep the fixed-height shells mounted until the new range has settled.
+    pageContentSuspended.value = true;
+    await nextTick();
+    if (jumpId !== distantJumpId) return;
+
+    window.scrollTo({ top, behavior: "instant" });
+    requestAnimationFrame(() => {
+      if (jumpId !== distantJumpId) return;
+      pageContentSuspended.value = false;
+      correctScrollTarget(idx);
+    });
+  }
+
   function scrollToVIdx(
     idx: number,
     behavior?: ScrollBehavior,
@@ -355,17 +373,21 @@ if (props.printMode) {
         document
           .querySelector<HTMLElement>(".editor-header")
           ?.getBoundingClientRect().bottom ?? 0;
+      distantJumpId++;
+      pageContentSuspended.value = false;
       programmaticScrolling.value = true;
       if (scrollClearTimer) clearTimeout(scrollClearTimer);
       scrollClearTimer = setTimeout(clearProgrammaticScroll, 800);
       if (item) {
-        window.scrollTo({
-          top: Math.max(
-            0,
-            item.start - headerBottom - navScrollTopClearance(headerBottom),
-          ),
-          behavior: "instant",
-        });
+        const top = Math.max(
+          0,
+          item.start - headerBottom - navScrollTopClearance(headerBottom),
+        );
+        if (Math.abs(top - window.scrollY) > window.innerHeight * 4) {
+          void jumpToDistantItem(idx, top);
+          return;
+        }
+        window.scrollTo({ top, behavior: "instant" });
       } else {
         virtualizer.scrollToIndex(idx, {
           align: "start",
@@ -556,7 +578,7 @@ if (props.printMode) {
           :data-index="vItem.index"
           :style="{ minHeight: `${vItem.size}px` }"
         >
-          <template v-if="editorItems[vItem.index]">
+          <template v-if="!pageContentSuspended && editorItems[vItem.index]">
             <template
               v-for="item in [editorItems[vItem.index]!]"
               :key="item.key"

@@ -54,8 +54,9 @@ function makeLargeSteps(photosPerStep = PHOTOS_PER_STEP) {
         night: null,
       },
       cover: photos[0],
-      pages: Array.from({ length: Math.ceil(photos.length / 4) }, (_, pageIndex) =>
-        photos.slice(pageIndex * 4, pageIndex * 4 + 4),
+      pages: Array.from(
+        { length: Math.ceil(photos.length / 4) },
+        (_, pageIndex) => photos.slice(pageIndex * 4, pageIndex * 4 + 4),
       ),
       unused: [],
       datetime: new Date(timestamp * 1000).toISOString(),
@@ -322,16 +323,44 @@ test.describe("Large album editor performance", () => {
       '[data-nav-section="chapter-chapter-3-cover-front"]',
     );
     const beforeScrollY = await page.evaluate(() => window.scrollY);
+    await page.evaluate(() => {
+      const originalScrollTo = window.scrollTo.bind(window);
+      const pageCounts: number[] = [];
+      Object.assign(window, { __longJumpPageCounts: pageCounts });
+      window.scrollTo = (...args: Parameters<typeof window.scrollTo>) => {
+        const top =
+          typeof args[0] === "object"
+            ? (args[0].top ?? window.scrollY)
+            : args[1];
+        if (Math.abs(top - window.scrollY) > window.innerHeight * 4) {
+          pageCounts.push(document.querySelectorAll(".page-container").length);
+        }
+        originalScrollTo(...args);
+      };
+    });
     segmentPointRequests.length = 0;
     await chapterCover.click();
 
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeGreaterThan(beforeScrollY + 10_000);
+    const pageCountsDuringJump = await page.evaluate(
+      () =>
+        (window as typeof window & { __longJumpPageCounts: number[] })
+          .__longJumpPageCounts,
+    );
+    expect(pageCountsDuringJump).not.toHaveLength(0);
+    expect(Math.max(...pageCountsDuringJump)).toBe(0);
     await expect(chapterCover).toHaveClass(/visible/);
     await page.waitForTimeout(2_000);
     expect(segmentPointRequests).toHaveLength(0);
 
+    const chapterThreeHeader = nav
+      .locator(".chapter-group-header")
+      .filter({ hasText: "Chapter 3" });
+    if ((await chapterThreeHeader.getAttribute("aria-expanded")) !== "true") {
+      await chapterThreeHeader.click();
+    }
     await nav
       .locator('[data-nav-section="chapter-chapter-3-full-map"]')
       .click();
