@@ -225,6 +225,38 @@ test.describe("Large album editor performance", () => {
     }
   });
 
+  test("jumps to a distant chapter cover without mounting the whole album", async ({
+    page,
+  }) => {
+    await mockLargeAlbum(page);
+    await page.goto("/editor");
+    await expect(page.getByText("Large Album").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const nav = page.getByRole("navigation");
+    await nav.getByRole("button", { name: "Chapter actions" }).first().click();
+    await page.getByText("Split chapter").click();
+    await expect(nav.getByText("Chapter 2")).toBeVisible();
+    await nav.getByRole("button", { name: "Chapter actions" }).last().click();
+    await page.getByText("Split chapter").click();
+    await expect(nav.getByText("Chapter 3")).toBeVisible();
+
+    const chapterCover = nav.locator(
+      '[data-nav-section="chapter-chapter-3-cover-front"]',
+    );
+    const beforeScrollY = await page.evaluate(() => window.scrollY);
+    await chapterCover.click();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(beforeScrollY + 10_000);
+    await expect(chapterCover).toHaveClass(/visible/);
+    await expect
+      .poll(() => page.locator("[data-media]").count())
+      .toBeLessThan(120);
+  });
+
   test("keeps the active step near the middle of the nav while scrolling", async ({
     page,
   }) => {

@@ -15,11 +15,15 @@ type TestVirtualItem = {
 };
 
 let virtualItems: Ref<TestVirtualItem[]>;
+let scrollToIndex: ReturnType<typeof vi.fn>;
+let measurements: Array<{ start: number }>;
 
 vi.mock("@/composables/useWindowVirtualizer", () => ({
   useWindowVirtualizer: () => ({
     virtualizer: {
-      scrollToIndex: vi.fn(),
+      scrollState: null,
+      getMeasurements: () => measurements,
+      scrollToIndex,
     },
     items: virtualItems,
     size: ref(2365),
@@ -54,6 +58,8 @@ function makeAlbum(): AlbumMeta {
 
 beforeEach(() => {
   useActiveSection().resetActiveSection();
+  scrollToIndex = vi.fn();
+  measurements = [{ start: 0 }];
   virtualItems = ref([
     {
       key: "chapter-chapter-1-full-map",
@@ -66,6 +72,31 @@ beforeEach(() => {
 });
 
 describe("AlbumViewer", () => {
+  test("jumps instantly when a chapter target measurement is stale", () => {
+    measurements = [];
+    const album = makeAlbum();
+    album.hidden_headers = ["cover-back", "overview", "full-map"];
+    const wrapper = mountWithPlugins(AlbumViewer, {
+      props: {
+        album,
+        media: [],
+        steps: [makeStep()],
+        segmentOutlines: [],
+      },
+    });
+
+    const scrolled = useActiveSection().scrollToSection(
+      "chapter-chapter-1-cover-front",
+    );
+
+    expect(scrolled).toBe(true);
+    expect(scrollToIndex).toHaveBeenCalledWith(0, {
+      align: "start",
+      behavior: "instant",
+    });
+    wrapper.unmount();
+  });
+
   test("reserves virtual item height when heavy pages are deferred", () => {
     const wrapper = mountWithPlugins(AlbumViewer, {
       props: {

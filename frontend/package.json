@@ -29,7 +29,7 @@
     "@mapbox/mapbox-gl-supported": "^4.0.0",
     "@pinia/colada": "^1.0.0",
     "@quasar/extras": "^2.0.0",
-    "@sentry/vue": "^10.45.0",
+    "@sentry/vue": "^10.65.0",
     "@tanstack/vue-virtual": "^3.13.23",
     "@turf/along": "^7.3.4",
     "@turf/bezier-spline": "^7.3.4",
