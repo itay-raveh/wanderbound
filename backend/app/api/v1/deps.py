@@ -18,6 +18,7 @@ from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.models.album import Album
 from app.models.user import User, UserPublic
+from app.services.upload_store import UploadStoreService
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -136,6 +137,13 @@ def _get_http_clients(request: Request) -> HttpClients:
 
 
 HttpClientsDep = Annotated[HttpClients, Depends(_get_http_clients)]
+
+
+def _get_upload_store(request: Request) -> UploadStoreService:
+    return request.app.state.upload_store
+
+
+UploadStoreDep = Annotated[UploadStoreService, Depends(_get_upload_store)]
 
 
 def album_dir(user: User, aid: str) -> Path:

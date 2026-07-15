@@ -20,7 +20,11 @@ const { t } = useI18n();
         {{ t("register.welcomeNew") }}
       </h1>
       <span class="text-subtitle2 text-faint">
-        {{ isReturning ? t("register.welcomeBack") : t("tagline") }}
+        {{
+          isReturning
+            ? t("register.welcomeBack")
+            : t("tagline", { polarsteps: "Polarsteps" })
+        }}
       </span>
     </div>
   </header>

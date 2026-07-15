@@ -1,26 +1,16 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
 
 from app.core.config import get_settings
-from app.logic.processing_operations import create_processing_operation
-from app.logic.upload import TripMeta
 
 from .factories import (
-    GOOGLE_PAYLOAD,
     MICROSOFT_PAYLOAD,
-    PS_USER,
     mock_jwt,
 )
 from .helpers.users import UserRoutes
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.mark.parametrize(
@@ -62,7 +52,7 @@ class TestAuthProvider:
         sub_field: str,
         sub_value: str,
     ) -> None:
-        await user_routes.sign_in_and_upload(users_dir, provider=provider)
+        await user_routes.sign_in_user(users_dir, provider=provider)
         await user_routes.logout()
 
         with mock_jwt(provider):
@@ -90,7 +80,7 @@ class TestAuthMicrosoftSpecific:
         self, user_routes: UserRoutes, users_dir: Path
     ) -> None:
         no_given = {k: v for k, v in MICROSOFT_PAYLOAD.items() if k != "given_name"}
-        user = await user_routes.sign_in_and_upload(
+        user = await user_routes.sign_in_user(
             users_dir, provider="microsoft", payload=no_given
         )
         assert user["first_name"] == "Test Microsoft"
@@ -102,70 +92,6 @@ class TestLogout:
         await user_routes.logout()
         resp = await user_routes.current()
         assert resp.status_code == 401
-
-
-class TestUpload:
-    async def test_no_session(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.upload()
-        assert resp.status_code == 401
-
-    async def test_new_user_google(self, uploaded_user: dict) -> None:
-        assert uploaded_user["google_sub"] == "google-123"
-        assert uploaded_user["microsoft_sub"] is None
-        assert uploaded_user["first_name"] == "Test"  # Google name preferred over ZIP
-
-    async def test_new_user_microsoft(
-        self, user_routes: UserRoutes, users_dir: Path
-    ) -> None:
-        user = await user_routes.sign_in_and_upload(users_dir, provider="microsoft")
-        assert user["microsoft_sub"] == "microsoft-456"
-        assert user["google_sub"] is None
-        assert user["first_name"] == "Test"  # from given_name in token
-
-    async def test_falls_back_to_zip_name(
-        self, user_routes: UserRoutes, users_dir: Path
-    ) -> None:
-        no_name = {**GOOGLE_PAYLOAD, "given_name": "", "family_name": ""}
-        await user_routes.sign_in(payload=no_name)
-        resp = await user_routes.upload_with_extract(users_dir)
-        assert resp.status_code == 200
-        user = resp.json()["user"]
-        assert user["first_name"] == "Zip"
-
-    @pytest.mark.usefixtures("uploaded_user")
-    async def test_reupload_marks_active_processing_stale(
-        self,
-        user_routes: UserRoutes,
-        users_dir: Path,
-        session: AsyncSession,
-        uploaded_user: dict,
-    ) -> None:
-        operation = await create_processing_operation(
-            session, uid=uploaded_user["id"], upload_generation=1
-        )
-        await session.flush()
-
-        resp = await user_routes.upload_with_extract(users_dir)
-
-        assert resp.status_code == 200
-        await session.refresh(operation)
-        assert operation.status == "stale"
-
-    @pytest.mark.usefixtures("uploaded_user")
-    async def test_reupload_updates_trips(
-        self, user_routes: UserRoutes, users_dir: Path
-    ) -> None:
-        new_trips = [
-            TripMeta(id="trip-2", title="New Trip", step_count=3, country_codes=["de"])
-        ]
-        folder = Path(tempfile.mkdtemp(dir=users_dir))
-        with patch(
-            "app.api.v1.routes.users.extract_and_scan",
-            return_value=(folder, PS_USER, new_trips),
-        ):
-            resp = await user_routes.upload()
-        assert resp.status_code == 200
-        assert resp.json()["trips"][0]["id"] == "trip-2"
 
 
 class TestUpdateUser:

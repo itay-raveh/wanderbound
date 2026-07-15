@@ -1,12 +1,9 @@
 import asyncio
-import io
 import shutil
 from collections.abc import AsyncIterable
 from functools import cache
 from pathlib import Path
 from secrets import randbelow
-from typing import cast
-from zipfile import BadZipFile
 
 import httpx
 import structlog
@@ -15,20 +12,15 @@ from fastapi import (
     BackgroundTasks,
     HTTPException,
     Request,
-    UploadFile,
     status,
 )
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from httpx_oauth.oauth2 import RevokeTokenError
-from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
-from starlette.requests import ClientDisconnect
 
 from app.core.config import get_settings
 from app.core.observability import start_span
-from app.core.resources import MiB
-from app.logic.chunked_upload import upload_store
 from app.logic.eviction import run_eviction
 from app.logic.export import (
     EXPORT_FILENAME,
@@ -36,10 +28,9 @@ from app.logic.export import (
     export_user_data,
     pop_export_token,
 )
-from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
-from app.logic.upload import TripMeta, UploadResult, extract_and_scan, scan_user_folder
+from app.logic.upload import TripMeta, UploadResult, scan_user_folder
 from app.models.user import (
     OAuthIdentity,
     PSUser,
@@ -57,28 +48,11 @@ from ..deps import (
     to_user_public,
     try_load_user,
 )
-from .auth import clear_pending_signup, get_pending_signup
+from .auth import get_pending_signup
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-def _check_upload_size(file: UploadFile) -> int:
-    """Defense-in-depth size check (nginx is the primary limit)."""
-    # Measure actual bytes on disk, not the Content-Length header (spoofable).
-    file.file.seek(0, io.SEEK_END)
-    size = file.file.tell()
-    file.file.seek(0)
-    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
-    if size > max_bytes:
-        logger.warning(
-            "upload.rejected_too_large",
-            size_mb=size // MiB,
-            max_mb=max_bytes // MiB,
-        )
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large")
-    return size
 
 
 async def _resolve_auth(
@@ -100,233 +74,6 @@ def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
         return f"uid:{existing.id}"
     assert identity is not None  # noqa: S101 - _resolve_auth guarantees one is set
     return f"{identity.provider}:{identity.sub}"
-
-
-async def _finalize_upload(  # noqa: PLR0913
-    temp_folder: Path,
-    ps_user: PSUser,
-    trips: list[TripMeta],
-    existing: User | None,
-    identity: OAuthIdentity | None,
-    session: SessionDep,
-    request: Request,
-    background_tasks: BackgroundTasks,
-) -> UploadResult:
-    """Shared logic for creating/updating a user after ZIP extraction."""
-    album_ids = [t.id for t in trips]
-
-    try:
-        with start_span(
-            "upload.finalize",
-            "Finalize upload",
-            **{
-                "app.workflow": "upload",
-                "album.count": len(album_ids),
-                "new_user": existing is None,
-                "user.id": ps_user.id,
-            },
-        ):
-            cancel_session(ps_user.id)
-            await mark_user_processing_operations_stale(session, uid=ps_user.id)
-
-            if existing is not None:
-                existing.album_ids = album_ids
-                existing.living_location = ps_user.living_location
-                existing.first_name = existing.first_name or ps_user.first_name
-                session.add(existing)
-                await session.commit()
-                user = existing
-                logger.info(
-                    "upload.completed",
-                    user_id=user.id,
-                    album_count=len(album_ids),
-                    new_user=False,
-                )
-            else:
-                oauth = cast("OAuthIdentity", identity)
-                user = User(
-                    id=ps_user.id,
-                    first_name=oauth.first_name or ps_user.first_name or "Anonymous",
-                    locale=ps_user.locale,
-                    unit_is_km=ps_user.unit_is_km,
-                    temperature_is_celsius=ps_user.temperature_is_celsius,
-                    google_sub=oauth.sub if oauth.provider == "google" else None,
-                    microsoft_sub=oauth.sub if oauth.provider == "microsoft" else None,
-                    profile_image_url=(str(oauth.picture) if oauth.picture else None),
-                    living_location=ps_user.living_location,
-                    album_ids=album_ids,
-                )
-                session.add(user)
-                await session.commit()
-                login_session(request, user.id)
-                clear_pending_signup(request)
-                logger.info(
-                    "upload.completed",
-                    user_id=user.id,
-                    album_count=len(album_ids),
-                    new_user=True,
-                )
-
-            target = user.folder
-            if target.exists():
-                await asyncio.to_thread(shutil.rmtree, target)
-            await asyncio.to_thread(temp_folder.rename, target)
-    except Exception:
-        await asyncio.to_thread(shutil.rmtree, temp_folder, ignore_errors=True)
-        raise
-
-    background_tasks.add_task(run_eviction, user.id)
-    return UploadResult(user=await to_user_public(user, session), trips=trips)
-
-
-@router.post("/upload")
-async def upload_data(
-    file: UploadFile,
-    request: Request,
-    session: SessionDep,
-    background_tasks: BackgroundTasks,
-) -> UploadResult:
-    existing, identity = await _resolve_auth(request, session)
-
-    size = _check_upload_size(file)
-    logger.info("upload.extracting", size_mb=size // MiB)
-    try:
-        with start_span(
-            "upload.extract",
-            "Extract Polarsteps ZIP",
-            **{"app.workflow": "upload", "size.bytes": size},
-        ):
-            temp_folder, ps_user, trips = await asyncio.to_thread(
-                extract_and_scan, file.file
-            )
-    except (BadZipFile, OSError, ValidationError) as e:
-        logger.warning("upload.bad_zip", error_type=type(e).__name__)
-        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
-
-    return await _finalize_upload(
-        temp_folder,
-        ps_user,
-        trips,
-        existing,
-        identity,
-        session,
-        request,
-        background_tasks,
-    )
-
-
-# -- Chunked upload -----------------------------------------------------------
-
-
-@router.post("/upload/init")
-async def init_chunked_upload(
-    request: Request,
-    session: SessionDep,
-) -> dict[str, str]:
-    """Start a chunked upload session. Returns an opaque upload_id."""
-    existing, identity = await _resolve_auth(request, session)
-
-    max_bytes = get_settings().VITE_MAX_UPLOAD_GB * 1024 * MiB
-    owner = _upload_owner(existing, identity)
-    upload_id = await upload_store.create(session, max_bytes, owner=owner)
-    await session.commit()
-    return {"upload_id": upload_id}
-
-
-@router.put("/upload/{upload_id}/{chunk_index}")
-async def upload_chunk(
-    upload_id: str,
-    chunk_index: int,
-    request: Request,
-    session: SessionDep,
-) -> Response:
-    """Stream a chunk body to disk without loading it into memory.
-
-    No per-request auth: the cryptographic upload_id (256-bit
-    ``secrets.token_urlsafe``) acts as a bearer token.  Ownership is
-    verified when the session is finalized in ``complete_chunked_upload``.
-    """
-    try:
-        await upload_store.write_chunk_stream(
-            session, upload_id, chunk_index, request.stream()
-        )
-        await session.commit()
-    except ClientDisconnect:
-        logger.info(
-            "upload.chunk_client_disconnected",
-            chunk_index=chunk_index,
-            upload_id_prefix=upload_id[:8],
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except KeyError:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, "Upload session not found"
-        ) from None
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
-    except OverflowError:
-        raise HTTPException(
-            status.HTTP_413_CONTENT_TOO_LARGE, "Upload too large"
-        ) from None
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/upload/{upload_id}/complete")
-async def complete_chunked_upload(
-    upload_id: str,
-    request: Request,
-    session: SessionDep,
-    background_tasks: BackgroundTasks,
-) -> UploadResult:
-    """Assemble chunks and process the ZIP."""
-    existing, identity = await _resolve_auth(request, session)
-
-    owner = _upload_owner(existing, identity)
-    try:
-        assembled, upload_dir = await upload_store.assemble(
-            session, upload_id, owner=owner
-        )
-        await session.commit()
-    except KeyError:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, "Upload session not found"
-        ) from None
-    except PermissionError:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Upload session belongs to a different user"
-        ) from None
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
-
-    try:
-        with start_span(
-            "upload.extract",
-            "Extract Polarsteps ZIP",
-            **{"app.workflow": "upload"},
-        ):
-            temp_folder, ps_user, trips = await asyncio.to_thread(
-                extract_and_scan, assembled
-            )
-    except (BadZipFile, OSError, ValidationError) as e:
-        logger.warning(
-            "upload.bad_zip",
-            error_type=type(e).__name__,
-        )
-        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, detail="Bad ZIP") from e
-    finally:
-        assembled.close()
-        await asyncio.to_thread(shutil.rmtree, upload_dir, ignore_errors=True)
-
-    return await _finalize_upload(
-        temp_folder,
-        ps_user,
-        trips,
-        existing,
-        identity,
-        session,
-        request,
-        background_tasks,
-    )
 
 
 @cache

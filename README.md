@@ -39,10 +39,11 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 
 |                   |                                                                      |
 |-------------------|----------------------------------------------------------------------|
-| **Backend**       | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
-| **Frontend**      | Vue 3, TypeScript, Quasar, Mapbox GL JS                              |
-| **Database**      | PostgreSQL 18                                                        |
-| **External APIs** | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
+| **Backend**        | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
+| **Frontend**       | Vue 3, TypeScript, Quasar, Uppy, Mapbox GL JS                       |
+| **Database**       | PostgreSQL 18                                                       |
+| **Object storage** | S3-compatible storage, Garage for Compose                           |
+| **External APIs**  | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
 
 ## Self-Hosting
 

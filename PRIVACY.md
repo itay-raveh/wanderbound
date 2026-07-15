@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Last updated: April 23, 2026*
+*Last updated: July 13, 2026*
 
 Wanderbound is an open-source photo album generator. This policy covers what we collect, how we use it, and your rights.
 
@@ -41,6 +41,7 @@ If you are in the EU, we process your data under these GDPR legal bases:
 - **Mapbox** - Provides map tiles and routing data for album map pages. Your browser or the server sends GPS coordinates from your trip to Mapbox when you view or generate a map. [Mapbox's privacy policy](https://www.mapbox.com/legal/privacy) applies.
 - **Open-Meteo** - Provides elevation and historical weather data. During album generation, the server sends your trip GPS coordinates and dates to Open-Meteo. [Open-Meteo's privacy policy](https://open-meteo.com/en/terms) applies.
 - **OpenStreetMap Overpass** - Provides names and elevations for peaks near your hiking steps. During album generation, the server sends the coordinates of steps that look like local elevation peaks to Overpass. [OpenStreetMap privacy policy](https://osmfoundation.org/wiki/Privacy_Policy) applies.
+- **Object storage** - Receives your Polarsteps ZIP directly from your browser and stores it privately while Wanderbound processes the upload. The instance operator chooses the S3-compatible storage provider.
 - **Sentry** - Receives error reports, session replays, and performance traces as described above. [Sentry's privacy policy](https://sentry.io/privacy/) applies.
 
 We do not share your data with other third parties, sell your data, or serve ads.
@@ -49,17 +50,19 @@ We do not share your data with other third parties, sell your data, or serve ads
 
 The instance operator's server stores your uploaded data (photos, GPS tracks, trip metadata). We do not share data between instances or with other users.
 
+Your original Polarsteps ZIP is temporary transport data. Wanderbound deletes it from object storage after processing or cancellation. The configured object-storage lifecycle also removes expired uploads and incomplete multipart uploads.
+
 When the server reaches storage capacity, we remove uploaded files (photos and media) starting with the least-recently-active accounts. Your account and album configuration survive, but you may need to re-upload your Polarsteps archive to restore the removed files. The instance operator sets the storage limits.
 
 The instance operator controls the backup retention schedule.
 
 ## Security
 
-We protect your data with HTTPS in transit, encrypted database backups, and application-level access controls that isolate each user's data. Sensitive tokens (such as Google Photos OAuth refresh tokens) are encrypted at rest with Fernet (AES-128-CBC + HMAC-SHA256) using a key derived from the instance operator's `SECRET_KEY`. Uploaded files are stored in a directory structure keyed to your user ID and are not accessible to other users. The session cookie is HTTP-only and secure in production. For vulnerability reports, see [SECURITY.md](SECURITY.md).
+We protect your data with HTTPS in transit, encrypted database backups, private object storage, and application-level access controls that isolate each user's data. Browser uploads use short-lived signed URLs for parts of one temporary object. Sensitive tokens (such as Google Photos OAuth refresh tokens) are encrypted at rest with Fernet (AES-128-CBC + HMAC-SHA256) using a key derived from the instance operator's `SECRET_KEY`. Extracted files are stored in a directory structure keyed to your user ID and are not accessible to other users. The session cookie is HTTP-only and secure in production. For vulnerability reports, see [SECURITY.md](SECURITY.md).
 
 ## International Data Transfers
 
-Your data may reach third-party services outside your country: Google, Microsoft, Mapbox, and Sentry operate in the United States; Open-Meteo operates in the European Union; the OpenStreetMap Foundation operates in the United Kingdom. If you are in the EU, these transfers rely on the standard contractual clauses each provider maintains.
+Your data may reach third-party services outside your country: Google, Microsoft, Mapbox, and Sentry operate in the United States; Open-Meteo operates in the European Union; the OpenStreetMap Foundation operates in the United Kingdom. Temporary ZIP storage is located wherever the instance operator configures its object-storage provider. If a transfer leaves the European Economic Area, the instance operator is responsible for identifying and documenting the applicable safeguards.
 
 ## Children's Privacy
 

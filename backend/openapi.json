@@ -130,166 +130,6 @@
         }
       }
     },
-    "/api/v1/users/upload": {
-      "post": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Upload Data",
-        "operationId": "upload_data",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_data"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/upload/init": {
-      "post": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Init Chunked Upload",
-        "description": "Start a chunked upload session. Returns an opaque upload_id.",
-        "operationId": "init_chunked_upload",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Init Chunked Upload"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/upload/{upload_id}/{chunk_index}": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Upload Chunk",
-        "description": "Stream a chunk body to disk without loading it into memory.\n\nNo per-request auth: the cryptographic upload_id (256-bit\n``secrets.token_urlsafe``) acts as a bearer token.  Ownership is\nverified when the session is finalized in ``complete_chunked_upload``.",
-        "operationId": "upload_chunk",
-        "parameters": [
-          {
-            "name": "upload_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Upload Id"
-            }
-          },
-          {
-            "name": "chunk_index",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Chunk Index"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/upload/{upload_id}/complete": {
-      "post": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Complete Chunked Upload",
-        "description": "Assemble chunks and process the ZIP.",
-        "operationId": "complete_chunked_upload",
-        "parameters": [
-          {
-            "name": "upload_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Upload Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/users/demo": {
       "post": {
         "tags": [
@@ -549,6 +389,398 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/s3/multipart": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Create Upload",
+        "operationId": "create_upload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/s3/multipart/{upload_id}/{part_number}": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Sign Part",
+        "operationId": "sign_part",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "part_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Part Number"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignPartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/s3/multipart/{upload_id}": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List Parts",
+        "operationId": "list_parts",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderPart"
+                  },
+                  "title": "Response List Parts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Abort Upload",
+        "operationId": "abort_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Abort Upload"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/s3/multipart/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Complete Upload",
+        "operationId": "complete_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/{upload_id}/stream": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Upload Progress",
+        "operationId": "upload_progress",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/UploadProgressUpdate"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UploadCompleteEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UploadErrorEvent"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "progress": "#/components/schemas/UploadProgressUpdate",
+                        "complete": "#/components/schemas/UploadCompleteEvent",
+                        "error": "#/components/schemas/UploadErrorEvent"
+                      }
+                    }
+                  },
+                  "title": "Response 200 Upload Progress"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Complete Ingestion",
+        "operationId": "complete_ingestion",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
                 }
               }
             }
@@ -2737,20 +2969,6 @@
         ],
         "title": "Body_replace_device"
       },
-      "Body_upload_data": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_upload_data"
-      },
       "BoundaryAdjust": {
         "properties": {
           "start_time": {
@@ -2782,6 +3000,103 @@
           "new_boundary_time"
         ],
         "title": "BoundaryAdjust"
+      },
+      "CompletePart": {
+        "properties": {
+          "PartNumber": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Partnumber"
+          },
+          "ETag": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Etag"
+          }
+        },
+        "type": "object",
+        "required": [
+          "PartNumber",
+          "ETag"
+        ],
+        "title": "CompletePart"
+      },
+      "CompleteUploadRequest": {
+        "properties": {
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/CompletePart"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "title": "CompleteUploadRequest"
+      },
+      "CompleteUploadResponse": {
+        "properties": {
+          "location": {
+            "type": "string",
+            "title": "Location"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "title": "CompleteUploadResponse"
+      },
+      "CreateUploadRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Type"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/UploadMetadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "type",
+          "metadata"
+        ],
+        "title": "CreateUploadRequest"
+      },
+      "CreateUploadResponse": {
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "title": "Uploadid"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uploadId",
+          "key"
+        ],
+        "title": "CreateUploadResponse"
       },
       "Credential": {
         "properties": {
@@ -3407,6 +3722,29 @@
           "segments"
         ]
       },
+      "ProviderPart": {
+        "properties": {
+          "PartNumber": {
+            "type": "integer",
+            "title": "Partnumber"
+          },
+          "Size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "ETag": {
+            "type": "string",
+            "title": "Etag"
+          }
+        },
+        "type": "object",
+        "required": [
+          "PartNumber",
+          "Size",
+          "ETag"
+        ],
+        "title": "ProviderPart"
+      },
       "Segment": {
         "properties": {
           "uid": {
@@ -3591,6 +3929,32 @@
           "ready"
         ],
         "title": "SessionStatusResponse"
+      },
+      "SignPartResponse": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "PUT",
+            "title": "Method",
+            "default": "PUT"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Headers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "SignPartResponse"
       },
       "StepMediaLayout": {
         "properties": {
@@ -3881,6 +4245,84 @@
           "matches"
         ],
         "title": "UpgradeRequest"
+      },
+      "UploadCompleteEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "complete",
+            "title": "Type",
+            "default": "complete"
+          }
+        },
+        "type": "object",
+        "title": "UploadCompleteEvent"
+      },
+      "UploadErrorEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error",
+            "title": "Type",
+            "default": "error"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error_code"
+        ],
+        "title": "UploadErrorEvent"
+      },
+      "UploadMetadata": {
+        "properties": {
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size_bytes"
+        ],
+        "title": "UploadMetadata"
+      },
+      "UploadProgressUpdate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "progress",
+            "title": "Type",
+            "default": "progress"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "downloading",
+              "validating",
+              "importing"
+            ],
+            "title": "Phase"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "done",
+          "total"
+        ],
+        "title": "UploadProgressUpdate"
       },
       "UploadResult": {
         "properties": {

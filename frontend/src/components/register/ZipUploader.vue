@@ -1,40 +1,43 @@
 <script lang="ts" setup>
-import { client } from "@/client/client.gen";
 import type { UploadResult } from "@/client";
-import { useQuasar } from "quasar";
-import { onUnmounted, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useDirectZipUpload } from "@/composables/useDirectZipUpload";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
+import { useQuasar } from "quasar";
+import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 const emit = defineEmits<{
   uploaded: [data: UploadResult];
 }>();
 
-const baseUrl = client.getConfig().baseUrl;
-const CHUNK_SIZE = 80 * 1024 * 1024; // 80 MiB
-const PARALLEL_CHUNKS = 4;
-const MAX_RETRIES = 3;
-const RETRY_DELAYS = [1000, 2000, 4000];
-
 const maxUploadGb = Number(import.meta.env.VITE_MAX_UPLOAD_GB) || 4;
 const maxFileSize = maxUploadGb * 1024 * 1024 * 1024;
-
 const $q = useQuasar();
 const { t } = useI18n();
-
-const file = ref<File | null>(null);
-const uploading = ref(false);
-const progress = ref(0);
 const dragging = ref(false);
 const dragDepth = ref(0);
 const fileInputRef = ref<HTMLInputElement>();
-const abortController = ref<AbortController | null>(null);
-const chunkProgress = new Map<number, number>();
-
-onUnmounted(() => abortController.value?.abort());
+const {
+  file,
+  status,
+  progress,
+  processingPhase,
+  errorCode,
+  addFile,
+  cancel,
+  reset,
+} = useDirectZipUpload({
+  maxFileSize,
+  onUploaded: (result) => emit("uploaded", result),
+});
 
 function pickFiles() {
   fileInputRef.value?.click();
+}
+
+function pickNewFile() {
+  reset();
+  pickFiles();
 }
 
 function onFileSelected(event: Event) {
@@ -45,12 +48,13 @@ function onFileSelected(event: Event) {
 }
 
 function onDragEnter() {
-  dragDepth.value++;
+  dragDepth.value += 1;
   dragging.value = true;
 }
 
 function onDragLeave() {
-  if (--dragDepth.value === 0) dragging.value = false;
+  dragDepth.value -= 1;
+  if (dragDepth.value === 0) dragging.value = false;
 }
 
 function onDrop(event: DragEvent) {
@@ -61,7 +65,7 @@ function onDrop(event: DragEvent) {
 }
 
 function handleFile(selected: File) {
-  if (uploading.value) return;
+  if (status.value !== "idle") return;
   if (!selected.name.toLowerCase().endsWith(".zip") || selected.size === 0) {
     $q.notify({ type: "negative", message: t("register.badZip") });
     return;
@@ -73,163 +77,7 @@ function handleFile(selected: File) {
     });
     return;
   }
-  file.value = selected;
-  void startUpload(selected);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function updateProgress(totalSize: number) {
-  let sum = 0;
-  for (const v of chunkProgress.values()) sum += v;
-  progress.value = sum / totalSize;
-}
-
-async function uploadChunkWithRetry(
-  url: string,
-  blob: Blob,
-  chunkIndex: number,
-  totalSize: number,
-  signal: AbortSignal,
-): Promise<void> {
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", url);
-        xhr.withCredentials = true;
-        xhr.timeout = 120_000; // 2 minutes per chunk
-
-        const onAbort = () => {
-          xhr.abort();
-          reject(new DOMException("Aborted", "AbortError"));
-        };
-        signal.addEventListener("abort", onAbort, { once: true });
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            chunkProgress.set(chunkIndex, e.loaded);
-            updateProgress(totalSize);
-          }
-        };
-        xhr.onload = () => {
-          signal.removeEventListener("abort", onAbort);
-          if (xhr.status === 204) {
-            chunkProgress.set(chunkIndex, blob.size);
-            updateProgress(totalSize);
-            resolve();
-          } else {
-            reject(new Error(`${xhr.status}`));
-          }
-        };
-        xhr.onerror = () => {
-          signal.removeEventListener("abort", onAbort);
-          reject(new Error("Network error"));
-        };
-        xhr.ontimeout = () => {
-          signal.removeEventListener("abort", onAbort);
-          reject(new Error("Timeout"));
-        };
-        xhr.send(blob);
-      });
-      return;
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") throw e;
-      if (attempt === MAX_RETRIES) throw e;
-      await sleep(RETRY_DELAYS[attempt]);
-    }
-  }
-}
-
-function errorMessage(statusCode: number): string {
-  if (statusCode === 413)
-    return t("register.fileTooLarge", { max: maxUploadGb });
-  if (statusCode === 406) return t("register.badZip");
-  return t("register.uploadFailed");
-}
-
-async function startUpload(selected: File) {
-  uploading.value = true;
-  progress.value = 0;
-  const controller = new AbortController();
-  abortController.value = controller;
-
-  try {
-    // 1. Init
-    const initRes = await fetch(`${baseUrl}/api/v1/users/upload/init`, {
-      method: "POST",
-      credentials: "include",
-      signal: controller.signal,
-    });
-    if (!initRes.ok) throw new Error(`${initRes.status}`);
-    const { upload_id } = (await initRes.json()) as { upload_id: string };
-
-    // 2. Upload chunks in parallel via a fixed worker pool
-    const chunkCount = Math.ceil(selected.size / CHUNK_SIZE);
-    chunkProgress.clear();
-    const queue: number[] = Array.from({ length: chunkCount }, (_, i) => i);
-
-    const worker = async (): Promise<void> => {
-      while (queue.length > 0) {
-        const i = queue.shift();
-        if (i === undefined) return;
-        if (controller.signal.aborted) return;
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, selected.size);
-        const blob = selected.slice(start, end);
-        const url = `${baseUrl}/api/v1/users/upload/${upload_id}/${i}`;
-        await uploadChunkWithRetry(
-          url,
-          blob,
-          i,
-          selected.size,
-          controller.signal,
-        );
-      }
-    };
-
-    await Promise.all(
-      Array.from({ length: PARALLEL_CHUNKS }, () => worker()),
-    );
-
-    // 3. Complete
-    const completeRes = await fetch(
-      `${baseUrl}/api/v1/users/upload/${upload_id}/complete`,
-      {
-        method: "POST",
-        credentials: "include",
-        signal: controller.signal,
-      },
-    );
-    if (!completeRes.ok) throw new Error(`${completeRes.status}`);
-    const result = (await completeRes.json()) as UploadResult;
-    reset();
-    emit("uploaded", result);
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") {
-      reset();
-      return;
-    }
-    const status = e instanceof Error ? Number(e.message) : 0;
-    $q.notify({ type: "negative", message: errorMessage(status) });
-    reset();
-  }
-}
-
-function cancel() {
-  abortController.value?.abort();
-}
-
-function reset() {
-  abortController.value?.abort();
-  abortController.value = null;
-  file.value = null;
-  uploading.value = false;
-  progress.value = 0;
-  chunkProgress.clear();
+  addFile(selected);
 }
 </script>
 
@@ -237,9 +85,9 @@ function reset() {
   <div>
     <h3 class="upload-title text-h6 text-weight-semibold text-bright">
       <i18n-t keypath="register.uploadTitle">
-        <template #file
-          ><strong class="file-name">user_data.zip</strong></template
-        >
+        <template #file>
+          <strong class="file-name">user_data.zip</strong>
+        </template>
       </i18n-t>
     </h3>
     <input
@@ -250,19 +98,20 @@ function reset() {
       @change="onFileSelected"
     />
     <div class="uploader full-width" :class="{ 'uploader--dnd': dragging }">
-      <!-- Header: file name + progress label -->
       <div
         v-if="file"
         class="uploader-header row no-wrap items-center q-gutter-x-sm"
       >
         <span class="text-body2 text-bright ellipsis">{{ file.name }}</span>
-        <span v-if="uploading" class="text-caption text-faint">
+        <span
+          v-if="status === 'uploading' || status === 'processing'"
+          class="text-caption text-faint"
+        >
           {{ Math.round(progress * 100) }}%
         </span>
-        <q-spinner v-if="uploading" size="1rem" class="text-primary" />
         <q-space />
         <q-btn
-          v-if="uploading"
+          v-if="status === 'uploading'"
           flat
           dense
           size="sm"
@@ -272,9 +121,8 @@ function reset() {
         />
       </div>
 
-      <!-- Drop zone (no file selected) -->
       <div
-        v-if="!file"
+        v-if="status === 'idle'"
         class="drop-zone column items-center justify-center"
         role="button"
         tabindex="0"
@@ -291,13 +139,32 @@ function reset() {
         <span class="text-body2">{{ t("register.dropZone") }}</span>
       </div>
 
-      <!-- Progress bar (uploading) -->
-      <div v-else-if="uploading" class="upload-progress">
+      <div
+        v-else-if="status === 'uploading' || status === 'processing'"
+        class="upload-progress"
+        aria-live="polite"
+      >
         <q-linear-progress
           :value="progress"
           color="primary"
           class="upload-bar"
           :aria-label="t('register.uploadProgress')"
+        />
+        <p class="text-caption text-faint">
+          {{
+            status === "processing"
+              ? t(`register.uploadPhases.${processingPhase}`)
+              : t("register.uploadPhases.uploading")
+          }}
+        </p>
+      </div>
+
+      <div v-else class="upload-error" aria-live="polite">
+        <p>{{ t(`register.uploadErrors.${errorCode ?? "upload_failed"}`) }}</p>
+        <q-btn
+          color="primary"
+          :label="t('register.uploadAgain')"
+          @click="pickNewFile"
         />
       </div>
     </div>
@@ -313,14 +180,8 @@ function reset() {
   margin: 0 0 var(--gap-md-lg);
 }
 
-.upload-title .file-name {
+.file-name {
   font-weight: 700;
-}
-
-.uploader {
-  background: transparent;
-  border: none;
-  box-shadow: none;
 }
 
 .uploader-header {
@@ -338,7 +199,8 @@ function reset() {
     background var(--duration-fast) ease;
 }
 
-.drop-zone:hover {
+.drop-zone:hover,
+.uploader--dnd .drop-zone {
   border-color: var(--q-primary);
   background: color-mix(in srgb, var(--q-primary) 5%, transparent);
 }
@@ -346,42 +208,17 @@ function reset() {
 .drop-zone:focus-visible {
   outline: 0.125rem solid var(--q-primary);
   outline-offset: 0.125rem;
-  border-color: var(--q-primary);
 }
 
 .drop-zone-icon {
   color: var(--text-faint);
-  transition:
-    color var(--duration-fast) ease,
-    transform var(--duration-normal) cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.drop-zone:hover .drop-zone-icon {
-  color: var(--q-primary);
-  transform: translateY(-0.125rem);
-}
-
-.uploader--dnd .drop-zone {
-  border-color: var(--q-primary);
-  background: color-mix(in srgb, var(--q-primary) 5%, transparent);
-}
-
-.uploader--dnd .drop-zone-icon {
-  color: var(--q-primary);
-  transform: scale(1.1);
 }
 
 .upload-progress {
-  padding: 0;
+  padding-top: var(--gap-md);
 }
 
 .upload-bar {
   border-radius: var(--radius-xs);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .drop-zone-icon {
-    transition: color var(--duration-fast) ease;
-  }
 }
 </style>

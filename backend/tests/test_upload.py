@@ -103,6 +103,22 @@ def _trip_json(
 
 
 class TestSafeExtract:
+    def test_reports_uncompressed_byte_progress(self, tmp_path: Path) -> None:
+        first = _jpeg_bytes(20, 20)
+        second = _jpeg_bytes(30, 30)
+        progress: list[tuple[int, int]] = []
+
+        _safe_extract(
+            _make_zip(**{"first.jpg": first, "second.jpg": second}),
+            tmp_path,
+            progress.append,
+        )
+
+        total = len(first) + len(second)
+        assert progress[0] == (0, total)
+        assert progress[-1] == (total, total)
+        assert progress == sorted(set(progress))
+
     def test_rejects_too_many_files(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

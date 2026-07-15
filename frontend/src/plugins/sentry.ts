@@ -11,6 +11,19 @@ const PRELOAD_ERROR_PATTERNS = [
 const DEFAULT_SENTRY_TRACES_SAMPLE_RATE = 0.1;
 const SENTRY_APPLICATION_KEY = "wanderbound";
 const SENTRY_TRACE_PROPAGATION_TARGETS = [/^\/api\//];
+const PRESIGNED_URL_PARAMETER = "x-amz-signature";
+
+export function isSensitiveUploadUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value, window.location.origin);
+    return [...url.searchParams.keys()].some(
+      (key) => key.toLowerCase() === PRESIGNED_URL_PARAMETER,
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function setupSentry(app: App, router: Router, pinia: Pinia): void {
   if (!sentryEnabled()) return;
@@ -34,8 +47,18 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
       Sentry.replayIntegration({
         maskAllText: true,
         blockAllMedia: true,
+        beforeAddRecordingEvent(event) {
+          const payload = event.data.payload as { description?: unknown };
+          return event.data.tag === "performanceSpan" &&
+            isSensitiveUploadUrl(payload.description)
+            ? null
+            : event;
+        },
       }),
-      Sentry.browserTracingIntegration({ router }),
+      Sentry.browserTracingIntegration({
+        router,
+        shouldCreateSpanForRequest: (url) => !isSensitiveUploadUrl(url),
+      }),
       Sentry.thirdPartyErrorFilterIntegration({
         filterKeys: [SENTRY_APPLICATION_KEY],
         behaviour: "apply-tag-if-exclusively-contains-third-party-frames",
@@ -50,9 +73,15 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
     tracePropagationTargets: SENTRY_TRACE_PROPAGATION_TARGETS,
     replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
+    beforeBreadcrumb(breadcrumb) {
+      return isSensitiveUploadUrl(breadcrumb.data?.url) ? null : breadcrumb;
+    },
     beforeSend(event) {
       const message = event.exception?.values?.[0]?.value ?? "";
       if (PRELOAD_ERROR_PATTERNS.some((p) => message.includes(p))) return null;
+      event.breadcrumbs = event.breadcrumbs?.filter(
+        (breadcrumb) => !isSensitiveUploadUrl(breadcrumb.data?.url),
+      );
       return event;
     },
   });

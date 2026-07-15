@@ -4,20 +4,21 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tests.factories import (
-    mock_extract,
     sign_in as factory_sign_in,
-    sign_in_and_upload as factory_sign_in_and_upload,
+    sign_in_user as factory_sign_in_user,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from httpx import AsyncClient, Response
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @dataclass(frozen=True)
 class UserRoutes:
     client: AsyncClient
+    session: AsyncSession
 
     async def auth(self, provider: str, credential: str = "fake") -> Response:
         return await self.client.post(
@@ -34,28 +35,22 @@ class UserRoutes:
     ) -> None:
         await factory_sign_in(self.client, provider=provider, payload=payload)
 
-    async def sign_in_and_upload(
+    async def sign_in_user(
         self,
         users_dir: Path,
         provider: str = "google",
         payload: dict | None = None,
     ) -> dict:
-        return await factory_sign_in_and_upload(
-            self.client, users_dir, provider=provider, payload=payload
+        return await factory_sign_in_user(
+            self.client,
+            self.session,
+            users_dir,
+            provider=provider,
+            payload=payload,
         )
 
     async def logout(self) -> Response:
         return await self.client.post("/api/v1/auth/logout")
-
-    async def upload(self) -> Response:
-        return await self.client.post(
-            "/api/v1/users/upload",
-            files={"file": ("data.zip", b"fake", "application/zip")},
-        )
-
-    async def upload_with_extract(self, users_dir: Path) -> Response:
-        with mock_extract(users_dir):
-            return await self.upload()
 
     async def current(self) -> Response:
         return await self.client.get("/api/v1/users")
@@ -94,52 +89,3 @@ class UserRoutes:
 
     async def download_export(self, token: str) -> Response:
         return await self.client.get(f"/api/v1/users/export/download/{token}")
-
-    async def init_upload(self) -> Response:
-        return await self.client.post("/api/v1/users/upload/init")
-
-    async def start_chunked_upload(self, provider: str = "google") -> str:
-        await factory_sign_in(self.client, provider)
-        resp = await self.init_upload()
-        assert resp.status_code == 200
-        return resp.json()["upload_id"]
-
-    async def put_chunk(
-        self,
-        upload_id: str,
-        index: int,
-        content: bytes = b"fake-zip",
-    ) -> Response:
-        return await self.client.put(
-            f"/api/v1/users/upload/{upload_id}/{index}",
-            content=content,
-        )
-
-    async def put_chunk_ok(
-        self,
-        upload_id: str,
-        index: int,
-        content: bytes = b"fake-zip",
-    ) -> None:
-        resp = await self.put_chunk(upload_id, index, content)
-        assert resp.status_code == 204
-
-    async def complete_upload(self, upload_id: str) -> Response:
-        return await self.client.post(f"/api/v1/users/upload/{upload_id}/complete")
-
-    async def complete_upload_with_extract(
-        self,
-        upload_id: str,
-        users_dir: Path,
-    ) -> Response:
-        with mock_extract(users_dir):
-            return await self.complete_upload(upload_id)
-
-    async def complete_upload_with_extract_ok(
-        self,
-        upload_id: str,
-        users_dir: Path,
-    ) -> dict:
-        resp = await self.complete_upload_with_extract(upload_id, users_dir)
-        assert resp.status_code == 200
-        return resp.json()

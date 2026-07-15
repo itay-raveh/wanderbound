@@ -53,12 +53,12 @@ COPY --from=build-stage /app/frontend/dist/ /usr/share/nginx/html
 
 COPY ./frontend/nginx/nginx.conf /etc/nginx/templates/default.conf.template
 COPY ./frontend/nginx/proxy-params.conf /etc/nginx/proxy-params.conf
-COPY ./frontend/nginx/security-headers.conf /etc/nginx/security-headers.conf
 
-ENV NGINX_ENVSUBST_FILTER="BACKEND_HOST|BACKEND_PORT|MAX_UPLOAD_SIZE"
+ENV NGINX_ENVSUBST_FILTER="BACKEND_HOST|BACKEND_PORT|MAX_UPLOAD_SIZE|UPLOAD_S3_BROWSER_ORIGIN"
 ENV BACKEND_HOST=backend
 ENV BACKEND_PORT=8000
 ENV MAX_UPLOAD_SIZE=4
+ENV UPLOAD_S3_BROWSER_ORIGIN=http://localhost:3900
 
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /run /etc/nginx/conf.d
 

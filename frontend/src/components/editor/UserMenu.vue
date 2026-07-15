@@ -205,7 +205,7 @@ async function handleDelete() {
               class="menu-item-btn"
               @click="
                 menuOpen = false;
-                router.push({ name: 'upload' });
+                router.push({ name: 'upload', state: { reupload: true } });
               "
             >
               <q-icon :name="matUploadFile" size="1rem" />

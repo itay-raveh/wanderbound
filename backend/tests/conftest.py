@@ -1,4 +1,5 @@
 import dataclasses
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -12,10 +13,17 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+os.environ.setdefault("UPLOAD_S3_BUCKET", "test-uploads")
+os.environ.setdefault("UPLOAD_S3_REGION", "test")
+os.environ.setdefault("UPLOAD_S3_INTERNAL_ENDPOINT_URL", "http://localhost:3900")
+os.environ.setdefault("UPLOAD_S3_PUBLIC_ENDPOINT_URL", "http://localhost:3900")
+os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
+os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "test")
+os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "test")
+
 from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
-from app.logic.chunked_upload import upload_store
 from app.main import app
 from app.models.polarsteps import PSLocations, PSTrip
 from app.services.google_photos import GooglePhotosOAuth2
@@ -86,7 +94,6 @@ async def client(
     # the test transaction rollback and causing cross-test data leaks.
     with patch("app.api.v1.routes.users.run_eviction"):
         async with (
-            upload_store.lifespan(),
             AsyncClient(
                 transport=ASGITransport(app=app),
                 base_url="http://test",
