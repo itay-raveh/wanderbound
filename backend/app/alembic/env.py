@@ -8,7 +8,7 @@ from sqlmodel import SQLModel
 
 import alembic_postgresql_enum  # noqa: F401 - auto-handle enum types in migrations
 import app.models  # noqa: F401 - register all table models
-from app.core.config import get_settings
+from app.core.config import DatabaseSettings
 from app.core.db import PydanticJSON
 
 config = context.config
@@ -31,7 +31,8 @@ def render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | 
 
 
 def get_url() -> str:
-    return str(get_settings().SQLALCHEMY_DATABASE_URI)
+    settings = DatabaseSettings()  # type: ignore[call-arg]  # ty: ignore[missing-argument]
+    return str(settings.SQLALCHEMY_DATABASE_URI)
 
 
 def run_migrations_offline() -> None:

@@ -38,7 +38,7 @@ def ensure_psycopg_scheme(v: Any) -> Any:
     return v
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
         env_file="../.env",
@@ -47,6 +47,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    SQLALCHEMY_DATABASE_URI: Annotated[
+        PostgresDsn, BeforeValidator(ensure_psycopg_scheme)
+    ]
+
+
+class Settings(DatabaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
@@ -92,10 +98,6 @@ class Settings(BaseSettings):
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
             str(self.VITE_FRONTEND_URL).rstrip("/")
         ]
-
-    SQLALCHEMY_DATABASE_URI: Annotated[
-        PostgresDsn, BeforeValidator(ensure_psycopg_scheme)
-    ]
 
     VITE_MAPBOX_TOKEN: str | None = None
 
