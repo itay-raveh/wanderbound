@@ -324,7 +324,7 @@ if (props.printMode) {
         navScrollTopClearance(headerBottom) -
         pageEl.getBoundingClientRect().top;
       if (Math.abs(hiddenBy) > 1)
-        window.scrollBy({ top: -hiddenBy, behavior: "auto" });
+        window.scrollBy({ top: -hiddenBy, behavior: "instant" });
     }
     void nextTick(() => {
       requestAnimationFrame(() => {
@@ -355,20 +355,25 @@ if (props.printMode) {
         document
           .querySelector<HTMLElement>(".editor-header")
           ?.getBoundingClientRect().bottom ?? 0;
+      programmaticScrolling.value = true;
+      if (scrollClearTimer) clearTimeout(scrollClearTimer);
+      scrollClearTimer = setTimeout(clearProgrammaticScroll, 800);
       if (item) {
-        programmaticScrolling.value = true;
-        if (scrollClearTimer) clearTimeout(scrollClearTimer);
-        scrollClearTimer = setTimeout(clearProgrammaticScroll, 800);
         window.scrollTo({
           top: Math.max(
             0,
             item.start - headerBottom - navScrollTopClearance(headerBottom),
           ),
-          behavior: "auto",
+          behavior: "instant",
         });
-        correctScrollTarget(idx);
-        return;
+      } else {
+        virtualizer.scrollToIndex(idx, {
+          align: "start",
+          behavior: "instant",
+        });
       }
+      correctScrollTarget(idx);
+      return;
     }
     if (b === "smooth") {
       programmaticScrolling.value = true;
