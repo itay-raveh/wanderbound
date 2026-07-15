@@ -269,7 +269,8 @@ async def authorize(
     http: HttpClientsDep,
     nonce: Annotated[str, Query(min_length=8, max_length=64)],
 ) -> RedirectResponse:
-    redirect_uri = str(request.url_for("google_photos_callback"))
+    frontend_url = str(get_settings().VITE_FRONTEND_URL).rstrip("/")
+    redirect_uri = f"{frontend_url}{request.url_for('google_photos_callback').path}"
     # 303 See Other per RFC 9110 §15.4.4 for redirect-after-state-change.
     resp = RedirectResponse(url="", status_code=status.HTTP_303_SEE_OTHER)
     csrf, verifier = _issue_oauth_cookie(resp)
