@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,10 +28,12 @@ from app.logic.media_upgrade.phash_matching import (
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     MatchInProgress,
+    UpgradeCompleted,
     _clear_caches,
     _needs_upgrade,
     _persist_upgrade_in_session,
     run_matching,
+    run_upgrade,
 )
 from app.logic.media_upgrade.processing import (
     _MAX_LONG_EDGE,
@@ -469,3 +472,77 @@ class TestRunMatching:
 
         progress = [e for e in events[:-1] if isinstance(e, MatchInProgress)]
         assert {e.phase for e in progress} == {"preparing", "matching"}
+
+
+class TestRunUpgrade:
+    async def test_limits_upgrade_file_lifecycles_to_two(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        active = 0
+        max_active = 0
+        two_started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_replace(*_args: object, **_kwargs: object) -> bool:
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            if active == 2:
+                two_started.set()
+            try:
+                await release.wait()
+                return True
+            finally:
+                active -= 1
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._download_and_replace", fake_replace
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_upgrade", AsyncMock()
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._cleanup_picker_sessions", AsyncMock()
+        )
+
+        names = [
+            f"00000000-0000-4000-8000-{i:012d}_"
+            f"00000000-0000-4000-8000-{i + 10:012d}.jpg"
+            for i in range(4)
+        ]
+        matches = [
+            MatchResult(local_name=name, google_id=f"gp-{i}", distance=0)
+            for i, name in enumerate(names)
+        ]
+        items = {
+            f"gp-{i}": _make_item(f"gp-{i}", _match_dt(10).isoformat())
+            for i in range(4)
+        }
+
+        async def collect() -> list[object]:
+            return [
+                event
+                async for event in run_upgrade(
+                    clients=AsyncMock(),
+                    uid=1,
+                    aid="album",
+                    album_dir=tmp_path,
+                    matches=matches,
+                    google_items_by_id=items,
+                    upgrade_candidates=set(names),
+                    tokens=_test_token,
+                    session_ids=[],
+                )
+            ]
+
+        task = asyncio.create_task(collect())
+        try:
+            await asyncio.wait_for(two_started.wait(), timeout=1)
+            await asyncio.sleep(0)
+            observed_max = max_active
+        finally:
+            release.set()
+        events = await task
+
+        assert observed_max == 2
+        assert isinstance(events[-1], UpgradeCompleted)

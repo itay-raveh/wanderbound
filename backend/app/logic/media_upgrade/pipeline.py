@@ -61,11 +61,17 @@ from .processing import (
 logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
+_UPGRADE_CONCURRENCY = 2
 
 
 @functools.cache
 def _hash_limiter() -> anyio.CapacityLimiter:
     return anyio.CapacityLimiter(min(8, detect_cpu_count()))
+
+
+@functools.cache
+def _upgrade_limiter() -> anyio.CapacityLimiter:
+    return anyio.CapacityLimiter(_UPGRADE_CONCURRENCY)
 
 
 class MatchInProgress(BaseModel):
@@ -515,14 +521,15 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     if not item:
                         return None
                     try:
-                        replaced = await _download_and_replace(
-                            clients.gphotos_download,
-                            match.local_name,
-                            item,
-                            album_dir,
-                            tmp_dir,
-                            tokens,
-                        )
+                        async with _upgrade_limiter():
+                            replaced = await _download_and_replace(
+                                clients.gphotos_download,
+                                match.local_name,
+                                item,
+                                album_dir,
+                                tmp_dir,
+                                tokens,
+                            )
                     except (
                         OSError,
                         SyntaxError,
@@ -615,3 +622,4 @@ async def cleanup_orphaned_tmp(users_folder: Path) -> None:
 def _clear_caches() -> None:
     """Reset cached limiters (for test isolation across event loops)."""
     _hash_limiter.cache_clear()
+    _upgrade_limiter.cache_clear()
