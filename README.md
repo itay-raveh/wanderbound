@@ -45,10 +45,6 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 | **Object storage** | S3-compatible storage, Garage for Compose                           |
 | **External APIs**  | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
 
-ZIP archives use multipart uploads from the browser directly to private object
-storage through backend-issued presigned URLs. The backend processes the
-completed object, then deletes it from temporary upload storage.
-
 ## Self-Hosting
 
 Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
