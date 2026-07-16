@@ -7,21 +7,3 @@ declare module "*.vue" {
 }
 
 declare const APP_VERSION: string | undefined;
-
-interface ImportMetaEnv {
-  readonly VITE_ENVIRONMENT: "local" | "production";
-  readonly VITE_MAX_UPLOAD_GB: string;
-  readonly VITE_MAPBOX_TOKEN: string;
-  readonly VITE_GOOGLE_CLIENT_ID: string;
-  readonly VITE_MICROSOFT_CLIENT_ID: string;
-  readonly VITE_CONTACT_EMAIL?: string;
-  readonly VITE_GITHUB_URL?: string;
-  readonly VITE_AUTHOR_NAME?: string;
-  readonly VITE_AUTHOR_URL?: string;
-  readonly VITE_SENTRY_DSN?: string;
-  readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}

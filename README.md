@@ -67,6 +67,27 @@ For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
 The Compose stack runs the app, database, and frontend. Configure database and
 app data backups in your deployment infrastructure.
 
+The frontend reads its `VITE_*` settings when the container starts. Published
+frontend images do not contain one installation's values. Replace the frontend
+container after changing those settings.
+
+Published images use immutable `vMAJOR.MINOR.PATCH` release tags. Commits to
+`main` do not publish images, and no mutable `latest`, major, or minor aliases
+are published.
+
+Frontend source maps are published in a separate image with the same release
+tags. To upload a release's maps to your own Sentry project, set
+`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_FRONTEND_PROJECT`. Set
+`TAG` to the exact deployed frontend release tag. Set `SENTRY_URL` only for a
+non-default or self-hosted Sentry server, then run:
+
+```bash
+docker compose --profile sentry run --rm sentry-sourcemaps
+```
+
+This optional command reads the release from the source-map image. It does not
+change the application images or their startup configuration.
+
 The backend stores upload and processing progress in shared storage and Postgres,
 so multiple backend workers can serve the same user flow. All backend workers
 must use the same `DATA_FOLDER` volume and database.

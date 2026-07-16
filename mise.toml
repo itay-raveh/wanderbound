@@ -284,6 +284,10 @@ run = [
     "mise run check:generated:openapi",
 ]
 
+[tasks."check:public-images"]
+description = "Verify installation-neutral frontend and source-map images"
+run = 'uv run scripts/check_public_images.py "${FRONTEND_IMAGE:-wanderbound-frontend:local}" "${SOURCEMAPS_IMAGE:-wanderbound-sourcemaps:local}"'
+
 [tasks.generate]
 description = "Regenerate all derived assets (except landing - needs live servers)"
 depends = [

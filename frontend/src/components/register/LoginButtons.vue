@@ -2,8 +2,10 @@
 import { useI18n } from "vue-i18n";
 import { type CallbackTypes } from "vue3-google-login";
 
+import { frontendConfig } from "@/config";
+
 const { t } = useI18n();
-const googleSignInEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+const googleSignInEnabled = Boolean(frontendConfig.VITE_GOOGLE_CLIENT_ID);
 
 const emit = defineEmits<{
   google: [response: CallbackTypes.CredentialPopupResponse];

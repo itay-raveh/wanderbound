@@ -55,6 +55,7 @@ jobs:
             docker:
               - 'compose.yml'
               - 'compose.override.yml'
+              - 'docker-bake.hcl'
               - 'garage.toml'
               - '.dockerignore'
               - 'backend/Dockerfile'
@@ -69,6 +70,7 @@ jobs:
               - 'scripts/init_upload_bucket.sh'
               - 'scripts/generate_direct_upload_fixture.py'
               - 'scripts/run_direct_upload_integration.sh'
+              - 'scripts/check_public_images.py'
               - 'PRIVACY.md'
               - 'TERMS.md'
             ci:
@@ -252,6 +254,7 @@ jobs:
         with:
           source: .
           files: compose.yml
+          targets: backend,frontend
           load: true
           set: |
             backend.cache-from=type=gha,scope=backend,repository=${{ github.repository }},ghtoken=${{ github.token }}
@@ -262,12 +265,30 @@ jobs:
         with:
           source: .
           files: compose.yml
+          targets: backend,frontend
           load: true
           set: |
             backend.cache-from=type=gha,scope=backend,repository=${{ github.repository }},ghtoken=${{ github.token }}
             backend.cache-to=type=gha,mode=min,scope=backend,repository=${{ github.repository }},ghtoken=${{ github.token }}
             frontend.cache-from=type=gha,scope=frontend,repository=${{ github.repository }},ghtoken=${{ github.token }}
             frontend.cache-to=type=gha,mode=max,scope=frontend,repository=${{ github.repository }},ghtoken=${{ github.token }}
+      - name: Build paired frontend artifacts
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: docker-bake.hcl
+          targets: frontend-release
+          load: true
+          vars: |
+            APP_VERSION=ci
+            GIT_REVISION=${{ github.sha }}
+          set: |
+            frontend.cache-from=type=gha,scope=frontend-public,repository=${{ github.repository }},ghtoken=${{ github.token }}
+            sourcemaps.cache-from=type=gha,scope=frontend-sourcemaps,repository=${{ github.repository }},ghtoken=${{ github.token }}
+            frontend.cache-to=type=gha,mode=max,scope=frontend-public,repository=${{ github.repository }},ghtoken=${{ github.token }}
+            sourcemaps.cache-to=type=gha,mode=max,scope=frontend-sourcemaps,repository=${{ github.repository }},ghtoken=${{ github.token }}
+      - name: Verify paired frontend artifacts
+        run: mise run --skip-tools check:public-images
       - run: docker compose up -d --no-build
       - name: Wait for backend health
         run: |

@@ -11,16 +11,22 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Wanderbound" />
     <meta property="og:description" content="Turn your Polarsteps trips into photo albums" />
-    <meta property="og:image" content="%VITE_FRONTEND_URL%/og-image.png" />
-    <meta property="og:url" content="%VITE_FRONTEND_URL%/" />
+    <meta
+      property="og:image"
+      content="__WANDERBOUND_FRONTEND_URL__/og-image.png"
+    />
+    <meta property="og:url" content="__WANDERBOUND_FRONTEND_URL__/" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Wanderbound" />
     <meta name="twitter:description" content="Turn your Polarsteps trips into photo albums" />
-    <meta name="twitter:image" content="%VITE_FRONTEND_URL%/og-image.png" />
+    <meta
+      name="twitter:image"
+      content="__WANDERBOUND_FRONTEND_URL__/og-image.png"
+    />
 
-    <link rel="canonical" href="%VITE_FRONTEND_URL%/" />
+    <link rel="canonical" href="__WANDERBOUND_FRONTEND_URL__/" />
 
     <link rel="preload" href="/fonts/assistant-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="dns-prefetch" href="https://api.mapbox.com">
@@ -41,6 +47,7 @@
       })();
     </script>
     <div id="app"></div>
+    <script src="/config.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

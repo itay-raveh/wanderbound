@@ -1,6 +1,8 @@
 import type { PublicClientApplication } from "@azure/msal-browser";
 
-const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+import { frontendConfig } from "@/config";
+
+const clientId = frontendConfig.VITE_MICROSOFT_CLIENT_ID ?? "";
 
 let msalPromise: Promise<PublicClientApplication> | null = null;
 

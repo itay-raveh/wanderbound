@@ -1,10 +1,6 @@
 name: Publish
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
@@ -20,19 +16,28 @@ permissions:
   contents: read
 
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate stable SemVer tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tag must match vMAJOR.MINOR.PATCH without leading zeroes"
+            exit 1
+          fi
+
   build-backend:
-    if: >-
-      github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success'
+    needs: validate-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           lfs: true
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - id: app-version
-        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -43,13 +48,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-backend
+          flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=${{ steps.app-version.outputs.value }}
-            type=sha
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' }}
+            type=semver,pattern={{raw}}
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -63,117 +64,73 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   build-frontend:
-    if: >-
-      github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success'
+    needs: validate-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           lfs: true
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - id: app-version
-        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
+      - id: meta-frontend
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-frontend
+          bake-target: frontend
+          flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=${{ steps.app-version.outputs.value }}
-            type=sha
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' }}
-      - uses: docker/build-push-action@v7
+            type=semver,pattern={{raw}}
+      - id: meta-sourcemaps
+        uses: docker/metadata-action@v6
         with:
-          context: .
-          file: frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VITE_MAX_UPLOAD_GB=${{ vars.VITE_MAX_UPLOAD_GB }}
-            VITE_ENVIRONMENT=production
-            VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
-            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
-            VITE_CONTACT_EMAIL=${{ vars.VITE_CONTACT_EMAIL }}
-            VITE_GITHUB_URL=${{ vars.VITE_GITHUB_URL }}
-            VITE_AUTHOR_NAME=${{ vars.VITE_AUTHOR_NAME }}
-            VITE_AUTHOR_URL=${{ vars.VITE_AUTHOR_URL }}
-            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
-            VITE_SENTRY_TRACES_SAMPLE_RATE=${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE }}
-            VITE_FRONTEND_URL=${{ vars.VITE_FRONTEND_URL }}
-            VITE_MICROSOFT_CLIENT_ID=${{ vars.VITE_MICROSOFT_CLIENT_ID }}
-            SENTRY_ORG=${{ vars.SENTRY_ORG }}
-            SENTRY_FRONTEND_PROJECT=${{ vars.SENTRY_FRONTEND_PROJECT }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-sourcemaps
+          bake-target: sourcemaps
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{raw}}
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.4.8
+          install_args: python uv
+      - name: Build paired frontend artifacts for verification
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: |
+            ./docker-bake.hcl
+            cwd://${{ steps.meta-frontend.outputs.bake-file }}
+            cwd://${{ steps.meta-sourcemaps.outputs.bake-file }}
+          targets: frontend-release
+          load: true
+          vars: |
             APP_VERSION=${{ steps.app-version.outputs.value }}
-          secrets: |
-            "sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}"
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-
-  create-sentry-release:
-    if: >-
-      github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success'
-    needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
-    env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - id: app-version
-        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
-      - id: sentry-projects
+            GIT_REVISION=${{ github.sha }}
+          set: |
+            frontend.cache-from=type=gha,scope=frontend-public
+            frontend.cache-to=type=gha,mode=max,scope=frontend-public
+            sourcemaps.cache-from=type=gha,scope=frontend-sourcemaps
+            sourcemaps.cache-to=type=gha,mode=max,scope=frontend-sourcemaps
+      - name: Verify paired frontend artifacts
+        env:
+          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-frontend:${{ steps.meta-frontend.outputs.version }}
+          SOURCEMAPS_IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-sourcemaps:${{ steps.meta-sourcemaps.outputs.version }}
+        run: mise run --skip-tools check:public-images
+      - name: Push verified frontend artifacts
+        env:
+          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-frontend:${{ steps.meta-frontend.outputs.version }}
+          SOURCEMAPS_IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/wanderbound-sourcemaps:${{ steps.meta-sourcemaps.outputs.version }}
         run: |
-          projects=()
-          if [ -n "$SENTRY_FRONTEND_PROJECT" ]; then
-            projects+=("$SENTRY_FRONTEND_PROJECT")
-          fi
-          if [ -n "$SENTRY_BACKEND_PROJECT" ]; then
-            projects+=("$SENTRY_BACKEND_PROJECT")
-          fi
-          echo "value=${projects[*]}" >> "$GITHUB_OUTPUT"
-        env:
-          SENTRY_FRONTEND_PROJECT: ${{ vars.SENTRY_FRONTEND_PROJECT }}
-          SENTRY_BACKEND_PROJECT: ${{ vars.SENTRY_BACKEND_PROJECT }}
-      - name: Skip Sentry release
-        if: >-
-          env.SENTRY_AUTH_TOKEN == '' ||
-          env.SENTRY_ORG == '' ||
-          steps.sentry-projects.outputs.value == ''
-        run: echo "Skipping Sentry release because Sentry is not fully configured."
-      - uses: getsentry/action-release@v3
-        if: >-
-          env.SENTRY_AUTH_TOKEN != '' &&
-          env.SENTRY_ORG != '' &&
-          steps.sentry-projects.outputs.value != ''
-        env:
-          SENTRY_AUTH_TOKEN: ${{ env.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ env.SENTRY_ORG }}
-        with:
-          environment: production
-          release: ${{ steps.app-version.outputs.value }}
-          projects: ${{ steps.sentry-projects.outputs.value }}
-          set_commits: auto
-          ignore_missing: true
-          ignore_empty: true
-          disable_telemetry: true
+          docker push "$FRONTEND_IMAGE"
+          docker push "$SOURCEMAPS_IMAGE"
 
   create-github-release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     permissions:

@@ -166,6 +166,18 @@ services:
     restart: always
     <<: *security
     environment:
+      VITE_ENVIRONMENT: ${ENVIRONMENT:?Variable not set}
+      VITE_MAX_UPLOAD_GB: ${VITE_MAX_UPLOAD_GB:-4}
+      VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+      VITE_MICROSOFT_CLIENT_ID: ${VITE_MICROSOFT_CLIENT_ID:-}
+      VITE_CONTACT_EMAIL: ${VITE_CONTACT_EMAIL:-}
+      VITE_GITHUB_URL: ${VITE_GITHUB_URL:-}
+      VITE_AUTHOR_NAME: ${VITE_AUTHOR_NAME:-}
+      VITE_AUTHOR_URL: ${VITE_AUTHOR_URL:-}
+      VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+      VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:-http://localhost}
       UPLOAD_S3_BROWSER_ORIGIN: ${UPLOAD_S3_BROWSER_ORIGIN:-http://localhost:3900}
     tmpfs:
       - /etc/nginx/conf.d:uid=101,gid=101
@@ -188,18 +200,27 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      args:
-        - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
-        - VITE_ENVIRONMENT=${ENVIRONMENT:?Variable not set}
-        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
-        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
-        - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}
-        - VITE_GITHUB_URL=${VITE_GITHUB_URL:-}
-        - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME:-}
-        - VITE_AUTHOR_URL=${VITE_AUTHOR_URL:-}
-        - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
-        - VITE_SENTRY_TRACES_SAMPLE_RATE=${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
-        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-http://localhost}
+      target: frontend
+
+  sentry-sourcemaps:
+    profiles: [sentry]
+    image: ghcr.io/itay-raveh/wanderbound-sourcemaps:${TAG:-latest}
+    user: "101:101"
+    read_only: true
+    environment:
+      SENTRY_URL: ${SENTRY_URL:-https://sentry.io/}
+      SENTRY_ORG: ${SENTRY_ORG:-}
+      SENTRY_PROJECT: ${SENTRY_FRONTEND_PROJECT:-}
+      SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - 'exec sentry-cli sourcemaps upload --release "wanderbound@$${APP_VERSION#v}" --validate --wait /artifacts'
+    tmpfs:
+      - /tmp
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: sourcemaps
 
 networks:
   backend:

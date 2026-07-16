@@ -3,6 +3,9 @@ import type { Pinia } from "pinia";
 import type { App } from "vue";
 import type { Router } from "vue-router";
 
+import { frontendConfig } from "@/config";
+import { sentryRelease } from "@/sentryRelease";
+
 const PRELOAD_ERROR_PATTERNS = [
   "Failed to fetch dynamically imported module",
   "error loading dynamically imported module",
@@ -31,9 +34,9 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
   const tracesSampleRate = sentryTracesSampleRate();
   Sentry.init({
     app,
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.VITE_ENVIRONMENT,
-    release: APP_VERSION,
+    dsn: frontendConfig.VITE_SENTRY_DSN,
+    environment: frontendConfig.VITE_ENVIRONMENT,
+    release: sentryRelease(APP_VERSION),
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: true,
@@ -90,14 +93,14 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
 
 function sentryEnabled(): boolean {
   return (
-    import.meta.env.VITE_ENVIRONMENT === "production" &&
-    Boolean(import.meta.env.VITE_SENTRY_DSN)
+    frontendConfig.VITE_ENVIRONMENT === "production" &&
+    Boolean(frontendConfig.VITE_SENTRY_DSN)
   );
 }
 
 function sentryTracesSampleRate(): number {
   const value = Number(
-    import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ??
+    frontendConfig.VITE_SENTRY_TRACES_SAMPLE_RATE ??
       DEFAULT_SENTRY_TRACES_SAMPLE_RATE,
   );
   if (!Number.isFinite(value) || value < 0 || value > 1) {

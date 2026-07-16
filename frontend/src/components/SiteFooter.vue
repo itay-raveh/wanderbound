@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import { useI18n } from "vue-i18n";
 
+import { frontendConfig } from "@/config";
+
 const { t } = useI18n();
 
-const contactEmail = import.meta.env.VITE_CONTACT_EMAIL;
-const githubUrl = import.meta.env.VITE_GITHUB_URL;
-const authorName = import.meta.env.VITE_AUTHOR_NAME;
-const authorUrl = import.meta.env.VITE_AUTHOR_URL;
+const contactEmail = frontendConfig.VITE_CONTACT_EMAIL;
+const githubUrl = frontendConfig.VITE_GITHUB_URL;
+const authorName = frontendConfig.VITE_AUTHOR_NAME;
+const authorUrl = frontendConfig.VITE_AUTHOR_URL;
 const appVersion = APP_VERSION;
 const year = new Date().getFullYear();
 

@@ -25,6 +25,7 @@ import router from "./router";
 
 import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
+import { frontendConfig } from "@/config";
 import { setupSentry } from "@/plugins/sentry";
 
 client.setConfig({
@@ -42,7 +43,7 @@ app.use(PiniaColada);
 app.use(router);
 useChunkErrorRecovery(router);
 app.use(i18n);
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId = frontendConfig.VITE_GOOGLE_CLIENT_ID;
 if (googleClientId) {
   app.use(vue3GoogleLogin, { clientId: googleClientId });
 }

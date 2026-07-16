@@ -1,6 +1,7 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
+import { frontendConfig } from "@/config";
 import { useResizeObserver } from "@vueuse/core";
 import {
   onBeforeUnmount,
@@ -12,7 +13,7 @@ import {
   type Ref,
 } from "vue";
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+mapboxgl.accessToken = frontendConfig.VITE_MAPBOX_TOKEN ?? "";
 
 // Disable telemetry to avoid CORS errors from events.mapbox.com
 Object.defineProperty(
