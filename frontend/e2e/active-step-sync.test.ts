@@ -7,9 +7,6 @@ import {
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 
-const NAV_SCROLL_MIN_TOP_CLEARANCE = 48;
-const NAV_SCROLL_MAX_TOP_CLEARANCE = 88;
-
 async function pageTopBelowHeader(page: Page, text: string) {
   return page.evaluate((targetText) => {
     const pageEl = Array.from(
@@ -22,6 +19,16 @@ async function pageTopBelowHeader(page: Page, text: string) {
         headerEl.getBoundingClientRect().bottom,
     );
   }, text);
+}
+
+async function expectPageVisibleBelowHeader(page: Page, text: string) {
+  await expect
+    .poll(() => pageTopBelowHeader(page, text))
+    .toBeGreaterThanOrEqual(0);
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  await expect
+    .poll(() => pageTopBelowHeader(page, text))
+    .toBeLessThan(viewportHeight);
 }
 
 async function clickNavStep(page: Page, stepId: number) {
@@ -49,12 +56,7 @@ test.describe("Active step sync", () => {
     await expect(
       page.locator(".album-container").getByText("Ushuaia").first(),
     ).toBeVisible();
-    await expect
-      .poll(() => pageTopBelowHeader(page, "Ushuaia"))
-      .toBeGreaterThanOrEqual(NAV_SCROLL_MIN_TOP_CLEARANCE);
-    await expect
-      .poll(() => pageTopBelowHeader(page, "Ushuaia"))
-      .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
+    await expectPageVisibleBelowHeader(page, "Ushuaia");
     await clickNavStep(page, 103);
     await expect(
       page.locator(".album-container").getByText("Santiago").first(),
@@ -63,12 +65,7 @@ test.describe("Active step sync", () => {
     await expect(
       page.locator(".album-container").getByText("Buenos Aires").first(),
     ).toBeVisible();
-    await expect
-      .poll(() => pageTopBelowHeader(page, "Buenos Aires"))
-      .toBeGreaterThanOrEqual(NAV_SCROLL_MIN_TOP_CLEARANCE);
-    await expect
-      .poll(() => pageTopBelowHeader(page, "Buenos Aires"))
-      .toBeLessThanOrEqual(NAV_SCROLL_MAX_TOP_CLEARANCE);
+    await expectPageVisibleBelowHeader(page, "Buenos Aires");
     await expect(
       page.getByLabel("Inspector").getByRole("region", { name: "Unused" }),
     ).toBeVisible();

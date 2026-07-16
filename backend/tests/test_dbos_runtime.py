@@ -67,7 +67,7 @@ def test_launch_and_destroy_dbos_delegate_to_dbos_runtime() -> None:
     dbos_config_mock.assert_called_once_with(settings, run_admin_server=False)
     dbos.assert_called_once_with(config={"name": "x"})
     dbos.launch.assert_called_once_with()
-    dbos.destroy.assert_called_once_with(workflow_completion_timeout_sec=5)
+    dbos.destroy.assert_called_once()
 
 
 def test_dbos_config_generates_executor_id_when_unset(monkeypatch: Any) -> None:

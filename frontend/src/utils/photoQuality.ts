@@ -36,8 +36,6 @@ const DPI_WARNING_PRINT = 150;
 
 export const DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset =
   "relaxed";
-export const DEMO_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset =
-  "off";
 
 function dpiCautionThreshold(preset: MediaResolutionWarningPreset): number {
   return preset === "print" ? DPI_CAUTION_PRINT : DPI_CAUTION_DEFAULT;

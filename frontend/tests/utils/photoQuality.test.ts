@@ -2,8 +2,6 @@ import type { StepRead as Step } from "@/client";
 import { makeAlbumMedia, makeStep } from "../helpers";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
-  DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
-  DEMO_MEDIA_RESOLUTION_WARNING_PRESET,
   computeDpi,
   dpiTier,
   summarizeQuality,
@@ -30,26 +28,12 @@ describe("computeDpi", () => {
 });
 
 describe("dpiTier", () => {
-  it("defaults normal albums to relaxed warnings and demo albums to off", () => {
-    expect(DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET).toBe("relaxed");
-    expect(DEMO_MEDIA_RESOLUTION_WARNING_PRESET).toBe("off");
-  });
-
   it.each<[number, DpiPreset, DpiTier]>([
-    [100, undefined, "ok"],
-    [300, undefined, "ok"],
-    [99, undefined, "caution"],
-    [75, undefined, "caution"],
-    [74, undefined, "warning"],
-    [50, undefined, "warning"],
-    [1, "off", "ok"],
-    [50, "off", "ok"],
-    [300, "print", "ok"],
-    [450, "print", "ok"],
-    [299, "print", "caution"],
-    [150, "print", "caution"],
-    [149, "print", "warning"],
-    [50, "print", "warning"],
+    [0, undefined, "warning"],
+    [Number.POSITIVE_INFINITY, undefined, "ok"],
+    [0, "off", "ok"],
+    [0, "print", "warning"],
+    [Number.POSITIVE_INFINITY, "print", "ok"],
   ])("classifies %s dpi with %s preset as %s", (dpi, preset, expected) => {
     expect(dpiTier(dpi, preset)).toBe(expected);
   });

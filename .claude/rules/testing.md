@@ -21,6 +21,11 @@ Avoid tests that only prove wiring, initial state, library behavior, generated
 client behavior, mock behavior, or log output. If a test needs more mocks than
 assertions, it is probably at the wrong layer.
 
+Do not assert exact internal tuning defaults such as concurrency, timeout,
+retry, batch-size, or cache-capacity values. Inject configuration when needed
+to exercise behavior. Exact assertions remain appropriate for external
+contracts and user-visible requirements.
+
 ## Conventions
 
 - Frontend integration: Vitest + MSW. Do not mock Vue internals.
