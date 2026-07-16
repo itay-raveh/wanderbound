@@ -1,5 +1,7 @@
 import {
   makeAlbumMedia,
+  mockGooglePickerPopup,
+  mockReadyGooglePickerSession,
   provideTestAlbum,
   resetGooglePhotosMock,
   withParentSetup,
@@ -10,6 +12,7 @@ import {
   useReplaceExternalMedia,
 } from "@/composables/useReplaceExternalMedia";
 import { queryKeys } from "@/queries/keys";
+import { GOOGLE_REPLACEMENT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 
 const googlePhotosMock = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -68,6 +71,23 @@ describe("useReplaceExternalMedia", () => {
     expect(review?.current.previewUrl).toBe(
       "http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?d=2026-05-13T12%3A34%3A56Z",
     );
+  });
+
+  it("uses the single-item replacement contract for Google picker sessions", async () => {
+    mockReadyGooglePickerSession(googlePhotosMock);
+    mockGooglePickerPopup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
+    );
+
+    usePhotoFocus().focus(1, "photo.jpg");
+    const result = mountReplaceExternalMedia();
+
+    await expect(result.replaceFromGoogle()).resolves.toBe("photo.jpg");
+    expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
+      maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
+    });
   });
 
   it("invalidates print bundle after replacements", () => {

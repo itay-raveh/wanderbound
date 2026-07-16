@@ -3,11 +3,34 @@
 from __future__ import annotations
 
 from app.logic.trip_processing import (
+    default_media_resolution_warning_preset,
     resolve_international_waters,
     segment_timezone,
 )
+from app.models.album import (
+    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+    DEMO_MEDIA_RESOLUTION_WARNING_PRESET,
+)
 from app.models.polarsteps import Location, PSStep
-from tests.factories import make_ps_step
+from tests.factories import make_ps_step, make_user
+
+
+class TestDefaultMediaResolutionWarningPreset:
+    def test_uses_standard_preset_for_normal_users(self) -> None:
+        user = make_user(1, google_sub="test-sub")
+
+        assert (
+            default_media_resolution_warning_preset(user)
+            == DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET
+        )
+
+    def test_uses_demo_preset_for_demo_users(self) -> None:
+        user = make_user(1, first_name="Demo", is_demo=True)
+
+        assert (
+            default_media_resolution_warning_preset(user)
+            == DEMO_MEDIA_RESOLUTION_WARNING_PRESET
+        )
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:

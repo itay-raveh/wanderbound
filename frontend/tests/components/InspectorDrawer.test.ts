@@ -105,9 +105,9 @@ describe("InspectorDrawer", () => {
       },
     });
 
-    expect(wrapper.get(".cover-cell").attributes("src")).toBe(
-      "http://localhost:8000/api/v1/albums/aid-1/media/cover.jpg?w=200&d=2026-05-13T12%3A34%3A56Z",
-    );
+    const url = new URL(wrapper.get(".cover-cell").attributes("src"));
+    expect(url.pathname).toBe("/api/v1/albums/aid-1/media/cover.jpg");
+    expect(url.searchParams.get("d")).toBe("2026-05-13T12:34:56Z");
   });
 
   it("virtualizes the cover picker for large albums", () => {

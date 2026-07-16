@@ -25,91 +25,95 @@ export function pickSnapshot<T extends object>(
 
 const MAX_STACK = 50;
 
-let undoEntries: UndoEntry[] = [];
-let redoEntries: UndoEntry[] = [];
-let replaying = false;
+export function createUndoStack(maxEntries: number) {
+  let undoEntries: UndoEntry[] = [];
+  let redoEntries: UndoEntry[] = [];
+  let replaying = false;
 
-const canUndo = ref(false);
-const canRedo = ref(false);
+  const canUndo = ref(false);
+  const canRedo = ref(false);
 
-function syncFlags() {
-  canUndo.value = undoEntries.length > 0;
-  canRedo.value = redoEntries.length > 0;
-}
-
-let stepMutator: ((sid: number, update: StepMutationUpdate) => void) | null =
-  null;
-let albumMutator: ((update: AlbumUpdate) => void) | null = null;
-
-function replay(
-  entry: UndoEntry,
-  snapshot: StepMutationUpdate | AlbumUpdate,
-  focus?: PhotoFocusSnapshot,
-) {
-  replaying = true;
-  try {
-    if (entry.type === "step") {
-      stepMutator?.(entry.sid, snapshot as StepMutationUpdate);
-      if (focus) usePhotoFocus().restore(focus);
-    } else {
-      albumMutator?.(snapshot as AlbumUpdate);
-    }
-  } finally {
-    replaying = false;
+  function syncFlags() {
+    canUndo.value = undoEntries.length > 0;
+    canRedo.value = redoEntries.length > 0;
   }
+
+  let stepMutator: ((sid: number, update: StepMutationUpdate) => void) | null =
+    null;
+  let albumMutator: ((update: AlbumUpdate) => void) | null = null;
+
+  function replay(
+    entry: UndoEntry,
+    snapshot: StepMutationUpdate | AlbumUpdate,
+    focus?: PhotoFocusSnapshot,
+  ) {
+    replaying = true;
+    try {
+      if (entry.type === "step") {
+        stepMutator?.(entry.sid, snapshot as StepMutationUpdate);
+        if (focus) usePhotoFocus().restore(focus);
+      } else {
+        albumMutator?.(snapshot as AlbumUpdate);
+      }
+    } finally {
+      replaying = false;
+    }
+  }
+
+  function push(entry: UndoEntry) {
+    if (replaying) return;
+    if (undoEntries.length >= maxEntries) undoEntries.shift();
+    undoEntries.push(entry);
+    redoEntries = [];
+    syncFlags();
+  }
+
+  function undo() {
+    const entry = undoEntries.pop();
+    if (!entry) return;
+    redoEntries.push(entry);
+    syncFlags();
+    replay(
+      entry,
+      entry.before,
+      entry.type === "step" ? entry.focus?.before : undefined,
+    );
+  }
+
+  function redo() {
+    const entry = redoEntries.pop();
+    if (!entry) return;
+    if (undoEntries.length >= maxEntries) undoEntries.shift();
+    undoEntries.push(entry);
+    syncFlags();
+    replay(
+      entry,
+      entry.after,
+      entry.type === "step" ? entry.focus?.after : undefined,
+    );
+  }
+
+  function clear() {
+    undoEntries = [];
+    redoEntries = [];
+    stepMutator = null;
+    albumMutator = null;
+    syncFlags();
+  }
+
+  function registerMutators(
+    step: (sid: number, update: StepMutationUpdate) => void,
+    album: (update: AlbumUpdate) => void,
+  ) {
+    stepMutator = step;
+    albumMutator = album;
+  }
+
+  return { canUndo, canRedo, push, undo, redo, clear, registerMutators };
 }
 
-function push(entry: UndoEntry) {
-  if (replaying) return;
-  if (undoEntries.length >= MAX_STACK) undoEntries.shift();
-  undoEntries.push(entry);
-  redoEntries = [];
-  syncFlags();
-}
-
-function undo() {
-  const entry = undoEntries.pop();
-  if (!entry) return;
-  redoEntries.push(entry);
-  syncFlags();
-  replay(
-    entry,
-    entry.before,
-    entry.type === "step" ? entry.focus?.before : undefined,
-  );
-}
-
-function redo() {
-  const entry = redoEntries.pop();
-  if (!entry) return;
-  if (undoEntries.length >= MAX_STACK) undoEntries.shift();
-  undoEntries.push(entry);
-  syncFlags();
-  replay(
-    entry,
-    entry.after,
-    entry.type === "step" ? entry.focus?.after : undefined,
-  );
-}
-
-function clear() {
-  undoEntries = [];
-  redoEntries = [];
-  stepMutator = null;
-  albumMutator = null;
-  syncFlags();
-}
-
-function registerMutators(
-  step: (sid: number, update: StepMutationUpdate) => void,
-  album: (update: AlbumUpdate) => void,
-) {
-  stepMutator = step;
-  albumMutator = album;
-}
-
-const api = { canUndo, canRedo, push, undo, redo, clear, registerMutators };
+const undoStack = createUndoStack(MAX_STACK);
 
 export function useUndoStack() {
-  return api;
+  return undoStack;
 }

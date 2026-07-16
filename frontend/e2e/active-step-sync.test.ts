@@ -7,28 +7,23 @@ import {
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 
-async function pageTopBelowHeader(page: Page, text: string) {
+async function pageTopIsVisibleBelowHeader(page: Page, text: string) {
   return page.evaluate((targetText) => {
     const pageEl = Array.from(
       document.querySelectorAll<HTMLElement>(".page-container.step-main"),
     ).find((el) => el.textContent?.includes(targetText));
     const headerEl = document.querySelector<HTMLElement>(".editor-header");
-    if (!pageEl || !headerEl) return Number.NEGATIVE_INFINITY;
-    return Math.round(
-      pageEl.getBoundingClientRect().top -
-        headerEl.getBoundingClientRect().bottom,
+    if (!pageEl || !headerEl) return false;
+    const pageTop = pageEl.getBoundingClientRect().top;
+    return (
+      pageTop >= headerEl.getBoundingClientRect().bottom &&
+      pageTop < window.innerHeight
     );
   }, text);
 }
 
 async function expectPageVisibleBelowHeader(page: Page, text: string) {
-  await expect
-    .poll(() => pageTopBelowHeader(page, text))
-    .toBeGreaterThanOrEqual(0);
-  const viewportHeight = await page.evaluate(() => window.innerHeight);
-  await expect
-    .poll(() => pageTopBelowHeader(page, text))
-    .toBeLessThan(viewportHeight);
+  await expect.poll(() => pageTopIsVisibleBelowHeader(page, text)).toBe(true);
 }
 
 async function clickNavStep(page: Page, stepId: number) {
