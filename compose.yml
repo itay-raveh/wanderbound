@@ -51,13 +51,11 @@ services:
           pids: 256
     networks: [backend]
     command: [/garage, server, --single-node, --default-bucket]
-    ports:
-      - "127.0.0.1:3900:3900"
     environment:
-      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-}
-      GARAGE_DEFAULT_ACCESS_KEY: ${UPLOAD_S3_ACCESS_KEY_ID:?Variable not set}
-      GARAGE_DEFAULT_SECRET_KEY: ${UPLOAD_S3_SECRET_ACCESS_KEY:?Variable not set}
-      GARAGE_DEFAULT_BUCKET: ${UPLOAD_S3_BUCKET:-wanderbound-uploads}
+      - GARAGE_RPC_SECRET
+      - GARAGE_DEFAULT_ACCESS_KEY=${UPLOAD_S3_ACCESS_KEY_ID}
+      - GARAGE_DEFAULT_SECRET_KEY=${UPLOAD_S3_SECRET_ACCESS_KEY}
+      - GARAGE_DEFAULT_BUCKET=${UPLOAD_S3_BUCKET}
     healthcheck:
       test: [CMD, /garage, status]
       interval: 5s
@@ -80,19 +78,19 @@ services:
         condition: service_healthy
     environment:
       AWS_ENDPOINT_URL: http://object-storage:3900
-      AWS_DEFAULT_REGION: ${UPLOAD_S3_REGION:-garage}
-      AWS_ACCESS_KEY_ID: ${UPLOAD_S3_ACCESS_KEY_ID:?Variable not set}
-      AWS_SECRET_ACCESS_KEY: ${UPLOAD_S3_SECRET_ACCESS_KEY:?Variable not set}
+      AWS_DEFAULT_REGION: ${UPLOAD_S3_REGION}
+      AWS_ACCESS_KEY_ID: ${UPLOAD_S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${UPLOAD_S3_SECRET_ACCESS_KEY}
       AWS_EC2_METADATA_DISABLED: "true"
-      UPLOAD_S3_BUCKET: ${UPLOAD_S3_BUCKET:-wanderbound-uploads}
-      UPLOAD_CORS_ORIGIN: ${VITE_FRONTEND_URL:-http://localhost:5173}
+      UPLOAD_S3_BUCKET: ${UPLOAD_S3_BUCKET}
+      UPLOAD_CORS_ORIGIN: ${VITE_FRONTEND_URL}
     tmpfs:
       - /tmp
     volumes:
       - ./scripts/init_upload_bucket.sh:/scripts/init_upload_bucket.sh:ro
 
   backend:
-    image: 'backend:${TAG:-latest}'
+    image: 'backend:${TAG}'
     restart: always
     <<: *security
     init: true
@@ -118,36 +116,38 @@ services:
         condition: service_healthy
         restart: true
     environment:
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      SECRET_KEY: ${SECRET_KEY:?Variable not set}
-      SECRET_KEY_PREVIOUS: ${SECRET_KEY_PREVIOUS:-}
-      VITE_FRONTEND_URL: ${VITE_FRONTEND_URL:-}
-      FRONTEND_URL: ${FRONTEND_URL:-http://frontend:8080}
-      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      VITE_MICROSOFT_CLIENT_ID: ${VITE_MICROSOFT_CLIENT_ID:-}
-      MAX_STORAGE_BYTES: ${MAX_STORAGE_BYTES:-}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
-      VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
-      ENVIRONMENT: ${ENVIRONMENT:?Variable not set}
-      APP_VERSION: ${APP_VERSION:-}
-      DBOS_SYSTEM_DATABASE_URI: ${DBOS_SYSTEM_DATABASE_URI:-}
-      DBOS_EXECUTOR_ID: ${DBOS_EXECUTOR_ID:-}
-      DBOS_ADMIN_PORT: ${DBOS_ADMIN_PORT:-3001}
-      DBOS_RUN_ADMIN_SERVER: ${DBOS_RUN_ADMIN_SERVER:-true}
-      DBOS_HEARTBEAT_TTL_SECONDS: ${DBOS_HEARTBEAT_TTL_SECONDS:-60}
-      DBOS_RECOVERY_INTERVAL_SECONDS: ${DBOS_RECOVERY_INTERVAL_SECONDS:-10}
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      UPLOAD_S3_BUCKET: ${UPLOAD_S3_BUCKET:?Variable not set}
-      UPLOAD_S3_REGION: ${UPLOAD_S3_REGION:?Variable not set}
-      UPLOAD_S3_INTERNAL_ENDPOINT_URL: ${UPLOAD_S3_INTERNAL_ENDPOINT_URL:?Variable not set}
-      UPLOAD_S3_PUBLIC_ENDPOINT_URL: ${UPLOAD_S3_PUBLIC_ENDPOINT_URL:?Variable not set}
-      UPLOAD_S3_ADDRESSING_STYLE: ${UPLOAD_S3_ADDRESSING_STYLE:?Variable not set}
-      UPLOAD_S3_ACCESS_KEY_ID: ${UPLOAD_S3_ACCESS_KEY_ID:?Variable not set}
-      UPLOAD_S3_SECRET_ACCESS_KEY: ${UPLOAD_S3_SECRET_ACCESS_KEY:?Variable not set}
-      UPLOAD_S3_PRESIGN_TTL_SECONDS: ${UPLOAD_S3_PRESIGN_TTL_SECONDS:-900}
-      UPLOAD_SESSION_TTL_SECONDS: ${UPLOAD_SESSION_TTL_SECONDS:-86400}
-      VITE_MAX_UPLOAD_GB: ${VITE_MAX_UPLOAD_GB:-4}
+      - SQLALCHEMY_DATABASE_URI=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - SECRET_KEY
+      - SECRET_KEY_PREVIOUS
+      - VITE_FRONTEND_URL
+      - FRONTEND_URL=http://frontend:8080
+      - VITE_GOOGLE_CLIENT_ID
+      - GOOGLE_CLIENT_SECRET
+      - VITE_MICROSOFT_CLIENT_ID
+      - DATA_FOLDER
+      - MAX_STORAGE_BYTES
+      - BACKEND_CORS_ORIGINS
+      - VITE_MAPBOX_TOKEN
+      - ENVIRONMENT
+      - LOG_LEVEL
+      - APP_VERSION
+      - DBOS_SYSTEM_DATABASE_URI
+      - DBOS_EXECUTOR_ID
+      - DBOS_ADMIN_PORT
+      - DBOS_RUN_ADMIN_SERVER
+      - DBOS_HEARTBEAT_TTL_SECONDS
+      - DBOS_RECOVERY_INTERVAL_SECONDS
+      - SENTRY_DSN
+      - SENTRY_TRACES_SAMPLE_RATE
+      - UPLOAD_S3_BUCKET
+      - UPLOAD_S3_REGION
+      - UPLOAD_S3_INTERNAL_ENDPOINT_URL=http://object-storage:3900
+      - UPLOAD_S3_PUBLIC_ENDPOINT_URL
+      - UPLOAD_S3_ADDRESSING_STYLE
+      - UPLOAD_S3_ACCESS_KEY_ID
+      - UPLOAD_S3_SECRET_ACCESS_KEY
+      - UPLOAD_S3_PRESIGN_TTL_SECONDS
+      - UPLOAD_SESSION_TTL_SECONDS
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
@@ -162,11 +162,11 @@ services:
       - app-data:/app/backend/data
 
   frontend:
-    image: 'frontend:${TAG:-latest}'
+    image: 'frontend:${TAG}'
     restart: always
     <<: *security
     environment:
-      UPLOAD_S3_BROWSER_ORIGIN: ${UPLOAD_S3_BROWSER_ORIGIN:-http://localhost:3900}
+      - UPLOAD_S3_BROWSER_ORIGIN
     tmpfs:
       - /etc/nginx/conf.d:uid=101,gid=101
       - /var/cache/nginx:uid=101,gid=101
@@ -189,17 +189,20 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        - VITE_MAX_UPLOAD_GB=${VITE_MAX_UPLOAD_GB:-4}
-        - VITE_ENVIRONMENT=${ENVIRONMENT:?Variable not set}
-        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
-        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
-        - VITE_CONTACT_EMAIL=${VITE_CONTACT_EMAIL:-}
-        - VITE_GITHUB_URL=${VITE_GITHUB_URL:-}
-        - VITE_AUTHOR_NAME=${VITE_AUTHOR_NAME:-}
-        - VITE_AUTHOR_URL=${VITE_AUTHOR_URL:-}
-        - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
-        - VITE_SENTRY_TRACES_SAMPLE_RATE=${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
-        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-http://localhost}
+        - ENVIRONMENT
+        - VITE_MAPBOX_TOKEN
+        - VITE_GOOGLE_CLIENT_ID
+        - VITE_CONTACT_EMAIL
+        - VITE_GITHUB_URL
+        - VITE_AUTHOR_NAME
+        - VITE_AUTHOR_URL
+        - VITE_SENTRY_DSN
+        - VITE_SENTRY_TRACES_SAMPLE_RATE
+        - VITE_FRONTEND_URL
+        - VITE_MICROSOFT_CLIENT_ID
+        - APP_VERSION
+        - SENTRY_ORG
+        - SENTRY_FRONTEND_PROJECT
 
 networks:
   backend:

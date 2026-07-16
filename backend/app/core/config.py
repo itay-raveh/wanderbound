@@ -76,7 +76,8 @@ class Settings(DatabaseSettings):
     VITE_GOOGLE_CLIENT_ID: str = ""
     VITE_MICROSOFT_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    VITE_MAX_UPLOAD_GB: int = Field(default=4, ge=1, le=4)
+    MAX_UPLOAD_SIZE_BYTES: int = Field(default=4 * 1024**3, gt=0)
+    UPLOAD_PART_SIZE_BYTES: int = Field(default=64 * 1024**2, gt=0)
 
     UPLOAD_S3_BUCKET: str
     UPLOAD_S3_REGION: str
@@ -99,7 +100,7 @@ class Settings(DatabaseSettings):
             str(self.VITE_FRONTEND_URL).rstrip("/")
         ]
 
-    VITE_MAPBOX_TOKEN: str | None = None
+    VITE_MAPBOX_TOKEN: str
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
     MAX_STORAGE_BYTES: int = 0
@@ -123,8 +124,6 @@ class Settings(DatabaseSettings):
         if self.ENVIRONMENT != "production":
             return self
         missing: list[str] = []
-        if not self.VITE_MAPBOX_TOKEN:
-            missing.append("VITE_MAPBOX_TOKEN")
         if "localhost" in str(self.VITE_FRONTEND_URL):
             missing.append("VITE_FRONTEND_URL")
         if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:

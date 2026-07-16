@@ -34,10 +34,9 @@ printf '%s\n' \
   "POSTGRES_USER=postgres" \
   "POSTGRES_DB=app" \
   "ENVIRONMENT=local" \
-  "VITE_ENVIRONMENT=local" \
   "DOMAIN=localhost" \
   "VITE_FRONTEND_URL=http://localhost:5173" \
-  "VITE_MAX_UPLOAD_GB=1" \
+  "VITE_MAPBOX_TOKEN=integration-mapbox-token" \
   "MAX_STORAGE_BYTES=1073741824" \
   "UPLOAD_S3_BUCKET=wanderbound-integration-uploads" \
   "UPLOAD_S3_REGION=garage" \
@@ -54,7 +53,7 @@ set -a
 source "$env_file"
 set +a
 uv run --directory "$root/backend" python ../scripts/generate_openapi.py
-python "$root/scripts/generate_direct_upload_fixture.py" "$fixture"
+uv run --directory "$root/backend" python ../scripts/generate_direct_upload_fixture.py "$fixture"
 "${compose[@]}" down --volumes --remove-orphans
 "${compose[@]}" up --detach --build --wait
 

@@ -21,7 +21,7 @@ from app.logic.workflows.uploads import (
     start_upload_workflow,
     upload_workflow_id,
 )
-from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
+from app.models.processing import UploadSession
 from app.models.upload import UploadResult
 from app.models.user import User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
@@ -116,12 +116,13 @@ def _require_key(row: UploadSession, key: str) -> None:
 
 
 def _part_size(row: UploadSession, part_number: int) -> int:
-    count = (row.size_bytes + UPLOAD_PART_SIZE_BYTES - 1) // UPLOAD_PART_SIZE_BYTES
+    part_size = get_settings().UPLOAD_PART_SIZE_BYTES
+    count = (row.size_bytes + part_size - 1) // part_size
     if not 1 <= part_number <= count:
         raise _error("upload_invalid_part", status.HTTP_422_UNPROCESSABLE_CONTENT)
     return min(
-        UPLOAD_PART_SIZE_BYTES,
-        row.size_bytes - (part_number - 1) * UPLOAD_PART_SIZE_BYTES,
+        part_size,
+        row.size_bytes - (part_number - 1) * part_size,
     )
 
 
@@ -139,7 +140,7 @@ async def create_upload(
     session: SessionDep,
     store: UploadStoreDep,
 ) -> CreateUploadResponse:
-    maximum = get_settings().VITE_MAX_UPLOAD_GB * 1024**3
+    maximum = get_settings().MAX_UPLOAD_SIZE_BYTES
     if not 0 < payload.metadata.size_bytes <= maximum:
         raise _error("upload_invalid_size", status.HTTP_400_BAD_REQUEST)
     existing, identity = await _resolve_auth(request, session)

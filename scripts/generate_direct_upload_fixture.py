@@ -1,11 +1,14 @@
 import json
 from pathlib import Path
-from sys import argv
+from sys import argv, path
 from zipfile import ZIP_STORED, ZipFile
 
+ROOT = Path(__file__).resolve().parents[1]
+path.insert(0, str(ROOT / "backend"))
 
-PART_SIZE = 64 * 1024 * 1024
-PAYLOAD_SIZE = 2 * PART_SIZE + 1024 * 1024
+from app.core.config import Settings  # noqa: E402
+
+PAYLOAD_SIZE = 2 * Settings.model_fields["UPLOAD_PART_SIZE_BYTES"].default + 1024 * 1024
 WRITE_SIZE = 1024 * 1024
 
 

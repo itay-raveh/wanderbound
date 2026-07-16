@@ -47,7 +47,8 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 
 ## Self-Hosting
 
-Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
+Requires [Docker](https://docs.docker.com/get-docker/) with Compose and
+[mise](https://mise.jdx.dev/).
 
 ```bash
 git clone https://github.com/itay-raveh/wanderbound.git
@@ -55,17 +56,16 @@ cd wanderbound
 
 cp .env.example .env
 # Fill in the required values
-
-docker compose up -d
+mise run dev
 ```
 
 Open `http://localhost:5173`.
 
-For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
-`docker compose -f compose.yml up -d`.
+Garage is only the local Compose object store. Production deployments must set
+the exact internal and public S3 endpoints provided by their storage service.
 
-The Compose stack runs the app, database, and frontend. Configure database and
-app data backups in your deployment infrastructure.
+The Compose stack runs the app, database, object storage, and frontend.
+Configure database and app data backups in your deployment infrastructure.
 
 The backend stores upload and processing progress in shared storage and Postgres,
 so multiple backend workers can serve the same user flow. All backend workers
@@ -78,7 +78,9 @@ commands. Install it, then:
 
 ```bash
 mise run setup               # Install deps, generate assets, run migrations
-docker compose up db -d      # Start Postgres
+mise run dev                 # Start the complete Compose development stack
+mise run dev:db              # Start only Postgres
+mise run dev:storage         # Start only Garage and configure its bucket
 mise run dev:backend         # FastAPI dev server
 mise run dev:frontend        # Vite dev server
 ```

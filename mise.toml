@@ -22,10 +22,29 @@ run = [
     "prek install --prepare-hooks",
     "prek install --hook-type commit-msg",
     "mise run generate",
+    "mise run dev:db",
     "mise run db:migrate",
 ]
 
 # -- Dev servers --------------------------------------------------
+
+[tasks."dev:db"]
+description = "Start the development Postgres container"
+run = "docker compose up db --detach"
+
+[tasks."dev:storage"]
+description = "Start the development Garage containers"
+run = "docker compose up object-storage object-storage-init --detach"
+
+[tasks.dev]
+description = "Create the shared network and start the development stack"
+run = '''
+network=$(docker compose config --format json | python -c 'import json, sys; print(json.load(sys.stdin)["networks"]["frontend"]["name"])')
+if ! docker network inspect "$network" >/dev/null 2>&1; then
+  docker network create "$network"
+fi
+docker compose up --detach
+'''
 
 [tasks."dev:backend"]
 description = "Start backend dev server"
@@ -155,15 +174,15 @@ run = 'uv run alembic revision --autogenerate -m "$usage_name"'
 
 [tasks."db:shell"]
 description = "Open interactive psql session"
-run = "docker compose exec db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}"
+run = "docker compose exec db psql -U ${POSTGRES_USER:?Variable not set} -d ${POSTGRES_DB:?Variable not set}"
 raw = true
 
 [tasks."db:reset"]
 description = "Drop and recreate database, then run migrations"
 confirm = "This will permanently drop all data in the database. Continue?"
 run = [
-    "docker compose exec db dropdb -U ${POSTGRES_USER:-postgres} --if-exists ${POSTGRES_DB:-app}",
-    "docker compose exec db createdb -U ${POSTGRES_USER:-postgres} ${POSTGRES_DB:-app}",
+    "docker compose exec db dropdb -U ${POSTGRES_USER:?Variable not set} --if-exists ${POSTGRES_DB:?Variable not set}",
+    "docker compose exec db createdb -U ${POSTGRES_USER:?Variable not set} ${POSTGRES_DB:?Variable not set}",
     "mise run db:migrate",
 ]
 
@@ -236,6 +255,16 @@ sources = ["app/**/*.py", "../scripts/generate_openapi.py"]
 outputs = ["openapi.json"]
 run = "uv run python ../scripts/generate_openapi.py"
 
+[tasks."generate:upload-config"]
+description = "Generate frontend upload constants from backend Settings"
+dir = "backend"
+sources = ["app/core/config.py", "../scripts/generate_upload_config.py"]
+outputs = [
+    "../frontend/src/generated/uploadConfig.ts",
+    "../frontend/nginx/generated-upload-limits.conf",
+]
+run = "uv run python ../scripts/generate_upload_config.py"
+
 [tasks."generate:landing"]
 description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
 run = "bun scripts/generate-landing.ts"
@@ -268,6 +297,10 @@ run = "scripts/check-generated.sh og-image generate:og-image frontend/public/og-
 description = "Check OpenAPI generated asset"
 run = "scripts/check-generated.sh openapi generate:openapi backend/openapi.json"
 
+[tasks."check:generated:upload-config"]
+description = "Check generated frontend upload constants"
+run = "scripts/check-generated.sh upload-config generate:upload-config frontend/src/generated/uploadConfig.ts frontend/nginx/generated-upload-limits.conf"
+
 [tasks."check:generated:landing"]
 description = "Check landing screenshot generated assets"
 run = "scripts/check-generated.sh landing generate:landing frontend/public/landing"
@@ -282,6 +315,7 @@ run = [
     "mise run check:generated:topo",
     "mise run check:generated:og-image",
     "mise run check:generated:openapi",
+    "mise run check:generated:upload-config",
 ]
 
 [tasks.generate]
@@ -294,6 +328,7 @@ depends = [
     "generate:weather-icons",
     "generate:og-image",
     "generate:openapi",
+    "generate:upload-config",
 ]
 
 # -- Changelog ----------------------------------------------------

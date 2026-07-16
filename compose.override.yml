@@ -5,6 +5,10 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
+  object-storage:
+    ports:
+      - "127.0.0.1:3900:3900"
+
   backend:
     restart: "no"
     ports:
@@ -36,5 +40,3 @@ services:
 networks:
   backend:
     internal: false
-  frontend:
-    external: false

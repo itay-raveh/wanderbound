@@ -5,11 +5,11 @@ import {
   type UploadProgressUpdate,
   type UploadResult,
 } from "@/client";
+import { UPLOAD_PART_SIZE_BYTES } from "@/generated/uploadConfig";
 import AwsS3 from "@uppy/aws-s3";
 import Uppy, { type UppyFile } from "@uppy/core";
 import { onScopeDispose, ref } from "vue";
 
-const PART_SIZE = 64 * 1024 * 1024;
 const COMPLETION_ATTEMPTS = 3;
 const STREAM_CONNECTIONS = 3;
 
@@ -133,7 +133,7 @@ export function useDirectZipUpload(options: {
     limit: 8,
     shouldUseMultipart: true,
     allowedMetaFields: ["size_bytes"],
-    getChunkSize: () => PART_SIZE,
+    getChunkSize: () => UPLOAD_PART_SIZE_BYTES,
   });
 
   function clearState() {

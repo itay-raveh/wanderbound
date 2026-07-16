@@ -1,4 +1,8 @@
 services:
+  object-storage:
+    ports:
+      - "127.0.0.1:3900:3900"
+
   backend:
     command: >-
       sh -c "alembic upgrade head &&

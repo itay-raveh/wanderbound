@@ -21,7 +21,6 @@ UploadStatus = Literal[
     "failed",
     "aborted",
 ]
-UPLOAD_PART_SIZE_BYTES = 67_108_864
 
 
 def _now() -> datetime:

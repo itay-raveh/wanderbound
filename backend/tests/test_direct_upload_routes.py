@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.v1.deps import _get_upload_store
+from app.core.config import get_settings
 from app.main import app
 from app.models.processing import UploadSession
 from app.models.upload import UploadResult
@@ -17,11 +18,11 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-def _payload() -> dict[str, object]:
+def _payload(size_bytes: int = 1) -> dict[str, object]:
     return {
         "filename": "polarsteps.zip",
         "type": "application/zip",
-        "metadata": {"size_bytes": "1"},
+        "metadata": {"size_bytes": str(size_bytes)},
     }
 
 
@@ -36,6 +37,26 @@ async def test_multipart_routes_require_an_upload_owner(client: AsyncClient) -> 
     response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
 
     assert response.status_code == 401
+
+
+async def test_upload_size_limit_uses_settings(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+    maximum = get_settings().MAX_UPLOAD_SIZE_BYTES
+
+    accepted = await client.post(
+        "/api/v1/users/uploads/s3/multipart", json=_payload(maximum)
+    )
+    rejected = await client.post(
+        "/api/v1/users/uploads/s3/multipart", json=_payload(maximum + 1)
+    )
+
+    assert accepted.status_code == 201
+    assert rejected.status_code == 400
 
 
 async def test_uppy_multipart_contract(
