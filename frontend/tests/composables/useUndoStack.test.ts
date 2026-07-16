@@ -1,29 +1,21 @@
-import { useUndoStack } from "@/composables/useUndoStack";
+import { createUndoStack } from "@/composables/useUndoStack";
 
-// useUndoStack is a singleton - clear between tests to avoid cross-contamination.
-let stack: ReturnType<typeof useUndoStack>;
+it("evicts the oldest undo entry when capacity is exceeded", () => {
+  const stack = createUndoStack(2);
+  const restored: number[] = [];
+  stack.registerMutators((sid) => restored.push(sid), vi.fn());
 
-beforeEach(() => {
-  stack = useUndoStack();
-  stack.clear();
-});
+  for (const sid of [1, 2, 3]) {
+    stack.push({
+      type: "step",
+      sid,
+      before: { name: "old" },
+      after: { name: "new" },
+    });
+  }
+  stack.undo();
+  stack.undo();
+  stack.undo();
 
-// ---------------------------------------------------------------------------
-// Max stack size
-// ---------------------------------------------------------------------------
-
-describe("max stack size", () => {
-  it("evicts oldest entry when exceeding MAX_STACK on push", () => {
-    // MAX_STACK is 50 (internal constant)
-    for (let i = 0; i < 55; i++) {
-      stack.push({ type: "step", sid: i, before: { name: "old" }, after: { name: "new" } });
-    }
-    // Should be able to undo 50 times (not 55)
-    let undoCount = 0;
-    while (stack.canUndo.value) {
-      stack.undo();
-      undoCount++;
-    }
-    expect(undoCount).toBe(50);
-  });
+  expect(restored).toEqual([3, 2]);
 });

@@ -100,7 +100,7 @@ test("retries the idempotent completion claim", async () => {
     vi.fn(),
   );
   const expectation = expect(completed).resolves.toBe(result);
-  await vi.advanceTimersByTimeAsync(250);
+  await vi.advanceTimersToNextTimerAsync();
 
   await expectation;
   expect(mockedCompleteIngestion).toHaveBeenCalledTimes(2);

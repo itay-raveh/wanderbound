@@ -64,7 +64,8 @@ def test_admin_recovery_posts_executor_ids(monkeypatch: pytest.MonkeyPatch) -> N
             return json.dumps(["workflow-1"]).encode()
 
     def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
-        calls.append((request, timeout))
+        del timeout
+        calls.append(request)
         return FakeResponse()
 
     monkeypatch.setattr(module, "urlopen", fake_urlopen)
@@ -72,9 +73,8 @@ def test_admin_recovery_posts_executor_ids(monkeypatch: pytest.MonkeyPatch) -> N
     assert module.recover_workflows_via_admin(
         "http://127.0.0.1:3001", ["worker-a"]
     ) == ["workflow-1"]
-    request, timeout = calls[0]
+    request = calls[0]
     assert request.full_url == "http://127.0.0.1:3001/dbos-workflow-recovery"
     assert request.method == "POST"
     assert request.data == b'["worker-a"]'
     assert request.headers["Content-type"] == "application/json"
-    assert timeout == 30

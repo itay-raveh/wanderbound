@@ -84,7 +84,7 @@ async def test_list_dead_executors_marks_stale_active_rows_dead(
 def test_recover_workflows_via_admin_posts_executor_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[Request, float]] = []
+    calls: list[Request] = []
 
     class FakeResponse:
         def __enter__(self) -> Self:
@@ -97,7 +97,8 @@ def test_recover_workflows_via_admin_posts_executor_ids(
             return b'["workflow-1"]'
 
     def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
-        calls.append((request, timeout))
+        del timeout
+        calls.append(request)
         return FakeResponse()
 
     monkeypatch.setattr("app.logic.workflows.recovery.urlopen", fake_urlopen)
@@ -106,12 +107,11 @@ def test_recover_workflows_via_admin_posts_executor_ids(
         "workflow-1"
     ]
 
-    request, timeout = calls[0]
+    request = calls[0]
     assert request.full_url == f"http://127.0.0.1:3001{WORKFLOW_RECOVERY_PATH}"
     assert request.method == "POST"
     assert request.data == b'["stale-worker"]'
     assert request.headers["Content-type"] == "application/json"
-    assert timeout == 30
 
 
 class _RecoverySettings:

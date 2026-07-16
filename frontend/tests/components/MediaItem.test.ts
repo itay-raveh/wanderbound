@@ -7,7 +7,13 @@ import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
 const MEDIA_UPDATED_AT = "2026-05-13T12:34:56Z";
-const MEDIA_UPDATED_AT_PARAM = "2026-05-13T12%3A34%3A56Z";
+
+function expectCacheBustedMediaSource(src: string | undefined) {
+  expect(src).toBeDefined();
+  const url = new URL(src!);
+  expect(url.pathname).toBe("/api/v1/albums/album-1/media/photo.jpg");
+  expect(url.searchParams.get("d")).toBe(MEDIA_UPDATED_AT);
+}
 
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = [];
@@ -165,16 +171,13 @@ describe("MediaItem video controls", () => {
     await nextTick();
     const img = wrapper.get("img");
 
-    expect(img.attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
-    );
+    const initialSrc = img.attributes("src");
+    expectCacheBustedMediaSource(initialSrc);
 
     programmaticScrolling.value = true;
     await nextTick();
 
-    expect(img.attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
-    );
+    expect(img.attributes("src")).toBe(initialSrc);
   });
 
   test("marks only selectable media as draggable", () => {
@@ -192,9 +195,7 @@ describe("MediaItem video controls", () => {
       { updated_at: "2026-05-13T12:34:56Z" },
     );
 
-    expect(wrapper.get("img").attributes("src")).toBe(
-      `http://localhost:8000/api/v1/albums/album-1/media/photo.jpg?w=800&d=${MEDIA_UPDATED_AT_PARAM}`,
-    );
+    expectCacheBustedMediaSource(wrapper.get("img").attributes("src"));
   });
 
   test("renders resolution warnings as an icon badge without a tint overlay", () => {

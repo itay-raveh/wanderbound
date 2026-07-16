@@ -5,6 +5,7 @@ import {
   withSetup,
 } from "../helpers";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
+import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 
 const googlePhotosMock = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -26,7 +27,7 @@ describe("useAddExternalMedia", () => {
     vi.unstubAllGlobals();
   });
 
-  it("limits Google import picker sessions to the backend import cap", async () => {
+  it("uses the import contract limit for Google picker sessions", async () => {
     mockReadyGooglePickerSession(googlePhotosMock);
     mockGooglePickerPopup();
     vi.stubGlobal(
@@ -43,7 +44,7 @@ describe("useAddExternalMedia", () => {
     await addMedia.importGoogle({ context: "cover" });
 
     expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
-      maxItemCount: 50,
+      maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS,
     });
   });
 });

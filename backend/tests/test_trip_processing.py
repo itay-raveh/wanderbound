@@ -7,27 +7,30 @@ from app.logic.trip_processing import (
     resolve_international_waters,
     segment_timezone,
 )
+from app.models.album import (
+    DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+    DEMO_MEDIA_RESOLUTION_WARNING_PRESET,
+)
 from app.models.polarsteps import Location, PSStep
 from tests.factories import make_ps_step, make_user
 
 
 class TestDefaultMediaResolutionWarningPreset:
-    def test_uses_relaxed_warnings_for_normal_users(self) -> None:
-        user = make_user(
-            1,
-            google_sub="test-sub",
+    def test_uses_standard_preset_for_normal_users(self) -> None:
+        user = make_user(1, google_sub="test-sub")
+
+        assert (
+            default_media_resolution_warning_preset(user)
+            == DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET
         )
 
-        assert default_media_resolution_warning_preset(user) == "relaxed"
+    def test_uses_demo_preset_for_demo_users(self) -> None:
+        user = make_user(1, first_name="Demo", is_demo=True)
 
-    def test_disables_warnings_for_demo_users(self) -> None:
-        user = make_user(
-            1,
-            first_name="Demo",
-            is_demo=True,
+        assert (
+            default_media_resolution_warning_preset(user)
+            == DEMO_MEDIA_RESOLUTION_WARNING_PRESET
         )
-
-        assert default_media_resolution_warning_preset(user) == "off"
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:

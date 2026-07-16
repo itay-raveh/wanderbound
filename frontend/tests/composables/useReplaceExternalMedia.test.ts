@@ -12,6 +12,7 @@ import {
   useReplaceExternalMedia,
 } from "@/composables/useReplaceExternalMedia";
 import { queryKeys } from "@/queries/keys";
+import { GOOGLE_REPLACEMENT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 
 const googlePhotosMock = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -72,7 +73,7 @@ describe("useReplaceExternalMedia", () => {
     );
   });
 
-  it("limits Google replacement picker sessions to one item", async () => {
+  it("uses the single-item replacement contract for Google picker sessions", async () => {
     mockReadyGooglePickerSession(googlePhotosMock);
     mockGooglePickerPopup();
     vi.stubGlobal(
@@ -84,9 +85,8 @@ describe("useReplaceExternalMedia", () => {
     const result = mountReplaceExternalMedia();
 
     await expect(result.replaceFromGoogle()).resolves.toBe("photo.jpg");
-
     expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
-      maxItemCount: 1,
+      maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
     });
   });
 

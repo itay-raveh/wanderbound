@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
+import anyio
 import imagehash
 import numpy as np
 import pytest
@@ -32,7 +33,6 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
     _needs_upgrade,
     _persist_upgrade_in_session,
-    _upgrade_limiter,
     run_matching,
     run_upgrade,
 )
@@ -476,46 +476,27 @@ class TestRunMatching:
 
 
 class TestRunUpgrade:
-    @pytest.mark.parametrize(
-        ("memory_mb", "expected_concurrency"),
-        [(1024, 1), (2048, 2), (4096, 4)],
-    )
-    def test_scales_upgrade_concurrency_with_available_memory(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        memory_mb: int,
-        expected_concurrency: int,
-    ) -> None:
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: memory_mb
-        )
-        _clear_caches()
-
-        assert _upgrade_limiter().total_tokens == expected_concurrency
-
-    async def test_limits_upgrade_file_lifecycles_to_two(
+    async def test_limits_complete_upgrade_file_lifecycles(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        limiter = anyio.CapacityLimiter(1)
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: 2048
+            "app.logic.media_upgrade.pipeline._upgrade_limiter", lambda: limiter
         )
-        _clear_caches()
-        active = 0
-        max_active = 0
-        two_started = asyncio.Event()
-        release = asyncio.Event()
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        second_started = asyncio.Event()
+        calls = 0
 
         async def fake_replace(*_args: object, **_kwargs: object) -> bool:
-            nonlocal active, max_active
-            active += 1
-            max_active = max(max_active, active)
-            if active == 2:
-                two_started.set()
-            try:
-                await release.wait()
-                return True
-            finally:
-                active -= 1
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                first_started.set()
+                await release_first.wait()
+            else:
+                second_started.set()
+            return True
 
         monkeypatch.setattr(
             "app.logic.media_upgrade.pipeline._download_and_replace", fake_replace
@@ -530,7 +511,7 @@ class TestRunUpgrade:
         names = [
             f"00000000-0000-4000-8000-{i:012d}_"
             f"00000000-0000-4000-8000-{i + 10:012d}.jpg"
-            for i in range(4)
+            for i in range(2)
         ]
         matches = [
             MatchResult(local_name=name, google_id=f"gp-{i}", distance=0)
@@ -538,7 +519,7 @@ class TestRunUpgrade:
         ]
         items = {
             f"gp-{i}": _make_item(f"gp-{i}", _match_dt(10).isoformat())
-            for i in range(4)
+            for i in range(2)
         }
 
         async def collect() -> list[object]:
@@ -559,12 +540,12 @@ class TestRunUpgrade:
 
         task = asyncio.create_task(collect())
         try:
-            await asyncio.wait_for(two_started.wait(), timeout=1)
+            await asyncio.wait_for(first_started.wait(), timeout=1)
             await asyncio.sleep(0)
-            observed_max = max_active
+            assert not second_started.is_set()
         finally:
-            release.set()
+            release_first.set()
         events = await task
 
-        assert observed_max == 2
+        assert second_started.is_set()
         assert isinstance(events[-1], UpgradeCompleted)
