@@ -406,6 +406,27 @@
         }
       }
     },
+    "/api/v1/users/uploads/config": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Upload Config",
+        "operationId": "upload_config",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/uploads/s3/multipart": {
       "post": {
         "tags": [
@@ -4257,6 +4278,24 @@
         },
         "type": "object",
         "title": "UploadCompleteEvent"
+      },
+      "UploadConfigResponse": {
+        "properties": {
+          "max_file_size_bytes": {
+            "type": "integer",
+            "title": "Max File Size Bytes"
+          },
+          "part_size_bytes": {
+            "type": "integer",
+            "title": "Part Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_file_size_bytes",
+          "part_size_bytes"
+        ],
+        "title": "UploadConfigResponse"
       },
       "UploadErrorEvent": {
         "properties": {

@@ -21,7 +21,7 @@ from app.logic.workflows.uploads import (
     start_upload_workflow,
     upload_workflow_id,
 )
-from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
+from app.models.processing import UploadSession
 from app.models.upload import UploadResult
 from app.models.user import User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
@@ -51,6 +51,11 @@ class CreateUploadResponse(BaseModel):
 
     upload_id: str = Field(serialization_alias="uploadId")
     key: str
+
+
+class UploadConfigResponse(BaseModel):
+    max_file_size_bytes: int
+    part_size_bytes: int
 
 
 class SignPartResponse(BaseModel):
@@ -116,12 +121,13 @@ def _require_key(row: UploadSession, key: str) -> None:
 
 
 def _part_size(row: UploadSession, part_number: int) -> int:
-    count = (row.size_bytes + UPLOAD_PART_SIZE_BYTES - 1) // UPLOAD_PART_SIZE_BYTES
+    part_size = get_settings().UPLOAD_PART_SIZE_BYTES
+    count = (row.size_bytes + part_size - 1) // part_size
     if not 1 <= part_number <= count:
         raise _error("upload_invalid_part", status.HTTP_422_UNPROCESSABLE_CONTENT)
     return min(
-        UPLOAD_PART_SIZE_BYTES,
-        row.size_bytes - (part_number - 1) * UPLOAD_PART_SIZE_BYTES,
+        part_size,
+        row.size_bytes - (part_number - 1) * part_size,
     )
 
 
@@ -132,6 +138,15 @@ def _ensure_uploading(row: UploadSession) -> None:
         raise _error("upload_not_active", status.HTTP_409_CONFLICT)
 
 
+@router.get("/config")
+async def upload_config() -> UploadConfigResponse:
+    settings = get_settings()
+    return UploadConfigResponse(
+        max_file_size_bytes=settings.MAX_UPLOAD_SIZE_BYTES,
+        part_size_bytes=settings.UPLOAD_PART_SIZE_BYTES,
+    )
+
+
 @router.post("/s3/multipart", status_code=status.HTTP_201_CREATED)
 async def create_upload(
     payload: CreateUploadRequest,
@@ -139,8 +154,8 @@ async def create_upload(
     session: SessionDep,
     store: UploadStoreDep,
 ) -> CreateUploadResponse:
-    maximum = get_settings().VITE_MAX_UPLOAD_GB * 1024**3
-    if not 0 < payload.metadata.size_bytes <= maximum:
+    settings = get_settings()
+    if not 0 < payload.metadata.size_bytes <= settings.MAX_UPLOAD_SIZE_BYTES:
         raise _error("upload_invalid_size", status.HTTP_400_BAD_REQUEST)
     existing, identity = await _resolve_auth(request, session)
     row = UploadSession.new(
@@ -149,7 +164,7 @@ async def create_upload(
         filename=payload.filename,
         content_type=payload.type,
         size_bytes=payload.metadata.size_bytes,
-        ttl_seconds=get_settings().UPLOAD_SESSION_TTL_SECONDS,
+        ttl_seconds=settings.UPLOAD_SESSION_TTL_SECONDS,
     )
     try:
         row.provider_upload_id = await asyncio.to_thread(

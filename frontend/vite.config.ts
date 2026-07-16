@@ -10,15 +10,19 @@ const sentryApplicationKey = "wanderbound";
 const envDir = path.resolve(__dirname, "..");
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, envDir);
-  const environment = env.VITE_ENVIRONMENT;
+  const env = loadEnv(mode, envDir, "");
+  const environment = env.ENVIRONMENT;
   if (environment !== "local" && environment !== "production") {
-    throw new Error("VITE_ENVIRONMENT must be set to local or production");
+    throw new Error("ENVIRONMENT must be set to local or production");
+  }
+  if (!env.VITE_MAPBOX_TOKEN) {
+    throw new Error("VITE_MAPBOX_TOKEN must be set");
   }
 
   return {
     define: {
       APP_VERSION: JSON.stringify(version),
+      "import.meta.env.VITE_ENVIRONMENT": JSON.stringify(environment),
     },
     envDir,
     server: {

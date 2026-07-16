@@ -100,8 +100,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VITE_MAX_UPLOAD_GB=${{ vars.VITE_MAX_UPLOAD_GB }}
-            VITE_ENVIRONMENT=production
+            ENVIRONMENT=production
             VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
             VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_CONTACT_EMAIL=${{ vars.VITE_CONTACT_EMAIL }}

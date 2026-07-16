@@ -1,4 +1,8 @@
 services:
+  object-storage:
+    ports:
+      - "127.0.0.1:${DIRECT_UPLOAD_STORAGE_PORT:?Variable not set}:3900"
+
   backend:
     command: >-
       sh -c "alembic upgrade head &&
@@ -7,7 +11,7 @@ services:
 
   frontend:
     ports:
-      - "127.0.0.1:5173:8080"
+      - "127.0.0.1:${DIRECT_UPLOAD_FRONTEND_PORT:?Variable not set}:8080"
     depends_on:
       backend:
         condition: service_healthy

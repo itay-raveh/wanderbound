@@ -7,6 +7,7 @@ import type { UploadResult } from "@/client";
 import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAuthStateQuery } from "@/queries/useAuthStateQuery";
+import { useUploadConfigQuery } from "@/queries/useUploadConfigQuery";
 import { queryKeys } from "@/queries/keys";
 import { useI18n } from "vue-i18n";
 import { useMeta } from "quasar";
@@ -27,6 +28,7 @@ const router = useRouter();
 const cache = useQueryCache();
 
 const { data: authStateData } = useAuthStateQuery();
+const { data: uploadConfig } = useUploadConfigQuery();
 const { user } = useUserQuery();
 const stream = useTripProcessingStream();
 const handoff = (history.state ?? {}) as {
@@ -136,10 +138,15 @@ function onDone() {
           <q-separator class="q-my-md" />
         </template>
 
-        <ZipUploader
-          v-if="mapboxSupported"
-          @uploaded="onUploaded"
-        />
+        <template v-if="mapboxSupported">
+          <ZipUploader
+            v-if="uploadConfig"
+            :max-file-size="uploadConfig.max_file_size_bytes"
+            :part-size="uploadConfig.part_size_bytes"
+            @uploaded="onUploaded"
+          />
+          <q-skeleton v-else type="rect" height="10rem" />
+        </template>
         <UnsupportedBanner v-else :reason="mapboxReason" />
       </q-card>
 

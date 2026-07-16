@@ -61,8 +61,9 @@ docker compose up -d
 
 Open `http://localhost:5173`.
 
-For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
-`docker compose -f compose.yml up -d`.
+The bundled object storage binds only to loopback and is intended for local
+Compose use. Production deployments provide their exact S3 endpoints through
+deployment infrastructure.
 
 The Compose stack runs the app, database, and frontend. Configure database and
 app data backups in your deployment infrastructure.
@@ -77,11 +78,15 @@ must use the same `DATA_FOLDER` volume and database.
 commands. Install it, then:
 
 ```bash
-mise run setup               # Install deps, generate assets, run migrations
-docker compose up db -d      # Start Postgres
-mise run dev:backend         # FastAPI dev server
-mise run dev:frontend        # Vite dev server
+cp .env.example .env
+# Fill in the required values
+
+mise run setup # Install deps, generate assets, start the DB, run migrations
+mise run dev   # Start the full Compose development stack
 ```
+
+For host-run backend and frontend servers, use `mise run dev:db`,
+`mise run dev:storage`, `mise run dev:backend`, and `mise run dev:frontend`.
 
 Run `mise tasks` to see all available commands. Extra arguments pass
 through - e.g., `mise run test:backend -- -k test_auth`.

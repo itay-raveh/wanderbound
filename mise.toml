@@ -22,10 +22,26 @@ run = [
     "prek install --prepare-hooks",
     "prek install --hook-type commit-msg",
     "mise run generate",
+    "mise run dev:db",
     "mise run db:migrate",
 ]
 
 # -- Dev servers --------------------------------------------------
+
+[tasks."dev:db"]
+description = "Start the development database"
+run = "docker compose up db --detach"
+
+[tasks."dev:storage"]
+description = "Start and initialize development object storage"
+run = "docker compose up object-storage object-storage-init --detach"
+
+[tasks.dev]
+description = "Start the complete development stack"
+run = [
+    "docker network inspect traefik >/dev/null 2>&1 || docker network create traefik",
+    "docker compose up --detach",
+]
 
 [tasks."dev:backend"]
 description = "Start backend dev server"

@@ -9,7 +9,6 @@ import AwsS3 from "@uppy/aws-s3";
 import Uppy, { type UppyFile } from "@uppy/core";
 import { onScopeDispose, ref } from "vue";
 
-const PART_SIZE = 64 * 1024 * 1024;
 const COMPLETION_ATTEMPTS = 3;
 const STREAM_CONNECTIONS = 3;
 
@@ -111,6 +110,7 @@ export async function followUploadIngestion(
 
 export function useDirectZipUpload(options: {
   maxFileSize: number;
+  partSize: number;
   onUploaded: (result: UploadResult) => void;
 }) {
   const file = ref<File | null>(null);
@@ -133,7 +133,7 @@ export function useDirectZipUpload(options: {
     limit: 8,
     shouldUseMultipart: true,
     allowedMetaFields: ["size_bytes"],
-    getChunkSize: () => PART_SIZE,
+    getChunkSize: () => options.partSize,
   });
 
   function clearState() {

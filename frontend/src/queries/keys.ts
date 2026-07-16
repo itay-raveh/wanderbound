@@ -21,6 +21,7 @@ export const queryKeys = {
     [...queryKeys.printBundles(aid), chapter ?? NONE] as const,
   user: () => ["user"] as const,
   authState: () => ["auth-state"] as const,
+  uploadConfig: () => ["upload-config"] as const,
 };
 
 function isPrintBundlesKey(key: EntryKey): boolean {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +14,7 @@ from app.models.user import UserPublic
 from tests.factories import make_user, sign_in
 
 if TYPE_CHECKING:
+    import pytest
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -36,6 +38,43 @@ async def test_multipart_routes_require_an_upload_owner(client: AsyncClient) -> 
     response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
 
     assert response.status_code == 401
+
+
+async def test_upload_config_matches_enforced_limits(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured_maximum = 12_345
+    configured_part_size = 4_321
+    monkeypatch.setattr(
+        "app.api.v1.routes.uploads.get_settings",
+        lambda: SimpleNamespace(
+            MAX_UPLOAD_SIZE_BYTES=configured_maximum,
+            UPLOAD_PART_SIZE_BYTES=configured_part_size,
+            UPLOAD_SESSION_TTL_SECONDS=60,
+        ),
+    )
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+
+    config = await client.get("/api/v1/users/uploads/config")
+    maximum = config.json()["max_file_size_bytes"]
+
+    accepted = await client.post(
+        "/api/v1/users/uploads/s3/multipart",
+        json={**_payload(), "metadata": {"size_bytes": maximum}},
+    )
+    rejected = await client.post(
+        "/api/v1/users/uploads/s3/multipart",
+        json={**_payload(), "metadata": {"size_bytes": maximum + 1}},
+    )
+
+    assert config.status_code == 200
+    assert maximum == configured_maximum
+    assert config.json()["part_size_bytes"] == configured_part_size
+    assert accepted.status_code == 201
+    assert rejected.status_code == 400
 
 
 async def test_uppy_multipart_contract(

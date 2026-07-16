@@ -10,7 +10,6 @@ declare const APP_VERSION: string | undefined;
 
 interface ImportMetaEnv {
   readonly VITE_ENVIRONMENT: "local" | "production";
-  readonly VITE_MAX_UPLOAD_GB: string;
   readonly VITE_MAPBOX_TOKEN: string;
   readonly VITE_GOOGLE_CLIENT_ID: string;
   readonly VITE_MICROSOFT_CLIENT_ID: string;

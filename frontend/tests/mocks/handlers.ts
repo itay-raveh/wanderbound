@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import type { UploadConfigResponse } from "@/client";
 import {
   mockUser,
   mockAlbum,
@@ -18,6 +19,12 @@ export {
 } from "../fixtures/mocks";
 
 export const handlers = [
+  http.get(`${BASE}/users/uploads/config`, () =>
+    HttpResponse.json({
+      max_file_size_bytes: Number.MAX_SAFE_INTEGER,
+      part_size_bytes: Number.MAX_SAFE_INTEGER,
+    } satisfies UploadConfigResponse),
+  ),
   http.get(`${BASE}/users`, () => HttpResponse.json(mockUser)),
   http.patch(`${BASE}/users`, () => HttpResponse.json(mockUser)),
   http.get(`${BASE}/albums/:aid`, () => HttpResponse.json(mockAlbum)),

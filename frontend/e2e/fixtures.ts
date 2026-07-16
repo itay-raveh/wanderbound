@@ -1,4 +1,5 @@
 import { expect, test as base, type Page } from "@playwright/test";
+import type { UploadConfigResponse } from "@/client";
 import {
   mockUser,
   mockAuthStateAnonymous,
@@ -70,6 +71,17 @@ async function mockCommonApi(page: Page) {
   );
   await page.route("**/media/**", (route) =>
     route.fulfill({ contentType: "image/jpeg", body: mediaBody }),
+  );
+}
+
+async function mockUploadConfig(page: Page) {
+  await page.route(`${API}/users/uploads/config`, (route) =>
+    route.fulfill({
+      json: {
+        max_file_size_bytes: Number.MAX_SAFE_INTEGER,
+        part_size_bytes: Number.MAX_SAFE_INTEGER,
+      } satisfies UploadConfigResponse,
+    }),
   );
 }
 
@@ -234,6 +246,7 @@ export const test = base.extend<{
 }>({
   page: async ({ page }, use) => {
     const assertAllMocked = await installStrictMockGuard(page);
+    await mockUploadConfig(page);
     await use(page);
     assertAllMocked();
   },

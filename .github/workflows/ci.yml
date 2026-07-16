@@ -161,8 +161,9 @@ jobs:
       needs.changes.outputs.frontend == 'true' ||
       needs.changes.outputs.ci == 'true'
     env:
-      VITE_ENVIRONMENT: local
+      ENVIRONMENT: local
       VITE_FRONTEND_URL: http://localhost
+      VITE_MAPBOX_TOKEN: ci-public-token
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
@@ -233,10 +234,13 @@ jobs:
       SECRET_KEY: ci
       DOMAIN: localhost
       ENVIRONMENT: local
+      VITE_FRONTEND_URL: http://localhost:5173
+      VITE_MAPBOX_TOKEN: ci-public-token
     steps:
       - uses: actions/checkout@v7
         with:
           lfs: true
+      - run: cp .env.example .env
       - uses: jdx/mise-action@v4
         with:
           version: 2026.4.8

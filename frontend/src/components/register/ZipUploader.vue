@@ -10,8 +10,12 @@ const emit = defineEmits<{
   uploaded: [data: UploadResult];
 }>();
 
-const maxUploadGb = Number(import.meta.env.VITE_MAX_UPLOAD_GB) || 4;
-const maxFileSize = maxUploadGb * 1024 * 1024 * 1024;
+const props = defineProps<{
+  maxFileSize: number;
+  partSize: number;
+}>();
+
+const maxUploadGb = props.maxFileSize / 1024 ** 3;
 const $q = useQuasar();
 const { t } = useI18n();
 const dragging = ref(false);
@@ -27,7 +31,8 @@ const {
   cancel,
   reset,
 } = useDirectZipUpload({
-  maxFileSize,
+  maxFileSize: props.maxFileSize,
+  partSize: props.partSize,
   onUploaded: (result) => emit("uploaded", result),
 });
 
@@ -70,7 +75,7 @@ function handleFile(selected: File) {
     $q.notify({ type: "negative", message: t("register.badZip") });
     return;
   }
-  if (selected.size > maxFileSize) {
+  if (selected.size > props.maxFileSize) {
     $q.notify({
       type: "negative",
       message: t("register.fileTooLarge", { max: maxUploadGb }),

@@ -3,9 +3,10 @@ from pathlib import Path
 from sys import argv
 from zipfile import ZIP_STORED, ZipFile
 
+from app.core.config import get_settings
 
-PART_SIZE = 64 * 1024 * 1024
-PAYLOAD_SIZE = 2 * PART_SIZE + 1024 * 1024
+
+PAYLOAD_SIZE = 2 * get_settings().UPLOAD_PART_SIZE_BYTES + 1024 * 1024
 WRITE_SIZE = 1024 * 1024
 
 

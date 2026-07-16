@@ -7,9 +7,17 @@ env_file="$work_dir/integration.env"
 fixture="$work_dir/direct-upload.zip"
 project_name="wanderbound-direct-upload-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
 
+free_port() {
+  python -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+}
+
+storage_port=$(free_port)
+frontend_port=$(free_port)
+
 compose=(
   docker compose
   --project-name "$project_name"
+  --env-file "$root/.env.example"
   --env-file "$env_file"
   -f "$root/compose.yml"
   -f "$root/frontend/integration/compose.yml"
@@ -34,16 +42,17 @@ printf '%s\n' \
   "POSTGRES_USER=postgres" \
   "POSTGRES_DB=app" \
   "ENVIRONMENT=local" \
-  "VITE_ENVIRONMENT=local" \
+  "VITE_MAPBOX_TOKEN=integration-public-token" \
   "DOMAIN=localhost" \
-  "VITE_FRONTEND_URL=http://localhost:5173" \
-  "VITE_MAX_UPLOAD_GB=1" \
+  "VITE_FRONTEND_URL=http://localhost:$frontend_port" \
+  "DIRECT_UPLOAD_STORAGE_PORT=$storage_port" \
+  "DIRECT_UPLOAD_FRONTEND_PORT=$frontend_port" \
   "MAX_STORAGE_BYTES=1073741824" \
   "UPLOAD_S3_BUCKET=wanderbound-integration-uploads" \
   "UPLOAD_S3_REGION=garage" \
   "UPLOAD_S3_INTERNAL_ENDPOINT_URL=http://object-storage:3900" \
-  "UPLOAD_S3_PUBLIC_ENDPOINT_URL=http://localhost:3900" \
-  "UPLOAD_S3_BROWSER_ORIGIN=http://localhost:3900" \
+  "UPLOAD_S3_PUBLIC_ENDPOINT_URL=http://localhost:$storage_port" \
+  "UPLOAD_S3_BROWSER_ORIGIN=http://localhost:$storage_port" \
   "UPLOAD_S3_ADDRESSING_STYLE=path" \
   "UPLOAD_S3_ACCESS_KEY_ID=GK00000000000000000000000000000000" \
   "UPLOAD_S3_SECRET_ACCESS_KEY=0000000000000000000000000000000000000000000000000000000000000000" \
@@ -51,14 +60,16 @@ printf '%s\n' \
   >"$env_file"
 
 set -a
+source "$root/.env.example"
 source "$env_file"
 set +a
 uv run --directory "$root/backend" python ../scripts/generate_openapi.py
-python "$root/scripts/generate_direct_upload_fixture.py" "$fixture"
+uv run --directory "$root/backend" python ../scripts/generate_direct_upload_fixture.py "$fixture"
 "${compose[@]}" down --volumes --remove-orphans
 "${compose[@]}" up --detach --build --wait
 
 cd "$root/frontend"
+DIRECT_UPLOAD_BASE_URL="http://localhost:$frontend_port" \
 DIRECT_UPLOAD_FIXTURE="$fixture" bun x playwright test \
   --config playwright.upload-integration.config.ts \
   "$@"

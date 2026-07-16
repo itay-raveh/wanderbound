@@ -3,14 +3,14 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-const frontendOrigin = "http://localhost:5173";
-const garageOrigin = "http://localhost:3900";
+const frontendOrigin = process.env.DIRECT_UPLOAD_BASE_URL;
+const garageOrigin = process.env.UPLOAD_S3_BROWSER_ORIGIN;
 const fixturePath = process.env.DIRECT_UPLOAD_FIXTURE;
 const projectName = process.env.COMPOSE_PROJECT_NAME;
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const execFileAsync = promisify(execFile);
 
-if (!fixturePath || !projectName) {
+if (!frontendOrigin || !garageOrigin || !fixturePath || !projectName) {
   throw new Error("direct upload integration environment is incomplete");
 }
 

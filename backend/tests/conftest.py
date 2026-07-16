@@ -13,6 +13,11 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+os.environ.setdefault("SECRET_KEY", "test")
+os.environ.setdefault(
+    "SQLALCHEMY_DATABASE_URI",
+    "postgresql+psycopg://test:test@localhost/test",
+)
 os.environ.setdefault("UPLOAD_S3_BUCKET", "test-uploads")
 os.environ.setdefault("UPLOAD_S3_REGION", "test")
 os.environ.setdefault("UPLOAD_S3_INTERNAL_ENDPOINT_URL", "http://localhost:3900")
@@ -20,6 +25,7 @@ os.environ.setdefault("UPLOAD_S3_PUBLIC_ENDPOINT_URL", "http://localhost:3900")
 os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
 os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "test")
 os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "test")
+os.environ.setdefault("VITE_MAPBOX_TOKEN", "test")
 
 from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings
