@@ -277,6 +277,7 @@ jobs:
             backend.cache-to=type=gha,mode=min,scope=backend,repository=${{ github.repository }},ghtoken=${{ github.token }}
             frontend.cache-from=type=gha,scope=frontend,repository=${{ github.repository }},ghtoken=${{ github.token }}
             frontend.cache-to=type=gha,mode=max,scope=frontend,repository=${{ github.repository }},ghtoken=${{ github.token }}
+      - run: mise run dev:network
       - run: docker compose up -d --no-build
       - name: Wait for backend health
         run: |

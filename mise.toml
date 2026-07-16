@@ -36,13 +36,19 @@ run = "docker compose up db --detach"
 description = "Start the development Garage containers"
 run = "docker compose up object-storage object-storage-init --detach"
 
-[tasks.dev]
-description = "Create the shared network and start the development stack"
+[tasks."dev:network"]
+description = "Create the configured external network if it does not exist"
 run = '''
 network=$(docker compose config --format json | python -c 'import json, sys; print(json.load(sys.stdin)["networks"]["frontend"]["name"])')
 if ! docker network inspect "$network" >/dev/null 2>&1; then
   docker network create "$network"
 fi
+'''
+
+[tasks.dev]
+description = "Create the shared network and start the development stack"
+depends = ["dev:network"]
+run = '''
 docker compose up --detach
 '''
 
