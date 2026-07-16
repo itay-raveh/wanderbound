@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.observability import set_span_data, start_span
-from app.core.resources import detect_cpu_count
+from app.core.resources import detect_cpu_count, detect_memory_mb
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
 from app.models.album_media import AlbumMedia
@@ -61,7 +61,8 @@ from .processing import (
 logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
-_UPGRADE_CONCURRENCY = 2
+_UPGRADE_BASELINE_MB = 512
+_PER_UPGRADE_MB = 768
 
 
 @functools.cache
@@ -71,7 +72,8 @@ def _hash_limiter() -> anyio.CapacityLimiter:
 
 @functools.cache
 def _upgrade_limiter() -> anyio.CapacityLimiter:
-    return anyio.CapacityLimiter(_UPGRADE_CONCURRENCY)
+    memory_budget = detect_memory_mb() - _UPGRADE_BASELINE_MB
+    return anyio.CapacityLimiter(max(1, memory_budget // _PER_UPGRADE_MB))
 
 
 class MatchInProgress(BaseModel):

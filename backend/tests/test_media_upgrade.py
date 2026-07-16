@@ -32,6 +32,7 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
     _needs_upgrade,
     _persist_upgrade_in_session,
+    _upgrade_limiter,
     run_matching,
     run_upgrade,
 )
@@ -475,9 +476,30 @@ class TestRunMatching:
 
 
 class TestRunUpgrade:
+    @pytest.mark.parametrize(
+        ("memory_mb", "expected_concurrency"),
+        [(1024, 1), (2048, 2), (4096, 4)],
+    )
+    def test_scales_upgrade_concurrency_with_available_memory(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        memory_mb: int,
+        expected_concurrency: int,
+    ) -> None:
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: memory_mb
+        )
+        _clear_caches()
+
+        assert _upgrade_limiter().total_tokens == expected_concurrency
+
     async def test_limits_upgrade_file_lifecycles_to_two(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: 2048
+        )
+        _clear_caches()
         active = 0
         max_active = 0
         two_started = asyncio.Event()
