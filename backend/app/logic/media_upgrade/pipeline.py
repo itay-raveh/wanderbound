@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.observability import set_span_data, start_span
-from app.core.resources import detect_cpu_count
+from app.core.resources import detect_cpu_count, detect_memory_mb
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
 from app.models.album_media import AlbumMedia
@@ -61,11 +61,19 @@ from .processing import (
 logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
+_UPGRADE_BASELINE_MB = 512
+_PER_UPGRADE_MB = 768
 
 
 @functools.cache
 def _hash_limiter() -> anyio.CapacityLimiter:
     return anyio.CapacityLimiter(min(8, detect_cpu_count()))
+
+
+@functools.cache
+def _upgrade_limiter() -> anyio.CapacityLimiter:
+    memory_budget = detect_memory_mb() - _UPGRADE_BASELINE_MB
+    return anyio.CapacityLimiter(max(1, memory_budget // _PER_UPGRADE_MB))
 
 
 class MatchInProgress(BaseModel):
@@ -515,14 +523,15 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     if not item:
                         return None
                     try:
-                        replaced = await _download_and_replace(
-                            clients.gphotos_download,
-                            match.local_name,
-                            item,
-                            album_dir,
-                            tmp_dir,
-                            tokens,
-                        )
+                        async with _upgrade_limiter():
+                            replaced = await _download_and_replace(
+                                clients.gphotos_download,
+                                match.local_name,
+                                item,
+                                album_dir,
+                                tmp_dir,
+                                tokens,
+                            )
                     except (
                         OSError,
                         SyntaxError,
@@ -615,3 +624,4 @@ async def cleanup_orphaned_tmp(users_folder: Path) -> None:
 def _clear_caches() -> None:
     """Reset cached limiters (for test isolation across event loops)."""
     _hash_limiter.cache_clear()
+    _upgrade_limiter.cache_clear()
