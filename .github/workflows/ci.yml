@@ -233,7 +233,6 @@ jobs:
       needs.changes.outputs.ci == 'true'
     env:
       DOCKER_BUILD_RECORD_UPLOAD: false
-      TAG: ci
       POSTGRES_PASSWORD: ci
       POSTGRES_USER: ci
       POSTGRES_DB: ci
@@ -250,6 +249,9 @@ jobs:
         with:
           version: 2026.4.8
           install_args: python uv bun
+      - run: mise run env:materialize .env
+      - run: mise run env:frontend
+      - run: echo "FRONTEND_ENV_HASH=$(mise run env:frontend:hash)" >> "$GITHUB_ENV"
       - run: bun install --frozen-lockfile
         working-directory: frontend
       - run: bunx playwright install --with-deps --only-shell chromium

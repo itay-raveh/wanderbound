@@ -1,4 +1,3 @@
-# check=skip=SecretsUsedInArgOrEnv (all ARGs are public frontend config, not secrets)
 FROM oven/bun:1-debian AS build-stage
 
 WORKDIR /app
@@ -19,27 +18,13 @@ COPY ./frontend /app/frontend
 COPY ./PRIVACY.md ./TERMS.md /app/
 COPY ./backend/openapi.json /app/backend/openapi.json
 
-ARG ENVIRONMENT
-ARG VITE_MAPBOX_TOKEN
-ARG VITE_GOOGLE_CLIENT_ID
-ARG VITE_CONTACT_EMAIL
-ARG VITE_GITHUB_URL
-ARG VITE_AUTHOR_NAME
-ARG VITE_AUTHOR_URL
-ARG VITE_SENTRY_DSN
-ARG VITE_SENTRY_TRACES_SAMPLE_RATE
-ARG VITE_FRONTEND_URL
-ARG VITE_MICROSOFT_CLIENT_ID
 ARG APP_VERSION
+ARG FRONTEND_ENV_HASH
 ENV APP_VERSION=${APP_VERSION}
 
-ARG SENTRY_ORG
-ARG SENTRY_FRONTEND_PROJECT
-ENV SENTRY_ORG=${SENTRY_ORG}
-ENV SENTRY_FRONTEND_PROJECT=${SENTRY_FRONTEND_PROJECT}
-
-RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
-    bun run build
+RUN --mount=type=secret,id=app_env,required=true,target=/app/.env \
+    test -n "$FRONTEND_ENV_HASH" \
+    && bun run build
 
 
 FROM nginx:1

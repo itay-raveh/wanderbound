@@ -1,2 +1,3 @@
+export const DEFAULT_ENVIRONMENT = "local";
 export const MAX_UPLOAD_SIZE_BYTES = 4294967296;
 export const UPLOAD_PART_SIZE_BYTES = 67108864;

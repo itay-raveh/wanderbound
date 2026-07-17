@@ -13,6 +13,7 @@ dist-ssr/
 .DS_Store
 *.sw?
 .env
+.frontend.env
 .env.sentry-build-plugin
 
 # Test artifacts

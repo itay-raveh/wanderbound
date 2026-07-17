@@ -30,11 +30,9 @@ services:
       timeout: 10s
     volumes:
       - db-data:/var/lib/postgresql/data/pgdata
+    env_file: .env
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
-      POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
-      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
 
   object-storage:
     image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
@@ -51,8 +49,8 @@ services:
           pids: 256
     networks: [backend]
     command: [/garage, server, --single-node, --default-bucket]
+    env_file: .env
     environment:
-      - GARAGE_RPC_SECRET
       - GARAGE_DEFAULT_ACCESS_KEY=${UPLOAD_S3_ACCESS_KEY_ID}
       - GARAGE_DEFAULT_SECRET_KEY=${UPLOAD_S3_SECRET_ACCESS_KEY}
       - GARAGE_DEFAULT_BUCKET=${UPLOAD_S3_BUCKET}
@@ -76,6 +74,7 @@ services:
     depends_on:
       object-storage:
         condition: service_healthy
+    env_file: .env
     environment:
       AWS_ENDPOINT_URL: http://object-storage:3900
       AWS_DEFAULT_REGION: ${UPLOAD_S3_REGION}
@@ -83,14 +82,13 @@ services:
       AWS_SECRET_ACCESS_KEY: ${UPLOAD_S3_SECRET_ACCESS_KEY}
       AWS_EC2_METADATA_DISABLED: "true"
       UPLOAD_S3_BUCKET: ${UPLOAD_S3_BUCKET}
-      UPLOAD_CORS_ORIGIN: ${VITE_FRONTEND_URL}
     tmpfs:
       - /tmp
     volumes:
       - ./scripts/init_upload_bucket.sh:/scripts/init_upload_bucket.sh:ro
 
   backend:
-    image: 'backend:${TAG}'
+    image: wanderbound-backend
     restart: always
     <<: *security
     init: true
@@ -115,39 +113,11 @@ services:
       db:
         condition: service_healthy
         restart: true
+    env_file: .env
     environment:
       - SQLALCHEMY_DATABASE_URI=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - SECRET_KEY
-      - SECRET_KEY_PREVIOUS
-      - VITE_FRONTEND_URL
       - FRONTEND_URL=http://frontend:8080
-      - VITE_GOOGLE_CLIENT_ID
-      - GOOGLE_CLIENT_SECRET
-      - VITE_MICROSOFT_CLIENT_ID
-      - DATA_FOLDER
-      - MAX_STORAGE_BYTES
-      - BACKEND_CORS_ORIGINS
-      - VITE_MAPBOX_TOKEN
-      - ENVIRONMENT
-      - LOG_LEVEL
-      - APP_VERSION
-      - DBOS_SYSTEM_DATABASE_URI
-      - DBOS_EXECUTOR_ID
-      - DBOS_ADMIN_PORT
-      - DBOS_RUN_ADMIN_SERVER
-      - DBOS_HEARTBEAT_TTL_SECONDS
-      - DBOS_RECOVERY_INTERVAL_SECONDS
-      - SENTRY_DSN
-      - SENTRY_TRACES_SAMPLE_RATE
-      - UPLOAD_S3_BUCKET
-      - UPLOAD_S3_REGION
       - UPLOAD_S3_INTERNAL_ENDPOINT_URL=http://object-storage:3900
-      - UPLOAD_S3_PUBLIC_ENDPOINT_URL
-      - UPLOAD_S3_ADDRESSING_STYLE
-      - UPLOAD_S3_ACCESS_KEY_ID
-      - UPLOAD_S3_SECRET_ACCESS_KEY
-      - UPLOAD_S3_PRESIGN_TTL_SECONDS
-      - UPLOAD_SESSION_TTL_SECONDS
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
@@ -162,11 +132,10 @@ services:
       - app-data:/app/backend/data
 
   frontend:
-    image: 'frontend:${TAG}'
+    image: wanderbound-frontend
     restart: always
     <<: *security
-    environment:
-      - UPLOAD_S3_BROWSER_ORIGIN
+    env_file: .env
     tmpfs:
       - /etc/nginx/conf.d:uid=101,gid=101
       - /var/cache/nginx:uid=101,gid=101
@@ -188,21 +157,10 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      secrets: [app_env]
       args:
-        - ENVIRONMENT
-        - VITE_MAPBOX_TOKEN
-        - VITE_GOOGLE_CLIENT_ID
-        - VITE_CONTACT_EMAIL
-        - VITE_GITHUB_URL
-        - VITE_AUTHOR_NAME
-        - VITE_AUTHOR_URL
-        - VITE_SENTRY_DSN
-        - VITE_SENTRY_TRACES_SAMPLE_RATE
-        - VITE_FRONTEND_URL
-        - VITE_MICROSOFT_CLIENT_ID
         - APP_VERSION
-        - SENTRY_ORG
-        - SENTRY_FRONTEND_PROJECT
+        - FRONTEND_ENV_HASH
 
 networks:
   backend:
@@ -216,3 +174,7 @@ volumes:
   app-data:
   object-storage-metadata:
   object-storage-data:
+
+secrets:
+  app_env:
+    file: .frontend.env

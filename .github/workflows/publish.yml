@@ -76,6 +76,10 @@ jobs:
       - id: app-version
         run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.4.8
+          install_args: python uv
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -92,6 +96,26 @@ jobs:
             type=raw,value=${{ steps.app-version.outputs.value }}
             type=sha
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' }}
+      - name: Materialize frontend environment
+        env:
+          ENVIRONMENT: production
+          VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_CONTACT_EMAIL: ${{ vars.VITE_CONTACT_EMAIL }}
+          VITE_GITHUB_URL: ${{ vars.VITE_GITHUB_URL }}
+          VITE_AUTHOR_NAME: ${{ vars.VITE_AUTHOR_NAME }}
+          VITE_AUTHOR_URL: ${{ vars.VITE_AUTHOR_URL }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VITE_SENTRY_TRACES_SAMPLE_RATE: ${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE }}
+          VITE_FRONTEND_URL: ${{ vars.VITE_FRONTEND_URL }}
+          VITE_MICROSOFT_CLIENT_ID: ${{ vars.VITE_MICROSOFT_CLIENT_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_FRONTEND_PROJECT: ${{ vars.SENTRY_FRONTEND_PROJECT }}
+        run: |
+          mise run env:materialize .env
+          mise run env:frontend
+          echo "FRONTEND_ENV_HASH=$(mise run env:frontend:hash)" >> "$GITHUB_ENV"
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -100,22 +124,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ENVIRONMENT=production
-            VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
-            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
-            VITE_CONTACT_EMAIL=${{ vars.VITE_CONTACT_EMAIL }}
-            VITE_GITHUB_URL=${{ vars.VITE_GITHUB_URL }}
-            VITE_AUTHOR_NAME=${{ vars.VITE_AUTHOR_NAME }}
-            VITE_AUTHOR_URL=${{ vars.VITE_AUTHOR_URL }}
-            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
-            VITE_SENTRY_TRACES_SAMPLE_RATE=${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE }}
-            VITE_FRONTEND_URL=${{ vars.VITE_FRONTEND_URL }}
-            VITE_MICROSOFT_CLIENT_ID=${{ vars.VITE_MICROSOFT_CLIENT_ID }}
-            SENTRY_ORG=${{ vars.SENTRY_ORG }}
-            SENTRY_FRONTEND_PROJECT=${{ vars.SENTRY_FRONTEND_PROJECT }}
             APP_VERSION=${{ steps.app-version.outputs.value }}
-          secrets: |
-            "sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}"
+            FRONTEND_ENV_HASH=${{ env.FRONTEND_ENV_HASH }}
+          secret-files: |
+            app_env=.frontend.env
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 

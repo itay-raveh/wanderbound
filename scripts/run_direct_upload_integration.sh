@@ -4,7 +4,10 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 work_dir=$(mktemp -d)
 env_file="$work_dir/integration.env"
+frontend_env_file="$work_dir/frontend.env"
 fixture="$work_dir/direct-upload.zip"
+export DIRECT_UPLOAD_ENV_FILE="$env_file"
+export DIRECT_UPLOAD_FRONTEND_ENV_FILE="$frontend_env_file"
 project_name="wanderbound-direct-upload-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
 
 compose=(
@@ -28,7 +31,6 @@ trap cleanup EXIT
 
 printf '%s\n' \
   "COMPOSE_PROJECT_NAME=$project_name" \
-  "TAG=direct-upload-integration" \
   "SECRET_KEY=integration-only-session-secret" \
   "POSTGRES_PASSWORD=integration-postgres" \
   "POSTGRES_USER=postgres" \
@@ -48,6 +50,10 @@ printf '%s\n' \
   "UPLOAD_S3_SECRET_ACCESS_KEY=0000000000000000000000000000000000000000000000000000000000000000" \
   "GARAGE_RPC_SECRET=1111111111111111111111111111111111111111111111111111111111111111" \
   >"$env_file"
+
+mise run env:frontend "$env_file" "$frontend_env_file"
+export FRONTEND_ENV_HASH
+FRONTEND_ENV_HASH=$(mise run env:frontend:hash "$frontend_env_file")
 
 set -a
 source "$env_file"

@@ -28,16 +28,16 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-_PDF_BASELINE_MB = 512
-_PER_RENDER_MB = 768
-
-_memory_mb = detect_memory_mb()
-_max_concurrent = max(1, (_memory_mb - _PDF_BASELINE_MB) // _PER_RENDER_MB)
-
 PDF_QUEUE_TIMEOUT = 120
 _RENDER_TIMEOUT = 300
 _PROGRESS_CHUNK_BYTES = 512 * 1024
 _RENDER_SLOT_POLL_INTERVAL = 0.25
+
+
+def _pdf_concurrency() -> int:
+    settings = get_settings()
+    memory_budget = detect_memory_mb() - settings.HEAVY_OPERATION_MEMORY_RESERVE_MB
+    return max(1, memory_budget // settings.HEAVY_OPERATION_MEMORY_MB)
 
 
 class PdfQueued(BaseModel):
@@ -194,7 +194,7 @@ async def render_pdf_slot() -> AsyncGenerator[None]:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + PDF_QUEUE_TIMEOUT
     while True:
-        for slot in range(_max_concurrent):
+        for slot in range(_pdf_concurrency()):
             lock = try_advisory_lock(f"pdf-render:{slot}")
             acquired = await lock.__aenter__()
             if acquired:

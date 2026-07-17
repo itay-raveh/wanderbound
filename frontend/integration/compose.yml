@@ -1,15 +1,24 @@
 services:
+  db:
+    env_file: !override ["${DIRECT_UPLOAD_ENV_FILE}"]
+
   object-storage:
+    env_file: !override ["${DIRECT_UPLOAD_ENV_FILE}"]
     ports:
       - "127.0.0.1:3900:3900"
 
+  object-storage-init:
+    env_file: !override ["${DIRECT_UPLOAD_ENV_FILE}"]
+
   backend:
+    env_file: !override ["${DIRECT_UPLOAD_ENV_FILE}"]
     command: >-
       sh -c "alembic upgrade head &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers --log-config app/core/uvicorn_logging.json"
 
   frontend:
+    env_file: !override ["${DIRECT_UPLOAD_ENV_FILE}"]
     ports:
       - "127.0.0.1:5173:8080"
     depends_on:
@@ -24,3 +33,7 @@ networks:
   frontend:
     name: ${COMPOSE_PROJECT_NAME}_frontend
     external: false
+
+secrets:
+  app_env:
+    file: ${DIRECT_UPLOAD_FRONTEND_ENV_FILE}

@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 if TYPE_CHECKING:
     import imagehash
 
+from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.observability import set_span_data, start_span
@@ -61,8 +62,6 @@ from .processing import (
 logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
-_UPGRADE_BASELINE_MB = 512
-_PER_UPGRADE_MB = 768
 
 
 @functools.cache
@@ -72,8 +71,13 @@ def _hash_limiter() -> anyio.CapacityLimiter:
 
 @functools.cache
 def _upgrade_limiter() -> anyio.CapacityLimiter:
-    memory_budget = detect_memory_mb() - _UPGRADE_BASELINE_MB
-    return anyio.CapacityLimiter(max(1, memory_budget // _PER_UPGRADE_MB))
+    return anyio.CapacityLimiter(_upgrade_concurrency())
+
+
+def _upgrade_concurrency() -> int:
+    settings = get_settings()
+    memory_budget = detect_memory_mb() - settings.HEAVY_OPERATION_MEMORY_RESERVE_MB
+    return max(1, memory_budget // settings.HEAVY_OPERATION_MEMORY_MB)
 
 
 class MatchInProgress(BaseModel):

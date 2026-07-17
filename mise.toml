@@ -13,10 +13,36 @@ prek = "0.4.6"
 
 # -- Setup --------------------------------------------------------
 
+[tasks."env:materialize"]
+description = "Write documented environment values from the current process"
+usage = '''
+arg "<output>" help="Destination dotenv file"
+'''
+run = 'uv run scripts/materialize_env.py "$usage_output" --template .env.example'
+
+[tasks."env:frontend"]
+description = "Write the public environment used to build the frontend"
+usage = '''
+arg "<source>" help="Source dotenv file" default=".env"
+arg "<output>" help="Destination dotenv file" default=".frontend.env"
+'''
+run = 'uv run scripts/materialize_env.py "$usage_output" --template "$usage_source" --name ENVIRONMENT --prefix VITE_ --prefix SENTRY_'
+
+[tasks."env:frontend:hash"]
+description = "Hash the frontend build environment for Docker cache invalidation"
+quiet = true
+usage = '''
+arg "<source>" help="Frontend dotenv file" default=".frontend.env"
+'''
+run = '''
+sha256sum "$usage_source" | cut -d ' ' -f 1
+'''
+
 [tasks.setup]
 description = "Bootstrap dev environment from fresh clone"
 run = [
     "cp -n .env.example .env || true",
+    "mise run env:frontend",
     "uv sync",
     "bun install",
     "prek install --prepare-hooks",
@@ -47,9 +73,9 @@ fi
 
 [tasks.dev]
 description = "Create the shared network and start the development stack"
-depends = ["dev:network"]
+depends = ["dev:network", "env:frontend"]
 run = '''
-docker compose up --detach
+FRONTEND_ENV_HASH=$(mise run env:frontend:hash) docker compose up --detach
 '''
 
 [tasks."dev:backend"]
@@ -261,15 +287,15 @@ sources = ["app/**/*.py", "../scripts/generate_openapi.py"]
 outputs = ["openapi.json"]
 run = "uv run python ../scripts/generate_openapi.py"
 
-[tasks."generate:upload-config"]
-description = "Generate frontend upload constants from backend Settings"
+[tasks."generate:backend-settings"]
+description = "Generate static frontend and nginx values from backend Settings"
 dir = "backend"
-sources = ["app/core/config.py", "../scripts/generate_upload_config.py"]
+sources = ["app/core/config.py", "../scripts/generate_backend_settings.py"]
 outputs = [
-    "../frontend/src/generated/uploadConfig.ts",
+    "../frontend/src/generated/backendSettings.ts",
     "../frontend/nginx/generated-upload-limits.conf",
 ]
-run = "uv run python ../scripts/generate_upload_config.py"
+run = "uv run python ../scripts/generate_backend_settings.py"
 
 [tasks."generate:landing"]
 description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
@@ -303,9 +329,9 @@ run = "scripts/check-generated.sh og-image generate:og-image frontend/public/og-
 description = "Check OpenAPI generated asset"
 run = "scripts/check-generated.sh openapi generate:openapi backend/openapi.json"
 
-[tasks."check:generated:upload-config"]
-description = "Check generated frontend upload constants"
-run = "scripts/check-generated.sh upload-config generate:upload-config frontend/src/generated/uploadConfig.ts frontend/nginx/generated-upload-limits.conf"
+[tasks."check:generated:backend-settings"]
+description = "Check static frontend and nginx values derived from backend Settings"
+run = "scripts/check-generated.sh backend-settings generate:backend-settings frontend/src/generated/backendSettings.ts frontend/nginx/generated-upload-limits.conf"
 
 [tasks."check:generated:landing"]
 description = "Check landing screenshot generated assets"
@@ -321,7 +347,7 @@ run = [
     "mise run check:generated:topo",
     "mise run check:generated:og-image",
     "mise run check:generated:openapi",
-    "mise run check:generated:upload-config",
+    "mise run check:generated:backend-settings",
 ]
 
 [tasks.generate]
@@ -334,7 +360,7 @@ depends = [
     "generate:weather-icons",
     "generate:og-image",
     "generate:openapi",
-    "generate:upload-config",
+    "generate:backend-settings",
 ]
 
 # -- Changelog ----------------------------------------------------

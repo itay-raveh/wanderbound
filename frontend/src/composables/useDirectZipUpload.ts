@@ -5,7 +5,7 @@ import {
   type UploadProgressUpdate,
   type UploadResult,
 } from "@/client";
-import { UPLOAD_PART_SIZE_BYTES } from "@/generated/uploadConfig";
+import { UPLOAD_PART_SIZE_BYTES } from "@/generated/backendSettings";
 import AwsS3 from "@uppy/aws-s3";
 import Uppy, { type UppyFile } from "@uppy/core";
 import { onScopeDispose, ref } from "vue";

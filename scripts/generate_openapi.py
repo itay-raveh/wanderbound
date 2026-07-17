@@ -16,6 +16,7 @@ os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
 os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "codegen")
 os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "codegen")
 os.environ.setdefault("VITE_MAPBOX_TOKEN", "codegen")
+os.environ.setdefault("VITE_FRONTEND_URL", "http://localhost")
 
 from app.main import app  # noqa: E402
 

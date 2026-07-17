@@ -56,7 +56,7 @@ class Settings(DatabaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
-    VITE_FRONTEND_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:5173")
+    VITE_FRONTEND_URL: AnyHttpUrl
     FRONTEND_URL: AnyHttpUrl | None = None
     ENVIRONMENT: Literal["local", "production"] = "local"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -78,6 +78,8 @@ class Settings(DatabaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     MAX_UPLOAD_SIZE_BYTES: int = Field(default=4 * 1024**3, gt=0)
     UPLOAD_PART_SIZE_BYTES: int = Field(default=64 * 1024**2, gt=0)
+    HEAVY_OPERATION_MEMORY_RESERVE_MB: int = Field(default=512, ge=0)
+    HEAVY_OPERATION_MEMORY_MB: int = Field(default=768, gt=0)
 
     UPLOAD_S3_BUCKET: str
     UPLOAD_S3_REGION: str

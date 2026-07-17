@@ -14,6 +14,15 @@ def write_fake_pdf(dest: Path, chapter: str | None) -> int:
     return dest.stat().st_size
 
 
+def test_pdf_concurrency_uses_memory_settings(monkeypatch: Any) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "HEAVY_OPERATION_MEMORY_RESERVE_MB", 100)
+    monkeypatch.setattr(settings, "HEAVY_OPERATION_MEMORY_MB", 200)
+    monkeypatch.setattr(pdf, "detect_memory_mb", lambda: 700)
+
+    assert pdf._pdf_concurrency() == 3
+
+
 def test_print_url_includes_chapter_when_requested() -> None:
     assert (
         pdf._print_url(

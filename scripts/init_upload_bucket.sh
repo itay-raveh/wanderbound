@@ -2,7 +2,7 @@
 set -eu
 
 : "${UPLOAD_S3_BUCKET:?Variable not set}"
-: "${UPLOAD_CORS_ORIGIN:?Variable not set}"
+: "${VITE_FRONTEND_URL:?Variable not set}"
 
 cors_file=$(mktemp)
 lifecycle_file=$(mktemp)
@@ -12,7 +12,7 @@ cat >"$cors_file" <<EOF
 {
   "CORSRules": [
     {
-      "AllowedOrigins": ["${UPLOAD_CORS_ORIGIN}"],
+      "AllowedOrigins": ["${VITE_FRONTEND_URL}"],
       "AllowedMethods": ["PUT"],
       "AllowedHeaders": ["content-type", "x-amz-content-sha256"],
       "ExposeHeaders": ["ETag"],

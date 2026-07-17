@@ -5,13 +5,15 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 import { defineConfig, loadEnv } from "vite";
 
+import { DEFAULT_ENVIRONMENT } from "./src/generated/backendSettings";
+
 const version = process.env.APP_VERSION;
 const sentryApplicationKey = "wanderbound";
 const envDir = path.resolve(__dirname, "..");
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, "");
-  const environment = env.ENVIRONMENT;
+  const environment = env.ENVIRONMENT || DEFAULT_ENVIRONMENT;
   if (environment !== "local" && environment !== "production") {
     throw new Error("ENVIRONMENT must be set to local or production");
   }
@@ -46,9 +48,9 @@ export default defineConfig(({ mode }) => {
         include: [path.resolve(__dirname, "src/i18n/locales/**")],
       }),
       sentryVitePlugin({
-        org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_FRONTEND_PROJECT,
-        authToken: process.env.SENTRY_AUTH_TOKEN,
+        org: env.SENTRY_ORG,
+        project: env.SENTRY_FRONTEND_PROJECT,
+        authToken: env.SENTRY_AUTH_TOKEN,
         applicationKey: sentryApplicationKey,
         release: {
           name: version,

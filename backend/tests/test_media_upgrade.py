@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     import httpx
     from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.logic.media_upgrade.phash_matching import (
     _FALLBACK_MAX_DIMENSION,
     HashedMedia,
@@ -33,6 +34,7 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
     _needs_upgrade,
     _persist_upgrade_in_session,
+    _upgrade_concurrency,
     run_matching,
     run_upgrade,
 )
@@ -55,6 +57,19 @@ def _clear_upgrade_caches_between_tests() -> Iterator[None]:
 def _make_hash(value: int) -> imagehash.ImageHash:
     bits = np.array([(value >> i) & 1 for i in range(64)], dtype=bool)
     return imagehash.ImageHash(bits)
+
+
+def test_upgrade_concurrency_uses_memory_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "HEAVY_OPERATION_MEMORY_RESERVE_MB", 100)
+    monkeypatch.setattr(settings, "HEAVY_OPERATION_MEMORY_MB", 200)
+    monkeypatch.setattr(
+        "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: 700
+    )
+
+    assert _upgrade_concurrency() == 3
 
 
 def _hm(

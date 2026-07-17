@@ -21,6 +21,7 @@ os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
 os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "test")
 os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("VITE_MAPBOX_TOKEN", "test")
+os.environ.setdefault("VITE_FRONTEND_URL", "http://test")
 
 from app.api.v1.deps import _get_http_clients, _get_session
 from app.core.config import get_settings

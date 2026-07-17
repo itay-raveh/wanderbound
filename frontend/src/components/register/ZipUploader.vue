@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { UploadResult } from "@/client";
 import { useDirectZipUpload } from "@/composables/useDirectZipUpload";
-import { MAX_UPLOAD_SIZE_BYTES } from "@/generated/uploadConfig";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/generated/backendSettings";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
 import { useQuasar } from "quasar";
 import { ref } from "vue";
