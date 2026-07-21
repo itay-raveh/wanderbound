@@ -143,9 +143,12 @@ services:
     restart: "no"
     <<: *security
     user: "65532:65532"
-    env_file: ${WANDERBOUND_ENV_FILE:-.env}
     environment:
       HOME: /tmp
+      SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+      SENTRY_ORG: ${SENTRY_ORG:-}
+      SENTRY_PROJECT: ${SENTRY_PROJECT:-}
+      SENTRY_URL: ${SENTRY_URL:-https://sentry.io/}
       SENTRY_DISABLE_UPDATE_CHECK: "true"
     tmpfs:
       - /tmp

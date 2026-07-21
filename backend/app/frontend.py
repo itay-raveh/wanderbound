@@ -1,7 +1,11 @@
-from typing import TYPE_CHECKING
+from collections.abc import AsyncIterator
+from html import escape
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol, cast
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, FastAPI, Request, Response
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.config import PublicSettings, Settings, get_settings
@@ -10,6 +14,11 @@ if TYPE_CHECKING:
     from starlette.middleware.base import RequestResponseEndpoint
 
 router = APIRouter(tags=["config"])
+_PUBLIC_URL_MARKER = "__WANDERBOUND_PUBLIC_URL__"
+
+
+class _StreamingBodyResponse(Protocol):
+    body_iterator: AsyncIterator[bytes | dict[str, str]]
 
 
 def _url_origin(value: object) -> str | None:
@@ -22,10 +31,21 @@ def _url_origin(value: object) -> str | None:
     return f"{parsed.scheme}://{parsed.hostname}{port}"
 
 
+def _upload_origin(settings: Settings) -> str:
+    parsed = urlsplit(str(settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL))
+    hostname = parsed.hostname
+    if hostname is None:
+        raise ValueError("UPLOAD_S3_PUBLIC_ENDPOINT_URL must contain a hostname")
+    if settings.UPLOAD_S3_ADDRESSING_STYLE == "virtual":
+        hostname = f"{settings.UPLOAD_S3_BUCKET}.{hostname}"
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme}://{hostname}{port}"
+
+
 def _content_security_policy(settings: Settings) -> str:
     connect_sources = [
         "'self'",
-        str(settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL).rstrip("/"),
+        _upload_origin(settings),
         "https://api.mapbox.com",
         "https://events.mapbox.com",
         "https://accounts.google.com/gsi/",
@@ -56,6 +76,50 @@ def _content_security_policy(settings: Settings) -> str:
     )
 
 
+async def _read_response_body(response: Response) -> bytes | None:
+    body_iterator = getattr(response, "body_iterator", None)
+    if body_iterator is None:
+        return None
+    chunks: list[bytes] = []
+    async for chunk in body_iterator:
+        if isinstance(chunk, dict):
+            chunks.append(await run_in_threadpool(Path(chunk["path"]).read_bytes))
+        else:
+            chunks.append(bytes(chunk))
+    return b"".join(chunks)
+
+
+def _delete_headers(response: Response, *headers: str) -> None:
+    for header in headers:
+        if header in response.headers:
+            del response.headers[header]
+
+
+async def _render_social_metadata(
+    response: Response, public_url: str, *, method: str
+) -> Response:
+    is_html = response.headers.get("Content-Type", "").startswith("text/html")
+    if not is_html:
+        return response
+    if method == "HEAD":
+        _delete_headers(response, "Content-Length", "ETag", "Last-Modified")
+        return response
+    if response.status_code != 200:
+        return response
+
+    body = await _read_response_body(response)
+    if body is None:
+        return response
+    marker = _PUBLIC_URL_MARKER.encode()
+    rendered = body.replace(marker, escape(public_url, quote=True).encode())
+    streaming_response = cast("_StreamingBodyResponse", response)
+    streaming_response.body_iterator = iterate_in_threadpool(iter([rendered]))
+    response.headers["Content-Length"] = str(len(rendered))
+    if rendered != body:
+        _delete_headers(response, "ETag", "Last-Modified")
+    return response
+
+
 @router.get("/config")
 def public_config(response: Response) -> PublicSettings:
     response.headers["Cache-Control"] = "no-store"
@@ -72,6 +136,11 @@ def install_frontend(application: FastAPI, settings: Settings) -> None:
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         response = await call_next(request)
+        response = await _render_social_metadata(
+            response,
+            str(settings.PUBLIC_URL).rstrip("/"),
+            method=request.method,
+        )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Strict-Transport-Security"] = (

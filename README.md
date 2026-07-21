@@ -77,8 +77,9 @@ The public application image contains the FastAPI backend and the compiled Vue
 frontend. It contains no installation-specific configuration. FastAPI reads the
 environment once at process startup and exposes only the browser-visible subset
 at `GET /api/v1/config`; the frontend fetches that read-only configuration before
-mounting. The endpoint never exposes application secrets, and no startup files
-or HTML are generated or rewritten.
+mounting. The endpoint never exposes application secrets. FastAPI also resolves
+the public URL markers in social metadata while serving HTML; it does not write
+or generate startup files.
 
 Stable releases publish two images with the same exact version tag:
 
@@ -93,10 +94,11 @@ docker compose -f compose.yml --profile sentry run --rm sourcemaps
 docker compose -f compose.yml up -d
 ```
 
-The source-map container reads `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
-`SENTRY_PROJECT`, and optional `SENTRY_URL` only when it runs. These values do
-not affect either image build. Compose explicitly removes `SENTRY_AUTH_TOKEN`
-from the application container even when both services read the same env file.
+The source-map container receives only `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+`SENTRY_PROJECT`, and optional `SENTRY_URL` when it runs. It does not receive
+the application, database, or object-storage secrets, and the application
+container does not receive `SENTRY_AUTH_TOKEN`. None of these values affect
+either image build.
 
 The Compose stack runs the app, database, and S3-compatible object storage.
 Configure database and app data backups in your deployment infrastructure.
