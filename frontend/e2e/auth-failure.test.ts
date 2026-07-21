@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("renders the landing page when the initial auth-state request fails", async ({
   page,
