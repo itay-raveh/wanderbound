@@ -3,7 +3,6 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-const frontendOrigin = "http://localhost:5173";
 const garageOrigin = "http://localhost:3900";
 const fixturePath = process.env.DIRECT_UPLOAD_FIXTURE;
 const projectName = process.env.COMPOSE_PROJECT_NAME;
@@ -49,7 +48,7 @@ async def main():
 
 asyncio.run(main())
 `;
-  await compose("exec", "-T", "backend", "python", "-c", script, `${userId}`);
+  await compose("exec", "-T", "app", "python", "-c", script, `${userId}`);
 }
 
 async function verifyTemporaryDataRemoved(uploadId: string): Promise<void> {
@@ -73,7 +72,7 @@ finally:
 if (settings.DATA_FOLDER / "upload-work" / sys.argv[1]).exists():
     raise RuntimeError("local upload work remains")
 `;
-  await compose("exec", "-T", "backend", "python", "-c", script, uploadId);
+  await compose("exec", "-T", "app", "python", "-c", script, uploadId);
 }
 
 test("uploads a multipart ZIP directly to Garage and imports it", async ({
@@ -90,9 +89,7 @@ test("uploads a multipart ZIP directly to Garage and imports it", async ({
     }
   });
 
-  const demo = await page
-    .context()
-    .request.post(`${frontendOrigin}/api/v1/users/demo`);
+  const demo = await page.request.post("/api/v1/users/demo");
   expect(demo.ok()).toBe(true);
   const demoUser = ((await demo.json()) as { user: { id: number } }).user;
   await prepareDemoForUpload(demoUser.id);
