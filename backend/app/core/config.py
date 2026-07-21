@@ -71,6 +71,9 @@ class PublicSettings(BaseModel):
 
 class Settings(PublicSettings, DatabaseSettings):
     API_V1_STR: str = "/api/v1"
+    FRONTEND_DIRECTORY: Path = Field(
+        default=Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    )
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
     INTERNAL_URL: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8000")

@@ -2,13 +2,12 @@ import asyncio
 import shutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import NoResultFound
@@ -17,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.api.v1.routes.uploads import UploadHTTPException
-from app.core.config import get_settings
+from app.core.config import PublicSettings, Settings, get_settings
 from app.core.http_clients import lifespan_clients
 from app.core.locks import try_advisory_lock
 from app.core.logging import setup_logging
@@ -42,17 +41,12 @@ from app.services.upload_store import build_upload_store
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
     from starlette.middleware.base import RequestResponseEndpoint
-    from starlette.responses import Response
-
-    from app.core.config import Settings
 
 settings = get_settings()
 setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
 setup_sentry(settings)
 
 logger = structlog.get_logger(__name__)
-
-FRONTEND_DIRECTORY = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -103,9 +97,7 @@ def _content_security_policy(settings: Settings) -> str:
     )
 
 
-def configure_frontend(
-    application: FastAPI, directory: Path, app_settings: Settings
-) -> None:
+def configure_frontend(application: FastAPI, app_settings: Settings) -> None:
     content_security_policy = _content_security_policy(app_settings)
 
     @application.middleware("http")
@@ -133,7 +125,7 @@ def configure_frontend(
     application.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
     application.frontend(
         "/",
-        directory=directory,
+        directory=app_settings.FRONTEND_DIRECTORY,
         fallback="index.html",
         check_dir=False,
     )
@@ -261,6 +253,13 @@ app.add_middleware(
 app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 
+@app.get(f"{settings.API_V1_STR}/config", tags=["config"])
+def public_config(response: Response) -> PublicSettings:
+    response.headers["Cache-Control"] = "no-store"
+    public_values = settings.model_dump(include=set(PublicSettings.model_fields))
+    return PublicSettings.model_validate(public_values)
+
+
 @app.exception_handler(UploadHTTPException)
 async def _upload_error(_request: Request, exc: UploadHTTPException) -> JSONResponse:
     return JSONResponse({"message": exc.detail}, status_code=exc.status_code)
@@ -282,4 +281,4 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
-configure_frontend(app, FRONTEND_DIRECTORY, settings)
+configure_frontend(app, settings)

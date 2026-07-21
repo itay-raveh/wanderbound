@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -6,9 +7,13 @@ from httpx import ASGITransport, AsyncClient
 from app import main
 from app.core.config import get_settings
 
+if TYPE_CHECKING:
+    import pytest
+
 
 async def test_frontend_serving_preserves_api_and_asset_semantics(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     configure_frontend = getattr(main, "configure_frontend", None)
     assert configure_frontend is not None
@@ -23,7 +28,9 @@ async def test_frontend_serving_preserves_api_and_asset_semantics(
     def ping() -> dict[str, bool]:
         return {"ok": True}
 
-    configure_frontend(application, tmp_path, get_settings())
+    app_settings = get_settings()
+    monkeypatch.setattr(app_settings, "FRONTEND_DIRECTORY", tmp_path)
+    configure_frontend(application, app_settings)
 
     async with AsyncClient(
         transport=ASGITransport(app=application), base_url="http://test"
