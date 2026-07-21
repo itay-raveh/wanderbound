@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     import pytest
     from httpx import AsyncClient
 
-from app import main
+from app import frontend
 from app.core.config import PublicSettings, get_settings
 
 
@@ -36,7 +36,7 @@ def test_public_config_constructs_a_public_settings_model(
     sentinel = "must-not-cross-the-public-config-boundary"
     monkeypatch.setattr(get_settings(), "SECRET_KEY", sentinel)
 
-    public_settings = main.public_config(Response())
+    public_settings = frontend.public_config(Response())
 
     assert type(public_settings) is PublicSettings
     assert set(public_settings.model_dump()) == set(PublicSettings.model_fields)

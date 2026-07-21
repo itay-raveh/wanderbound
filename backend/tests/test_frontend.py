@@ -4,20 +4,22 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app import main
+from app import frontend, main
 from app.core.config import get_settings
 
 if TYPE_CHECKING:
     import pytest
 
 
+def test_main_does_not_own_frontend_delivery() -> None:
+    assert not hasattr(main, "configure_frontend")
+    assert not hasattr(main, "public_config")
+
+
 async def test_frontend_serving_preserves_api_and_asset_semantics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    configure_frontend = getattr(main, "configure_frontend", None)
-    assert configure_frontend is not None
-
     (tmp_path / "assets").mkdir()
     (tmp_path / "index.html").write_text("<h1>Wanderbound</h1>")
     (tmp_path / "assets" / "app.123.js").write_text("console.log('app')")
@@ -30,7 +32,7 @@ async def test_frontend_serving_preserves_api_and_asset_semantics(
 
     app_settings = get_settings()
     monkeypatch.setattr(app_settings, "FRONTEND_DIRECTORY", tmp_path)
-    configure_frontend(application, app_settings)
+    frontend.install_frontend(application, app_settings)
 
     async with AsyncClient(
         transport=ASGITransport(app=application), base_url="http://test"

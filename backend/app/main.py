@@ -3,24 +3,23 @@ import shutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
 
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import NoResultFound
-from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.api.v1.routes.uploads import UploadHTTPException
-from app.core.config import PublicSettings, Settings, get_settings
+from app.core.config import get_settings
 from app.core.http_clients import lifespan_clients
 from app.core.locks import try_advisory_lock
 from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
+from app.frontend import install_frontend
 from app.logic.export import lifespan as export_lifespan
 from app.logic.external_media.undo import lifespan as undo_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
@@ -40,7 +39,6 @@ from app.services.upload_store import build_upload_store
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
-    from starlette.middleware.base import RequestResponseEndpoint
 
 settings = get_settings()
 setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
@@ -51,84 +49,6 @@ logger = structlog.get_logger(__name__)
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return route.name
-
-
-def _url_origin(value: object) -> str | None:
-    if value is None:
-        return None
-    parsed = urlsplit(str(value))
-    if not parsed.scheme or not parsed.hostname:
-        return None
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    return f"{parsed.scheme}://{parsed.hostname}{port}"
-
-
-def _content_security_policy(settings: Settings) -> str:
-    connect_sources = [
-        "'self'",
-        str(settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL).rstrip("/"),
-        "https://api.mapbox.com",
-        "https://events.mapbox.com",
-        "https://accounts.google.com/gsi/",
-        "https://login.microsoftonline.com",
-        "https://cloudflareinsights.com",
-    ]
-    if sentry_origin := _url_origin(settings.PUBLIC_SENTRY_DSN):
-        connect_sources.append(sentry_origin)
-
-    return "; ".join(
-        [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' "
-            "https://accounts.google.com/gsi/client "
-            "https://api.mapbox.com/mapbox-gl-js/plugins/ "
-            "https://static.cloudflareinsights.com",
-            "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-            "img-src 'self' data: blob: https://api.mapbox.com "
-            "https://*.tiles.mapbox.com https://lh3.googleusercontent.com",
-            "font-src 'self'",
-            f"connect-src {' '.join(connect_sources)}",
-            "frame-src https://accounts.google.com/gsi/",
-            "worker-src 'self' blob:",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-        ]
-    )
-
-
-def configure_frontend(application: FastAPI, app_settings: Settings) -> None:
-    content_security_policy = _content_security_policy(app_settings)
-
-    @application.middleware("http")
-    async def response_headers(
-        request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=63072000; includeSubDomains"
-        )
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=()"
-        )
-        response.headers["Content-Security-Policy"] = content_security_policy
-
-        if request.url.path.startswith("/assets/") and response.status_code < 400:
-            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        elif response.headers.get("Content-Type", "").startswith("text/html"):
-            response.headers["Cache-Control"] = "no-cache"
-        return response
-
-    application.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
-    application.frontend(
-        "/",
-        directory=app_settings.FRONTEND_DIRECTORY,
-        fallback="index.html",
-        check_dir=False,
-    )
 
 
 @asynccontextmanager
@@ -253,13 +173,6 @@ app.add_middleware(
 app.include_router(v1_router, prefix=settings.API_V1_STR)
 
 
-@app.get(f"{settings.API_V1_STR}/config", tags=["config"])
-def public_config(response: Response) -> PublicSettings:
-    response.headers["Cache-Control"] = "no-store"
-    public_values = settings.model_dump(include=set(PublicSettings.model_fields))
-    return PublicSettings.model_validate(public_values)
-
-
 @app.exception_handler(UploadHTTPException)
 async def _upload_error(_request: Request, exc: UploadHTTPException) -> JSONResponse:
     return JSONResponse({"message": exc.detail}, status_code=exc.status_code)
@@ -281,4 +194,4 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
-configure_frontend(app, settings)
+install_frontend(app, settings)
