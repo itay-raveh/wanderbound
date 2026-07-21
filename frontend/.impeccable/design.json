@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-21T12:05:53Z",
+  "title": "Design System: Wanderbound",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Atlas Blue",
+        "canonical": "#0063D1",
+        "tonalRamp": [
+          "oklch(22% 0.12 255)",
+          "oklch(32% 0.16 255)",
+          "oklch(43% 0.19 255)",
+          "oklch(54% 0.21 255)",
+          "oklch(64% 0.17 255)",
+          "oklch(74% 0.12 255)",
+          "oklch(85% 0.07 255)",
+          "oklch(95% 0.025 255)"
+        ]
+      },
+      "primary-deep": {
+        "role": "primary",
+        "displayName": "Deep Atlas",
+        "canonical": "#0558B8",
+        "tonalRamp": [
+          "oklch(20% 0.10 255)",
+          "oklch(30% 0.14 255)",
+          "oklch(40% 0.17 255)",
+          "oklch(50% 0.18 255)",
+          "oklch(61% 0.15 255)",
+          "oklch(72% 0.11 255)",
+          "oklch(84% 0.06 255)",
+          "oklch(95% 0.02 255)"
+        ]
+      },
+      "binding-violet": {
+        "role": "secondary",
+        "displayName": "Binding Violet",
+        "canonical": "#2D254C",
+        "tonalRamp": [
+          "oklch(18% 0.045 290)",
+          "oklch(28% 0.065 290)",
+          "oklch(39% 0.075 290)",
+          "oklch(50% 0.07 290)",
+          "oklch(62% 0.055 290)",
+          "oklch(74% 0.04 290)",
+          "oklch(86% 0.025 290)",
+          "oklch(96% 0.01 290)"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "canonical": "#1E1E2E",
+        "tonalRamp": [
+          "oklch(16% 0.018 285)",
+          "oklch(26% 0.02 285)",
+          "oklch(38% 0.018 285)",
+          "oklch(50% 0.016 285)",
+          "oklch(62% 0.014 285)",
+          "oklch(74% 0.012 285)",
+          "oklch(86% 0.008 285)",
+          "oklch(96% 0.004 285)"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "canonical": "#252540",
+        "tonalRamp": [
+          "oklch(17% 0.025 285)",
+          "oklch(28% 0.03 285)",
+          "oklch(39% 0.028 285)",
+          "oklch(50% 0.024 285)",
+          "oklch(62% 0.02 285)",
+          "oklch(74% 0.015 285)",
+          "oklch(86% 0.01 285)",
+          "oklch(96% 0.004 285)"
+        ]
+      },
+      "night-text": {
+        "role": "neutral",
+        "displayName": "Night Text",
+        "canonical": "#E5E7EB",
+        "tonalRamp": [
+          "oklch(18% 0.006 255)",
+          "oklch(30% 0.006 255)",
+          "oklch(42% 0.006 255)",
+          "oklch(54% 0.006 255)",
+          "oklch(66% 0.006 255)",
+          "oklch(78% 0.006 255)",
+          "oklch(89% 0.005 255)",
+          "oklch(97% 0.003 255)"
+        ]
+      },
+      "cool-paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "#F3F4F6",
+        "tonalRamp": [
+          "oklch(18% 0.006 255)",
+          "oklch(30% 0.006 255)",
+          "oklch(42% 0.006 255)",
+          "oklch(54% 0.006 255)",
+          "oklch(66% 0.006 255)",
+          "oklch(78% 0.006 255)",
+          "oklch(90% 0.005 255)",
+          "oklch(97% 0.003 255)"
+        ]
+      },
+      "paper-white": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "oklch(18% 0 0)",
+          "oklch(30% 0 0)",
+          "oklch(42% 0 0)",
+          "oklch(54% 0 0)",
+          "oklch(66% 0 0)",
+          "oklch(78% 0 0)",
+          "oklch(90% 0 0)",
+          "oklch(100% 0 0)"
+        ]
+      },
+      "daylight-ink": {
+        "role": "neutral",
+        "displayName": "Daylight Ink",
+        "canonical": "#1F2937",
+        "tonalRamp": [
+          "oklch(18% 0.018 255)",
+          "oklch(30% 0.02 255)",
+          "oklch(42% 0.018 255)",
+          "oklch(54% 0.016 255)",
+          "oklch(66% 0.013 255)",
+          "oklch(78% 0.01 255)",
+          "oklch(89% 0.006 255)",
+          "oklch(97% 0.003 255)"
+        ]
+      },
+      "rule-line": {
+        "role": "neutral",
+        "displayName": "Rule Line",
+        "canonical": "#D1D5DB",
+        "tonalRamp": [
+          "oklch(18% 0.008 255)",
+          "oklch(30% 0.009 255)",
+          "oklch(42% 0.009 255)",
+          "oklch(54% 0.008 255)",
+          "oklch(66% 0.007 255)",
+          "oklch(78% 0.006 255)",
+          "oklch(88% 0.005 255)",
+          "oklch(96% 0.003 255)"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Proofing Red",
+        "canonical": "#DC2626",
+        "tonalRamp": [
+          "oklch(20% 0.09 28)",
+          "oklch(30% 0.14 28)",
+          "oklch(42% 0.18 28)",
+          "oklch(54% 0.21 28)",
+          "oklch(65% 0.17 28)",
+          "oklch(76% 0.12 28)",
+          "oklch(87% 0.07 28)",
+          "oklch(96% 0.025 28)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing identity and rare large album statements."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Feature headings, dialogs, and album section titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Instructions and longer interface copy."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, compact controls, navigation, and metadata."
+      },
+      "album-body": {
+        "displayName": "Album Body",
+        "purpose": "Narrative text printed inside album pages."
+      }
+    },
+    "shadows": [
+      {
+        "name": "selection-lift",
+        "value": "0 1px 4px rgba(0, 0, 0, 0.25)",
+        "purpose": "Selected segmented controls in dark mode."
+      },
+      {
+        "name": "page-lift",
+        "value": "0 4px 20px rgba(0, 0, 0, 0.4)",
+        "purpose": "Album previews and landing-page imagery in dark mode."
+      },
+      {
+        "name": "overlay-lift",
+        "value": "0 12px 36px rgba(0, 0, 0, 0.55)",
+        "purpose": "Menus and temporary overlays in dark mode."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "0.15s",
+        "purpose": "Hover, focus, and compact state feedback."
+      },
+      {
+        "name": "normal",
+        "value": "0.3s",
+        "purpose": "Standard reveals and medium state changes."
+      },
+      {
+        "name": "slow",
+        "value": "0.5s",
+        "purpose": "Large but infrequent transitions."
+      }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "479px" },
+      { "name": "medium", "value": "768px" },
+      { "name": "wide", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single emphasized action in a task area.",
+      "html": "<button class=\"ds-btn-primary\">Export PDF</button>",
+      "css": ".ds-btn-primary { background: var(--q-primary, #0063d1); color: var(--text-on-color, #f0f0f5); min-height: 2.75rem; padding: .5rem .75rem; border: 0; border-radius: var(--radius-md, .5rem); font: 500 .875rem/1.3 var(--font-ui, system-ui); cursor: pointer; transition: background .15s, transform .15s; } .ds-btn-primary:hover { background: #0558b8; } .ds-btn-primary:focus-visible { outline: .125rem solid var(--q-primary, #0063d1); outline-offset: .125rem; } .ds-btn-primary:active { transform: scale(.98); }"
+    },
+    {
+      "name": "Outlined Action",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "A secondary editor action with a reversible visual weight.",
+      "html": "<button class=\"ds-btn-outline\">Replace photo</button>",
+      "css": ".ds-btn-outline { background: transparent; color: var(--q-primary, #0063d1); min-height: 2.75rem; padding: .25rem .75rem; border: 1px solid var(--q-primary, #0063d1); border-radius: var(--radius-sm, .375rem); font: 500 .875rem/1.3 var(--font-ui, system-ui); cursor: pointer; transition: background .15s, color .15s; } .ds-btn-outline:hover { background: var(--q-primary, #0063d1); color: var(--bg, #f3f4f6); } .ds-btn-outline:focus-visible { outline: .125rem solid var(--q-primary, #0063d1); outline-offset: .125rem; }"
+    },
+    {
+      "name": "Outlined Field",
+      "kind": "input",
+      "refersTo": "input-light",
+      "description": "A familiar text field for album and account properties.",
+      "html": "<label class=\"ds-field\"><span>Album title</span><input value=\"Summer in Norway\"></label>",
+      "css": ".ds-field { display: grid; gap: .25rem; color: var(--text-muted, #5d646f); font: 500 .75rem/1.3 var(--font-ui, system-ui); } .ds-field input { min-height: 2.75rem; padding: .5rem .75rem; color: var(--text, #1f2937); background: var(--bg-secondary, #fff); border: 1px solid var(--border-color, #d1d5db); border-radius: var(--radius-sm, .375rem); font: 400 1rem/1.5 var(--font-ui, system-ui); } .ds-field input:hover { border-color: var(--text-faint, #9ca3af); } .ds-field input:focus-visible { outline: 1px solid var(--q-primary, #0063d1); outline-offset: 0; border-color: var(--q-primary, #0063d1); }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "description": "A compact mutually exclusive choice for appearance and units.",
+      "html": "<div class=\"ds-segmented\"><button aria-pressed=\"true\">Light</button><button aria-pressed=\"false\">System</button><button aria-pressed=\"false\">Dark</button></div>",
+      "css": ".ds-segmented { display: flex; gap: .125rem; padding: .125rem; border-radius: var(--radius-md, .5rem); background: color-mix(in srgb, var(--text, #1f2937) 8%, var(--bg-secondary, #fff)); } .ds-segmented button { flex: 1; padding: .375rem .75rem; border: 0; border-radius: var(--radius-sm, .375rem); background: transparent; color: var(--text-muted, #5d646f); font: 500 .875rem/1.3 var(--font-ui, system-ui); cursor: pointer; } .ds-segmented button[aria-pressed=\"true\"] { background: var(--bg-secondary, #fff); color: var(--text-bright, #111827); box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.08)); } .ds-segmented button:focus-visible { outline: .125rem solid var(--q-primary, #0063d1); outline-offset: 1px; }"
+    },
+    {
+      "name": "Workspace Card",
+      "kind": "card",
+      "refersTo": "card-light",
+      "description": "A bordered task container with no resting shadow.",
+      "html": "<section class=\"ds-card\"><h3>Get your data from Polarsteps</h3><p>Upload your export to build the first album draft.</p></section>",
+      "css": ".ds-card { max-width: 28rem; padding: 1.75rem; color: var(--text, #1f2937); background: var(--bg-secondary, #fff); border: 1px solid var(--border-color, #d1d5db); border-radius: var(--radius-xl, 1rem); font-family: var(--font-ui, system-ui); } .ds-card h3 { margin: 0 0 .5rem; color: var(--text-bright, #111827); font-size: 1.1rem; } .ds-card p { margin: 0; color: var(--text-muted, #5d646f); line-height: 1.5; }"
+    },
+    {
+      "name": "Editor Header",
+      "kind": "nav",
+      "refersTo": "editor-header",
+      "description": "A shallow persistent header that leaves vertical space to the album.",
+      "html": "<nav class=\"ds-editor-header\"><strong>Wanderbound</strong><span>Album tools</span><button>Settings</button></nav>",
+      "css": ".ds-editor-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .75rem; color: var(--text-bright, #f0f0f5); background: var(--bg-secondary, #252540); border-bottom: 1px solid var(--border-color, #3a3a50); font: 400 1rem/1.3 var(--font-ui, system-ui); } .ds-editor-header strong { letter-spacing: -.02em; } .ds-editor-header span { color: var(--text-muted, #9ca3af); font-size: .875rem; } .ds-editor-header button { padding: .375rem .5rem; color: var(--text-muted, #9ca3af); background: var(--surface, #2a2a3e); border: 1px solid var(--border-color, #3a3a50); border-radius: 999px; } .ds-editor-header button:hover { color: var(--text-bright, #f0f0f5); } .ds-editor-header button:focus-visible { outline: .125rem solid var(--q-primary, #0063d1); outline-offset: .125rem; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Print Studio",
+    "overview": "Wanderbound feels like a calm workspace built around a physical result. The interface is cool-toned, precise, and dependable, but the user's photographs, maps, and travel story supply the emotion. Product chrome stays restrained so the album remains the most visually important object on screen.\n\nThe system combines compact application controls with generous album surfaces. It supports light and dark themes without changing the hierarchy, uses motion for feedback and orientation, and treats the browser preview as an honest representation of the printed page. It rejects both decorative scrapbook software and dense professional design tools.",
+    "keyCharacteristics": [
+      "Cool neutral work surfaces with one clear blue action color.",
+      "Compact, familiar controls surrounding large photographic page previews.",
+      "Precise print geometry with A4 landscape pages and millimeter-based gaps.",
+      "Responsive state feedback without decorative choreography.",
+      "Full English, Hebrew, RTL, light-theme, and dark-theme support."
+    ],
+    "rules": [
+      {
+        "name": "The Album Leads Rule",
+        "body": "If application chrome competes with a photograph or map, reduce the chrome.",
+        "section": "overview"
+      },
+      {
+        "name": "The One Signal Rule",
+        "body": "Atlas Blue identifies interaction. Do not spend it on decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Theme Parity Rule",
+        "body": "Light and dark themes may change values, never meaning, hierarchy, or available functionality.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Rooms Rule",
+        "body": "Assistant owns the application. Frank Ruhl Libre is reserved for album narrative content.",
+        "section": "typography"
+      },
+      {
+        "name": "The Earned Elevation Rule",
+        "body": "Persistent cards use a border or a tonal shift. Only pages, selected controls, and temporary overlays earn a shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do make the album page, photograph, or map the dominant object.",
+      "Do use Atlas Blue for primary actions, current selection, progress, and focus.",
+      "Do keep application controls in Assistant and album narrative text in Frank Ruhl Libre.",
+      "Do preserve identical album visuals between preview and print.",
+      "Do preserve control meaning and hierarchy across light, dark, LTR, and RTL modes.",
+      "Do provide visible focus and reduced-motion behavior for core workflows."
+    ],
+    "donts": [
+      "Don't make Wanderbound resemble a scrapbook editor.",
+      "Don't make Wanderbound resemble a template marketplace.",
+      "Don't make Wanderbound resemble a playful travel app filled with stickers and decorative effects.",
+      "Don't make Wanderbound resemble dense professional design software that exposes every possible control.",
+      "Don't use Binding Violet as a competing action color.",
+      "Don't add shadows to persistent cards merely for decoration.",
+      "Don't alter album content, spacing, or pagination only for print mode."
+    ]
+  }
+}

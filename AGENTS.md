@@ -13,6 +13,9 @@ Polarsteps ZIP → print-ready photo album. FastAPI + Vue 3 monorepo.
   direction.
 - For semantic code navigation, prefer `cymbal` over raw text search. Use normal
   shell tools for simple file listing, status checks, and exact-path reads.
+- Never commit Superpowers planning or workflow artifacts. Keep
+  `docs/superpowers/`, `.superpowers/`, and equivalent generated briefs,
+  plans, reports, reviews, and mockups local and untracked.
 
 ## Non-Obvious Constraints
 
@@ -36,4 +39,4 @@ Polarsteps ZIP → print-ready photo album. FastAPI + Vue 3 monorepo.
 - Testing: `.claude/rules/testing.md`
 - Naming: `.claude/rules/naming.md`
 - Print-safe CSS: `.claude/rules/print-safe.md`
-- Frontend visual design: `.impeccable.md`
+- Frontend visual design: `frontend/DESIGN.md`
