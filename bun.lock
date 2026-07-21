@@ -42,7 +42,7 @@
         "vue-draggable-plus": "^0.6.1",
         "vue-i18n": "^11.3.0",
         "vue-router": "^5.0.0",
-        "vue3-google-login": "^2.0.37",
+        "vue3-google-login": "^2.1.4",
         "zod": "^4.4.3",
       },
       "devDependencies": {
@@ -1277,7 +1277,7 @@
 
     "vue-tsc": ["vue-tsc@3.2.6", "", { "dependencies": { "@volar/typescript": "2.4.28", "@vue/language-core": "3.2.6" }, "peerDependencies": { "typescript": ">=5.0.0" }, "bin": { "vue-tsc": "bin/vue-tsc.js" } }, "sha512-gYW/kWI0XrwGzd0PKc7tVB/qpdeAkIZLNZb10/InizkQjHjnT8weZ/vBarZoj4kHKbUTZT/bAVgoOr8x4NsQ/Q=="],
 
-    "vue3-google-login": ["vue3-google-login@2.0.37", "", { "peerDependencies": { "vue": "^3.0.3" } }, "sha512-1seGaevhcMPi/dKO36KktpqYMkJdzt4s5U7XjLvHPd50e8sCBcC8/Pv3Mz+QrK12rSOmiduTtxCuPcH2ULYozw=="],
+    "vue3-google-login": ["vue3-google-login@2.1.4", "", { "peerDependencies": { "vue": "^3.0.3" } }, "sha512-bWYd/vGMgOH001O0w2XI2K4MBr4+SCc2rWJJvqgo/nIuh88hItTCwVBINt5deKeDUILW2LbjXD0RDG2h8h7TDw=="],
 
     "webidl-conversions": ["webidl-conversions@3.0.1", "", {}, "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="],
 
