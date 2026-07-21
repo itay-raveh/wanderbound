@@ -92,7 +92,7 @@ services:
       - ./scripts/init_upload_bucket.sh:/scripts/init_upload_bucket.sh:ro
 
   app:
-    image: ghcr.io/itay-raveh/wanderbound:${WANDERBOUND_VERSION:-dev}
+    image: ghcr.io/itay-raveh/wanderbound:${APP_VERSION:-dev}
     restart: always
     <<: *security
     env_file: ${WANDERBOUND_ENV_FILE:-.env}
@@ -138,11 +138,11 @@ services:
       - app-data:/app/backend/data
 
   sourcemaps:
-    image: ghcr.io/itay-raveh/wanderbound-sourcemaps:${WANDERBOUND_VERSION:-dev}
+    image: ghcr.io/itay-raveh/wanderbound:${APP_VERSION:-dev}
     profiles: [sentry]
     restart: "no"
     <<: *security
-    user: "65532:65532"
+    command: [/usr/local/bin/upload-sourcemaps]
     environment:
       HOME: /tmp
       SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}

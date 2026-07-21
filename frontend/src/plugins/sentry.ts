@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/vue";
 import type { Pinia } from "pinia";
 import type { App } from "vue";
 import type { Router } from "vue-router";
-import type { RuntimeSettings } from "@/config";
+import type { Settings } from "@/config";
 
 const PRELOAD_ERROR_PATTERNS = [
   "Failed to fetch dynamically imported module",
@@ -29,7 +29,7 @@ export function setupSentry(
   app: App,
   router: Router,
   pinia: Pinia,
-  settings: RuntimeSettings,
+  settings: Settings,
 ): void {
   if (!sentryEnabled(settings)) return;
 
@@ -92,7 +92,7 @@ export function setupSentry(
   pinia.use(Sentry.createSentryPiniaPlugin());
 }
 
-function sentryEnabled(settings: RuntimeSettings): boolean {
+function sentryEnabled(settings: Settings): boolean {
   return (
     settings.ENVIRONMENT === "production" &&
     Boolean(settings.PUBLIC_SENTRY_DSN)

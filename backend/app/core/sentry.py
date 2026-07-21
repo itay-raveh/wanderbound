@@ -56,7 +56,7 @@ def setup_sentry(settings: Settings) -> None:
         ignore_logger_for_sentry_logs(name)
 
     sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
+        dsn=str(settings.SENTRY_DSN) if settings.SENTRY_DSN else None,
         environment=settings.ENVIRONMENT,
         release=sentry_release(settings.APP_VERSION),
         traces_sampler=_traces_sampler(settings),

@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator
 from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, FastAPI, Request, Response
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
@@ -11,6 +10,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from app.core.config import PublicSettings, Settings, get_settings
 
 if TYPE_CHECKING:
+    from pydantic import AnyHttpUrl
     from starlette.middleware.base import RequestResponseEndpoint
 
 router = APIRouter(tags=["config"])
@@ -21,25 +21,23 @@ class _StreamingBodyResponse(Protocol):
     body_iterator: AsyncIterator[bytes | dict[str, str]]
 
 
-def _url_origin(value: object) -> str | None:
-    if value is None:
-        return None
-    parsed = urlsplit(str(value))
-    if not parsed.scheme or not parsed.hostname:
-        return None
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    return f"{parsed.scheme}://{parsed.hostname}{port}"
+def _origin(value: AnyHttpUrl, *, host: str | None = None) -> str:
+    hostname = host or value.host
+    if hostname is None:
+        raise ValueError("URL must contain a hostname")
+    default_port = 80 if value.scheme == "http" else 443
+    port = f":{value.port}" if value.port != default_port else ""
+    return f"{value.scheme}://{hostname}{port}"
 
 
 def _upload_origin(settings: Settings) -> str:
-    parsed = urlsplit(str(settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL))
-    hostname = parsed.hostname
+    url = settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL
+    hostname = url.host
     if hostname is None:
         raise ValueError("UPLOAD_S3_PUBLIC_ENDPOINT_URL must contain a hostname")
     if settings.UPLOAD_S3_ADDRESSING_STYLE == "virtual":
         hostname = f"{settings.UPLOAD_S3_BUCKET}.{hostname}"
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    return f"{parsed.scheme}://{hostname}{port}"
+    return _origin(url, host=hostname)
 
 
 def _content_security_policy(settings: Settings) -> str:
@@ -52,8 +50,8 @@ def _content_security_policy(settings: Settings) -> str:
         "https://login.microsoftonline.com",
         "https://cloudflareinsights.com",
     ]
-    if sentry_origin := _url_origin(settings.PUBLIC_SENTRY_DSN):
-        connect_sources.append(sentry_origin)
+    if settings.PUBLIC_SENTRY_DSN:
+        connect_sources.append(_origin(settings.PUBLIC_SENTRY_DSN))
 
     return "; ".join(
         [
@@ -128,10 +126,10 @@ def public_config(response: Response) -> PublicSettings:
     return PublicSettings.model_validate(public_values)
 
 
-def install_frontend(application: FastAPI, settings: Settings) -> None:
+def install_frontend(app: FastAPI, settings: Settings) -> None:
     content_security_policy = _content_security_policy(settings)
 
-    @application.middleware("http")
+    @app.middleware("http")
     async def response_headers(
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
@@ -158,11 +156,10 @@ def install_frontend(application: FastAPI, settings: Settings) -> None:
             response.headers["Cache-Control"] = "no-cache"
         return response
 
-    application.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
-    application.include_router(router, prefix=settings.API_V1_STR)
-    application.frontend(
+    app.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
+    app.include_router(router, prefix=settings.API_V1_STR)
+    app.frontend(
         "/",
         directory=settings.FRONTEND_DIRECTORY,
-        fallback="index.html",
         check_dir=False,
     )

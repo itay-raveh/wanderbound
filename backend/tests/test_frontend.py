@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import anyio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pydantic import AnyHttpUrl
 
 from app import frontend, main
 from app.core.config import get_settings
@@ -64,7 +65,7 @@ async def test_frontend_csp_allows_virtual_hosted_uploads(
     monkeypatch.setattr(
         app_settings,
         "UPLOAD_S3_PUBLIC_ENDPOINT_URL",
-        "https://fsn1.your-objectstorage.com",
+        AnyHttpUrl("https://fsn1.your-objectstorage.com"),
     )
     monkeypatch.setattr(app_settings, "UPLOAD_S3_BUCKET", "wanderbound-uploads")
     monkeypatch.setattr(app_settings, "UPLOAD_S3_ADDRESSING_STYLE", "virtual")

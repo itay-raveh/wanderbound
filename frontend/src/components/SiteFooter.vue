@@ -1,18 +1,13 @@
 <script lang="ts" setup>
 import { useI18n } from "vue-i18n";
-import { getPublicSettings } from "@/config";
+import { getSettings } from "@/config";
 
 const { t } = useI18n();
 
-const settings = getPublicSettings();
-const contactEmail = settings.CONTACT_EMAIL;
-const githubUrl = settings.GITHUB_URL;
-const authorName = settings.AUTHOR_NAME;
-const authorUrl = settings.AUTHOR_URL;
-const appVersion = settings.APP_VERSION;
+const settings = getSettings();
 const year = new Date().getFullYear();
 
-const hasMeta = !!(authorName || appVersion);
+const hasMeta = !!(settings.AUTHOR_NAME || settings.APP_VERSION);
 </script>
 
 <template>
@@ -25,24 +20,24 @@ const hasMeta = !!(authorName || appVersion);
       <router-link to="/legal#terms" class="site-footer-link">{{
         t("footer.terms")
       }}</router-link>
-      <template v-if="contactEmail || githubUrl">
+      <template v-if="settings.CONTACT_EMAIL || settings.GITHUB_URL">
         <span class="site-footer-sep" aria-hidden="true">&middot;</span>
         <a
-          v-if="contactEmail"
-          :href="`mailto:${contactEmail}`"
+          v-if="settings.CONTACT_EMAIL"
+          :href="`mailto:${settings.CONTACT_EMAIL}`"
           class="site-footer-link"
         >
-          {{ t("footer.contact") }} {{ contactEmail }}
+          {{ t("footer.contact") }} {{ settings.CONTACT_EMAIL }}
         </a>
         <span
-          v-if="contactEmail && githubUrl"
+          v-if="settings.CONTACT_EMAIL && settings.GITHUB_URL"
           class="site-footer-sep"
           aria-hidden="true"
           >&middot;</span
         >
         <a
-          v-if="githubUrl"
-          :href="githubUrl"
+          v-if="settings.GITHUB_URL"
+          :href="settings.GITHUB_URL"
           target="_blank"
           rel="noopener"
           class="site-footer-link"
@@ -52,26 +47,26 @@ const hasMeta = !!(authorName || appVersion);
       </template>
     </nav>
     <div v-if="hasMeta" class="site-footer-meta" dir="ltr">
-      <span v-if="authorName">
+      <span v-if="settings.AUTHOR_NAME">
         &copy; {{ year }}
         <a
-          v-if="authorUrl"
-          :href="authorUrl"
+          v-if="settings.AUTHOR_URL"
+          :href="settings.AUTHOR_URL"
           target="_blank"
           rel="noopener"
           class="site-footer-link"
         >
-          {{ authorName }}
+          {{ settings.AUTHOR_NAME }}
         </a>
-        <template v-else>{{ authorName }}</template>
+        <template v-else>{{ settings.AUTHOR_NAME }}</template>
       </span>
       <span
-        v-if="authorName && appVersion"
+        v-if="settings.AUTHOR_NAME && settings.APP_VERSION"
         class="site-footer-sep"
         aria-hidden="true"
         >&middot;</span
       >
-      <span v-if="appVersion">{{ appVersion }}</span>
+      <span v-if="settings.APP_VERSION">{{ settings.APP_VERSION }}</span>
     </div>
     <p class="site-footer-disclaimer">
       {{ t("footer.disclaimerIndependent") }}<br />

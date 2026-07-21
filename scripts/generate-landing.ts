@@ -1,10 +1,7 @@
 /**
  * Generate landing page screenshots from a live backend with demo data.
  *
- * Prerequisites:
- *   - Backend running (mise run dev:backend)
- *   - Frontend running (mise run dev:frontend)
- *   - Database migrated (mise run db:migrate)
+ * Prerequisite: application running (mise run dev).
  *
  * Usage:
  *   mise run generate:landing
@@ -18,7 +15,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT = path.resolve(__dirname, "../frontend/public/landing");
-const FRONTEND = process.env.BASE_URL ?? "http://localhost:5173";
+const FRONTEND = process.env.BASE_URL ?? "http://localhost:8000";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API = `${BACKEND}/api/v1`;
 const JPEG_QUALITY = 90;

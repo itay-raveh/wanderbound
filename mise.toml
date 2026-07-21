@@ -22,21 +22,13 @@ run = [
     "prek install --prepare-hooks",
     "prek install --hook-type commit-msg",
     "mise run generate",
-    "mise run db:migrate",
 ]
 
-# -- Dev servers --------------------------------------------------
+# -- Development --------------------------------------------------
 
-[tasks."dev:backend"]
-description = "Start backend dev server"
-dir = "backend"
-run = "PUBLIC_URL=http://localhost:5173 INTERNAL_URL=http://localhost:5173 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --proxy-headers --log-config app/core/uvicorn_logging.json"
-depends = ["db:migrate"]
-
-[tasks."dev:frontend"]
-description = "Start frontend dev server"
-dir = "frontend"
-run = "bun run dev"
+[tasks.dev]
+description = "Start the development stack and watch for changes"
+run = "docker compose up --watch"
 
 # -- Testing ------------------------------------------------------
 
@@ -130,13 +122,9 @@ description = "Tail Docker Compose logs"
 run = "docker compose logs -f"
 raw = true
 
-[tasks."build:images"]
-description = "Build the paired application and source-map images"
-run = "APP_VERSION=${APP_VERSION:-dev} docker buildx bake -f docker-bake.hcl --load"
-
-[tasks."check:images"]
-description = "Verify the paired application and source-map images"
-run = "python scripts/check_release_images.py"
+[tasks."build:image"]
+description = "Build the application image"
+run = "docker buildx build --build-arg APP_VERSION=${APP_VERSION:-dev} --tag wanderbound:${APP_VERSION:-dev} --load ."
 
 [tasks."workflow:dbos-recovery-check"]
 description = "Run a DBOS Postgres recovery smoke check"
@@ -245,7 +233,7 @@ outputs = ["openapi.json"]
 run = "uv run python ../scripts/generate_openapi.py"
 
 [tasks."generate:landing"]
-description = "Screenshot landing page images (requires running dev:backend + dev:frontend + migrated DB)"
+description = "Screenshot landing page images (requires mise run dev)"
 run = "bun scripts/generate-landing.ts"
 
 [tasks."check:generated:countries"]

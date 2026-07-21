@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     import pytest
 
 from app.core import sentry
+from app.core.config import PublicSettings
 
 
 def test_setup_sentry_uses_a_package_semver_release(
@@ -15,7 +16,7 @@ def test_setup_sentry_uses_a_package_semver_release(
         ENVIRONMENT="production",
         SENTRY_DSN="https://public@example.invalid/1",
         APP_VERSION="v1.7.0",
-        SENTRY_TRACES_SAMPLE_RATE=0.1,
+        SENTRY_TRACES_SAMPLE_RATE=PublicSettings().SENTRY_TRACES_SAMPLE_RATE,
     )
     monkeypatch.setattr(
         sentry.sentry_sdk, "init", lambda **values: captured.update(values)

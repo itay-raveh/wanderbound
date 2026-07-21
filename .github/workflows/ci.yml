@@ -44,7 +44,6 @@ jobs:
               - 'TERMS.md'
             docker:
               - 'Dockerfile'
-              - 'docker-bake.hcl'
               - 'compose.yml'
               - 'compose.override.yml'
               - 'garage.toml'
@@ -57,6 +56,7 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
               - 'scripts/init_upload_bucket.sh'
+              - 'scripts/upload_sourcemaps.sh'
               - 'scripts/generate_direct_upload_fixture.py'
               - 'scripts/run_direct_upload_integration.sh'
               - 'PRIVACY.md'
@@ -219,9 +219,7 @@ jobs:
       POSTGRES_DB: ci
       SECRET_KEY: ci
       DOMAIN: localhost
-      ENVIRONMENT: local
-      PUBLIC_URL: http://localhost:8000
-      WANDERBOUND_VERSION: dev
+      APP_VERSION: dev
       UPLOAD_S3_INTERNAL_ENDPOINT_URL: http://object-storage:3900
       UPLOAD_S3_ACCESS_KEY_ID: GK00000000000000000000000000000000
       UPLOAD_S3_SECRET_ACCESS_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -239,30 +237,25 @@ jobs:
       - run: bunx playwright install --with-deps --only-shell chromium
         working-directory: frontend
       - uses: docker/setup-buildx-action@v4
-      - name: Build images with GHA layer cache
+      - name: Build image with GHA layer cache
         if: github.event_name == 'pull_request'
-        uses: docker/bake-action@v7
+        uses: docker/build-push-action@v7
         with:
-          source: .
-          files: docker-bake.hcl
-          targets: default
+          context: .
           load: true
-          vars: APP_VERSION=dev
-          set: |
-            *.cache-from=type=gha,scope=release-images,repository=${{ github.repository }},ghtoken=${{ github.token }}
-      - name: Build images with GHA layer cache
+          tags: wanderbound:${{ env.APP_VERSION }}
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          cache-from: type=gha,scope=release-image,repository=${{ github.repository }},ghtoken=${{ github.token }}
+      - name: Build image with GHA layer cache
         if: github.event_name != 'pull_request'
-        uses: docker/bake-action@v7
+        uses: docker/build-push-action@v7
         with:
-          source: .
-          files: docker-bake.hcl
-          targets: default
+          context: .
           load: true
-          vars: APP_VERSION=dev
-          set: |
-            *.cache-from=type=gha,scope=release-images,repository=${{ github.repository }},ghtoken=${{ github.token }}
-            *.cache-to=type=gha,mode=max,scope=release-images,repository=${{ github.repository }},ghtoken=${{ github.token }}
-      - run: mise exec -- python scripts/check_release_images.py
+          tags: wanderbound:${{ env.APP_VERSION }}
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          cache-from: type=gha,scope=release-image,repository=${{ github.repository }},ghtoken=${{ github.token }}
+          cache-to: type=gha,mode=max,scope=release-image,repository=${{ github.repository }},ghtoken=${{ github.token }}
       - name: Pass declared Wanderbound settings to Compose
         shell: bash
         run: |

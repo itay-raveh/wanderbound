@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import { useResizeObserver } from "@vueuse/core";
-import { getPublicSettings } from "@/config";
+import { getSettings } from "@/config";
 import {
   onBeforeUnmount,
   onMounted,
@@ -47,7 +47,7 @@ function langFromLocale(locale: string | undefined): string {
 }
 
 export function useMapbox(options: UseMapboxOptions) {
-  mapboxgl.accessToken = getPublicSettings().MAPBOX_TOKEN ?? "";
+  mapboxgl.accessToken = getSettings().MAPBOX_TOKEN ?? "";
   const map = shallowRef<mapboxgl.Map | null>(null);
   let pendingIdle: (() => void) | null = null;
   let initIdleHandle: number | null = null;

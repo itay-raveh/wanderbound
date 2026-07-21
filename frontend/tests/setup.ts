@@ -12,14 +12,12 @@ vi.mock("vue3-google-login", () => ({
 
 vi.mock("@/config", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/config")>();
+  const { zPublicSettings } = await import("@/client/zod.gen");
   const settings = new Proxy(
-    {
-      ENVIRONMENT: "local",
-      MAX_UPLOAD_SIZE_BYTES: 4 * 1024 ** 3,
-    },
+    zPublicSettings.parse({}),
     { get: (target, key) => Reflect.get(target, key) ?? null },
   );
-  return { ...actual, getPublicSettings: () => settings };
+  return { ...actual, getSettings: () => settings };
 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));

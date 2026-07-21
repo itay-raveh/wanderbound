@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_IMAGE: ghcr.io/itay-raveh/wanderbound
-      SOURCEMAPS_IMAGE: ghcr.io/itay-raveh/wanderbound-sourcemaps
       DOCKER_BUILD_RECORD_UPLOAD: false
     steps:
       - uses: actions/checkout@v7
@@ -29,7 +28,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "Release tag must match vMAJOR.MINOR.PATCH" >&2
             exit 1
           fi
@@ -43,32 +42,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build paired release images
-        uses: docker/bake-action@v7
+      - name: Build release image
+        uses: docker/build-push-action@v7
         with:
-          source: .
-          files: docker-bake.hcl
-          targets: default
+          context: .
           load: true
-          vars: |
-            APP_VERSION=${{ github.ref_name }}
-            APP_IMAGE=${{ env.APP_IMAGE }}
-            SOURCEMAPS_IMAGE=${{ env.SOURCEMAPS_IMAGE }}
-            TAG=${{ steps.version.outputs.value }}
-          set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
+          tags: ${{ env.APP_IMAGE }}:${{ steps.version.outputs.value }}
+          build-args: APP_VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Verify paired release images
-        run: python3 scripts/check_release_images.py
-        env:
-          APP_IMAGE: ${{ env.APP_IMAGE }}:${{ steps.version.outputs.value }}
-          SOURCEMAPS_IMAGE: ${{ env.SOURCEMAPS_IMAGE }}:${{ steps.version.outputs.value }}
-
-      - name: Push exact release tags
-        run: |
-          docker push "$SOURCEMAPS_IMAGE:${{ steps.version.outputs.value }}"
-          docker push "$APP_IMAGE:${{ steps.version.outputs.value }}"
+      - name: Push exact release tag
+        run: docker push "$APP_IMAGE:${{ steps.version.outputs.value }}"
 
       - uses: taiki-e/install-action@v2
         with:

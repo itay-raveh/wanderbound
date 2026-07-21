@@ -2,12 +2,12 @@ import { publicConfig } from "@/client";
 import { zPublicSettings } from "@/client/zod.gen";
 import type { z } from "zod";
 
-export type RuntimeSettings = z.output<typeof zPublicSettings>;
+export type Settings = z.output<typeof zPublicSettings>;
 
-let settings: RuntimeSettings | undefined;
-let loading: Promise<RuntimeSettings> | undefined;
+let settings: Settings | undefined;
+let loading: Promise<Settings> | undefined;
 
-export function loadPublicSettings(): Promise<RuntimeSettings> {
+export function loadSettings(): Promise<Settings> {
   if (settings) return Promise.resolve(settings);
   loading ??= publicConfig().then(({ data }) => {
     if (!data) throw new Error("Public settings response was empty");
@@ -17,7 +17,7 @@ export function loadPublicSettings(): Promise<RuntimeSettings> {
   return loading;
 }
 
-export function getPublicSettings(): RuntimeSettings {
+export function getSettings(): Settings {
   if (!settings) throw new Error("Public settings are not loaded");
   return settings;
 }

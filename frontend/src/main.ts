@@ -24,14 +24,14 @@ import router from "./router";
 
 import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
-import { loadPublicSettings } from "@/config";
+import { loadSettings } from "@/config";
 import { setupSentry } from "@/plugins/sentry";
 
 client.setConfig({
   baseUrl: "",
   credentials: "include",
 });
-const settings = await loadPublicSettings();
+const settings = await loadSettings();
 
 const app = createApp(App);
 const pinia = createPinia();

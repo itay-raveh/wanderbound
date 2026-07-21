@@ -1,4 +1,4 @@
-import type { RuntimeSettings } from "@/config";
+import type { Settings } from "@/config";
 import { isSensitiveUploadUrl, setupSentry } from "@/plugins/sentry";
 import type { Pinia } from "pinia";
 import type { App } from "vue";
@@ -37,7 +37,7 @@ it("uses startup settings and a package SemVer release", () => {
     APP_VERSION: "v1.7.0",
     PUBLIC_SENTRY_DSN: "https://public@example.invalid/1",
     SENTRY_TRACES_SAMPLE_RATE: 0.25,
-  } as RuntimeSettings;
+  } as Settings;
 
   setupSentry({} as App, {} as Router, pinia, settings);
 

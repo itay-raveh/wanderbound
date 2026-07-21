@@ -61,44 +61,20 @@ docker compose up -d
 
 Open `http://localhost:8000`.
 
-The default Compose override builds the application image from the checked-out
-source. For production, set `WANDERBOUND_VERSION` to an exact released
-`MAJOR.MINOR.PATCH` tag, set `DOMAIN` and `ENVIRONMENT=production`, and run:
+For production, set `APP_VERSION` to an exact released `MAJOR.MINOR.PATCH` tag,
+set `DOMAIN` and `ENVIRONMENT=production`, create the external `traefik` network,
+and run:
 
 ```bash
 docker compose -f compose.yml up -d
 ```
 
-The production Compose file expects an existing external Docker network named
-`traefik`. The hosting environment owns the reverse proxy, TLS, and request-rate
-policy.
-
-The public application image contains the FastAPI backend and the compiled Vue
-frontend. It contains no installation-specific configuration. FastAPI reads the
-environment once at process startup and exposes only the browser-visible subset
-at `GET /api/v1/config`; the frontend fetches that read-only configuration before
-mounting. The endpoint never exposes application secrets. FastAPI also resolves
-the public URL markers in social metadata while serving HTML; it does not write
-or generate startup files.
-
-Stable releases publish two images with the same exact version tag:
-
-- `ghcr.io/itay-raveh/wanderbound`
-- `ghcr.io/itay-raveh/wanderbound-sourcemaps`
-
-The application image does not contain source maps. If Sentry is configured,
-upload the matching artifact before starting the new application version:
+If Sentry is configured, upload source maps before starting the new version:
 
 ```bash
 docker compose -f compose.yml --profile sentry run --rm sourcemaps
 docker compose -f compose.yml up -d
 ```
-
-The source-map container receives only `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
-`SENTRY_PROJECT`, and optional `SENTRY_URL` when it runs. It does not receive
-the application, database, or object-storage secrets, and the application
-container does not receive `SENTRY_AUTH_TOKEN`. None of these values affect
-either image build.
 
 The Compose stack runs the app, database, and S3-compatible object storage.
 Configure database and app data backups in your deployment infrastructure.
@@ -113,11 +89,8 @@ multiple workers can serve the same user flow. All workers must use the same
 commands. Install it, then:
 
 ```bash
-mise run setup               # Install deps, generate assets, run migrations
-docker compose up db -d      # Start Postgres
-mise run dev:backend         # FastAPI dev server
-mise run dev:frontend        # Vite dev server
+mise run setup               # Install dependencies and generate assets
+mise run dev                 # Start the app and dependencies
 ```
 
-Run `mise tasks` to see all available commands. Extra arguments pass
-through - e.g., `mise run test:backend -- -k test_auth`.
+Run `mise tasks` to see all available commands.

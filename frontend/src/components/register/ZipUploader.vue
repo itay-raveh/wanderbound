@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { UploadResult } from "@/client";
 import { useDirectZipUpload } from "@/composables/useDirectZipUpload";
-import { getPublicSettings } from "@/config";
+import { getSettings } from "@/config";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
 import { useQuasar } from "quasar";
 import { ref } from "vue";
@@ -11,7 +11,7 @@ const emit = defineEmits<{
   uploaded: [data: UploadResult];
 }>();
 
-const maxFileSize = getPublicSettings().MAX_UPLOAD_SIZE_BYTES;
+const maxFileSize = getSettings().MAX_UPLOAD_SIZE_BYTES;
 const maxUploadGb = maxFileSize / 1024 ** 3;
 const $q = useQuasar();
 const { t } = useI18n();

@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import { useI18n } from "vue-i18n";
 import { type CallbackTypes } from "vue3-google-login";
-import { getPublicSettings } from "@/config";
+import { getSettings } from "@/config";
 
 const { t } = useI18n();
-const settings = getPublicSettings();
+const settings = getSettings();
 const googleSignInEnabled = Boolean(settings.GOOGLE_CLIENT_ID);
 const microsoftSignInEnabled = Boolean(settings.MICROSOFT_CLIENT_ID);
 

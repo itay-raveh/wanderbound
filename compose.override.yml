@@ -6,18 +6,18 @@ services:
       - "127.0.0.1:5432:5432"
 
   app:
-    image: wanderbound:dev
+    image: wanderbound:${APP_VERSION:-dev}
     pull_policy: build
     restart: "no"
+    read_only: false
     ports:
       - "127.0.0.1:8000:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --reload --host 0.0.0.0 --proxy-headers --log-config app/core/uvicorn_logging.json"
     build:
       context: .
       dockerfile: Dockerfile
-      target: app
       args:
-        APP_VERSION: dev
+        APP_VERSION: ${APP_VERSION:-dev}
     develop:
       watch:
         - path: ./backend
@@ -32,17 +32,11 @@ services:
           action: rebuild
 
   sourcemaps:
-    image: wanderbound-sourcemaps:dev
-    pull_policy: build
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: sourcemaps
-      args:
-        APP_VERSION: dev
+    image: wanderbound:${APP_VERSION:-dev}
 
 networks:
   backend:
     internal: false
   frontend:
     external: false
+    name: ${COMPOSE_PROJECT_NAME:-wanderbound}_frontend

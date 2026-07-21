@@ -65,7 +65,7 @@ class PublicSettings(BaseModel):
     GITHUB_URL: AnyHttpUrl | None = None
     AUTHOR_NAME: str | None = None
     AUTHOR_URL: AnyHttpUrl | None = None
-    PUBLIC_SENTRY_DSN: str | None = None
+    PUBLIC_SENTRY_DSN: AnyHttpUrl | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
 
 
@@ -87,7 +87,7 @@ class Settings(PublicSettings, DatabaseSettings):
     DBOS_HEARTBEAT_TTL_SECONDS: float = 60.0
     DBOS_RECOVERY_INTERVAL_SECONDS: float = 10.0
 
-    SENTRY_DSN: str | None = None
+    SENTRY_DSN: AnyHttpUrl | None = None
 
     GOOGLE_CLIENT_SECRET: str = ""
 
