@@ -3,10 +3,9 @@ import { PiniaColada } from "@pinia/colada";
 import { Lang, Loading, LoadingBar, Meta, Notify, Quasar } from "quasar";
 import { createApp } from "vue";
 
-import vue3GoogleLogin from "vue3-google-login";
-
 import i18n from "@/i18n";
 import { applyLocale } from "@/composables/useLocale";
+import { setupGoogleLogin } from "@/plugins/googleLogin";
 
 // Self-hosted fonts with font-display: block.
 // Guarantees fonts are loaded before rendering (critical for PDF generation).
@@ -42,10 +41,7 @@ app.use(PiniaColada);
 app.use(router);
 useChunkErrorRecovery(router);
 app.use(i18n);
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-if (googleClientId) {
-  app.use(vue3GoogleLogin, { clientId: googleClientId });
-}
+setupGoogleLogin(app, import.meta.env.VITE_GOOGLE_CLIENT_ID);
 app.use(Quasar, {
   config: {
     loading: {},
