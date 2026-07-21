@@ -340,7 +340,12 @@
     "removeAllMaps": "להסיר את כל המפות?",
     "remove": "הסרה",
     "mapsCleared": "כל המפות הוסרו",
-    "inspector": "מאפיינים"
+    "album": "אלבום",
+    "inspector": "מאפיינים",
+    "showNavigation": "הצגת הניווט",
+    "hideNavigation": "הסתרת הניווט",
+    "showInspector": "הצגת המאפיינים",
+    "hideInspector": "הסתרת המאפיינים"
   },
   "screen": {
     "title": "צריך מסך גדול יותר",

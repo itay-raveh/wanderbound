@@ -28,6 +28,10 @@ frontend/src/client/
 # Claude Code
 .superpowers
 
+# Local Impeccable artifacts
+frontend/.impeccable/live/
+frontend/.impeccable/critique/
+
 # Codex sandbox artifact: empty file created by Linux/bubblewrap sandbox.
 .codex
 !.codex/
