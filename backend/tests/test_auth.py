@@ -71,7 +71,7 @@ class TestAuthMicrosoftSpecific:
     async def test_not_configured_returns_501(
         self, user_routes: UserRoutes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(get_settings(), "VITE_MICROSOFT_CLIENT_ID", "")
+        monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
         with mock_jwt("microsoft", ensure_configured=False):
             resp = await user_routes.auth("microsoft")
         assert resp.status_code == 501

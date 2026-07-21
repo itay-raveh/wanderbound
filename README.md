@@ -59,17 +59,51 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:8000`.
 
-For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
-`docker compose -f compose.yml up -d`.
+The default Compose override builds the application image from the checked-out
+source. For production, set `WANDERBOUND_VERSION` to an exact released
+`MAJOR.MINOR.PATCH` tag, set `DOMAIN` and `ENVIRONMENT=production`, and run:
 
-The Compose stack runs the app, database, and frontend. Configure database and
-app data backups in your deployment infrastructure.
+```bash
+docker compose -f compose.yml up -d
+```
 
-The backend stores upload and processing progress in shared storage and Postgres,
-so multiple backend workers can serve the same user flow. All backend workers
-must use the same `DATA_FOLDER` volume and database.
+The production Compose file expects an existing external Docker network named
+`traefik`. The hosting environment owns the reverse proxy, TLS, and request-rate
+policy.
+
+The public application image contains the FastAPI backend and the compiled Vue
+frontend. It contains no installation-specific configuration. FastAPI reads the
+environment once at process startup and exposes only the browser-visible subset
+at `GET /api/v1/config`; the frontend fetches that read-only configuration before
+mounting. The endpoint never exposes application secrets, and no startup files
+or HTML are generated or rewritten.
+
+Stable releases publish two images with the same exact version tag:
+
+- `ghcr.io/itay-raveh/wanderbound`
+- `ghcr.io/itay-raveh/wanderbound-sourcemaps`
+
+The application image does not contain source maps. If Sentry is configured,
+upload the matching artifact before starting the new application version:
+
+```bash
+docker compose -f compose.yml --profile sentry run --rm sourcemaps
+docker compose -f compose.yml up -d
+```
+
+The source-map container reads `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+`SENTRY_PROJECT`, and optional `SENTRY_URL` only when it runs. These values do
+not affect either image build. Compose explicitly removes `SENTRY_AUTH_TOKEN`
+from the application container even when both services read the same env file.
+
+The Compose stack runs the app, database, and S3-compatible object storage.
+Configure database and app data backups in your deployment infrastructure.
+
+The app stores upload and processing progress in shared storage and Postgres, so
+multiple workers can serve the same user flow. All workers must use the same
+`DATA_FOLDER` volume and database.
 
 ## Development
 

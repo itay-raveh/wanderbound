@@ -2,7 +2,9 @@ import asyncio
 import shutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
@@ -10,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import NoResultFound
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import router as v1_router
@@ -38,6 +41,10 @@ from app.services.upload_store import build_upload_store
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
+    from starlette.middleware.base import RequestResponseEndpoint
+    from starlette.responses import Response
+
+    from app.core.config import Settings
 
 settings = get_settings()
 setup_logging(use_console=settings.ENVIRONMENT == "local", log_level=settings.LOG_LEVEL)
@@ -45,9 +52,91 @@ setup_sentry(settings)
 
 logger = structlog.get_logger(__name__)
 
+FRONTEND_DIRECTORY = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return route.name
+
+
+def _url_origin(value: object) -> str | None:
+    if value is None:
+        return None
+    parsed = urlsplit(str(value))
+    if not parsed.scheme or not parsed.hostname:
+        return None
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme}://{parsed.hostname}{port}"
+
+
+def _content_security_policy(settings: Settings) -> str:
+    connect_sources = [
+        "'self'",
+        str(settings.UPLOAD_S3_PUBLIC_ENDPOINT_URL).rstrip("/"),
+        "https://api.mapbox.com",
+        "https://events.mapbox.com",
+        "https://accounts.google.com/gsi/",
+        "https://login.microsoftonline.com",
+        "https://cloudflareinsights.com",
+    ]
+    if sentry_origin := _url_origin(settings.PUBLIC_SENTRY_DSN):
+        connect_sources.append(sentry_origin)
+
+    return "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' "
+            "https://accounts.google.com/gsi/client "
+            "https://api.mapbox.com/mapbox-gl-js/plugins/ "
+            "https://static.cloudflareinsights.com",
+            "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+            "img-src 'self' data: blob: https://api.mapbox.com "
+            "https://*.tiles.mapbox.com https://lh3.googleusercontent.com",
+            "font-src 'self'",
+            f"connect-src {' '.join(connect_sources)}",
+            "frame-src https://accounts.google.com/gsi/",
+            "worker-src 'self' blob:",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]
+    )
+
+
+def configure_frontend(
+    application: FastAPI, directory: Path, app_settings: Settings
+) -> None:
+    content_security_policy = _content_security_policy(app_settings)
+
+    @application.middleware("http")
+    async def response_headers(
+        request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers["Content-Security-Policy"] = content_security_policy
+
+        if request.url.path.startswith("/assets/") and response.status_code < 400:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.headers.get("Content-Type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    application.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
+    application.frontend(
+        "/",
+        directory=directory,
+        fallback="index.html",
+        check_dir=False,
+    )
 
 
 @asynccontextmanager
@@ -191,3 +280,6 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
         path=request.url.path,
     )
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+
+configure_frontend(app, FRONTEND_DIRECTORY, settings)

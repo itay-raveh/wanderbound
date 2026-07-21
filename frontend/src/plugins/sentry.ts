@@ -2,13 +2,13 @@ import * as Sentry from "@sentry/vue";
 import type { Pinia } from "pinia";
 import type { App } from "vue";
 import type { Router } from "vue-router";
+import type { RuntimeSettings } from "@/config";
 
 const PRELOAD_ERROR_PATTERNS = [
   "Failed to fetch dynamically imported module",
   "error loading dynamically imported module",
   "Importing a module script failed",
 ];
-const DEFAULT_SENTRY_TRACES_SAMPLE_RATE = 0.1;
 const SENTRY_APPLICATION_KEY = "wanderbound";
 const SENTRY_TRACE_PROPAGATION_TARGETS = [/^\/api\//];
 const PRESIGNED_URL_PARAMETER = "x-amz-signature";
@@ -25,15 +25,19 @@ export function isSensitiveUploadUrl(value: unknown): boolean {
   }
 }
 
-export function setupSentry(app: App, router: Router, pinia: Pinia): void {
-  if (!sentryEnabled()) return;
+export function setupSentry(
+  app: App,
+  router: Router,
+  pinia: Pinia,
+  settings: RuntimeSettings,
+): void {
+  if (!sentryEnabled(settings)) return;
 
-  const tracesSampleRate = sentryTracesSampleRate();
   Sentry.init({
     app,
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.VITE_ENVIRONMENT,
-    release: APP_VERSION,
+    dsn: settings.PUBLIC_SENTRY_DSN ?? undefined,
+    environment: settings.ENVIRONMENT,
+    release: sentryRelease(settings.APP_VERSION),
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: true,
@@ -68,7 +72,7 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
       if (typeof samplingContext.parentSampled === "boolean") {
         return samplingContext.parentSampled;
       }
-      return tracesSampleRate;
+      return settings.SENTRY_TRACES_SAMPLE_RATE;
     },
     tracePropagationTargets: SENTRY_TRACE_PROPAGATION_TARGETS,
     replaysSessionSampleRate: 0.0,
@@ -88,20 +92,14 @@ export function setupSentry(app: App, router: Router, pinia: Pinia): void {
   pinia.use(Sentry.createSentryPiniaPlugin());
 }
 
-function sentryEnabled(): boolean {
+function sentryEnabled(settings: RuntimeSettings): boolean {
   return (
-    import.meta.env.VITE_ENVIRONMENT === "production" &&
-    Boolean(import.meta.env.VITE_SENTRY_DSN)
+    settings.ENVIRONMENT === "production" &&
+    Boolean(settings.PUBLIC_SENTRY_DSN)
   );
 }
 
-function sentryTracesSampleRate(): number {
-  const value = Number(
-    import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ??
-      DEFAULT_SENTRY_TRACES_SAMPLE_RATE,
-  );
-  if (!Number.isFinite(value) || value < 0 || value > 1) {
-    return DEFAULT_SENTRY_TRACES_SAMPLE_RATE;
-  }
-  return value;
+function sentryRelease(version: string | null | undefined): string | undefined {
+  if (!version) return undefined;
+  return `wanderbound@${version.replace(/^v/, "")}`;
 }

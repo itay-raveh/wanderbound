@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 import { useI18n } from "vue-i18n";
 import { type CallbackTypes } from "vue3-google-login";
+import { getPublicSettings } from "@/config";
 
 const { t } = useI18n();
-const googleSignInEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+const settings = getPublicSettings();
+const googleSignInEnabled = Boolean(settings.GOOGLE_CLIENT_ID);
+const microsoftSignInEnabled = Boolean(settings.MICROSOFT_CLIENT_ID);
 
 const emit = defineEmits<{
   google: [response: CallbackTypes.CredentialPopupResponse];
@@ -33,7 +36,11 @@ const emit = defineEmits<{
       />
     </div>
 
-    <button class="auth-btn" @click="emit('microsoft')">
+    <button
+      v-if="microsoftSignInEnabled"
+      class="auth-btn"
+      @click="emit('microsoft')"
+    >
       <img src="/microsoft-logo.svg" alt="" class="auth-btn-icon" />
       <span class="auth-btn-text">{{ t("login.signInMicrosoft") }}</span>
     </button>

@@ -30,7 +30,7 @@ run = [
 [tasks."dev:backend"]
 description = "Start backend dev server"
 dir = "backend"
-run = "uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --proxy-headers --log-config app/core/uvicorn_logging.json"
+run = "PUBLIC_URL=http://localhost:5173 INTERNAL_URL=http://localhost:5173 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --proxy-headers --log-config app/core/uvicorn_logging.json"
 depends = ["db:migrate"]
 
 [tasks."dev:frontend"]
@@ -129,6 +129,14 @@ run = "docker compose down --remove-orphans"
 description = "Tail Docker Compose logs"
 run = "docker compose logs -f"
 raw = true
+
+[tasks."build:images"]
+description = "Build the paired application and source-map images"
+run = "APP_VERSION=${APP_VERSION:-dev} docker buildx bake -f docker-bake.hcl --load"
+
+[tasks."check:images"]
+description = "Verify the paired application and source-map images"
+run = "python scripts/check_release_images.py"
 
 [tasks."workflow:dbos-recovery-check"]
 description = "Run a DBOS Postgres recovery smoke check"

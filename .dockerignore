@@ -19,11 +19,12 @@
 !frontend/postcss.config.js
 !frontend/openapi-ts.config.ts
 !frontend/fonts.json
-!frontend/nginx/
-
 # Root content used by frontend
 !PRIVACY.md
 !TERMS.md
+
+# Source-map uploader entrypoint
+!scripts/upload_sourcemaps.sh
 
 # Root config used by both
 !pyproject.toml

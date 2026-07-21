@@ -5,7 +5,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 2,
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

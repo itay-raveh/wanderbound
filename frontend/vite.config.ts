@@ -3,29 +3,17 @@ import vue from "@vitejs/plugin-vue";
 import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 
-const version = process.env.APP_VERSION;
 const sentryApplicationKey = "wanderbound";
-const envDir = path.resolve(__dirname, "..");
+const apiProxyUrl = process.env.API_PROXY_URL ?? "http://localhost:8000";
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, envDir);
-  const environment = env.VITE_ENVIRONMENT;
-  if (environment !== "local" && environment !== "production") {
-    throw new Error("VITE_ENVIRONMENT must be set to local or production");
-  }
-
-  return {
-    define: {
-      APP_VERSION: JSON.stringify(version),
-    },
-    envDir,
+export default defineConfig({
     server: {
       host: true,
       allowedHosts: true,
       proxy: {
-        "/api": "http://localhost:8000",
+        "/api": apiProxyUrl,
       },
     },
     plugins: [
@@ -39,17 +27,15 @@ export default defineConfig(({ mode }) => {
         include: [path.resolve(__dirname, "src/i18n/locales/**")],
       }),
       sentryVitePlugin({
-        org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_FRONTEND_PROJECT,
-        authToken: process.env.SENTRY_AUTH_TOKEN,
         applicationKey: sentryApplicationKey,
-        release: {
-          name: version,
-          setCommits: false,
-        },
         telemetry: false,
         sourcemaps: {
-          filesToDeleteAfterUpload: ["./dist/**/*.map"],
+          disable: "disable-upload",
+        },
+        release: {
+          inject: false,
+          create: false,
+          finalize: false,
         },
       }),
     ],
@@ -83,5 +69,4 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-  };
 });

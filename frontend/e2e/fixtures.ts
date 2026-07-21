@@ -234,6 +234,7 @@ export const test = base.extend<{
 }>({
   page: async ({ page }, use) => {
     const assertAllMocked = await installStrictMockGuard(page);
+    await page.route(`${API}/config`, (route) => route.fulfill({ json: {} }));
     await use(page);
     assertAllMocked();
   },

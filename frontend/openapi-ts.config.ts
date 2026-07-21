@@ -8,5 +8,10 @@ export default defineConfig({
       name: "@hey-api/client-fetch",
       throwOnError: true,
     },
+    "@hey-api/typescript",
+    "@hey-api/sdk",
+    {
+      name: "zod",
+    },
   ],
 });

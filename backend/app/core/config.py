@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal, Self
 from pydantic import (
     AnyHttpUrl,
     AnyUrl,
+    BaseModel,
     BeforeValidator,
     Field,
     PostgresDsn,
@@ -52,15 +53,28 @@ class DatabaseSettings(BaseSettings):
     ]
 
 
-class Settings(DatabaseSettings):
+class PublicSettings(BaseModel):
+    ENVIRONMENT: Literal["local", "production"] = "local"
+    APP_VERSION: str | None = None
+    PUBLIC_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    GOOGLE_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_ID: str = ""
+    MAX_UPLOAD_SIZE_BYTES: int = Field(default=4 * 1024**3, ge=1, le=4 * 1024**3)
+    MAPBOX_TOKEN: str | None = None
+    CONTACT_EMAIL: str | None = None
+    GITHUB_URL: AnyHttpUrl | None = None
+    AUTHOR_NAME: str | None = None
+    AUTHOR_URL: AnyHttpUrl | None = None
+    PUBLIC_SENTRY_DSN: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
+
+
+class Settings(PublicSettings, DatabaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     SECRET_KEY_PREVIOUS: str | None = None
-    VITE_FRONTEND_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:5173")
-    FRONTEND_URL: AnyHttpUrl | None = None
-    ENVIRONMENT: Literal["local", "production"] = "local"
+    INTERNAL_URL: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8000")
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
-    APP_VERSION: str | None = None
 
     DBOS_APP_NAME: str = "wanderbound"
     DBOS_SYSTEM_DATABASE_URI: SecretStr | None = None
@@ -71,44 +85,30 @@ class Settings(DatabaseSettings):
     DBOS_RECOVERY_INTERVAL_SECONDS: float = 10.0
 
     SENTRY_DSN: str | None = None
-    SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
 
-    VITE_GOOGLE_CLIENT_ID: str = ""
-    VITE_MICROSOFT_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    VITE_MAX_UPLOAD_GB: int = Field(default=4, ge=1, le=4)
 
-    UPLOAD_S3_BUCKET: str
-    UPLOAD_S3_REGION: str
-    UPLOAD_S3_INTERNAL_ENDPOINT_URL: AnyHttpUrl
-    UPLOAD_S3_PUBLIC_ENDPOINT_URL: AnyHttpUrl
-    UPLOAD_S3_ADDRESSING_STYLE: Literal["path", "virtual"]
+    UPLOAD_S3_BUCKET: str = "wanderbound-uploads"
+    UPLOAD_S3_REGION: str = "garage"
+    UPLOAD_S3_INTERNAL_ENDPOINT_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:3900")
+    UPLOAD_S3_PUBLIC_ENDPOINT_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:3900")
+    UPLOAD_S3_ADDRESSING_STYLE: Literal["path", "virtual"] = "path"
     UPLOAD_S3_ACCESS_KEY_ID: str
     UPLOAD_S3_SECRET_ACCESS_KEY: SecretStr
     UPLOAD_S3_PRESIGN_TTL_SECONDS: int = Field(default=900, ge=1, le=900)
     UPLOAD_SESSION_TTL_SECONDS: int = 86_400
 
-    BACKEND_CORS_ORIGINS: Annotated[
-        list[AnyUrl] | str, BeforeValidator(parse_cors)
-    ] = []
+    CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 
     @computed_field
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            str(self.VITE_FRONTEND_URL).rstrip("/")
+        return [str(origin).rstrip("/") for origin in self.CORS_ORIGINS] + [
+            str(self.PUBLIC_URL).rstrip("/")
         ]
-
-    VITE_MAPBOX_TOKEN: str | None = None
 
     DATA_FOLDER: Path = Field(default=Path("./data").resolve())
     MAX_STORAGE_BYTES: int = 0
-
-    @model_validator(mode="after")
-    def _default_frontend_url(self) -> Self:
-        if self.FRONTEND_URL is None:
-            self.FRONTEND_URL = self.VITE_FRONTEND_URL
-        return self
 
     @model_validator(mode="after")
     def _detect_storage_cap(self) -> Self:
@@ -123,13 +123,13 @@ class Settings(DatabaseSettings):
         if self.ENVIRONMENT != "production":
             return self
         missing: list[str] = []
-        if not self.VITE_MAPBOX_TOKEN:
-            missing.append("VITE_MAPBOX_TOKEN")
-        if "localhost" in str(self.VITE_FRONTEND_URL):
-            missing.append("VITE_FRONTEND_URL")
-        if not self.VITE_GOOGLE_CLIENT_ID and not self.VITE_MICROSOFT_CLIENT_ID:
-            missing.append("VITE_GOOGLE_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID")
-        if self.VITE_GOOGLE_CLIENT_ID and not self.GOOGLE_CLIENT_SECRET:
+        if not self.MAPBOX_TOKEN:
+            missing.append("MAPBOX_TOKEN")
+        if "localhost" in str(self.PUBLIC_URL):
+            missing.append("PUBLIC_URL")
+        if not self.GOOGLE_CLIENT_ID and not self.MICROSOFT_CLIENT_ID:
+            missing.append("GOOGLE_CLIENT_ID or MICROSOFT_CLIENT_ID")
+        if self.GOOGLE_CLIENT_ID and not self.GOOGLE_CLIENT_SECRET:
             missing.append("GOOGLE_CLIENT_SECRET")
         if missing:
             raise ValueError(f"required in production: {', '.join(missing)}")

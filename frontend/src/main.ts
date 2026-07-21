@@ -25,24 +25,26 @@ import router from "./router";
 
 import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
+import { loadPublicSettings } from "@/config";
 import { setupSentry } from "@/plugins/sentry";
 
 client.setConfig({
   baseUrl: "",
   credentials: "include",
 });
+const settings = await loadPublicSettings();
 
 const app = createApp(App);
 const pinia = createPinia();
 
-setupSentry(app, router, pinia);
+setupSentry(app, router, pinia, settings);
 
 app.use(pinia);
 app.use(PiniaColada);
 app.use(router);
 useChunkErrorRecovery(router);
 app.use(i18n);
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId = settings.GOOGLE_CLIENT_ID;
 if (googleClientId) {
   app.use(vue3GoogleLogin, { clientId: googleClientId });
 }

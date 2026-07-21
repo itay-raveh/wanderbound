@@ -20,9 +20,6 @@ export default defineConfig({
       "@fonts": path.resolve(__dirname, "fonts.json"),
     },
   },
-  define: {
-    APP_VERSION: JSON.stringify("0.0.0-test"),
-  },
   test: {
     environment: "happy-dom",
     setupFiles: ["./tests/setup.ts"],
