@@ -340,7 +340,12 @@
     "removeAllMaps": "Remove all maps?",
     "remove": "Remove",
     "mapsCleared": "All maps removed",
-    "inspector": "Inspector"
+    "album": "Album",
+    "inspector": "Inspector",
+    "showNavigation": "Show navigation",
+    "hideNavigation": "Hide navigation",
+    "showInspector": "Show inspector",
+    "hideInspector": "Hide inspector"
   },
   "screen": {
     "title": "Larger screen required",
