@@ -107,13 +107,6 @@ services:
           cpus: "2.0"
           pids: 512
     networks: [backend, frontend]
-    command:
-      - sh
-      - -c
-      - >
-        alembic upgrade head &&
-        uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-        --proxy-headers --log-config app/core/uvicorn_logging.json
     depends_on:
       db:
         condition: service_healthy
@@ -121,6 +114,7 @@ services:
       object-storage-init:
         condition: service_completed_successfully
     environment:
+      FORWARDED_ALLOW_IPS: "*"
       SENTRY_AUTH_TOKEN: ""
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     healthcheck:

@@ -1,16 +1,13 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import anyio
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import AnyHttpUrl
 
 from app import frontend, main
 from app.core.config import get_settings
-
-if TYPE_CHECKING:
-    import pytest
 
 
 def test_main_does_not_own_frontend_delivery() -> None:
@@ -155,3 +152,16 @@ async def test_frontend_does_not_report_the_unrendered_length_for_head(
 
     assert response.status_code == 200
     assert "content-length" not in response.headers
+
+
+def test_frontend_directory_is_required_in_production(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = FastAPI()
+    app_settings = get_settings()
+    monkeypatch.setattr(app_settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(app_settings, "FRONTEND_DIRECTORY", tmp_path / "missing")
+
+    with pytest.raises(RuntimeError, match=r"Frontend directory .* does not exist"):
+        frontend.install_frontend(application, app_settings)

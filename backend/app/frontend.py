@@ -161,5 +161,5 @@ def install_frontend(app: FastAPI, settings: Settings) -> None:
     app.frontend(
         "/",
         directory=settings.FRONTEND_DIRECTORY,
-        check_dir=False,
+        check_dir=settings.ENVIRONMENT == "production",
     )

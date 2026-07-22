@@ -12,7 +12,7 @@ services:
     read_only: false
     ports:
       - "127.0.0.1:8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --reload --host 0.0.0.0 --proxy-headers --log-config app/core/uvicorn_logging.json"
+    command: [start-wanderbound, --reload]
     build:
       context: .
       dockerfile: Dockerfile

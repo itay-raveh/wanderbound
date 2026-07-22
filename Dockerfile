@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1
 
+FROM getsentry/sentry-cli:3.6.0 AS sentry-cli
+
+
 FROM oven/bun:1-debian AS frontend-build
 
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates musl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock ./
@@ -20,12 +23,12 @@ COPY backend/openapi.json /app/backend/openapi.json
 
 RUN bun run build
 
+COPY --from=sentry-cli /bin/sentry-cli /usr/local/bin/sentry-cli
+RUN sentry-cli sourcemaps inject dist
+
 
 FROM frontend-build AS frontend-app
 RUN find dist -type f -name '*.map' -delete
-
-
-FROM getsentry/sentry-cli:3.6.0 AS sentry-cli
 
 
 FROM python:3.14-slim
@@ -61,6 +64,7 @@ COPY --chmod=755 fixtures/demo /app/fixtures/demo
 COPY --from=frontend-app /app/frontend/dist /app/frontend/dist
 COPY --from=frontend-build /app/frontend/dist /app/sourcemaps
 COPY --from=sentry-cli /bin/sentry-cli /usr/local/bin/sentry-cli
+COPY --chmod=755 scripts/start.sh /usr/local/bin/start-wanderbound
 COPY --chmod=755 scripts/upload_sourcemaps.sh /usr/local/bin/upload-sourcemaps
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -82,4 +86,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--log-config", "app/core/uvicorn_logging.json"]
+CMD ["start-wanderbound"]

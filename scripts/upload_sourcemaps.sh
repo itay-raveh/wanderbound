@@ -9,6 +9,8 @@ if ! sentry-cli releases new "$release"; then
 fi
 sentry-cli sourcemaps upload \
   --release "$release" \
+  --validate \
+  --wait \
   /app/sourcemaps \
   "$@"
 sentry-cli releases finalize "$release"

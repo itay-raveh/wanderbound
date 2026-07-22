@@ -24,6 +24,7 @@
 !TERMS.md
 
 # Source-map uploader entrypoint
+!scripts/start.sh
 !scripts/upload_sourcemaps.sh
 
 # Root config used by both

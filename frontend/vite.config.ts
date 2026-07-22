@@ -11,7 +11,6 @@ const apiProxyUrl = process.env.API_PROXY_URL ?? "http://localhost:8000";
 export default defineConfig({
     server: {
       host: true,
-      allowedHosts: true,
       proxy: {
         "/api": apiProxyUrl,
       },
