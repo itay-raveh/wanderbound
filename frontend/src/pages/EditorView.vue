@@ -126,20 +126,22 @@ const activeStep = computed(() =>
 </script>
 
 <template>
-  <div v-if="isDemo" class="demo-banner print-hide">
-    <span>{{ t("demo.bannerText") }}</span>
-    <q-btn
-      :label="t('demo.bannerCta')"
-      flat
-      dense
-      no-caps
-      color="white"
-      class="demo-banner-cta"
-      @click="exitDemo"
-    />
-  </div>
-
   <EditorHeader class="print-hide">
+    <template #banner>
+      <div v-if="isDemo" class="demo-banner">
+        <span>{{ t("demo.bannerText") }}</span>
+        <q-btn
+          :label="t('demo.bannerCta')"
+          flat
+          dense
+          no-caps
+          color="white"
+          class="demo-banner-cta"
+          @click="exitDemo"
+        />
+      </div>
+    </template>
+
     <AlbumToolbar v-if="album" :album="album" />
   </EditorHeader>
 
@@ -269,6 +271,7 @@ const activeStep = computed(() =>
 <style lang="scss" scoped>
 .demo-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--gap-md);

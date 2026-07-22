@@ -88,22 +88,20 @@ async function handleDelete() {
       :aria-expanded="menuOpen"
       aria-haspopup="menu"
     >
-      <template v-if="!isDemo">
-        <q-avatar
-          v-if="user.profile_image_url"
-          size="2rem"
-          class="trigger-avatar"
-        >
-          <img
-            :src="user.profile_image_url"
-            :alt="user.first_name"
-            referrerpolicy="no-referrer"
-          />
-        </q-avatar>
-        <div v-else class="trigger-avatar-fallback flex flex-center">
-          <q-icon :name="matPerson" size="1.125rem" />
-        </div>
-      </template>
+      <q-avatar
+        v-if="user.profile_image_url"
+        size="2rem"
+        class="trigger-avatar"
+      >
+        <img
+          :src="user.profile_image_url"
+          :alt="user.first_name"
+          referrerpolicy="no-referrer"
+        />
+      </q-avatar>
+      <div v-else class="trigger-avatar-fallback flex flex-center">
+        <q-icon :name="matPerson" size="1.125rem" />
+      </div>
       <span class="trigger-name text-weight-semibold text-body2">{{
         user.first_name
       }}</span>
