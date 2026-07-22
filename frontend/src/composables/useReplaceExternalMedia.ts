@@ -226,9 +226,11 @@ export function useReplaceExternalMedia() {
         await googlePhotos.authorize(activePopup, signal);
       }
       phase.value = "picking";
-      const session = await googlePhotos.createPickerSession({
-        maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
-      });
+      const session = await googlePhotos.createPickerSession(
+        activePopup,
+        signal,
+        { maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS },
+      );
       activeSessionId = session.sessionId;
       activePopup.location.href = `${session.pickerUri}/autoclose`;
       await pollUntilReady(session.sessionId, signal);

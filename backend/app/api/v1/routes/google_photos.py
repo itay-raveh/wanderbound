@@ -9,6 +9,7 @@ import base64
 import hashlib
 import secrets
 from collections.abc import AsyncIterable
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -236,20 +237,31 @@ def _build_token_getter(
 
 
 async def _ensure_fresh_access_token(
-    http: HttpClientsDep, user: UserDep
+    http: HttpClientsDep, user: UserDep, session: SessionDep
 ) -> AccessToken:
     """One-shot fetch for single-request endpoints (no caching needed)."""
     refresh_token = _get_refresh_token(user)
     try:
         token = await http.gphotos_oauth.refresh_token(refresh_token)
     except RefreshTokenError as exc:
-        # Avoid logger.exception: httpx request bodies would leak the
-        # plaintext refresh token and client secret into Sentry.
-        logger.error(  # noqa: TRY400
-            "google_photos.token_refresh_failed",
-            user_id=user.id,
-            error_type=type(exc).__name__,
-        )
+        error_code = None
+        if exc.response is not None:
+            with suppress(ValueError, AttributeError):
+                error_code = exc.response.json().get("error")
+        if error_code == "invalid_grant":
+            user.google_photos_refresh_token = None
+            user.google_photos_connected_at = None
+            session.add(user)
+            await session.commit()
+            logger.warning("google_photos.authorization_invalidated", user_id=user.id)
+        else:
+            # Avoid logger.exception: httpx request bodies would leak the
+            # plaintext refresh token and client secret into Sentry.
+            logger.error(  # noqa: TRY400
+                "google_photos.token_refresh_failed",
+                user_id=user.id,
+                error_type=type(exc).__name__,
+            )
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Google Photos authorization expired. Please reconnect.",
@@ -373,9 +385,10 @@ class PickerSessionResponse(BaseModel):
 async def create_session(
     user: UserDep,
     http: HttpClientsDep,
+    session: SessionDep,
     max_item_count: Annotated[int | None, Query(ge=0)] = None,
 ) -> PickerSessionResponse:
-    access_token = await _ensure_fresh_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user, session)
     picker = await create_picker_session(
         http.gphotos_picker,
         access_token,
@@ -393,18 +406,24 @@ class SessionStatusResponse(BaseModel):
 
 @router.get("/sessions/{session_id}")
 async def poll_session(
-    session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
+    session_id: PickerSessionId,
+    user: UserDep,
+    http: HttpClientsDep,
+    session: SessionDep,
 ) -> SessionStatusResponse:
-    access_token = await _ensure_fresh_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user, session)
     data = await poll_picker_session(http.gphotos_picker, session_id, access_token)
     return SessionStatusResponse(ready=data.media_items_set)
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
 async def close_session(
-    session_id: PickerSessionId, user: UserDep, http: HttpClientsDep
+    session_id: PickerSessionId,
+    user: UserDep,
+    http: HttpClientsDep,
+    session: SessionDep,
 ) -> None:
-    access_token = await _ensure_fresh_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user, session)
     await delete_picker_session(http.gphotos_picker, session_id, access_token)
 
 

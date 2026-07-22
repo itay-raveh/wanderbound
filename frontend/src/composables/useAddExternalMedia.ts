@@ -214,11 +214,12 @@ export function useAddExternalMedia(albumId: () => string) {
         phase.value = "authorizing";
         await googlePhotos.authorize(activePopup, signal);
       }
-
       phase.value = "picking";
-      const session = await googlePhotos.createPickerSession({
-        maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS,
-      });
+      const session = await googlePhotos.createPickerSession(
+        activePopup,
+        signal,
+        { maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS },
+      );
       activeSessionId = session.sessionId;
       activePopup.location.href = `${session.pickerUri}/autoclose`;
       await pollUntilReady(session.sessionId, signal);

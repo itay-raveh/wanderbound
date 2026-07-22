@@ -114,7 +114,7 @@ async def _load_google_import_context(
             await validate_import_target(session, album=album, request=body)
         except ValueError as exc:
             validation_error = str(exc)
-    access_token = await _ensure_fresh_access_token(http, user)
+        access_token = await _ensure_fresh_access_token(http, user, session)
     return GoogleImportContext(
         body=body,
         album=album,
@@ -294,7 +294,7 @@ async def replace_google_media(  # noqa: PLR0913
 ) -> AlbumMedia:
     album = await _get_album_or_404(aid, user, session)
     _require_google_available(user)
-    access_token = await _ensure_fresh_access_token(http, user)
+    access_token = await _ensure_fresh_access_token(http, user, session)
     if await session.get(AlbumMedia, (user.id, aid, body.media_name)) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
     target_album_dir = album_dir(user, aid)

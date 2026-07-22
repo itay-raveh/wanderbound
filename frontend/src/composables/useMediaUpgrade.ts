@@ -167,7 +167,10 @@ export function useMediaUpgrade() {
 
       // Step 3: Create first picker session
       phase.value = "picking";
-      const { sessionId, pickerUri } = await gp.createPickerSession();
+      const { sessionId, pickerUri } = await gp.createPickerSession(
+        activePopup,
+        signal,
+      );
       sessionIds.push(sessionId);
       if (signal.aborted) return;
       activePopup.location.href = pickerUri + "/autoclose";
@@ -200,7 +203,7 @@ export function useMediaUpgrade() {
         }
 
         // "Select More": new session, popup was opened by selectMore()
-        const next = await gp.createPickerSession();
+        const next = await gp.createPickerSession(activePopup, signal);
         sessionIds.push(next.sessionId);
         currentSessionId = next.sessionId;
         if (signal.aborted) return;
