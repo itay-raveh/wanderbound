@@ -91,11 +91,11 @@ class Settings(PublicSettings, DatabaseSettings):
 
     GOOGLE_CLIENT_SECRET: str = ""
 
-    UPLOAD_S3_BUCKET: str = "wanderbound-uploads"
-    UPLOAD_S3_REGION: str = "garage"
-    UPLOAD_S3_INTERNAL_ENDPOINT_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:3900")
-    UPLOAD_S3_PUBLIC_ENDPOINT_URL: AnyHttpUrl = AnyHttpUrl("http://localhost:3900")
-    UPLOAD_S3_ADDRESSING_STYLE: Literal["path", "virtual"] = "path"
+    UPLOAD_S3_BUCKET: str
+    UPLOAD_S3_REGION: str
+    UPLOAD_S3_INTERNAL_ENDPOINT_URL: AnyHttpUrl
+    UPLOAD_S3_PUBLIC_ENDPOINT_URL: AnyHttpUrl
+    UPLOAD_S3_ADDRESSING_STYLE: Literal["path", "virtual"]
     UPLOAD_S3_ACCESS_KEY_ID: str
     UPLOAD_S3_SECRET_ACCESS_KEY: SecretStr
     UPLOAD_S3_PRESIGN_TTL_SECONDS: int = Field(default=900, ge=1, le=900)

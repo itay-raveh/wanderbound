@@ -117,6 +117,11 @@ services:
       FORWARDED_ALLOW_IPS: "*"
       SENTRY_AUTH_TOKEN: ""
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      UPLOAD_S3_BUCKET: ${UPLOAD_S3_BUCKET:-wanderbound-uploads}
+      UPLOAD_S3_REGION: ${UPLOAD_S3_REGION:-garage}
+      UPLOAD_S3_INTERNAL_ENDPOINT_URL: ${UPLOAD_S3_INTERNAL_ENDPOINT_URL:-http://object-storage:3900}
+      UPLOAD_S3_PUBLIC_ENDPOINT_URL: ${UPLOAD_S3_PUBLIC_ENDPOINT_URL:-http://localhost:3900}
+      UPLOAD_S3_ADDRESSING_STYLE: ${UPLOAD_S3_ADDRESSING_STYLE:-path}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
