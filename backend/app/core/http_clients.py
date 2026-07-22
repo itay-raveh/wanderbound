@@ -50,14 +50,19 @@ class HttpClients:
 async def lifespan_clients() -> AsyncGenerator[HttpClients]:
     """Build all app-wide httpx clients; close them LIFO on exit."""
     settings = get_settings()
+    mapbox_headers = {"Referer": str(settings.PUBLIC_URL)}
     async with AsyncExitStack() as stack:
         enter = stack.enter_async_context
         gphotos_token = await enter(http_client(cache=False))
         yield HttpClients(
             # Mapbox documents 300/min for both matching and directions.
             # Keep headroom for retries and concurrent album jobs.
-            mapbox_matching=await enter(http_client(limiter=AsyncLimiter(250, 60))),
-            mapbox_directions=await enter(http_client(limiter=AsyncLimiter(250, 60))),
+            mapbox_matching=await enter(
+                http_client(limiter=AsyncLimiter(250, 60), headers=mapbox_headers)
+            ),
+            mapbox_directions=await enter(
+                http_client(limiter=AsyncLimiter(250, 60), headers=mapbox_headers)
+            ),
             # Open-Meteo free tier: 600/min, 5000/hr. Stay under at 480/min.
             open_meteo=await enter(
                 http_client(
