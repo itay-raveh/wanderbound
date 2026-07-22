@@ -27,8 +27,18 @@ run = [
 # -- Development --------------------------------------------------
 
 [tasks.dev]
-description = "Start the development stack and watch for changes"
+description = "Start FastAPI and Vite development servers"
+run = [{ tasks = ["dev:stack", "dev:vite"] }]
+
+[tasks."dev:stack"]
+hide = true
+env = { PUBLIC_URL = "http://localhost:5173", WANDERBOUND_BUILD_TARGET = "backend-dev" }
 run = "docker compose up --watch"
+
+[tasks."dev:vite"]
+hide = true
+dir = "frontend"
+run = "bun run dev"
 
 # -- Testing ------------------------------------------------------
 

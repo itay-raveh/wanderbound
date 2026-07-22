@@ -31,7 +31,7 @@ FROM frontend-build AS frontend-app
 RUN find dist -type f -name '*.map' -delete
 
 
-FROM python:3.14-slim
+FROM python:3.14-slim AS backend-base
 
 LABEL org.opencontainers.image.source="https://github.com/itay-raveh/wanderbound"
 LABEL org.opencontainers.image.description="Wanderbound"
@@ -61,11 +61,7 @@ RUN playwright install chromium --with-deps
 COPY backend/pyproject.toml backend/alembic.ini /app/backend/
 COPY backend/app /app/backend/app
 COPY --chmod=755 fixtures/demo /app/fixtures/demo
-COPY --from=frontend-app /app/frontend/dist /app/frontend/dist
-COPY --from=frontend-build /app/frontend/dist /app/sourcemaps
-COPY --from=sentry-cli /bin/sentry-cli /usr/local/bin/sentry-cli
 COPY --chmod=755 scripts/start.sh /usr/local/bin/start-wanderbound
-COPY --chmod=755 scripts/upload_sourcemaps.sh /usr/local/bin/upload-sourcemaps
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
@@ -87,3 +83,14 @@ USER appuser
 EXPOSE 8000
 
 CMD ["start-wanderbound"]
+
+
+FROM backend-base AS backend-dev
+
+
+FROM backend-base AS runtime
+
+COPY --from=frontend-app /app/frontend/dist /app/frontend/dist
+COPY --from=frontend-build /app/frontend/dist /app/sourcemaps
+COPY --from=sentry-cli /bin/sentry-cli /usr/local/bin/sentry-cli
+COPY --chmod=755 scripts/upload_sourcemaps.sh /usr/local/bin/upload-sourcemaps

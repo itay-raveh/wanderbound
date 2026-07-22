@@ -13,9 +13,12 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     command: [start-wanderbound, --reload]
+    environment:
+      - PUBLIC_URL
     build:
       context: .
       dockerfile: Dockerfile
+      target: ${WANDERBOUND_BUILD_TARGET:-runtime}
       args:
         APP_VERSION: ${APP_VERSION:-dev}
     develop:
@@ -27,8 +30,6 @@ services:
             - ./backend/.venv
             - .venv
         - path: ./backend/pyproject.toml
-          action: rebuild
-        - path: ./frontend
           action: rebuild
 
   sourcemaps:

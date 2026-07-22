@@ -90,7 +90,10 @@ commands. Install it, then:
 
 ```bash
 mise run setup               # Install dependencies and generate assets
-mise run dev                 # Start the app and dependencies
+mise run dev                 # Start FastAPI, Vite, and dependencies
 ```
+
+Open `http://localhost:5173`. Vite provides frontend hot module replacement
+and proxies API requests to the FastAPI container on port 8000.
 
 Run `mise tasks` to see all available commands.
