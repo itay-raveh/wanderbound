@@ -5,9 +5,6 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { client } from "@/client/client.gen";
 import i18n from "@/i18n";
 import UserMenu from "@/components/editor/UserMenu.vue";
-import { mockUser } from "../fixtures/mocks";
-import { BASE } from "../mocks/handlers";
-import { server } from "../mocks/server";
 
 client.setConfig({ baseUrl: "http://localhost:8000" });
 
