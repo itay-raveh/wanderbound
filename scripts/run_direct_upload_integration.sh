@@ -45,7 +45,6 @@ printf '%s\n' \
 set -a
 source "$env_file"
 set +a
-uv run --directory "$root/backend" python ../scripts/generate_openapi.py
 python "$root/scripts/generate_direct_upload_fixture.py" "$fixture"
 "${compose[@]}" down --volumes --remove-orphans
 "${compose[@]}" up --detach --build --wait
