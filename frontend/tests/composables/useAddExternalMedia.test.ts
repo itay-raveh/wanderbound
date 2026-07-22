@@ -43,8 +43,10 @@ describe("useAddExternalMedia", () => {
 
     await addMedia.importGoogle({ context: "cover" });
 
-    expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
-      maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS,
-    });
+    expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(AbortSignal),
+      { maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS },
+    );
   });
 });

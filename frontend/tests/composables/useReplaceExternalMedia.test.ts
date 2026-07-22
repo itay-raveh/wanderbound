@@ -85,9 +85,11 @@ describe("useReplaceExternalMedia", () => {
     const result = mountReplaceExternalMedia();
 
     await expect(result.replaceFromGoogle()).resolves.toBe("photo.jpg");
-    expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith({
-      maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
-    });
+    expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(AbortSignal),
+      { maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS },
+    );
   });
 
   it("invalidates print bundle after replacements", () => {

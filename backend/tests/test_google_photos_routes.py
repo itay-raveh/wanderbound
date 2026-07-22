@@ -7,11 +7,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from httpx import Request, Response
 from httpx_oauth.oauth2 import (
     GetAccessTokenError,
     OAuth2Token,
     RefreshTokenError,
 )
+from sqlmodel import select
 
 from app.api.v1.routes.google_photos import _validate_match_names, match_media
 from app.logic.media_upgrade.phash_matching import MatchResult
@@ -285,7 +287,7 @@ class TestOAuthCallback:
 
 
 class TestTokenRevocation:
-    async def test_expired_token_returns_401(
+    async def test_expired_token_disconnects_google_photos(
         self,
         client: AsyncClient,
         session: AsyncSession,
@@ -293,12 +295,21 @@ class TestTokenRevocation:
     ) -> None:
         http = await connected_google_photos_http(client, session)
         http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError(
-            "invalid_grant"
+            "refresh failed",
+            Response(
+                400,
+                json={"error": "invalid_grant"},
+                request=Request("POST", "https://oauth2.googleapis.com/token"),
+            ),
         )
 
         resp = await google_photos_routes.create_session()
 
         assert resp.status_code == 401
+        user = (await session.exec(select(User))).one()
+        await session.refresh(user)
+        assert user.google_photos_refresh_token is None
+        assert user.google_photos_connected_at is None
 
 
 class TestTokenLostSelfHeal:

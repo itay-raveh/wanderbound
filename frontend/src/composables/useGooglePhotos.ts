@@ -17,6 +17,12 @@ interface CreatePickerSessionOptions {
   maxItemCount?: number;
 }
 
+class GooglePhotosAuthorizationExpired extends Error {
+  constructor() {
+    super(UPGRADE_ERRORS.connectionLost);
+  }
+}
+
 export function useGooglePhotos() {
   const { user } = useUserQuery();
   const cache = useQueryCache();
@@ -89,20 +95,38 @@ export function useGooglePhotos() {
     await cache.invalidateQueries({ key: queryKeys.user() });
   }
 
-  async function createPickerSession(
+  async function requestPickerSession(
     options: CreatePickerSessionOptions = {},
   ): Promise<{
     sessionId: string;
     pickerUri: string;
   }> {
-    const { data } = await createSession({
+    const { data, response } = await createSession({
       query:
         options.maxItemCount === undefined
           ? undefined
           : { max_item_count: options.maxItemCount },
     });
+    if (response?.status === 401) throw new GooglePhotosAuthorizationExpired();
     if (!data) throw new Error(UPGRADE_ERRORS.connectionLost);
     return { sessionId: data.session_id, pickerUri: data.picker_uri };
+  }
+
+  async function createPickerSession(
+    popup: Window,
+    signal: AbortSignal,
+    options: CreatePickerSessionOptions = {},
+  ): Promise<{
+    sessionId: string;
+    pickerUri: string;
+  }> {
+    try {
+      return await requestPickerSession(options);
+    } catch (error) {
+      if (!(error instanceof GooglePhotosAuthorizationExpired)) throw error;
+      await authorizeInPopup(popup, signal);
+      return requestPickerSession(options);
+    }
   }
 
   async function pollPickerSession(
