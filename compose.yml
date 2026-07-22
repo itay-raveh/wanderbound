@@ -126,7 +126,13 @@ services:
       - traefik.enable=true
       - traefik.http.routers.wanderbound.rule=Host(`${DOMAIN}`)
       - traefik.http.routers.wanderbound.entrypoints=websecure
+      - traefik.http.routers.wanderbound.middlewares=wanderbound-security
       - traefik.http.routers.wanderbound.tls.certresolver=letsencrypt
+      - traefik.http.middlewares.wanderbound-security.headers.stsSeconds=63072000
+      - traefik.http.middlewares.wanderbound-security.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.wanderbound-security.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.wanderbound-security.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.wanderbound-security.headers.permissionsPolicy=camera=(), microphone=(), geolocation=()
       - traefik.http.services.wanderbound.loadbalancer.server.port=8000
     volumes:
       - app-data:/app/backend/data

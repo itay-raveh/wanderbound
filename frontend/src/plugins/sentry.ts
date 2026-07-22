@@ -37,7 +37,9 @@ export function setupSentry(
     app,
     dsn: settings.PUBLIC_SENTRY_DSN ?? undefined,
     environment: settings.ENVIRONMENT,
-    release: sentryRelease(settings.APP_VERSION),
+    release: settings.APP_VERSION
+      ? `wanderbound@${settings.APP_VERSION}`
+      : undefined,
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: true,
@@ -97,9 +99,4 @@ function sentryEnabled(settings: Settings): boolean {
     settings.ENVIRONMENT === "production" &&
     Boolean(settings.PUBLIC_SENTRY_DSN)
   );
-}
-
-function sentryRelease(version: string | null | undefined): string | undefined {
-  if (!version) return undefined;
-  return `wanderbound@${version.replace(/^v/, "")}`;
 }

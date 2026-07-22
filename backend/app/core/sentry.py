@@ -40,12 +40,6 @@ SENTRY_INFO_LOG_EVENTS = {
 }
 
 
-def sentry_release(version: str | None) -> str | None:
-    if version is None:
-        return None
-    return f"wanderbound@{version.removeprefix('v')}"
-
-
 def setup_sentry(settings: Settings) -> None:
     if not _sentry_enabled(settings):
         return
@@ -58,7 +52,9 @@ def setup_sentry(settings: Settings) -> None:
     sentry_sdk.init(
         dsn=str(settings.SENTRY_DSN) if settings.SENTRY_DSN else None,
         environment=settings.ENVIRONMENT,
-        release=sentry_release(settings.APP_VERSION),
+        release=(
+            f"wanderbound@{settings.APP_VERSION}" if settings.APP_VERSION else None
+        ),
         traces_sampler=_traces_sampler(settings),
         trace_propagation_targets=[],
         trace_ignore_status_codes={404},

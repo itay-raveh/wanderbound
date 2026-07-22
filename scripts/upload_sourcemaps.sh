@@ -2,7 +2,7 @@
 set -eu
 
 version=${APP_VERSION:?APP_VERSION is required}
-release="wanderbound@${version#v}"
+release="wanderbound@$version"
 
 if ! sentry-cli releases new "$release"; then
   sentry-cli releases info "$release" >/dev/null

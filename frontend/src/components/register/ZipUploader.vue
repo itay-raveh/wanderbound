@@ -11,8 +11,7 @@ const emit = defineEmits<{
   uploaded: [data: UploadResult];
 }>();
 
-const maxFileSize = getSettings().MAX_UPLOAD_SIZE_BYTES;
-const maxUploadGb = maxFileSize / 1024 ** 3;
+const settings = getSettings();
 const $q = useQuasar();
 const { t } = useI18n();
 const dragging = ref(false);
@@ -28,7 +27,7 @@ const {
   cancel,
   reset,
 } = useDirectZipUpload({
-  maxFileSize,
+  maxFileSize: settings.MAX_UPLOAD_SIZE_BYTES,
   onUploaded: (result) => emit("uploaded", result),
 });
 
@@ -71,10 +70,12 @@ function handleFile(selected: File) {
     $q.notify({ type: "negative", message: t("register.badZip") });
     return;
   }
-  if (selected.size > maxFileSize) {
+  if (selected.size > settings.MAX_UPLOAD_SIZE_BYTES) {
     $q.notify({
       type: "negative",
-      message: t("register.fileTooLarge", { max: maxUploadGb }),
+      message: t("register.fileTooLarge", {
+        max: settings.MAX_UPLOAD_SIZE_BYTES / 1024 ** 3,
+      }),
     });
     return;
   }
