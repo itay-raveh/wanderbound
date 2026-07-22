@@ -37,20 +37,30 @@ describe("useGooglePhotos", () => {
     api.createSession.mockReset();
   });
 
-  it("reauthorizes once when picker session creation finds an expired grant", async () => {
+  it("handles the expired-grant response without the generated client throwing", async () => {
     vi.stubGlobal("BroadcastChannel", CompletingBroadcastChannel);
-    api.createSession
-      .mockResolvedValueOnce({
-        data: undefined,
-        error: { detail: "Google Photos authorization expired. Please reconnect." },
-        response: new Response(null, { status: 401 }),
-      })
-      .mockResolvedValueOnce({
-        data: {
-          session_id: "session-2",
-          picker_uri: "https://photos.google.com/picker/session-2",
-        },
-      });
+    api.createSession.mockImplementation(
+      (options?: { throwOnError?: boolean }) => {
+        if (api.createSession.mock.calls.length === 1) {
+          if (options?.throwOnError !== false) {
+            return Promise.reject(new Error("Request failed with status 401"));
+          }
+          return Promise.resolve({
+            data: undefined,
+            error: {
+              detail: "Google Photos authorization expired. Please reconnect.",
+            },
+            response: new Response(null, { status: 401 }),
+          });
+        }
+        return Promise.resolve({
+          data: {
+            session_id: "session-2",
+            picker_uri: "https://photos.google.com/picker/session-2",
+          },
+        });
+      },
+    );
     const popup = {
       closed: false,
       close: vi.fn(),
@@ -65,6 +75,10 @@ describe("useGooglePhotos", () => {
 
     expect(popup.location.href).toContain("/api/v1/google-photos/authorize");
     expect(api.createSession).toHaveBeenCalledTimes(2);
+    expect(api.createSession).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ throwOnError: false }),
+    );
     expect(session).toEqual({
       sessionId: "session-2",
       pickerUri: "https://photos.google.com/picker/session-2",

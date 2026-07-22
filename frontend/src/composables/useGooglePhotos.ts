@@ -102,6 +102,7 @@ export function useGooglePhotos() {
     pickerUri: string;
   }> {
     const { data, response } = await createSession({
+      throwOnError: false,
       query:
         options.maxItemCount === undefined
           ? undefined
