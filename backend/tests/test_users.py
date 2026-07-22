@@ -21,6 +21,7 @@ async def _insert_uploaded_albums(
         await insert_album(session, uploaded_user["id"], aid=aid)
     await session.commit()
 
+
 class TestDemoLocale:
     async def test_demo_respects_accept_language(self, user_routes: UserRoutes) -> None:
         data = await user_routes.demo_ok(accept_language="he-IL,he;q=0.9,en;q=0.8")
