@@ -18,16 +18,14 @@
   <img src="frontend/public/landing/step-page-dark.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
-Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
-maps, photo pages - that you can edit in the browser and export to PDF.
+Upload a Polarsteps ZIP, edit the generated album in the browser, and export it
+to PDF.
 
-- Photo layout algorithm packs images into grids, with drag-and-drop reordering
-- Upgrade low-resolution Polarsteps photos with originals from Google Photos
-- GPS tracks classified into flights, hikes, drives, and walks - add map pages
-  with satellite imagery and elevation profiles
-- Videos in albums - scrub frame-by-frame to pick a poster image
-- Full RTL and localization support (English and Hebrew)
-- PDF export via headless Chromium
+- Automatic photo layouts with drag-and-drop editing
+- Map pages with satellite imagery and elevation profiles
+- Original-quality photo imports from Google Photos
+- Frame selection for video posters
+- English, Hebrew, and RTL support
 
 <p align="center">
   <img src="frontend/public/landing/hike-map-dark.jpg" width="240" alt="Map page with satellite imagery and elevation profile">&nbsp;
@@ -35,65 +33,27 @@ maps, photo pages - that you can edit in the browser and export to PDF.
   <img src="frontend/public/landing/auto-album-dark.jpg" width="240" alt="Auto-generated photo grid layout">
 </p>
 
-## Tech Stack
-
-|                   |                                                                      |
-|-------------------|----------------------------------------------------------------------|
-| **Backend**        | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
-| **Frontend**       | Vue 3, TypeScript, Quasar, Uppy, Mapbox GL JS                       |
-| **Database**       | PostgreSQL 18                                                       |
-| **Object storage** | S3-compatible storage, Garage for Compose                           |
-| **External APIs**  | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
-
 ## Self-Hosting
 
-Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
+Requires [Docker Compose](https://docs.docker.com/compose/).
 
 ```bash
 git clone https://github.com/itay-raveh/wanderbound.git
 cd wanderbound
-
 cp .env.example .env
-# Fill in the required values
-
+# Set the required values in .env
 docker compose up -d
 ```
 
 Open `http://localhost:8000`.
 
-For production, set `APP_VERSION` to an exact released `MAJOR.MINOR.PATCH` tag,
-set `DOMAIN` and `ENVIRONMENT=production`, create the external `traefik` network,
-and run:
-
-```bash
-docker compose -f compose.yml up -d
-```
-
-If Sentry is configured, upload source maps before starting the new version:
-
-```bash
-docker compose -f compose.yml --profile sentry run --rm sourcemaps
-docker compose -f compose.yml up -d
-```
-
-The Compose stack runs the app, database, and S3-compatible object storage.
-Configure database and app data backups in your deployment infrastructure.
-
-The app stores upload and processing progress in shared storage and Postgres, so
-multiple workers can serve the same user flow. All workers must use the same
-`DATA_FOLDER` volume and database.
-
 ## Development
 
-[mise](https://mise.jdx.dev/) manages tool versions and all project
-commands. Install it, then:
+Requires [mise](https://mise.jdx.dev/).
 
 ```bash
-mise run setup               # Install dependencies and generate assets
-mise run dev                 # Start FastAPI, Vite, and dependencies
+mise run setup
+mise run dev
 ```
 
-Open `http://localhost:5173`. Vite provides frontend hot module replacement
-and proxies API requests to the FastAPI container on port 8000.
-
-Run `mise tasks` to see all available commands.
+Open `http://localhost:5173`. Run `mise tasks` for other commands.
