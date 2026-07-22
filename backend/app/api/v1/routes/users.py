@@ -118,6 +118,7 @@ async def create_demo(
         user = User(
             id=uid,
             first_name=ps_user.first_name or "Demo",
+            profile_image_url="/demo/molly-avatar.webp",
             locale=_demo_locale(request, ps_user.locale),
             unit_is_km=ps_user.unit_is_km,
             temperature_is_celsius=ps_user.temperature_is_celsius,

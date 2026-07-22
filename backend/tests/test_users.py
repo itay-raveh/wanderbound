@@ -22,6 +22,12 @@ async def _insert_uploaded_albums(
     await session.commit()
 
 
+class TestDemoProfile:
+    async def test_demo_uses_molly_profile_image(self, user_routes: UserRoutes) -> None:
+        data = await user_routes.demo_ok()
+        assert data["user"]["profile_image_url"] == "/demo/molly-avatar.webp"
+
+
 class TestDemoLocale:
     async def test_demo_respects_accept_language(self, user_routes: UserRoutes) -> None:
         data = await user_routes.demo_ok(accept_language="he-IL,he;q=0.9,en;q=0.8")
