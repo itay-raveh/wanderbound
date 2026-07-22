@@ -241,6 +241,7 @@ if (props.printMode) {
 
   let scrollClearTimer: ReturnType<typeof setTimeout> | null = null;
   let distantJumpId = 0;
+  let disposed = false;
 
   function clearProgrammaticScroll() {
     programmaticScrolling.value = false;
@@ -330,10 +331,12 @@ if (props.printMode) {
     }
     void nextTick(() => {
       requestAnimationFrame(() => {
+        if (disposed) return;
         applyCorrection();
         requestAnimationFrame(() => {
+          if (disposed) return;
           applyCorrection();
-          setTimeout(clearProgrammaticScroll, 100);
+          scrollClearTimer = setTimeout(clearProgrammaticScroll, 100);
         });
       });
     });
@@ -487,6 +490,8 @@ if (props.printMode) {
     }
   });
   onUnmounted(() => {
+    disposed = true;
+    distantJumpId++;
     setScrollOverride(null);
     clearProgrammaticScroll();
   });

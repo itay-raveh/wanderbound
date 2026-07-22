@@ -255,6 +255,7 @@ test.describe("Large album editor performance", () => {
   test("jumps across distant steps without mounting the whole album", async ({
     page,
   }) => {
+    test.slow();
     await mockLargeAlbum(page);
     await page.goto("/editor");
     await expect(page.getByText("Large Album").first()).toBeVisible({

@@ -17,6 +17,31 @@ test.describe("Editor", () => {
     });
   });
 
+  test("replaces an unavailable saved album before loading it", async ({
+    authedPage: page,
+  }) => {
+    const unavailableAlbumId = "deleted-album";
+    await page.addInitScript((albumId) => {
+      localStorage.setItem("last-album-id", albumId);
+    }, unavailableAlbumId);
+
+    const staleRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes(`/albums/${unavailableAlbumId}`)) {
+        staleRequests.push(request.url());
+      }
+    });
+
+    await page.goto("/editor");
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("last-album-id")))
+      .toBe("aid-1");
+    expect(staleRequests).toEqual([]);
+  });
+
   test("shows step name in the viewer", async ({ editorPage: page }) => {
     await page.waitForURL("/editor");
     // The step name "Amsterdam" should be visible in the main viewer
