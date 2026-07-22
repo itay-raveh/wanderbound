@@ -1,12 +1,13 @@
 import type { PublicClientApplication } from "@azure/msal-browser";
-
-const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+import { getSettings } from "@/config";
 
 let msalPromise: Promise<PublicClientApplication> | null = null;
 
 function getInstance(): Promise<PublicClientApplication> {
   if (!msalPromise) {
     msalPromise = (async () => {
+      const clientId = getSettings().MICROSOFT_CLIENT_ID;
+      if (!clientId) throw new Error("Microsoft authentication is not configured");
       const { PublicClientApplication: MsalClient } =
         await import("@azure/msal-browser");
       const instance = new MsalClient({

@@ -5,11 +5,22 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
-  backend:
+  app:
+    image: wanderbound:${APP_VERSION:-dev}
+    pull_policy: build
     restart: "no"
+    read_only: false
     ports:
       - "127.0.0.1:8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --reload --host 0.0.0.0 --proxy-headers --log-config app/core/uvicorn_logging.json"
+    command: [start-wanderbound, --reload]
+    environment:
+      - PUBLIC_URL
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${WANDERBOUND_BUILD_TARGET:-runtime}
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     develop:
       watch:
         - path: ./backend
@@ -21,20 +32,12 @@ services:
         - path: ./backend/pyproject.toml
           action: rebuild
 
-  frontend:
-    restart: "no"
-    networks: [backend, frontend]
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:5173:8080"
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+  sourcemaps:
+    image: wanderbound:${APP_VERSION:-dev}
 
 networks:
   backend:
     internal: false
   frontend:
     external: false
+    name: ${COMPOSE_PROJECT_NAME:-wanderbound}_frontend

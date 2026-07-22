@@ -139,7 +139,7 @@ async def create_upload(
     session: SessionDep,
     store: UploadStoreDep,
 ) -> CreateUploadResponse:
-    maximum = get_settings().VITE_MAX_UPLOAD_GB * 1024**3
+    maximum = get_settings().MAX_UPLOAD_SIZE_BYTES
     if not 0 < payload.metadata.size_bytes <= maximum:
         raise _error("upload_invalid_size", status.HTTP_400_BAD_REQUEST)
     existing, identity = await _resolve_auth(request, session)

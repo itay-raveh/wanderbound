@@ -299,7 +299,7 @@ async def render_pdf_file(  # noqa: C901, PLR0913, PLR0915
     chapter: str | None = None,
 ) -> AsyncGenerator[PdfProgress]:
     settings = get_settings()
-    frontend_url = str(settings.FRONTEND_URL or settings.VITE_FRONTEND_URL).rstrip("/")
+    frontend_url = str(settings.INTERNAL_URL).rstrip("/")
     yield PdfProgress(phase="loading", done=0)
 
     with start_span(

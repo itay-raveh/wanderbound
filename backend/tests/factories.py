@@ -129,7 +129,7 @@ def mock_jwt(
     )
     # Ensure the client-ID gate passes even when the env var is absent.
     settings = get_settings()
-    attr = f"VITE_{provider.upper()}_CLIENT_ID"
+    attr = f"{provider.upper()}_CLIENT_ID"
     prev = getattr(settings, attr)
     if ensure_configured and not prev:
         setattr(settings, attr, "test")

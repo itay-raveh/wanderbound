@@ -8,11 +8,6 @@ os.environ.setdefault("SECRET_KEY", "codegen")
 os.environ.setdefault(
     "SQLALCHEMY_DATABASE_URI", "postgresql+psycopg://codegen:codegen@localhost/codegen"
 )
-os.environ.setdefault("UPLOAD_S3_BUCKET", "codegen")
-os.environ.setdefault("UPLOAD_S3_REGION", "codegen")
-os.environ.setdefault("UPLOAD_S3_INTERNAL_ENDPOINT_URL", "http://localhost:3900")
-os.environ.setdefault("UPLOAD_S3_PUBLIC_ENDPOINT_URL", "http://localhost:3900")
-os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
 os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "codegen")
 os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "codegen")
 

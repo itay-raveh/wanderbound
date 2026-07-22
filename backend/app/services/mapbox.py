@@ -76,7 +76,7 @@ def _encode_coords(coords: Coords) -> str:
 
 
 def _token() -> str | None:
-    token = get_settings().VITE_MAPBOX_TOKEN
+    token = get_settings().MAPBOX_TOKEN
     if not token:
         logger.warning("mapbox.token_missing")
     return token

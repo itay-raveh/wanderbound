@@ -10,7 +10,7 @@ export default defineConfig({
   outputDir: "./integration/test-results",
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "line",
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: "http://localhost:8000",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

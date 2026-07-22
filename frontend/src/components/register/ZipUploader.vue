@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { UploadResult } from "@/client";
 import { useDirectZipUpload } from "@/composables/useDirectZipUpload";
+import { getSettings } from "@/config";
 import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
 import { useQuasar } from "quasar";
 import { ref } from "vue";
@@ -10,8 +11,7 @@ const emit = defineEmits<{
   uploaded: [data: UploadResult];
 }>();
 
-const maxUploadGb = Number(import.meta.env.VITE_MAX_UPLOAD_GB) || 4;
-const maxFileSize = maxUploadGb * 1024 * 1024 * 1024;
+const settings = getSettings();
 const $q = useQuasar();
 const { t } = useI18n();
 const dragging = ref(false);
@@ -27,7 +27,7 @@ const {
   cancel,
   reset,
 } = useDirectZipUpload({
-  maxFileSize,
+  maxFileSize: settings.MAX_UPLOAD_SIZE_BYTES,
   onUploaded: (result) => emit("uploaded", result),
 });
 
@@ -70,10 +70,12 @@ function handleFile(selected: File) {
     $q.notify({ type: "negative", message: t("register.badZip") });
     return;
   }
-  if (selected.size > maxFileSize) {
+  if (selected.size > settings.MAX_UPLOAD_SIZE_BYTES) {
     $q.notify({
       type: "negative",
-      message: t("register.fileTooLarge", { max: maxUploadGb }),
+      message: t("register.fileTooLarge", {
+        max: settings.MAX_UPLOAD_SIZE_BYTES / 1024 ** 3,
+      }),
     });
     return;
   }

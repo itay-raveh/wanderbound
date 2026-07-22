@@ -4,49 +4,19 @@ set -eu
 : "${UPLOAD_S3_BUCKET:?Variable not set}"
 : "${UPLOAD_CORS_ORIGIN:?Variable not set}"
 
-cors_file=$(mktemp)
-lifecycle_file=$(mktemp)
-trap 'rm -f "$cors_file" "$lifecycle_file"' EXIT
+cors_configuration=$(printf '%s' \
+  "{\"CORSRules\":[{\"AllowedOrigins\":[\"${UPLOAD_CORS_ORIGIN}\"]," \
+  '"AllowedMethods":["PUT"],"AllowedHeaders":["content-type","x-amz-content-sha256"],' \
+  '"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}')
 
-cat >"$cors_file" <<EOF
-{
-  "CORSRules": [
-    {
-      "AllowedOrigins": ["${UPLOAD_CORS_ORIGIN}"],
-      "AllowedMethods": ["PUT"],
-      "AllowedHeaders": ["content-type", "x-amz-content-sha256"],
-      "ExposeHeaders": ["ETag"],
-      "MaxAgeSeconds": 3600
-    }
-  ]
-}
-EOF
-
-cat >"$lifecycle_file" <<'EOF'
-{
-  "Rules": [
-    {
-      "ID": "abort-incomplete-uploads",
-      "Status": "Enabled",
-      "Filter": {},
-      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 2}
-    },
-    {
-      "ID": "expire-completed-uploads",
-      "Status": "Enabled",
-      "Filter": {"Prefix": "uploads/"},
-      "Expiration": {"Days": 3}
-    }
-  ]
-}
-EOF
+lifecycle_configuration='{"Rules":[{"ID":"abort-incomplete-uploads","Status":"Enabled","Filter":{},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":2}},{"ID":"expire-completed-uploads","Status":"Enabled","Filter":{"Prefix":"uploads/"},"Expiration":{"Days":3}}]}'
 
 aws s3api put-bucket-cors \
   --bucket "$UPLOAD_S3_BUCKET" \
-  --cors-configuration "file://$cors_file"
+  --cors-configuration "$cors_configuration"
 aws s3api put-bucket-lifecycle-configuration \
   --bucket "$UPLOAD_S3_BUCKET" \
-  --lifecycle-configuration "file://$lifecycle_file"
+  --lifecycle-configuration "$lifecycle_configuration"
 
 attempt=0
 until aws s3api get-bucket-cors --bucket "$UPLOAD_S3_BUCKET" >/dev/null 2>&1 \

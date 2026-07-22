@@ -63,12 +63,12 @@ async def _verify_oidc_token(
 
 async def _verify_google(credential: str) -> OAuthIdentity:
     settings = get_settings()
-    if not settings.VITE_GOOGLE_CLIENT_ID:
+    if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(
             status.HTTP_501_NOT_IMPLEMENTED, "Google auth not configured"
         )
     payload = await _verify_oidc_token(
-        credential, _google_jwks, settings.VITE_GOOGLE_CLIENT_ID, GOOGLE_ISSUERS
+        credential, _google_jwks, settings.GOOGLE_CLIENT_ID, GOOGLE_ISSUERS
     )
     return OAuthIdentity(
         sub=payload["sub"],
@@ -80,12 +80,12 @@ async def _verify_google(credential: str) -> OAuthIdentity:
 
 async def _verify_microsoft(credential: str) -> OAuthIdentity:
     settings = get_settings()
-    if not settings.VITE_MICROSOFT_CLIENT_ID:
+    if not settings.MICROSOFT_CLIENT_ID:
         raise HTTPException(
             status.HTTP_501_NOT_IMPLEMENTED, "Microsoft auth not configured"
         )
     payload = await _verify_oidc_token(
-        credential, _microsoft_jwks, settings.VITE_MICROSOFT_CLIENT_ID, issuer=None
+        credential, _microsoft_jwks, settings.MICROSOFT_CLIENT_ID, issuer=None
     )
     # /common issues tenant-specific issuers - pattern-match manually.
     iss = payload.get("iss", "")

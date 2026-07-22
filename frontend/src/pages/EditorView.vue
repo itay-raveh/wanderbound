@@ -79,24 +79,30 @@ watch(inspectorStandard, (standard) => {
   inspectorOpen.value = standard;
 });
 
-const selectedAlbumId = useLocalStorage<string | null>(LAST_ALBUM_KEY, null);
-
 const { data: userData, locale, isDemo, exitDemo } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
+const storedAlbumId = useLocalStorage<string | null>(LAST_ALBUM_KEY, null);
+const selectedAlbumId = computed<string | null>({
+  get() {
+    const ids = albumIds.value;
+    const stored = storedAlbumId.value;
+    if (!ids?.length) return null;
+    return stored && ids.includes(stored) ? stored : ids[0];
+  },
+  set(albumId) {
+    storedAlbumId.value = albumId;
+  },
+});
 
-// Auto-select first album when none saved (VueUse `whenever` pattern)
-if (!selectedAlbumId.value) {
-  const stop = watch(
-    albumIds,
-    (ids) => {
-      if (ids?.length) {
-        selectedAlbumId.value = ids[0]!;
-        void nextTick(() => stop());
-      }
-    },
-    { immediate: true },
-  );
-}
+watch(
+  selectedAlbumId,
+  (albumId) => {
+    if (albumId && albumId !== storedAlbumId.value) {
+      storedAlbumId.value = albumId;
+    }
+  },
+  { immediate: true },
+);
 
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);

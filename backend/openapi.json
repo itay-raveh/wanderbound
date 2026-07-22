@@ -2449,6 +2449,27 @@
           }
         }
       }
+    },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Public Config",
+        "operationId": "public_config",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSettings"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3744,6 +3765,135 @@
           "ETag"
         ],
         "title": "ProviderPart"
+      },
+      "PublicSettings": {
+        "properties": {
+          "ENVIRONMENT": {
+            "type": "string",
+            "enum": [
+              "local",
+              "production"
+            ],
+            "title": "Environment",
+            "default": "local"
+          },
+          "APP_VERSION": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          },
+          "PUBLIC_URL": {
+            "type": "string",
+            "minLength": 1,
+            "format": "uri",
+            "title": "Public Url",
+            "default": "http://localhost:8000/"
+          },
+          "GOOGLE_CLIENT_ID": {
+            "type": "string",
+            "title": "Google Client Id",
+            "default": ""
+          },
+          "MICROSOFT_CLIENT_ID": {
+            "type": "string",
+            "title": "Microsoft Client Id",
+            "default": ""
+          },
+          "MAX_UPLOAD_SIZE_BYTES": {
+            "type": "integer",
+            "maximum": 4294967296.0,
+            "minimum": 1.0,
+            "title": "Max Upload Size Bytes",
+            "default": 4294967296
+          },
+          "MAPBOX_TOKEN": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapbox Token"
+          },
+          "CONTACT_EMAIL": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "GITHUB_URL": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "AUTHOR_NAME": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "AUTHOR_URL": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Url"
+          },
+          "PUBLIC_SENTRY_DSN": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Sentry Dsn"
+          },
+          "SENTRY_TRACES_SAMPLE_RATE": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Sentry Traces Sample Rate",
+            "default": 0.1
+          }
+        },
+        "type": "object",
+        "title": "PublicSettings"
       },
       "Segment": {
         "properties": {

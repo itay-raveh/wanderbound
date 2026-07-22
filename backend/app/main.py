@@ -19,6 +19,7 @@ from app.core.http_clients import lifespan_clients
 from app.core.locks import try_advisory_lock
 from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
+from app.frontend import install_frontend
 from app.logic.export import lifespan as export_lifespan
 from app.logic.external_media.undo import lifespan as undo_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
@@ -191,3 +192,6 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
         path=request.url.path,
     )
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+
+install_frontend(app, settings)

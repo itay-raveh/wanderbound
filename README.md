@@ -59,13 +59,14 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:8000`.
 
-For production, set `DOMAIN` and `ENVIRONMENT=production` in `.env` and run
+For production, set `APP_VERSION` to an exact released `MAJOR.MINOR.PATCH` tag,
+`DOMAIN`, and `ENVIRONMENT=production` in `.env`, then run
 `docker compose -f compose.yml up -d`.
 
-The Compose stack runs the app, database, and frontend. Configure database and
-app data backups in your deployment infrastructure.
+The Compose stack runs the app, database, and S3-compatible object storage.
+Configure database and app data backups in your deployment infrastructure.
 
 The backend stores upload and processing progress in shared storage and Postgres,
 so multiple backend workers can serve the same user flow. All backend workers
@@ -77,11 +78,11 @@ must use the same `DATA_FOLDER` volume and database.
 commands. Install it, then:
 
 ```bash
-mise run setup               # Install deps, generate assets, run migrations
-docker compose up db -d      # Start Postgres
-mise run dev:backend         # FastAPI dev server
-mise run dev:frontend        # Vite dev server
+mise run setup               # Install dependencies and generate assets
+mise run dev                 # Start FastAPI, Vite, and dependencies
 ```
+
+Open `http://localhost:5173`.
 
 Run `mise tasks` to see all available commands. Extra arguments pass
 through - e.g., `mise run test:backend -- -k test_auth`.

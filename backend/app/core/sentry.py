@@ -50,9 +50,11 @@ def setup_sentry(settings: Settings) -> None:
         ignore_logger_for_sentry_logs(name)
 
     sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
+        dsn=str(settings.SENTRY_DSN) if settings.SENTRY_DSN else None,
         environment=settings.ENVIRONMENT,
-        release=settings.APP_VERSION,
+        release=(
+            f"wanderbound@{settings.APP_VERSION}" if settings.APP_VERSION else None
+        ),
         traces_sampler=_traces_sampler(settings),
         trace_propagation_targets=[],
         trace_ignore_status_codes={404},

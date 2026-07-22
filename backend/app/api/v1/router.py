@@ -4,6 +4,7 @@ from .routes import (
     albums,
     assets,
     auth,
+    config,
     external_media,
     google_photos,
     health,
@@ -20,3 +21,4 @@ router.include_router(albums.router)
 router.include_router(external_media.router)
 router.include_router(assets.router)
 router.include_router(google_photos.router)
+router.include_router(config.router)

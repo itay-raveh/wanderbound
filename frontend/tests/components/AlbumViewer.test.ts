@@ -72,6 +72,35 @@ beforeEach(() => {
 });
 
 describe("AlbumViewer", () => {
+  test("does not run deferred scroll cleanup after unmount", async () => {
+    vi.useFakeTimers();
+    const removeEventListener = vi.spyOn(window, "removeEventListener");
+    const wrapper = mountWithPlugins(AlbumViewer, {
+      props: {
+        album: makeAlbum(),
+        media: [],
+        steps: [makeStep()],
+        segmentOutlines: [],
+      },
+    });
+
+    try {
+      useActiveSection().scrollToSection("chapter-chapter-1-full-map");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(16);
+      wrapper.unmount();
+      const callsAfterUnmount = removeEventListener.mock.calls.length;
+
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(removeEventListener).toHaveBeenCalledTimes(callsAfterUnmount);
+    } finally {
+      wrapper.unmount();
+      removeEventListener.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test("jumps instantly when a chapter target measurement is stale", () => {
     measurements = [];
     const album = makeAlbum();

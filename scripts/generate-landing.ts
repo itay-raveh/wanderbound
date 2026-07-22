@@ -1,10 +1,7 @@
 /**
  * Generate landing page screenshots from a live backend with demo data.
  *
- * Prerequisites:
- *   - Backend running (mise run dev:backend)
- *   - Frontend running (mise run dev:frontend)
- *   - Database migrated (mise run db:migrate)
+ * Prerequisite: application running (mise run dev).
  *
  * Usage:
  *   mise run generate:landing

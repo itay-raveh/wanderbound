@@ -24,24 +24,26 @@ import router from "./router";
 
 import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
+import { loadSettings } from "@/config";
 import { setupSentry } from "@/plugins/sentry";
 
 client.setConfig({
   baseUrl: "",
   credentials: "include",
 });
+const settings = await loadSettings();
 
 const app = createApp(App);
 const pinia = createPinia();
 
-setupSentry(app, router, pinia);
+setupSentry(app, router, pinia, settings);
 
 app.use(pinia);
 app.use(PiniaColada);
 app.use(router);
 useChunkErrorRecovery(router);
 app.use(i18n);
-setupGoogleLogin(app, import.meta.env.VITE_GOOGLE_CLIENT_ID);
+setupGoogleLogin(app, settings.GOOGLE_CLIENT_ID);
 app.use(Quasar, {
   config: {
     loading: {},

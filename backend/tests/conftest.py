@@ -13,11 +13,6 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-os.environ.setdefault("UPLOAD_S3_BUCKET", "test-uploads")
-os.environ.setdefault("UPLOAD_S3_REGION", "test")
-os.environ.setdefault("UPLOAD_S3_INTERNAL_ENDPOINT_URL", "http://localhost:3900")
-os.environ.setdefault("UPLOAD_S3_PUBLIC_ENDPOINT_URL", "http://localhost:3900")
-os.environ.setdefault("UPLOAD_S3_ADDRESSING_STYLE", "path")
 os.environ.setdefault("UPLOAD_S3_ACCESS_KEY_ID", "test")
 os.environ.setdefault("UPLOAD_S3_SECRET_ACCESS_KEY", "test")
 
@@ -79,10 +74,6 @@ async def client(
     session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[AsyncClient]:
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-    # Match the test client's base_url so 303 redirects parse cleanly under
-    # httpx 0.28 (whose copy_with mishandles cross-host redirects with ports).
-    monkeypatch.setattr(get_settings(), "VITE_FRONTEND_URL", "http://test")
-    monkeypatch.setattr(get_settings(), "FRONTEND_URL", "http://test")
     (tmp_path / "users").mkdir(exist_ok=True)
 
     async def _override() -> AsyncIterator[AsyncSession]:

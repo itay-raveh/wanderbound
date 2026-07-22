@@ -72,7 +72,7 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
                     use_body_key=True,
                     limiter=AsyncLimiter(2, 1),
                     headers={
-                        "User-Agent": f"Wanderbound (+{settings.VITE_FRONTEND_URL})",
+                        "User-Agent": f"Wanderbound (+{settings.PUBLIC_URL})",
                     },
                 )
             ),
@@ -88,7 +88,7 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
             ),
             gphotos_token=gphotos_token,
             gphotos_oauth=GooglePhotosOAuth2(
-                settings.VITE_GOOGLE_CLIENT_ID,
+                settings.GOOGLE_CLIENT_ID,
                 settings.GOOGLE_CLIENT_SECRET,
                 gphotos_token,
             ),
