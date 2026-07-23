@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+import app.logic.upload as upload_logic
 from app.core.config import get_settings
 from app.logic.upload import (
     TripMeta,
@@ -162,6 +163,54 @@ class TestSafeExtract:
         self, tmp_path: Path, entry: str, data: bytes, match: str
     ) -> None:
         _assert_bad_zip(_make_zip(**{entry: data}), tmp_path, match)
+
+
+def test_inspect_archive_lists_trip_folders_without_parsing_them() -> None:
+    archive = _make_zip(
+        **{
+            "user/user.json": b"{}",
+            "trip/north-island_42/trip.json": b"not JSON",
+            "trip/south-america-2024_99/photo.jpg": _DEFAULT_JPEG,
+        }
+    )
+
+    choices = upload_logic.inspect_archive(archive)
+
+    assert [(choice.id, choice.label) for choice in choices] == [
+        ("north-island_42", "north-island_42"),
+        ("south-america-2024_99", "south-america-2024_99"),
+    ]
+
+
+def test_extract_selected_keeps_profile_and_chosen_trip(tmp_path: Path) -> None:
+    archive = _make_zip(
+        **{
+            "user/user.json": _user_json(),
+            "trip/keep_1/trip.json": _trip_json(),
+            "trip/drop_2/trip.json": _trip_json(trip_id=2),
+        }
+    )
+
+    upload_logic.extract_selected(archive, tmp_path, {"keep_1"})
+
+    assert (tmp_path / "user/user.json").is_file()
+    assert (tmp_path / "trip/keep_1/trip.json").is_file()
+    assert not (tmp_path / "trip/drop_2").exists()
+
+
+def test_extract_selected_reuses_safe_extraction_checks(tmp_path: Path) -> None:
+    destination = tmp_path / "destination"
+    archive = _make_zip(
+        **{
+            "user/user.json": _user_json(),
+            "trip/keep_1/../../../outside.jpg": _DEFAULT_JPEG,
+        }
+    )
+
+    with pytest.raises(zipfile.BadZipFile, match="Path traversal"):
+        upload_logic.extract_selected(archive, destination, {"keep_1"})
+
+    assert not (tmp_path / "outside.jpg").exists()
 
 
 class TestScanUserFolder:
