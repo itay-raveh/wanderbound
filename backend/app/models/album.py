@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import String
+from sqlalchemy import DateTime, String
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
@@ -88,6 +88,11 @@ class AlbumMeta(AlbumBase):
 
 class Album(AlbumMeta, table=True):
     """Full DB row."""
+
+    last_active_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class AlbumWithMedia(AlbumMeta):

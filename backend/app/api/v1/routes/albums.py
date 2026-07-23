@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterable, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import structlog
@@ -52,7 +53,15 @@ logger = structlog.get_logger(__name__)
 async def _get_album(
     aid: Annotated[str, Path()], user: UserDep, session: SessionDep
 ) -> Album:
-    return await session.get_one(Album, (user.id, aid))
+    album = await session.get_one(Album, (user.id, aid))
+    last_active = album.last_active_at
+    if last_active.tzinfo is None:
+        last_active = last_active.replace(tzinfo=UTC)
+    if last_active < datetime.now(UTC) - timedelta(hours=1):
+        album.last_active_at = datetime.now(UTC)
+        session.add(album)
+        await session.commit()
+    return album
 
 
 AlbumDep = Annotated[Album, Depends(_get_album)]
