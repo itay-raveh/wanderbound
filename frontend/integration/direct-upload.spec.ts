@@ -107,6 +107,12 @@ test("uploads a multipart ZIP directly to Garage and imports it", async ({
   const uploadId = ((await (await created).json()) as { uploadId: string })
     .uploadId;
 
+  await expect(
+    page.getByRole("heading", { name: "Choose albums" }),
+  ).toBeVisible({ timeout: 90_000 });
+  await page.getByLabel("Trip albums").click();
+  await page.getByRole("option", { name: "trip-100" }).click();
+  await page.getByRole("button", { name: "Import selected albums" }).click();
   await expect(fileInput).not.toBeAttached({ timeout: 90_000 });
 
   expect(directPartUploads).toBeGreaterThan(1);
