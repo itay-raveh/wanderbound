@@ -399,6 +399,7 @@
     "errors": {
       "popupBlocked": "חלון קופץ נחסם. אפשרו חלונות קופצים ונסו שוב.",
       "selectionTimeout": "הבחירה פגה.",
+      "selectionExpired": "הבחירה מ-Google Photos פגה. בחרו שוב את התמונות.",
       "connectionLost": "החיבור אבד במהלך השדרוג.",
       "authCancelled": "ההרשאה בוטלה.",
       "authTimeout": "ההרשאה פגה.",

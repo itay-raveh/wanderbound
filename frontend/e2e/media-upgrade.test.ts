@@ -376,6 +376,25 @@ test.describe("Media Upgrade", () => {
     await expectReadyFiles(page, 2);
   });
 
+  test("expired picker session asks for a new selection", async ({
+    authedPage: page,
+  }) => {
+    await mockConnectedUser(page);
+    await mockPickerSession(page);
+    await mockMatchRounds(page, [
+      [{ type: "upgrade_failed", detail: "selectionExpired" }],
+    ]);
+    await prepareOnboardedPopupFlow(page);
+    await page.goto("/editor");
+
+    await clickUpgradeMedia(page);
+
+    const errorBtn = page.getByRole("button", {
+      name: /upgrade failed\. try again/i,
+    });
+    await expect(errorBtn).toContainText(/selection expired.*select the photos again/i);
+  });
+
   test("select more accumulates matches across rounds", async ({
     authedPage: page,
   }) => {

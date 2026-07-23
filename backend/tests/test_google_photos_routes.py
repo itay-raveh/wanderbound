@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
-from httpx import Request, Response
+from httpx import HTTPStatusError, Request, Response
 from httpx_oauth.oauth2 import (
     GetAccessTokenError,
     OAuth2Token,
@@ -180,6 +180,39 @@ class TestValidateMatchNames:
 
 
 class TestMatchMedia:
+    async def test_expired_picker_session_reports_selection_expired(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        request = Request("GET", "https://photospicker.googleapis.com/v1/mediaItems")
+        response = Response(404, request=request)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
+                AsyncMock(return_value=([], set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items_cached",
+                AsyncMock(
+                    side_effect=HTTPStatusError(
+                        "not found", request=request, response=response
+                    )
+                ),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [event async for event in match_media("trip-1", user, http, "s1")]
+
+        assert events == [UpgradeFailed(detail="selectionExpired")]
+
     async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
         user = make_user(1, google_sub="sub")
         user.google_photos_refresh_token = "refresh-token"  # noqa: S105
@@ -245,6 +278,47 @@ class TestMatchMedia:
 
 
 class TestUpgradeMedia:
+    async def test_expired_picker_session_reports_selection_expired(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        request = Request("GET", "https://photospicker.googleapis.com/v1/mediaItems")
+        response = Response(404, request=request)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                AsyncMock(return_value=({}, set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items_cached",
+                AsyncMock(
+                    side_effect=HTTPStatusError(
+                        "not found", request=request, response=response
+                    )
+                ),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [
+                event
+                async for event in upgrade_media(
+                    "trip-1",
+                    UpgradeRequest(session_ids=["s1"], matches=[]),
+                    user,
+                    http,
+                )
+            ]
+
+        assert events == [UpgradeFailed(detail="selectionExpired")]
+
     async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
         user = make_user(1, google_sub="sub")
         user.google_photos_refresh_token = "refresh-token"  # noqa: S105

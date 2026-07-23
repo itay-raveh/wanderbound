@@ -399,6 +399,7 @@
     "errors": {
       "popupBlocked": "Popup blocked. Allow popups and try again.",
       "selectionTimeout": "Selection timed out.",
+      "selectionExpired": "This Google Photos selection expired. Select the photos again.",
       "connectionLost": "Connection lost during upgrade.",
       "authCancelled": "Authorization cancelled.",
       "authTimeout": "Authorization timed out.",

@@ -62,6 +62,19 @@ from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
 logger = structlog.get_logger(__name__)
 
 
+def _picker_selection_expired(exc: Exception) -> bool:
+    return (
+        isinstance(exc, httpx.HTTPStatusError)
+        and exc.response.status_code == status.HTTP_404_NOT_FOUND
+        and exc.request.url.host == "photospicker.googleapis.com"
+        and exc.request.url.path == "/v1/mediaItems"
+    )
+
+
+def _http_status_code(exc: Exception) -> int | None:
+    return exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+
+
 # ---------------------------------------------------------------------------
 # OAuth transient state: signed cookie (carries csrf + PKCE verifier) +
 # signed state param (carries csrf, nonce, redirect_uri). Callback validates
@@ -512,8 +525,14 @@ async def match_media(
                 user_id=user.id,
                 album_id=aid,
                 error_type=type(exc).__name__,
+                status_code=_http_status_code(exc),
             )
-            yield UpgradeFailed(detail="Matching failed unexpectedly.")
+            detail = (
+                "selectionExpired"
+                if _picker_selection_expired(exc)
+                else "Matching failed unexpectedly."
+            )
+            yield UpgradeFailed(detail=detail)
 
 
 class UpgradeRequest(BaseModel):
@@ -606,8 +625,14 @@ async def upgrade_media(
                 user_id=user.id,
                 album_id=aid,
                 error_type=type(exc).__name__,
+                status_code=_http_status_code(exc),
             )
-            yield UpgradeFailed(detail="Upgrade failed unexpectedly.")
+            detail = (
+                "selectionExpired"
+                if _picker_selection_expired(exc)
+                else "Upgrade failed unexpectedly."
+            )
+            yield UpgradeFailed(detail=detail)
 
 
 # ---------------------------------------------------------------------------
