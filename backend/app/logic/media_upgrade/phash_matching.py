@@ -1,8 +1,7 @@
 """Perceptual hashing and bipartite matching for media upgrade.
 
 Matches compressed Polarsteps media (photos and videos) to Google Photos
-originals using perceptual hashing (pHash) and the Hungarian algorithm
-for optimal bipartite assignment.
+originals using perceptual hashing (pHash) and optimal bipartite assignment.
 """
 
 from datetime import datetime
@@ -17,9 +16,10 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from PIL import Image
-from scipy.optimize import linear_sum_assignment
+from scipy.sparse import coo_array
+from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 
-from app.logic.layout.media import MediaName, is_video, open_oriented
+from app.logic.layout.media import MediaName, open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
 
 # Hamming distance threshold for accepting a pHash match.
@@ -30,9 +30,6 @@ from app.models.google_photos import GoogleMediaId, PickedMediaItem
 # 8-12 bits of hash variance. 12 sits at the upper end of "same image, different
 # compression" and below "different image" territory (~15+).
 MATCH_THRESHOLD = 12
-
-# Skip cross-step fallback if the matrix exceeds this size.
-_FALLBACK_MAX_DIMENSION = 100
 
 type MediaHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
@@ -54,6 +51,16 @@ class MatchResult(BaseModel):
     google_id: GoogleMediaId
     distance: int
     upgraded: bool = False
+
+
+class MatchingDiagnostics(NamedTuple):
+    valid_edges: int
+    nearest_13_to_15: int
+
+
+class MatchingOutcome(NamedTuple):
+    matches: list[MatchResult]
+    diagnostics: MatchingDiagnostics
 
 
 class StepWindow(BaseModel):
@@ -116,7 +123,7 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 
 
 # ---------------------------------------------------------------------------
-# Cost matrix and Hungarian matching
+# Cost matrix and optimal matching
 # ---------------------------------------------------------------------------
 
 _CROSS_TYPE_COST = MATCH_THRESHOLD + 1
@@ -135,44 +142,83 @@ def _pairwise_distance(a: MediaHash, b: MediaHash) -> int:
 def build_cost_matrix(
     local_media: list[HashedMedia],
     candidate_media: list[HashedMedia],
-) -> list[list[int]]:
+) -> np.ndarray:
     """Build a distance matrix. Cross-type pairs get infinite cost."""
-    matrix: list[list[int]] = []
-    for loc in local_media:
-        row: list[int] = []
-        for cand in candidate_media:
+    matrix = np.empty((len(local_media), len(candidate_media)), dtype=np.int16)
+    for row, loc in enumerate(local_media):
+        for column, cand in enumerate(candidate_media):
             if loc.is_video != cand.is_video:
-                row.append(_CROSS_TYPE_COST)
+                matrix[row, column] = _CROSS_TYPE_COST
             else:
-                row.append(_pairwise_distance(loc.hash, cand.hash))
-        matrix.append(row)
+                matrix[row, column] = _pairwise_distance(loc.hash, cand.hash)
     return matrix
 
 
-def match_within_window(
+def _thresholded_assignment(
+    cost: np.ndarray,
+    threshold: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    if cost.size == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+
+    local_count, candidate_count = cost.shape
+    unmatched_cost = local_count * threshold + 1
+    valid_rows, valid_columns = np.nonzero(cost <= threshold)
+    dummy_rows = np.arange(local_count)
+    dummy_columns = candidate_count + dummy_rows
+    rows = np.concatenate((valid_rows, dummy_rows))
+    columns = np.concatenate((valid_columns, dummy_columns))
+    weights = np.concatenate(
+        (
+            cost[valid_rows, valid_columns].astype(np.int64) + 1,
+            np.full(local_count, unmatched_cost + 1, dtype=np.int64),
+        )
+    )
+    assignment = coo_array(
+        (weights, (rows, columns)),
+        shape=(local_count, candidate_count + local_count),
+    ).tocsr()
+    matched_rows, matched_columns = min_weight_full_bipartite_matching(assignment)
+    real = matched_columns < candidate_count
+    return matched_rows[real], matched_columns[real]
+
+
+def match_media_globally(
     local_media: list[HashedMedia],
     candidate_media: list[HashedMedia],
     threshold: int = MATCH_THRESHOLD,
-) -> list[MatchResult]:
-    """Run Hungarian algorithm on a cost matrix, reject pairs above threshold."""
+) -> MatchingOutcome:
     if not local_media or not candidate_media:
-        return []
+        return MatchingOutcome([], MatchingDiagnostics(0, 0))
 
-    cost = np.array(build_cost_matrix(local_media, candidate_media))
-    row_idx, col_idx = linear_sum_assignment(cost)
-
-    results: list[MatchResult] = []
-    for r, c in zip(row_idx, col_idx, strict=True):
-        dist = int(cost[r, c])
-        if dist <= threshold:
-            results.append(
-                MatchResult(
-                    local_name=local_media[r].key,
-                    google_id=candidate_media[c].key,
-                    distance=dist,
-                )
-            )
-    return results
+    cost = build_cost_matrix(local_media, candidate_media)
+    same_type = np.equal.outer(
+        [item.is_video for item in local_media],
+        [item.is_video for item in candidate_media],
+    )
+    cost[~same_type] = threshold + 1
+    valid = cost <= threshold
+    rows, columns = _thresholded_assignment(cost, threshold)
+    matches = [
+        MatchResult(
+            local_name=local_media[row].key,
+            google_id=candidate_media[column].key,
+            distance=int(cost[row, column]),
+        )
+        for row, column in zip(rows, columns, strict=True)
+    ]
+    nearest = cost.min(
+        axis=1,
+        where=same_type,
+        initial=np.iinfo(np.int16).max,
+    )
+    return MatchingOutcome(
+        matches,
+        MatchingDiagnostics(
+            valid_edges=int(valid.sum()),
+            nearest_13_to_15=int(((nearest >= 13) & (nearest <= 15)).sum()),
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -219,82 +265,18 @@ def deduplicate_items(
     return list({item.id: item for item in items}.values())
 
 
-def _hashed_locals(
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    matched_locals: set[MediaName],
-) -> list[HashedMedia]:
-    return [
-        HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
-        for n in media_names
-        if n in local_hashes and n not in matched_locals
-    ]
-
-
-def _hashed_candidates(
-    items: list[PickedMediaItem],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-    matched_candidates: set[GoogleMediaId],
-) -> list[HashedMedia]:
-    return [
-        HashedMedia(
-            key=item.id,
-            hash=candidate_hashes[item.id],
-            is_video=item.type == "VIDEO",
-        )
-        for item in items
-        if item.id in candidate_hashes and item.id not in matched_candidates
-    ]
-
-
-def match_across_windows(
-    windows: list[StepWindow],
+def relevant_media_names(
+    media_by_step: dict[int, list[MediaName]],
+    step_ids: list[int],
     google_by_window: dict[int, list[PickedMediaItem]],
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> tuple[list[MatchResult], set[MediaName], set[GoogleMediaId]]:
-    """Run Hungarian matching within each time window."""
-    all_matches: list[MatchResult] = []
-    matched_locals: set[MediaName] = set()
-    matched_candidates: set[GoogleMediaId] = set()
-
-    for window in windows:
-        hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
-        hashed_cands = _hashed_candidates(
-            google_by_window[window.step_id], candidate_hashes, matched_candidates
+) -> list[MediaName]:
+    populated = {step_id for step_id, items in google_by_window.items() if items}
+    selected_steps = populated or set(step_ids)
+    return list(
+        dict.fromkeys(
+            name
+            for step_id in step_ids
+            if step_id in selected_steps
+            for name in media_by_step.get(step_id, [])
         )
-        if not hashed_locals or not hashed_cands:
-            continue
-
-        results = match_within_window(hashed_locals, hashed_cands)
-        for r in results:
-            all_matches.append(r)
-            matched_locals.add(r.local_name)
-            matched_candidates.add(r.google_id)
-
-    return all_matches, matched_locals, matched_candidates
-
-
-def cross_step_fallback(  # noqa: PLR0913
-    all_matches: list[MatchResult],
-    matched_locals: set[MediaName],
-    matched_candidates: set[GoogleMediaId],
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    google_items: list[PickedMediaItem],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> None:
-    """Try matching remaining unmatched media across all windows."""
-    hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
-    hashed_cands = _hashed_candidates(
-        google_items, candidate_hashes, matched_candidates
     )
-
-    if (
-        hashed_locals
-        and hashed_cands
-        and len(hashed_locals) <= _FALLBACK_MAX_DIMENSION
-        and len(hashed_cands) <= _FALLBACK_MAX_DIMENSION
-    ):
-        all_matches.extend(match_within_window(hashed_locals, hashed_cands))

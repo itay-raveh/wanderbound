@@ -41,15 +41,16 @@ from app.services.google_photos import (
 )
 
 from .phash_matching import (
+    HashedMedia,
     MatchResult,
     MediaHash,
     bucket_by_window,
     build_step_windows,
     compute_phash_from_bytes,
     compute_phash_from_path,
-    cross_step_fallback,
     deduplicate_items,
-    match_across_windows,
+    match_media_globally,
+    relevant_media_names,
 )
 from .processing import (
     extract_video_frame_hashes,
@@ -191,18 +192,18 @@ async def run_matching(  # noqa: PLR0913
     ) as span:
         windows = build_step_windows(step_timestamps, step_ids)
         google_by_window = bucket_by_window(google_items, windows)
-        all_window_items = [
-            item for items in google_by_window.values() for item in items
-        ]
-        unique_items = deduplicate_items(all_window_items)
-
-        populated_steps = {sid for sid, items in google_by_window.items() if items}
-        media_names = [
-            name
-            for sid in step_ids
-            if sid in populated_steps
-            for name in media_by_step.get(sid, [])
-        ]
+        unique_items = deduplicate_items(
+            [
+                item
+                for item in google_items
+                if not (
+                    item.type == "VIDEO"
+                    and item.video_processing_status is not None
+                    and item.video_processing_status != "READY"
+                )
+            ]
+        )
+        media_names = relevant_media_names(media_by_step, step_ids, google_by_window)
         set_span_data(
             span,
             **{
@@ -255,27 +256,50 @@ async def run_matching(  # noqa: PLR0913
                 "candidate_hash.count": len(candidate_hashes),
             },
         ):
-            all_matches, matched_locals, matched_candidates = match_across_windows(
-                windows, google_by_window, media_names, local_hashes, candidate_hashes
-            )
-            cross_step_fallback(
-                all_matches,
-                matched_locals,
-                matched_candidates,
-                media_names,
-                local_hashes,
-                google_items,
-                candidate_hashes,
-            )
+            hashed_locals = [
+                HashedMedia(name, local_hashes[name], is_video(name))
+                for name in media_names
+                if name in local_hashes
+            ]
+            hashed_candidates = [
+                HashedMedia(
+                    item.id,
+                    candidate_hashes[item.id],
+                    item.type == "VIDEO",
+                )
+                for item in unique_items
+                if item.id in candidate_hashes
+            ]
+            outcome = match_media_globally(hashed_locals, hashed_candidates)
+            all_matches = outcome.matches
             if upgrade_candidates is not None:
                 for match in all_matches:
                     match.upgraded = match.local_name not in upgrade_candidates
 
+        diagnostics = {
+            "picked": len(google_items),
+            "matchable_picked": len(unique_items),
+            "relevant_local": len(media_names),
+            "local_hashed": len(local_hashes),
+            "candidate_hashed": len(candidate_hashes),
+            "valid_edges": outcome.diagnostics.valid_edges,
+            "matched": len(all_matches),
+            "unmatched_local": len(local_hashes) - len(all_matches),
+            "nearest_13_to_15": outcome.diagnostics.nearest_13_to_15,
+        }
+        logger.info("google_photos.matching.completed", **diagnostics)
         set_span_data(
             span,
             **{
                 "matched.count": len(all_matches),
                 "unmatched.count": len(google_items) - len(all_matches),
+                "matchable_picked.count": diagnostics["matchable_picked"],
+                "relevant_local.count": diagnostics["relevant_local"],
+                "local_hashed.count": diagnostics["local_hashed"],
+                "candidate_hashed.count": diagnostics["candidate_hashed"],
+                "valid_edges.count": diagnostics["valid_edges"],
+                "unmatched_local.count": diagnostics["unmatched_local"],
+                "nearest_13_to_15.count": diagnostics["nearest_13_to_15"],
             },
         )
 

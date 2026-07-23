@@ -234,6 +234,36 @@ test.describe("Media Upgrade", () => {
     await completeReadyUpgrade(page, upgradeEvents, /upgraded 2 files/i);
   });
 
+  test("match summary shows selected item coverage", async ({
+    authedPage: page,
+  }) => {
+    await setupUpgradeRoutes(page);
+    await prepareOnboardedPopupFlow(page);
+
+    await openReadyUpgradeSummary(page);
+
+    await expect(
+      page.getByText(/matched 2 album files from 3 selected google items/i),
+    ).toBeVisible();
+  });
+
+  test("match summary uses singular copy for one match", async ({
+    authedPage: page,
+  }) => {
+    await mockConnectedUser(page);
+    await mockPickerSession(page);
+    await mockMatchStream(page, round2MatchEvents);
+    await prepareOnboardedPopupFlow(page);
+
+    await page.goto("/editor");
+    await clickUpgradeMedia(page);
+
+    await expect(
+      page.getByText(/matched 1 album file from 2 selected google items/i),
+    ).toBeVisible();
+    await expect(page.getByText(/matched 1 album files/i)).toHaveCount(0);
+  });
+
   test("partial failure shows count in done message", async ({
     authedPage: page,
   }) => {
