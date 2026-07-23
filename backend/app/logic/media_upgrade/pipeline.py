@@ -61,8 +61,8 @@ from .processing import (
 logger = structlog.get_logger(__name__)
 
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
-_UPGRADE_BASELINE_MB = 512
-_PER_UPGRADE_MB = 768
+_UPGRADE_BASELINE_MB = 1024
+_PER_UPGRADE_MB = 1024
 
 
 @functools.cache
