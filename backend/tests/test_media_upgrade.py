@@ -11,6 +11,8 @@ import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
+from app.logic.media_upgrade import phash_matching
+
 if TYPE_CHECKING:
     import httpx
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -132,6 +134,48 @@ class TestComputePhash:
 
 
 class TestMatchWithinWindow:
+    def test_thresholded_assignment_maximizes_valid_pair_count(self) -> None:
+        cost = np.array([[0, 12], [12, 13]], dtype=np.int16)
+
+        rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
+
+        assert set(zip(rows.tolist(), cols.tolist(), strict=True)) == {
+            (0, 1),
+            (1, 0),
+        }
+
+    def test_thresholded_assignment_leaves_invalid_rows_unmatched(self) -> None:
+        cost = np.array([[13, 20], [0, 4]], dtype=np.int16)
+
+        rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
+
+        assert list(zip(rows.tolist(), cols.tolist(), strict=True)) == [(1, 0)]
+
+    def test_thresholded_assignment_handles_more_than_one_hundred_pairs(
+        self,
+    ) -> None:
+        count = 101
+        cost = np.full((count, count), 13, dtype=np.int16)
+        np.fill_diagonal(cost, 0)
+
+        rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
+
+        assert len(rows) == count
+        assert np.array_equal(rows, cols)
+
+    def test_global_matching_excludes_cross_type_edges_from_diagnostics(self) -> None:
+        local = [_hm("photo.jpg", _make_hash(0))]
+        candidates = [
+            _hm("google-video", _make_hash(0), video=True),
+            _hm("google-photo", _make_hash((1 << 13) - 1)),
+        ]
+
+        outcome = phash_matching.match_media_globally(local, candidates)
+
+        assert outcome.matches == []
+        assert outcome.diagnostics.valid_edges == 0
+        assert outcome.diagnostics.nearest_13_to_15 == 1
+
     def test_optimal_assignment_not_greedy(self) -> None:
         h_base = _make_hash(0)
 

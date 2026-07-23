@@ -56,6 +56,16 @@ class MatchResult(BaseModel):
     upgraded: bool = False
 
 
+class MatchingDiagnostics(NamedTuple):
+    valid_edges: int
+    nearest_13_to_15: int
+
+
+class MatchingOutcome(NamedTuple):
+    matches: list[MatchResult]
+    diagnostics: MatchingDiagnostics
+
+
 class StepWindow(BaseModel):
     step_id: int
     start: float  # unix timestamp
@@ -149,30 +159,73 @@ def build_cost_matrix(
     return matrix
 
 
+def _thresholded_assignment(
+    cost: np.ndarray,
+    threshold: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    if cost.size == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+
+    local_count, candidate_count = cost.shape
+    unmatched_cost = local_count * threshold + 1
+    invalid_cost = unmatched_cost * (local_count + 1)
+    assignment = np.full(
+        (local_count, candidate_count + local_count),
+        invalid_cost,
+        dtype=np.int64,
+    )
+    valid = cost <= threshold
+    assignment[:, :candidate_count][valid] = cost[valid]
+    assignment[np.arange(local_count), candidate_count + np.arange(local_count)] = (
+        unmatched_cost
+    )
+
+    rows, columns = linear_sum_assignment(assignment)
+    real = columns < candidate_count
+    return rows[real], columns[real]
+
+
 def match_within_window(
     local_media: list[HashedMedia],
     candidate_media: list[HashedMedia],
     threshold: int = MATCH_THRESHOLD,
 ) -> list[MatchResult]:
-    """Run Hungarian algorithm on a cost matrix, reject pairs above threshold."""
+    return match_media_globally(local_media, candidate_media, threshold).matches
+
+
+def match_media_globally(
+    local_media: list[HashedMedia],
+    candidate_media: list[HashedMedia],
+    threshold: int = MATCH_THRESHOLD,
+) -> MatchingOutcome:
     if not local_media or not candidate_media:
-        return []
+        return MatchingOutcome([], MatchingDiagnostics(0, 0))
 
-    cost = np.array(build_cost_matrix(local_media, candidate_media))
-    row_idx, col_idx = linear_sum_assignment(cost)
-
-    results: list[MatchResult] = []
-    for r, c in zip(row_idx, col_idx, strict=True):
-        dist = int(cost[r, c])
-        if dist <= threshold:
-            results.append(
-                MatchResult(
-                    local_name=local_media[r].key,
-                    google_id=candidate_media[c].key,
-                    distance=dist,
-                )
-            )
-    return results
+    cost = np.asarray(build_cost_matrix(local_media, candidate_media), dtype=np.int16)
+    same_type = np.equal.outer(
+        [item.is_video for item in local_media],
+        [item.is_video for item in candidate_media],
+    )
+    valid = same_type & (cost <= threshold)
+    assignment_cost = np.where(valid, cost, threshold + 1)
+    rows, columns = _thresholded_assignment(assignment_cost, threshold)
+    matches = [
+        MatchResult(
+            local_name=local_media[row].key,
+            google_id=candidate_media[column].key,
+            distance=int(cost[row, column]),
+        )
+        for row, column in zip(rows, columns, strict=True)
+    ]
+    same_type_cost = np.where(same_type, cost, np.iinfo(np.int16).max)
+    nearest = same_type_cost.min(axis=1)
+    return MatchingOutcome(
+        matches,
+        MatchingDiagnostics(
+            valid_edges=int(valid.sum()),
+            nearest_13_to_15=int(((nearest >= 13) & (nearest <= 15)).sum()),
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
