@@ -197,11 +197,12 @@ async def poll_picker_session(
 
 _MAX_MEDIA_PAGES = 100
 _MEDIA_ITEMS_CACHE_TTL_S = 15 * 60
-_MEDIA_ITEMS_CACHE_MAX_ENTRIES = 128
+_MEDIA_ITEMS_CACHE_MAX_ITEMS = 10_000
 _media_items_cache: TTLCache[tuple[int, PickerSessionId], list[PickedMediaItem]] = (
     TTLCache(
-        maxsize=_MEDIA_ITEMS_CACHE_MAX_ENTRIES,
+        maxsize=_MEDIA_ITEMS_CACHE_MAX_ITEMS,
         ttl=_MEDIA_ITEMS_CACHE_TTL_S,
+        getsizeof=list.__len__,
     )
 )
 

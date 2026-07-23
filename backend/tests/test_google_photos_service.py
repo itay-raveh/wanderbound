@@ -15,6 +15,7 @@ from app.services.google_photos import (
     PickedMediaItem,
     PickerSession,
     _clear_media_items_cache,
+    _media_items_cache,
     _MediaItemsPage,
     _SessionResponse,
     create_picker_session,
@@ -269,6 +270,19 @@ class TestCachedMediaItems:
             )
 
         assert fetch.await_count == 2
+
+    def test_cache_is_bounded_by_total_selected_items(self) -> None:
+        item = self._item()
+        assert _media_items_cache.maxsize == 10_000
+        assert _media_items_cache.getsizeof([item, item]) == 2
+
+        for index in range(5):
+            _media_items_cache[(1, f"session-{index}")] = [item] * 2_000
+        _media_items_cache[(1, "session-new")] = [item]
+
+        assert _media_items_cache.currsize == 8_001
+        assert (1, "session-0") not in _media_items_cache
+        assert (1, "session-new") in _media_items_cache
 
 
 class TestVideoMetadataParsing:
