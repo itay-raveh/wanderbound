@@ -8,7 +8,7 @@ from sqlalchemy import BigInteger, Column, DateTime, String, Text
 from sqlmodel import Field, SQLModel
 
 from app.core.db import PydanticJSON
-from app.models.upload import UploadResult
+from app.models.upload import TripChoice, UploadResult
 
 ProcessingOperationStatus = Literal[
     "queued", "running", "succeeded", "failed", "cancelled", "stale"
@@ -17,6 +17,7 @@ WorkflowExecutorStatus = Literal["active", "draining", "dead"]
 UploadStatus = Literal[
     "uploading",
     "processing",
+    "awaiting_selection",
     "succeeded",
     "failed",
     "aborted",
@@ -127,6 +128,10 @@ class UploadSession(SQLModel, table=True):
     error_code: str | None = Field(default=None, max_length=100)
     result: UploadResult | None = Field(
         default=None, sa_column=Column(PydanticJSON(UploadResult), nullable=True)
+    )
+    trip_choices: list[TripChoice] = Field(
+        default_factory=list,
+        sa_column=Column(PydanticJSON(list[TripChoice]), nullable=False),
     )
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)

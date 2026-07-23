@@ -6,6 +6,7 @@ import { symOutlinedLuggage } from "@quasar/extras/material-symbols-outlined";
 import { useQuasar } from "quasar";
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
+import TripPicker from "./TripPicker.vue";
 
 const emit = defineEmits<{
   uploaded: [data: UploadResult];
@@ -23,9 +24,14 @@ const {
   progress,
   processingPhase,
   errorCode,
+  choices,
+  selectedIds,
+  selectionSubmitting,
+  selectionError,
   addFile,
   cancel,
   reset,
+  submitSelection,
 } = useDirectZipUpload({
   maxFileSize: settings.MAX_UPLOAD_SIZE_BYTES,
   onUploaded: (result) => emit("uploaded", result),
@@ -99,7 +105,15 @@ function handleFile(selected: File) {
       class="hidden-input"
       @change="onFileSelected"
     />
-    <div class="uploader full-width" :class="{ 'uploader--dnd': dragging }">
+    <TripPicker
+      v-if="status === 'selecting'"
+      v-model="selectedIds"
+      :choices="choices"
+      :submitting="selectionSubmitting"
+      :error="selectionError"
+      @submit="submitSelection"
+    />
+    <div v-else class="uploader full-width" :class="{ 'uploader--dnd': dragging }">
       <div
         v-if="file"
         class="uploader-header row no-wrap items-center q-gutter-x-sm"
