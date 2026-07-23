@@ -1,6 +1,9 @@
 import {
   completeIngestion,
+  pendingUpload,
+  selectUploadTrips,
   uploadProgress as streamUploadProgress,
+  type TripChoice,
   type UploadProgressResponse,
   type UploadProgressUpdate,
   type UploadResult,
@@ -13,7 +16,12 @@ const PART_SIZE = 64 * 1024 * 1024;
 const COMPLETION_ATTEMPTS = 3;
 const STREAM_CONNECTIONS = 3;
 
-type UploadState = "idle" | "uploading" | "processing" | "failed";
+type UploadState =
+  | "idle"
+  | "uploading"
+  | "processing"
+  | "selecting"
+  | "failed";
 type UploadIngestionPhase = UploadProgressUpdate["phase"];
 type UploadProgressEvent = UploadProgressResponse[number];
 type UploadMeta = { size_bytes?: number };
@@ -61,6 +69,7 @@ export async function followUploadIngestion(
   uploadId: string,
   signal: AbortSignal,
   onProgress: (event: UploadProgressUpdate) => void,
+  onSelection: (choices: TripChoice[]) => void = () => {},
 ): Promise<UploadResult> {
   let lastProgress: UploadProgressUpdate | null = null;
   for (let connection = 0; connection < STREAM_CONNECTIONS; connection += 1) {
@@ -96,6 +105,8 @@ export async function followUploadIngestion(
         onProgress(event);
       } else if (event.type === "complete") {
         return await claimCompletedUpload(uploadId, signal);
+      } else if (event.type === "selection_required") {
+        onSelection(event.choices);
       } else if (event.type === "error") {
         throw new UploadIngestionError(event.error_code);
       } else {
@@ -118,7 +129,13 @@ export function useDirectZipUpload(options: {
   const progress = ref(0);
   const processingPhase = ref<UploadIngestionPhase | null>(null);
   const errorCode = ref<string | null>(null);
+  const choices = ref<TripChoice[]>([]);
+  const selectedIds = ref<string[]>([]);
+  const selectionSubmitting = ref(false);
+  const selectionError = ref(false);
+  let uploadId: string | null = null;
   let streamController: AbortController | null = null;
+  const pendingController = new AbortController();
 
   const uppy = new Uppy<UploadMeta, UploadBody>({
     autoProceed: true,
@@ -144,6 +161,11 @@ export function useDirectZipUpload(options: {
     progress.value = 0;
     processingPhase.value = null;
     errorCode.value = null;
+    choices.value = [];
+    selectedIds.value = [];
+    selectionSubmitting.value = false;
+    selectionError.value = false;
+    uploadId = null;
   }
 
   function fail(code?: string | null) {
@@ -158,9 +180,18 @@ export function useDirectZipUpload(options: {
         uploadId,
         streamController.signal,
         (event) => {
+          status.value = "processing";
           processingPhase.value = event.phase;
           progress.value =
             event.total > 0 ? Math.min(event.done / event.total, 1) : 0;
+        },
+        (available) => {
+          const availableIds = new Set(available.map((choice) => choice.id));
+          choices.value = available;
+          selectedIds.value = selectedIds.value.filter((id) =>
+            availableIds.has(id),
+          );
+          status.value = "selecting";
         },
       );
       uppy.clear();
@@ -179,8 +210,8 @@ export function useDirectZipUpload(options: {
     }
   });
   uppy.on("upload-success", (uploadedFile) => {
-    const uploadId = (uploadedFile as MultipartFile | undefined)?.s3Multipart
-      ?.uploadId;
+    uploadId = (uploadedFile as MultipartFile | undefined)?.s3Multipart
+      ?.uploadId ?? null;
     if (!uploadId) {
       fail();
       return;
@@ -216,7 +247,48 @@ export function useDirectZipUpload(options: {
     clearState();
   }
 
+  async function submitSelection() {
+    if (!uploadId || selectedIds.value.length === 0) return;
+    selectionSubmitting.value = true;
+    selectionError.value = false;
+    try {
+      await selectUploadTrips({
+        path: { upload_id: uploadId },
+        body: { trip_ids: selectedIds.value },
+        throwOnError: true,
+      });
+      status.value = "processing";
+      processingPhase.value = "validating";
+      progress.value = 0;
+    } catch {
+      selectionError.value = true;
+    } finally {
+      selectionSubmitting.value = false;
+    }
+  }
+
+  async function resumePendingUpload() {
+    try {
+      const { data } = await pendingUpload({
+        signal: pendingController.signal,
+        throwOnError: true,
+      });
+      if (!data || status.value !== "idle") return;
+      uploadId = data.upload_id;
+      choices.value = data.choices;
+      status.value =
+        data.status === "awaiting_selection" ? "selecting" : "processing";
+      processingPhase.value = "downloading";
+      void followIngestion(uploadId);
+    } catch {
+      return;
+    }
+  }
+
+  void resumePendingUpload();
+
   onScopeDispose(() => {
+    pendingController.abort();
     streamController?.abort();
     uppy.destroy();
   });
@@ -227,8 +299,13 @@ export function useDirectZipUpload(options: {
     progress,
     processingPhase,
     errorCode,
+    choices,
+    selectedIds,
+    selectionSubmitting,
+    selectionError,
     addFile,
     cancel,
     reset,
+    submitSelection,
   };
 }

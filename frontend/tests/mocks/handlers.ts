@@ -20,6 +20,7 @@ export {
 export const handlers = [
   http.get(`${BASE}/users`, () => HttpResponse.json(mockUser)),
   http.patch(`${BASE}/users`, () => HttpResponse.json(mockUser)),
+  http.get(`${BASE}/users/uploads/pending`, () => HttpResponse.json(null)),
   http.get(`${BASE}/albums/:aid`, () => HttpResponse.json(mockAlbum)),
   http.patch(`${BASE}/albums/:aid`, () => HttpResponse.json(mockAlbum)),
   http.get(`${BASE}/albums/:aid/media`, () => HttpResponse.json(mockMedia)),

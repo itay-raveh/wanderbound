@@ -87,7 +87,7 @@ async def run_processing_workflow_payload(
 
     try:
         saw_error = await run_and_persist_processing_events(
-            http, user, operation, session
+            http, user, operation, session, album_ids=params.album_ids
         )
     except Exception as exc:
         await session.rollback()
@@ -111,7 +111,7 @@ async def run_processing_workflow_payload(
     await session.commit()
 
     if status == "succeeded":
-        for aid in user.album_ids:
+        for aid in params.album_ids:
             schedule_album_route_enrichment(http, user.id, aid)
 
     return {"operation_id": operation.operation_id, "status": status}
@@ -145,6 +145,8 @@ async def run_and_persist_processing_events(
     user: User,
     operation: ProcessingOperation,
     session: AsyncSession,
+    *,
+    album_ids: tuple[str, ...] | None = None,
 ) -> bool:
     async def should_continue() -> bool:
         return await processing_operation_is_active(session, operation.operation_id)
@@ -157,7 +159,11 @@ async def run_and_persist_processing_events(
     saw_error = False
     seq = 0
     async for event in run_processing(
-        http, user, should_continue=should_continue, save_guard=save_guard
+        http,
+        user,
+        album_ids=album_ids,
+        should_continue=should_continue,
+        save_guard=save_guard,
     ):
         if isinstance(event, ErrorData):
             saw_error = True

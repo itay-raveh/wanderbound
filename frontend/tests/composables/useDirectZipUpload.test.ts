@@ -84,6 +84,34 @@ test("ignores replayed or regressive ingestion counters", async () => {
   ]);
 });
 
+test("keeps following the stream after requesting a trip selection", async () => {
+  mockedUploadProgress.mockResolvedValue({
+    stream: events([
+      {
+        type: "selection_required",
+        choices: [{ id: "trip-a", label: "trip-a" }],
+      },
+      { type: "complete" },
+    ]),
+  } as Awaited<ReturnType<typeof uploadProgress>>);
+  const result = { user: { id: 42 }, trips: [] };
+  mockedCompleteIngestion.mockResolvedValue({ data: result } as never);
+  const onSelection = vi.fn();
+
+  await expect(
+    followUploadIngestion(
+      "upload-1",
+      new AbortController().signal,
+      vi.fn(),
+      onSelection,
+    ),
+  ).resolves.toBe(result);
+
+  expect(onSelection).toHaveBeenCalledWith([
+    { id: "trip-a", label: "trip-a" },
+  ]);
+});
+
 test("retries the idempotent completion claim", async () => {
   vi.useFakeTimers();
   mockedUploadProgress.mockResolvedValue({
