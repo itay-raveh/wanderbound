@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
+from structlog.testing import capture_logs
 
 from app.logic.media_upgrade import phash_matching
 
@@ -18,14 +19,11 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.media_upgrade.phash_matching import (
-    _FALLBACK_MAX_DIMENSION,
     HashedMedia,
     MatchResult,
     bucket_by_window,
     build_step_windows,
     compute_phash_from_path,
-    cross_step_fallback,
-    match_within_window,
 )
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
@@ -176,6 +174,30 @@ class TestMatchWithinWindow:
         assert outcome.diagnostics.valid_edges == 0
         assert outcome.diagnostics.nearest_13_to_15 == 1
 
+    def test_global_matching_is_independent_of_candidate_order(self) -> None:
+        local = [
+            _hm("a.jpg", _make_hash(0)),
+            _hm("b.jpg", _make_hash((1 << 64) - 1)),
+        ]
+        forward = [
+            _hm("google-a", _make_hash(0)),
+            _hm("google-b", _make_hash((1 << 64) - 1)),
+        ]
+
+        first = phash_matching.match_media_globally(local, forward).matches
+        second = phash_matching.match_media_globally(
+            local, list(reversed(forward))
+        ).matches
+
+        assert {(match.local_name, match.google_id) for match in first} == {
+            ("a.jpg", "google-a"),
+            ("b.jpg", "google-b"),
+        }
+        assert {(match.local_name, match.google_id) for match in second} == {
+            ("a.jpg", "google-a"),
+            ("b.jpg", "google-b"),
+        }
+
     def test_optimal_assignment_not_greedy(self) -> None:
         h_base = _make_hash(0)
 
@@ -194,11 +216,11 @@ class TestMatchWithinWindow:
         bits_gp2[2] = True
         h_gp2 = imagehash.ImageHash(bits_gp2)
 
-        results = match_within_window(
+        results = phash_matching.match_media_globally(
             [_hm("photo1.jpg", h_p1), _hm("photo2.jpg", h_p2)],
             [_hm("gp-1", h_base), _hm("gp-2", h_gp2)],
-        )
-        matched_locals = {r.local_name for r in results}
+        ).matches
+        matched_locals = {result.local_name for result in results}
         assert "photo1.jpg" in matched_locals
         assert "photo2.jpg" in matched_locals
 
@@ -215,37 +237,6 @@ class TestBucketByWindow:
         bucketed = bucket_by_window([item], windows)
         assert any(i.id == "g1" for i in bucketed[1])
         assert any(i.id == "g1" for i in bucketed[2])
-
-
-class TestCrossStepFallback:
-    @pytest.mark.parametrize(
-        ("dimension", "expected_matches"),
-        [
-            (_FALLBACK_MAX_DIMENSION, _FALLBACK_MAX_DIMENSION),
-            (_FALLBACK_MAX_DIMENSION + 1, 0),
-        ],
-    )
-    def test_dimension_limit(self, dimension: int, expected_matches: int) -> None:
-        h = _make_hash(0)
-        names = [f"photo{i}.jpg" for i in range(dimension)]
-        hashes = dict.fromkeys(names, h)
-        items = [
-            _make_item(f"gp-{i}", "2024-01-15T10:00:00Z") for i in range(dimension)
-        ]
-        candidate_hashes = {f"gp-{i}": h for i in range(dimension)}
-
-        all_matches: list[MatchResult] = []
-        cross_step_fallback(
-            all_matches,
-            matched_locals=set(),
-            matched_candidates=set(),
-            media_names=names,
-            local_hashes=hashes,
-            candidate_hashes=candidate_hashes,
-            google_items=items,
-        )
-
-        assert len(all_matches) == expected_matches
 
 
 class TestProcessPhoto:
@@ -394,6 +385,116 @@ class TestPersistUpgrade:
 
 
 class TestRunMatching:
+    async def test_logs_aggregate_matching_diagnostics_after_hash_failures(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = _make_hash(0)
+
+        async def fake_local(
+            _album_dir: Path, name: str
+        ) -> tuple[str, imagehash.ImageHash | None]:
+            return name, None if name == "failed.jpg" else h
+
+        async def fake_candidate(
+            _download: object, item: PickedMediaItem, _tokens: object
+        ) -> tuple[str, imagehash.ImageHash | None]:
+            return item.id, None if item.id == "google-failed" else h
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+
+        with capture_logs() as logs:
+            events = [
+                event
+                async for event in run_matching(
+                    clients=AsyncMock(),
+                    album_dir=tmp_path,
+                    media_by_step={1: ["matched.jpg", "failed.jpg"]},
+                    step_timestamps=[_match_dt(10).timestamp()],
+                    step_ids=[1],
+                    google_items=[
+                        _make_item("google-matched", _match_dt(10, 5).isoformat()),
+                        _make_item("google-failed", _match_dt(10, 6).isoformat()),
+                    ],
+                    tokens=_test_token,
+                )
+            ]
+
+        summary = events[-1]
+        assert isinstance(summary, MatchCompleted)
+        assert summary.matched == 1
+        completed = next(
+            log
+            for log in logs
+            if log.get("event") == "google_photos.matching.completed"
+        )
+        assert completed == {
+            "event": "google_photos.matching.completed",
+            "log_level": "info",
+            "picked": 2,
+            "matchable_picked": 2,
+            "relevant_local": 2,
+            "local_hashed": 1,
+            "candidate_hashed": 1,
+            "valid_edges": 1,
+            "matched": 1,
+            "unmatched_local": 0,
+            "nearest_13_to_15": 0,
+        }
+
+    async def test_matches_picked_item_outside_album_time_windows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        hashes = {
+            "inside.jpg": _make_hash(0),
+            "outside.jpg": _make_hash((1 << 64) - 1),
+        }
+
+        async def fake_local(
+            _album_dir: Path, name: str
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, hashes[name]
+
+        async def fake_candidate(
+            _download: object, item: PickedMediaItem, _tokens: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            local_name = f"{item.id.removeprefix('google-')}.jpg"
+            return item.id, hashes[local_name]
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["inside.jpg", "outside.jpg"]},
+                step_timestamps=[_match_dt(10).timestamp()],
+                step_ids=[1],
+                google_items=[
+                    _make_item("google-inside", _match_dt(10, 5).isoformat()),
+                    _make_item("google-outside", "2024-01-20T10:00:00+00:00"),
+                ],
+                tokens=_test_token,
+            )
+        ]
+
+        summary = events[-1]
+        assert isinstance(summary, MatchCompleted)
+        assert {match.google_id for match in summary.matches} == {
+            "google-inside",
+            "google-outside",
+        }
+
     async def test_marks_matches_outside_upgrade_candidates_as_upgraded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

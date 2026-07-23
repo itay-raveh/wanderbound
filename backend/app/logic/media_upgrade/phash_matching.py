@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from PIL import Image
 from scipy.optimize import linear_sum_assignment
 
-from app.logic.layout.media import MediaName, is_video, open_oriented
+from app.logic.layout.media import MediaName, open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
 
 # Hamming distance threshold for accepting a pHash match.
@@ -30,9 +30,6 @@ from app.models.google_photos import GoogleMediaId, PickedMediaItem
 # 8-12 bits of hash variance. 12 sits at the upper end of "same image, different
 # compression" and below "different image" territory (~15+).
 MATCH_THRESHOLD = 12
-
-# Skip cross-step fallback if the matrix exceeds this size.
-_FALLBACK_MAX_DIMENSION = 100
 
 type MediaHash = imagehash.ImageHash | list[imagehash.ImageHash]
 
@@ -179,18 +176,9 @@ def _thresholded_assignment(
     assignment[np.arange(local_count), candidate_count + np.arange(local_count)] = (
         unmatched_cost
     )
-
     rows, columns = linear_sum_assignment(assignment)
     real = columns < candidate_count
     return rows[real], columns[real]
-
-
-def match_within_window(
-    local_media: list[HashedMedia],
-    candidate_media: list[HashedMedia],
-    threshold: int = MATCH_THRESHOLD,
-) -> list[MatchResult]:
-    return match_media_globally(local_media, candidate_media, threshold).matches
 
 
 def match_media_globally(
@@ -272,82 +260,18 @@ def deduplicate_items(
     return list({item.id: item for item in items}.values())
 
 
-def _hashed_locals(
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    matched_locals: set[MediaName],
-) -> list[HashedMedia]:
-    return [
-        HashedMedia(key=n, hash=local_hashes[n], is_video=is_video(n))
-        for n in media_names
-        if n in local_hashes and n not in matched_locals
-    ]
-
-
-def _hashed_candidates(
-    items: list[PickedMediaItem],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-    matched_candidates: set[GoogleMediaId],
-) -> list[HashedMedia]:
-    return [
-        HashedMedia(
-            key=item.id,
-            hash=candidate_hashes[item.id],
-            is_video=item.type == "VIDEO",
-        )
-        for item in items
-        if item.id in candidate_hashes and item.id not in matched_candidates
-    ]
-
-
-def match_across_windows(
-    windows: list[StepWindow],
+def relevant_media_names(
+    media_by_step: dict[int, list[MediaName]],
+    step_ids: list[int],
     google_by_window: dict[int, list[PickedMediaItem]],
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> tuple[list[MatchResult], set[MediaName], set[GoogleMediaId]]:
-    """Run Hungarian matching within each time window."""
-    all_matches: list[MatchResult] = []
-    matched_locals: set[MediaName] = set()
-    matched_candidates: set[GoogleMediaId] = set()
-
-    for window in windows:
-        hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
-        hashed_cands = _hashed_candidates(
-            google_by_window[window.step_id], candidate_hashes, matched_candidates
+) -> list[MediaName]:
+    populated = {step_id for step_id, items in google_by_window.items() if items}
+    selected_steps = populated or set(step_ids)
+    return list(
+        dict.fromkeys(
+            name
+            for step_id in step_ids
+            if step_id in selected_steps
+            for name in media_by_step.get(step_id, [])
         )
-        if not hashed_locals or not hashed_cands:
-            continue
-
-        results = match_within_window(hashed_locals, hashed_cands)
-        for r in results:
-            all_matches.append(r)
-            matched_locals.add(r.local_name)
-            matched_candidates.add(r.google_id)
-
-    return all_matches, matched_locals, matched_candidates
-
-
-def cross_step_fallback(  # noqa: PLR0913
-    all_matches: list[MatchResult],
-    matched_locals: set[MediaName],
-    matched_candidates: set[GoogleMediaId],
-    media_names: list[MediaName],
-    local_hashes: dict[MediaName, MediaHash],
-    google_items: list[PickedMediaItem],
-    candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash],
-) -> None:
-    """Try matching remaining unmatched media across all windows."""
-    hashed_locals = _hashed_locals(media_names, local_hashes, matched_locals)
-    hashed_cands = _hashed_candidates(
-        google_items, candidate_hashes, matched_candidates
     )
-
-    if (
-        hashed_locals
-        and hashed_cands
-        and len(hashed_locals) <= _FALLBACK_MAX_DIMENSION
-        and len(hashed_cands) <= _FALLBACK_MAX_DIMENSION
-    ):
-        all_matches.extend(match_within_window(hashed_locals, hashed_cands))
