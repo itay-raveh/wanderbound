@@ -13,6 +13,7 @@ import pillow_heif  # noqa: F401 - registers HEIC plugin for Pillow
 import structlog
 from PIL.Image import Resampling
 
+from app.core.resources import detect_cpu_count
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import (
     HDR_COLOR_TRC,
@@ -59,6 +60,7 @@ def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
 
 _VIDEO_CRF = "23"
 _VIDEO_PRESET = "medium"
+_VIDEO_THREADS = str(min(4, detect_cpu_count()))
 _AUDIO_BITRATE = "128k"
 _REENCODE_TIMEOUT = 600  # 10 minutes for video re-encode
 _MAX_OUTPUT_BYTES = 500 * 1024 * 1024  # ~10m phone video at CRF 23
@@ -97,6 +99,8 @@ async def process_video(input_path: Path, output: Path) -> None:
         vf,
         "-c:v",
         "libx264",
+        "-threads:v",
+        _VIDEO_THREADS,
         "-crf",
         _VIDEO_CRF,
         "-preset",

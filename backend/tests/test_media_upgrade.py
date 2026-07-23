@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
+import anyio
 import imagehash
 import numpy as np
 import pytest
@@ -29,6 +30,7 @@ from app.logic.media_upgrade.pipeline import (
     MatchInProgress,
     UpgradeCompleted,
     _clear_caches,
+    _is_progress_checkpoint,
     _needs_upgrade,
     _persist_upgrade_in_session,
     run_matching,
@@ -380,7 +382,11 @@ class TestProcessVideo:
         source.write_bytes(b"stub")
         out = tmp_path / "out.mp4"
 
-        async def _fake_exec(*_args: object, **_kwargs: object) -> AsyncMock:
+        command: tuple[object, ...] = ()
+
+        async def _fake_exec(*args: object, **_kwargs: object) -> AsyncMock:
+            nonlocal command
+            command = args
             out.write_bytes(b"x" * 2048)
             proc = AsyncMock()
             proc.communicate.return_value = (b"", b"")
@@ -396,6 +402,7 @@ class TestProcessVideo:
         monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
         with pytest.raises(RuntimeError, match="cap"):
             await process_video(source, out)
+        assert "-threads:v" in command
 
 
 class TestNeedsUpgrade:
@@ -444,6 +451,17 @@ class TestPersistUpgrade:
 
 
 class TestRunMatching:
+    def test_coalesces_large_progress_bursts(self) -> None:
+        total = 1145
+
+        checkpoints = [
+            done for done in range(1, total + 1) if _is_progress_checkpoint(done, total)
+        ]
+
+        assert len(checkpoints) < total // 2
+        assert checkpoints[-1] == total
+        assert all(_is_progress_checkpoint(done, 5) for done in range(1, 6))
+
     async def test_cancels_pending_hashes_when_stream_closes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1193,4 +1211,98 @@ class TestRunUpgrade:
         events = await task
 
         assert second_started.is_set()
+        assert isinstance(events[-1], UpgradeCompleted)
+
+    async def test_limits_videos_without_blocking_photos(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        upgrade_limiter = anyio.CapacityLimiter(3)
+        video_limiter = anyio.CapacityLimiter(1)
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._upgrade_limiter",
+            lambda: upgrade_limiter,
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._video_upgrade_limiter",
+            lambda: video_limiter,
+        )
+        first_video_started = asyncio.Event()
+        release_first_video = asyncio.Event()
+        second_video_started = asyncio.Event()
+        photo_started = asyncio.Event()
+
+        async def fake_replace(
+            _download: object,
+            local_name: str,
+            *_args: object,
+            **_kwargs: object,
+        ) -> bool:
+            if local_name.endswith(".jpg"):
+                photo_started.set()
+            elif not first_video_started.is_set():
+                first_video_started.set()
+                await release_first_video.wait()
+            else:
+                second_video_started.set()
+            return True
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._download_and_replace", fake_replace
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_upgrade", AsyncMock()
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._cleanup_picker_sessions", AsyncMock()
+        )
+
+        names = [
+            "00000000-0000-4000-8000-000000000001_"
+            "00000000-0000-4000-8000-000000000011.mp4",
+            "00000000-0000-4000-8000-000000000002_"
+            "00000000-0000-4000-8000-000000000012.mp4",
+            "00000000-0000-4000-8000-000000000003_"
+            "00000000-0000-4000-8000-000000000013.jpg",
+        ]
+        matches = [
+            MatchResult(local_name=name, google_id=f"gp-{i}", distance=0)
+            for i, name in enumerate(names)
+        ]
+        items = {
+            f"gp-{i}": _make_item(
+                f"gp-{i}",
+                _match_dt(10).isoformat(),
+                item_type="VIDEO" if name.endswith(".mp4") else "PHOTO",
+            )
+            for i, name in enumerate(names)
+        }
+
+        async def collect() -> list[object]:
+            return [
+                event
+                async for event in run_upgrade(
+                    clients=AsyncMock(),
+                    uid=1,
+                    aid="album",
+                    album_dir=tmp_path,
+                    matches=matches,
+                    google_items_by_id=items,
+                    upgrade_candidates=set(names),
+                    local_dimensions={},
+                    tokens=_test_token,
+                    session_ids=[],
+                )
+            ]
+
+        task = asyncio.create_task(collect())
+        try:
+            await asyncio.wait_for(first_video_started.wait(), timeout=1)
+            await asyncio.wait_for(photo_started.wait(), timeout=1)
+            await asyncio.sleep(0)
+            assert not second_video_started.is_set()
+        finally:
+            release_first_video.set()
+        events = await task
+
+        assert second_video_started.is_set()
         assert isinstance(events[-1], UpgradeCompleted)

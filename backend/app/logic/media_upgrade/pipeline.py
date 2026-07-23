@@ -68,6 +68,8 @@ _UPGRADE_TMP_DIR = ".upgrade-tmp"
 _UPGRADE_BASELINE_MB = 1024
 _PER_UPGRADE_MB = 1024
 _CANDIDATE_HASH_CACHE_TTL_HOURS = 24
+_MAX_MATCH_PROGRESS_UPDATES = 100
+_VIDEO_TRANSCODE_CONCURRENCY = 2
 
 
 @functools.cache
@@ -79,6 +81,28 @@ def _hash_limiter() -> anyio.CapacityLimiter:
 def _upgrade_limiter() -> anyio.CapacityLimiter:
     memory_budget = detect_memory_mb() - _UPGRADE_BASELINE_MB
     return anyio.CapacityLimiter(max(1, memory_budget // _PER_UPGRADE_MB))
+
+
+@functools.cache
+def _video_upgrade_limiter() -> anyio.CapacityLimiter:
+    return anyio.CapacityLimiter(_VIDEO_TRANSCODE_CONCURRENCY)
+
+
+def _is_progress_checkpoint(done: int, total: int) -> bool:
+    if total <= _MAX_MATCH_PROGRESS_UPDATES:
+        return True
+    previous = (done - 1) * _MAX_MATCH_PROGRESS_UPDATES // total
+    current = done * _MAX_MATCH_PROGRESS_UPDATES // total
+    return current != previous
+
+
+@asynccontextmanager
+async def _video_upgrade_slot(name: MediaName) -> AsyncIterator[None]:
+    if not is_video(name):
+        yield
+        return
+    async with _video_upgrade_limiter():
+        yield
 
 
 async def _cancel_tasks[T](tasks: list[asyncio.Task[T]]) -> None:
@@ -277,7 +301,7 @@ async def _hash_candidate_media(
     cache_stats["misses"] = len(items) - cache_stats["hits"]
 
 
-async def run_matching(  # noqa: PLR0913
+async def run_matching(  # noqa: PLR0913, C901
     clients: HttpClients,
     album_dir: Path,
     media_by_step: dict[int, list[MediaName]],
@@ -342,7 +366,11 @@ async def run_matching(  # noqa: PLR0913
             ):
                 if media_hash is not None:
                     local_hashes[name] = media_hash
-                yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
+                done = i + 1
+                if _is_progress_checkpoint(done, local_total):
+                    yield MatchInProgress(
+                        phase="preparing", done=done, total=local_total
+                    )
             set_span_data(
                 span,
                 **{
@@ -370,7 +398,9 @@ async def run_matching(  # noqa: PLR0913
             ):
                 if h is not None:
                     candidate_hashes[item_id] = h
-                yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
+                done = i + 1
+                if _is_progress_checkpoint(done, cand_total):
+                    yield MatchInProgress(phase="matching", done=done, total=cand_total)
         candidate_hash_ms = round((time.perf_counter() - candidate_hash_started) * 1000)
 
         assignment_started = time.perf_counter()
@@ -742,7 +772,10 @@ async def run_upgrade(  # noqa: PLR0913, C901
                     if not item:
                         return None
                     try:
-                        async with _upgrade_limiter():
+                        async with (
+                            _upgrade_limiter(),
+                            _video_upgrade_slot(match.local_name),
+                        ):
                             replaced = await _download_and_replace(
                                 clients.gphotos_download,
                                 match.local_name,
@@ -841,3 +874,4 @@ def _clear_caches() -> None:
     """Reset cached limiters (for test isolation across event loops)."""
     _hash_limiter.cache_clear()
     _upgrade_limiter.cache_clear()
+    _video_upgrade_limiter.cache_clear()
