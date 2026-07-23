@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import imagehash
 import numpy as np
@@ -132,6 +132,30 @@ class TestComputePhash:
 
 
 class TestMatchWithinWindow:
+    def test_cost_matrix_uses_compact_numeric_storage(self) -> None:
+        matrix = phash_matching.build_cost_matrix(
+            [_hm("local.jpg", _make_hash(0))],
+            [_hm("google-photo", _make_hash(1))],
+        )
+
+        assert isinstance(matrix, np.ndarray)
+        assert matrix.dtype == np.int16
+        assert matrix.tolist() == [[1]]
+
+    def test_thresholded_assignment_does_not_allocate_augmented_dense_matrix(
+        self,
+    ) -> None:
+        cost = np.array([[0, 13, 12], [12, 0, 13]], dtype=np.int16)
+
+        with patch.object(phash_matching.np, "full", wraps=np.full) as full:
+            rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
+
+        assert all(call.args[0] != (2, 5) for call in full.call_args_list)
+        assert set(zip(rows.tolist(), cols.tolist(), strict=True)) == {
+            (0, 0),
+            (1, 1),
+        }
+
     def test_thresholded_assignment_maximizes_valid_pair_count(self) -> None:
         cost = np.array([[0, 12], [12, 13]], dtype=np.int16)
 
@@ -506,6 +530,113 @@ class TestRunMatching:
             "google-inside",
             "google-outside",
         }
+
+    async def test_hashes_all_album_media_when_every_pick_is_outside_windows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        hashes = {
+            "first.jpg": _make_hash(0),
+            "second.jpg": _make_hash((1 << 64) - 1),
+        }
+        hashed_local_names: list[str] = []
+
+        async def fake_local(
+            _album_dir: Path, name: str
+        ) -> tuple[str, imagehash.ImageHash]:
+            hashed_local_names.append(name)
+            return name, hashes[name]
+
+        async def fake_candidate(
+            _download: object, item: PickedMediaItem, _tokens: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            return item.id, hashes["second.jpg"]
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["first.jpg"], 2: ["second.jpg"]},
+                step_timestamps=[
+                    _match_dt(10).timestamp(),
+                    _match_dt(14).timestamp(),
+                ],
+                step_ids=[1, 2],
+                google_items=[_make_item("google-second", "2024-01-20T10:00:00+00:00")],
+                tokens=_test_token,
+            )
+        ]
+
+        summary = events[-1]
+        assert isinstance(summary, MatchCompleted)
+        assert set(hashed_local_names) == {"first.jpg", "second.jpg"}
+        assert [(match.local_name, match.google_id) for match in summary.matches] == [
+            ("second.jpg", "google-second")
+        ]
+
+    async def test_excludes_processing_videos_from_candidate_hashing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = _make_hash(0)
+        hashed_candidate_ids: list[str] = []
+
+        async def fake_local(
+            _album_dir: Path, name: str
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, h
+
+        async def fake_candidate(
+            _download: object, item: PickedMediaItem, _tokens: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            hashed_candidate_ids.append(item.id)
+            return item.id, h
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["photo.jpg"]},
+                step_timestamps=[_match_dt(10).timestamp()],
+                step_ids=[1],
+                google_items=[
+                    _make_item(
+                        "processing-video",
+                        _match_dt(10, 5).isoformat(),
+                        item_type="VIDEO",
+                        video_processing_status="PROCESSING",
+                    ),
+                    _make_item("ready-photo", _match_dt(10, 6).isoformat()),
+                ],
+                tokens=_test_token,
+            )
+        ]
+
+        summary = events[-1]
+        assert isinstance(summary, MatchCompleted)
+        assert hashed_candidate_ids == ["ready-photo"]
+        assert summary.total_picked == 2
+        assert summary.matched == 1
+        assert summary.unmatched == 1
+        assert [
+            event.total
+            for event in events
+            if isinstance(event, MatchInProgress) and event.phase == "matching"
+        ] == [1]
 
     async def test_marks_matches_outside_upgrade_candidates_as_upgraded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

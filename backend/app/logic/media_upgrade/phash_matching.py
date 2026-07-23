@@ -1,8 +1,7 @@
 """Perceptual hashing and bipartite matching for media upgrade.
 
 Matches compressed Polarsteps media (photos and videos) to Google Photos
-originals using perceptual hashing (pHash) and the Hungarian algorithm
-for optimal bipartite assignment.
+originals using perceptual hashing (pHash) and optimal bipartite assignment.
 """
 
 from datetime import datetime
@@ -17,7 +16,8 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from PIL import Image
-from scipy.optimize import linear_sum_assignment
+from scipy.sparse import coo_array
+from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 
 from app.logic.layout.media import MediaName, open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
@@ -123,7 +123,7 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 
 
 # ---------------------------------------------------------------------------
-# Cost matrix and Hungarian matching
+# Cost matrix and optimal matching
 # ---------------------------------------------------------------------------
 
 _CROSS_TYPE_COST = MATCH_THRESHOLD + 1
@@ -142,17 +142,15 @@ def _pairwise_distance(a: MediaHash, b: MediaHash) -> int:
 def build_cost_matrix(
     local_media: list[HashedMedia],
     candidate_media: list[HashedMedia],
-) -> list[list[int]]:
+) -> np.ndarray:
     """Build a distance matrix. Cross-type pairs get infinite cost."""
-    matrix: list[list[int]] = []
-    for loc in local_media:
-        row: list[int] = []
-        for cand in candidate_media:
+    matrix = np.empty((len(local_media), len(candidate_media)), dtype=np.int16)
+    for row, loc in enumerate(local_media):
+        for column, cand in enumerate(candidate_media):
             if loc.is_video != cand.is_video:
-                row.append(_CROSS_TYPE_COST)
+                matrix[row, column] = _CROSS_TYPE_COST
             else:
-                row.append(_pairwise_distance(loc.hash, cand.hash))
-        matrix.append(row)
+                matrix[row, column] = _pairwise_distance(loc.hash, cand.hash)
     return matrix
 
 
@@ -165,20 +163,24 @@ def _thresholded_assignment(
 
     local_count, candidate_count = cost.shape
     unmatched_cost = local_count * threshold + 1
-    invalid_cost = unmatched_cost * (local_count + 1)
-    assignment = np.full(
-        (local_count, candidate_count + local_count),
-        invalid_cost,
-        dtype=np.int64,
+    valid_rows, valid_columns = np.nonzero(cost <= threshold)
+    dummy_rows = np.arange(local_count)
+    dummy_columns = candidate_count + dummy_rows
+    rows = np.concatenate((valid_rows, dummy_rows))
+    columns = np.concatenate((valid_columns, dummy_columns))
+    weights = np.concatenate(
+        (
+            cost[valid_rows, valid_columns].astype(np.int64) + 1,
+            np.full(local_count, unmatched_cost + 1, dtype=np.int64),
+        )
     )
-    valid = cost <= threshold
-    assignment[:, :candidate_count][valid] = cost[valid]
-    assignment[np.arange(local_count), candidate_count + np.arange(local_count)] = (
-        unmatched_cost
-    )
-    rows, columns = linear_sum_assignment(assignment)
-    real = columns < candidate_count
-    return rows[real], columns[real]
+    assignment = coo_array(
+        (weights, (rows, columns)),
+        shape=(local_count, candidate_count + local_count),
+    ).tocsr()
+    matched_rows, matched_columns = min_weight_full_bipartite_matching(assignment)
+    real = matched_columns < candidate_count
+    return matched_rows[real], matched_columns[real]
 
 
 def match_media_globally(
@@ -189,14 +191,14 @@ def match_media_globally(
     if not local_media or not candidate_media:
         return MatchingOutcome([], MatchingDiagnostics(0, 0))
 
-    cost = np.asarray(build_cost_matrix(local_media, candidate_media), dtype=np.int16)
+    cost = build_cost_matrix(local_media, candidate_media)
     same_type = np.equal.outer(
         [item.is_video for item in local_media],
         [item.is_video for item in candidate_media],
     )
-    valid = same_type & (cost <= threshold)
-    assignment_cost = np.where(valid, cost, threshold + 1)
-    rows, columns = _thresholded_assignment(assignment_cost, threshold)
+    cost[~same_type] = threshold + 1
+    valid = cost <= threshold
+    rows, columns = _thresholded_assignment(cost, threshold)
     matches = [
         MatchResult(
             local_name=local_media[row].key,
@@ -205,8 +207,11 @@ def match_media_globally(
         )
         for row, column in zip(rows, columns, strict=True)
     ]
-    same_type_cost = np.where(same_type, cost, np.iinfo(np.int16).max)
-    nearest = same_type_cost.min(axis=1)
+    nearest = cost.min(
+        axis=1,
+        where=same_type,
+        initial=np.iinfo(np.int16).max,
+    )
     return MatchingOutcome(
         matches,
         MatchingDiagnostics(
