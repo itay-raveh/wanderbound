@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -25,6 +26,7 @@ from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     UpgradeCompleted,
+    UpgradeFailed,
     _clear_caches,
 )
 from app.models.user import User
@@ -53,6 +55,11 @@ if TYPE_CHECKING:
 
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@asynccontextmanager
+async def _acquired_lock() -> AsyncIterator[bool]:
+    yield True
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +180,21 @@ class TestValidateMatchNames:
 
 
 class TestMatchMedia:
+    async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
+
+        with patch(
+            "app.api.v1.routes.google_photos.try_advisory_lock",
+            return_value=_acquired_lock(),
+        ):
+            events = [event async for event in match_media("trip-1", user, http, "s1")]
+
+        assert events == [UpgradeFailed(detail="Matching failed unexpectedly.")]
+
     async def test_keeps_non_candidate_media_in_match_set(self) -> None:
         user = make_user(
             1,
@@ -200,13 +222,6 @@ class TestMatchMedia:
             captured.update(kwargs)
             yield MatchCompleted(total_picked=0, matched=0, unmatched=0, matches=[])
 
-        class FakeLock:
-            async def __aenter__(self) -> bool:
-                return True
-
-            async def __aexit__(self, *_args: object) -> None:
-                return None
-
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
@@ -219,7 +234,7 @@ class TestMatchMedia:
             patch("app.api.v1.routes.google_photos.run_matching", fake_run_matching),
             patch(
                 "app.api.v1.routes.google_photos.try_advisory_lock",
-                return_value=FakeLock(),
+                return_value=_acquired_lock(),
             ),
         ):
             events = [event async for event in match_media("trip-1", user, http, "s1")]
@@ -230,6 +245,35 @@ class TestMatchMedia:
 
 
 class TestUpgradeMedia:
+    async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                AsyncMock(return_value=({}, set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [
+                event
+                async for event in upgrade_media(
+                    "trip-1",
+                    UpgradeRequest(session_ids=["s1"], matches=[]),
+                    user,
+                    http,
+                )
+            ]
+
+        assert events == [UpgradeFailed(detail="Upgrade failed unexpectedly.")]
+
     async def test_passes_snapshot_dimensions_to_upgrade_pipeline(self) -> None:
         user = make_user(1, google_sub="sub")
         user.google_photos_refresh_token = "refresh-token"  # noqa: S105
@@ -246,13 +290,6 @@ class TestUpgradeMedia:
         async def fake_run_upgrade(**kwargs: object) -> AsyncIterator[UpgradeCompleted]:
             captured.update(kwargs)
             yield UpgradeCompleted(replaced=0, skipped=1, failed=0)
-
-        class FakeLock:
-            async def __aenter__(self) -> bool:
-                return True
-
-            async def __aexit__(self, *_args: object) -> None:
-                return None
 
         with (
             patch(
@@ -271,7 +308,7 @@ class TestUpgradeMedia:
             patch("app.api.v1.routes.google_photos.run_upgrade", fake_run_upgrade),
             patch(
                 "app.api.v1.routes.google_photos.try_advisory_lock",
-                return_value=FakeLock(),
+                return_value=_acquired_lock(),
             ),
         ):
             events = [

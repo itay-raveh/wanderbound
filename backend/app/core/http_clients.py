@@ -53,7 +53,9 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
     mapbox_headers = {"Referer": str(settings.PUBLIC_URL)}
     async with AsyncExitStack() as stack:
         enter = stack.enter_async_context
-        gphotos_token = await enter(http_client(cache=False))
+        gphotos_token = await enter(
+            http_client(cache=False, retry_allowed_methods={"POST"})
+        )
         yield HttpClients(
             # Mapbox documents 300/min for both matching and directions.
             # Keep headroom for retries and concurrent album jobs.
