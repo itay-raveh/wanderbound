@@ -1,5 +1,3 @@
-import time
-from collections import OrderedDict
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import sentry_sdk
 import structlog
+from cachetools import TTLCache
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, status
 from playwright.async_api import Browser
 from sqlalchemy import func, update
@@ -29,7 +28,10 @@ logger = structlog.get_logger(__name__)
 # Bounded to 1024 entries to prevent unbounded memory growth.
 _ACTIVITY_DEBOUNCE_SECS = 3600
 _ACTIVITY_MAX_ENTRIES = 1024
-_last_activity_write: OrderedDict[int, float] = OrderedDict()
+_last_activity_write: TTLCache[int, None] = TTLCache(
+    maxsize=_ACTIVITY_MAX_ENTRIES,
+    ttl=_ACTIVITY_DEBOUNCE_SECS,
+)
 
 
 async def _get_session() -> AsyncGenerator[AsyncSession]:
@@ -98,13 +100,8 @@ async def require_loaded_user(
         await session.commit()
 
     # Debounced activity tracking
-    now = time.monotonic()
-    last = _last_activity_write.get(uid, 0.0)
-    if now - last > _ACTIVITY_DEBOUNCE_SECS:
-        _last_activity_write[uid] = now
-        _last_activity_write.move_to_end(uid)
-        if len(_last_activity_write) > _ACTIVITY_MAX_ENTRIES:
-            _last_activity_write.popitem(last=False)
+    if uid not in _last_activity_write:
+        _last_activity_write[uid] = None
         background_tasks.add_task(_touch_activity, uid)
 
     return user
