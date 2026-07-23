@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-import anyio
 import imagehash
 import numpy as np
 import pytest
@@ -476,13 +475,13 @@ class TestRunMatching:
 
 
 class TestRunUpgrade:
-    async def test_limits_complete_upgrade_file_lifecycles(
+    async def test_serializes_upgrade_file_lifecycles_with_two_gib_limit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        limiter = anyio.CapacityLimiter(1)
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._upgrade_limiter", lambda: limiter
+            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: 2048
         )
+        _clear_caches()
         first_started = asyncio.Event()
         release_first = asyncio.Event()
         second_started = asyncio.Event()
