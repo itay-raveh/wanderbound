@@ -38,6 +38,7 @@ from app.logic.media_upgrade.pipeline import (
 )
 from app.logic.media_upgrade.processing import (
     _MAX_LONG_EDGE,
+    _VIDEO_THREADS,
     process_photo_sync,
     process_video,
 )
@@ -402,7 +403,16 @@ class TestProcessVideo:
         monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
         with pytest.raises(RuntimeError, match="cap"):
             await process_video(source, out)
-        assert "-threads:v" in command
+        input_index = command.index("-i")
+        assert command.count("-threads:v") == 2
+        thread_indexes = [
+            i for i, argument in enumerate(command) if argument == "-threads:v"
+        ]
+        assert thread_indexes[0] < input_index < thread_indexes[1]
+        assert all(command[i + 1] == _VIDEO_THREADS for i in thread_indexes)
+        filter_threads_index = command.index("-filter_threads")
+        assert filter_threads_index < input_index
+        assert command[filter_threads_index + 1] == _VIDEO_THREADS
 
 
 class TestNeedsUpgrade:

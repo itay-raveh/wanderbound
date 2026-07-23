@@ -93,6 +93,10 @@ async def process_video(input_path: Path, output: Path) -> None:
     cmd = [
         "ffmpeg",
         "-y",
+        "-threads:v",
+        _VIDEO_THREADS,
+        "-filter_threads",
+        _VIDEO_THREADS,
         "-i",
         str(input_path),
         "-vf",
