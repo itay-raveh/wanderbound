@@ -384,8 +384,10 @@
       "noNewMatchTitle": "לא נמצאו התאמות חדשות",
       "allUpgradedTitle": "כבר באיכות המקורית",
       "noMatchBody": "ודאו שבחרתם תמונות מהטיול.",
-      "matchCoverage": "נמצאו {matched} קבצים מהאלבום מתוך {total} פריטים שנבחרו ב-Google Photos.",
-      "matchCoverageWithUpgraded": "נמצאו {matched} קבצים מהאלבום מתוך {total} פריטים שנבחרו ב-Google Photos. מתוכם, {upgraded} כבר היו באיכות המקורית.",
+      "selectedCount": "פריט אחד שנבחר ב-Google Photos | {count} פריטים שנבחרו ב-Google Photos",
+      "alreadyUpgradedCount": "אחד מהם כבר היה באיכות המקורית | {count} מהם כבר היו באיכות המקורית",
+      "matchCoverage": "נמצא קובץ אחד מהאלבום מתוך {selected}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}.",
+      "matchCoverageWithUpgraded": "נמצא קובץ אחד מהאלבום מתוך {selected}. {upgraded}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}. {upgraded}.",
       "confirm": "שדרגו קובץ אחד | שדרגו {count} קבצים",
       "selectMore": "בחרו עוד"
     },
