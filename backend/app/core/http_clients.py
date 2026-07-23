@@ -86,7 +86,7 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
             gphotos_download=await enter(
                 http_client(
                     cache=False,
-                    limits=httpx.Limits(max_connections=5),
+                    limits=httpx.Limits(max_connections=16),
                     follow_redirects=True,
                     timeout=300.0,
                 )

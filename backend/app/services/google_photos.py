@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -195,6 +196,11 @@ async def poll_picker_session(
 
 
 _MAX_MEDIA_PAGES = 100
+_MEDIA_ITEMS_CACHE_TTL_S = 15 * 60
+_MEDIA_ITEMS_CACHE_MAX_ENTRIES = 128
+_media_items_cache: OrderedDict[
+    tuple[int, PickerSessionId], tuple[float, list[PickedMediaItem]]
+] = OrderedDict()
 
 
 async def get_media_items(
@@ -237,6 +243,40 @@ async def get_media_items(
             item_count=len(items),
         )
     return items
+
+
+async def get_media_items_cached(
+    client: httpx.AsyncClient,
+    *,
+    uid: int,
+    session_id: PickerSessionId,
+    access_token: AccessToken,
+) -> list[PickedMediaItem]:
+    key = (uid, session_id)
+    now = time.monotonic()
+    cached = _media_items_cache.get(key)
+    if cached is not None:
+        cached_at, items = cached
+        if now - cached_at < _MEDIA_ITEMS_CACHE_TTL_S:
+            _media_items_cache.move_to_end(key)
+            return items
+        del _media_items_cache[key]
+
+    items = await get_media_items(client, session_id, access_token)
+    _media_items_cache[key] = (time.monotonic(), items)
+    _media_items_cache.move_to_end(key)
+    while len(_media_items_cache) > _MEDIA_ITEMS_CACHE_MAX_ENTRIES:
+        _media_items_cache.popitem(last=False)
+    return items
+
+
+def evict_cached_media_items(uid: int, session_ids: list[PickerSessionId]) -> None:
+    for session_id in session_ids:
+        _media_items_cache.pop((uid, session_id), None)
+
+
+def _clear_media_items_cache() -> None:
+    _media_items_cache.clear()
 
 
 async def delete_picker_session(

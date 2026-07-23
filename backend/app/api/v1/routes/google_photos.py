@@ -52,7 +52,8 @@ from app.services.google_photos import (
     create_picker_session,
     delete_picker_session,
     ensure_fresh_token,
-    get_media_items,
+    evict_cached_media_items,
+    get_media_items_cached,
     poll_picker_session,
 )
 
@@ -425,6 +426,7 @@ async def close_session(
 ) -> None:
     access_token = await _ensure_fresh_access_token(http, user, session)
     await delete_picker_session(http.gphotos_picker, session_id, access_token)
+    evict_cached_media_items(user.id, [session_id])
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +477,12 @@ async def match_media(
             "Fetch picked Google Photos media",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            items = await get_media_items(http.gphotos_picker, session_id, access_token)
+            items = await get_media_items_cached(
+                http.gphotos_picker,
+                uid=user.id,
+                session_id=session_id,
+                access_token=access_token,
+            )
 
         try:
             async for event in run_matching(
@@ -559,23 +566,31 @@ async def upgrade_media(
         ):
             for sid in body.session_ids:
                 all_items.extend(
-                    await get_media_items(http.gphotos_picker, sid, access_token)
+                    await get_media_items_cached(
+                        http.gphotos_picker,
+                        uid=user.id,
+                        session_id=sid,
+                        access_token=access_token,
+                    )
                 )
         items_by_id = {item.id: item for item in all_items}
 
-        async for event in run_upgrade(
-            clients=http,
-            uid=user.id,
-            aid=aid,
-            album_dir=_album_dir(user, aid),
-            matches=body.matches,
-            google_items_by_id=items_by_id,
-            upgrade_candidates=upgrade_candidates,
-            local_dimensions=local_dimensions,
-            tokens=tokens,
-            session_ids=body.session_ids,
-        ):
-            yield event
+        try:
+            async for event in run_upgrade(
+                clients=http,
+                uid=user.id,
+                aid=aid,
+                album_dir=_album_dir(user, aid),
+                matches=body.matches,
+                google_items_by_id=items_by_id,
+                upgrade_candidates=upgrade_candidates,
+                local_dimensions=local_dimensions,
+                tokens=tokens,
+                session_ids=body.session_ids,
+            ):
+                yield event
+        finally:
+            evict_cached_media_items(user.id, body.session_ids)
 
 
 # ---------------------------------------------------------------------------

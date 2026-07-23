@@ -6,6 +6,7 @@ import asyncio
 import functools
 import shutil
 import subprocess
+import time
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ from app.services.google_photos import (
     download_media_to_file,
 )
 
+from .hash_cache import LocalMediaHashCache
 from .phash_matching import (
     HashedMedia,
     MatchResult,
@@ -72,6 +74,12 @@ def _hash_limiter() -> anyio.CapacityLimiter:
 def _upgrade_limiter() -> anyio.CapacityLimiter:
     memory_budget = detect_memory_mb() - _UPGRADE_BASELINE_MB
     return anyio.CapacityLimiter(max(1, memory_budget // _PER_UPGRADE_MB))
+
+
+async def _cancel_tasks[T](tasks: list[asyncio.Task[T]]) -> None:
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class MatchInProgress(BaseModel):
@@ -118,7 +126,7 @@ UpgradeEvent = Annotated[
 
 
 async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, MediaHash | None]:
-    """Hash one local file. Photos: single pHash. Videos: 4 sampled frames."""
+    """Hash one local file. Photos use one pHash; videos use sampled frames."""
     path = album_dir / name
     if not path.exists():
         return name, None
@@ -162,6 +170,29 @@ async def _hash_candidate_one(
         return item.id, None
 
 
+async def _hash_local_media(
+    album_dir: Path,
+    media_names: list[MediaName],
+    cache: LocalMediaHashCache,
+) -> AsyncGenerator[tuple[int, MediaName, MediaHash | None]]:
+    async def _hash_one(name: MediaName) -> tuple[MediaName, MediaHash | None]:
+        cached = cache.get(album_dir / name)
+        if cached is not None:
+            return name, cached
+        result_name, media_hash = await _hash_local_one(album_dir, name)
+        if media_hash is not None:
+            cache.put(album_dir / name, media_hash)
+        return result_name, media_hash
+
+    tasks = [asyncio.create_task(_hash_one(name)) for name in media_names]
+    try:
+        for i, coro in enumerate(asyncio.as_completed(tasks)):
+            name, media_hash = await coro
+            yield i, name, media_hash
+    finally:
+        await _cancel_tasks(tasks)
+
+
 async def run_matching(  # noqa: PLR0913
     clients: HttpClients,
     album_dir: Path,
@@ -177,6 +208,7 @@ async def run_matching(  # noqa: PLR0913
     "preparing" hashes local media, "matching" hashes picked Google items.
     Every unique media item referenced by the album's steps is hashed.
     """
+    matching_started = time.perf_counter()
     with start_span(
         "google_photos.matching",
         "Match Google Photos media",
@@ -212,22 +244,32 @@ async def run_matching(  # noqa: PLR0913
 
         local_hashes: dict[MediaName, MediaHash] = {}
         local_total = len(media_names)
+        local_cache = await run_sync(LocalMediaHashCache.load, album_dir)
+        local_hash_started = time.perf_counter()
         with start_span(
             "google_photos.hash_local",
             "Hash local media",
             **{"app.workflow": "google_photos", "local_media.count": local_total},
         ):
-            local_tasks = [
-                asyncio.create_task(_hash_local_one(album_dir, n)) for n in media_names
-            ]
-            for i, coro in enumerate(asyncio.as_completed(local_tasks)):
-                name, h = await coro
-                if h is not None:
-                    local_hashes[name] = h
+            async for i, name, media_hash in _hash_local_media(
+                album_dir, media_names, local_cache
+            ):
+                if media_hash is not None:
+                    local_hashes[name] = media_hash
                 yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
+            await run_sync(local_cache.save, set(media_names))
+            set_span_data(
+                span,
+                **{
+                    "local_hash_cache.hit_count": local_cache.hits,
+                    "local_hash_cache.miss_count": local_cache.misses,
+                },
+            )
+        local_hash_ms = round((time.perf_counter() - local_hash_started) * 1000)
 
         candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
         cand_total = len(unique_items)
+        candidate_hash_started = time.perf_counter()
         with start_span(
             "google_photos.hash_candidates",
             "Hash Google Photos candidates",
@@ -239,12 +281,19 @@ async def run_matching(  # noqa: PLR0913
                 )
                 for item in unique_items
             ]
-            for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
-                item_id, h = await coro
-                if h is not None:
-                    candidate_hashes[item_id] = h
-                yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
+            try:
+                for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
+                    item_id, h = await coro
+                    if h is not None:
+                        candidate_hashes[item_id] = h
+                    yield MatchInProgress(
+                        phase="matching", done=i + 1, total=cand_total
+                    )
+            finally:
+                await _cancel_tasks(cand_tasks)
+        candidate_hash_ms = round((time.perf_counter() - candidate_hash_started) * 1000)
 
+        assignment_started = time.perf_counter()
         with start_span(
             "google_photos.match_candidates",
             "Match media candidates",
@@ -273,6 +322,7 @@ async def run_matching(  # noqa: PLR0913
             if upgrade_candidates is not None:
                 for match in all_matches:
                     match.upgraded = match.local_name not in upgrade_candidates
+        assignment_ms = round((time.perf_counter() - assignment_started) * 1000)
 
         diagnostics = {
             "picked": len(google_items),
@@ -284,6 +334,12 @@ async def run_matching(  # noqa: PLR0913
             "matched": len(all_matches),
             "unmatched_local": len(local_hashes) - len(all_matches),
             "nearest_13_to_15": outcome.diagnostics.nearest_13_to_15,
+            "local_hash_cache_hits": local_cache.hits,
+            "local_hash_cache_misses": local_cache.misses,
+            "local_hash_ms": local_hash_ms,
+            "candidate_hash_ms": candidate_hash_ms,
+            "assignment_ms": assignment_ms,
+            "total_ms": round((time.perf_counter() - matching_started) * 1000),
         }
         logger.info("google_photos.matching.completed", **diagnostics)
         set_span_data(
@@ -634,10 +690,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
                                 succeeded.add(name)
                             yield DownloadInProgress(done=i + 1, total=total)
                     finally:
-                        for t in tasks:
-                            t.cancel()
-                        # Wait for cancelled tasks before tmp cleanup runs.
-                        await asyncio.gather(*tasks, return_exceptions=True)
+                        await _cancel_tasks(tasks)
 
             failed_names = [
                 m.local_name

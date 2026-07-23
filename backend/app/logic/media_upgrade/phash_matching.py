@@ -104,13 +104,62 @@ def build_cost_matrix(
     candidate_media: list[HashedMedia],
 ) -> np.ndarray:
     """Build a distance matrix. Cross-type pairs get infinite cost."""
-    matrix = np.empty((len(local_media), len(candidate_media)), dtype=np.int16)
+    matrix = np.full(
+        (len(local_media), len(candidate_media)),
+        _CROSS_TYPE_COST,
+        dtype=np.int16,
+    )
+    local_photo_entries = [
+        (index, item.hash)
+        for index, item in enumerate(local_media)
+        if not item.is_video and isinstance(item.hash, imagehash.ImageHash)
+    ]
+    candidate_photo_entries = [
+        (index, item.hash)
+        for index, item in enumerate(candidate_media)
+        if not item.is_video and isinstance(item.hash, imagehash.ImageHash)
+    ]
+    local_photos = [index for index, _ in local_photo_entries]
+    candidate_photos = [index for index, _ in candidate_photo_entries]
+    if local_photos and candidate_photos:
+        local_bits = np.stack(
+            [media_hash.hash.reshape(-1) for _, media_hash in local_photo_entries]
+        )
+        candidate_bits = np.stack(
+            [media_hash.hash.reshape(-1) for _, media_hash in candidate_photo_entries]
+        )
+        local_values = np.packbits(local_bits, axis=1).view(np.uint64).reshape(-1)
+        candidate_values = (
+            np.packbits(candidate_bits, axis=1).view(np.uint64).reshape(-1)
+        )
+        matrix[np.ix_(local_photos, candidate_photos)] = np.bitwise_count(
+            np.bitwise_xor(local_values[:, None], candidate_values[None, :])
+        )
+
+    local_photo_set = set(local_photos)
+    candidate_photo_set = set(candidate_photos)
     for row, loc in enumerate(local_media):
-        for column, cand in enumerate(candidate_media):
-            if loc.is_video != cand.is_video:
-                matrix[row, column] = _CROSS_TYPE_COST
-            else:
-                matrix[row, column] = _pairwise_distance(loc.hash, cand.hash)
+        if loc.is_video:
+            columns = (
+                (column, cand)
+                for column, cand in enumerate(candidate_media)
+                if cand.is_video
+            )
+        elif row not in local_photo_set:
+            columns = (
+                (column, cand)
+                for column, cand in enumerate(candidate_media)
+                if not cand.is_video
+            )
+        else:
+            columns = (
+                (column, candidate_media[column])
+                for column in range(len(candidate_media))
+                if column not in candidate_photo_set
+                and not candidate_media[column].is_video
+            )
+        for column, cand in columns:
+            matrix[row, column] = _pairwise_distance(loc.hash, cand.hash)
     return matrix
 
 

@@ -28,6 +28,7 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
 )
 from app.models.user import User
+from app.services.google_photos import _clear_media_items_cache
 
 from .factories import (
     make_step_read,
@@ -56,8 +57,10 @@ if TYPE_CHECKING:
 
 @pytest.fixture(autouse=True)
 def _clear_upgrade_caches_between_tests() -> Iterator[None]:
+    _clear_media_items_cache()
     yield
     _clear_caches()
+    _clear_media_items_cache()
 
 
 class TestRequireGoogleUser:
@@ -210,7 +213,7 @@ class TestMatchMedia:
                 AsyncMock(return_value=([step], set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items",
+                "app.api.v1.routes.google_photos.get_media_items_cached",
                 AsyncMock(return_value=[]),
             ),
             patch("app.api.v1.routes.google_photos.run_matching", fake_run_matching),
@@ -262,7 +265,7 @@ class TestUpgradeMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items",
+                "app.api.v1.routes.google_photos.get_media_items_cached",
                 AsyncMock(return_value=[picked_item("google-photo")]),
             ),
             patch("app.api.v1.routes.google_photos.run_upgrade", fake_run_upgrade),

@@ -1,8 +1,8 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -11,15 +11,19 @@ from httpx_oauth.oauth2 import OAuth2Token, RefreshTokenError
 
 from app.services.google_photos import (
     DownloadTooLargeError,
+    GoogleMediaFile,
     PickedMediaItem,
     PickerSession,
+    _clear_media_items_cache,
     _MediaItemsPage,
     _SessionResponse,
     create_picker_session,
     download_media_bytes,
     download_media_to_file,
     ensure_fresh_token,
+    evict_cached_media_items,
     get_media_items,
+    get_media_items_cached,
 )
 from tests.helpers.http import async_client, json_response
 
@@ -60,6 +64,13 @@ _VIDEO_ITEM_JSON = {
         "processingStatus": "READY",
     },
 }
+
+
+@pytest.fixture(autouse=True)
+def _clear_cached_media_items_between_tests() -> Iterator[None]:
+    _clear_media_items_cache()
+    yield
+    _clear_media_items_cache()
 
 
 class TestResponseParsing:
@@ -171,6 +182,93 @@ class TestGetMediaItems:
         assert len(items) == 1
         assert items[0].type == "VIDEO"
         assert items[0].video_processing_status == "READY"
+
+
+class TestCachedMediaItems:
+    @staticmethod
+    def _item() -> PickedMediaItem:
+        return PickedMediaItem(
+            id="google-photo",
+            create_time="",
+            type="PHOTO",
+            media_file=GoogleMediaFile(
+                base_url="https://lh3.googleusercontent.com/photo",
+                mime_type="image/jpeg",
+                filename="photo.jpg",
+            ),
+        )
+
+    async def test_reuses_same_user_and_session(self) -> None:
+        client = AsyncMock()
+        items = [self._item()]
+
+        with patch(
+            "app.services.google_photos.get_media_items",
+            AsyncMock(return_value=items),
+        ) as fetch:
+            first = await get_media_items_cached(
+                client,
+                uid=1,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+            second = await get_media_items_cached(
+                client,
+                uid=1,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+
+        assert first == items
+        assert second == items
+        assert fetch.await_count == 1
+
+    async def test_scopes_cache_to_user(self) -> None:
+        client = AsyncMock()
+        items = [self._item()]
+
+        with patch(
+            "app.services.google_photos.get_media_items",
+            AsyncMock(return_value=items),
+        ) as fetch:
+            await get_media_items_cached(
+                client,
+                uid=1,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+            await get_media_items_cached(
+                client,
+                uid=2,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+
+        assert fetch.await_count == 2
+
+    async def test_evicts_after_use(self) -> None:
+        client = AsyncMock()
+        items = [self._item()]
+
+        with patch(
+            "app.services.google_photos.get_media_items",
+            AsyncMock(return_value=items),
+        ) as fetch:
+            await get_media_items_cached(
+                client,
+                uid=1,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+            evict_cached_media_items(1, ["session-1"])
+            await get_media_items_cached(
+                client,
+                uid=1,
+                session_id="session-1",
+                access_token=_TOKEN,
+            )
+
+        assert fetch.await_count == 2
 
 
 class TestVideoMetadataParsing:
