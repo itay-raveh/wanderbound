@@ -13,7 +13,7 @@ built here enforce an explicit ``asyncio.timeout`` to compensate.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 import httpx
@@ -98,9 +98,6 @@ class RateLimitedTransport(AsyncBaseTransport):
         return await self._inner.handle_async_request(request)
 
 
-_RETRY = Retry(total=3, backoff_factor=0.5, status_forcelist=_RETRY_STATUS_CODES)
-
-
 def http_client(  # noqa: PLR0913
     *,
     cache: bool = True,
@@ -111,6 +108,7 @@ def http_client(  # noqa: PLR0913
     follow_redirects: bool = False,
     timeout: float = 30.0,
     headers: dict[str, str] | None = None,
+    retry_allowed_methods: Iterable[str] | None = None,
 ) -> AsyncClient:
     """Build an httpx AsyncClient with retries, optional cache, and optional rate limit.
 
@@ -127,7 +125,13 @@ def http_client(  # noqa: PLR0913
         transport = RateLimitedTransport(
             transport, limiter, weight_fn=weight_fn or (lambda _: 1)
         )
-    transport = RetryTransport(transport=transport, retry=_RETRY)
+    retry = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=_RETRY_STATUS_CODES,
+        allowed_methods=retry_allowed_methods,
+    )
+    transport = RetryTransport(transport=transport, retry=retry)
 
     if cache:
         policy: FilterPolicy[HishelResponse] = FilterPolicy(

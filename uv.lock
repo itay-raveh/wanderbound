@@ -106,6 +106,7 @@ dependencies = [
     { name = "asgi-correlation-id" },
     { name = "av" },
     { name = "boto3" },
+    { name = "cachetools" },
     { name = "coloraide" },
     { name = "dbos" },
     { name = "fastapi", extra = ["standard"] },
@@ -115,6 +116,7 @@ dependencies = [
     { name = "httpx-retries" },
     { name = "imagehash" },
     { name = "itsdangerous" },
+    { name = "joblib" },
     { name = "numpy" },
     { name = "pillow" },
     { name = "pillow-heif" },
@@ -159,6 +161,7 @@ requires-dist = [
     { name = "asgi-correlation-id", specifier = "~=5.0" },
     { name = "av", specifier = "~=18.0" },
     { name = "boto3", specifier = "==1.43.46" },
+    { name = "cachetools", specifier = "~=7.0" },
     { name = "coloraide", specifier = "~=8.7" },
     { name = "dbos", specifier = ">=2.22.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2,<1" },
@@ -168,6 +171,7 @@ requires-dist = [
     { name = "httpx-retries", specifier = "<1" },
     { name = "imagehash", specifier = "~=4.3" },
     { name = "itsdangerous", specifier = "~=2.2" },
+    { name = "joblib", specifier = "~=1.5" },
     { name = "numpy", specifier = "~=2.0" },
     { name = "pillow", specifier = "~=12.0" },
     { name = "pillow-heif", specifier = "~=1.3" },
@@ -267,6 +271,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/76/2c/279bf51f68e85a12323996aa4a7f2a163da84dad949ee751caa318928ce1/botocore-1.43.47.tar.gz", hash = "sha256:9e04d8da7f9cff8a911b14284829f78b74e1ce785444833199837decb5ecc17a", size = 15696311, upload-time = "2026-07-13T19:32:01.095Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/28/c0/6a8f824d613c5e5b8755ce99e3cf83fd1db135f5df02da7ed5bf106abdfd/botocore-1.43.47-py3-none-any.whl", hash = "sha256:4d16559a3a1866fa7b9e651dd1422c1a033497e069f8a73cae5eebafe70ff39c", size = 15382537, upload-time = "2026-07-13T19:31:56.213Z" },
+]
+
+[[package]]
+name = "cachetools"
+version = "7.1.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/23/635f22bbd6478b02672432656a5f46775768e24b2715c2e8658b3d210602/cachetools-7.1.5.tar.gz", hash = "sha256:0def7134eba79e59448edaf5d2e3cc8e49978ab2fd56189c1efd19856b134ab5", size = 40500, upload-time = "2026-07-22T23:51:31.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/9b/8bd3cf22c5559a39e905b4884f773768f849091d91e374212d5a9ab66cd7/cachetools-7.1.5-py3-none-any.whl", hash = "sha256:900cda61ff34fafca2b7f78cfd2a91e2d4f9655c19309ef542ce0a04f91e6cd9", size = 16963, upload-time = "2026-07-22T23:51:30.279Z" },
 ]
 
 [[package]]
@@ -748,6 +761,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d3/59/322338183ecda247fb5d1763a6cbe46eff7222eaeebafd9fa65d4bf5cb11/jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d", size = 27377, upload-time = "2026-01-22T16:35:26.279Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64", size = 20419, upload-time = "2026-01-22T16:35:24.919Z" },
+]
+
+[[package]]
+name = "joblib"
+version = "1.5.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/f2/d34e8b3a08a9cc79a50b2208a93dce981fe615b64d5a4d4abee421d898df/joblib-1.5.3.tar.gz", hash = "sha256:8561a3269e6801106863fd0d6d84bb737be9e7631e33aaed3fb9ce5953688da3", size = 331603, upload-time = "2025-12-15T08:41:46.427Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/91/984aca2ec129e2757d1e4e3c81c3fcda9d0f85b74670a094cc443d9ee949/joblib-1.5.3-py3-none-any.whl", hash = "sha256:5fc3c5039fc5ca8c0276333a188bbd59d6b7ab37fe6632daa76bc7f9ec18e713", size = 309071, upload-time = "2025-12-15T08:41:44.973Z" },
 ]
 
 [[package]]

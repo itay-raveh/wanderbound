@@ -52,13 +52,27 @@ from app.services.google_photos import (
     create_picker_session,
     delete_picker_session,
     ensure_fresh_token,
-    get_media_items,
+    evict_cached_media_items,
+    get_media_items_cached,
     poll_picker_session,
 )
 
 from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
 
 logger = structlog.get_logger(__name__)
+
+
+def _picker_selection_expired(exc: Exception) -> bool:
+    return (
+        isinstance(exc, httpx.HTTPStatusError)
+        and exc.response.status_code == status.HTTP_404_NOT_FOUND
+        and exc.request.url.host == "photospicker.googleapis.com"
+        and exc.request.url.path == "/v1/mediaItems"
+    )
+
+
+def _http_status_code(exc: Exception) -> int | None:
+    return exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
 
 
 # ---------------------------------------------------------------------------
@@ -161,8 +175,8 @@ def _require_google_user(user: UserDep) -> None:
 async def _snapshot_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[set[str], set[str]]:
-    """Read album media names and remaining upgrade candidates."""
+) -> tuple[dict[str, tuple[int, int]], set[str]]:
+    """Read album media dimensions and remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
         media_rows = (
@@ -171,7 +185,7 @@ async def _snapshot_upgrade_state(
             )
         ).all()
     return (
-        {row.name for row in media_rows},
+        {row.name: (row.width, row.height) for row in media_rows},
         {row.name for row in media_rows if row.upgrade_candidate},
     )
 
@@ -425,6 +439,7 @@ async def close_session(
 ) -> None:
     access_token = await _ensure_fresh_access_token(http, user, session)
     await delete_picker_session(http.gphotos_picker, session_id, access_token)
+    evict_cached_media_items(user.id, [session_id])
 
 
 # ---------------------------------------------------------------------------
@@ -450,40 +465,51 @@ async def match_media(
                 status.HTTP_409_CONFLICT,
                 "A matching run is already in progress for this album.",
             )
-        tokens = _build_token_getter(http, _get_refresh_token(user))
-        access_token = await tokens()
-
-        with start_span(
-            "google_photos.load_album",
-            "Load album for media matching",
-            **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
-        ):
-            step_rows, upgrade_candidates = await _snapshot_steps_and_upgrade_state(
-                user.id,
-                aid,
-            )
-
-        album_dir = _album_dir(user, aid)
-        step_timestamps = [s.timestamp for s in step_rows]
-        step_ids = [s.id for s in step_rows]
-        media_by_step = {
-            s.id: [name for page in s.pages for name in page] + s.unused
-            for s in step_rows
-        }
-
-        with start_span(
-            "google_photos.fetch_picked_media",
-            "Fetch picked Google Photos media",
-            **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
-        ):
-            items = await get_media_items(http.gphotos_picker, session_id, access_token)
-
         try:
+            tokens = _build_token_getter(http, _get_refresh_token(user))
+            access_token = await tokens()
+
+            with start_span(
+                "google_photos.load_album",
+                "Load album for media matching",
+                **{
+                    "app.workflow": "google_photos",
+                    "user.id": user.id,
+                    "album.id": aid,
+                },
+            ):
+                step_rows, upgrade_candidates = await _snapshot_steps_and_upgrade_state(
+                    user.id,
+                    aid,
+                )
+
+            album_dir = _album_dir(user, aid)
+            step_ids = [s.id for s in step_rows]
+            media_by_step = {
+                s.id: [name for page in s.pages for name in page] + s.unused
+                for s in step_rows
+            }
+
+            with start_span(
+                "google_photos.fetch_picked_media",
+                "Fetch picked Google Photos media",
+                **{
+                    "app.workflow": "google_photos",
+                    "user.id": user.id,
+                    "album.id": aid,
+                },
+            ):
+                items = await get_media_items_cached(
+                    http.gphotos_picker,
+                    uid=user.id,
+                    session_id=session_id,
+                    access_token=access_token,
+                )
+
             async for event in run_matching(
                 http,
                 album_dir=album_dir,
                 media_by_step=media_by_step,
-                step_timestamps=step_timestamps,
                 step_ids=step_ids,
                 google_items=items,
                 tokens=tokens,
@@ -499,8 +525,14 @@ async def match_media(
                 user_id=user.id,
                 album_id=aid,
                 error_type=type(exc).__name__,
+                status_code=_http_status_code(exc),
             )
-            yield UpgradeFailed(detail="Matching failed unexpectedly.")
+            detail = (
+                "selectionExpired"
+                if _picker_selection_expired(exc)
+                else "Matching failed unexpectedly."
+            )
+            yield UpgradeFailed(detail=detail)
 
 
 class UpgradeRequest(BaseModel):
@@ -538,45 +570,69 @@ async def upgrade_media(
             "Load album for media upgrade",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            valid_names, upgrade_candidates = await _snapshot_upgrade_state(
+            local_dimensions, upgrade_candidates = await _snapshot_upgrade_state(
                 user.id,
                 aid,
             )
 
-        _validate_match_names(body.matches, valid_names)
+        _validate_match_names(body.matches, set(local_dimensions))
 
-        tokens = _build_token_getter(http, _get_refresh_token(user))
-        access_token = await tokens()
+        try:
+            tokens = _build_token_getter(http, _get_refresh_token(user))
+            access_token = await tokens()
 
-        all_items: list[PickedMediaItem] = []
-        with start_span(
-            "google_photos.fetch_picked_media",
-            "Fetch picked Google Photos media",
-            **{
-                "app.workflow": "google_photos",
-                "user.id": user.id,
-                "album.id": aid,
-                "session.count": len(body.session_ids),
-            },
-        ):
-            for sid in body.session_ids:
-                all_items.extend(
-                    await get_media_items(http.gphotos_picker, sid, access_token)
-                )
-        items_by_id = {item.id: item for item in all_items}
+            all_items: list[PickedMediaItem] = []
+            with start_span(
+                "google_photos.fetch_picked_media",
+                "Fetch picked Google Photos media",
+                **{
+                    "app.workflow": "google_photos",
+                    "user.id": user.id,
+                    "album.id": aid,
+                    "session.count": len(body.session_ids),
+                },
+            ):
+                for sid in body.session_ids:
+                    all_items.extend(
+                        await get_media_items_cached(
+                            http.gphotos_picker,
+                            uid=user.id,
+                            session_id=sid,
+                            access_token=access_token,
+                        )
+                    )
+            items_by_id = {item.id: item for item in all_items}
 
-        async for event in run_upgrade(
-            clients=http,
-            uid=user.id,
-            aid=aid,
-            album_dir=_album_dir(user, aid),
-            matches=body.matches,
-            google_items_by_id=items_by_id,
-            upgrade_candidates=upgrade_candidates,
-            tokens=tokens,
-            session_ids=body.session_ids,
-        ):
-            yield event
+            try:
+                async for event in run_upgrade(
+                    clients=http,
+                    uid=user.id,
+                    aid=aid,
+                    album_dir=_album_dir(user, aid),
+                    matches=body.matches,
+                    google_items_by_id=items_by_id,
+                    upgrade_candidates=upgrade_candidates,
+                    local_dimensions=local_dimensions,
+                    tokens=tokens,
+                    session_ids=body.session_ids,
+                ):
+                    yield event
+            finally:
+                evict_cached_media_items(user.id, body.session_ids)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(  # noqa: TRY400
+                "google_photos.upgrade.failed",
+                user_id=user.id,
+                album_id=aid,
+                error_type=type(exc).__name__,
+                status_code=_http_status_code(exc),
+            )
+            detail = (
+                "selectionExpired"
+                if _picker_selection_expired(exc)
+                else "Upgrade failed unexpectedly."
+            )
+            yield UpgradeFailed(detail=detail)
 
 
 # ---------------------------------------------------------------------------

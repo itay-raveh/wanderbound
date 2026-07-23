@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
-from httpx import Request, Response
+from httpx import HTTPStatusError, Request, Response
 from httpx_oauth.oauth2 import (
     GetAccessTokenError,
     OAuth2Token,
@@ -15,10 +16,21 @@ from httpx_oauth.oauth2 import (
 )
 from sqlmodel import select
 
-from app.api.v1.routes.google_photos import _validate_match_names, match_media
+from app.api.v1.routes.google_photos import (
+    UpgradeRequest,
+    _validate_match_names,
+    match_media,
+    upgrade_media,
+)
 from app.logic.media_upgrade.phash_matching import MatchResult
-from app.logic.media_upgrade.pipeline import MatchCompleted, _clear_caches
+from app.logic.media_upgrade.pipeline import (
+    MatchCompleted,
+    UpgradeCompleted,
+    UpgradeFailed,
+    _clear_caches,
+)
 from app.models.user import User
+from app.services.google_photos import _clear_media_items_cache
 
 from .factories import (
     make_step_read,
@@ -32,6 +44,7 @@ from .helpers.google_photos import (
     assert_error_redirect,
     connected_google_photos_http,
     oauth_callback,
+    picked_item,
     picker_mock,
     pin_http_clients,
 )
@@ -44,10 +57,17 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+@asynccontextmanager
+async def _acquired_lock() -> AsyncIterator[bool]:
+    yield True
+
+
 @pytest.fixture(autouse=True)
 def _clear_upgrade_caches_between_tests() -> Iterator[None]:
+    _clear_media_items_cache()
     yield
     _clear_caches()
+    _clear_media_items_cache()
 
 
 class TestRequireGoogleUser:
@@ -160,6 +180,54 @@ class TestValidateMatchNames:
 
 
 class TestMatchMedia:
+    async def test_expired_picker_session_reports_selection_expired(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        request = Request("GET", "https://photospicker.googleapis.com/v1/mediaItems")
+        response = Response(404, request=request)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
+                AsyncMock(return_value=([], set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items_cached",
+                AsyncMock(
+                    side_effect=HTTPStatusError(
+                        "not found", request=request, response=response
+                    )
+                ),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [event async for event in match_media("trip-1", user, http, "s1")]
+
+        assert events == [UpgradeFailed(detail="selectionExpired")]
+
+    async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
+
+        with patch(
+            "app.api.v1.routes.google_photos.try_advisory_lock",
+            return_value=_acquired_lock(),
+        ):
+            events = [event async for event in match_media("trip-1", user, http, "s1")]
+
+        assert events == [UpgradeFailed(detail="Matching failed unexpectedly.")]
+
     async def test_keeps_non_candidate_media_in_match_set(self) -> None:
         user = make_user(
             1,
@@ -187,26 +255,19 @@ class TestMatchMedia:
             captured.update(kwargs)
             yield MatchCompleted(total_picked=0, matched=0, unmatched=0, matches=[])
 
-        class FakeLock:
-            async def __aenter__(self) -> bool:
-                return True
-
-            async def __aexit__(self, *_args: object) -> None:
-                return None
-
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
                 AsyncMock(return_value=([step], set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items",
+                "app.api.v1.routes.google_photos.get_media_items_cached",
                 AsyncMock(return_value=[]),
             ),
             patch("app.api.v1.routes.google_photos.run_matching", fake_run_matching),
             patch(
                 "app.api.v1.routes.google_photos.try_advisory_lock",
-                return_value=FakeLock(),
+                return_value=_acquired_lock(),
             ),
         ):
             events = [event async for event in match_media("trip-1", user, http, "s1")]
@@ -214,6 +275,128 @@ class TestMatchMedia:
         assert isinstance(events[-1], MatchCompleted)
         assert captured["media_by_step"] == {7: ["photo.jpg"]}
         assert captured["upgrade_candidates"] == set()
+
+
+class TestUpgradeMedia:
+    async def test_expired_picker_session_reports_selection_expired(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        request = Request("GET", "https://photospicker.googleapis.com/v1/mediaItems")
+        response = Response(404, request=request)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                AsyncMock(return_value=({}, set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items_cached",
+                AsyncMock(
+                    side_effect=HTTPStatusError(
+                        "not found", request=request, response=response
+                    )
+                ),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [
+                event
+                async for event in upgrade_media(
+                    "trip-1",
+                    UpgradeRequest(session_ids=["s1"], matches=[]),
+                    user,
+                    http,
+                )
+            ]
+
+        assert events == [UpgradeFailed(detail="selectionExpired")]
+
+    async def test_token_refresh_failure_ends_stream_with_failure(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                AsyncMock(return_value=({}, set())),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [
+                event
+                async for event in upgrade_media(
+                    "trip-1",
+                    UpgradeRequest(session_ids=["s1"], matches=[]),
+                    user,
+                    http,
+                )
+            ]
+
+        assert events == [UpgradeFailed(detail="Upgrade failed unexpectedly.")]
+
+    async def test_passes_snapshot_dimensions_to_upgrade_pipeline(self) -> None:
+        user = make_user(1, google_sub="sub")
+        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
+        user.google_photos_connected_at = datetime.now(UTC)
+        http = pin_http_clients()
+        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
+            {"access_token": "fresh-token", "expires_in": 3600}
+        )
+        match = MatchResult(
+            local_name="photo.jpg", google_id="google-photo", distance=0
+        )
+        captured: dict[str, object] = {}
+
+        async def fake_run_upgrade(**kwargs: object) -> AsyncIterator[UpgradeCompleted]:
+            captured.update(kwargs)
+            yield UpgradeCompleted(replaced=0, skipped=1, failed=0)
+
+        with (
+            patch(
+                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                AsyncMock(
+                    return_value=(
+                        {"photo.jpg": (1200, 800)},
+                        {"photo.jpg"},
+                    )
+                ),
+            ),
+            patch(
+                "app.api.v1.routes.google_photos.get_media_items_cached",
+                AsyncMock(return_value=[picked_item("google-photo")]),
+            ),
+            patch("app.api.v1.routes.google_photos.run_upgrade", fake_run_upgrade),
+            patch(
+                "app.api.v1.routes.google_photos.try_advisory_lock",
+                return_value=_acquired_lock(),
+            ),
+        ):
+            events = [
+                event
+                async for event in upgrade_media(
+                    "trip-1",
+                    UpgradeRequest(session_ids=["s1"], matches=[match]),
+                    user,
+                    http,
+                )
+            ]
+
+        assert events[-1] == UpgradeCompleted(replaced=0, skipped=1, failed=0)
+        assert captured["local_dimensions"] == {"photo.jpg": (1200, 800)}
 
 
 class TestOAuthCallback:

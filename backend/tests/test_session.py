@@ -353,6 +353,7 @@ class TestPersistedProcessStream:
         self, session: AsyncSession
     ) -> None:
         user = _mock_user(uid=654)
+        workflow_started = asyncio.Event()
 
         async def fake_processing(
             _http: HttpClients, _user: User
@@ -363,7 +364,7 @@ class TestPersistedProcessStream:
             raise AssertionError(msg)
 
         async def finish_operation() -> None:
-            await asyncio.sleep(0.01)
+            await workflow_started.wait()
             operation = await latest_processing_operation(session, uid=654)
             assert operation is not None
             await mark_processing_operation_running(session, operation)
@@ -380,6 +381,7 @@ class TestPersistedProcessStream:
 
         def fake_start_processing_workflow(operation: object, _user: User) -> object:
             starts.append(operation.workflow_id)
+            workflow_started.set()
             return object()
 
         with (

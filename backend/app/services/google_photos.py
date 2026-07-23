@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+from cachetools import TTLCache
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -195,6 +196,15 @@ async def poll_picker_session(
 
 
 _MAX_MEDIA_PAGES = 100
+_MEDIA_ITEMS_CACHE_TTL_S = 15 * 60
+_MEDIA_ITEMS_CACHE_MAX_ITEMS = 10_000
+_media_items_cache: TTLCache[tuple[int, PickerSessionId], list[PickedMediaItem]] = (
+    TTLCache(
+        maxsize=_MEDIA_ITEMS_CACHE_MAX_ITEMS,
+        ttl=_MEDIA_ITEMS_CACHE_TTL_S,
+        getsizeof=list.__len__,
+    )
+)
 
 
 async def get_media_items(
@@ -237,6 +247,32 @@ async def get_media_items(
             item_count=len(items),
         )
     return items
+
+
+async def get_media_items_cached(
+    client: httpx.AsyncClient,
+    *,
+    uid: int,
+    session_id: PickerSessionId,
+    access_token: AccessToken,
+) -> list[PickedMediaItem]:
+    key = (uid, session_id)
+    cached = _media_items_cache.get(key)
+    if cached is not None:
+        return cached
+
+    items = await get_media_items(client, session_id, access_token)
+    _media_items_cache[key] = items
+    return items
+
+
+def evict_cached_media_items(uid: int, session_ids: list[PickerSessionId]) -> None:
+    for session_id in session_ids:
+        _media_items_cache.pop((uid, session_id), None)
+
+
+def _clear_media_items_cache() -> None:
+    _media_items_cache.clear()
 
 
 async def delete_picker_session(

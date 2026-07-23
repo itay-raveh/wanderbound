@@ -5,6 +5,8 @@ import shutil
 from functools import cache
 from pathlib import Path
 
+from joblib import cpu_count as joblib_cpu_count
+
 MiB = 1024 * 1024
 
 
@@ -23,7 +25,7 @@ def detect_storage_bytes(path: Path) -> int:
 @cache
 def detect_cpu_count() -> int:
     """Available CPUs, respecting cgroup limits (e.g. Docker --cpus)."""
-    return os.process_cpu_count() or os.cpu_count() or 4
+    return joblib_cpu_count()
 
 
 @cache

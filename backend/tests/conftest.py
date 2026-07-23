@@ -49,7 +49,7 @@ def _mock_http_clients() -> HttpClients:
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def engine() -> AsyncEngine:
+async def engine() -> AsyncIterator[AsyncEngine]:
     eng = create_async_engine(
         "sqlite+aiosqlite://",
         connect_args={"check_same_thread": False},
@@ -57,7 +57,10 @@ async def engine() -> AsyncEngine:
     )
     async with eng.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-    return eng
+    try:
+        yield eng
+    finally:
+        await eng.dispose()
 
 
 @pytest_asyncio.fixture
