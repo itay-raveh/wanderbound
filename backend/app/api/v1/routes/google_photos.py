@@ -161,8 +161,8 @@ def _require_google_user(user: UserDep) -> None:
 async def _snapshot_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[set[str], set[str]]:
-    """Read album media names and remaining upgrade candidates."""
+) -> tuple[dict[str, tuple[int, int]], set[str]]:
+    """Read album media dimensions and remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
         media_rows = (
@@ -171,7 +171,7 @@ async def _snapshot_upgrade_state(
             )
         ).all()
     return (
-        {row.name for row in media_rows},
+        {row.name: (row.width, row.height) for row in media_rows},
         {row.name for row in media_rows if row.upgrade_candidate},
     )
 
@@ -464,7 +464,6 @@ async def match_media(
             )
 
         album_dir = _album_dir(user, aid)
-        step_timestamps = [s.timestamp for s in step_rows]
         step_ids = [s.id for s in step_rows]
         media_by_step = {
             s.id: [name for page in s.pages for name in page] + s.unused
@@ -483,7 +482,6 @@ async def match_media(
                 http,
                 album_dir=album_dir,
                 media_by_step=media_by_step,
-                step_timestamps=step_timestamps,
                 step_ids=step_ids,
                 google_items=items,
                 tokens=tokens,
@@ -538,12 +536,12 @@ async def upgrade_media(
             "Load album for media upgrade",
             **{"app.workflow": "google_photos", "user.id": user.id, "album.id": aid},
         ):
-            valid_names, upgrade_candidates = await _snapshot_upgrade_state(
+            local_dimensions, upgrade_candidates = await _snapshot_upgrade_state(
                 user.id,
                 aid,
             )
 
-        _validate_match_names(body.matches, valid_names)
+        _validate_match_names(body.matches, set(local_dimensions))
 
         tokens = _build_token_getter(http, _get_refresh_token(user))
         access_token = await tokens()
@@ -573,6 +571,7 @@ async def upgrade_media(
             matches=body.matches,
             google_items_by_id=items_by_id,
             upgrade_candidates=upgrade_candidates,
+            local_dimensions=local_dimensions,
             tokens=tokens,
             session_ids=body.session_ids,
         ):

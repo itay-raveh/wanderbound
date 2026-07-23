@@ -44,13 +44,10 @@ from .phash_matching import (
     HashedMedia,
     MatchResult,
     MediaHash,
-    bucket_by_window,
-    build_step_windows,
     compute_phash_from_bytes,
     compute_phash_from_path,
     deduplicate_items,
     match_media_globally,
-    relevant_media_names,
 )
 from .processing import (
     extract_video_frame_hashes,
@@ -169,7 +166,6 @@ async def run_matching(  # noqa: PLR0913
     clients: HttpClients,
     album_dir: Path,
     media_by_step: dict[int, list[MediaName]],
-    step_timestamps: list[float],
     step_ids: list[int],
     google_items: list[PickedMediaItem],
     tokens: AccessTokenGetter,
@@ -179,7 +175,7 @@ async def run_matching(  # noqa: PLR0913
 
     Two-phase progress so the user sees counts matching their selection:
     "preparing" hashes local media, "matching" hashes picked Google items.
-    Only media from steps that have picked Google items are hashed.
+    Every unique media item referenced by the album's steps is hashed.
     """
     with start_span(
         "google_photos.matching",
@@ -190,8 +186,6 @@ async def run_matching(  # noqa: PLR0913
             "step.count": len(step_ids),
         },
     ) as span:
-        windows = build_step_windows(step_timestamps, step_ids)
-        google_by_window = bucket_by_window(google_items, windows)
         unique_items = deduplicate_items(
             [
                 item
@@ -203,7 +197,11 @@ async def run_matching(  # noqa: PLR0913
                 )
             ]
         )
-        media_names = relevant_media_names(media_by_step, step_ids, google_by_window)
+        media_names = list(
+            dict.fromkeys(
+                name for step_id in step_ids for name in media_by_step.get(step_id, [])
+            )
+        )
         set_span_data(
             span,
             **{
@@ -500,6 +498,42 @@ def _needs_upgrade(
     return match.local_name in upgrade_candidates
 
 
+def _skip_from_picker_metadata(
+    match: MatchResult,
+    google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
+    local_dimensions: dict[MediaName, tuple[int, int]],
+) -> bool:
+    item = google_items_by_id.get(match.google_id)
+    local = local_dimensions.get(match.local_name)
+    if item is None or local is None:
+        return False
+
+    google_width = item.media_file.width
+    google_height = item.media_file.height
+    local_width, local_height = local
+    if (
+        google_width is None
+        or google_height is None
+        or google_width <= 0
+        or google_height <= 0
+        or local_width <= 0
+        or local_height <= 0
+    ):
+        return False
+    if google_width * google_height > local_width * local_height:
+        return False
+
+    logger.info(
+        "media_upgrade.skipped_by_metadata",
+        media_name=match.local_name,
+        google_width=google_width,
+        google_height=google_height,
+        local_width=local_width,
+        local_height=local_height,
+    )
+    return True
+
+
 async def run_upgrade(  # noqa: PLR0913, C901
     *,
     clients: HttpClients,
@@ -509,6 +543,7 @@ async def run_upgrade(  # noqa: PLR0913, C901
     matches: list[MatchResult],
     google_items_by_id: dict[GoogleMediaId, PickedMediaItem],
     upgrade_candidates: set[MediaName],
+    local_dimensions: dict[MediaName, tuple[int, int]],
     tokens: AccessTokenGetter,
     session_ids: list[PickerSessionId],
 ) -> AsyncGenerator[UpgradeEvent]:
@@ -519,9 +554,19 @@ async def run_upgrade(  # noqa: PLR0913, C901
     picker cleanup always run.
     """
     to_upgrade = [m for m in matches if _needs_upgrade(m, upgrade_candidates)]
-    total = len(to_upgrade)
-    succeeded: set[MediaName] = set()
+    to_download: list[MatchResult] = []
     skipped_names: set[MediaName] = set()
+    for match in to_upgrade:
+        if _skip_from_picker_metadata(
+            match,
+            google_items_by_id,
+            local_dimensions,
+        ):
+            skipped_names.add(match.local_name)
+        else:
+            to_download.append(match)
+    total = len(to_download)
+    succeeded: set[MediaName] = set()
 
     try:
         with start_span(
@@ -532,12 +577,18 @@ async def run_upgrade(  # noqa: PLR0913, C901
                 "user.id": uid,
                 "album.id": aid,
                 "match.count": len(matches),
-                "upgrade.count": total,
+                "upgrade.count": len(to_upgrade),
+                "prefiltered.count": len(skipped_names),
+                "download.count": total,
             },
         ) as span:
             if total == 0:
-                set_span_data(span, result="empty")
-                yield UpgradeCompleted(replaced=0, skipped=0, failed=0)
+                set_span_data(span, result="empty" if not to_upgrade else "prefiltered")
+                yield UpgradeCompleted(
+                    replaced=0,
+                    skipped=len(skipped_names),
+                    failed=0,
+                )
                 return
 
             async with _upgrade_tmp(album_dir) as tmp_dir:
@@ -573,9 +624,9 @@ async def run_upgrade(  # noqa: PLR0913, C901
                 with start_span(
                     "google_photos.download_replace",
                     "Download and replace media",
-                    **{"app.workflow": "google_photos", "upgrade.count": total},
+                    **{"app.workflow": "google_photos", "download.count": total},
                 ):
-                    tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_upgrade]
+                    tasks = [asyncio.create_task(_upgrade_one(m)) for m in to_download]
                     try:
                         for i, coro in enumerate(asyncio.as_completed(tasks)):
                             name = await coro

@@ -4,7 +4,6 @@ Matches compressed Polarsteps media (photos and videos) to Google Photos
 originals using perceptual hashing (pHash) and optimal bipartite assignment.
 """
 
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
 from scipy.sparse import coo_array
 from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 
-from app.logic.layout.media import MediaName, open_oriented
+from app.logic.layout.media import open_oriented
 from app.models.google_photos import GoogleMediaId, PickedMediaItem
 
 # Hamming distance threshold for accepting a pHash match.
@@ -61,45 +60,6 @@ class MatchingDiagnostics(NamedTuple):
 class MatchingOutcome(NamedTuple):
     matches: list[MatchResult]
     diagnostics: MatchingDiagnostics
-
-
-class StepWindow(BaseModel):
-    step_id: int
-    start: float  # unix timestamp
-    end: float  # unix timestamp (includes overlap margin)
-
-    def contains(self, timestamp: float) -> bool:
-        return self.start <= timestamp < self.end
-
-
-# ---------------------------------------------------------------------------
-# Time-window bucketing
-# ---------------------------------------------------------------------------
-
-_OVERLAP_MARGIN = 24 * 60 * 60  # 24 hours
-
-
-def build_step_windows(
-    step_timestamps: list[float],
-    step_ids: list[int],
-) -> list[StepWindow]:
-    """Build time windows for each step.
-
-    Each window runs from the step's start_time to the next step's start_time
-    (or +24h for the last step), padded by an overlap margin on both sides so
-    neighbor windows share ground.
-    """
-    windows: list[StepWindow] = []
-    for i, (ts, sid) in enumerate(zip(step_timestamps, step_ids, strict=True)):
-        end = step_timestamps[i + 1] if i + 1 < len(step_timestamps) else ts + 86400
-        windows.append(
-            StepWindow(
-                step_id=sid,
-                start=ts - _OVERLAP_MARGIN,
-                end=end + _OVERLAP_MARGIN,
-            ),
-        )
-    return windows
 
 
 # ---------------------------------------------------------------------------
@@ -222,40 +182,8 @@ def match_media_globally(
 
 
 # ---------------------------------------------------------------------------
-# Full matching pipeline - helpers
+# Candidate helpers
 # ---------------------------------------------------------------------------
-
-
-def _parse_timestamp(create_time: str) -> float | None:
-    """Parse an ISO 8601 timestamp to a Unix epoch float, or None on failure."""
-    try:
-        return datetime.fromisoformat(create_time).timestamp()
-    except ValueError:
-        return None
-
-
-def bucket_by_window(
-    google_items: list[PickedMediaItem],
-    windows: list[StepWindow],
-) -> dict[int, list[PickedMediaItem]]:
-    """Assign Google Photos items to step windows by creation timestamp."""
-    by_window: dict[int, list[PickedMediaItem]] = {w.step_id: [] for w in windows}
-    for item in google_items:
-        if (
-            item.type == "VIDEO"
-            and item.video_processing_status is not None
-            and item.video_processing_status != "READY"
-        ):
-            continue
-        ct = _parse_timestamp(item.create_time)
-        if ct is None:
-            continue
-        for w in windows:
-            if ct < w.start:
-                break  # windows sorted by start; no later window can match
-            if w.contains(ct):
-                by_window[w.step_id].append(item)
-    return by_window
 
 
 def deduplicate_items(
@@ -263,20 +191,3 @@ def deduplicate_items(
 ) -> list[PickedMediaItem]:
     """Remove duplicate items by ID, preserving order."""
     return list({item.id: item for item in items}.values())
-
-
-def relevant_media_names(
-    media_by_step: dict[int, list[MediaName]],
-    step_ids: list[int],
-    google_by_window: dict[int, list[PickedMediaItem]],
-) -> list[MediaName]:
-    populated = {step_id for step_id, items in google_by_window.items() if items}
-    selected_steps = populated or set(step_ids)
-    return list(
-        dict.fromkeys(
-            name
-            for step_id in step_ids
-            if step_id in selected_steps
-            for name in media_by_step.get(step_id, [])
-        )
-    )
