@@ -19,6 +19,7 @@ export function useChunkErrorRecovery(router: Router): void {
       return;
     }
     if (sessionStorage.getItem(RETRY_KEY)) return;
+    event.preventDefault();
     sessionStorage.setItem(RETRY_KEY, String(Date.now()));
     const target = pendingTarget.fullPath;
     if (location.pathname + location.search !== target) {
