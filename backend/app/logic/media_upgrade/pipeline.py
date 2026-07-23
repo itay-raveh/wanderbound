@@ -19,6 +19,7 @@ import anyio
 import httpx
 import structlog
 from httpx_oauth.oauth2 import RefreshTokenError
+from joblib import expires_after
 from pydantic import BaseModel, Field, validate_call
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
@@ -26,7 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     import imagehash
-    from joblib.memory import MemorizedFunc
+    from joblib.memory import AsyncMemorizedFunc, MemorizedFunc
 
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
@@ -35,7 +36,13 @@ from app.core.resources import detect_cpu_count, detect_memory_mb
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
 from app.models.album_media import AlbumMedia
-from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
+from app.models.google_photos import (
+    GoogleMediaBaseUrl,
+    GoogleMediaId,
+    GoogleMediaType,
+    PickedMediaItem,
+    PickerSessionId,
+)
 from app.services.google_photos import (
     MAX_PHOTO_BYTES,
     AccessTokenGetter,
@@ -44,7 +51,7 @@ from app.services.google_photos import (
     download_media_to_file,
 )
 
-from .hash_cache import local_hash_cache
+from .hash_cache import album_hash_memory, local_hash_cache
 from .phash_matching import (
     HashedMedia,
     MatchResult,
@@ -60,6 +67,7 @@ logger = structlog.get_logger(__name__)
 _UPGRADE_TMP_DIR = ".upgrade-tmp"
 _UPGRADE_BASELINE_MB = 1024
 _PER_UPGRADE_MB = 1024
+_CANDIDATE_HASH_CACHE_TTL_HOURS = 24
 
 
 @functools.cache
@@ -149,20 +157,67 @@ async def _hash_local_one(
         return name, None
 
 
+async def _compute_candidate_hash(
+    _media_id: GoogleMediaId,
+    media_type: GoogleMediaType,
+    _create_time: str,
+    _width: int | None,
+    _height: int | None,
+    _mime_type: str,
+    *,
+    base_url: GoogleMediaBaseUrl,
+    download: httpx.AsyncClient,
+    tokens: AccessTokenGetter,
+) -> imagehash.ImageHash:
+    thumb_param = "=w400-no" if media_type == "VIDEO" else "=w400"
+    access_token = await tokens()
+    thumb_bytes = await download_media_bytes(
+        download, base_url, access_token, param=thumb_param
+    )
+    return await run_sync(
+        compute_phash_from_bytes, thumb_bytes, limiter=_hash_limiter()
+    )
+
+
+def _candidate_hash_cache(
+    album_dir: Path,
+    cache_stats: Counter[str],
+) -> AsyncMemorizedFunc:
+    expiry = expires_after(hours=_CANDIDATE_HASH_CACHE_TTL_HOURS)
+    cache_stats_lock = threading.Lock()
+
+    def validate(metadata: dict[str, object]) -> bool:
+        if not expiry(metadata):
+            return False
+        with cache_stats_lock:
+            cache_stats["hits"] += 1
+        return True
+
+    return album_hash_memory(album_dir).cache(
+        _compute_candidate_hash,
+        ignore=["base_url", "download", "tokens"],
+        cache_validation_callback=validate,
+    )
+
+
 async def _hash_candidate_one(
     download: httpx.AsyncClient,
     item: PickedMediaItem,
     tokens: AccessTokenGetter,
+    cached_hash: AsyncMemorizedFunc,
 ) -> tuple[str, imagehash.ImageHash | None]:
     """Download one Google Photos thumbnail and compute its pHash."""
     try:
-        thumb_param = "=w400-no" if item.type == "VIDEO" else "=w400"
-        access_token = await tokens()
-        thumb_bytes = await download_media_bytes(
-            download, item.media_file.base_url, access_token, param=thumb_param
-        )
-        return item.id, await run_sync(
-            compute_phash_from_bytes, thumb_bytes, limiter=_hash_limiter()
+        return item.id, await cached_hash(
+            item.id,
+            item.type,
+            item.create_time,
+            item.media_file.width,
+            item.media_file.height,
+            item.media_file.mime_type,
+            base_url=item.media_file.base_url,
+            download=download,
+            tokens=tokens,
         )
     except OSError, SyntaxError, httpx.HTTPError:
         logger.warning(
@@ -198,6 +253,28 @@ async def _hash_local_media(
         await _cancel_tasks(tasks)
 
     cache_stats["misses"] = len(media_names) - cache_stats["hits"]
+
+
+async def _hash_candidate_media(
+    album_dir: Path,
+    download: httpx.AsyncClient,
+    items: list[PickedMediaItem],
+    tokens: AccessTokenGetter,
+    cache_stats: Counter[str],
+) -> AsyncGenerator[tuple[int, GoogleMediaId, imagehash.ImageHash | None]]:
+    cached_hash = _candidate_hash_cache(album_dir, cache_stats)
+    tasks = [
+        asyncio.create_task(_hash_candidate_one(download, item, tokens, cached_hash))
+        for item in items
+    ]
+    try:
+        for i, coro in enumerate(asyncio.as_completed(tasks)):
+            item_id, media_hash = await coro
+            yield i, item_id, media_hash
+    finally:
+        await _cancel_tasks(tasks)
+
+    cache_stats["misses"] = len(items) - cache_stats["hits"]
 
 
 async def run_matching(  # noqa: PLR0913
@@ -276,6 +353,7 @@ async def run_matching(  # noqa: PLR0913
         local_hash_ms = round((time.perf_counter() - local_hash_started) * 1000)
 
         candidate_hashes: dict[GoogleMediaId, imagehash.ImageHash] = {}
+        candidate_cache_stats: Counter[str] = Counter()
         cand_total = len(unique_items)
         candidate_hash_started = time.perf_counter()
         with start_span(
@@ -283,22 +361,16 @@ async def run_matching(  # noqa: PLR0913
             "Hash Google Photos candidates",
             **{"app.workflow": "google_photos", "picked_media.count": cand_total},
         ):
-            cand_tasks = [
-                asyncio.create_task(
-                    _hash_candidate_one(clients.gphotos_download, item, tokens)
-                )
-                for item in unique_items
-            ]
-            try:
-                for i, coro in enumerate(asyncio.as_completed(cand_tasks)):
-                    item_id, h = await coro
-                    if h is not None:
-                        candidate_hashes[item_id] = h
-                    yield MatchInProgress(
-                        phase="matching", done=i + 1, total=cand_total
-                    )
-            finally:
-                await _cancel_tasks(cand_tasks)
+            async for i, item_id, h in _hash_candidate_media(
+                album_dir,
+                clients.gphotos_download,
+                unique_items,
+                tokens,
+                candidate_cache_stats,
+            ):
+                if h is not None:
+                    candidate_hashes[item_id] = h
+                yield MatchInProgress(phase="matching", done=i + 1, total=cand_total)
         candidate_hash_ms = round((time.perf_counter() - candidate_hash_started) * 1000)
 
         assignment_started = time.perf_counter()
@@ -344,6 +416,8 @@ async def run_matching(  # noqa: PLR0913
             "nearest_13_to_15": outcome.diagnostics.nearest_13_to_15,
             "local_hash_cache_hits": local_cache_stats["hits"],
             "local_hash_cache_misses": local_cache_stats["misses"],
+            "candidate_hash_cache_hits": candidate_cache_stats["hits"],
+            "candidate_hash_cache_misses": candidate_cache_stats["misses"],
             "local_hash_ms": local_hash_ms,
             "candidate_hash_ms": candidate_hash_ms,
             "assignment_ms": assignment_ms,
@@ -362,6 +436,12 @@ async def run_matching(  # noqa: PLR0913
                 "valid_edges.count": diagnostics["valid_edges"],
                 "unmatched_local.count": diagnostics["unmatched_local"],
                 "nearest_13_to_15.count": diagnostics["nearest_13_to_15"],
+                "candidate_hash_cache.hit_count": diagnostics[
+                    "candidate_hash_cache_hits"
+                ],
+                "candidate_hash_cache.miss_count": diagnostics[
+                    "candidate_hash_cache_misses"
+                ],
             },
         )
 

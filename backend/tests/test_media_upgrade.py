@@ -502,7 +502,10 @@ class TestRunMatching:
         expected_hash = compute_phash_from_path(photo)
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash]:
             return item.id, expected_hash
 
@@ -549,7 +552,10 @@ class TestRunMatching:
         _write_jpeg(photo, 800, 600)
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash]:
             return item.id, _make_hash(0)
 
@@ -582,6 +588,72 @@ class TestRunMatching:
             await match_once()
         assert compute.call_count == 1
 
+    async def test_reuses_persisted_candidate_hashes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        photo = create_test_jpeg(album_dir / "photo.jpg", 800, 600)
+        download = AsyncMock(return_value=photo.read_bytes())
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.download_media_bytes", download
+        )
+
+        async def match(item: PickedMediaItem) -> MatchCompleted:
+            events = [
+                event
+                async for event in run_matching(
+                    clients=AsyncMock(),
+                    album_dir=album_dir,
+                    media_by_step={1: ["photo.jpg"]},
+                    step_ids=[1],
+                    google_items=[item],
+                    tokens=_test_token,
+                )
+            ]
+            assert isinstance(events[-1], MatchCompleted)
+            return events[-1]
+
+        item = _make_item(
+            "google-photo", _match_dt(10).isoformat(), width=800, height=600
+        )
+        assert (await match(item)).matched == 1
+        assert (await match(item)).matched == 1
+        assert download.await_count == 1
+
+    async def test_invalidates_candidate_hash_when_metadata_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        photo = create_test_jpeg(album_dir / "photo.jpg", 800, 600)
+        download = AsyncMock(return_value=photo.read_bytes())
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.download_media_bytes", download
+        )
+
+        for width in (800, 801):
+            _ = [
+                event
+                async for event in run_matching(
+                    clients=AsyncMock(),
+                    album_dir=album_dir,
+                    media_by_step={1: ["photo.jpg"]},
+                    step_ids=[1],
+                    google_items=[
+                        _make_item(
+                            "google-photo",
+                            _match_dt(10).isoformat(),
+                            width=width,
+                            height=600,
+                        )
+                    ],
+                    tokens=_test_token,
+                )
+            ]
+
+        assert download.await_count == 2
+
     async def test_logs_aggregate_matching_diagnostics_after_hash_failures(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -593,7 +665,10 @@ class TestRunMatching:
             return name, None if name == "failed.jpg" else h
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash | None]:
             return item.id, None if item.id == "google-failed" else h
 
@@ -652,6 +727,8 @@ class TestRunMatching:
             "nearest_13_to_15": 0,
             "local_hash_cache_hits": 0,
             "local_hash_cache_misses": 2,
+            "candidate_hash_cache_hits": 0,
+            "candidate_hash_cache_misses": 2,
         }
 
     async def test_matches_picked_items_regardless_of_timestamp(
@@ -668,7 +745,10 @@ class TestRunMatching:
             return name, hashes[name]
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash]:
             local_name = f"{item.id.removeprefix('google-')}.jpg"
             return item.id, hashes[local_name]
@@ -718,7 +798,10 @@ class TestRunMatching:
             return name, hashes[name]
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash]:
             return item.id, hashes["second.jpg"]
 
@@ -762,7 +845,10 @@ class TestRunMatching:
             return name, h
 
         async def fake_candidate(
-            _download: object, item: PickedMediaItem, _tokens: object
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
         ) -> tuple[str, imagehash.ImageHash]:
             hashed_candidate_ids.append(item.id)
             return item.id, h
