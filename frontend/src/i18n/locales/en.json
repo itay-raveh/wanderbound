@@ -384,9 +384,8 @@
       "noNewMatchTitle": "No new matches found",
       "allUpgradedTitle": "Already at original quality",
       "noMatchBody": "Make sure you selected photos from your trip.",
-      "noNewMatchBody": "Try selecting different photos.",
-      "allUpgradedBody": "All matched files were already upgraded.",
-      "alreadyUpgraded": "1 already at original quality. | {count} already at original quality.",
+      "matchCoverage": "Matched {matched} album files from {total} selected Google items.",
+      "matchCoverageWithUpgraded": "Matched {matched} album files from {total} selected Google items. {upgraded} were already at original quality.",
       "confirm": "Upgrade 1 file | Upgrade {count} files",
       "selectMore": "Select More"
     },

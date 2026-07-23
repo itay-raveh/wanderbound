@@ -37,16 +37,16 @@ const titleText = computed(() => {
 
 const bodyText = computed(() => {
   if (props.matched === 0) return t("upgrade.summary.noMatchBody");
-  if (props.newThisRound === 0 && props.matched > 0)
-    return t("upgrade.summary.noNewMatchBody");
-  if (toUpgrade.value === 0) return t("upgrade.summary.allUpgradedBody");
   if (props.alreadyUpgraded > 0)
-    return t(
-      "upgrade.summary.alreadyUpgraded",
-      { count: props.alreadyUpgraded },
-      props.alreadyUpgraded,
-    );
-  return "";
+    return t("upgrade.summary.matchCoverageWithUpgraded", {
+      matched: props.matched,
+      total: props.total,
+      upgraded: props.alreadyUpgraded,
+    });
+  return t("upgrade.summary.matchCoverage", {
+    matched: props.matched,
+    total: props.total,
+  });
 });
 
 const confirmLabel = computed(() => {
