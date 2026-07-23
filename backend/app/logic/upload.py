@@ -9,10 +9,17 @@ import puremagic
 
 from app.core.config import get_settings
 from app.models.polarsteps import PSTrip
-from app.models.upload import TripMeta, UploadResult
+from app.models.upload import TripChoice, TripMeta, UploadResult
 from app.models.user import PSUser
 
-__all__ = ["TripMeta", "UploadResult", "extract_and_scan", "scan_user_folder"]
+__all__ = [
+    "TripMeta",
+    "UploadResult",
+    "extract_and_scan",
+    "extract_selected",
+    "inspect_archive",
+    "scan_user_folder",
+]
 
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.
@@ -88,32 +95,69 @@ def _safe_extract(
     """Extract ZIP with MIME, path-traversal, symlink, size, and file-count checks."""
     _check_zip_mime(file)
     with zipfile.ZipFile(file) as zf:
-        entries = zf.infolist()
-        if len(entries) > _MAX_FILES:
-            msg = f"ZIP contains too many files ({len(entries)})"
+        entries = _validated_entries(zf, dest)
+        total = sum(info.file_size for info in entries)
+        _extract_entries(zf, entries, dest, total, progress)
+
+
+def _validated_entries(zf: zipfile.ZipFile, dest: Path) -> list[zipfile.ZipInfo]:
+    entries = zf.infolist()
+    if len(entries) > _MAX_FILES:
+        msg = f"ZIP contains too many files ({len(entries)})"
+        raise zipfile.BadZipFile(msg)
+
+    resolved_dest = dest.resolve()
+    total = 0
+    for info in entries:
+        if (info.external_attr >> 28) == 0xA:
+            msg = f"Symlink not allowed: {info.filename}"
             raise zipfile.BadZipFile(msg)
+        try:
+            (dest / info.filename).resolve().relative_to(resolved_dest)
+        except ValueError:
+            msg = f"Path traversal detected: {info.filename}"
+            raise zipfile.BadZipFile(msg) from None
+        total += info.file_size
+        if total > _MAX_TOTAL_BYTES:
+            raise zipfile.BadZipFile("ZIP uncompressed size exceeds limit")
+    return entries
 
-        resolved_dest = dest.resolve()
-        total = 0
-        for info in entries:
-            # Reject symlinks (external_attr high byte 0xA = symlink on Unix)
-            if (info.external_attr >> 28) == 0xA:
-                msg = f"Symlink not allowed: {info.filename}"
-                raise zipfile.BadZipFile(msg)
 
-            # Path traversal check
-            target = (dest / info.filename).resolve()
-            try:
-                target.relative_to(resolved_dest)
-            except ValueError:
-                msg = f"Path traversal detected: {info.filename}"
-                raise zipfile.BadZipFile(msg) from None
+def inspect_archive(file: BinaryIO) -> list[TripChoice]:
+    """List trip folders from the ZIP directory without reading trip contents."""
+    _check_zip_mime(file)
+    with zipfile.ZipFile(file) as zf:
+        entries = zf.infolist()
+        names = {
+            parts[1]
+            for info in entries
+            if len(parts := Path(info.filename).parts) >= 3 and parts[0] == "trip"
+        }
+        paths = {info.filename.rstrip("/") for info in entries}
+        if not names or "user/user.json" not in paths:
+            raise ValueError("archive is missing Polarsteps folders")
+        return [TripChoice(id=name, label=name) for name in sorted(names)]
 
-            total += info.file_size
-            if total > _MAX_TOTAL_BYTES:
-                msg = "ZIP uncompressed size exceeds limit"
-                raise zipfile.BadZipFile(msg)
 
+def extract_selected(
+    file: BinaryIO,
+    dest: Path,
+    selected_ids: set[str],
+    progress: ProgressCallback | None = None,
+) -> None:
+    """Extract the profile and selected trip folders."""
+    _check_zip_mime(file)
+    with zipfile.ZipFile(file) as zf:
+        entries = [
+            info
+            for info in _validated_entries(zf, dest)
+            if (parts := Path(info.filename).parts)
+            and (
+                parts[0] == "user"
+                or (len(parts) >= 2 and parts[0] == "trip" and parts[1] in selected_ids)
+            )
+        ]
+        total = sum(info.file_size for info in entries)
         _extract_entries(zf, entries, dest, total, progress)
 
 
