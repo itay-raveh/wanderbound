@@ -161,6 +161,18 @@ class TestMatchWithinWindow:
         assert len(rows) == count
         assert np.array_equal(rows, cols)
 
+    def test_thresholded_assignment_handles_observed_large_selection(self) -> None:
+        local_count = 401
+        candidate_count = 1_400
+        cost = np.full((local_count, candidate_count), 13, dtype=np.int16)
+        diagonal = np.arange(local_count)
+        cost[diagonal, diagonal] = 0
+
+        rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
+
+        assert np.array_equal(rows, diagonal)
+        assert np.array_equal(cols, diagonal)
+
     def test_global_matching_excludes_cross_type_edges_from_diagnostics(self) -> None:
         local = [_hm("photo.jpg", _make_hash(0))]
         candidates = [
