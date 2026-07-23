@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+from cachetools import TTLCache
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -198,9 +198,12 @@ async def poll_picker_session(
 _MAX_MEDIA_PAGES = 100
 _MEDIA_ITEMS_CACHE_TTL_S = 15 * 60
 _MEDIA_ITEMS_CACHE_MAX_ENTRIES = 128
-_media_items_cache: OrderedDict[
-    tuple[int, PickerSessionId], tuple[float, list[PickedMediaItem]]
-] = OrderedDict()
+_media_items_cache: TTLCache[tuple[int, PickerSessionId], list[PickedMediaItem]] = (
+    TTLCache(
+        maxsize=_MEDIA_ITEMS_CACHE_MAX_ENTRIES,
+        ttl=_MEDIA_ITEMS_CACHE_TTL_S,
+    )
+)
 
 
 async def get_media_items(
@@ -253,20 +256,12 @@ async def get_media_items_cached(
     access_token: AccessToken,
 ) -> list[PickedMediaItem]:
     key = (uid, session_id)
-    now = time.monotonic()
     cached = _media_items_cache.get(key)
     if cached is not None:
-        cached_at, items = cached
-        if now - cached_at < _MEDIA_ITEMS_CACHE_TTL_S:
-            _media_items_cache.move_to_end(key)
-            return items
-        del _media_items_cache[key]
+        return cached
 
     items = await get_media_items(client, session_id, access_token)
-    _media_items_cache[key] = (time.monotonic(), items)
-    _media_items_cache.move_to_end(key)
-    while len(_media_items_cache) > _MEDIA_ITEMS_CACHE_MAX_ENTRIES:
-        _media_items_cache.popitem(last=False)
+    _media_items_cache[key] = items
     return items
 
 

@@ -12,8 +12,8 @@ from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 from structlog.testing import capture_logs
 
+from app.core.config import get_settings
 from app.logic.media_upgrade import phash_matching
-from app.logic.media_upgrade.hash_cache import LocalMediaHashCache
 
 if TYPE_CHECKING:
     import httpx
@@ -454,7 +454,7 @@ class TestRunMatching:
         slow_tasks: list[asyncio.Task[object]] = []
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
             if name == "fast.jpg":
                 await slow_started.wait()
@@ -494,8 +494,9 @@ class TestRunMatching:
     async def test_reuses_persisted_local_hashes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        album_dir = tmp_path / "album"
-        album_dir.mkdir()
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        album_dir = tmp_path / "users" / "42" / "trip" / "album"
+        album_dir.mkdir(parents=True)
         photo = album_dir / "photo.jpg"
         _write_jpeg(photo, 800, 600)
         expected_hash = compute_phash_from_path(photo)
@@ -529,9 +530,11 @@ class TestRunMatching:
         first = await match_once()
 
         assert first.matched == 1
-        assert (album_dir / ".media-upgrade-hashes.json").is_file()
+        assert (
+            tmp_path / "users" / "42" / ".media-hash-cache" / album_dir.name
+        ).is_dir()
         with patch(
-            "app.logic.media_upgrade.pipeline.compute_phash_from_path",
+            "app.logic.media_upgrade.hash_cache.compute_phash_from_path",
             side_effect=AssertionError("local photo was rehashed"),
         ):
             second = await match_once()
@@ -573,7 +576,7 @@ class TestRunMatching:
         _write_jpeg(photo, 1200, 800)
 
         with patch(
-            "app.logic.media_upgrade.pipeline.compute_phash_from_path",
+            "app.logic.media_upgrade.hash_cache.compute_phash_from_path",
             wraps=compute_phash_from_path,
         ) as compute:
             await match_once()
@@ -585,7 +588,7 @@ class TestRunMatching:
         h = _make_hash(0)
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash | None]:
             return name, None if name == "failed.jpg" else h
 
@@ -660,7 +663,7 @@ class TestRunMatching:
         }
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
             return name, hashes[name]
 
@@ -709,7 +712,7 @@ class TestRunMatching:
         hashed_local_names: list[str] = []
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
             hashed_local_names.append(name)
             return name, hashes[name]
@@ -754,7 +757,7 @@ class TestRunMatching:
         hashed_candidate_ids: list[str] = []
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
             return name, h
 
@@ -812,7 +815,7 @@ class TestRunMatching:
         h = _make_hash(0)
 
         async def fake_local(
-            _album_dir: Path, name: str
+            _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
             return name, h
 
@@ -918,30 +921,6 @@ class TestRunMatching:
 
         progress = [e for e in events[:-1] if isinstance(e, MatchInProgress)]
         assert {e.phase for e in progress} == {"preparing", "matching"}
-
-
-class TestLocalMediaHashCache:
-    @pytest.mark.parametrize("hashes", [[], ["f"]])
-    def test_rejects_empty_or_non_64_bit_hashes(
-        self, tmp_path: Path, hashes: list[str]
-    ) -> None:
-        media_path = tmp_path / "video.mp4"
-        media_path.write_bytes(b"video")
-        stat = media_path.stat()
-        cache = LocalMediaHashCache(
-            tmp_path / ".media-upgrade-hashes.json",
-            entries={
-                media_path.name: {
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
-                    "hashes": hashes,
-                }
-            },
-        )
-
-        assert cache.get(media_path) is None
-        assert cache.hits == 0
-        assert cache.misses == 1
 
 
 class TestRunUpgrade:

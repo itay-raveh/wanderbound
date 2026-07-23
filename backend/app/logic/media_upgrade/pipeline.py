@@ -6,7 +6,9 @@ import asyncio
 import functools
 import shutil
 import subprocess
+import threading
 import time
+from collections import Counter
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -24,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     import imagehash
+    from joblib.memory import MemorizedFunc
 
 from app.core.db import get_engine
 from app.core.http_clients import HttpClients
@@ -41,22 +44,16 @@ from app.services.google_photos import (
     download_media_to_file,
 )
 
-from .hash_cache import LocalMediaHashCache
+from .hash_cache import local_hash_cache
 from .phash_matching import (
     HashedMedia,
     MatchResult,
     MediaHash,
     compute_phash_from_bytes,
-    compute_phash_from_path,
     deduplicate_items,
     match_media_globally,
 )
-from .processing import (
-    extract_video_frame_hashes,
-    replace_photo,
-    replace_video,
-    tmp_file,
-)
+from .processing import replace_photo, replace_video, tmp_file
 
 logger = structlog.get_logger(__name__)
 
@@ -125,18 +122,23 @@ UpgradeEvent = Annotated[
 ]
 
 
-async def _hash_local_one(album_dir: Path, name: str) -> tuple[str, MediaHash | None]:
+async def _hash_local_one(
+    album_dir: Path,
+    name: str,
+    cached_hash: MemorizedFunc,
+) -> tuple[str, MediaHash | None]:
     """Hash one local file. Photos use one pHash; videos use sampled frames."""
     path = album_dir / name
     if not path.exists():
         return name, None
     try:
-        if is_video(name):
-            return name, await run_sync(
-                extract_video_frame_hashes, path, limiter=_hash_limiter()
-            )
+        stat = await run_sync(path.stat)
         return name, await run_sync(
-            compute_phash_from_path, path, limiter=_hash_limiter()
+            cached_hash,
+            path,
+            stat.st_size,
+            stat.st_mtime_ns,
+            limiter=_hash_limiter(),
         )
     # Pillow raises SyntaxError on corrupt/truncated image headers.
     except OSError, SyntaxError, subprocess.SubprocessError:
@@ -173,16 +175,19 @@ async def _hash_candidate_one(
 async def _hash_local_media(
     album_dir: Path,
     media_names: list[MediaName],
-    cache: LocalMediaHashCache,
+    cache_stats: Counter[str],
 ) -> AsyncGenerator[tuple[int, MediaName, MediaHash | None]]:
+    cache_stats_lock = threading.Lock()
+
+    def record_cache_hit(_metadata: dict[str, object]) -> bool:
+        with cache_stats_lock:
+            cache_stats["hits"] += 1
+        return True
+
+    cached_hash = await run_sync(local_hash_cache, album_dir, record_cache_hit)
+
     async def _hash_one(name: MediaName) -> tuple[MediaName, MediaHash | None]:
-        cached = cache.get(album_dir / name)
-        if cached is not None:
-            return name, cached
-        result_name, media_hash = await _hash_local_one(album_dir, name)
-        if media_hash is not None:
-            cache.put(album_dir / name, media_hash)
-        return result_name, media_hash
+        return await _hash_local_one(album_dir, name, cached_hash)
 
     tasks = [asyncio.create_task(_hash_one(name)) for name in media_names]
     try:
@@ -191,6 +196,8 @@ async def _hash_local_media(
             yield i, name, media_hash
     finally:
         await _cancel_tasks(tasks)
+
+    cache_stats["misses"] = len(media_names) - cache_stats["hits"]
 
 
 async def run_matching(  # noqa: PLR0913
@@ -243,8 +250,8 @@ async def run_matching(  # noqa: PLR0913
         )
 
         local_hashes: dict[MediaName, MediaHash] = {}
+        local_cache_stats: Counter[str] = Counter()
         local_total = len(media_names)
-        local_cache = await run_sync(LocalMediaHashCache.load, album_dir)
         local_hash_started = time.perf_counter()
         with start_span(
             "google_photos.hash_local",
@@ -252,17 +259,18 @@ async def run_matching(  # noqa: PLR0913
             **{"app.workflow": "google_photos", "local_media.count": local_total},
         ):
             async for i, name, media_hash in _hash_local_media(
-                album_dir, media_names, local_cache
+                album_dir,
+                media_names,
+                local_cache_stats,
             ):
                 if media_hash is not None:
                     local_hashes[name] = media_hash
                 yield MatchInProgress(phase="preparing", done=i + 1, total=local_total)
-            await run_sync(local_cache.save, set(media_names))
             set_span_data(
                 span,
                 **{
-                    "local_hash_cache.hit_count": local_cache.hits,
-                    "local_hash_cache.miss_count": local_cache.misses,
+                    "local_hash_cache.hit_count": local_cache_stats["hits"],
+                    "local_hash_cache.miss_count": local_cache_stats["misses"],
                 },
             )
         local_hash_ms = round((time.perf_counter() - local_hash_started) * 1000)
@@ -334,8 +342,8 @@ async def run_matching(  # noqa: PLR0913
             "matched": len(all_matches),
             "unmatched_local": len(local_hashes) - len(all_matches),
             "nearest_13_to_15": outcome.diagnostics.nearest_13_to_15,
-            "local_hash_cache_hits": local_cache.hits,
-            "local_hash_cache_misses": local_cache.misses,
+            "local_hash_cache_hits": local_cache_stats["hits"],
+            "local_hash_cache_misses": local_cache_stats["misses"],
             "local_hash_ms": local_hash_ms,
             "candidate_hash_ms": candidate_hash_ms,
             "assignment_ms": assignment_ms,
