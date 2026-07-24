@@ -19,6 +19,16 @@ class TestMedia:
         m = Media.load(src)
         assert m.width == 4000
         assert m.height == 3000
+        assert m.perceptual_hashes is None
+
+    def test_load_computes_perceptual_hash_during_decode(self, tmp_path: Path) -> None:
+        src = create_test_jpeg(tmp_path / "photo.jpg", 800, 600)
+
+        media = Media.load(src, compute_perceptual_hash=True)
+
+        assert media.perceptual_hashes is not None
+        assert len(media.perceptual_hashes) == 1
+        assert len(media.perceptual_hashes[0]) == 16
 
 
 def _thumb_path(parent: Path, width: int, stem: str) -> Path:

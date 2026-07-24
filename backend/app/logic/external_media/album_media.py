@@ -9,12 +9,19 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.worker_threads import run_sync
-from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
+from app.logic.layout.media import (
+    Media,
+    delete_thumbnails,
+    extract_frame,
+    is_video,
+    media_limiter,
+)
 from app.logic.media_import import (
     SavedInput,
     cleanup_imported_paths,
     process_saved_media,
 )
+from app.logic.media_upgrade.hashes import try_compute_serialized_media_hash
 from app.models.album import Album
 from app.models.album_media import AlbumMedia
 
@@ -84,6 +91,11 @@ async def replace_album_media_from_saved(
         row.width = replacement.width
         row.height = replacement.height
         row.byte_size = target.stat().st_size
+        row.perceptual_hashes = await run_sync(
+            try_compute_serialized_media_hash,
+            target,
+            limiter=media_limiter,
+        )
         row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)
         session.add(row)

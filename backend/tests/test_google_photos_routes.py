@@ -194,7 +194,7 @@ class TestMatchMedia:
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
-                AsyncMock(return_value=([], set())),
+                AsyncMock(return_value=([], set(), {})),
             ),
             patch(
                 "app.api.v1.routes.google_photos.get_media_items_cached",
@@ -258,7 +258,13 @@ class TestMatchMedia:
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
-                AsyncMock(return_value=([step], set())),
+                AsyncMock(
+                    return_value=(
+                        [step],
+                        set(),
+                        {"photo.jpg": ["0123456789abcdef"]},
+                    )
+                ),
             ),
             patch(
                 "app.api.v1.routes.google_photos.get_media_items_cached",
@@ -275,6 +281,9 @@ class TestMatchMedia:
         assert isinstance(events[-1], MatchCompleted)
         assert captured["media_by_step"] == {7: ["photo.jpg"]}
         assert captured["upgrade_candidates"] == set()
+        assert captured["persisted_local_hashes"] == {"photo.jpg": ["0123456789abcdef"]}
+        assert captured["uid"] == user.id
+        assert captured["aid"] == "trip-1"
 
 
 class TestUpgradeMedia:

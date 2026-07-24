@@ -6,6 +6,7 @@ from typing import Annotated, Self
 
 import anyio
 import av
+import imagehash
 import structlog
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
@@ -115,6 +116,7 @@ class Media(BaseModel):
     name: str
     width: int
     height: int
+    perceptual_hashes: list[str] | None = None
 
     @property
     def aspect_ratio(self) -> float:
@@ -129,13 +131,17 @@ class Media(BaseModel):
         return "p" if self.is_portrait else "l"
 
     @classmethod
-    def load(cls, path: Path) -> Self:
+    def load(cls, path: Path, *, compute_perceptual_hash: bool = False) -> Self:
         with open_oriented(path) as img:
             width, height = img.size
+            perceptual_hashes = (
+                [str(imagehash.phash(img))] if compute_perceptual_hash else None
+            )
         return cls(
             name=normalize_name(path.name),
             width=width,
             height=height,
+            perceptual_hashes=perceptual_hashes,
         )
 
     @classmethod

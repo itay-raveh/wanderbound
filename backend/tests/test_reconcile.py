@@ -364,6 +364,7 @@ class TestReconcileTripRebuildsSegments:
             byte_size=123,
             upgrade_candidate=False,
         )
+        existing_media.perceptual_hashes = ["0123456789abcdef"]
 
         _, db_out = await _collect_reconcile(
             trip_dir,
@@ -375,6 +376,7 @@ class TestReconcileTripRebuildsSegments:
         media_rows = [obj for obj in db_out if isinstance(obj, AlbumMedia)]
         row = next(obj for obj in media_rows if obj.name == media_name)
         assert row.upgrade_candidate is False
+        assert row.perceptual_hashes == ["0123456789abcdef"]
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
+
+# Pydantic resolves this annotation while constructing the SQLModel.
+from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
 
 
@@ -23,6 +26,11 @@ class AlbumMedia(SQLModel, table=True):
     width: int
     height: int
     byte_size: int = Field(sa_column=sa.Column(sa.BigInteger(), nullable=False))
+    perceptual_hashes: SkipJsonSchema[list[str] | None] = Field(
+        default=None,
+        exclude=True,
+        sa_column=sa.Column(sa.JSON(), nullable=True),
+    )
     upgrade_candidate: bool = Field(default=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -93,6 +101,11 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
     aid: str = Field(primary_key=True)
     media_name: str = Field(primary_key=True, max_length=255)
     snapshot_path: str = Field(max_length=255)
+    perceptual_hashes: SkipJsonSchema[list[str] | None] = Field(
+        default=None,
+        exclude=True,
+        sa_column=sa.Column(sa.JSON(), nullable=True),
+    )
     upgrade_candidate: bool
     created_at: datetime = Field(
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False)

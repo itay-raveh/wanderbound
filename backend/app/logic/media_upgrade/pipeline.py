@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from collections import Counter
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,6 +52,7 @@ from app.services.google_photos import (
 )
 
 from .hash_cache import album_hash_memory, local_hash_cache
+from .hashes import deserialize_media_hash, serialize_media_hash
 from .phash_matching import (
     HashedMedia,
     MatchResult,
@@ -255,7 +256,8 @@ async def _hash_local_media(
     album_dir: Path,
     media_names: list[MediaName],
     cache_stats: Counter[str],
-) -> AsyncGenerator[tuple[int, MediaName, MediaHash | None]]:
+    persisted_local_hashes: Mapping[MediaName, list[str] | None],
+) -> AsyncGenerator[tuple[int, MediaName, MediaHash | None, bool]]:
     cache_stats_lock = threading.Lock()
 
     def record_cache_hit(_metadata: dict[str, object]) -> bool:
@@ -263,20 +265,41 @@ async def _hash_local_media(
             cache_stats["hits"] += 1
         return True
 
+    completed = 0
+    missing: list[MediaName] = []
+    for name in media_names:
+        serialized = persisted_local_hashes.get(name)
+        if not serialized:
+            missing.append(name)
+            continue
+        try:
+            media_hash = deserialize_media_hash(serialized)
+        except ValueError:
+            missing.append(name)
+            continue
+        cache_stats["database_hits"] += 1
+        yield completed, name, media_hash, True
+        completed += 1
+
+    if not missing:
+        cache_stats["misses"] = 0
+        return
+
     cached_hash = await run_sync(local_hash_cache, album_dir, record_cache_hit)
 
     async def _hash_one(name: MediaName) -> tuple[MediaName, MediaHash | None]:
         return await _hash_local_one(album_dir, name, cached_hash)
 
-    tasks = [asyncio.create_task(_hash_one(name)) for name in media_names]
+    tasks = [asyncio.create_task(_hash_one(name)) for name in missing]
     try:
-        for i, coro in enumerate(asyncio.as_completed(tasks)):
+        for coro in asyncio.as_completed(tasks):
             name, media_hash = await coro
-            yield i, name, media_hash
+            yield completed, name, media_hash, False
+            completed += 1
     finally:
         await _cancel_tasks(tasks)
 
-    cache_stats["misses"] = len(media_names) - cache_stats["hits"]
+    cache_stats["misses"] = len(missing) - cache_stats["hits"]
 
 
 async def _hash_candidate_media(
@@ -286,6 +309,10 @@ async def _hash_candidate_media(
     tokens: AccessTokenGetter,
     cache_stats: Counter[str],
 ) -> AsyncGenerator[tuple[int, GoogleMediaId, imagehash.ImageHash | None]]:
+    if not items:
+        cache_stats["misses"] = 0
+        return
+
     cached_hash = _candidate_hash_cache(album_dir, cache_stats)
     tasks = [
         asyncio.create_task(_hash_candidate_one(download, item, tokens, cached_hash))
@@ -301,6 +328,50 @@ async def _hash_candidate_media(
     cache_stats["misses"] = len(items) - cache_stats["hits"]
 
 
+async def _persist_local_hashes(
+    uid: int,
+    aid: str,
+    hashes_by_name: Mapping[MediaName, list[str]],
+) -> None:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        rows = (
+            await session.exec(
+                select(AlbumMedia).where(
+                    AlbumMedia.uid == uid,
+                    AlbumMedia.aid == aid,
+                    col(AlbumMedia.name).in_(tuple(hashes_by_name)),
+                )
+            )
+        ).all()
+        for row in rows:
+            try:
+                deserialize_media_hash(row.perceptual_hashes or [])
+            except ValueError:
+                pass
+            else:
+                continue
+            row.perceptual_hashes = hashes_by_name[row.name]
+            session.add(row)
+        await session.commit()
+
+
+async def _persist_local_hashes_best_effort(
+    uid: int,
+    aid: str,
+    hashes_by_name: Mapping[MediaName, list[str]],
+) -> None:
+    try:
+        await _persist_local_hashes(uid, aid, hashes_by_name)
+    except SQLAlchemyError:
+        logger.warning(
+            "media_upgrade.local_hash_persist_failed",
+            exc_info=True,
+            user_id=uid,
+            album_id=aid,
+            count=len(hashes_by_name),
+        )
+
+
 async def run_matching(  # noqa: PLR0913, C901
     clients: HttpClients,
     album_dir: Path,
@@ -309,12 +380,15 @@ async def run_matching(  # noqa: PLR0913, C901
     google_items: list[PickedMediaItem],
     tokens: AccessTokenGetter,
     upgrade_candidates: set[MediaName] | None = None,
+    persisted_local_hashes: Mapping[MediaName, list[str] | None] | None = None,
+    uid: int | None = None,
+    aid: str | None = None,
 ) -> AsyncGenerator[UpgradeEvent]:
     """Run the full matching pipeline, yielding SSE events for progress.
 
     Two-phase progress so the user sees counts matching their selection:
     "preparing" hashes local media, "matching" hashes picked Google items.
-    Every unique media item referenced by the album's steps is hashed.
+    Every unique local hash is loaded from the database or computed and backfilled.
     """
     matching_started = time.perf_counter()
     with start_span(
@@ -351,6 +425,7 @@ async def run_matching(  # noqa: PLR0913, C901
         )
 
         local_hashes: dict[MediaName, MediaHash] = {}
+        backfilled_hashes: dict[MediaName, list[str]] = {}
         local_cache_stats: Counter[str] = Counter()
         local_total = len(media_names)
         local_hash_started = time.perf_counter()
@@ -359,23 +434,32 @@ async def run_matching(  # noqa: PLR0913, C901
             "Hash local media",
             **{"app.workflow": "google_photos", "local_media.count": local_total},
         ):
-            async for i, name, media_hash in _hash_local_media(
-                album_dir,
-                media_names,
-                local_cache_stats,
-            ):
-                if media_hash is not None:
-                    local_hashes[name] = media_hash
-                done = i + 1
-                if _is_progress_checkpoint(done, local_total):
-                    yield MatchInProgress(
-                        phase="preparing", done=done, total=local_total
-                    )
+            try:
+                async for i, name, media_hash, from_database in _hash_local_media(
+                    album_dir,
+                    media_names,
+                    local_cache_stats,
+                    persisted_local_hashes or {},
+                ):
+                    if media_hash is not None:
+                        local_hashes[name] = media_hash
+                        if not from_database:
+                            backfilled_hashes[name] = serialize_media_hash(media_hash)
+                    done = i + 1
+                    if _is_progress_checkpoint(done, local_total):
+                        yield MatchInProgress(
+                            phase="preparing", done=done, total=local_total
+                        )
+            finally:
+                if backfilled_hashes and uid is not None and aid is not None:
+                    await _persist_local_hashes_best_effort(uid, aid, backfilled_hashes)
             set_span_data(
                 span,
                 **{
+                    "local_hash_database.hit_count": local_cache_stats["database_hits"],
                     "local_hash_cache.hit_count": local_cache_stats["hits"],
                     "local_hash_cache.miss_count": local_cache_stats["misses"],
+                    "local_hash_backfill.count": len(backfilled_hashes),
                 },
             )
         local_hash_ms = round((time.perf_counter() - local_hash_started) * 1000)
@@ -444,8 +528,10 @@ async def run_matching(  # noqa: PLR0913, C901
             "matched": len(all_matches),
             "unmatched_local": len(local_hashes) - len(all_matches),
             "nearest_13_to_15": outcome.diagnostics.nearest_13_to_15,
+            "local_hash_database_hits": local_cache_stats["database_hits"],
             "local_hash_cache_hits": local_cache_stats["hits"],
             "local_hash_cache_misses": local_cache_stats["misses"],
+            "local_hash_backfilled": len(backfilled_hashes),
             "candidate_hash_cache_hits": candidate_cache_stats["hits"],
             "candidate_hash_cache_misses": candidate_cache_stats["misses"],
             "local_hash_ms": local_hash_ms,
@@ -466,6 +552,10 @@ async def run_matching(  # noqa: PLR0913, C901
                 "valid_edges.count": diagnostics["valid_edges"],
                 "unmatched_local.count": diagnostics["unmatched_local"],
                 "nearest_13_to_15.count": diagnostics["nearest_13_to_15"],
+                "local_hash_database.hit_count": diagnostics[
+                    "local_hash_database_hits"
+                ],
+                "local_hash_backfill.count": diagnostics["local_hash_backfilled"],
                 "candidate_hash_cache.hit_count": diagnostics[
                     "candidate_hash_cache_hits"
                 ],
