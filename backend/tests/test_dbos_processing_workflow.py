@@ -123,6 +123,7 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
     async def fake_run_processing(
         _http: object, _user: User, **_kwargs: object
     ) -> AsyncIterator[ProcessingEvent]:
+        assert _kwargs["album_ids"] == ("trip-2",)
         yield TripStart(trip_index=0)
         yield PhaseUpdate(phase="layouts", done=1, total=1)
 
@@ -137,11 +138,9 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
             return_value="worker-test",
         ),
     ):
-        result = await run_processing_workflow_payload(
-            processing_workflow_payload(operation, user),
-            http,
-            session,
-        )
+        payload = processing_workflow_payload(operation, user)
+        payload["album_ids"] = ["trip-2"]
+        result = await run_processing_workflow_payload(payload, http, session)
 
     await session.refresh(operation)
     events = await read_processing_events(session, operation.operation_id)
@@ -154,7 +153,6 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
         PhaseUpdate(phase="layouts", done=1, total=1),
     ]
     assert [call.args for call in schedule.call_args_list] == [
-        (http, 42, "trip-1"),
         (http, 42, "trip-2"),
     ]
 

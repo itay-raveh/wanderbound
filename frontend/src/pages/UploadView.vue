@@ -138,6 +138,7 @@ function onDone() {
 
         <ZipUploader
           v-if="mapboxSupported"
+          :preselected-ids="user?.album_ids"
           @uploaded="onUploaded"
         />
         <UnsupportedBanner v-else :reason="mapboxReason" />

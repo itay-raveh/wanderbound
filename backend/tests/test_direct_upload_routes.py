@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.api.v1.deps import _get_upload_store
 from app.main import app
 from app.models.processing import UploadSession
-from app.models.upload import UploadResult
+from app.models.upload import TripChoice, UploadResult
 from app.models.user import UserPublic
 from tests.factories import make_user, sign_in
 
@@ -114,6 +114,48 @@ async def test_completion_starts_finalization(
     row = await session.get(UploadSession, upload_id)
     assert row is not None
     assert row.status == "processing"
+
+
+async def test_pending_upload_can_be_resumed_and_selected(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    upload_id = created.json()["uploadId"]
+    row = await session.get_one(UploadSession, upload_id)
+    row.status = "awaiting_selection"
+    row.trip_choices = [TripChoice(id="trip-a", label="trip-a")]
+    session.add(row)
+    await session.commit()
+
+    pending = await client.get("/api/v1/users/uploads/pending")
+
+    assert pending.json() == {
+        "upload_id": upload_id,
+        "status": "awaiting_selection",
+        "choices": [{"id": "trip-a", "label": "trip-a"}],
+    }
+
+    with patch(
+        "app.api.v1.routes.uploads.DBOS.send_async", new_callable=AsyncMock
+    ) as send:
+        selected = await client.post(
+            f"/api/v1/users/uploads/{upload_id}/selection",
+            json={"trip_ids": ["trip-a"]},
+        )
+
+    assert selected.status_code == 200, selected.text
+    await session.refresh(row)
+    assert row.status == "processing"
+    send.assert_awaited_once_with(
+        f"upload:{upload_id}",
+        ["trip-a"],
+        topic="selection",
+        idempotency_key=f"selection:{upload_id}",
+    )
 
 
 async def test_uploads_are_scoped_to_the_owner(

@@ -21,9 +21,11 @@ async def test_finalization_is_idempotent_across_database_and_filesystem(
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
     (tmp_path / "users").mkdir()
     source = tmp_path / "extracted"
-    source.mkdir()
-    (source / "payload.txt").write_text("new")
+    (source / "trip" / "trip-1").mkdir(parents=True)
+    (source / "trip" / "trip-1" / "payload.txt").write_text("new")
     user = make_user(uid=222_222_221, album_ids=["old"])
+    (user.trips_folder / "old").mkdir(parents=True)
+    (user.trips_folder / "old" / "payload.txt").write_text("old")
     session.add(user)
     session.add(
         ProcessingOperation(
@@ -58,5 +60,8 @@ async def test_finalization_is_idempotent_across_database_and_filesystem(
     assert first[0] == second[0]
     assert len(operations) == 2
     assert first[1].upload_generation == 5
-    assert (user.folder / "payload.txt").read_text() == "new"
+    assert user.album_ids == ["old", "trip-1"]
+    assert first[0].user.album_ids == ["old", "trip-1"]
+    assert (user.trips_folder / "old" / "payload.txt").read_text() == "old"
+    assert (user.trips_folder / "trip-1" / "payload.txt").read_text() == "new"
     assert not list(get_settings().USERS_FOLDER.glob("*.upload-backup-*"))

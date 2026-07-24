@@ -674,6 +674,89 @@
         }
       }
     },
+    "/api/v1/users/uploads/pending": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Pending Upload",
+        "operationId": "pending_upload",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PendingUpload"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Pending Upload"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/uploads/{upload_id}/selection": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Select Upload Trips",
+        "operationId": "select_upload_trips",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TripSelectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Select Upload Trips"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/uploads/{upload_id}/stream": {
       "get": {
         "tags": [
@@ -723,6 +806,9 @@
                         "$ref": "#/components/schemas/UploadProgressUpdate"
                       },
                       {
+                        "$ref": "#/components/schemas/SelectionRequiredEvent"
+                      },
+                      {
                         "$ref": "#/components/schemas/UploadCompleteEvent"
                       },
                       {
@@ -733,6 +819,7 @@
                       "propertyName": "type",
                       "mapping": {
                         "progress": "#/components/schemas/UploadProgressUpdate",
+                        "selection_required": "#/components/schemas/SelectionRequiredEvent",
                         "complete": "#/components/schemas/UploadCompleteEvent",
                         "error": "#/components/schemas/UploadErrorEvent"
                       }
@@ -3627,6 +3714,36 @@
         "type": "object",
         "title": "PdfQueued"
       },
+      "PendingUpload": {
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "awaiting_selection"
+            ],
+            "title": "Status"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/TripChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "status",
+          "choices"
+        ],
+        "title": "PendingUpload"
+      },
       "PhaseUpdate": {
         "properties": {
           "type": {
@@ -4067,6 +4184,28 @@
         ],
         "title": "SegmentsFound"
       },
+      "SelectionRequiredEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "selection_required",
+            "title": "Type",
+            "default": "selection_required"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/TripChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "choices"
+        ],
+        "title": "SelectionRequiredEvent"
+      },
       "SessionStatusResponse": {
         "properties": {
           "ready": {
@@ -4271,6 +4410,24 @@
         "type": "object",
         "title": "StepUpdate"
       },
+      "TripChoice": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "TripChoice"
+      },
       "TripMeta": {
         "properties": {
           "id": {
@@ -4302,6 +4459,23 @@
           "country_codes"
         ],
         "title": "TripMeta"
+      },
+      "TripSelectionRequest": {
+        "properties": {
+          "trip_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Trip Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_ids"
+        ],
+        "title": "TripSelectionRequest"
       },
       "TripStart": {
         "properties": {
