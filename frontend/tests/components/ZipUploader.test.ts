@@ -118,4 +118,18 @@ describe("ZipUploader", () => {
 
     expect(upload.submitSelection).toHaveBeenCalledOnce();
   });
+
+  it("preselects existing albums that are present in the ZIP", async () => {
+    mountWithPlugins(ZipUploader, {
+      props: { preselectedIds: ["trip-a", "missing-trip"] },
+    });
+    upload.state!.choices.value = [
+      { id: "trip-a", label: "trip-a" },
+      { id: "trip-b", label: "trip-b" },
+    ];
+    upload.state!.status.value = "selecting";
+    await nextTick();
+
+    expect(upload.state!.selectedIds.value).toEqual(["trip-a"]);
+  });
 });
