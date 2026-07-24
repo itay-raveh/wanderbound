@@ -361,7 +361,7 @@ class TestReconcileTripRebuildsSegments:
             kind="photo",
             width=640,
             height=480,
-            byte_size=123,
+            byte_size=2,
             upgrade_candidate=False,
         )
         existing_media.perceptual_hashes = ["0123456789abcdef"]
@@ -377,6 +377,48 @@ class TestReconcileTripRebuildsSegments:
         row = next(obj for obj in media_rows if obj.name == media_name)
         assert row.upgrade_candidate is False
         assert row.perceptual_hashes == ["0123456789abcdef"]
+
+    async def test_changed_reuploaded_media_is_left_for_background_hashing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ps_steps = [_ps_step(1, slug="start")]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+        media_name = (
+            "11111111-1111-4111-8111-111111111111_"
+            "22222222-2222-4222-8222-222222222222.jpg"
+        )
+        (trip_dir / media_name).write_bytes(b"new bytes")
+        existing_media = make_album_media(
+            _UID,
+            _RECONCILE_AID,
+            name=media_name,
+            kind="photo",
+            width=640,
+            height=480,
+            byte_size=123,
+            upgrade_candidate=False,
+        )
+        existing_media.perceptual_hashes = ["0123456789abcdef"]
+
+        def fail_if_called(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("re-upload processing must not hash media")
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.hashes.compute_serialized_media_hashes",
+            fail_if_called,
+        )
+
+        _, db_out = await _collect_reconcile(
+            trip_dir,
+            _existing_album(front_cover_photo=media_name, back_cover_photo=media_name),
+            [_existing_step(1, pages=[[media_name]], cover=media_name)],
+            existing_media_rows=[existing_media],
+        )
+
+        media_rows = [obj for obj in db_out if isinstance(obj, AlbumMedia)]
+        row = next(obj for obj in media_rows if obj.name == media_name)
+        assert row.perceptual_hashes is None
+        assert row.upgrade_candidate is True
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

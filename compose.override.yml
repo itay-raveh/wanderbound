@@ -12,7 +12,7 @@ services:
     read_only: false
     ports:
       - "127.0.0.1:8000:8000"
-    command: [start-wanderbound, --reload]
+    command: [start-wanderbound, --reload, --reload-exclude, /app/backend/data]
     environment:
       - PUBLIC_URL
     build:

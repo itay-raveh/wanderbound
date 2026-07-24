@@ -1,5 +1,5 @@
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from pydantic import SecretStr
 
@@ -53,7 +53,7 @@ def test_dbos_config_treats_blank_system_database_as_unset() -> None:
     )
 
 
-def test_launch_and_destroy_dbos_delegate_to_dbos_runtime() -> None:
+async def test_launch_and_destroy_dbos_delegate_to_dbos_runtime() -> None:
     settings = _Settings()
     with (
         patch("app.logic.workflows.runtime.DBOS") as dbos,
@@ -61,12 +61,16 @@ def test_launch_and_destroy_dbos_delegate_to_dbos_runtime() -> None:
             "app.logic.workflows.runtime.dbos_config", return_value={"name": "x"}
         ) as dbos_config_mock,
     ):
-        launch_dbos(settings, run_admin_server=False)
+        dbos.register_queue_async = AsyncMock()
+        await launch_dbos(settings, run_admin_server=False)
         destroy_dbos()
 
     dbos_config_mock.assert_called_once_with(settings, run_admin_server=False)
     dbos.assert_called_once_with(config={"name": "x"})
     dbos.launch.assert_called_once_with()
+    dbos.register_queue_async.assert_awaited_once_with(
+        "media-hash-backfill", worker_concurrency=1
+    )
     dbos.destroy.assert_called_once()
 
 

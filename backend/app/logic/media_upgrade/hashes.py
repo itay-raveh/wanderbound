@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import av
 import imagehash
@@ -13,6 +14,9 @@ from app.logic.layout.media import is_video
 
 from .phash_matching import MediaHash, compute_phash_from_path
 from .processing import extract_video_frame_hashes
+
+if TYPE_CHECKING:
+    from joblib.memory import MemorizedFunc
 
 logger = structlog.get_logger(__name__)
 
@@ -46,12 +50,28 @@ def compute_serialized_media_hash(path: Path) -> list[str]:
     return serialize_media_hash(compute_media_hash(path))
 
 
-def _hash_path(path: Path) -> tuple[str, list[str]] | None:
+def _hash_path(
+    path: Path, cached_hash: MemorizedFunc | None = None
+) -> tuple[str, list[str]] | None:
     try:
-        return path.name, compute_serialized_media_hash(path)
+        if cached_hash is None:
+            hashes = compute_serialized_media_hash(path)
+        else:
+            stat = path.stat()
+            hashes = serialize_media_hash(
+                cached_hash(
+                    path,
+                    stat.st_dev,
+                    stat.st_ino,
+                    stat.st_size,
+                    stat.st_mtime_ns,
+                )
+            )
     except OSError, SyntaxError, ValueError, av.FFmpegError:
         logger.warning("media_hash.compute_failed", media_name=path.name)
         return None
+    else:
+        return path.name, hashes
 
 
 def try_compute_serialized_media_hash(path: Path) -> list[str] | None:
@@ -59,11 +79,16 @@ def try_compute_serialized_media_hash(path: Path) -> list[str] | None:
     return result[1] if result is not None else None
 
 
-def compute_serialized_media_hashes(paths: Iterable[Path]) -> dict[str, list[str]]:
+def compute_serialized_media_hashes(
+    paths: Iterable[Path],
+    *,
+    workers: int | None = None,
+    cached_hash: MemorizedFunc | None = None,
+) -> dict[str, list[str]]:
     results = Parallel(
-        n_jobs=_HASH_WORKERS,
+        n_jobs=_HASH_WORKERS if workers is None else workers,
         prefer="threads",
         return_as="generator_unordered",
         pre_dispatch="n_jobs",
-    )(delayed(_hash_path)(path) for path in paths)
+    )(delayed(_hash_path)(path, cached_hash) for path in paths)
     return dict(result for result in results if result is not None)

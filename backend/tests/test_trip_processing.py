@@ -28,7 +28,9 @@ from app.models.polarsteps import Location, PSStep
 from tests.factories import make_ps_step, make_user
 
 
-def test_build_album_media_rows_includes_precomputed_hashes(tmp_path: Path) -> None:
+def test_build_album_media_rows_leave_hashes_for_background_backfill(
+    tmp_path: Path,
+) -> None:
     name = "photo.jpg"
     (tmp_path / name).write_bytes(b"photo")
 
@@ -37,22 +39,16 @@ def test_build_album_media_rows_includes_precomputed_hashes(tmp_path: Path) -> N
         "album",
         tmp_path,
         [Media(name=name, width=800, height=600)],
-        perceptual_hashes_by_name={name: ["0123456789abcdef"]},
     )
 
-    assert rows[0].perceptual_hashes == ["0123456789abcdef"]
+    assert rows[0].perceptual_hashes is None
 
 
-async def test_media_pipeline_precomputes_hashes_after_flattening(
+async def test_media_pipeline_does_not_compute_hashes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    photo = Media(
-        name="photo.jpg",
-        width=800,
-        height=600,
-        perceptual_hashes=["0123456789abcdef"],
-    )
+    photo = Media(name="photo.jpg", width=800, height=600)
     video = Media(name="video.mp4", width=800, height=600)
     layout = Layout("photo.jpg", [["video.mp4"]], [photo, video])
 
@@ -64,17 +60,15 @@ async def test_media_pipeline_precomputes_hashes_after_flattening(
 
     monkeypatch.setattr("app.logic.trip_processing.fetch_layouts", fake_fetch)
     monkeypatch.setattr("app.logic.trip_processing.prepare_media", fake_prepare)
-    hashed_paths: list[Path] = []
 
-    def fake_hashes(paths: list[Path]) -> dict[str, list[str]]:
-        hashed_paths.extend(paths)
-        return {path.name: ["fedcba9876543210"] for path in paths}
+    def fail_if_called(_paths: list[Path]) -> dict[str, list[str]]:
+        raise AssertionError("album processing must not compute perceptual hashes")
 
     monkeypatch.setattr(
-        "app.logic.trip_processing.compute_serialized_media_hashes", fake_hashes
+        "app.logic.media_upgrade.hashes.compute_serialized_media_hashes", fail_if_called
     )
 
-    _, _, hashes = await _media_pipeline(
+    layouts, cover = await _media_pipeline(
         make_user(1),
         SimpleNamespace(all_steps=[make_ps_step()]),
         tmp_path,
@@ -82,11 +76,8 @@ async def test_media_pipeline_precomputes_hashes_after_flattening(
         asyncio.Queue(),
     )
 
-    assert hashed_paths == [tmp_path / "video.mp4"]
-    assert hashes == {
-        "photo.jpg": ["0123456789abcdef"],
-        "video.mp4": ["fedcba9876543210"],
-    }
+    assert layouts == {0: layout}
+    assert cover == "photo.jpg"
 
 
 class TestDefaultMediaResolutionWarningPreset:

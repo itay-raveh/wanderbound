@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 from app.core.async_helpers import yield_completed
 from app.core.http_clients import HttpClients
 from app.core.observability import start_span
-from app.core.worker_threads import run_sync
 from app.logic.chapters import default_album_chapter
 from app.logic.country_colors import build_country_colors
 from app.logic.layout import Layout, build_step_layout
@@ -22,7 +21,6 @@ from app.logic.layout.media import (
     Media,
     normalize_name,
 )
-from app.logic.media_upgrade.hashes import compute_serialized_media_hashes
 from app.logic.spatial.geo import haversine_km
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
@@ -126,7 +124,6 @@ class TripResults(NamedTuple):
     weather_by_idx: dict[int, Weather]
     layout_by_idx: dict[int, Layout | None]
     cover_name: str
-    perceptual_hashes_by_name: dict[str, list[str]]
 
 
 def default_media_resolution_warning_preset(user: User) -> MediaResolutionWarningPreset:
@@ -295,7 +292,6 @@ def build_trip_objects(  # noqa: PLR0913
         aid,
         trip_dir,
         merged_media,
-        perceptual_hashes_by_name=results.perceptual_hashes_by_name,
     )
     step_media = [
         placement
@@ -493,13 +489,13 @@ async def _media_pipeline(
     trip_dir: Path,
     cover_name: str,
     queue: asyncio.Queue[PhaseUpdate | None],
-) -> tuple[dict[int, Layout | None], str, dict[str, list[str]]]:
+) -> tuple[dict[int, Layout | None], str]:
     """Layouts -> flatten (sequential pipeline).
 
     Runs as one TaskGroup member so flattening starts as soon as
     layouts finish, without waiting for the API calls to complete.
     Video posters and thumbnails are generated lazily on first request.
-    Returns (layout_by_idx, cover_name, perceptual_hashes_by_name).
+    Returns (layout_by_idx, cover_name).
     """
     aid = trip_dir.name
     n_steps = len(trip.all_steps)
@@ -522,29 +518,7 @@ async def _media_pipeline(
 
     cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 
-    media_by_name = {
-        media.name: media
-        for layout in layout_by_idx.values()
-        if layout is not None
-        for media in layout.media
-    }
-    perceptual_hashes_by_name = {
-        name: media.perceptual_hashes
-        for name, media in media_by_name.items()
-        if media.perceptual_hashes is not None
-    }
-    perceptual_hashes_by_name.update(
-        await run_sync(
-            compute_serialized_media_hashes,
-            [
-                trip_dir / name
-                for name in media_by_name
-                if name not in perceptual_hashes_by_name
-            ],
-        )
-    )
-
-    return layout_by_idx, cover_name, perceptual_hashes_by_name
+    return layout_by_idx, cover_name
 
 
 def resolve_international_waters(steps: list[PSStep]) -> None:

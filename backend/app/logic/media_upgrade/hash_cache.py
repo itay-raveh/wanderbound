@@ -22,6 +22,8 @@ _CACHE_DIR = ".media-hash-cache"
 
 def _compute_local_hash(
     path: Path,
+    _device: int,
+    _inode: int,
     _size: int,
     _mtime_ns: int,
 ) -> MediaHash:

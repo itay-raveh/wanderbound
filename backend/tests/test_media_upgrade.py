@@ -433,7 +433,7 @@ class TestNeedsUpgrade:
 
 
 class TestPersistUpgrade:
-    async def test_updates_album_media_byte_size(
+    async def test_updates_metadata_and_invalidates_hash_for_replaced_media(
         self,
         session: AsyncSession,
         tmp_path: Path,
@@ -460,7 +460,7 @@ class TestPersistUpgrade:
         await session.refresh(media)
 
         assert media.byte_size == target.stat().st_size
-        assert media.perceptual_hashes == ["0123456789abcdef"]
+        assert media.perceptual_hashes is None
         assert media.upgrade_candidate is False
 
 

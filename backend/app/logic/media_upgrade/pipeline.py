@@ -169,6 +169,8 @@ async def _hash_local_one(
         return name, await run_sync(
             cached_hash,
             path,
+            stat.st_dev,
+            stat.st_ino,
             stat.st_size,
             stat.st_mtime_ns,
             limiter=_hash_limiter(),
@@ -726,6 +728,7 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
         row.width = updated.width
         row.height = updated.height
         row.byte_size = target.stat().st_size
+        row.perceptual_hashes = None
         row.upgrade_candidate = False
         row.updated_at = now
         session.add(row)

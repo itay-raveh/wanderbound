@@ -14,7 +14,6 @@ from app.core.http_clients import HttpClients
 from app.core.worker_threads import run_sync
 from app.logic.layout import Layout
 from app.logic.layout.media import Media, media_limiter, normalize_name
-from app.logic.media_upgrade.hashes import compute_serialized_media_hashes
 from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
@@ -122,7 +121,6 @@ async def _probe_media(
             return await run_sync(
                 Media.load,
                 trip_dir / name,
-                compute_perceptual_hash=True,
                 limiter=media_limiter,
             )
         except OSError, ValueError:
@@ -133,6 +131,27 @@ async def _probe_media(
     for m in probed:
         merged[m.name] = m
     return list(merged.values())
+
+
+def _retained_media_state(
+    trip_dir: Path,
+    all_on_disk: set[str],
+    existing_media_rows: list[AlbumMedia],
+) -> tuple[dict[str, list[str]], dict[str, bool]]:
+    retained_hashes: dict[str, list[str]] = {}
+    retained_candidates: dict[str, bool] = {}
+    for row in existing_media_rows:
+        if row.name not in all_on_disk:
+            continue
+        try:
+            current_size = (trip_dir / row.name).stat().st_size
+        except OSError:
+            continue
+        if current_size == row.byte_size:
+            retained_candidates[row.name] = row.upgrade_candidate
+            if row.perceptual_hashes is not None:
+                retained_hashes[row.name] = row.perceptual_hashes
+    return retained_hashes, retained_candidates
 
 
 def _fix_album_covers(
@@ -215,7 +234,6 @@ async def _process_new_steps(  # noqa: PLR0913
             weather_by_idx=weather_task.result(),
             layout_by_idx=layout_task.result(),
             cover_name=cover_name,
-            perceptual_hashes_by_name={},
         )
 
     runner = asyncio.create_task(_phases())
@@ -369,30 +387,15 @@ async def reconcile_trip(  # noqa: PLR0913
     merged_media = await _probe_media(
         trip_dir, [*new_step_objects, *reconciled_steps], known_media
     )
-    perceptual_hashes_by_name = {
-        row.name: row.perceptual_hashes
-        for row in existing_media_rows
-        if row.name in all_on_disk and row.perceptual_hashes is not None
-    }
-    for media in merged_media:
-        if media.perceptual_hashes is not None:
-            perceptual_hashes_by_name.setdefault(media.name, media.perceptual_hashes)
-    perceptual_hashes_by_name.update(
-        await run_sync(
-            compute_serialized_media_hashes,
-            [
-                trip_dir / media.name
-                for media in merged_media
-                if media.name not in perceptual_hashes_by_name
-            ],
-        )
+    perceptual_hashes_by_name, upgrade_candidate_by_name = await run_sync(
+        _retained_media_state, trip_dir, all_on_disk, existing_media_rows
     )
     album_media = build_album_media_rows(
         user.id,
         aid,
         trip_dir,
         merged_media,
-        {row.name: row.upgrade_candidate for row in existing_media_rows},
+        upgrade_candidate_by_name,
         perceptual_hashes_by_name,
     )
 

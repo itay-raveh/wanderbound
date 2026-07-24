@@ -103,7 +103,7 @@ def test_start_processing_workflow_uses_operation_workflow_id(
     ]
 
 
-async def test_run_processing_workflow_payload_persists_events_and_succeeds(
+async def test_processing_succeeds_when_one_hash_enqueue_fails(
     session: AsyncSession,
 ) -> None:
     user = User(
@@ -133,10 +133,20 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
             "app.logic.workflows.processing.schedule_album_route_enrichment"
         ) as schedule,
         patch(
+            "app.logic.workflows.processing.enqueue_media_hash_backfill",
+            new_callable=AsyncMock,
+        ) as enqueue_hashes,
+        patch(
+            "app.logic.workflows.processing.media_hash_backfill_revision",
+            new_callable=AsyncMock,
+            side_effect=["revision-1", "revision-2"],
+        ),
+        patch(
             "app.logic.workflows.processing.workflow_executor_id",
             return_value="worker-test",
         ),
     ):
+        enqueue_hashes.side_effect = [RuntimeError("queue unavailable"), None]
         result = await run_processing_workflow_payload(
             processing_workflow_payload(operation, user),
             http,
@@ -156,6 +166,10 @@ async def test_run_processing_workflow_payload_persists_events_and_succeeds(
     assert [call.args for call in schedule.call_args_list] == [
         (http, 42, "trip-1"),
         (http, 42, "trip-2"),
+    ]
+    assert [call.args for call in enqueue_hashes.await_args_list] == [
+        (42, "trip-1", 1, "revision-1"),
+        (42, "trip-2", 1, "revision-2"),
     ]
 
 
@@ -186,6 +200,10 @@ async def test_run_processing_workflow_payload_marks_failed_on_error_event(
         patch(
             "app.logic.workflows.processing.schedule_album_route_enrichment"
         ) as schedule,
+        patch(
+            "app.logic.workflows.processing.enqueue_media_hash_backfill",
+            new_callable=AsyncMock,
+        ) as enqueue_hashes,
     ):
         result = await run_processing_workflow_payload(
             processing_workflow_payload(operation, user),
@@ -198,6 +216,7 @@ async def test_run_processing_workflow_payload_marks_failed_on_error_event(
     assert result == {"operation_id": operation.operation_id, "status": "failed"}
     assert operation.status == "failed"
     schedule.assert_not_called()
+    enqueue_hashes.assert_not_awaited()
 
 
 async def test_run_processing_workflow_payload_marks_failed_when_processing_raises(

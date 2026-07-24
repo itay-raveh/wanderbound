@@ -29,7 +29,7 @@ class AlbumMedia(SQLModel, table=True):
     perceptual_hashes: SkipJsonSchema[list[str] | None] = Field(
         default=None,
         exclude=True,
-        sa_column=sa.Column(sa.JSON(), nullable=True),
+        sa_column=sa.Column(sa.JSON(none_as_null=True), nullable=True),
     )
     upgrade_candidate: bool = Field(default=True)
     created_at: datetime = Field(
@@ -104,7 +104,7 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
     perceptual_hashes: SkipJsonSchema[list[str] | None] = Field(
         default=None,
         exclude=True,
-        sa_column=sa.Column(sa.JSON(), nullable=True),
+        sa_column=sa.Column(sa.JSON(none_as_null=True), nullable=True),
     )
     upgrade_candidate: bool
     created_at: datetime = Field(
