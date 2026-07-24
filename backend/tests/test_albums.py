@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -10,6 +11,7 @@ import pytest
 
 from app.logic.pdf import PdfArtifact, PdfDone, PdfEvent
 from app.main import app
+from app.models.album import Album
 from app.models.segment import Segment, SegmentKind
 
 from .factories import (
@@ -61,6 +63,24 @@ class TestReadAlbum:
         assert "media" not in data
         assert "steps" not in data
         assert "segments" not in data
+
+    async def test_refreshes_album_activity_at_most_hourly(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        album = await session.get_one(Album, (signed_album.uid, signed_album.aid))
+        previous = datetime.now(UTC) - timedelta(hours=2)
+        album.last_active_at = previous
+        session.add(album)
+        await session.commit()
+
+        response = await album_routes.get_album()
+
+        assert response.status_code == 200
+        await session.refresh(album)
+        assert album.last_active_at.replace(tzinfo=UTC) > previous
 
 
 class TestReadSegments:

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -162,6 +163,15 @@ async def to_user_public(user: User, session: AsyncSession) -> UserPublic:
     album_count = await session.scalar(
         select(func.count()).select_from(Album).where(Album.uid == user.id)
     )
+    available_ids = user.album_ids
+    if album_count:
+        available_ids = await asyncio.to_thread(
+            lambda: [
+                aid for aid in user.album_ids if (user.trips_folder / aid).is_dir()
+            ]
+        )
     public = UserPublic.model_validate(user)
-    public.is_processed = user.has_data and album_count == len(user.album_ids)
+    public.album_ids = available_ids
+    public.has_data = bool(available_ids)
+    public.is_processed = bool(available_ids) and album_count == len(user.album_ids)
     return public
