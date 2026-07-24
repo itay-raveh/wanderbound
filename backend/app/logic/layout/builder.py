@@ -112,7 +112,7 @@ def _build_pages(
 def _load_photos(folder: Path) -> list[Media]:
     """Load photo metadata from a folder (sync - runs in thread pool)."""
     return [
-        Media.load(p)
+        Media.load(p, compute_perceptual_hash=True)
         for p in folder.iterdir()
         if p.is_file() and p.suffix.lower() == ".jpg"
     ]

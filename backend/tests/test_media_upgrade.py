@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
 import imagehash
@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
+from sqlalchemy.exc import SQLAlchemyError
 from structlog.testing import capture_logs
 
 from app.core.config import get_settings
@@ -32,6 +33,7 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
     _is_progress_checkpoint,
     _needs_upgrade,
+    _persist_local_hashes,
     _persist_upgrade_in_session,
     run_matching,
     run_upgrade,
@@ -440,6 +442,7 @@ class TestPersistUpgrade:
         await insert_album(session, uid)
         media = await insert_album_media(session, uid, name="photo.jpg")
         media.byte_size = 1
+        media.perceptual_hashes = ["0123456789abcdef"]
         session.add(media)
         target = create_test_jpeg(tmp_path / "photo.jpg", 1200, 800)
         await session.commit()
@@ -457,6 +460,7 @@ class TestPersistUpgrade:
         await session.refresh(media)
 
         assert media.byte_size == target.stat().st_size
+        assert media.perceptual_hashes == ["0123456789abcdef"]
         assert media.upgrade_candidate is False
 
 
@@ -471,6 +475,194 @@ class TestRunMatching:
         assert len(checkpoints) < total // 2
         assert checkpoints[-1] == total
         assert all(_is_progress_checkpoint(done, 5) for done in range(1, 6))
+
+    async def test_uses_database_hash_without_reading_local_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        media_hash = _make_hash(0x1234)
+
+        async def fake_candidate(
+            _download: object,
+            item: PickedMediaItem,
+            _tokens: object,
+            _cached_hash: object,
+        ) -> tuple[str, imagehash.ImageHash]:
+            return item.id, media_hash
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one",
+            AsyncMock(side_effect=AssertionError("local media was decoded")),
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.local_hash_cache",
+            MagicMock(side_effect=AssertionError("disk cache was opened")),
+        )
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["photo.jpg"]},
+                step_ids=[1],
+                google_items=[_make_item("google-photo", _match_dt(10).isoformat())],
+                tokens=_test_token,
+                persisted_local_hashes={"photo.jpg": [str(media_hash)]},
+            )
+        ]
+
+        assert isinstance(events[-1], MatchCompleted)
+        assert events[-1].matched == 1
+
+    async def test_persists_hashes_computed_during_backfill(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        media_hash = _make_hash(0x1234)
+
+        async def fake_local(
+            _album_dir: Path, name: str, _cached_hash: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, media_hash
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        persist = AsyncMock()
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_local_hashes", persist
+        )
+
+        _ = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["photo.jpg"]},
+                step_ids=[1],
+                google_items=[],
+                tokens=_test_token,
+                uid=1,
+                aid=AID,
+                persisted_local_hashes={"photo.jpg": None},
+            )
+        ]
+
+        persist.assert_awaited_once_with(
+            1,
+            AID,
+            {"photo.jpg": [str(media_hash)]},
+        )
+
+    async def test_backfill_does_not_overwrite_concurrent_valid_hash(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        valid = MagicMock()
+        valid.name = "valid.jpg"
+        valid.perceptual_hashes = ["0123456789abcdef"]
+        missing = MagicMock()
+        missing.name = "missing.jpg"
+        missing.perceptual_hashes = None
+        result = MagicMock()
+        result.all.return_value = [valid, missing]
+        session = MagicMock()
+        session.exec = AsyncMock(return_value=result)
+        session.commit = AsyncMock()
+        context = AsyncMock()
+        context.__aenter__.return_value = session
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline.AsyncSession",
+            MagicMock(return_value=context),
+        )
+
+        await _persist_local_hashes(
+            1,
+            AID,
+            {
+                "valid.jpg": ["fedcba9876543210"],
+                "missing.jpg": ["fedcba9876543210"],
+            },
+        )
+
+        assert valid.perceptual_hashes == ["0123456789abcdef"]
+        assert missing.perceptual_hashes == ["fedcba9876543210"]
+        session.add.assert_called_once_with(missing)
+        session.commit.assert_awaited_once()
+
+    async def test_invalid_database_hash_is_recomputed_and_replaced(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        media_hash = _make_hash(0x1234)
+
+        async def fake_local(
+            _album_dir: Path, name: str, _cached_hash: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, media_hash
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        persist = AsyncMock()
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_local_hashes", persist
+        )
+
+        _ = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["photo.jpg"]},
+                step_ids=[1],
+                google_items=[],
+                tokens=_test_token,
+                uid=1,
+                aid=AID,
+                persisted_local_hashes={"photo.jpg": ["not-a-hash"]},
+            )
+        ]
+
+        persist.assert_awaited_once_with(
+            1,
+            AID,
+            {"photo.jpg": [str(media_hash)]},
+        )
+
+    async def test_matching_continues_when_backfill_persistence_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        media_hash = _make_hash(0x1234)
+
+        async def fake_local(
+            _album_dir: Path, name: str, _cached_hash: object
+        ) -> tuple[str, imagehash.ImageHash]:
+            return name, media_hash
+
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+        )
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_local_hashes",
+            AsyncMock(side_effect=SQLAlchemyError("database unavailable")),
+        )
+
+        events = [
+            event
+            async for event in run_matching(
+                clients=AsyncMock(),
+                album_dir=tmp_path,
+                media_by_step={1: ["photo.jpg"]},
+                step_ids=[1],
+                google_items=[],
+                tokens=_test_token,
+                uid=1,
+                aid=AID,
+                persisted_local_hashes={"photo.jpg": None},
+            )
+        ]
+
+        assert isinstance(events[-1], MatchCompleted)
 
     async def test_cancels_pending_hashes_when_stream_closes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -508,12 +700,25 @@ class TestRunMatching:
             step_ids=[1],
             google_items=[],
             tokens=_test_token,
+            uid=1,
+            aid=AID,
+            persisted_local_hashes={"fast.jpg": None, "slow.jpg": None},
+        )
+
+        persist = AsyncMock()
+        monkeypatch.setattr(
+            "app.logic.media_upgrade.pipeline._persist_local_hashes", persist
         )
 
         try:
             assert isinstance(await anext(events), MatchInProgress)
             await events.aclose()
             await asyncio.wait_for(slow_cancelled.wait(), timeout=0.1)
+            persist.assert_awaited_once_with(
+                1,
+                AID,
+                {"fast.jpg": [str(_make_hash(0))]},
+            )
         finally:
             for task in slow_tasks:
                 task.cancel()
@@ -753,8 +958,10 @@ class TestRunMatching:
             "matched": 1,
             "unmatched_local": 0,
             "nearest_13_to_15": 0,
+            "local_hash_database_hits": 0,
             "local_hash_cache_hits": 0,
             "local_hash_cache_misses": 2,
+            "local_hash_backfilled": 1,
             "candidate_hash_cache_hits": 0,
             "candidate_hash_cache_misses": 2,
         }

@@ -193,7 +193,7 @@ async def _snapshot_upgrade_state(
 async def _snapshot_steps_and_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[list[StepRead], set[str]]:
+) -> tuple[list[StepRead], set[str], dict[str, list[str] | None]]:
     """Read step layouts plus remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
@@ -203,7 +203,11 @@ async def _snapshot_steps_and_upgrade_state(
             )
         ).all()
         step_rows = await read_steps_with_media(session, uid, aid)
-    return step_rows, {row.name for row in media_rows if row.upgrade_candidate}
+    return (
+        step_rows,
+        {row.name for row in media_rows if row.upgrade_candidate},
+        {row.name: row.perceptual_hashes for row in media_rows},
+    )
 
 
 router = APIRouter(
@@ -478,10 +482,11 @@ async def match_media(
                     "album.id": aid,
                 },
             ):
-                step_rows, upgrade_candidates = await _snapshot_steps_and_upgrade_state(
-                    user.id,
-                    aid,
-                )
+                (
+                    step_rows,
+                    upgrade_candidates,
+                    persisted_local_hashes,
+                ) = await _snapshot_steps_and_upgrade_state(user.id, aid)
 
             album_dir = _album_dir(user, aid)
             step_ids = [s.id for s in step_rows]
@@ -514,6 +519,9 @@ async def match_media(
                 google_items=items,
                 tokens=tokens,
                 upgrade_candidates=upgrade_candidates,
+                persisted_local_hashes=persisted_local_hashes,
+                uid=user.id,
+                aid=aid,
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001

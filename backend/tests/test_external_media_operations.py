@@ -178,6 +178,7 @@ def _add_undo_snapshot(
     *,
     uid: int = 1,
     media_name: str = VALID_VIDEO_NAME,
+    perceptual_hashes: list[str] | None = None,
     created_at: datetime | None = None,
     expires_at: datetime | None = None,
 ) -> None:
@@ -188,6 +189,7 @@ def _add_undo_snapshot(
             aid=AID,
             media_name=media_name,
             snapshot_path=str(Path(".undo") / media_name),
+            perceptual_hashes=perceptual_hashes,
             upgrade_candidate=True,
             created_at=now,
             expires_at=expires_at or now + timedelta(minutes=5),
@@ -215,7 +217,9 @@ async def test_replace_preserves_media_name_and_creates_undo(
 ) -> None:
     uid = 1
     album_dir = tmp_path
-    album, _media = await _album_with_photo(session, album_dir, uid=uid)
+    album, media = await _album_with_photo(session, album_dir, uid=uid)
+    media.perceptual_hashes = ["0000000000000000"]
+    session.add(media)
     replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
     await session.commit()
 
@@ -232,8 +236,10 @@ async def test_replace_preserves_media_name_and_creates_undo(
     assert row.width == 1600
     assert row.height == 1200
     assert row.upgrade_candidate is False
+    assert row.perceptual_hashes not in (None, ["0000000000000000"])
     snap = await session.get_one(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME))
     assert snap.expires_at > snap.created_at
+    assert snap.perceptual_hashes == ["0000000000000000"]
 
 
 async def test_prune_all_expired_undo_snapshots_uses_shared_user_folder(
@@ -361,13 +367,19 @@ async def test_video_undo_restores_snapshot_poster(
         session, tmp_path, uid=uid, content=b"replacement video"
     )
     poster = _seed_video_undo_files(tmp_path, target, snapshot_poster=b"custom poster")
-    _add_undo_snapshot(session, uid=uid)
+    _add_undo_snapshot(
+        session,
+        uid=uid,
+        perceptual_hashes=["0123456789abcdef"],
+    )
     await session.commit()
 
     extract_frame = await _restore_video_undo(session, album, tmp_path)
 
     assert poster.read_bytes() == b"custom poster"
     extract_frame.assert_not_awaited()
+    row = await session.get_one(AlbumMedia, (uid, AID, VALID_VIDEO_NAME))
+    assert row.perceptual_hashes == ["0123456789abcdef"]
 
 
 async def test_video_undo_regenerates_restored_poster(

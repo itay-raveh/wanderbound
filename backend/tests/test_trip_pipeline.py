@@ -328,7 +328,7 @@ class TestProcessTripSegmentEvents:
             ),
             patch(
                 "app.logic.trip_pipeline._media_pipeline",
-                new=AsyncMock(return_value=({}, "")),
+                new=AsyncMock(return_value=({}, "", {})),
             ),
             patch(
                 "app.logic.trip_pipeline.build_trip_objects",
