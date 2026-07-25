@@ -12,10 +12,11 @@ cors_rule() {
 }
 
 cors_rules=$(cors_rule "$UPLOAD_CORS_ORIGIN")
-if [ -n "${UPLOAD_CORS_EXTRA_ORIGIN:-}" ] \
-  && [ "$UPLOAD_CORS_EXTRA_ORIGIN" != "$UPLOAD_CORS_ORIGIN" ]; then
-  cors_rules="${cors_rules},$(cors_rule "$UPLOAD_CORS_EXTRA_ORIGIN")"
-fi
+for origin in ${UPLOAD_CORS_EXTRA_ORIGINS:-}; do
+  if [ "$origin" != "$UPLOAD_CORS_ORIGIN" ]; then
+    cors_rules="${cors_rules},$(cors_rule "$origin")"
+  fi
+done
 
 cors_configuration="{\"CORSRules\":[${cors_rules}]}"
 

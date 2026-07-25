@@ -78,6 +78,7 @@ if (settings.DATA_FOLDER / "upload-work" / sys.argv[1]).exists():
 for (const appOrigin of [
   "http://localhost:8000",
   "http://127.0.0.1:8000",
+  "http://localhost:5173",
 ]) {
   test(`uploads a multipart ZIP directly to Garage from ${appOrigin}`, async ({
     page,
