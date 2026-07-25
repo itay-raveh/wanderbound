@@ -1,4 +1,8 @@
 services:
+  object-storage-init:
+    environment:
+      UPLOAD_CORS_EXTRA_ORIGIN: http://127.0.0.1:8000
+
   app:
     image: wanderbound:${APP_VERSION:-dev}
     command: >-
