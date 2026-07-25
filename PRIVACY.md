@@ -1,12 +1,12 @@
 # Privacy Policy
 
-*Last updated: July 13, 2026*
+*Last updated: July 25, 2026*
 
 Wanderbound is an open-source photo album generator. This policy covers what we collect, how we use it, and your rights.
 
 ## Data Controller
 
-Each Wanderbound instance is independently operated. The person or organization running the instance you use is the data controller responsible for your data under applicable privacy laws (including the GDPR). The Wanderbound open-source project itself does not operate a hosted service and does not receive or process your data.
+Each Wanderbound instance is independently operated. The person or organization running the instance you use is the data controller responsible for your data under applicable privacy laws (including the GDPR).
 
 If you run your own Wanderbound instance, you are the data controller for your users and are responsible for your own privacy compliance.
 
