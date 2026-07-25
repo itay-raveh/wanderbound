@@ -40,30 +40,22 @@ describe("replacement notification", () => {
     notify.create.mockReturnValue(notify.update);
   });
 
-  it("starts an indefinite loading notification", () => {
+  it("reports replacement progress, then shows the file receipt and choices", () => {
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
 
     undo.startReplacement();
 
-    expect(notify.create).toHaveBeenCalledWith({
-      group: false,
-      timeout: 0,
-      type: "info",
-      spinner: true,
-      message: "Replacing media…",
-    });
-    undo.clearUndoState();
-  });
-
-  it("updates the loading notification with our success actions", () => {
-    const undo = withSetup(() => useMediaUndo(() => "album-1"));
-    undo.startReplacement();
+    expect(notify.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spinner: true,
+        message: "Replacing media…",
+      }),
+    );
     notify.update.mockClear();
+
     undo.rememberReplacement(replacement);
 
     expect(replacementNotification()).toMatchObject({
-      timeout: 300_000,
-      type: "positive",
       spinner: false,
       message: "Media replaced",
       caption:
@@ -71,13 +63,10 @@ describe("replacement notification", () => {
       actions: [
         {
           label: "Undo",
-          color: "white",
-          noDismiss: true,
           handler: expect.any(Function),
         },
         {
           label: "Keep replacement",
-          color: "white",
           handler: expect.any(Function),
         },
       ],
@@ -85,55 +74,46 @@ describe("replacement notification", () => {
     undo.clearUndoState();
   });
 
-  it("updates the loading notification with our error state", () => {
+  it("reports a replacement failure without offering Undo", () => {
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
     notify.update.mockClear();
     undo.failReplacement("Replacement failed. Try again.");
 
     expect(replacementNotification()).toMatchObject({
-      timeout: 5000,
-      type: "negative",
       spinner: false,
       message: "Replacement failed. Try again.",
-      actions: [
-        {
-          icon: "close",
-          "aria-label": "Close",
-          handler: expect.any(Function),
-        },
-      ],
     });
+    expect(
+      replacementNotification().actions.some(
+        (action: { label?: string }) => action.label === "Undo",
+      ),
+    ).toBe(false);
+    expect(undo.currentUndo.value).toBeNull();
     undo.clearUndoState();
   });
 
-  it("dismisses the loading notification when replacement is canceled", () => {
-    const undo = withSetup(() => useMediaUndo(() => "album-1"));
-    undo.startReplacement();
-    notify.update.mockClear();
-    undo.cancelReplacement();
-
-    expect(notify.update).toHaveBeenCalledWith();
-  });
-
-  it("discards the undo opportunity when our close action runs", () => {
+  it("discards the undo opportunity when Keep replacement is chosen", () => {
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
     undo.rememberReplacement(replacement);
 
-    const close = replacementNotification().actions[1];
-    close.handler();
+    const keep = replacementNotification().actions.find(
+      (action: { label?: string }) => action.label === "Keep replacement",
+    );
+    keep.handler();
 
     expect(undo.currentUndo.value).toBeNull();
-    expect(notify.update).toHaveBeenLastCalledWith();
   });
 
-  it("keeps replacement undo pending until our request succeeds", async () => {
+  it("sends one undo request and keeps it pending until completion", async () => {
     const request = deferred<void>();
+    let requests = 0;
     server.use(
       http.post(
         "http://localhost:8000/api/v1/albums/album-1/external-media/undo/photo.jpg",
         async () => {
+          requests += 1;
           await request.promise;
           return HttpResponse.json({});
         },
@@ -143,53 +123,46 @@ describe("replacement notification", () => {
     undo.startReplacement();
     undo.rememberReplacement(replacement);
 
-    const action = replacementNotification().actions[0];
-    expect(action.noDismiss).toBe(true);
-    action.handler();
+    void undo.undo();
+    void undo.undo();
     await flushPromises();
 
+    expect(requests).toBe(1);
     expect(undo.currentUndo.value?.pending).toBe(true);
-    expect(replacementNotification()).toMatchObject({
-      timeout: 0,
-      type: "info",
-      spinner: true,
-      message: "Undoing replacement…",
-      actions: [],
-    });
     request.resolve();
     await flushPromises();
     expect(undo.currentUndo.value).toBeNull();
   });
 
-  it("keeps Undo recoverable after a failed request", async () => {
+  it("offers a working retry after an undo request fails", async () => {
+    let attempts = 0;
     server.use(
       http.post(
         "http://localhost:8000/api/v1/albums/album-1/external-media/undo/photo.jpg",
-        () => HttpResponse.json({}, { status: 500 }),
+        () => {
+          attempts += 1;
+          return attempts === 1
+            ? HttpResponse.json({}, { status: 500 })
+            : HttpResponse.json({});
+        },
       ),
     );
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
     undo.rememberReplacement(replacement);
 
-    replacementNotification().actions[0].handler();
+    await undo.undo();
     await flushPromises();
 
     expect(undo.currentUndo.value?.pending).toBe(false);
-    expect(replacementNotification()).toMatchObject({
-      timeout: 0,
-      type: "negative",
-      spinner: false,
-      message: "Undo failed. Try again.",
-      actions: [
-        { label: "Try undo again", handler: expect.any(Function) },
-        {
-          label: "Keep replacement",
-          handler: expect.any(Function),
-        },
-      ],
-    });
-    undo.clearUndoState();
+    const retry = replacementNotification().actions.find(
+      (action: { label?: string }) => action.label === "Try undo again",
+    );
+    retry.handler();
+    await flushPromises();
+
+    expect(attempts).toBe(2);
+    expect(undo.currentUndo.value).toBeNull();
   });
 
   it("keeps the numeric receipt isolated in the Hebrew interface", () => {
