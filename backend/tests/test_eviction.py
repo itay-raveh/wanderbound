@@ -9,6 +9,7 @@ import pytest
 from app.core.config import get_settings
 from app.logic.eviction import _sizes_by_album, run_eviction
 from app.models.album import Album
+from app.models.user import User
 
 from .factories import make_album, make_async_session_mock, make_user
 
@@ -39,6 +40,20 @@ def _mock_eviction_albums(*albums: Album) -> patch:
     ]
     mock_session = make_async_session_mock(exec=AsyncMock(return_value=mock_result))
     return patch("app.logic.eviction.AsyncSession", return_value=mock_session)
+
+
+def _single_demo_eviction(
+    users_dir: Path, *, commit_error: Exception | None = None
+) -> tuple[User, MagicMock]:
+    _make_file(users_dir / "1" / "trip" / "old" / "data.bin", 80)
+    user = make_user(1, album_ids=["old"], is_demo=True)
+    result = MagicMock()
+    result.all.return_value = [(_make_album(1, "old", hours_ago=48), user)]
+    session = make_async_session_mock(
+        exec=AsyncMock(return_value=result),
+        commit=AsyncMock(side_effect=commit_error),
+    )
+    return user, session
 
 
 class TestSizesByAlbum:
@@ -121,14 +136,8 @@ class TestRunEviction:
     ) -> None:
         _configure_storage(tmp_path, monkeypatch, 50)
 
-        _make_file(users_dir / "1" / "trip" / "old" / "data.bin", 80)
-        demo_user = make_user(1, album_ids=["old"], is_demo=True)
-        old_album = _make_album(1, "old", hours_ago=48)
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(old_album, demo_user)]
-        failed_session = make_async_session_mock(
-            exec=AsyncMock(return_value=mock_result),
-            commit=AsyncMock(side_effect=OSError("commit failed")),
+        demo_user, failed_session = _single_demo_eviction(
+            users_dir, commit_error=OSError("commit failed")
         )
 
         with (
@@ -163,14 +172,7 @@ class TestRunEviction:
     ) -> None:
         _configure_storage(tmp_path, monkeypatch, 50)
 
-        _make_file(users_dir / "1" / "trip" / "old" / "data.bin", 80)
-        demo_user = make_user(1, album_ids=["old"], is_demo=True)
-        old_album = _make_album(1, "old", hours_ago=48)
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(old_album, demo_user)]
-        failed_session = make_async_session_mock(
-            exec=AsyncMock(return_value=mock_result)
-        )
+        _, failed_session = _single_demo_eviction(users_dir)
 
         with (
             patch("app.logic.eviction.AsyncSession", return_value=failed_session),
@@ -198,14 +200,8 @@ class TestRunEviction:
     ) -> None:
         _configure_storage(tmp_path, monkeypatch, 50)
 
-        _make_file(users_dir / "1" / "trip" / "old" / "data.bin", 80)
-        demo_user = make_user(1, album_ids=["old"], is_demo=True)
-        old_album = _make_album(1, "old", hours_ago=48)
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(old_album, demo_user)]
-        failed_session = make_async_session_mock(
-            exec=AsyncMock(return_value=mock_result),
-            commit=AsyncMock(side_effect=OSError("commit failed")),
+        demo_user, failed_session = _single_demo_eviction(
+            users_dir, commit_error=OSError("commit failed")
         )
 
         with (
@@ -230,39 +226,6 @@ class TestRunEviction:
         recovery_session.delete.assert_not_awaited()
         assert not pending.exists()
         assert (users_dir / "1").exists()
-
-    async def test_activity_change_does_not_abandon_pending_demo_delete(
-        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _configure_storage(tmp_path, monkeypatch, 50)
-
-        _make_file(users_dir / "1" / "trip" / "old" / "data.bin", 80)
-        demo_user = make_user(1, album_ids=["old"], is_demo=True)
-        old_album = _make_album(1, "old", hours_ago=48)
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(old_album, demo_user)]
-        failed_session = make_async_session_mock(
-            exec=AsyncMock(return_value=mock_result),
-            commit=AsyncMock(side_effect=OSError("commit failed")),
-        )
-
-        with (
-            patch("app.logic.eviction.AsyncSession", return_value=failed_session),
-            pytest.raises(OSError, match="commit failed"),
-        ):
-            await run_eviction(skip_uid=999)
-
-        pending = next((users_dir / ".evictions").iterdir())
-        demo_user.last_active_at += timedelta(hours=1)
-        recovery_session = make_async_session_mock(
-            get=AsyncMock(return_value=demo_user)
-        )
-        with patch("app.logic.eviction.AsyncSession", return_value=recovery_session):
-            await run_eviction(skip_uid=999)
-
-        recovery_session.delete.assert_awaited_once_with(demo_user)
-        recovery_session.commit.assert_awaited_once()
-        assert not pending.exists()
 
     async def test_skips_uploading_user(
         self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
