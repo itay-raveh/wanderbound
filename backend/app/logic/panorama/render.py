@@ -1,0 +1,216 @@
+from __future__ import annotations
+
+import asyncio
+import math
+import secrets
+from pathlib import Path
+
+from PIL.Image import Resampling
+from pydantic import BaseModel, Field, model_validator
+
+from app.core.worker_threads import run_sync
+from app.logic.layout.media import media_limiter, open_oriented
+from app.models.album_media import PanoramaConfig
+
+_MAX_OUTPUT_DIMENSION = 8192
+_MAX_OUTPUT_PIXELS = 8192 * 4096
+_PREVIEW_MAX_WIDTH = 2048
+_RENDER_TIMEOUT_SECONDS = 60
+
+
+class PanoramaRenderError(RuntimeError):
+    pass
+
+
+class PanoramaValidationError(ValueError):
+    pass
+
+
+class PanoramaFrameUpdate(BaseModel):
+    yaw: float = Field(ge=-360, le=360)
+    pitch: float = Field(ge=-90, le=90)
+    perspective_fov: float = Field(gt=0, lt=180)
+    zoom: float = Field(ge=1)
+    captured_fov: float | None = Field(default=None, gt=0, lt=360)
+
+
+class PanoramaDestination(BaseModel):
+    kind: str = Field(min_length=1, max_length=32)
+    aspect_ratio: float = Field(gt=0, le=10)
+    width_px: int = Field(gt=0, le=_MAX_OUTPUT_DIMENSION)
+    height_px: int = Field(gt=0, le=_MAX_OUTPUT_DIMENSION)
+
+    @model_validator(mode="after")
+    def validate_output_area(self) -> PanoramaDestination:
+        if self.width_px * self.height_px > _MAX_OUTPUT_PIXELS:
+            raise ValueError("Panorama output exceeds the pixel limit")
+        actual = self.width_px / self.height_px
+        if not math.isclose(actual, self.aspect_ratio, rel_tol=0.02):
+            raise ValueError("Panorama destination aspect ratio is inconsistent")
+        return self
+
+
+def validate_panorama_frame(
+    config: PanoramaConfig,
+    destination: PanoramaDestination,
+) -> None:
+    if config.status != "active":
+        raise PanoramaValidationError("Panorama projection is not active")
+    if config.perspective_fov > config.captured_fov:
+        raise PanoramaValidationError("Perspective FOV exceeds the captured panorama")
+
+    horizontal_margin = (config.captured_fov - config.perspective_fov) / 2
+    if abs(config.yaw) > horizontal_margin:
+        raise PanoramaValidationError("Panorama yaw is outside the captured bounds")
+
+    source_width = config.cropped_area_width or config.source_width
+    source_height = config.cropped_area_height or config.source_height
+    focal_length = source_width / math.radians(config.captured_fov)
+    source_vertical_half_fov = math.degrees(
+        math.atan(source_height / (2 * focal_length))
+    )
+    output_vertical_half_fov = math.degrees(
+        math.atan(
+            math.tan(math.radians(config.perspective_fov / 2))
+            / destination.aspect_ratio
+        )
+    )
+    vertical_margin = source_vertical_half_fov - output_vertical_half_fov
+    if vertical_margin < 0 or abs(config.pitch) > vertical_margin:
+        raise PanoramaValidationError("Panorama pitch is outside the captured bounds")
+
+
+def panorama_render_path(
+    album_dir: Path,
+    media_name: str,
+    revision: int,
+    width_px: int,
+    height_px: int,
+) -> Path:
+    return (
+        album_dir
+        / ".panoramas"
+        / "rendered"
+        / Path(media_name).stem
+        / str(revision)
+        / f"{width_px}x{height_px}.jpg"
+    )
+
+
+def panorama_preview_path(album_dir: Path, media_name: str) -> Path:
+    return album_dir / ".panoramas" / "preview" / f"{Path(media_name).stem}.jpg"
+
+
+def resolve_panorama_source(
+    album_dir: Path,
+    media_name: str,
+    config: PanoramaConfig,
+) -> Path:
+    relative = Path(config.original_path or media_name)
+    source = (album_dir / relative).resolve()
+    if not source.is_relative_to(album_dir.resolve()) or not source.is_file():
+        fallback = (album_dir / media_name).resolve()
+        if not fallback.is_relative_to(album_dir.resolve()) or not fallback.is_file():
+            raise FileNotFoundError(media_name)
+        return fallback
+    return source
+
+
+async def render_panorama(
+    source: Path,
+    config: PanoramaConfig,
+    destination: PanoramaDestination,
+    output: Path,
+) -> None:
+    validate_panorama_frame(config, destination)
+    if not await run_sync(source.is_file):
+        raise PanoramaValidationError("Panorama source does not exist")
+
+    await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+    temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
+    filter_graph = _filter_graph(config, destination)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(source),
+            "-frames:v",
+            "1",
+            "-vf",
+            filter_graph,
+            "-q:v",
+            "2",
+            str(temporary),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=_RENDER_TIMEOUT_SECONDS,
+            )
+        except TimeoutError as error:
+            process.kill()
+            await process.communicate()
+            raise PanoramaRenderError("Panorama rendering timed out") from error
+        if process.returncode != 0:
+            detail = stderr.decode(errors="replace").strip()
+            raise PanoramaRenderError(detail or "FFmpeg failed to render panorama")
+        if not await run_sync(temporary.is_file):
+            raise PanoramaRenderError("FFmpeg did not produce a panorama image")
+        await run_sync(temporary.replace, output)
+    except OSError as error:
+        raise PanoramaRenderError("Unable to run FFmpeg panorama rendering") from error
+    finally:
+        await run_sync(temporary.unlink, missing_ok=True)
+
+
+def _filter_graph(
+    config: PanoramaConfig,
+    destination: PanoramaDestination,
+) -> str:
+    projection = (
+        "v360=input=cylindrical:output=flat:"
+        f"ih_fov={_number(config.captured_fov)}:"
+        f"yaw={_number(config.yaw)}:"
+        f"pitch={_number(config.pitch)}:"
+        f"h_fov={_number(config.perspective_fov)}:"
+        f"w={destination.width_px}:h={destination.height_px}"
+    )
+    if config.zoom == 1:
+        return projection
+    zoom = _number(config.zoom)
+    return (
+        f"{projection},"
+        f"crop=iw/{zoom}:ih/{zoom}:(iw-iw/{zoom})/2:(ih-ih/{zoom})/2,"
+        f"scale={destination.width_px}:{destination.height_px}:flags=lanczos"
+    )
+
+
+def _number(value: float) -> str:
+    return format(value, "g")
+
+
+def _create_preview_sync(source: Path, output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
+    try:
+        with open_oriented(source) as image:
+            ratio = min(1, _PREVIEW_MAX_WIDTH / image.width)
+            size = (round(image.width * ratio), round(image.height * ratio))
+            preview = image.convert("RGB")
+            if preview.size != size:
+                preview = preview.resize(size, Resampling.LANCZOS)
+            preview.save(temporary, "JPEG", quality=85)
+        temporary.replace(output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+async def create_panorama_preview(source: Path, output: Path) -> None:
+    await run_sync(_create_preview_sync, source, output, limiter=media_limiter)

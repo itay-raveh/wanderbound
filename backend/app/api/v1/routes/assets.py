@@ -8,7 +8,9 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
+from app.core.worker_threads import run_sync
 from app.logic.layout.media import (
     THUMB_WIDTHS,
     MediaName,
@@ -17,8 +19,17 @@ from app.logic.layout.media import (
     generate_thumbnail,
     is_video,
 )
+from app.logic.panorama.render import (
+    PanoramaDestination,
+    PanoramaRenderError,
+    PanoramaValidationError,
+    panorama_render_path,
+    render_panorama,
+    resolve_panorama_source,
+)
+from app.models.album_media import AlbumMedia, PanoramaConfig
 
-from ..deps import UserDep, album_dir as _album_dir
+from ..deps import SessionDep, UserDep, album_dir as _album_dir
 
 logger = structlog.get_logger(__name__)
 
@@ -38,6 +49,12 @@ _gen_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
 )
 
 
+class AssetQuery(BaseModel):
+    w: int | None = None
+    h: int | None = None
+    panorama_revision: int | None = None
+
+
 @asynccontextmanager
 async def _gen_lock(path: Path) -> AsyncIterator[None]:
     lock = _gen_locks.get(path)
@@ -48,38 +65,123 @@ async def _gen_lock(path: Path) -> AsyncIterator[None]:
         yield
 
 
+async def _ensure_media_source(source: Path, video: Path, name: str) -> str:
+    is_poster = name.endswith(".jpg") and await run_sync(video.is_file)
+    cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
+    if not await run_sync(source.is_file) and is_poster:
+        async with _gen_lock(source):
+            if not await run_sync(source.is_file):
+                await extract_frame(video)
+                logger.debug("asset.poster_extracted", media_name=name)
+    if not await run_sync(source.is_file):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return cache
+
+
+async def _render_rendition(
+    source: Path,
+    panorama: PanoramaConfig,
+    destination: PanoramaDestination,
+    rendition: Path,
+) -> None:
+    if await run_sync(rendition.is_file):
+        return
+    async with _gen_lock(rendition):
+        if await run_sync(rendition.is_file):
+            return
+        try:
+            await render_panorama(source, panorama, destination, rendition)
+        except PanoramaValidationError as error:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            ) from error
+        except PanoramaRenderError as error:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Panorama rendering failed",
+            ) from error
+
+
+async def _panorama_rendition(
+    media_key: tuple[int, str, str],
+    session: SessionDep,
+    album_dir: Path,
+    query: AssetQuery,
+) -> FileResponse:
+    _uid, _aid, name = media_key
+    width = query.w
+    height = query.h
+    revision = query.panorama_revision
+    if width is None or height is None or revision is None or width <= 0 or height <= 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Positive panorama width and height are required",
+        )
+    media = await session.get(AlbumMedia, media_key)
+    if (
+        media is None
+        or media.panorama is None
+        or media.panorama.status != "active"
+        or media.panorama.revision != revision
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    try:
+        destination = PanoramaDestination(
+            kind="asset",
+            aspect_ratio=width / height,
+            width_px=width,
+            height_px=height,
+        )
+        source = resolve_panorama_source(album_dir, name, media.panorama)
+    except ValueError as error:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND) from error
+    rendition = panorama_render_path(
+        album_dir,
+        name,
+        revision,
+        width,
+        height,
+    )
+    await _render_rendition(source, media.panorama, destination, rendition)
+    return FileResponse(
+        rendition,
+        media_type="image/jpeg",
+        headers={"Cache-Control": _CACHE_IMMUTABLE},
+    )
+
+
 @router.get("/{aid}/media/{name}")
 async def get_media(
     aid: str,
     name: MediaName,
     user: UserDep,
-    w: int | None = None,
+    session: SessionDep,
+    query: Annotated[AssetQuery, Query()],
 ) -> FileResponse:
     album_dir = _album_dir(user, aid)
     source = album_dir / name
     video = album_dir / Path(name).with_suffix(".mp4")
 
-    # Video posters (.jpg with a sibling .mp4) can be re-extracted by the user.
-    is_poster = name.endswith(".jpg") and video.is_file()
-    cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
+    cache = await _ensure_media_source(source, video, name)
 
-    # Lazy poster extraction: .jpg requested but only the .mp4 exists.
-    if not source.is_file() and is_poster:
-        async with _gen_lock(source):
-            if not source.is_file():
-                await extract_frame(video)
-                logger.debug("asset.poster_extracted", media_name=name)
-
-    if not source.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if query.panorama_revision is not None:
+        return await _panorama_rendition(
+            (user.id, aid, name),
+            session,
+            album_dir,
+            query,
+        )
 
     # Lazy thumbnail generation.
-    if w is not None and w in THUMB_WIDTHS:
-        thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
+    if query.w is not None and query.w in THUMB_WIDTHS:
+        thumb = album_dir / ".thumbs" / str(query.w) / f"{Path(name).stem}.webp"
         if not thumb.is_file():
             async with _gen_lock(thumb):
                 if not thumb.is_file():
-                    await generate_thumbnail(source, w)
+                    await generate_thumbnail(source, query.w)
         if thumb.is_file():
             return FileResponse(
                 thumb,

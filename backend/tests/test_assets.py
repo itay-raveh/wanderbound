@@ -2,8 +2,19 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.api.v1.routes.assets import _gen_lock, get_media, update_video_frame
+import pytest
+from fastapi import HTTPException
+
+from app.api.v1.routes.assets import (
+    _CACHE_IMMUTABLE,
+    AssetQuery,
+    _gen_lock,
+    get_media,
+    update_video_frame,
+)
+from app.core.worker_threads import run_sync
 from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
+from app.models.album_media import AlbumMedia, PanoramaConfig
 from tests.factories import create_test_jpeg
 
 _AID = "test-album-id"
@@ -25,7 +36,7 @@ class TestLazyThumbnailGeneration:
         create_test_jpeg(album_dir / _NAME, 4000, 3000)
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=800)
+        response = await get_media(_AID, _NAME, user, MagicMock(), AssetQuery(w=800))
 
         stem = Path(_NAME).stem
         thumb_path = album_dir / ".thumbs" / "800" / f"{stem}.webp"
@@ -38,7 +49,7 @@ class TestLazyThumbnailGeneration:
         create_test_jpeg(album_dir / _NAME, 600, 400)
         user = _mock_user(tmp_path)
 
-        response = await get_media(_AID, _NAME, user, w=800)
+        response = await get_media(_AID, _NAME, user, MagicMock(), AssetQuery(w=800))
 
         assert Path(response.path) == (album_dir / _NAME).resolve()
 
@@ -66,7 +77,7 @@ class TestLazyPosterExtraction:
         poster_path, user, mock_patch = self._setup_poster(tmp_path)
 
         with mock_patch:
-            response = await get_media(_AID, _NAME, user)
+            response = await get_media(_AID, _NAME, user, MagicMock(), AssetQuery())
 
         assert poster_path.exists()
         assert Path(response.path) == poster_path.resolve()
@@ -77,7 +88,9 @@ class TestLazyPosterExtraction:
         poster_path, user, mock_patch = self._setup_poster(tmp_path)
 
         with mock_patch:
-            response = await get_media(_AID, _NAME, user, w=200)
+            response = await get_media(
+                _AID, _NAME, user, MagicMock(), AssetQuery(w=200)
+            )
 
         stem = Path(_NAME).stem
         thumb = poster_path.parent / ".thumbs" / "200" / f"{stem}.webp"
@@ -147,3 +160,106 @@ class TestGenLockConcurrency:
         # All three must have entered the critical section one at a time.
         assert sorted(order) == [1, 2, 3]
         assert order[0] == 1  # #1 was first (held the gate).
+
+
+class TestPanoramaRendition:
+    async def test_renders_current_revision_to_destination_cache(
+        self, tmp_path: Path
+    ) -> None:
+        album_dir = tmp_path / _AID
+        source = album_dir / _NAME
+        create_test_jpeg(source, 1600, 800)
+        user = _mock_user(tmp_path)
+        media = AlbumMedia(
+            uid=1,
+            aid=_AID,
+            name=_NAME,
+            kind="photo",
+            width=1600,
+            height=800,
+            byte_size=source.stat().st_size,
+            panorama=PanoramaConfig(
+                status="active",
+                detection="gpano",
+                source_width=1600,
+                source_height=800,
+                captured_fov=180,
+                perspective_fov=60,
+                original_path=_NAME,
+                revision=2,
+            ),
+        )
+        session = AsyncMock()
+        session.get.return_value = media
+
+        async def render(
+            _source: Path,
+            _config: PanoramaConfig,
+            _destination: object,
+            output: Path,
+        ) -> None:
+            await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+            await run_sync(output.write_bytes, b"panorama frame")
+
+        with patch("app.api.v1.routes.assets.render_panorama", side_effect=render):
+            response = await get_media(
+                _AID,
+                _NAME,
+                user,
+                session,
+                AssetQuery(w=800, h=400, panorama_revision=2),
+            )
+
+        rendition = (
+            album_dir
+            / ".panoramas"
+            / "rendered"
+            / Path(_NAME).stem
+            / "2"
+            / "800x400.jpg"
+        )
+        assert Path(response.path) == rendition
+        assert rendition.read_bytes() == b"panorama frame"
+        assert response.headers["cache-control"] == _CACHE_IMMUTABLE
+
+    async def test_rejects_zero_height_before_rendering(self, tmp_path: Path) -> None:
+        album_dir = tmp_path / _AID
+        source = album_dir / _NAME
+        create_test_jpeg(source, 1600, 800)
+        user = _mock_user(tmp_path)
+        media = AlbumMedia(
+            uid=1,
+            aid=_AID,
+            name=_NAME,
+            kind="photo",
+            width=1600,
+            height=800,
+            byte_size=source.stat().st_size,
+            panorama=PanoramaConfig(
+                status="active",
+                detection="gpano",
+                source_width=1600,
+                source_height=800,
+                captured_fov=180,
+                perspective_fov=60,
+                original_path=_NAME,
+                revision=2,
+            ),
+        )
+        session = AsyncMock()
+        session.get.return_value = media
+
+        with (
+            patch("app.api.v1.routes.assets.render_panorama") as render,
+            pytest.raises(HTTPException) as error,
+        ):
+            await get_media(
+                _AID,
+                _NAME,
+                user,
+                session,
+                AssetQuery(w=800, h=0, panorama_revision=2),
+            )
+
+        assert error.value.status_code == 400
+        render.assert_not_awaited()

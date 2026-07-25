@@ -2024,6 +2024,38 @@
               ],
               "title": "W"
             }
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H"
+            }
+          },
+          {
+            "name": "panorama_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Panorama Revision"
+            }
           }
         ],
         "responses": {
@@ -2080,6 +2112,168 @@
             "schema": {
               "type": "number",
               "title": "Timestamp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media/{name}/panorama": {
+      "put": {
+        "tags": [
+          "panoramas"
+        ],
+        "summary": "Update Panorama",
+        "operationId": "update_panorama",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PanoramaApply"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "panoramas"
+        ],
+        "summary": "Disable Panorama",
+        "operationId": "disable_panorama",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/albums/{aid}/media/{name}/panorama-source": {
+      "get": {
+        "tags": [
+          "panoramas"
+        ],
+        "summary": "Get Panorama Source",
+        "operationId": "get_panorama_source",
+        "parameters": [
+          {
+            "name": "aid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Aid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|mp4)$",
+              "title": "Name"
             }
           }
         ],
@@ -3642,6 +3836,22 @@
         ],
         "title": "MatchResult"
       },
+      "PanoramaApply": {
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/PanoramaFrameUpdate"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/PanoramaDestination"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frame",
+          "destination"
+        ],
+        "title": "PanoramaApply"
+      },
       "PanoramaConfig": {
         "properties": {
           "status": {
@@ -3792,12 +4002,96 @@
         ],
         "title": "PanoramaConfig"
       },
+      "PanoramaDestination": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Kind"
+          },
+          "aspect_ratio": {
+            "type": "number",
+            "maximum": 10.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Aspect Ratio"
+          },
+          "width_px": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width Px"
+          },
+          "height_px": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height Px"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "aspect_ratio",
+          "width_px",
+          "height_px"
+        ],
+        "title": "PanoramaDestination"
+      },
       "PanoramaDetection": {
         "type": "string",
         "enum": [
           "gpano",
           "dimensions"
         ]
+      },
+      "PanoramaFrameUpdate": {
+        "properties": {
+          "yaw": {
+            "type": "number",
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "title": "Yaw"
+          },
+          "pitch": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Pitch"
+          },
+          "perspective_fov": {
+            "type": "number",
+            "exclusiveMaximum": 180.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Perspective Fov"
+          },
+          "zoom": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Zoom"
+          },
+          "captured_fov": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 360.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured Fov"
+          }
+        },
+        "type": "object",
+        "required": [
+          "yaw",
+          "pitch",
+          "perspective_fov",
+          "zoom"
+        ],
+        "title": "PanoramaFrameUpdate"
       },
       "PanoramaStatus": {
         "type": "string",
