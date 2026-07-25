@@ -69,6 +69,11 @@ function saveText(field: "title" | "subtitle", value: string) {
       fit-cover
       :quality="coverQuality"
       :class="['fit', { 'cover-dimmed': !isBack }]"
+      :style="
+        !isBack
+          ? { '--cover-darkness': chapter.front_cover_darkness ?? 0.45 }
+          : undefined
+      "
     />
 
     <!-- ═══ FRONT COVER ═══ -->
@@ -107,7 +112,8 @@ function saveText(field: "title" | "subtitle", value: string) {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: black;
+  opacity: var(--cover-darkness);
   pointer-events: none;
 }
 

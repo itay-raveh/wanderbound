@@ -2594,6 +2594,13 @@
             "type": "string",
             "maxLength": 255,
             "title": "Back Cover Photo"
+          },
+          "front_cover_darkness": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Front Cover Darkness",
+            "default": 0.45
           }
         },
         "type": "object",

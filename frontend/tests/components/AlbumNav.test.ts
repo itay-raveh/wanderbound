@@ -256,6 +256,7 @@ describe("AlbumNav", () => {
           step_ids: [3],
           front_cover_photo: "three.jpg",
           back_cover_photo: "three.jpg",
+          front_cover_darkness: 0.45,
         },
       ],
     });

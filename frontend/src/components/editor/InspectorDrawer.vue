@@ -19,7 +19,7 @@ import {
 import { parseChapterHeaderSectionKey } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -69,19 +69,33 @@ const context = computed<Context>(() => {
 
 // ── Cover photo selection ──────────────────────────────────────────────
 const albumMutation = useAlbumMutation(() => props.album.id);
-const coverContext = computed(() => parseChapterHeaderSectionKey(props.sectionKey));
+const coverContext = computed(() =>
+  parseChapterHeaderSectionKey(props.sectionKey),
+);
 const activeChapter = computed(() =>
   (props.album.chapters ?? []).find(
     (chapter) => chapter.id === coverContext.value?.chapterId,
   ),
 );
-const isCoverBack = computed(() => coverContext.value?.headerKey === "cover-back");
+const isCoverBack = computed(
+  () => coverContext.value?.headerKey === "cover-back",
+);
 const coverField = computed(() =>
   isCoverBack.value
     ? ("back_cover_photo" as const)
     : ("front_cover_photo" as const),
 );
-const activeCoverPhoto = computed(() => activeChapter.value?.[coverField.value] ?? "");
+const activeCoverPhoto = computed(
+  () => activeChapter.value?.[coverField.value] ?? "",
+);
+const coverDarknessPercent = ref(45);
+watch(
+  () => activeChapter.value?.front_cover_darkness,
+  (darkness) => {
+    coverDarknessPercent.value = Math.round((darkness ?? 0.45) * 100);
+  },
+  { immediate: true },
+);
 
 const landscapeMedia = computed(() =>
   props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
@@ -106,9 +120,27 @@ function selectCoverPhoto(name: string) {
   if (!chapterId) return;
   albumMutation.mutate({
     chapters: (props.album.chapters ?? []).map((chapter) =>
-      chapter.id === chapterId ? { ...chapter, [coverField.value]: name } : chapter,
+      chapter.id === chapterId
+        ? { ...chapter, [coverField.value]: name }
+        : chapter,
     ),
   });
+}
+
+function updateCoverDarkness(value: number | null) {
+  const chapterId = activeChapter.value?.id;
+  if (!chapterId || value === null) return;
+  albumMutation.mutate({
+    chapters: (props.album.chapters ?? []).map((chapter) =>
+      chapter.id === chapterId
+        ? { ...chapter, front_cover_darkness: value / 100 }
+        : chapter,
+    ),
+  });
+}
+
+function previewCoverDarkness(value: number | null) {
+  if (value !== null) coverDarknessPercent.value = value;
 }
 
 function coverPhotoIndex(
@@ -200,6 +232,27 @@ const importTargetLabel = computed<string | null>(() => {
           <span>{{ panelLabel }}</span>
           <span class="text-faint">{{ landscapeMedia.length }}</span>
         </div>
+        <div v-if="!isCoverBack" class="cover-darkness-control">
+          <div class="cover-darkness-header">
+            <span>{{ t("album.coverDarkness") }}</span>
+            <span class="cover-darkness-value"
+              >{{ coverDarknessPercent }}%</span
+            >
+          </div>
+          <q-slider
+            class="cover-darkness-slider"
+            :model-value="coverDarknessPercent"
+            :min="0"
+            :max="100"
+            :step="1"
+            :label-value="`${coverDarknessPercent}%`"
+            :aria-label="t('album.coverDarkness')"
+            color="primary"
+            label
+            @update:model-value="previewCoverDarkness"
+            @change="updateCoverDarkness"
+          />
+        </div>
         <q-virtual-scroll
           v-if="landscapeMedia.length"
           class="cover-grid"
@@ -284,6 +337,29 @@ const importTargetLabel = computed<string | null>(() => {
   min-height: 2rem;
   padding-block-end: var(--gap-sm);
   letter-spacing: var(--tracking-wide);
+}
+
+.cover-darkness-control {
+  padding: var(--gap-sm) var(--gap-xs) var(--gap-md);
+}
+
+.cover-darkness-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cover-darkness-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cover-darkness-slider {
+  padding-inline: var(--gap-xs);
 }
 
 .panel-hint {
