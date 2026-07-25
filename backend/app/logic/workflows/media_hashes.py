@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from collections import Counter
 from datetime import UTC, datetime
 from itertools import batched
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, NamedTuple
 
 import structlog
 from dbos import DBOS, SetWorkflowID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func, update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,30 +26,18 @@ from app.models.processing import ProcessingOperation
 logger = structlog.get_logger(__name__)
 
 MEDIA_HASH_QUEUE = "media-hash-backfill"
-_HASH_BATCH_SIZE = 8
+_HASH_BATCH_SIZE = 32
 _RECONCILIATION_INTERVAL_SECONDS = 60.0
 
 
-class FileIdentity(BaseModel):
+class FileIdentity(NamedTuple):
     device: int
     inode: int
     size: int
     modified_ns: int
 
-    @classmethod
-    def from_path(cls, path: Path) -> Self:
-        stat = path.stat()
-        return cls(
-            device=stat.st_dev,
-            inode=stat.st_ino,
-            size=stat.st_size,
-            modified_ns=stat.st_mtime_ns,
-        )
 
-
-class MediaHashCandidate(BaseModel):
-    uid: int
-    aid: str
+class MediaHashCandidate(NamedTuple):
     name: str
     created_at: datetime
     updated_at: datetime
@@ -56,25 +45,11 @@ class MediaHashCandidate(BaseModel):
     file: FileIdentity
 
 
-class CandidateDiscovery(BaseModel):
-    candidates: list[MediaHashCandidate] = Field(default_factory=list)
-    excluded: int = 0
-    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-
 class HashBackfillStats(BaseModel):
     hashed: int = 0
     already_completed: int = 0
     stale: int = 0
     failed: int = 0
-
-    def plus(self, other: Self) -> Self:
-        return type(self)(
-            hashed=self.hashed + other.hashed,
-            already_completed=self.already_completed + other.already_completed,
-            stale=self.stale + other.stale,
-            failed=self.failed + other.failed,
-        )
 
 
 class MediaHashWorkflowPayload(BaseModel):
@@ -162,16 +137,15 @@ async def missing_media_hash_backfill_targets(
     targets: list[MediaHashBackfillTarget] = []
     for uid, aid in missing_albums:
         revision = await media_hash_backfill_revision(session, uid, aid)
-        if revision is None:
-            continue
-        targets.append(
-            MediaHashBackfillTarget(
-                uid=uid,
-                aid=aid,
-                upload_generation=generation_by_uid.get(uid, 0),
-                revision=revision,
+        if revision is not None:
+            targets.append(
+                MediaHashBackfillTarget(
+                    uid=uid,
+                    aid=aid,
+                    upload_generation=generation_by_uid.get(uid, 0),
+                    revision=revision,
+                )
             )
-        )
     return targets
 
 
@@ -246,75 +220,85 @@ async def media_hash_reconciliation_loop() -> None:
             )
 
 
+def _file_identity(path: Path) -> FileIdentity:
+    stat = path.stat()
+    return FileIdentity(
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_size,
+        stat.st_mtime_ns,
+    )
+
+
 def _identity_or_none(path: Path) -> FileIdentity | None:
     try:
-        return FileIdentity.from_path(path)
+        return _file_identity(path)
     except OSError:
         return None
 
 
-async def discover_missing_media_hashes(
-    session: AsyncSession,
+def _snapshot_candidates(
+    album_dir: Path,
+    rows: list[tuple[str, datetime, datetime, int]],
+) -> tuple[list[MediaHashCandidate], int]:
+    candidates: list[MediaHashCandidate] = []
+    excluded = 0
+    for name, created_at, updated_at, byte_size in rows:
+        identity = _identity_or_none(album_dir / name)
+        if identity is None or identity.size != byte_size:
+            excluded += 1
+        else:
+            candidates.append(
+                MediaHashCandidate(
+                    name,
+                    created_at,
+                    updated_at,
+                    byte_size,
+                    identity,
+                )
+            )
+    return candidates, excluded
+
+
+async def _discover_candidates(
     uid: int,
     aid: str,
     album_dir: Path,
-) -> CandidateDiscovery:
-    rows = (
-        await session.exec(
-            select(AlbumMedia)
-            .where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
-            .where(
-                col(AlbumMedia.perceptual_hashes).is_(None),
-                AlbumMedia.kind == "photo",
-            )
-            .order_by(AlbumMedia.name)
+) -> tuple[list[MediaHashCandidate], int]:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        rows = list(
+            (
+                await session.exec(
+                    select(
+                        AlbumMedia.name,
+                        AlbumMedia.created_at,
+                        AlbumMedia.updated_at,
+                        AlbumMedia.byte_size,
+                    )
+                    .where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
+                    .where(
+                        col(AlbumMedia.perceptual_hashes).is_(None),
+                        AlbumMedia.kind == "photo",
+                    )
+                    .order_by(AlbumMedia.name)
+                )
+            ).all()
         )
-    ).all()
-    candidates: list[MediaHashCandidate] = []
-    excluded = 0
-    for row in rows:
-        identity = await run_sync(_identity_or_none, album_dir / row.name)
-        if identity is None or identity.size != row.byte_size:
-            excluded += 1
-            continue
-        candidates.append(
-            MediaHashCandidate(
-                uid=row.uid,
-                aid=row.aid,
-                name=row.name,
-                created_at=row.created_at,
-                updated_at=row.updated_at,
-                byte_size=row.byte_size,
-                file=identity,
-            )
-        )
-    return CandidateDiscovery(candidates=candidates, excluded=excluded)
-
-
-async def _matching_paths(
-    album_dir: Path, candidates: list[MediaHashCandidate]
-) -> tuple[list[Path], set[str]]:
-    paths: list[Path] = []
-    stale: set[str] = set()
-    for candidate in candidates:
-        path = album_dir / candidate.name
-        if await run_sync(_identity_or_none, path) != candidate.file:
-            stale.add(candidate.name)
-        else:
-            paths.append(path)
-    return paths, stale
+    return await run_sync(_snapshot_candidates, album_dir, rows)
 
 
 async def _persist_hash_if_current(
     session: AsyncSession,
+    uid: int,
+    aid: str,
     candidate: MediaHashCandidate,
     hashes: list[str],
 ) -> bool:
     result = await session.exec(
         update(AlbumMedia)
         .where(
-            col(AlbumMedia.uid) == candidate.uid,
-            col(AlbumMedia.aid) == candidate.aid,
+            col(AlbumMedia.uid) == uid,
+            col(AlbumMedia.aid) == aid,
             col(AlbumMedia.name) == candidate.name,
             col(AlbumMedia.perceptual_hashes).is_(None),
             col(AlbumMedia.created_at) == candidate.created_at,
@@ -326,41 +310,53 @@ async def _persist_hash_if_current(
     return bool(result.rowcount)
 
 
-async def hash_media_batch(
-    session: AsyncSession,
+def _current_candidates(
     album_dir: Path,
     candidates: list[MediaHashCandidate],
+) -> list[MediaHashCandidate]:
+    return [
+        candidate
+        for candidate in candidates
+        if _identity_or_none(album_dir / candidate.name) == candidate.file
+    ]
+
+
+def _candidate_identities(
+    album_dir: Path,
+    candidates: list[MediaHashCandidate],
+) -> dict[str, FileIdentity | None]:
+    return {
+        candidate.name: _identity_or_none(album_dir / candidate.name)
+        for candidate in candidates
+    }
+
+
+async def persist_media_hash_batch(
+    session: AsyncSession,
+    payload: MediaHashWorkflowPayload,
+    album_dir: Path,
+    candidates: list[MediaHashCandidate],
+    hashes_by_name: dict[str, list[str]],
 ) -> HashBackfillStats:
-    paths, stale_names = await _matching_paths(album_dir, candidates)
-    if paths:
-        cached_hash = await run_sync(local_hash_cache, album_dir)
-        hashes_by_name = await run_sync(
-            compute_serialized_media_hashes,
-            paths,
-            workers=1,
-            cached_hash=cached_hash,
-        )
-    else:
-        hashes_by_name = {}
-    stats = HashBackfillStats(stale=len(stale_names))
+    identities = await run_sync(_candidate_identities, album_dir, candidates)
+    stats = HashBackfillStats()
     for candidate in candidates:
-        if candidate.name in stale_names:
-            continue
-        identity = await run_sync(_identity_or_none, album_dir / candidate.name)
-        if identity != candidate.file:
+        if identities[candidate.name] != candidate.file:
             stats.stale += 1
             continue
         hashes = hashes_by_name.get(candidate.name)
         if hashes is None:
             stats.failed += 1
             continue
-        if await _persist_hash_if_current(session, candidate, hashes):
+        if await _persist_hash_if_current(
+            session, payload.uid, payload.aid, candidate, hashes
+        ):
             stats.hashed += 1
             continue
         current_hash = await session.scalar(
             select(AlbumMedia.perceptual_hashes).where(
-                AlbumMedia.uid == candidate.uid,
-                AlbumMedia.aid == candidate.aid,
+                AlbumMedia.uid == payload.uid,
+                AlbumMedia.aid == payload.aid,
                 AlbumMedia.name == candidate.name,
             )
         )
@@ -376,83 +372,69 @@ def _album_dir(payload: MediaHashWorkflowPayload) -> Path:
     return get_settings().USERS_FOLDER / str(payload.uid) / "trip" / payload.aid
 
 
-@DBOS.step(retries_allowed=True, max_attempts=3)
-async def discover_media_hash_candidates_step(
-    payload: dict[str, Any],
-) -> dict[str, Any]:
-    params = MediaHashWorkflowPayload.model_validate(payload)
-    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        discovery = await discover_missing_media_hashes(
-            session, params.uid, params.aid, _album_dir(params)
-        )
+async def backfill_media_hashes(
+    uid: int,
+    aid: str,
+    album_dir: Path,
+) -> HashBackfillStats:
+    started_at = datetime.now(UTC)
+    payload = MediaHashWorkflowPayload(uid=uid, aid=aid)
+    candidates, excluded = await _discover_candidates(uid, aid, album_dir)
     logger.info(
         "media_hash.backfill_started",
-        user_id=params.uid,
-        album_id=params.aid,
-        candidate_count=len(discovery.candidates),
-        excluded_count=discovery.excluded,
+        user_id=uid,
+        album_id=aid,
+        candidate_count=len(candidates),
+        excluded_count=excluded,
     )
-    return discovery.model_dump(mode="json")
 
+    totals: Counter[str] = Counter()
+    current = await run_sync(_current_candidates, album_dir, candidates)
+    totals["stale"] = len(candidates) - len(current)
+    hashes_by_name: dict[str, list[str]] = {}
+    if current:
+        cached_hash = await run_sync(local_hash_cache, album_dir)
+        hashes_by_name = await run_sync(
+            compute_serialized_media_hashes,
+            [album_dir / candidate.name for candidate in current],
+            cached_hash=cached_hash,
+        )
 
-@DBOS.step(retries_allowed=True, max_attempts=3)
-async def hash_media_batch_step(
-    payload: dict[str, Any], candidates: list[dict[str, Any]]
-) -> dict[str, int]:
-    params = MediaHashWorkflowPayload.model_validate(payload)
-    parsed = [MediaHashCandidate.model_validate(item) for item in candidates]
-    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        stats = await hash_media_batch(session, _album_dir(params), parsed)
-    logger.info(
-        "media_hash.backfill_batch_completed",
-        user_id=params.uid,
-        album_id=params.aid,
-        **stats.model_dump(),
-    )
-    return stats.model_dump()
+    for batch in batched(current, _HASH_BATCH_SIZE, strict=False):
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+            stats = await persist_media_hash_batch(
+                session,
+                payload,
+                album_dir,
+                list(batch),
+                hashes_by_name,
+            )
+        totals.update(stats.model_dump())
 
-
-@DBOS.step(retries_allowed=True, max_attempts=3)
-async def complete_media_hash_backfill_step(
-    payload: dict[str, Any],
-    started_at: str,
-    candidate_count: int,
-    excluded: int,
-    stats: dict[str, int],
-) -> dict[str, int]:
-    params = MediaHashWorkflowPayload.model_validate(payload)
-    totals = HashBackfillStats.model_validate(stats)
-    duration_seconds = (
-        datetime.now(UTC) - datetime.fromisoformat(started_at)
-    ).total_seconds()
+    result = HashBackfillStats.model_validate(totals)
     logger.info(
         "media_hash.backfill_completed",
-        user_id=params.uid,
-        album_id=params.aid,
-        candidate_count=candidate_count,
+        user_id=uid,
+        album_id=aid,
+        candidate_count=len(candidates),
         excluded_count=excluded,
-        duration_seconds=duration_seconds,
-        **totals.model_dump(),
+        duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
+        **result.model_dump(),
     )
-    return totals.model_dump()
+    return result
+
+
+@DBOS.step(retries_allowed=True, max_attempts=3)
+async def backfill_media_hashes_step(payload: dict[str, Any]) -> dict[str, int]:
+    params = MediaHashWorkflowPayload.model_validate(payload)
+    result = await backfill_media_hashes(
+        params.uid,
+        params.aid,
+        _album_dir(params),
+    )
+    return result.model_dump()
 
 
 @DBOS.workflow(name="media_hash.backfill")
 async def media_hash_backfill_workflow(payload: dict[str, Any]) -> dict[str, int]:
-    discovery = CandidateDiscovery.model_validate(
-        await discover_media_hash_candidates_step(payload)
-    )
-    totals = HashBackfillStats()
-    for batch in batched(discovery.candidates, _HASH_BATCH_SIZE, strict=False):
-        result = await hash_media_batch_step(
-            payload,
-            [candidate.model_dump(mode="json") for candidate in batch],
-        )
-        totals = totals.plus(HashBackfillStats.model_validate(result))
-    return await complete_media_hash_backfill_step(
-        payload,
-        discovery.started_at.isoformat(),
-        len(discovery.candidates),
-        discovery.excluded,
-        totals.model_dump(),
-    )
+    return await backfill_media_hashes_step(payload)

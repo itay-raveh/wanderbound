@@ -1,8 +1,4 @@
-"""Perceptual hashing and bipartite matching for media upgrade.
-
-Matches compressed Polarsteps media (photos and videos) to Google Photos
-originals using perceptual hashing (pHash) and optimal bipartite assignment.
-"""
+"""Match compressed local photos to Google Photos originals."""
 
 from io import BytesIO
 from pathlib import Path
@@ -30,19 +26,10 @@ from app.models.google_photos import GoogleMediaId, PickedMediaItem
 # compression" and below "different image" territory (~15+).
 MATCH_THRESHOLD = 12
 
-type MediaHash = imagehash.ImageHash | list[imagehash.ImageHash]
-
 
 class HashedMedia(NamedTuple):
-    """A media item with its perceptual hash, ready for matching.
-
-    Used on both sides of the matching problem: ``key`` is either
-    a local filename or a Google Photos media ID.
-    """
-
     key: str
-    hash: MediaHash
-    is_video: bool
+    hash: imagehash.ImageHash
 
 
 class MatchResult(BaseModel):
@@ -86,81 +73,18 @@ def compute_phash_from_bytes(data: bytes) -> imagehash.ImageHash:
 # Cost matrix and optimal matching
 # ---------------------------------------------------------------------------
 
-_CROSS_TYPE_COST = MATCH_THRESHOLD + 1
-
-
-def _pairwise_distance(a: MediaHash, b: MediaHash) -> int:
-    """Distance between two hashes. Multi-frame hashes use minimum distance."""
-    # Flatten both sides to lists for uniform handling.
-    frames_a = [a] if isinstance(a, imagehash.ImageHash) else a
-    frames_b = [b] if isinstance(b, imagehash.ImageHash) else b
-    if not frames_a or not frames_b:
-        return _CROSS_TYPE_COST
-    return min(int(fa - fb) for fa in frames_a for fb in frames_b)
-
 
 def build_cost_matrix(
     local_media: list[HashedMedia],
     candidate_media: list[HashedMedia],
 ) -> np.ndarray:
-    """Build a distance matrix. Cross-type pairs get infinite cost."""
-    matrix = np.full(
-        (len(local_media), len(candidate_media)),
-        _CROSS_TYPE_COST,
-        dtype=np.int16,
-    )
-    local_photo_entries = [
-        (index, item.hash)
-        for index, item in enumerate(local_media)
-        if not item.is_video and isinstance(item.hash, imagehash.ImageHash)
-    ]
-    candidate_photo_entries = [
-        (index, item.hash)
-        for index, item in enumerate(candidate_media)
-        if not item.is_video and isinstance(item.hash, imagehash.ImageHash)
-    ]
-    local_photos = [index for index, _ in local_photo_entries]
-    candidate_photos = [index for index, _ in candidate_photo_entries]
-    if local_photos and candidate_photos:
-        local_bits = np.stack(
-            [media_hash.hash.reshape(-1) for _, media_hash in local_photo_entries]
-        )
-        candidate_bits = np.stack(
-            [media_hash.hash.reshape(-1) for _, media_hash in candidate_photo_entries]
-        )
-        local_values = np.packbits(local_bits, axis=1).view(np.uint64).reshape(-1)
-        candidate_values = (
-            np.packbits(candidate_bits, axis=1).view(np.uint64).reshape(-1)
-        )
-        matrix[np.ix_(local_photos, candidate_photos)] = np.bitwise_count(
-            np.bitwise_xor(local_values[:, None], candidate_values[None, :])
-        )
-
-    local_photo_set = set(local_photos)
-    candidate_photo_set = set(candidate_photos)
-    for row, loc in enumerate(local_media):
-        if loc.is_video:
-            columns = (
-                (column, cand)
-                for column, cand in enumerate(candidate_media)
-                if cand.is_video
-            )
-        elif row not in local_photo_set:
-            columns = (
-                (column, cand)
-                for column, cand in enumerate(candidate_media)
-                if not cand.is_video
-            )
-        else:
-            columns = (
-                (column, candidate_media[column])
-                for column in range(len(candidate_media))
-                if column not in candidate_photo_set
-                and not candidate_media[column].is_video
-            )
-        for column, cand in columns:
-            matrix[row, column] = _pairwise_distance(loc.hash, cand.hash)
-    return matrix
+    local_bits = np.stack([item.hash.hash.reshape(-1) for item in local_media])
+    candidate_bits = np.stack([item.hash.hash.reshape(-1) for item in candidate_media])
+    local_values = np.packbits(local_bits, axis=1).view(np.uint64).reshape(-1)
+    candidate_values = np.packbits(candidate_bits, axis=1).view(np.uint64).reshape(-1)
+    return np.bitwise_count(
+        np.bitwise_xor(local_values[:, None], candidate_values[None, :])
+    ).astype(np.int16)
 
 
 def _thresholded_assignment(
@@ -201,11 +125,6 @@ def match_media_globally(
         return MatchingOutcome([], MatchingDiagnostics(0, 0))
 
     cost = build_cost_matrix(local_media, candidate_media)
-    same_type = np.equal.outer(
-        [item.is_video for item in local_media],
-        [item.is_video for item in candidate_media],
-    )
-    cost[~same_type] = threshold + 1
     valid = cost <= threshold
     rows, columns = _thresholded_assignment(cost, threshold)
     matches = [
@@ -216,11 +135,7 @@ def match_media_globally(
         )
         for row, column in zip(rows, columns, strict=True)
     ]
-    nearest = cost.min(
-        axis=1,
-        where=same_type,
-        initial=np.iinfo(np.int16).max,
-    )
+    nearest = cost.min(axis=1)
     return MatchingOutcome(
         matches,
         MatchingDiagnostics(

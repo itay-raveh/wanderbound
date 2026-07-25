@@ -521,8 +521,6 @@ async def match_media(
                 tokens=tokens,
                 upgrade_candidates=upgrade_candidates,
                 persisted_local_hashes=persisted_local_hashes,
-                uid=user.id,
-                aid=aid,
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001

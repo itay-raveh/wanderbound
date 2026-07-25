@@ -75,47 +75,70 @@ if (settings.DATA_FOLDER / "upload-work" / sys.argv[1]).exists():
   await compose("exec", "-T", "app", "python", "-c", script, uploadId);
 }
 
-for (const appOrigin of [
+const developmentOrigins = [
   "http://localhost:8000",
   "http://127.0.0.1:8000",
   "http://localhost:5173",
-]) {
-  test(`uploads a multipart ZIP directly to Garage from ${appOrigin}`, async ({
-    page,
-  }) => {
-    test.setTimeout(120_000);
-    let directPartUploads = 0;
-    page.on("request", (request) => {
-      if (
-        request.method() === "PUT" &&
-        new URL(request.url()).origin === garageOrigin
-      ) {
-        directPartUploads += 1;
-      }
-    });
+] as const;
 
-    const demo = await page.request.post(`${appOrigin}/api/v1/users/demo`);
-    expect(demo.ok()).toBe(true);
-    const demoUser = ((await demo.json()) as { user: { id: number } }).user;
-    await prepareDemoForUpload(demoUser.id);
-    await page.goto(`${appOrigin}/upload`);
-
-    const created = page.waitForResponse(
-      (response) =>
-        response.status() === 201 &&
-        new URL(response.url()).pathname ===
-          "/api/v1/users/uploads/s3/multipart",
+test("allows upload preflights from every development origin", async ({
+  request,
+}) => {
+  for (const origin of developmentOrigins) {
+    const response = await request.fetch(
+      `${garageOrigin}/wanderbound-uploads/uploads/cors-check.zip`,
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "PUT",
+          "Access-Control-Request-Headers": "content-type,x-amz-content-sha256",
+        },
+      },
     );
 
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toBeAttached();
-    await fileInput.setInputFiles(fixturePath);
-    const uploadId = ((await (await created).json()) as { uploadId: string })
-      .uploadId;
+    expect(response.status()).toBe(200);
+    expect([origin, "*"]).toContain(
+      response.headers()["access-control-allow-origin"],
+    );
+  }
+});
 
-    await expect(fileInput).not.toBeAttached({ timeout: 90_000 });
-
-    expect(directPartUploads).toBeGreaterThan(1);
-    await verifyTemporaryDataRemoved(uploadId);
+test("uploads a multipart ZIP directly from the Vite origin", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const appOrigin = "http://localhost:5173";
+  let directPartUploads = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "PUT" &&
+      new URL(request.url()).origin === garageOrigin
+    ) {
+      directPartUploads += 1;
+    }
   });
-}
+
+  const demo = await page.request.post(`${appOrigin}/api/v1/users/demo`);
+  expect(demo.ok()).toBe(true);
+  const demoUser = ((await demo.json()) as { user: { id: number } }).user;
+  await prepareDemoForUpload(demoUser.id);
+  await page.goto(`${appOrigin}/upload`);
+
+  const created = page.waitForResponse(
+    (response) =>
+      response.status() === 201 &&
+      new URL(response.url()).pathname === "/api/v1/users/uploads/s3/multipart",
+  );
+
+  const fileInput = page.locator('input[type="file"]');
+  await expect(fileInput).toBeAttached();
+  await fileInput.setInputFiles(fixturePath);
+  const uploadId = ((await (await created).json()) as { uploadId: string })
+    .uploadId;
+
+  await expect(fileInput).not.toBeAttached({ timeout: 90_000 });
+
+  expect(directPartUploads).toBeGreaterThan(1);
+  await verifyTemporaryDataRemoved(uploadId);
+});

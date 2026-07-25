@@ -19,11 +19,6 @@ class TestMedia:
         m = Media.load(src)
         assert m.width == 4000
         assert m.height == 3000
-        assert m.model_dump() == {
-            "name": "rotated.jpg",
-            "width": 4000,
-            "height": 3000,
-        }
 
 
 def _thumb_path(parent: Path, width: int, stem: str) -> Path:

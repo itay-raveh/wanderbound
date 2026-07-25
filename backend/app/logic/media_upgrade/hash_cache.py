@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING
 from joblib import Memory
 
 if TYPE_CHECKING:
+    import imagehash
     from joblib.memory import MemorizedFunc
 
 from app.core.config import get_settings
 
-from .phash_matching import MediaHash, compute_phash_from_path
+from .phash_matching import compute_phash_from_path
 
 _CACHE_DIR = ".media-hash-cache"
 
@@ -24,7 +25,7 @@ def _compute_local_hash(
     _inode: int,
     _size: int,
     _mtime_ns: int,
-) -> MediaHash:
+) -> imagehash.ImageHash:
     return compute_phash_from_path(path)
 
 

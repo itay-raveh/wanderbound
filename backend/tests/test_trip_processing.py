@@ -2,20 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import AsyncIterator
-from pathlib import Path
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import pytest
-
-from app.logic.layout import Layout
-from app.logic.layout.media import Media
 from app.logic.trip_processing import (
-    _media_pipeline,
-    build_album_media_rows,
     default_media_resolution_warning_preset,
     resolve_international_waters,
     segment_timezone,
@@ -26,58 +13,6 @@ from app.models.album import (
 )
 from app.models.polarsteps import Location, PSStep
 from tests.factories import make_ps_step, make_user
-
-
-def test_build_album_media_rows_leave_hashes_for_background_backfill(
-    tmp_path: Path,
-) -> None:
-    name = "photo.jpg"
-    (tmp_path / name).write_bytes(b"photo")
-
-    rows = build_album_media_rows(
-        1,
-        "album",
-        tmp_path,
-        [Media(name=name, width=800, height=600)],
-    )
-
-    assert rows[0].perceptual_hashes is None
-
-
-async def test_media_pipeline_does_not_compute_hashes(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    photo = Media(name="photo.jpg", width=800, height=600)
-    video = Media(name="video.mp4", width=800, height=600)
-    layout = Layout("photo.jpg", [["video.mp4"]], [photo, video])
-
-    async def fake_fetch(*_args: object) -> AsyncIterator[tuple[int, Layout]]:
-        yield 0, layout
-
-    async def fake_prepare(_trip_dir: Path, cover_name: str) -> tuple[str, str]:
-        return cover_name, "l"
-
-    monkeypatch.setattr("app.logic.trip_processing.fetch_layouts", fake_fetch)
-    monkeypatch.setattr("app.logic.trip_processing.prepare_media", fake_prepare)
-
-    def fail_if_called(_paths: list[Path]) -> dict[str, list[str]]:
-        raise AssertionError("album processing must not compute perceptual hashes")
-
-    monkeypatch.setattr(
-        "app.logic.media_upgrade.hashes.compute_serialized_media_hashes", fail_if_called
-    )
-
-    layouts, cover = await _media_pipeline(
-        make_user(1),
-        SimpleNamespace(all_steps=[make_ps_step()]),
-        tmp_path,
-        "photo.jpg",
-        asyncio.Queue(),
-    )
-
-    assert layouts == {0: layout}
-    assert cover == "photo.jpg"
 
 
 class TestDefaultMediaResolutionWarningPreset:

@@ -11,7 +11,7 @@ from joblib import Parallel, delayed
 from app.core.resources import detect_cpu_count
 from app.logic.layout.media import is_video
 
-from .phash_matching import MediaHash, compute_phash_from_path
+from .phash_matching import compute_phash_from_path
 
 if TYPE_CHECKING:
     from joblib.memory import MemorizedFunc
@@ -21,24 +21,24 @@ logger = structlog.get_logger(__name__)
 _HASH_WORKERS = min(2, detect_cpu_count())
 
 
-def serialize_media_hash(media_hash: MediaHash) -> list[str]:
-    hashes = media_hash if isinstance(media_hash, list) else [media_hash]
-    return [str(value) for value in hashes]
+def serialize_media_hash(media_hash: imagehash.ImageHash) -> list[str]:
+    return [str(media_hash)]
 
 
-def deserialize_media_hash(value: list[str]) -> MediaHash:
-    if not value or any(not isinstance(item, str) or len(item) != 16 for item in value):
+def deserialize_media_hash(value: list[str]) -> imagehash.ImageHash:
+    if len(value) != 1:
+        raise ValueError("A photo must have exactly one perceptual hash")
+    if not isinstance(value[0], str) or len(value[0]) != 16:
         raise ValueError("Perceptual hashes must be 64-bit hexadecimal strings")
     try:
-        hashes = [imagehash.hex_to_hash(item) for item in value]
+        return imagehash.hex_to_hash(value[0])
     except ValueError as exc:
         raise ValueError(
             "Perceptual hashes must be 64-bit hexadecimal strings"
         ) from exc
-    return hashes if len(hashes) != 1 else hashes[0]
 
 
-def compute_media_hash(path: Path) -> MediaHash:
+def compute_media_hash(path: Path) -> imagehash.ImageHash:
     return compute_phash_from_path(path)
 
 

@@ -45,18 +45,17 @@ def test_serializes_and_restores_photo_hash() -> None:
     assert deserialize_media_hash(serialized) == media_hash
 
 
-def test_serializes_and_restores_video_hashes() -> None:
-    media_hash = [_hash(0x1234), _hash(0xABCD)]
-
-    serialized = serialize_media_hash(media_hash)
-
-    assert serialized == [str(value) for value in media_hash]
-    assert deserialize_media_hash(serialized) == media_hash
+def test_rejects_obsolete_multi_frame_hashes() -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        deserialize_media_hash([str(_hash(0x1234)), str(_hash(0xABCD))])
 
 
-@pytest.mark.parametrize("value", [[], ["0"], ["not-a-valid-hash"]])
-def test_rejects_noncanonical_persisted_hashes(value: list[str]) -> None:
-    with pytest.raises(ValueError, match="64-bit"):
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [([], "exactly one"), (["0"], "64-bit"), (["not-a-valid-hash"], "64-bit")],
+)
+def test_rejects_noncanonical_persisted_hashes(value: list[str], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
         deserialize_media_hash(value)
 
 
@@ -93,10 +92,6 @@ def test_single_best_effort_hashing_ignores_videos(tmp_path: Path) -> None:
     video.write_bytes(b"not-even-a-video")
 
     assert try_compute_serialized_media_hash(video) is None
-
-
-def test_bulk_hashing_accepts_a_worker_limit() -> None:
-    assert compute_serialized_media_hashes([], workers=1) == {}
 
 
 def test_cached_hash_uses_complete_file_identity(tmp_path: Path) -> None:

@@ -282,8 +282,6 @@ class TestMatchMedia:
         assert captured["media_by_step"] == {7: ["photo.jpg"]}
         assert captured["upgrade_candidates"] == set()
         assert captured["persisted_local_hashes"] == {"photo.jpg": ["0123456789abcdef"]}
-        assert captured["uid"] == user.id
-        assert captured["aid"] == "trip-1"
 
 
 class TestUpgradeMedia:
