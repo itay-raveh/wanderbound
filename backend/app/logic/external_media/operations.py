@@ -90,7 +90,7 @@ async def download_google_item_to_saved(
     max_bytes = MAX_VIDEO_BYTES if item.type == "VIDEO" else MAX_PHOTO_BYTES
     param = "=dv" if item.type == "VIDEO" else "=d"
     await download_media_to_file(
-        http.gphotos_picker,
+        http.gphotos_download,
         item.media_file.base_url,
         access_token,
         path,
