@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import delete
 from sqlmodel import col, select
 
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.step import Step, StepMediaLayout, StepRead
+from app.models.album_media import AlbumMedia, StepPage, StepPageMedia, StepUnusedMedia
+from app.models.step import Step, StepMediaLayout, StepPageLayout, StepRead
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -13,12 +13,13 @@ if TYPE_CHECKING:
 
 def _step_to_read(
     step: Step,
-    page_rows: list[StepPageMedia],
+    page_rows: list[StepPage],
+    page_media_rows: list[StepPageMedia],
     unused_rows: list[StepUnusedMedia],
 ) -> StepRead:
-    pages_by_index: dict[int, list[str]] = defaultdict(list)
-    for row in sorted(page_rows, key=lambda r: (r.page_index, r.position_index)):
-        pages_by_index[row.page_index].append(row.media_name)
+    media_by_page_index: dict[int, list[str]] = defaultdict(list)
+    for row in sorted(page_media_rows, key=lambda r: (r.page_index, r.position_index)):
+        media_by_page_index[row.page_index].append(row.media_name)
 
     return StepRead(
         uid=step.uid,
@@ -32,7 +33,10 @@ def _step_to_read(
         elevation=step.elevation,
         weather=step.weather,
         cover=step.cover_media_name,
-        pages=[pages_by_index[i] for i in sorted(pages_by_index)],
+        pages=[
+            StepPageLayout(kind=row.kind, media=media_by_page_index[row.page_index])
+            for row in sorted(page_rows, key=lambda r: r.page_index)
+        ],
         unused=[
             row.media_name
             for row in sorted(unused_rows, key=lambda r: r.position_index)
@@ -58,6 +62,15 @@ async def read_steps_with_media(
     page_rows = list(
         (
             await session.exec(
+                select(StepPage)
+                .where(StepPage.uid == uid, StepPage.aid == aid)
+                .order_by(col(StepPage.step_id), col(StepPage.page_index))
+            )
+        ).all()
+    )
+    page_media_rows = list(
+        (
+            await session.exec(
                 select(StepPageMedia)
                 .where(StepPageMedia.uid == uid, StepPageMedia.aid == aid)
                 .order_by(
@@ -81,15 +94,23 @@ async def read_steps_with_media(
         ).all()
     )
 
-    pages_by_step: dict[int, list[StepPageMedia]] = defaultdict(list)
+    pages_by_step: dict[int, list[StepPage]] = defaultdict(list)
     for row in page_rows:
         pages_by_step[row.step_id].append(row)
+    page_media_by_step: dict[int, list[StepPageMedia]] = defaultdict(list)
+    for row in page_media_rows:
+        page_media_by_step[row.step_id].append(row)
     unused_by_step: dict[int, list[StepUnusedMedia]] = defaultdict(list)
     for row in unused_rows:
         unused_by_step[row.step_id].append(row)
 
     return [
-        _step_to_read(step, pages_by_step[step.id], unused_by_step[step.id])
+        _step_to_read(
+            step,
+            pages_by_step[step.id],
+            page_media_by_step[step.id],
+            unused_by_step[step.id],
+        )
         for step in steps
     ]
 
@@ -102,6 +123,19 @@ async def read_step_with_media(
 ) -> StepRead:
     step = await session.get_one(Step, (uid, aid, step_id))
     page_rows = list(
+        (
+            await session.exec(
+                select(StepPage)
+                .where(
+                    StepPage.uid == uid,
+                    StepPage.aid == aid,
+                    StepPage.step_id == step_id,
+                )
+                .order_by(col(StepPage.page_index))
+            )
+        ).all()
+    )
+    page_media_rows = list(
         (
             await session.exec(
                 select(StepPageMedia)
@@ -130,7 +164,7 @@ async def read_step_with_media(
             )
         ).all()
     )
-    return _step_to_read(step, page_rows, unused_rows)
+    return _step_to_read(step, page_rows, page_media_rows, unused_rows)
 
 
 async def _validate_media_names(
@@ -158,7 +192,7 @@ async def _validate_media_names(
 
 
 def _layout_names(layout: StepMediaLayout) -> set[str]:
-    names = {name for page in layout.pages for name in page}
+    names = {name for page in layout.pages for name in page.media}
     names.update(layout.unused)
     if layout.cover is not None:
         names.add(layout.cover)
@@ -189,11 +223,27 @@ async def replace_step_media_layout(
             col(StepUnusedMedia.step_id) == step_id,
         )
     )
+    await session.exec(
+        delete(StepPage).where(
+            col(StepPage.uid) == uid,
+            col(StepPage.aid) == aid,
+            col(StepPage.step_id) == step_id,
+        )
+    )
 
     step.cover_media_name = layout.cover
     session.add(step)
     for page_index, page in enumerate(layout.pages):
-        for position_index, media_name in enumerate(page):
+        session.add(
+            StepPage(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                page_index=page_index,
+                kind=page.kind,
+            )
+        )
+        for position_index, media_name in enumerate(page.media):
             session.add(
                 StepPageMedia(
                     uid=uid,

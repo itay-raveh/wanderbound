@@ -32,7 +32,7 @@ from app.models.album import (
     Album,
     MediaResolutionWarningPreset,
 )
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import AlbumMedia, StepPage, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step, StepRead
@@ -43,7 +43,9 @@ from app.services.open_meteo import build_weathers, elevations
 logger = structlog.get_logger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
-type DbRow = Album | AlbumMedia | Step | StepPageMedia | StepUnusedMedia | Segment
+type DbRow = (
+    Album | AlbumMedia | Step | StepPage | StepPageMedia | StepUnusedMedia | Segment
+)
 
 
 async def track_iter[T](
@@ -464,8 +466,17 @@ def build_step_page_media_rows(
     aid: str,
     step_id: int,
     layout: Layout,
-) -> list[StepPageMedia]:
+) -> list[StepPage | StepPageMedia]:
     return [
+        StepPage(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            page_index=page_index,
+            kind="grid",
+        )
+        for page_index, _page in enumerate(layout.pages)
+    ] + [
         StepPageMedia(
             uid=uid,
             aid=aid,

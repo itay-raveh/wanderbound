@@ -20,7 +20,7 @@ from app.logic.trip_pipeline import (
 )
 from app.logic.trip_processing import ErrorData, PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import AlbumMedia, StepPage, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
@@ -214,6 +214,10 @@ def _page_media() -> StepPageMedia:
     )
 
 
+def _page() -> StepPage:
+    return StepPage(uid=UID, aid=AID, step_id=1, page_index=0, kind="grid")
+
+
 def _unused_media() -> StepUnusedMedia:
     return StepUnusedMedia(
         uid=UID,
@@ -265,7 +269,14 @@ class TestSaveNewDependencyOrder:
         with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
             saved = await _save_new(
                 UID,
-                [_album(), _cover_media(), _step(), _page_media(), _unused_media()],
+                [
+                    _album(),
+                    _cover_media(),
+                    _step(),
+                    _page(),
+                    _page_media(),
+                    _unused_media(),
+                ],
             )
 
         async with AsyncSession(engine) as session:
@@ -371,10 +382,17 @@ class TestSaveNew:
             position_index=0,
             media_name=media.name,
         )
+        page = StepPage(
+            uid=UID,
+            aid=AID,
+            step_id=step.id,
+            page_index=0,
+            kind="grid",
+        )
         expected = (UID, AID, step.id, 0, 0, media.name)
 
         with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
-            await _save_new(UID, [album, media, step, page_media])
+            await _save_new(UID, [album, media, step, page, page_media])
 
         async with AsyncSession(engine) as session:
             rows = (await session.exec(select(StepPageMedia))).all()
@@ -474,6 +492,13 @@ class TestSaveReuploadDeletesSegments:
             position_index=0,
             media_name=media.name,
         )
+        page = StepPage(
+            uid=UID,
+            aid=AID,
+            step_id=step.id,
+            page_index=0,
+            kind="grid",
+        )
 
         await _save_reuploaded_objects(
             engine,
@@ -482,6 +507,7 @@ class TestSaveReuploadDeletesSegments:
             _reuploaded_album(),
             media,
             step,
+            page,
             page_media,
         )
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 import sqlalchemy as sa
 
 # Pydantic resolves this annotation while constructing the SQLModel.
 from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
+
+type StepPageKind = Literal["grid", "panorama_spread"]
 
 
 class AlbumMedia(SQLModel, table=True):
@@ -42,12 +45,40 @@ class AlbumMedia(SQLModel, table=True):
     )
 
 
+class StepPage(SQLModel, table=True):
+    __tablename__ = "step_page"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id"],
+            ["step.uid", "step.aid", "step.id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    uid: int = Field(primary_key=True)
+    aid: str = Field(primary_key=True)
+    step_id: int = Field(primary_key=True)
+    page_index: int = Field(primary_key=True)
+    kind: StepPageKind = Field(sa_column=sa.Column(sa.String(16), nullable=False))
+
+
 class StepPageMedia(SQLModel, table=True):
     __tablename__ = "step_page_media"
     __table_args__ = (
         sa.ForeignKeyConstraint(
             ["uid", "aid", "step_id"],
             ["step.uid", "step.aid", "step.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id", "page_index"],
+            [
+                "step_page.uid",
+                "step_page.aid",
+                "step_page.step_id",
+                "step_page.page_index",
+            ],
+            name="fk_step_page_media_page",
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(

@@ -34,9 +34,9 @@ from app.logic.trip_processing import (
     track_iter,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import AlbumMedia, StepPage, StepPageMedia, StepUnusedMedia
 from app.models.polarsteps import PSStep
-from app.models.step import Step, StepRead
+from app.models.step import Step, StepPageLayout, StepRead
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -57,12 +57,12 @@ def _scan_step_media(trip_dir: Path, ps_step: PSStep) -> set[str]:
 
 
 def _pick_cover(
-    pages: list[list[str]],
+    pages: list[StepPageLayout],
     unused: list[str],
     media_by_name: dict[str, Media],
 ) -> str | None:
     """Pick a cover photo, preferring portraits."""
-    candidates = [f for pg in pages for f in pg] + unused
+    candidates = [name for page in pages for name in page.media] + unused
     portraits = [f for f in candidates if (m := media_by_name.get(f)) and m.is_portrait]
     return portraits[0] if portraits else (candidates[0] if candidates else None)
 
@@ -76,8 +76,8 @@ def _reconcile_step(
 ) -> StepRead:
     """Update a single step's media references and metadata."""
     old_media: set[str] = set()
-    for pg in step.pages:
-        old_media.update(pg)
+    for page in step.pages:
+        old_media.update(page.media)
     if step.cover:
         old_media.add(step.cover)
     old_media.update(step.unused)
@@ -87,7 +87,11 @@ def _reconcile_step(
     added = (disk_media - old_media) & all_on_disk
 
     step.pages = [
-        p for p in ([f for f in pg if f not in missing] for pg in step.pages) if p
+        page.model_copy(
+            update={"media": [name for name in page.media if name not in missing]}
+        )
+        for page in step.pages
+        if any(name not in missing for name in page.media)
     ]
     step.unused = [f for f in step.unused if f not in missing] + sorted(added)
 
@@ -110,8 +114,8 @@ async def _probe_media(
     """Probe dimensions for unknown media files, return full merged list."""
     to_probe: set[str] = set()
     for step_obj in steps:
-        for pg in step_obj.pages:
-            to_probe.update(f for f in pg if f not in known)
+        for page in step_obj.pages:
+            to_probe.update(name for name in page.media if name not in known)
         if step_obj.cover and step_obj.cover not in known:
             to_probe.add(step_obj.cover)
         to_probe.update(f for f in step_obj.unused if f not in known)
@@ -260,7 +264,10 @@ async def _process_new_steps(  # noqa: PLR0913
                 elevation=step.elevation,
                 weather=step.weather,
                 cover=step.cover_media_name,
-                pages=layout.pages if layout else [],
+                pages=[
+                    StepPageLayout(kind="grid", media=page)
+                    for page in (layout.pages if layout else [])
+                ],
                 unused=[],
             )
         )
@@ -283,6 +290,16 @@ def _step_read_to_rows(step: StepRead) -> list[DbRow]:
         )
     ]
     rows.extend(
+        StepPage(
+            uid=step.uid,
+            aid=step.aid,
+            step_id=step.id,
+            page_index=page_index,
+            kind=page.kind,
+        )
+        for page_index, page in enumerate(step.pages)
+    )
+    rows.extend(
         StepPageMedia(
             uid=step.uid,
             aid=step.aid,
@@ -292,7 +309,7 @@ def _step_read_to_rows(step: StepRead) -> list[DbRow]:
             media_name=media_name,
         )
         for page_index, page in enumerate(step.pages)
-        for position_index, media_name in enumerate(page)
+        for position_index, media_name in enumerate(page.media)
     )
     rows.extend(
         StepUnusedMedia(
