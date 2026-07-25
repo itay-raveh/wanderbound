@@ -210,7 +210,9 @@ export function useReplaceExternalMedia() {
     }
   }
 
-  async function replaceFromGoogle(): Promise<string | null> {
+  async function replaceFromGoogle(
+    onRequestStart?: () => void,
+  ): Promise<string | null> {
     const mediaName = selectedMediaName.value;
     if (!mediaName) {
       setError(translate("externalMedia.replace.noSelection"));
@@ -236,6 +238,7 @@ export function useReplaceExternalMedia() {
       await pollUntilReady(session.sessionId, signal);
 
       phase.value = "replacing";
+      onRequestStart?.();
       const baseUrl = client.getConfig().baseUrl ?? "";
       const res = await fetch(
         `${baseUrl}/api/v1/albums/${albumId.value}/external-media/replace/google`,

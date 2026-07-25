@@ -216,6 +216,7 @@
       "label": "Selected media",
       "action": "Replace selected media",
       "shortAction": "Replace",
+      "replacing": "Replacing media...",
       "noneSelected": "No media selected",
       "noSelection": "Select a photo or video first.",
       "invalid": "This replacement could not be applied.",
@@ -238,11 +239,8 @@
       }
     },
     "undo": {
-      "label": "Quick undo",
       "action": "Undo",
-      "shortAction": "Undo",
       "toast": "Media replaced. Undo is available for 5 minutes.",
-      "justReplacedAnnounce": "Media replaced. Undo is available.",
       "done": "Replacement undone.",
       "failed": "Undo failed. Try again."
     }

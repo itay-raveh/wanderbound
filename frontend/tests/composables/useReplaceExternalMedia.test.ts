@@ -92,6 +92,27 @@ describe("useReplaceExternalMedia", () => {
     );
   });
 
+  it("announces replacement start after Picker selection and before fetch", async () => {
+    mockReadyGooglePickerSession(googlePhotosMock);
+    mockGooglePickerPopup();
+    const onRequestStart = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        expect(googlePhotosMock.pollSession).toHaveBeenCalled();
+        expect(onRequestStart).toHaveBeenCalledOnce();
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      }),
+    );
+
+    usePhotoFocus().focus(1, "photo.jpg");
+    const result = mountReplaceExternalMedia();
+
+    await result.replaceFromGoogle(onRequestStart);
+
+    expect(onRequestStart).toHaveBeenCalledOnce();
+  });
+
   it("invalidates print bundle after replacements", () => {
     expect(replacementInvalidationKeys("album-1")).toEqual([
       queryKeys.album("album-1"),

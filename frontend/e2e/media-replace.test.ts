@@ -22,9 +22,14 @@ test.describe("External media replacement", () => {
   test("replaces focused media from a device file", async ({
     authedPage: page,
   }) => {
+    let completeReplacement!: () => void;
+    const replacementMayComplete = new Promise<void>((resolve) => {
+      completeReplacement = resolve;
+    });
     await page.route(
       `${API}/albums/*/external-media/replace/device`,
       async (route) => {
+        await replacementMayComplete;
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -73,8 +78,18 @@ test.describe("External media replacement", () => {
     await reviewDialog
       .getByRole("button", { name: /Replace everywhere/i })
       .click();
+    await expect(page.getByText("Replacing media...")).toBeVisible();
+    await expect(page.locator(".q-notification .q-spinner")).toBeVisible();
+
+    completeReplacement();
     await expect(
       page.getByText("Media replaced. Undo is available for 5 minutes."),
     ).toBeVisible();
+    await expect(
+      page.locator('.q-notification button[aria-label="Close"]'),
+    ).toBeVisible();
+    await expect(page.locator(".selected-section .media-cta.subtle")).toHaveCount(
+      0,
+    );
   });
 });

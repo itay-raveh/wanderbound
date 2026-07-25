@@ -1,5 +1,5 @@
 import { config, enableAutoUnmount } from "@vue/test-utils";
-import { Quasar } from "quasar";
+import { Notify, Quasar } from "quasar";
 import { server } from "./mocks/server";
 
 vi.mock("mapbox-gl");
@@ -25,4 +25,4 @@ enableAutoUnmount(afterEach);
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-config.global.plugins = [[Quasar, {}]];
+config.global.plugins = [[Quasar, { plugins: { Notify } }]];
