@@ -19,6 +19,7 @@ from app.logic.media_upgrade.hashes import (
     compute_serialized_media_hashes,
     deserialize_media_hash,
     serialize_media_hash,
+    try_compute_serialized_media_hash,
 )
 from app.models.album_media import AlbumMedia
 from tests.factories import (
@@ -76,6 +77,22 @@ def test_bulk_hashing_skips_unreadable_media(tmp_path: Path) -> None:
     hashes = compute_serialized_media_hashes([photo, corrupt])
 
     assert set(hashes) == {photo.name}
+
+
+def test_bulk_hashing_ignores_videos(tmp_path: Path) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"not-even-a-video")
+
+    hashes = compute_serialized_media_hashes([video])
+
+    assert hashes == {}
+
+
+def test_single_best_effort_hashing_ignores_videos(tmp_path: Path) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"not-even-a-video")
+
+    assert try_compute_serialized_media_hash(video) is None
 
 
 def test_bulk_hashing_accepts_a_worker_limit() -> None:

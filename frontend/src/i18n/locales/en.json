@@ -371,7 +371,7 @@
     "onboarding": {
       "title": "Upgrade to Original Quality",
       "body": "Replace your bad Polarsteps photos.",
-      "tip": "For large trips, put them in a Google Photos album first.",
+      "tip": "Select photos only. Replace videos individually from the media panel.",
       "continue": "Connect Google Photos"
     },
     "authorizing": "Connecting to Google Photos...",
@@ -383,8 +383,8 @@
       "noMatchTitle": "No matches found",
       "noNewMatchTitle": "No new matches found",
       "allUpgradedTitle": "Already at original quality",
-      "noMatchBody": "Make sure you selected photos from your trip.",
-      "selectedCount": "1 selected Google item | {count} selected Google items",
+      "noMatchBody": "Make sure you selected trip photos. Videos can only be replaced individually.",
+      "selectedCount": "1 selected Google photo | {count} selected Google photos",
       "alreadyUpgradedCount": "1 was already at original quality | {count} were already at original quality",
       "matchCoverage": "Matched 1 album file from {selected}. | Matched {matched} album files from {selected}.",
       "matchCoverageWithUpgraded": "Matched 1 album file from {selected}. {upgraded}. | Matched {matched} album files from {selected}. {upgraded}.",

@@ -403,19 +403,14 @@ async def run_matching(  # noqa: PLR0913, C901
         },
     ) as span:
         unique_items = deduplicate_items(
-            [
-                item
-                for item in google_items
-                if not (
-                    item.type == "VIDEO"
-                    and item.video_processing_status is not None
-                    and item.video_processing_status != "READY"
-                )
-            ]
+            [item for item in google_items if item.type == "PHOTO"]
         )
         media_names = list(
             dict.fromkeys(
-                name for step_id in step_ids for name in media_by_step.get(step_id, [])
+                name
+                for step_id in step_ids
+                for name in media_by_step.get(step_id, [])
+                if not is_video(name)
             )
         )
         set_span_data(
@@ -568,9 +563,9 @@ async def run_matching(  # noqa: PLR0913, C901
         )
 
         yield MatchCompleted(
-            total_picked=len(google_items),
+            total_picked=len(unique_items),
             matched=len(all_matches),
-            unmatched=len(google_items) - len(all_matches),
+            unmatched=len(unique_items) - len(all_matches),
             matches=all_matches,
         )
 

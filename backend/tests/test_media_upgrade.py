@@ -1068,15 +1068,17 @@ class TestRunMatching:
             ("second.jpg", "google-second")
         ]
 
-    async def test_excludes_processing_videos_from_candidate_hashing(
+    async def test_excludes_all_videos_from_automatic_matching(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         h = _make_hash(0)
+        hashed_local_names: list[str] = []
         hashed_candidate_ids: list[str] = []
 
         async def fake_local(
             _album_dir: Path, name: str, _cached_hash: object
         ) -> tuple[str, imagehash.ImageHash]:
+            hashed_local_names.append(name)
             return name, h
 
         async def fake_candidate(
@@ -1100,14 +1102,14 @@ class TestRunMatching:
             async for event in run_matching(
                 clients=AsyncMock(),
                 album_dir=tmp_path,
-                media_by_step={1: ["photo.jpg"]},
+                media_by_step={1: ["photo.jpg", "video.mp4"]},
                 step_ids=[1],
                 google_items=[
                     _make_item(
-                        "processing-video",
+                        "ready-video",
                         _match_dt(10, 5).isoformat(),
                         item_type="VIDEO",
-                        video_processing_status="PROCESSING",
+                        video_processing_status="READY",
                     ),
                     _make_item("ready-photo", _match_dt(10, 6).isoformat()),
                 ],
@@ -1117,14 +1119,20 @@ class TestRunMatching:
 
         summary = events[-1]
         assert isinstance(summary, MatchCompleted)
+        assert hashed_local_names == ["photo.jpg"]
         assert hashed_candidate_ids == ["ready-photo"]
-        assert summary.total_picked == 2
+        assert summary.total_picked == 1
         assert summary.matched == 1
-        assert summary.unmatched == 1
+        assert summary.unmatched == 0
         assert [
             event.total
             for event in events
             if isinstance(event, MatchInProgress) and event.phase == "matching"
+        ] == [1]
+        assert [
+            event.total
+            for event in events
+            if isinstance(event, MatchInProgress) and event.phase == "preparing"
         ] == [1]
 
     async def test_marks_matches_outside_upgrade_candidates_as_upgraded(

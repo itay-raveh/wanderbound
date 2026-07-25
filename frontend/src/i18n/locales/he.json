@@ -371,7 +371,7 @@
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
       "body": "החליפו את התמונות המפוקסלות שלכם מ-Polarsteps.",
-      "tip": "בטיולים גדולים, רכזו את התמונות קודם באלבום ב-Google Photos.",
+      "tip": "בחרו תמונות בלבד. סרטונים אפשר להחליף אחד-אחד מחלונית המדיה.",
       "continue": "חיבור Google Photos"
     },
     "authorizing": "מתחבר ל-Google Photos...",
@@ -383,8 +383,8 @@
       "noMatchTitle": "לא נמצאו התאמות",
       "noNewMatchTitle": "לא נמצאו התאמות חדשות",
       "allUpgradedTitle": "כבר באיכות המקורית",
-      "noMatchBody": "ודאו שבחרתם תמונות מהטיול.",
-      "selectedCount": "פריט אחד שנבחר ב-Google Photos | {count} פריטים שנבחרו ב-Google Photos",
+      "noMatchBody": "ודאו שבחרתם תמונות מהטיול. סרטונים אפשר להחליף רק אחד-אחד.",
+      "selectedCount": "תמונה אחת שנבחרה ב-Google Photos | {count} תמונות שנבחרו ב-Google Photos",
       "alreadyUpgradedCount": "אחד מהם כבר היה באיכות המקורית | {count} מהם כבר היו באיכות המקורית",
       "matchCoverage": "נמצא קובץ אחד מהאלבום מתוך {selected}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}.",
       "matchCoverageWithUpgraded": "נמצא קובץ אחד מהאלבום מתוך {selected}. {upgraded}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}. {upgraded}.",

@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import av
 import imagehash
 import structlog
 from joblib import Parallel, delayed
@@ -13,7 +12,6 @@ from app.core.resources import detect_cpu_count
 from app.logic.layout.media import is_video
 
 from .phash_matching import MediaHash, compute_phash_from_path
-from .processing import extract_video_frame_hashes
 
 if TYPE_CHECKING:
     from joblib.memory import MemorizedFunc
@@ -41,8 +39,6 @@ def deserialize_media_hash(value: list[str]) -> MediaHash:
 
 
 def compute_media_hash(path: Path) -> MediaHash:
-    if is_video(path.name):
-        return extract_video_frame_hashes(path)
     return compute_phash_from_path(path)
 
 
@@ -53,6 +49,8 @@ def compute_serialized_media_hash(path: Path) -> list[str]:
 def _hash_path(
     path: Path, cached_hash: MemorizedFunc | None = None
 ) -> tuple[str, list[str]] | None:
+    if is_video(path.name):
+        return None
     try:
         if cached_hash is None:
             hashes = compute_serialized_media_hash(path)
@@ -67,7 +65,7 @@ def _hash_path(
                     stat.st_mtime_ns,
                 )
             )
-    except OSError, SyntaxError, ValueError, av.FFmpegError:
+    except OSError, SyntaxError, ValueError:
         logger.warning("media_hash.compute_failed", media_name=path.name)
         return None
     else:

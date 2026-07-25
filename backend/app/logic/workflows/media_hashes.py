@@ -140,7 +140,10 @@ async def missing_media_hash_backfill_targets(
     missing_albums = (
         await session.exec(
             select(AlbumMedia.uid, AlbumMedia.aid)
-            .where(col(AlbumMedia.perceptual_hashes).is_(None))
+            .where(
+                col(AlbumMedia.perceptual_hashes).is_(None),
+                AlbumMedia.kind == "photo",
+            )
             .distinct()
             .order_by(col(AlbumMedia.uid), col(AlbumMedia.aid))
         )
@@ -196,6 +199,7 @@ async def media_hash_backfill_revision(
                 AlbumMedia.perceptual_hashes,
             )
             .where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
+            .where(AlbumMedia.kind == "photo")
             .order_by(AlbumMedia.name)
         )
     ).all()
@@ -259,7 +263,10 @@ async def discover_missing_media_hashes(
         await session.exec(
             select(AlbumMedia)
             .where(AlbumMedia.uid == uid, AlbumMedia.aid == aid)
-            .where(col(AlbumMedia.perceptual_hashes).is_(None))
+            .where(
+                col(AlbumMedia.perceptual_hashes).is_(None),
+                AlbumMedia.kind == "photo",
+            )
             .order_by(AlbumMedia.name)
         )
     ).all()

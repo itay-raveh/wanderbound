@@ -194,6 +194,18 @@ async def test_missing_targets_use_latest_successful_generation_or_legacy_zero(
     assert all(target.revision for target in targets)
 
 
+async def test_missing_video_hashes_do_not_schedule_backfill(
+    session: AsyncSession,
+) -> None:
+    await insert_album(session, 1, "video-trip")
+    video_name = DEFAULT_MEDIA_NAME.replace(".jpg", ".mp4")
+    await insert_album_media(session, 1, "video-trip", name=video_name)
+    await session.commit()
+
+    assert await media_hash_backfill_revision(session, 1, "video-trip") is None
+    assert await missing_media_hash_backfill_targets(session) == []
+
+
 async def test_missing_hash_revision_changes_after_hash_invalidation(
     session: AsyncSession,
 ) -> None:
@@ -260,6 +272,20 @@ async def test_discovers_a_finite_snapshot_of_missing_existing_media(
     assert [candidate.name for candidate in discovery.candidates] == [missing.name]
     assert discovery.excluded == 1
     assert discovery.candidates[0].file.size == missing.byte_size
+
+
+async def test_discovery_ignores_videos_without_reading_them(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    await insert_album(session, 1)
+    video_name = DEFAULT_MEDIA_NAME.replace(".jpg", ".mp4")
+    await insert_album_media(session, 1, name=video_name)
+    await session.commit()
+
+    discovery = await discover_missing_media_hashes(session, 1, "trip-1", tmp_path)
+
+    assert discovery.candidates == []
+    assert discovery.excluded == 0
 
 
 async def test_hash_batch_persists_current_media(

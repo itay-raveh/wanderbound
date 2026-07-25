@@ -33,6 +33,7 @@ from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.locks import try_advisory_lock
 from app.core.observability import start_span
+from app.logic.layout.media import is_video
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
     UpgradeEvent,
@@ -583,7 +584,10 @@ async def upgrade_media(
                 aid,
             )
 
-        _validate_match_names(body.matches, set(local_dimensions))
+        photo_matches = [
+            match for match in body.matches if not is_video(match.local_name)
+        ]
+        _validate_match_names(photo_matches, set(local_dimensions))
 
         try:
             tokens = _build_token_getter(http, _get_refresh_token(user))
@@ -617,7 +621,7 @@ async def upgrade_media(
                     uid=user.id,
                     aid=aid,
                     album_dir=_album_dir(user, aid),
-                    matches=body.matches,
+                    matches=photo_matches,
                     google_items_by_id=items_by_id,
                     upgrade_candidates=upgrade_candidates,
                     local_dimensions=local_dimensions,

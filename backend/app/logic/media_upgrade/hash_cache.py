@@ -12,10 +12,8 @@ if TYPE_CHECKING:
     from joblib.memory import MemorizedFunc
 
 from app.core.config import get_settings
-from app.logic.layout.media import is_video
 
 from .phash_matching import MediaHash, compute_phash_from_path
-from .processing import extract_video_frame_hashes
 
 _CACHE_DIR = ".media-hash-cache"
 
@@ -27,8 +25,6 @@ def _compute_local_hash(
     _size: int,
     _mtime_ns: int,
 ) -> MediaHash:
-    if is_video(path.name):
-        return extract_video_frame_hashes(path)
     return compute_phash_from_path(path)
 
 

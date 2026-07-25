@@ -368,6 +368,9 @@ class TestUpgradeMedia:
         match = MatchResult(
             local_name="photo.jpg", google_id="google-photo", distance=0
         )
+        video_match = MatchResult(
+            local_name="video.mp4", google_id="google-video", distance=0
+        )
         captured: dict[str, object] = {}
 
         async def fake_run_upgrade(**kwargs: object) -> AsyncIterator[UpgradeCompleted]:
@@ -398,7 +401,7 @@ class TestUpgradeMedia:
                 event
                 async for event in upgrade_media(
                     "trip-1",
-                    UpgradeRequest(session_ids=["s1"], matches=[match]),
+                    UpgradeRequest(session_ids=["s1"], matches=[match, video_match]),
                     user,
                     http,
                 )
@@ -406,6 +409,7 @@ class TestUpgradeMedia:
 
         assert events[-1] == UpgradeCompleted(replaced=0, skipped=1, failed=0)
         assert captured["local_dimensions"] == {"photo.jpg": (1200, 800)}
+        assert captured["matches"] == [match]
 
 
 class TestOAuthCallback:

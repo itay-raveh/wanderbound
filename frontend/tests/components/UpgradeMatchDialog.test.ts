@@ -33,7 +33,7 @@ describe("UpgradeMatchDialog", () => {
     i18n.global.locale.value = "en";
 
     expect(mountDialog().text()).toBe(
-      "Matched 1 album file from 1 selected Google item. 1 was already at original quality.",
+      "Matched 1 album file from 1 selected Google photo. 1 was already at original quality.",
     );
   });
 
@@ -41,7 +41,7 @@ describe("UpgradeMatchDialog", () => {
     i18n.global.locale.value = "he";
 
     expect(mountDialog().text()).toBe(
-      "נמצא קובץ אחד מהאלבום מתוך פריט אחד שנבחר ב-Google Photos. אחד מהם כבר היה באיכות המקורית.",
+      "נמצא קובץ אחד מהאלבום מתוך תמונה אחת שנבחרה ב-Google Photos. אחד מהם כבר היה באיכות המקורית.",
     );
   });
 });
