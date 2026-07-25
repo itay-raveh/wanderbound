@@ -73,7 +73,7 @@ class AlbumRoutes:
         *,
         step_id: int = 1,
         cover: str | None,
-        pages: list[list[str]],
+        pages: list[dict[str, object]],
         unused: list[str],
     ) -> Response:
         return await self.client.put(
