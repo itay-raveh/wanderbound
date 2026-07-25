@@ -319,8 +319,6 @@ function onVideoKey(e: KeyboardEvent) {
             { dpi: quality.dpi },
           )
         }}
-        <br />
-        {{ t("externalMedia.replaceQuality") }}
       </q-tooltip>
     </button>
   </div>
