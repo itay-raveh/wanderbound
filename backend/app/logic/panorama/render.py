@@ -187,9 +187,11 @@ def _filter_graph(
     )
     source_height = config.cropped_area_height or config.source_height
     if virtual_height != source_height or source_y != 0:
+        bottom_padding = virtual_height - source_y - source_height
         projection = (
             "format=gbrp,"
             f"pad=width=iw:height={virtual_height}:x=0:y={source_y}:color=black,"
+            f"fillborders=top={source_y}:bottom={bottom_padding}:mode=smear,"
             f"{projection}"
         )
     if config.zoom == 1:
