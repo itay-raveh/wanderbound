@@ -1,25 +1,17 @@
 # Wanderbound Helm chart
 
-This chart runs one Wanderbound application pod with a Service and persistent
-application-data volume. It is intended as a short path to a homelab install and
-as a reusable application building block for operators who manage the rest of
-their stack themselves.
+The chart installs one Wanderbound pod, a ClusterIP Service, and a persistent
+volume. You provide PostgreSQL, object storage, ingress, TLS, and backups.
 
 ## Prerequisites
 
-- Kubernetes
 - Helm 3.8 or newer
 - A PostgreSQL database
-- Any external services required by the settings you enable
-
-The chart does not create a namespace. It also does not install a database,
-object storage, backup tooling, an ingress controller, certificates, or
-cluster policy.
+- A Kubernetes namespace and Secret for Wanderbound
 
 ## Install
 
-Create the namespace and a Secret containing the required private application
-settings. Replace every placeholder before running these commands.
+Create the namespace and Secret:
 
 ```bash
 kubectl create namespace wanderbound
@@ -37,18 +29,6 @@ config:
 
 existingSecrets:
   - wanderbound-secrets
-
-persistence:
-  size: 20Gi
-
-ingress:
-  enabled: true
-  className: nginx
-  host: wanderbound.example.com
-  tls:
-    - secretName: wanderbound-tls
-      hosts:
-        - wanderbound.example.com
 ```
 
 Install an exact release:
@@ -62,39 +42,19 @@ helm install wanderbound \
   --values values.yaml
 ```
 
-If Ingress is disabled, access the service locally with:
+Access the service without Ingress:
 
 ```bash
 kubectl --namespace wanderbound port-forward service/wanderbound 8000:8000
 ```
 
-## Values
+## Configuration
 
-The values surface is intentionally small.
+`DATA_FOLDER` is fixed to `/data` and cannot be set through `config`. Use
+[`.env.example`](../../.env.example) as the application setting reference.
 
-| Value | Purpose | Default |
-| --- | --- | --- |
-| `image.repository` | Wanderbound image repository | `ghcr.io/itay-raveh/wanderbound` |
-| `image.tag` | Exact image tag, or chart `appVersion` when empty | `""` |
-| `image.pullPolicy` | Kubernetes image pull policy | `IfNotPresent` |
-| `config` | Non-secret Wanderbound environment settings | `{}` |
-| `existingSecrets` | Secrets imported with `envFrom` | `[]` |
-| `secretEnv` | Individual environment variables sourced from Secret keys | `{}` |
-| `resources` | Application container requests and limits | `{}` |
-| `persistence.existingClaim` | Existing PVC to mount instead of creating one | `""` |
-| `persistence.size` | Size of the managed PVC | `10Gi` |
-| `persistence.storageClass` | Storage class, or the cluster default when empty | `""` |
-| `persistence.accessModes` | Managed PVC access modes | `[ReadWriteOnce]` |
-| `persistence.retain` | Keep the managed PVC when Helm removes the release | `true` |
-| `ingress` | Optional standard Kubernetes Ingress | disabled |
-| `sourceMaps` | Optional source-map upload init container using an existing Secret | disabled |
-
-`DATA_FOLDER` is fixed to `/data` and cannot be set through `config`. For the
-available application settings, required values, and examples, use the
-repository's [`.env.example`](../../.env.example) as the canonical reference.
-
-Use `secretEnv` when an operator-created Secret has a key name that differs from
-the environment variable Wanderbound expects:
+`existingSecrets` imports complete Secrets with `envFrom`. Use `secretEnv` to
+map one environment variable to a Secret key:
 
 ```yaml
 secretEnv:
@@ -103,11 +63,8 @@ secretEnv:
     key: uri
 ```
 
-Set `sourceMaps.enabled: true` only when the application image contains the
-source-map uploader and `sourceMaps.existingSecret` names a Secret with its
-credentials. A failed upload blocks application startup so a broken release is
-visible immediately.
+The managed PVC defaults to `10Gi`, `ReadWriteOnce`, and the cluster's default
+storage class. Set `persistence.existingClaim` to use an existing PVC.
 
-The chart deliberately omits generic resource injection, scheduling knobs, and
-provider-specific resources. Operators can manage or patch the rendered
-resources with their normal deployment tooling.
+See [`values.yaml`](values.yaml) for all values and
+[`values.schema.json`](values.schema.json) for validation rules.

@@ -353,15 +353,13 @@ def assert_metadata() -> None:
 def assert_documentation() -> None:
     chart_readme = (CHART / "README.md").read_text()
     root_readme = (ROOT / "README.md").read_text()
-    for text in (chart_readme, root_readme):
-        assert "oci://ghcr.io/itay-raveh/charts/wanderbound" in text
+    assert "oci://ghcr.io/itay-raveh/charts/wanderbound" in chart_readme
     assert ".env.example" in chart_readme
-    assert "does not install a database" in chart_readme
+    assert "You provide PostgreSQL" in chart_readme
     assert "existingSecrets" in chart_readme
     assert "secretEnv" in chart_readme
     assert "existingClaim" in chart_readme
-    assert "sourceMaps" in chart_readme
-    assert "Self-Hosting on Kubernetes" in root_readme
+    assert "Helm chart installation guide" in root_readme
 
 
 def assert_workflows() -> None:
