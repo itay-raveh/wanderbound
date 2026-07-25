@@ -10,7 +10,7 @@ import { mount, type ComponentMountingOptions } from "@vue/test-utils";
 import type { Mock } from "vitest";
 import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
-import { Notify, Quasar } from "quasar";
+import { Quasar } from "quasar";
 import i18n from "@/i18n";
 import { client } from "@/client/client.gen";
 import type {
@@ -43,7 +43,7 @@ export function withSetup<T>(composable: () => T): T {
   });
   app.use(createPinia());
   app.use(PiniaColada);
-  app.use(Quasar, { plugins: { Notify } });
+  app.use(Quasar, {});
   app.use(i18n);
   app.mount(document.createElement("div"));
 
@@ -76,7 +76,7 @@ export function withParentSetup<T>(
   if (plugins) {
     app.use(createPinia());
     app.use(PiniaColada);
-    app.use(Quasar, { plugins: { Notify } });
+    app.use(Quasar, {});
     app.use(i18n);
   }
   app.mount(document.createElement("div"));
@@ -204,7 +204,7 @@ export function provideTestAlbum({
 
 /** Shared plugin list for mounting components under test. */
 const testPlugins = [
-  [Quasar, { plugins: { Notify } }],
+  [Quasar, {}],
   createPinia(),
   PiniaColada,
   i18n,

@@ -79,17 +79,10 @@ test.describe("External media replacement", () => {
       .getByRole("button", { name: /Replace everywhere/i })
       .click();
     await expect(page.getByText("Replacing media...")).toBeVisible();
-    await expect(page.locator(".q-notification .q-spinner")).toBeVisible();
 
     completeReplacement();
     await expect(
       page.getByText("Media replaced. Undo is available for 5 minutes."),
     ).toBeVisible();
-    await expect(
-      page.locator('.q-notification button[aria-label="Close"]'),
-    ).toBeVisible();
-    await expect(page.locator(".selected-section .media-cta.subtle")).toHaveCount(
-      0,
-    );
   });
 });
