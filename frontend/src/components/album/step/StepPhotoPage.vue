@@ -8,6 +8,7 @@ import { isPortraitByName } from "@/utils/media";
 import { useElementVisibility } from "@vueuse/core";
 import {
   enforceOrientationOrder,
+  photoPageFit,
   photoPageFraction,
   resolveLayoutClass,
 } from "@/utils/photoLayout";
@@ -79,12 +80,14 @@ if (!printMode) {
 const layoutClass = computed(() =>
   resolveLayoutClass(localPage.value, isPortrait),
 );
+const photoFit = computed(() => photoPageFit(layoutClass.value));
 
 const photoQualities = computed(() =>
   localPage.value.map((name, i) =>
     mediaQuality(
       name,
       photoPageFraction(layoutClass.value, i),
+      photoFit.value,
       mediaByName.value,
       mediaResolutionWarningPreset.value,
     ),
@@ -94,7 +97,10 @@ const photoQualities = computed(() =>
 
 <template>
   <div class="page page-container">
-    <div ref="containerRef" :class="['container', layoutClass]">
+    <div
+      ref="containerRef"
+      :class="['container', layoutClass, `fit-${photoFit}`]"
+    >
       <MediaItem
         v-for="(photo, i) in localPage"
         :key="photo"
@@ -130,22 +136,20 @@ const photoQualities = computed(() =>
   justify-content: center;
 }
 
-// -- Default: cover. Layouts that need contain opt out. --
-
 .container :deep(img) {
   object-fit: cover;
 }
 
-// -- 1 photo: contain (show full image) --
+.container.fit-contain :deep(img) {
+  object-fit: contain;
+}
+
+// -- 1 photo --
 
 .layout-1p-0l,
 .layout-0p-1l {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
-
-  :deep(img) {
-    object-fit: contain;
-  }
 }
 
 // -- 2 photos --
@@ -154,10 +158,6 @@ const photoQualities = computed(() =>
 .layout-1p-1l {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-
-  :deep(img) {
-    object-fit: contain;
-  }
 }
 
 .layout-2p-0l {
@@ -185,10 +185,6 @@ const photoQualities = computed(() =>
   .item:first-child {
     grid-row: 1 / 3;
   }
-
-  :deep(img) {
-    object-fit: contain;
-  }
 }
 
 // -- 3 photos: mixed (portraits sorted first) --
@@ -208,10 +204,6 @@ const photoQualities = computed(() =>
 
   .item:last-child {
     grid-column: 1 / 3;
-  }
-
-  :deep(img) {
-    object-fit: contain;
   }
 }
 
