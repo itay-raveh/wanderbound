@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from sqlmodel import col, select
 
 from app.api.v1.deps import to_user_public
-from app.core.config import get_settings
 from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session
 from app.logic.upload import scan_user_folder
@@ -24,19 +23,7 @@ def finalization_operation_id(upload_id: str) -> str:
     return f"upload:{upload_id}:processing"
 
 
-def recover_finalization_source(
-    expected: Path, users_folder: Path, upload_id: str
-) -> Path:
-    for candidate in users_folder.iterdir():
-        marker = candidate / _MARKER
-        if candidate.is_dir() and marker.is_file() and marker.read_text() == upload_id:
-            return candidate
-    if expected.exists():
-        return expected
-    raise FileNotFoundError(expected)
-
-
-def replace_user_folder_once(source: Path, target: Path, *, marker: str) -> None:
+def replace_folder_once(source: Path, target: Path, *, marker: str) -> None:
     backup = target.with_name(f"{target.name}.upload-backup-{marker}")
     marker_path = target / _MARKER
     if marker_path.is_file() and marker_path.read_text() == marker:
@@ -70,12 +57,7 @@ def _apply_archive_profile(user: User, ps_user: PSUser, album_ids: list[str]) ->
 async def finalize_upload_session(
     session: AsyncSession, upload: UploadSession, extracted_folder: Path
 ) -> tuple[UploadResult, ProcessingOperation, User]:
-    source = await asyncio.to_thread(
-        recover_finalization_source,
-        extracted_folder,
-        get_settings().USERS_FOLDER,
-        upload.upload_id,
-    )
+    source = extracted_folder
     operation_id = finalization_operation_id(upload.upload_id)
     if upload.result is None:
         ps_user, trips = await asyncio.to_thread(scan_user_folder, source)
@@ -84,7 +66,9 @@ async def finalize_upload_session(
             user = await session.get(User, int(upload.owner.removeprefix("uid:")))
             if user is None:
                 raise RuntimeError("upload owner no longer exists")
-            _apply_archive_profile(user, ps_user, album_ids)
+            _apply_archive_profile(
+                user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+            )
         else:
             provider, sub = upload.owner.split(":", 1)
             provider_column = (
@@ -106,7 +90,9 @@ async def finalize_upload_session(
                     album_ids=album_ids,
                 )
             else:
-                _apply_archive_profile(user, ps_user, album_ids)
+                _apply_archive_profile(
+                    user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+                )
         cancel_session(user.id)
         await mark_user_processing_operations_stale(session, uid=user.id)
         session.add(user)
@@ -138,7 +124,13 @@ async def finalize_upload_session(
         operation = await session.get(ProcessingOperation, operation_id)
         if user is None or operation is None:
             raise RuntimeError("committed upload finalization is incomplete")
-    await asyncio.to_thread(
-        replace_user_folder_once, source, user.folder, marker=upload.upload_id
-    )
+    await asyncio.to_thread(user.trips_folder.mkdir, parents=True, exist_ok=True)
+    for trip in result.trips:
+        await asyncio.to_thread(
+            replace_folder_once,
+            source / "trip" / trip.id,
+            user.trips_folder / trip.id,
+            marker=upload.upload_id,
+        )
+    await asyncio.to_thread(remove_tree_if_present, source)
     return result, operation, user

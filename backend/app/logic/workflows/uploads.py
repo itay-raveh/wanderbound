@@ -15,10 +15,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.logic.eviction import run_eviction
-from app.logic.upload import _safe_extract, scan_user_folder
+from app.logic.upload import extract_selected, inspect_archive, scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
 from app.logic.uploads.finalize import finalize_upload_session
 from app.logic.uploads.progress import (
+    SelectionRequiredEvent,
     UploadCompleteEvent,
     UploadErrorEvent,
     UploadIngestionPhase,
@@ -27,6 +28,7 @@ from app.logic.uploads.progress import (
 )
 from app.logic.workflows.processing import processing_upload_workflow
 from app.models.processing import UploadSession
+from app.models.upload import TripChoice
 from app.services.upload_store import UploadStoreService
 
 logger = structlog.get_logger(__name__)
@@ -100,13 +102,14 @@ def download_verified_object(
 def _extract_archive(
     source: Path,
     destination: Path,
+    selected_ids: list[str],
     progress: ProgressCallback | None = None,
 ) -> None:
     remove_tree_if_present(destination)
     try:
         destination.mkdir(parents=True)
         with source.open("rb") as archive:
-            _safe_extract(archive, destination, progress)
+            extract_selected(archive, destination, set(selected_ids), progress)
         scan_user_folder(destination)
     except (
         BadZipFile,
@@ -117,6 +120,11 @@ def _extract_archive(
     ) as exc:
         remove_tree_if_present(destination)
         raise InvalidUploadArchiveError from exc
+
+
+def _inspect_archive(source: Path) -> list[TripChoice]:
+    with source.open("rb") as archive:
+        return inspect_archive(archive)
 
 
 async def _run_with_progress(
@@ -172,8 +180,26 @@ async def download_upload(upload_id: str) -> str:
     return str(path)
 
 
+@DBOS.step(retries_allowed=True, max_attempts=3)
+async def inspect_upload(upload_id: str, source_path: str) -> list[dict[str, str]]:
+    try:
+        choices = await asyncio.to_thread(_inspect_archive, Path(source_path))
+    except (BadZipFile, FileNotFoundError, ValueError) as exc:
+        raise InvalidUploadArchiveError from exc
+    async with AsyncSession(get_engine()) as session:
+        row = await _current_upload(session, upload_id)
+        row.status = "awaiting_selection"
+        row.trip_choices = choices
+        row.updated_at = datetime.now(UTC)
+        session.add(row)
+        await session.commit()
+    return [choice.model_dump() for choice in choices]
+
+
 @DBOS.step()
-async def extract_upload(upload_id: str, source_path: str) -> str:
+async def extract_upload(
+    upload_id: str, source_path: str, selected_ids: list[str]
+) -> str:
     async with AsyncSession(get_engine()) as session:
         row = await _current_upload(session, upload_id)
         row.updated_at = datetime.now(UTC)
@@ -182,7 +208,9 @@ async def extract_upload(upload_id: str, source_path: str) -> str:
     destination = Path(source_path).parent / "extracted"
     await _run_with_progress(
         "validating",
-        lambda progress: _extract_archive(Path(source_path), destination, progress),
+        lambda progress: _extract_archive(
+            Path(source_path), destination, selected_ids, progress
+        ),
     )
     return str(destination)
 
@@ -202,7 +230,7 @@ async def finalize_upload(upload_id: str, extracted_path: str) -> dict[str, Any]
         "uid": user.id,
         "upload_generation": operation.upload_generation,
         "trips_folder": str(user.trips_folder),
-        "album_ids": list(result.user.album_ids),
+        "album_ids": [trip.id for trip in result.trips],
     }
 
 
@@ -259,7 +287,20 @@ async def _write_progress(event: UploadWorkflowEvent) -> None:
 async def upload_import_workflow(upload_id: str) -> None:
     try:
         source = await download_upload(upload_id)
-        extracted = await extract_upload(upload_id, source)
+        choices = await inspect_upload(upload_id, source)
+        await _write_progress(
+            SelectionRequiredEvent(
+                choices=[TripChoice.model_validate(choice) for choice in choices]
+            )
+        )
+        selection = await DBOS.recv_async(
+            topic="selection",
+            timeout_seconds=get_settings().UPLOAD_SESSION_TTL_SECONDS,
+        )
+        selected_ids = [str(aid) for aid in selection or []]
+        if not selected_ids:
+            return
+        extracted = await extract_upload(upload_id, source, selected_ids)
         await _write_progress(UploadProgressUpdate(phase="importing", done=0, total=1))
         processing = await finalize_upload(upload_id, extracted)
         await _write_progress(UploadProgressUpdate(phase="importing", done=1, total=1))

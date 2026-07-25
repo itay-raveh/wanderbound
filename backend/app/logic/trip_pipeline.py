@@ -220,6 +220,7 @@ async def _save_reupload(  # noqa: PLR0913
     existing_albums: dict[str, Album],
     trip_dirs: list[Path],
     *,
+    album_ids: tuple[str, ...] | None = None,
     save_guard: SaveGuard | None = None,
 ) -> bool:
     with start_span(
@@ -266,7 +267,10 @@ async def _save_reupload(  # noqa: PLR0913
                 )
 
             current_aids = {d.name for d in trip_dirs}
-            orphan_aids = set(existing_albums) - current_aids
+            expected_aids = (
+                set(existing_albums) if album_ids is None else set(album_ids)
+            )
+            orphan_aids = expected_aids - current_aids
             if orphan_aids:
                 await session.exec(
                     delete(Album)
@@ -329,11 +333,16 @@ async def run_processing(  # noqa: C901
     http: HttpClients,
     user: User,
     *,
+    album_ids: tuple[str, ...] | None = None,
     should_continue: Callable[[], Awaitable[bool]] | None = None,
     save_guard: SaveGuard | None = None,
 ) -> AsyncIterator[ProcessingEvent]:
     t0 = time.monotonic()
-    trip_dirs = sorted(user.trips_folder.iterdir())
+    trip_dirs = (
+        sorted(user.trips_folder.iterdir())
+        if album_ids is None
+        else [user.trips_folder / aid for aid in album_ids]
+    )
 
     all_objects: list[DbRow] = []
     reconciled_aids: set[str] = set()
@@ -396,6 +405,7 @@ async def run_processing(  # noqa: C901
                     reconciled_aids,
                     existing_albums,
                     trip_dirs,
+                    album_ids=album_ids,
                     save_guard=save_guard,
                 )
             else:

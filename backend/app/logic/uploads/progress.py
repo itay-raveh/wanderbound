@@ -2,6 +2,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from app.models.upload import TripChoice
+
 UploadIngestionPhase = Literal["downloading", "validating", "importing"]
 
 
@@ -16,13 +18,21 @@ class UploadCompleteEvent(BaseModel):
     type: Literal["complete"] = "complete"
 
 
+class SelectionRequiredEvent(BaseModel):
+    type: Literal["selection_required"] = "selection_required"
+    choices: list[TripChoice]
+
+
 class UploadErrorEvent(BaseModel):
     type: Literal["error"] = "error"
     error_code: str
 
 
 UploadWorkflowEvent = Annotated[
-    UploadProgressUpdate | UploadCompleteEvent | UploadErrorEvent,
+    UploadProgressUpdate
+    | SelectionRequiredEvent
+    | UploadCompleteEvent
+    | UploadErrorEvent,
     Field(discriminator="type"),
 ]
 UploadProgressEvent = UploadWorkflowEvent

@@ -7,6 +7,9 @@ from threading import Event
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.logic.workflows.uploads as upload_workflows
 from app.logic.workflows.uploads import (
@@ -16,6 +19,8 @@ from app.logic.workflows.uploads import (
     upload_import_workflow,
     upload_workflow_id,
 )
+from app.models.processing import UploadSession
+from app.models.upload import TripChoice
 
 
 def test_upload_workflow_id_is_deterministic() -> None:
@@ -49,7 +54,45 @@ def test_invalid_archive_is_reported_as_an_application_error(tmp_path: Path) -> 
     source.write_bytes(b"not a zip")
 
     with pytest.raises(InvalidUploadArchiveError):
-        _extract_archive(source, tmp_path / "out")
+        _extract_archive(source, tmp_path / "out", ["trip"])
+
+
+async def test_inspection_persists_choices_before_waiting(tmp_path: Path) -> None:
+    source = tmp_path / "source.zip"
+    with source.open("wb") as target:
+        target.write(b"placeholder")
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'upload.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(SQLModel.metadata.create_all)
+    upload = UploadSession.new(
+        owner="uid:42",
+        provider_upload_id="provider-id",
+        filename="polarsteps.zip",
+        content_type="application/zip",
+        size_bytes=1,
+    )
+    upload.status = "processing"
+    upload_id = upload.upload_id
+    async with AsyncSession(engine) as session:
+        session.add(upload)
+        await session.commit()
+
+    with (
+        patch.object(upload_workflows, "get_engine", return_value=engine),
+        patch.object(
+            upload_workflows,
+            "inspect_archive",
+            return_value=[TripChoice(id="trip-a", label="trip-a")],
+        ),
+    ):
+        choices = await unwrap(upload_workflows.inspect_upload)(upload_id, str(source))
+
+    async with AsyncSession(engine) as session:
+        saved = await session.get_one(UploadSession, upload_id)
+    await engine.dispose()
+    assert choices == [{"id": "trip-a", "label": "trip-a"}]
+    assert saved.status == "awaiting_selection"
+    assert [choice.id for choice in saved.trip_choices] == ["trip-a"]
 
 
 async def test_progress_runner_persists_absolute_updates() -> None:
@@ -114,6 +157,7 @@ async def test_progress_runner_joins_worker_before_stream_error_escapes() -> Non
 
 
 async def test_upload_workflow_persists_ingestion_progress() -> None:
+    choices = [{"id": "trip-a", "label": "trip-a"}]
     processing = {
         "operation_id": "operation-id",
         "uid": 42,
@@ -127,9 +171,18 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
             new=AsyncMock(return_value="/work/source.zip"),
         ),
         patch(
+            "app.logic.workflows.uploads.inspect_upload",
+            new=AsyncMock(return_value=choices),
+            create=True,
+        ) as inspect,
+        patch(
+            "app.logic.workflows.uploads.DBOS.recv_async",
+            new=AsyncMock(return_value=["trip-a"]),
+        ) as receive,
+        patch(
             "app.logic.workflows.uploads.extract_upload",
             new=AsyncMock(return_value="/work/extracted"),
-        ),
+        ) as extract,
         patch(
             "app.logic.workflows.uploads.finalize_upload",
             new=AsyncMock(return_value=processing),
@@ -149,7 +202,16 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
     ):
         await unwrap(upload_import_workflow)("upload-id")
 
+    inspect.assert_awaited_once_with("upload-id", "/work/source.zip")
+    receive.assert_awaited_once()
+    extract.assert_awaited_once_with("upload-id", "/work/source.zip", ["trip-a"])
     assert write.await_args_list == [
+        (
+            (
+                "progress",
+                {"type": "selection_required", "choices": choices},
+            ),
+        ),
         (
             (
                 "progress",

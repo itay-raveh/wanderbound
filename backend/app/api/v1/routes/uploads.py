@@ -7,6 +7,7 @@ from dbos import DBOS
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlmodel import col, select
 
 from app.api.v1.deps import SessionDep, UploadStoreDep, login_session
 from app.core.config import get_settings
@@ -22,7 +23,7 @@ from app.logic.workflows.uploads import (
     upload_workflow_id,
 )
 from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
-from app.models.upload import UploadResult
+from app.models.upload import TripChoice, UploadResult
 from app.models.user import User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
 
@@ -70,6 +71,16 @@ class CompleteUploadRequest(BaseModel):
 
 class CompleteUploadResponse(BaseModel):
     location: str
+
+
+class TripSelectionRequest(BaseModel):
+    trip_ids: list[str] = Field(min_length=1)
+
+
+class PendingUpload(BaseModel):
+    upload_id: str
+    status: Literal["processing", "awaiting_selection"]
+    choices: list[TripChoice]
 
 
 def _error(code: str, http_status: int) -> UploadHTTPException:
@@ -304,6 +315,57 @@ async def _completed_upload_result(
         login_session(request, db_user.id)
         clear_pending_signup(request)
     return row.result
+
+
+@router.get("/pending")
+async def pending_upload(request: Request, session: SessionDep) -> PendingUpload | None:
+    existing, identity = await _resolve_auth(request, session)
+    owner = _upload_owner(existing, identity)
+    statement = (
+        select(UploadSession)
+        .where(
+            UploadSession.owner == owner,
+            col(UploadSession.status).in_(("processing", "awaiting_selection")),
+            UploadSession.expires_at > datetime.now(UTC),
+        )
+        .order_by(col(UploadSession.created_at).desc())
+        .limit(1)
+    )
+    row = (await session.exec(statement)).first()
+    if row is None or row.status not in ("processing", "awaiting_selection"):
+        return None
+    return PendingUpload(
+        upload_id=row.upload_id,
+        status=row.status,
+        choices=row.trip_choices,
+    )
+
+
+@router.post("/{upload_id}/selection")
+async def select_upload_trips(
+    upload_id: str,
+    payload: TripSelectionRequest,
+    request: Request,
+    session: SessionDep,
+) -> dict[str, object]:
+    row = await _owned_upload(request, session, upload_id)
+    if row.status not in ("awaiting_selection", "processing"):
+        raise _error("upload_not_active", status.HTTP_409_CONFLICT)
+    selected = payload.trip_ids
+    available = {choice.id for choice in row.trip_choices}
+    if len(selected) != len(set(selected)) or not set(selected) <= available:
+        raise _error("upload_invalid_selection", status.HTTP_422_UNPROCESSABLE_CONTENT)
+    row.status = "processing"
+    row.updated_at = datetime.now(UTC)
+    session.add(row)
+    await session.commit()
+    await DBOS.send_async(
+        upload_workflow_id(upload_id),
+        selected,
+        topic="selection",
+        idempotency_key=f"selection:{upload_id}",
+    )
+    return {}
 
 
 @router.get(

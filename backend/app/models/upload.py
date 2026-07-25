@@ -4,6 +4,11 @@ from app.models.polarsteps import CountryCode
 from app.models.user import UserPublic
 
 
+class TripChoice(BaseModel):
+    id: str
+    label: str
+
+
 class TripMeta(BaseModel):
     id: str
     title: str
