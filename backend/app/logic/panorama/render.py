@@ -173,21 +173,25 @@ def _filter_graph(
     config: PanoramaConfig,
     destination: PanoramaDestination,
 ) -> str:
-    top_elevation, bottom_elevation = _source_vertical_bounds(config)
-    input_vertical_fov = top_elevation - bottom_elevation
-    source_center_pitch = (top_elevation + bottom_elevation) / 2
-    render_pitch = config.pitch - source_center_pitch
+    virtual_height, source_y, input_vertical_fov = _virtual_input_geometry(config)
     output_vertical_fov = _output_vertical_fov(config, destination)
     projection = (
         "v360=input=cylindrical:output=flat:"
         f"ih_fov={_number(config.captured_fov)}:"
         f"iv_fov={_number(input_vertical_fov)}:"
         f"yaw={_number(config.yaw)}:"
-        f"pitch={_number(render_pitch)}:"
+        f"pitch={_number(config.pitch)}:"
         f"h_fov={_number(config.perspective_fov)}:"
         f"v_fov={_number(output_vertical_fov)}:"
         f"w={destination.width_px}:h={destination.height_px}"
     )
+    source_height = config.cropped_area_height or config.source_height
+    if virtual_height != source_height or source_y != 0:
+        projection = (
+            "format=gbrp,"
+            f"pad=width=iw:height={virtual_height}:x=0:y={source_y}:color=black,"
+            f"{projection}"
+        )
     if config.zoom == 1:
         return projection
     zoom = _number(config.zoom)
@@ -199,6 +203,22 @@ def _filter_graph(
 
 
 def _source_vertical_bounds(config: PanoramaConfig) -> tuple[float, float]:
+    top, bottom, focal_length = _source_pixel_geometry(config)
+    top_elevation = math.degrees(math.atan(-top / focal_length))
+    bottom_elevation = math.degrees(math.atan(-bottom / focal_length))
+    return top_elevation, bottom_elevation
+
+
+def _virtual_input_geometry(config: PanoramaConfig) -> tuple[int, int, float]:
+    top, bottom, focal_length = _source_pixel_geometry(config)
+    half = max(abs(top), abs(bottom))
+    virtual_height = max(1, int(2 * half))
+    source_y = int(half + top)
+    vertical_fov = 2 * math.degrees(math.atan(half / focal_length))
+    return virtual_height, source_y, vertical_fov
+
+
+def _source_pixel_geometry(config: PanoramaConfig) -> tuple[float, float, float]:
     source_width = config.cropped_area_width or config.source_width
     source_height = config.cropped_area_height or config.source_height
     top = (
@@ -206,10 +226,9 @@ def _source_vertical_bounds(config: PanoramaConfig) -> tuple[float, float]:
         if config.cropped_area_top is not None
         else -source_height / 2
     )
+    bottom = top + source_height
     focal_length = source_width / math.radians(config.captured_fov)
-    top_elevation = math.degrees(math.atan(-top / focal_length))
-    bottom_elevation = math.degrees(math.atan(-(top + source_height) / focal_length))
-    return top_elevation, bottom_elevation
+    return top, bottom, focal_length
 
 
 def _output_vertical_fov(

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
 from app.core.worker_threads import run_sync
@@ -120,16 +122,20 @@ async def test_zoom_one_has_no_post_projection_crop(tmp_path: Path) -> None:
         (
             0,
             -20,
-            "iv_fov=57.5184:yaw=12:pitch=8.75918:h_fov=30:v_fov=15.2615",
+            "format=gbrp,pad=width=iw:height=200:x=0:y=100:color=black,"
+            "v360=input=cylindrical:output=flat:ih_fov=270:iv_fov=115.037:"
+            "yaw=12:pitch=-20:h_fov=30:v_fov=15.2615:w=800:h=400",
         ),
         (
             -25,
             0,
-            "iv_fov=71.1144:yaw=12:pitch=14.1173:h_fov=30:v_fov=15.2615",
+            "format=gbrp,pad=width=iw:height=150:x=0:y=50:color=black,"
+            "v360=input=cylindrical:output=flat:ih_fov=270:iv_fov=99.349:"
+            "yaw=12:pitch=0:h_fov=30:v_fov=15.2615:w=800:h=400",
         ),
     ],
 )
-async def test_gpano_crop_position_sets_vertical_fov_and_pitch_offset(
+async def test_gpano_crop_position_sets_virtual_canvas_and_vertical_fov(
     tmp_path: Path,
     cropped_top: int,
     pitch: float,
@@ -170,10 +176,45 @@ async def test_gpano_crop_position_sets_vertical_fov_and_pitch_offset(
         await render_panorama(source, config, _destination(), output)
 
     filter_graph = command[command.index("-vf") + 1]
-    assert filter_graph == (
-        "v360=input=cylindrical:output=flat:ih_fov=270:"
-        f"{expected_vertical_options}:w=800:h=400"
+    assert filter_graph == expected_vertical_options
+
+
+async def test_gpano_world_horizon_maps_to_viewport_center_without_padding(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "calibrated.jpg"
+    image = Image.new("RGB", (300, 101), color=(30, 220, 30))
+    ImageDraw.Draw(image).rectangle((0, 22, 299, 28), fill=(240, 20, 240))
+    image.save(source, quality=100, subsampling=2)
+    output = tmp_path / "frame.jpg"
+    config = _config(
+        source_width=300,
+        source_height=101,
+        cropped_area_width=300,
+        cropped_area_height=101,
+        cropped_area_top=-25,
+        full_pano_width=400,
+        full_pano_height=None,
+        captured_fov=270,
+        yaw=0,
+        pitch=0,
+        perspective_fov=10,
+        zoom=1,
     )
+
+    await render_panorama(
+        source,
+        config,
+        _destination(aspect_ratio=1, width_px=101, height_px=101),
+        output,
+    )
+
+    with Image.open(output) as rendered:
+        center = cast("tuple[int, int, int]", rendered.getpixel((50, 50)))
+        assert center[0] > 180
+        assert center[1] < 80
+        assert center[2] > 180
+        assert min(max(pixel) for pixel in rendered.get_flattened_data()) > 100
 
 
 async def test_gpano_crop_position_enforces_asymmetric_pitch_bounds(
