@@ -33,7 +33,7 @@ type MediaDimensions = { width: number; height: number };
 
 const DPI_CAUTION_DEFAULT = 100;
 const DPI_WARNING_DEFAULT = 75;
-const DPI_CAUTION_PRINT = 300;
+const DPI_CAUTION_PRINT = 250;
 const DPI_WARNING_PRINT = 150;
 
 export const DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET: MediaResolutionWarningPreset =
