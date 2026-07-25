@@ -4,6 +4,12 @@ import { makeAlbumMedia, mountWithPlugins } from "../helpers";
 import InspectorDrawer from "@/components/editor/InspectorDrawer.vue";
 import { defaultAlbum, defaultSteps } from "../mocks/handlers";
 
+const mutate = vi.fn();
+
+vi.mock("@/queries/useAlbumMutation", () => ({
+  useAlbumMutation: () => ({ mutate }),
+}));
+
 const CoverCellStub = defineComponent({
   name: "CoverCell",
   props: {
@@ -41,7 +47,49 @@ const VirtualScrollStub = defineComponent({
     '<div class="virtual-scroll-stub"><template v-for="(item, index) in items.slice(0, virtualScrollSliceSize)" :key="index"><slot :item="item" :index="index" /></template></div>',
 });
 
+const SliderStub = defineComponent({
+  name: "QSlider",
+  props: {
+    modelValue: { type: Number, required: true },
+  },
+  emits: ["change", "update:modelValue"],
+  template: '<input class="slider-stub" type="range" :value="modelValue" />',
+});
+
+function mountCoverInspector(sectionKey: string) {
+  return mountWithPlugins(InspectorDrawer, {
+    props: {
+      album: defaultAlbum,
+      sectionKey,
+      steps: defaultSteps,
+      media: [
+        makeAlbumMedia({
+          name: "cover.jpg",
+          aid: defaultAlbum.id,
+        }),
+      ],
+    },
+    global: {
+      stubs: {
+        AlbumProperties: true,
+        CoverCell: CoverCellStub,
+        MediaPanel: true,
+        QSlider: SliderStub,
+        QVirtualScroll: VirtualScrollStub,
+        QExpansionItem: ExpansionItemStub,
+        QIcon: true,
+        QSeparator: true,
+        UnusedDrawer: true,
+      },
+    },
+  });
+}
+
 describe("InspectorDrawer", () => {
+  beforeEach(() => {
+    mutate.mockReset();
+  });
+
   it("keeps only properties and external media in the primary accordion", () => {
     const wrapper = mountWithPlugins(InspectorDrawer, {
       props: {
@@ -140,5 +188,34 @@ describe("InspectorDrawer", () => {
     });
 
     expect(wrapper.findAll(".cover-cell").length).toBeLessThan(media.length);
+  });
+
+  it("updates the active chapter darkness from the front cover", async () => {
+    const wrapper = mountCoverInspector("chapter-chapter-1-cover-front");
+
+    expect(wrapper.get(".cover-darkness-value").text()).toBe("45%");
+
+    wrapper.getComponent(SliderStub).vm.$emit("update:modelValue", 20);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get(".cover-darkness-value").text()).toBe("20%");
+    expect(mutate).not.toHaveBeenCalled();
+
+    wrapper.getComponent(SliderStub).vm.$emit("change", 20);
+    await wrapper.vm.$nextTick();
+
+    expect(mutate).toHaveBeenCalledOnce();
+    expect(mutate.mock.calls[0][0].chapters).toEqual([
+      {
+        ...defaultAlbum.chapters[0],
+        front_cover_darkness: 0.2,
+      },
+    ]);
+  });
+
+  it("does not show chapter darkness for the back cover", () => {
+    const wrapper = mountCoverInspector("chapter-chapter-1-cover-back");
+
+    expect(wrapper.find(".cover-darkness-control").exists()).toBe(false);
   });
 });

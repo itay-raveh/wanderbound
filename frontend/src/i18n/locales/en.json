@@ -156,6 +156,7 @@
     "dropPhotoToAdd": "Drop a photo to add a page",
     "frontCover": "Front Cover",
     "backCover": "Back Cover",
+    "coverDarkness": "Cover darkness",
     "noLandscapePhotos": "No landscape photos available",
     "unused": "Unused",
     "unusedHint": "Photos from this step - drag to a page to place",
