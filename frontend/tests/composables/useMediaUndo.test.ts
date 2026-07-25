@@ -76,9 +76,8 @@ describe("replacement notification", () => {
           handler: expect.any(Function),
         },
         {
-          icon: "close",
+          label: "Keep replacement",
           color: "white",
-          "aria-label": "Keep replacement and dismiss",
           handler: expect.any(Function),
         },
       ],
@@ -185,8 +184,7 @@ describe("replacement notification", () => {
       actions: [
         { label: "Try undo again", handler: expect.any(Function) },
         {
-          icon: "close",
-          "aria-label": "Keep replacement and dismiss",
+          label: "Keep replacement",
           handler: expect.any(Function),
         },
       ],
@@ -206,8 +204,9 @@ describe("replacement notification", () => {
         "\u20661,920 × 1,080 · 1.2KB\u2069 ← \u20663,000 × 2,000 · 12.1KB\u2069",
       actions: expect.arrayContaining([
         expect.objectContaining({
-          "aria-label": "שמירת ההחלפה וסגירה",
+          label: "שמירת ההחלפה",
         }),
+        expect.objectContaining({ label: "ביטול ההחלפה" }),
       ]),
     });
     undo.clearUndoState();

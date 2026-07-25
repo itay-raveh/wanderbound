@@ -55,9 +55,8 @@ export function useMediaUndo(albumId: () => string) {
 
   function keepReplacementAction() {
     return {
-      icon: "close",
+      label: t("externalMedia.undo.keep"),
       color: "white",
-      "aria-label": t("externalMedia.undo.keepAndDismiss"),
       handler: clearUndoState,
     };
   }

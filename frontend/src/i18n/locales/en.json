@@ -242,9 +242,9 @@
     },
     "undo": {
       "action": "Undo",
+      "keep": "Keep replacement",
       "retry": "Try undo again",
       "undoing": "Undoing replacement…",
-      "keepAndDismiss": "Keep replacement and dismiss",
       "done": "Replacement undone.",
       "failed": "Undo failed. Try again."
     }

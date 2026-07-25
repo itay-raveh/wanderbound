@@ -86,7 +86,10 @@ test.describe("External media replacement", () => {
     ).toBeVisible();
     await expect(page.getByText(/→.*3,000 × 2,000.*12\.1KB/)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Keep replacement and dismiss" }),
+      page.getByRole("button", { name: "Keep replacement" }),
+    ).toBeVisible();
+    await expect(
+      page.locator("#q-notify").getByRole("button", { name: "Undo" }),
     ).toBeVisible();
   });
 });
