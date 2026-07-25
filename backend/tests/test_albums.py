@@ -288,6 +288,61 @@ class TestUpdateAlbum:
         )
         assert data["chapters"][0]["front_cover_photo"] == "new_front.jpg"
         assert data["chapters"][0]["back_cover_photo"] == "new_back.jpg"
+        assert data["chapters"][0]["front_cover_darkness"] == 0.45
+
+    async def test_update_front_cover_darkness_persists(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await session.commit()
+
+        data = await album_routes.update_album_ok(
+            chapters=[
+                {
+                    "id": "chapter-1",
+                    "title": "Test Album",
+                    "subtitle": "A subtitle",
+                    "step_ids": [1],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                    "front_cover_darkness": 0.2,
+                }
+            ],
+        )
+        assert data["chapters"][0]["front_cover_darkness"] == 0.2
+
+        response = await album_routes.get_album()
+        assert response.status_code == 200
+        assert response.json()["chapters"][0]["front_cover_darkness"] == 0.2
+
+    @pytest.mark.parametrize("darkness", [-0.01, 1.01])
+    async def test_update_chapters_rejects_invalid_front_cover_darkness(
+        self,
+        darkness: float,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        await insert_step(session, signed_album.uid, step_id=1)
+        await session.commit()
+
+        response = await album_routes.update_album(
+            chapters=[
+                {
+                    "id": "chapter-1",
+                    "title": "Test Album",
+                    "subtitle": "A subtitle",
+                    "step_ids": [1],
+                    "front_cover_photo": "front.jpg",
+                    "back_cover_photo": "back.jpg",
+                    "front_cover_darkness": darkness,
+                }
+            ],
+        )
+        assert response.status_code == 422
 
     async def test_partial_update_preserves_other_fields(
         self,
@@ -345,6 +400,7 @@ class TestUpdateAlbum:
                 "step_ids": [1, 2],
                 "front_cover_photo": "front.jpg",
                 "back_cover_photo": "back.jpg",
+                "front_cover_darkness": 0.45,
             }
         ]
 

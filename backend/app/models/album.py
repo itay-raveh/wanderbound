@@ -31,6 +31,7 @@ class AlbumChapter(SQLModel):
     step_ids: list[int] = Field(default_factory=list)
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
+    front_cover_darkness: float = Field(default=0.45, ge=0.0, le=1.0)
 
 
 class AlbumBase(SQLModel):
