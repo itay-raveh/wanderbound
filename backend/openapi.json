@@ -2644,6 +2644,16 @@
             "type": "integer",
             "title": "Byte Size"
           },
+          "panorama": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PanoramaConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "upgrade_candidate": {
             "type": "boolean",
             "title": "Upgrade Candidate",
@@ -3631,6 +3641,172 @@
           "distance"
         ],
         "title": "MatchResult"
+      },
+      "PanoramaConfig": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/PanoramaStatus"
+          },
+          "detection": {
+            "$ref": "#/components/schemas/PanoramaDetection"
+          },
+          "source_width": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Source Width"
+          },
+          "source_height": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Source Height"
+          },
+          "cropped_area_width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cropped Area Width"
+          },
+          "cropped_area_height": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cropped Area Height"
+          },
+          "cropped_area_left": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cropped Area Left"
+          },
+          "cropped_area_top": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cropped Area Top"
+          },
+          "full_pano_width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Pano Width"
+          },
+          "full_pano_height": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Pano Height"
+          },
+          "captured_fov": {
+            "type": "number",
+            "exclusiveMaximum": 360.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Captured Fov"
+          },
+          "yaw": {
+            "type": "number",
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "title": "Yaw",
+            "default": 0
+          },
+          "pitch": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Pitch",
+            "default": 0
+          },
+          "perspective_fov": {
+            "type": "number",
+            "exclusiveMaximum": 180.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Perspective Fov",
+            "default": 70
+          },
+          "zoom": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Zoom",
+            "default": 1
+          },
+          "original_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Path"
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "detection",
+          "source_width",
+          "source_height",
+          "captured_fov"
+        ],
+        "title": "PanoramaConfig"
+      },
+      "PanoramaDetection": {
+        "type": "string",
+        "enum": [
+          "gpano",
+          "dimensions"
+        ]
+      },
+      "PanoramaStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "suggested",
+          "disabled"
+        ]
       },
       "PdfDone": {
         "properties": {

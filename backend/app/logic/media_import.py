@@ -18,9 +18,11 @@ from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, extract_frame, media_limiter
 from app.logic.media_upgrade.hashes import compute_serialized_media_hashes
 from app.logic.media_upgrade.processing import process_photo_sync, process_video
+from app.logic.panorama.inspection import inspect_panorama
+from app.logic.panorama.storage import preserve_panorama_original
 from app.logic.step_media import prepend_step_unused_media
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, PanoramaConfig
 from app.models.step import Step
 
 if TYPE_CHECKING:
@@ -70,6 +72,11 @@ class SavedInput:
     size: int
 
 
+class ImportedMedia(Media):
+    panorama: PanoramaConfig | None = None
+    source_path: Path | None = Field(default=None, exclude=True)
+
+
 def _generated_name(suffix: Literal[".jpg", ".mp4"]) -> MediaName:
     return f"{uuid.uuid4()}_{uuid.uuid4()}{suffix}"
 
@@ -102,9 +109,10 @@ def _process_photo(raw: Path, output: Path) -> tuple[int, int]:
         return process_photo_sync(raw, output)
 
 
-async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
+async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[ImportedMedia, Path]:
     name = _generated_name(".jpg")
     output = album_dir / name
+    panorama = await run_sync(inspect_panorama, raw.path, limiter=media_limiter)
     try:
         width, height = await run_sync(
             _process_photo, raw.path, output, limiter=media_limiter
@@ -124,7 +132,13 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
         if raw.size > MAX_PHOTO_BYTES:
             output.unlink(missing_ok=True)
             raise OverflowError("Photo exceeds maximum size")
-        return Media(name=name, width=width, height=height), output
+        return ImportedMedia(
+            name=name,
+            width=width,
+            height=height,
+            panorama=panorama,
+            source_path=raw.path,
+        ), output
 
     name = _generated_name(".mp4")
     output = album_dir / name
@@ -142,7 +156,11 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[Media, Path]:
         output.with_suffix(".jpg").unlink(missing_ok=True)
         raise
     else:
-        return media, output
+        return ImportedMedia(
+            name=media.name,
+            width=media.width,
+            height=media.height,
+        ), output
 
 
 async def import_saved_media(
@@ -194,6 +212,37 @@ async def process_saved_media(
     return imported, written
 
 
+async def _preserve_panorama_originals(
+    imported: list[Media],
+    album_dir: Path | None,
+) -> tuple[dict[str, PanoramaConfig], list[Path]]:
+    if album_dir is None:
+        return {}, []
+    preserved: list[Path] = []
+    panoramas: dict[str, PanoramaConfig] = {}
+    try:
+        for media in imported:
+            if not isinstance(media, ImportedMedia) or media.panorama is None:
+                continue
+            if media.source_path is None:
+                continue
+            original = await run_sync(
+                preserve_panorama_original,
+                media.source_path,
+                album_dir,
+                media.name,
+                limiter=media_limiter,
+            )
+            preserved.append(original)
+            panoramas[media.name] = media.panorama.model_copy(
+                update={"original_path": str(original.relative_to(album_dir))}
+            )
+    except BaseException:
+        await cleanup_imported_paths(preserved)
+        raise
+    return panoramas, preserved
+
+
 async def persist_imported_media(
     session: AsyncSession,
     *,
@@ -219,23 +268,7 @@ async def persist_imported_media(
         if album_dir is not None
         else {}
     )
-    session.add_all(
-        [
-            AlbumMedia(
-                uid=fresh_album.uid,
-                aid=fresh_album.id,
-                name=media.name,
-                kind="video" if media.name.endswith(".mp4") else "photo",
-                width=media.width,
-                height=media.height,
-                byte_size=_imported_byte_size(media.name, album_dir),
-                perceptual_hashes=perceptual_hashes_by_name.get(media.name),
-                upgrade_candidate=False,
-            )
-            for media in imported
-        ]
-    )
-
+    step: Step | None = None
     if request.context == "step":
         result = await session.exec(
             select(Step)
@@ -250,16 +283,42 @@ async def persist_imported_media(
         step = result.one_or_none()
         if step is None:
             raise ValueError("Step not found")
-        await prepend_step_unused_media(
-            session,
-            fresh_album.uid,
-            fresh_album.id,
-            step.id,
-            names,
+    preserved: list[Path] = []
+    try:
+        panoramas, preserved = await _preserve_panorama_originals(imported, album_dir)
+
+        session.add_all(
+            [
+                AlbumMedia(
+                    uid=fresh_album.uid,
+                    aid=fresh_album.id,
+                    name=media.name,
+                    kind="video" if media.name.endswith(".mp4") else "photo",
+                    width=media.width,
+                    height=media.height,
+                    byte_size=_imported_byte_size(media.name, album_dir),
+                    perceptual_hashes=perceptual_hashes_by_name.get(media.name),
+                    panorama=panoramas.get(media.name),
+                    upgrade_candidate=False,
+                )
+                for media in imported
+            ]
         )
 
-    with anyio.CancelScope(shield=True):
-        await session.commit()
+        if step is not None:
+            await prepend_step_unused_media(
+                session,
+                fresh_album.uid,
+                fresh_album.id,
+                step.id,
+                names,
+            )
+
+        with anyio.CancelScope(shield=True):
+            await session.commit()
+    except BaseException:
+        await cleanup_imported_paths(preserved)
+        raise
     return names
 
 

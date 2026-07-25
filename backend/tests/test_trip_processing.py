@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import io
+from pathlib import Path
+
+from PIL import Image
+
+from app.logic.layout.media import Media
 from app.logic.trip_processing import (
+    build_album_media_rows,
     default_media_resolution_warning_preset,
     resolve_international_waters,
     segment_timezone,
@@ -13,6 +20,27 @@ from app.models.album import (
 )
 from app.models.polarsteps import Location, PSStep
 from tests.factories import make_ps_step, make_user
+
+
+def _write_gpano_jpeg(path: Path) -> None:
+    image = Image.new("RGB", (300, 100), color="red")
+    buffer = io.BytesIO()
+    image.save(buffer, "JPEG")
+    xmp = (
+        b'<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        b'<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        b'<rdf:Description xmlns:GPano="http://ns.google.com/photos/1.0/panorama/" '
+        b'GPano:ProjectionType="cylindrical" '
+        b'GPano:CroppedAreaImageWidthPixels="300" '
+        b'GPano:CroppedAreaImageHeightPixels="100" '
+        b'GPano:FullPanoWidthPixels="400" '
+        b'GPano:FullPanoHeightPixels="100" />'
+        b"</rdf:RDF></x:xmpmeta>"
+    )
+    payload = b"http://ns.adobe.com/xap/1.0/\x00" + xmp
+    app1 = b"\xff\xe1" + (len(payload) + 2).to_bytes(2, "big") + payload
+    jpeg = buffer.getvalue()
+    path.write_bytes(jpeg[:2] + app1 + jpeg[2:])
 
 
 class TestDefaultMediaResolutionWarningPreset:
@@ -31,6 +59,24 @@ class TestDefaultMediaResolutionWarningPreset:
             default_media_resolution_warning_preset(user)
             == DEMO_MEDIA_RESOLUTION_WARNING_PRESET
         )
+
+
+def test_zip_panorama_uses_existing_media_as_authoritative_original(
+    tmp_path: Path,
+) -> None:
+    media_name = "panorama.jpg"
+    _write_gpano_jpeg(tmp_path / media_name)
+
+    rows = build_album_media_rows(
+        1,
+        "trip-1",
+        tmp_path,
+        [Media(name=media_name, width=300, height=100)],
+    )
+
+    assert rows[0].panorama is not None
+    assert rows[0].panorama.original_path == media_name
+    assert not (tmp_path / ".panoramas").exists()
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:

@@ -21,6 +21,7 @@ from app.logic.layout.media import (
     Media,
     normalize_name,
 )
+from app.logic.panorama.inspection import inspect_panorama
 from app.logic.spatial.geo import haversine_km
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
@@ -32,7 +33,13 @@ from app.models.album import (
     Album,
     MediaResolutionWarningPreset,
 )
-from app.models.album_media import AlbumMedia, StepPage, StepPageMedia, StepUnusedMedia
+from app.models.album_media import (
+    AlbumMedia,
+    PanoramaConfig,
+    StepPage,
+    StepPageMedia,
+    StepUnusedMedia,
+)
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step, StepRead
@@ -235,9 +242,11 @@ def build_album_media_rows(  # noqa: PLR0913
     media: Iterable[Media],
     upgrade_candidate_by_name: dict[str, bool] | None = None,
     perceptual_hashes_by_name: dict[str, list[str]] | None = None,
+    panorama_by_name: dict[str, PanoramaConfig] | None = None,
 ) -> list[AlbumMedia]:
     upgrade_candidate_by_name = upgrade_candidate_by_name or {}
     perceptual_hashes_by_name = perceptual_hashes_by_name or {}
+    panorama_by_name = panorama_by_name or {}
     rows: list[AlbumMedia] = []
     for item in media:
         path = trip_dir / item.name
@@ -245,6 +254,11 @@ def build_album_media_rows(  # noqa: PLR0913
             byte_size = path.stat().st_size
         except OSError:
             byte_size = 0
+        panorama = panorama_by_name.get(item.name)
+        if panorama is None:
+            panorama = inspect_panorama(path)
+            if panorama is not None:
+                panorama = panorama.model_copy(update={"original_path": item.name})
         rows.append(
             AlbumMedia(
                 uid=uid,
@@ -255,6 +269,7 @@ def build_album_media_rows(  # noqa: PLR0913
                 height=item.height,
                 byte_size=byte_size,
                 perceptual_hashes=perceptual_hashes_by_name.get(item.name),
+                panorama=panorama,
                 upgrade_candidate=upgrade_candidate_by_name.get(item.name, True),
             )
         )
