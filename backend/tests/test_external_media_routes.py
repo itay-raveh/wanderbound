@@ -3,9 +3,11 @@ from __future__ import annotations
 from inspect import signature
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.v1.routes.external_media import add_google_media
+from app.core.http_clients import HttpClients
+from app.logic.external_media.operations import download_google_item_to_saved
 from app.models.album_media import AlbumMedia, StepUnusedMedia
 from app.models.user import User
 
@@ -205,6 +207,32 @@ async def test_google_replace_requires_one_selected_item(
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Select exactly one replacement"
+
+
+async def test_google_video_download_uses_redirect_enabled_client(
+    tmp_path: Path,
+) -> None:
+    http = MagicMock(spec=HttpClients)
+    item = picked_item(filename="picked.mp4").model_copy(update={"type": "VIDEO"})
+
+    async def fake_download(*args: object, **kwargs: object) -> None:
+        dest = args[3]
+        assert isinstance(dest, Path)
+        dest.write_bytes(b"video-data")
+
+    with patch(
+        "app.logic.external_media.operations.download_media_to_file",
+        AsyncMock(side_effect=fake_download),
+    ) as download:
+        await download_google_item_to_saved(
+            http=http,
+            access_token=tmp_path.name,
+            item=item,
+            temp_dir=tmp_path,
+        )
+
+    assert download.await_args.args[0] is http.gphotos_download
+    assert download.await_args.kwargs["param"] == "=dv"
 
 
 async def test_google_replace_rejects_multiple_items_before_download(

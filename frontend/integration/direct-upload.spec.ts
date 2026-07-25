@@ -75,10 +75,40 @@ if (settings.DATA_FOLDER / "upload-work" / sys.argv[1]).exists():
   await compose("exec", "-T", "app", "python", "-c", script, uploadId);
 }
 
-test("uploads a multipart ZIP directly to Garage and imports it", async ({
+const developmentOrigins = [
+  "http://localhost:8000",
+  "http://127.0.0.1:8000",
+  "http://localhost:5173",
+] as const;
+
+test("allows upload preflights from every development origin", async ({
+  request,
+}) => {
+  for (const origin of developmentOrigins) {
+    const response = await request.fetch(
+      `${garageOrigin}/wanderbound-uploads/uploads/cors-check.zip`,
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "PUT",
+          "Access-Control-Request-Headers": "content-type,x-amz-content-sha256",
+        },
+      },
+    );
+
+    expect(response.status()).toBe(200);
+    expect([origin, "*"]).toContain(
+      response.headers()["access-control-allow-origin"],
+    );
+  }
+});
+
+test("uploads a multipart ZIP directly from the Vite origin", async ({
   page,
 }) => {
   test.setTimeout(120_000);
+  const appOrigin = "http://localhost:5173";
   let directPartUploads = 0;
   page.on("request", (request) => {
     if (
@@ -89,11 +119,11 @@ test("uploads a multipart ZIP directly to Garage and imports it", async ({
     }
   });
 
-  const demo = await page.request.post("/api/v1/users/demo");
+  const demo = await page.request.post(`${appOrigin}/api/v1/users/demo`);
   expect(demo.ok()).toBe(true);
   const demoUser = ((await demo.json()) as { user: { id: number } }).user;
   await prepareDemoForUpload(demoUser.id);
-  await page.goto("/upload");
+  await page.goto(`${appOrigin}/upload`);
 
   const created = page.waitForResponse(
     (response) =>

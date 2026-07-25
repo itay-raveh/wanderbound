@@ -7,9 +7,11 @@ test.describe("External media replacement", () => {
   test("cover media can be selected for replacement", async ({
     editorPage: page,
   }) => {
-    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
     await page.locator('[data-media="cover.jpg"]').click({
       position: { x: 20, y: 20 },
     });
@@ -22,9 +24,21 @@ test.describe("External media replacement", () => {
   test("replaces focused media from a device file", async ({
     authedPage: page,
   }) => {
+    let undoneMediaName: string | undefined;
+    await page.route(`${API}/albums/*/external-media/undo/*`, async (route) => {
+      undoneMediaName = decodeURIComponent(
+        new URL(route.request().url()).pathname.split("/").at(-1) ?? "",
+      );
+      await route.fulfill({ status: 200, json: {} });
+    });
+    let completeReplacement!: () => void;
+    const replacementMayComplete = new Promise<void>((resolve) => {
+      completeReplacement = resolve;
+    });
     await page.route(
       `${API}/albums/*/external-media/replace/device`,
       async (route) => {
+        await replacementMayComplete;
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -44,9 +58,11 @@ test.describe("External media replacement", () => {
     );
 
     await page.goto("/editor");
-    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
     await page.locator('[data-media="cover.jpg"]').click({
       position: { x: 20, y: 20 },
     });
@@ -73,8 +89,24 @@ test.describe("External media replacement", () => {
     await reviewDialog
       .getByRole("button", { name: /Replace everywhere/i })
       .click();
+    await expect(page.getByText("Replacing media…")).toBeVisible();
+
+    completeReplacement();
+    await expect(page.getByText("Media replaced")).toBeVisible();
     await expect(
-      page.getByText("Media replaced. Undo is available for 5 minutes."),
+      page.getByText(/1,920 × 1,080.*4\.0KB.*→.*3,000 × 2,000.*12\.1KB/),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Keep replacement" }),
+    ).toBeVisible();
+    await expect(
+      page.locator("#q-notify").getByRole("button", { name: "Undo" }),
+    ).toBeVisible();
+    await page
+      .locator("#q-notify")
+      .getByRole("button", { name: "Undo" })
+      .click();
+    await expect(page.getByText("Replacement undone.")).toBeVisible();
+    expect(undoneMediaName).toBe("cover.jpg");
   });
 });

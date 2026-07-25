@@ -33,6 +33,7 @@ from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.locks import try_advisory_lock
 from app.core.observability import start_span
+from app.logic.layout.media import is_video
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
     UpgradeEvent,
@@ -193,7 +194,7 @@ async def _snapshot_upgrade_state(
 async def _snapshot_steps_and_upgrade_state(
     uid: int,
     aid: str,
-) -> tuple[list[StepRead], set[str]]:
+) -> tuple[list[StepRead], set[str], dict[str, list[str] | None]]:
     """Read step layouts plus remaining upgrade candidates."""
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         await session.get_one(Album, (uid, aid))
@@ -203,7 +204,11 @@ async def _snapshot_steps_and_upgrade_state(
             )
         ).all()
         step_rows = await read_steps_with_media(session, uid, aid)
-    return step_rows, {row.name for row in media_rows if row.upgrade_candidate}
+    return (
+        step_rows,
+        {row.name for row in media_rows if row.upgrade_candidate},
+        {row.name: row.perceptual_hashes for row in media_rows},
+    )
 
 
 router = APIRouter(
@@ -478,10 +483,11 @@ async def match_media(
                     "album.id": aid,
                 },
             ):
-                step_rows, upgrade_candidates = await _snapshot_steps_and_upgrade_state(
-                    user.id,
-                    aid,
-                )
+                (
+                    step_rows,
+                    upgrade_candidates,
+                    persisted_local_hashes,
+                ) = await _snapshot_steps_and_upgrade_state(user.id, aid)
 
             album_dir = _album_dir(user, aid)
             step_ids = [s.id for s in step_rows]
@@ -514,6 +520,7 @@ async def match_media(
                 google_items=items,
                 tokens=tokens,
                 upgrade_candidates=upgrade_candidates,
+                persisted_local_hashes=persisted_local_hashes,
             ):
                 yield event
         except Exception as exc:  # noqa: BLE001
@@ -575,7 +582,10 @@ async def upgrade_media(
                 aid,
             )
 
-        _validate_match_names(body.matches, set(local_dimensions))
+        photo_matches = [
+            match for match in body.matches if not is_video(match.local_name)
+        ]
+        _validate_match_names(photo_matches, set(local_dimensions))
 
         try:
             tokens = _build_token_getter(http, _get_refresh_token(user))
@@ -609,7 +619,7 @@ async def upgrade_media(
                     uid=user.id,
                     aid=aid,
                     album_dir=_album_dir(user, aid),
-                    matches=body.matches,
+                    matches=photo_matches,
                     google_items_by_id=items_by_id,
                     upgrade_candidates=upgrade_candidates,
                     local_dimensions=local_dimensions,

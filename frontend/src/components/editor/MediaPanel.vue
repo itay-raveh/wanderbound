@@ -7,7 +7,10 @@ import UpgradeMediaButton from "./UpgradeMediaButton.vue";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
 import { useExternalMediaSources } from "@/composables/useExternalMediaSources";
 import { useMediaUndo } from "@/composables/useMediaUndo";
-import { useReplaceExternalMedia } from "@/composables/useReplaceExternalMedia";
+import {
+  useReplaceExternalMedia,
+  type ReplacementResult,
+} from "@/composables/useReplaceExternalMedia";
 import {
   jumpToNextQualityBadge,
   qualitySummary,
@@ -24,7 +27,6 @@ import {
   matImage,
   matKeyboardArrowDown,
   matPublishedWithChanges,
-  matUndo,
   matWarning,
 } from "@quasar/extras/material-icons";
 
@@ -202,41 +204,29 @@ async function onReplacementFileSelected(event: Event) {
   await replaceMedia.prepareDeviceReview(file);
 }
 
-const REPLACE_FLASH_MS = 5000;
-const justReplaced = ref(false);
-let flashTimer: ReturnType<typeof setTimeout> | null = null;
-
-function flashUndo() {
-  justReplaced.value = true;
-  liveAnnouncement.value = t("externalMedia.undo.justReplacedAnnounce");
-  if (flashTimer != null) clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => {
-    justReplaced.value = false;
-    flashTimer = null;
-  }, REPLACE_FLASH_MS);
+function settleReplacement(result: ReplacementResult | null, started: boolean) {
+  if (!started) return;
+  if (result) {
+    undo.rememberReplacement(result);
+    return;
+  }
+  if (replaceError.value) undo.failReplacement(replaceError.value);
+  else undo.cancelReplacement();
 }
 
 async function confirmDeviceReplacement() {
-  const mediaName = await replaceMedia.confirmDeviceReplacement();
-  if (!mediaName) return;
-  undo.rememberReplacement(mediaName);
-  flashUndo();
+  undo.startReplacement();
+  const result = await replaceMedia.confirmDeviceReplacement();
+  settleReplacement(result, true);
 }
 
 async function replaceFromGoogle() {
-  const mediaName = await replaceMedia.replaceFromGoogle();
-  if (!mediaName) return;
-  undo.rememberReplacement(mediaName);
-  flashUndo();
-}
-
-async function undoLastReplacement() {
-  justReplaced.value = false;
-  if (flashTimer != null) {
-    clearTimeout(flashTimer);
-    flashTimer = null;
-  }
-  await undo.undo();
+  let started = false;
+  const result = await replaceMedia.replaceFromGoogle(() => {
+    started = true;
+    undo.startReplacement();
+  });
+  settleReplacement(result, started);
 }
 
 const replaceError = computed(() =>
@@ -369,11 +359,8 @@ const replaceError = computed(() =>
       liveAnnouncement
     }}</span>
 
-    <div
-      v-if="hasSelectedMedia || undo.currentUndo.value"
-      class="selected-section"
-    >
-      <div v-if="hasSelectedMedia" class="replace-swap">
+    <div v-if="hasSelectedMedia" class="selected-section">
+      <div class="replace-swap">
         <div class="swap-cell current" aria-hidden="true">
           <img
             v-if="selectedThumbUrl"
@@ -432,19 +419,6 @@ const replaceError = computed(() =>
           </q-menu>
         </button>
       </div>
-      <button
-        v-if="undo.currentUndo.value"
-        type="button"
-        class="media-cta subtle"
-        :class="{ 'just-replaced': justReplaced }"
-        :disabled="undo.currentUndo.value.pending"
-        :aria-label="t('externalMedia.undo.action')"
-        @click="undoLastReplacement"
-      >
-        <q-icon :name="matUndo" size="var(--type-md)" />
-        <span class="cta-label">{{ t("externalMedia.undo.shortAction") }}</span>
-      </button>
-      <p v-if="replaceError" class="media-error">{{ replaceError }}</p>
     </div>
 
     <q-dialog
@@ -655,11 +629,6 @@ const replaceError = computed(() =>
     color: var(--text);
     border-color: var(--text-faint);
   }
-}
-
-.media-cta.subtle.just-replaced {
-  border-color: var(--q-primary);
-  color: var(--q-primary);
 }
 
 .import-cta {

@@ -28,6 +28,7 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     http = object()
     app = SimpleNamespace(state=SimpleNamespace())
     launch_calls: list[bool | None] = []
+    reconciliation_calls: list[list[bool | None]] = []
 
     def locked(_key: str) -> object:
         acquired = True
@@ -39,10 +40,15 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     def http_lifespan() -> object:
         return _yielding(http)
 
-    def launch(_settings: object, *, run_admin_server: bool | None = None) -> None:
+    async def launch(
+        _settings: object, *, run_admin_server: bool | None = None
+    ) -> None:
         get_processing_workflow_http_clients()
         get_route_enrichment_http_clients()
         launch_calls.append(run_admin_server)
+
+    async def reconcile_hashes() -> None:
+        reconciliation_calls.append(list(launch_calls))
 
     upload_store = SimpleNamespace(close=lambda: None)
 
@@ -56,9 +62,13 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     monkeypatch.setattr("app.main.build_upload_store", lambda _settings: upload_store)
     monkeypatch.setattr("app.main.lifespan_clients", http_lifespan)
     monkeypatch.setattr("app.main.launch_dbos", launch)
+    monkeypatch.setattr(
+        "app.main.reconcile_missing_media_hash_backfills", reconcile_hashes
+    )
     monkeypatch.setattr("app.main.destroy_dbos", lambda: None)
     monkeypatch.setattr("app.main.workflow_heartbeat_loop", _forever)
     monkeypatch.setattr("app.main.workflow_recovery_loop", _forever)
+    monkeypatch.setattr("app.main.media_hash_reconciliation_loop", _forever)
     monkeypatch.setattr("app.main.upload_cleanup_loop", _forever)
 
     async with lifespan(app):
@@ -66,6 +76,7 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
         assert app.state.upload_store is upload_store
 
     assert launch_calls == [True]
+    assert reconciliation_calls == [[True]]
 
 
 async def _noop_cleanup(_path: Path) -> None:

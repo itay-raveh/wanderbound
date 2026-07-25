@@ -243,7 +243,7 @@ test.describe("Media Upgrade", () => {
     await openReadyUpgradeSummary(page);
 
     await expect(
-      page.getByText(/matched 2 album files from 3 selected google items/i),
+      page.getByText(/matched 2 album files from 3 selected google photos/i),
     ).toBeVisible();
   });
 
@@ -259,7 +259,7 @@ test.describe("Media Upgrade", () => {
     await clickUpgradeMedia(page);
 
     await expect(
-      page.getByText(/matched 1 album file from 2 selected google items/i),
+      page.getByText(/matched 1 album file from 2 selected google photos/i),
     ).toBeVisible();
     await expect(page.getByText(/matched 1 album files/i)).toHaveCount(0);
   });

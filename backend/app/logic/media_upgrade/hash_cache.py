@@ -9,24 +9,23 @@ from typing import TYPE_CHECKING
 from joblib import Memory
 
 if TYPE_CHECKING:
+    import imagehash
     from joblib.memory import MemorizedFunc
 
 from app.core.config import get_settings
-from app.logic.layout.media import is_video
 
-from .phash_matching import MediaHash, compute_phash_from_path
-from .processing import extract_video_frame_hashes
+from .phash_matching import compute_phash_from_path
 
 _CACHE_DIR = ".media-hash-cache"
 
 
 def _compute_local_hash(
     path: Path,
+    _device: int,
+    _inode: int,
     _size: int,
     _mtime_ns: int,
-) -> MediaHash:
-    if is_video(path.name):
-        return extract_video_frame_hashes(path)
+) -> imagehash.ImageHash:
     return compute_phash_from_path(path)
 
 

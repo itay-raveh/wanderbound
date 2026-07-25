@@ -203,7 +203,12 @@ export function provideTestAlbum({
 }
 
 /** Shared plugin list for mounting components under test. */
-const testPlugins = [[Quasar, {}], createPinia(), PiniaColada, i18n] as const;
+const testPlugins = [
+  [Quasar, {}],
+  createPinia(),
+  PiniaColada,
+  i18n,
+] as const;
 
 /** Mount a component with the standard test plugin stack. */
 export function mountWithPlugins<T extends Component>(

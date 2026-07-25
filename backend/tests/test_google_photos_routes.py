@@ -194,7 +194,7 @@ class TestMatchMedia:
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
-                AsyncMock(return_value=([], set())),
+                AsyncMock(return_value=([], set(), {})),
             ),
             patch(
                 "app.api.v1.routes.google_photos.get_media_items_cached",
@@ -258,7 +258,13 @@ class TestMatchMedia:
         with (
             patch(
                 "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
-                AsyncMock(return_value=([step], set())),
+                AsyncMock(
+                    return_value=(
+                        [step],
+                        set(),
+                        {"photo.jpg": ["0123456789abcdef"]},
+                    )
+                ),
             ),
             patch(
                 "app.api.v1.routes.google_photos.get_media_items_cached",
@@ -275,6 +281,7 @@ class TestMatchMedia:
         assert isinstance(events[-1], MatchCompleted)
         assert captured["media_by_step"] == {7: ["photo.jpg"]}
         assert captured["upgrade_candidates"] == set()
+        assert captured["persisted_local_hashes"] == {"photo.jpg": ["0123456789abcdef"]}
 
 
 class TestUpgradeMedia:
@@ -359,6 +366,9 @@ class TestUpgradeMedia:
         match = MatchResult(
             local_name="photo.jpg", google_id="google-photo", distance=0
         )
+        video_match = MatchResult(
+            local_name="video.mp4", google_id="google-video", distance=0
+        )
         captured: dict[str, object] = {}
 
         async def fake_run_upgrade(**kwargs: object) -> AsyncIterator[UpgradeCompleted]:
@@ -389,7 +399,7 @@ class TestUpgradeMedia:
                 event
                 async for event in upgrade_media(
                     "trip-1",
-                    UpgradeRequest(session_ids=["s1"], matches=[match]),
+                    UpgradeRequest(session_ids=["s1"], matches=[match, video_match]),
                     user,
                     http,
                 )
@@ -397,6 +407,7 @@ class TestUpgradeMedia:
 
         assert events[-1] == UpgradeCompleted(replaced=0, skipped=1, failed=0)
         assert captured["local_dimensions"] == {"photo.jpg": (1200, 800)}
+        assert captured["matches"] == [match]
 
 
 class TestOAuthCallback:

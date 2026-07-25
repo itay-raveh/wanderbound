@@ -4,10 +4,21 @@ set -eu
 : "${UPLOAD_S3_BUCKET:?Variable not set}"
 : "${UPLOAD_CORS_ORIGIN:?Variable not set}"
 
-cors_configuration=$(printf '%s' \
-  "{\"CORSRules\":[{\"AllowedOrigins\":[\"${UPLOAD_CORS_ORIGIN}\"]," \
-  '"AllowedMethods":["PUT"],"AllowedHeaders":["content-type","x-amz-content-sha256"],' \
-  '"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}')
+cors_rule() {
+  printf '%s' \
+    "{\"AllowedOrigins\":[\"$1\"]," \
+    '"AllowedMethods":["PUT"],"AllowedHeaders":["content-type","x-amz-content-sha256"],' \
+    '"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}'
+}
+
+cors_rules=$(cors_rule "$UPLOAD_CORS_ORIGIN")
+for origin in ${UPLOAD_CORS_EXTRA_ORIGINS:-}; do
+  if [ "$origin" != "$UPLOAD_CORS_ORIGIN" ]; then
+    cors_rules="${cors_rules},$(cors_rule "$origin")"
+  fi
+done
+
+cors_configuration="{\"CORSRules\":[${cors_rules}]}"
 
 lifecycle_configuration='{"Rules":[{"ID":"abort-incomplete-uploads","Status":"Enabled","Filter":{},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":2}},{"ID":"expire-completed-uploads","Status":"Enabled","Filter":{"Prefix":"uploads/"},"Expiration":{"Days":3}}]}'
 

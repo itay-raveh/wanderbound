@@ -226,14 +226,16 @@ def build_segment_objects(
     ]
 
 
-def build_album_media_rows(
+def build_album_media_rows(  # noqa: PLR0913
     uid: int,
     aid: str,
     trip_dir: Path,
     media: Iterable[Media],
     upgrade_candidate_by_name: dict[str, bool] | None = None,
+    perceptual_hashes_by_name: dict[str, list[str]] | None = None,
 ) -> list[AlbumMedia]:
     upgrade_candidate_by_name = upgrade_candidate_by_name or {}
+    perceptual_hashes_by_name = perceptual_hashes_by_name or {}
     rows: list[AlbumMedia] = []
     for item in media:
         path = trip_dir / item.name
@@ -250,6 +252,7 @@ def build_album_media_rows(
                 width=item.width,
                 height=item.height,
                 byte_size=byte_size,
+                perceptual_hashes=perceptual_hashes_by_name.get(item.name),
                 upgrade_candidate=upgrade_candidate_by_name.get(item.name, True),
             )
         )
@@ -284,7 +287,12 @@ def build_trip_objects(  # noqa: PLR0913
         )
     ]
     segments = build_segment_objects(user.id, aid, steps, locations, trip.all_steps)
-    album_media = build_album_media_rows(user.id, aid, trip_dir, merged_media)
+    album_media = build_album_media_rows(
+        user.id,
+        aid,
+        trip_dir,
+        merged_media,
+    )
     step_media = [
         placement
         for step, layout in zip(steps, layouts, strict=True)

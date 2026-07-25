@@ -118,7 +118,11 @@ async def _probe_media(
 
     async def _probe(name: str) -> Media:
         try:
-            return await run_sync(Media.load, trip_dir / name, limiter=media_limiter)
+            return await run_sync(
+                Media.load,
+                trip_dir / name,
+                limiter=media_limiter,
+            )
         except OSError, ValueError:
             return Media(name=name, width=1920, height=1080)
 
@@ -127,6 +131,27 @@ async def _probe_media(
     for m in probed:
         merged[m.name] = m
     return list(merged.values())
+
+
+def _retained_media_state(
+    trip_dir: Path,
+    all_on_disk: set[str],
+    existing_media_rows: list[AlbumMedia],
+) -> tuple[dict[str, list[str]], dict[str, bool]]:
+    retained_hashes: dict[str, list[str]] = {}
+    retained_candidates: dict[str, bool] = {}
+    for row in existing_media_rows:
+        if row.name not in all_on_disk:
+            continue
+        try:
+            current_size = (trip_dir / row.name).stat().st_size
+        except OSError:
+            continue
+        if current_size == row.byte_size:
+            retained_candidates[row.name] = row.upgrade_candidate
+            if row.perceptual_hashes is not None:
+                retained_hashes[row.name] = row.perceptual_hashes
+    return retained_hashes, retained_candidates
 
 
 def _fix_album_covers(
@@ -359,14 +384,19 @@ async def reconcile_trip(  # noqa: PLR0913
         for row in existing_media_rows
         if row.name in all_on_disk
     }
+    merged_media = await _probe_media(
+        trip_dir, [*new_step_objects, *reconciled_steps], known_media
+    )
+    perceptual_hashes_by_name, upgrade_candidate_by_name = await run_sync(
+        _retained_media_state, trip_dir, all_on_disk, existing_media_rows
+    )
     album_media = build_album_media_rows(
         user.id,
         aid,
         trip_dir,
-        await _probe_media(
-            trip_dir, [*new_step_objects, *reconciled_steps], known_media
-        ),
-        {row.name: row.upgrade_candidate for row in existing_media_rows},
+        merged_media,
+        upgrade_candidate_by_name,
+        perceptual_hashes_by_name,
     )
 
     # Rebuild segments from GPS data (segments are not persisted across

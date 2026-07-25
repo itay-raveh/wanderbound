@@ -216,6 +216,9 @@
       "label": "מדיה נבחרת",
       "action": "החלפת המדיה הנבחרת",
       "shortAction": "החלפה",
+      "replacing": "המדיה מוחלפת…",
+      "done": "המדיה הוחלפה",
+      "receipt": "{before} ← {after}",
       "noneSelected": "לא נבחרה מדיה",
       "noSelection": "בחרו קודם תמונה או וידאו.",
       "invalid": "אי אפשר להחיל את ההחלפה הזאת.",
@@ -238,11 +241,10 @@
       }
     },
     "undo": {
-      "label": "ביטול מהיר",
-      "action": "ביטול",
-      "shortAction": "ביטול",
-      "toast": "המדיה הוחלפה. אפשר לבטל במשך 5 דקות.",
-      "justReplacedAnnounce": "המדיה הוחלפה. הביטול זמין.",
+      "action": "ביטול ההחלפה",
+      "keep": "שמירת ההחלפה",
+      "retry": "ניסיון ביטול נוסף",
+      "undoing": "מבטל את ההחלפה…",
       "done": "ההחלפה בוטלה.",
       "failed": "הביטול נכשל. נסו שוב."
     }
@@ -371,7 +373,7 @@
     "onboarding": {
       "title": "שדרוג לאיכות מקורית",
       "body": "החליפו את התמונות המפוקסלות שלכם מ-Polarsteps.",
-      "tip": "בטיולים גדולים, רכזו את התמונות קודם באלבום ב-Google Photos.",
+      "tip": "בחרו תמונות בלבד. סרטונים אפשר להחליף אחד-אחד מחלונית המדיה.",
       "continue": "חיבור Google Photos"
     },
     "authorizing": "מתחבר ל-Google Photos...",
@@ -383,8 +385,8 @@
       "noMatchTitle": "לא נמצאו התאמות",
       "noNewMatchTitle": "לא נמצאו התאמות חדשות",
       "allUpgradedTitle": "כבר באיכות המקורית",
-      "noMatchBody": "ודאו שבחרתם תמונות מהטיול.",
-      "selectedCount": "פריט אחד שנבחר ב-Google Photos | {count} פריטים שנבחרו ב-Google Photos",
+      "noMatchBody": "ודאו שבחרתם תמונות מהטיול. סרטונים אפשר להחליף רק אחד-אחד.",
+      "selectedCount": "תמונה אחת שנבחרה ב-Google Photos | {count} תמונות שנבחרו ב-Google Photos",
       "alreadyUpgradedCount": "אחד מהם כבר היה באיכות המקורית | {count} מהם כבר היו באיכות המקורית",
       "matchCoverage": "נמצא קובץ אחד מהאלבום מתוך {selected}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}.",
       "matchCoverageWithUpgraded": "נמצא קובץ אחד מהאלבום מתוך {selected}. {upgraded}. | נמצאו {matched} קבצים מהאלבום מתוך {selected}. {upgraded}.",

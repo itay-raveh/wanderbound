@@ -3,6 +3,7 @@ from typing import Any, cast
 from dbos import DBOS
 from pydantic import SecretStr
 
+from app.logic.workflows.media_hashes import MEDIA_HASH_QUEUE
 from app.logic.workflows.recovery import workflow_executor_id
 
 
@@ -41,9 +42,10 @@ def dbos_config(
     return config
 
 
-def launch_dbos(settings: Any, *, run_admin_server: bool | None = None) -> None:
+async def launch_dbos(settings: Any, *, run_admin_server: bool | None = None) -> None:
     DBOS(config=cast("Any", dbos_config(settings, run_admin_server=run_admin_server)))
     DBOS.launch()
+    await DBOS.register_queue_async(MEDIA_HASH_QUEUE, worker_concurrency=1)
 
 
 def destroy_dbos() -> None:

@@ -1,7 +1,8 @@
 import { undoReplacement } from "@/client";
+import type { ReplacementResult } from "@/composables/useReplaceExternalMedia";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { useQueryCache } from "@pinia/colada";
-import { Notify } from "quasar";
+import { Notify, format } from "quasar";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -13,24 +14,29 @@ interface UndoState {
 }
 
 const UNDO_WINDOW_MS = 5 * 60 * 1000;
+const { humanStorageSize } = format;
 const undoState = ref<UndoState | null>(null);
 
 let expireTimer: ReturnType<typeof setTimeout> | null = null;
-let dismissUndoToast: (() => void) | null = null;
+let updateReplacementToast: ReturnType<typeof Notify.create> | null = null;
 
-function clearUndoState() {
+function resetUndoState() {
   undoState.value = null;
   if (expireTimer !== null) {
     clearTimeout(expireTimer);
     expireTimer = null;
   }
-  dismissUndoToast?.();
-  dismissUndoToast = null;
+}
+
+function clearUndoState() {
+  resetUndoState();
+  updateReplacementToast?.();
+  updateReplacementToast = null;
 }
 
 export function useMediaUndo(albumId: () => string) {
   const cache = useQueryCache();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
 
   const currentUndo = computed(() => {
     const state = undoState.value;
@@ -38,36 +44,105 @@ export function useMediaUndo(albumId: () => string) {
     return state;
   });
 
-  function rememberReplacement(mediaName: string) {
+  function dismissAction() {
+    return {
+      icon: "close",
+      color: "white",
+      "aria-label": t("common.close"),
+      handler: clearUndoState,
+    };
+  }
+
+  function keepReplacementAction() {
+    return {
+      label: t("externalMedia.undo.keep"),
+      color: "white",
+      handler: clearUndoState,
+    };
+  }
+
+  function startReplacement() {
     clearUndoState();
+    updateReplacementToast = Notify.create({
+      group: false,
+      timeout: 0,
+      type: "info",
+      spinner: true,
+      message: t("externalMedia.replace.replacing"),
+    });
+  }
+
+  function failReplacement(message: string) {
+    resetUndoState();
+    const failure = {
+      timeout: 5000,
+      type: "negative" as const,
+      spinner: false,
+      message,
+      actions: [dismissAction()],
+    };
+    if (updateReplacementToast) updateReplacementToast(failure);
+    else
+      updateReplacementToast = Notify.create({
+        ...failure,
+        group: false,
+      });
+  }
+
+  function rememberReplacement(result: ReplacementResult) {
+    resetUndoState();
     undoState.value = {
       aid: albumId(),
-      mediaName,
+      mediaName: result.mediaName,
       expiresAt: Date.now() + UNDO_WINDOW_MS,
       pending: false,
     };
-    dismissUndoToast = Notify.create({
-      group: false,
-      timeout: UNDO_WINDOW_MS,
-      type: "positive",
-      message: t("externalMedia.undo.toast"),
-      actions: [
-        {
-          label: t("externalMedia.undo.action"),
-          color: "white",
-          handler: () => {
-            void undo();
-          },
-        },
-      ],
-    });
+    showReplacementReceipt(result);
     expireTimer = setTimeout(clearUndoState, UNDO_WINDOW_MS);
+  }
+
+  function showReplacementReceipt(result: ReplacementResult) {
+    const before = formatReceiptSide(result.previous, locale.value);
+    const after = formatReceiptSide(result.replacement, locale.value);
+    const success = {
+      timeout: UNDO_WINDOW_MS,
+      type: "positive" as const,
+      spinner: false,
+      message: t("externalMedia.replace.done"),
+      caption: t("externalMedia.replace.receipt", { before, after }),
+      actions: [undoAction(), keepReplacementAction()],
+    };
+    if (updateReplacementToast) updateReplacementToast(success);
+    else
+      updateReplacementToast = Notify.create({
+        ...success,
+        group: false,
+      });
+  }
+
+  function undoAction(label = t("externalMedia.undo.action")) {
+    return {
+      label,
+      color: "white",
+      noDismiss: true,
+      handler: () => {
+        void undo();
+      },
+    };
   }
 
   async function undo() {
     const state = currentUndo.value;
     if (!state || state.pending) return;
     state.pending = true;
+    updateReplacementToast?.({
+      timeout: 0,
+      type: "info",
+      spinner: true,
+      message: t("externalMedia.undo.undoing"),
+      caption: undefined,
+      actions: [],
+    });
     try {
       await undoReplacement({
         path: { aid: state.aid, media_name: state.mediaName },
@@ -77,26 +152,52 @@ export function useMediaUndo(albumId: () => string) {
           cache.invalidateQueries(invalidateAlbumKey(key)),
         ),
       );
-      Notify.create({
+      resetUndoState();
+      updateReplacementToast?.({
+        timeout: 5000,
         type: "positive",
+        spinner: false,
         message: t("externalMedia.undo.done"),
+        actions: [dismissAction()],
       });
-      clearUndoState();
+      updateReplacementToast = null;
     } catch {
       state.pending = false;
-      Notify.create({
+      updateReplacementToast?.({
+        timeout: 0,
         type: "negative",
+        spinner: false,
         message: t("externalMedia.undo.failed"),
+        caption: undefined,
+        actions: [
+          undoAction(t("externalMedia.undo.retry")),
+          keepReplacementAction(),
+        ],
       });
     }
   }
 
   return {
+    cancelReplacement: clearUndoState,
     currentUndo,
+    failReplacement,
+    startReplacement,
     rememberReplacement,
     undo,
     clearUndoState,
   };
+}
+
+function formatReceiptSide(
+  metadata: ReplacementResult["previous"],
+  locale: string,
+) {
+  const dimensions = `${formatNumber(metadata.width, locale)} × ${formatNumber(metadata.height, locale)}`;
+  return `\u2066${dimensions} · ${humanStorageSize(metadata.byteSize)}\u2069`;
+}
+
+function formatNumber(value: number, locale: string) {
+  return new Intl.NumberFormat(locale).format(value);
 }
 
 export function mediaUndoInvalidationKeys(aid: string) {

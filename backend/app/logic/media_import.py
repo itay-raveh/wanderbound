@@ -16,6 +16,7 @@ from sqlmodel import select
 from app.core.resources import MiB
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, extract_frame, media_limiter
+from app.logic.media_upgrade.hashes import compute_serialized_media_hashes
 from app.logic.media_upgrade.processing import process_photo_sync, process_video
 from app.logic.step_media import prepend_step_unused_media
 from app.models.album import Album
@@ -210,6 +211,14 @@ async def persist_imported_media(
         populate_existing=True,
     )
     names = [m.name for m in imported]
+    perceptual_hashes_by_name = (
+        await run_sync(
+            compute_serialized_media_hashes,
+            [album_dir / media.name for media in imported],
+        )
+        if album_dir is not None
+        else {}
+    )
     session.add_all(
         [
             AlbumMedia(
@@ -220,6 +229,7 @@ async def persist_imported_media(
                 width=media.width,
                 height=media.height,
                 byte_size=_imported_byte_size(media.name, album_dir),
+                perceptual_hashes=perceptual_hashes_by_name.get(media.name),
                 upgrade_candidate=False,
             )
             for media in imported

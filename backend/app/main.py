@@ -27,6 +27,10 @@ from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.segment_routes import set_route_enrichment_http_clients
 from app.logic.session import cancel_all_sessions
 from app.logic.uploads.cleanup import upload_cleanup_loop
+from app.logic.workflows.media_hashes import (
+    media_hash_reconciliation_loop,
+    reconcile_missing_media_hash_backfills,
+)
 from app.logic.workflows.processing import set_processing_workflow_http_clients
 from app.logic.workflows.recovery import (
     WorkflowAdminState,
@@ -83,18 +87,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
                         settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired
                     )
                 )
-                launch_dbos(settings, run_admin_server=admin_state.has_admin_server)
+                await launch_dbos(
+                    settings, run_admin_server=admin_state.has_admin_server
+                )
+                try:
+                    await reconcile_missing_media_hash_backfills()
+                except Exception as exc:
+                    logger.exception(
+                        "media_hash.backfill_startup_reconciliation_failed",
+                        error_type=type(exc).__name__,
+                    )
 
                 async def promote_to_admin() -> None:
                     logger.info("workflow.admin_promoted")
                     destroy_dbos()
-                    launch_dbos(settings, run_admin_server=True)
+                    await launch_dbos(settings, run_admin_server=True)
 
                 heartbeat_task = asyncio.create_task(
                     workflow_heartbeat_loop(
                         settings,
                         has_admin_server=lambda: admin_state.has_admin_server,
                     )
+                )
+                media_hash_reconciliation_task = asyncio.create_task(
+                    media_hash_reconciliation_loop()
                 )
                 upload_cleanup_task = asyncio.create_task(
                     upload_cleanup_loop(
@@ -124,6 +140,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
                     upload_cleanup_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await upload_cleanup_task
+                    media_hash_reconciliation_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await media_hash_reconciliation_task
                     heartbeat_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await heartbeat_task

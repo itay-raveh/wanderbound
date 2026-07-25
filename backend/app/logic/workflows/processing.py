@@ -19,6 +19,10 @@ from app.logic.processing_operations import (
 from app.logic.segment_routes import schedule_album_route_enrichment
 from app.logic.trip_pipeline import run_processing
 from app.logic.trip_processing import ErrorData
+from app.logic.workflows.media_hashes import (
+    enqueue_media_hash_backfill,
+    media_hash_backfill_revision,
+)
 from app.logic.workflows.recovery import workflow_executor_id
 from app.models.processing import ProcessingOperation
 from app.models.user import User
@@ -61,6 +65,32 @@ def get_processing_workflow_http_clients() -> HttpClients:
         msg = "processing workflow HTTP clients have not been initialized"
         raise RuntimeError(msg)
     return _workflow_http_clients[0]
+
+
+async def _schedule_album_background_workflows(
+    http: HttpClients,
+    params: ProcessingWorkflowPayload,
+    session: AsyncSession,
+) -> None:
+    for aid in params.album_ids:
+        try:
+            revision = await media_hash_backfill_revision(session, params.uid, aid)
+            if revision is not None:
+                await enqueue_media_hash_backfill(
+                    params.uid,
+                    aid,
+                    params.upload_generation,
+                    revision,
+                )
+        except Exception as exc:
+            logger.exception(
+                "media_hash.backfill_schedule_failed",
+                user_id=params.uid,
+                album_id=aid,
+                upload_generation=params.upload_generation,
+                error_type=type(exc).__name__,
+            )
+        schedule_album_route_enrichment(http, params.uid, aid)
 
 
 async def run_processing_workflow_payload(
@@ -111,8 +141,7 @@ async def run_processing_workflow_payload(
     await session.commit()
 
     if status == "succeeded":
-        for aid in user.album_ids:
-            schedule_album_route_enrichment(http, user.id, aid)
+        await _schedule_album_background_workflows(http, params, session)
 
     return {"operation_id": operation.operation_id, "status": status}
 
