@@ -47,6 +47,8 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 
 ## Self-Hosting
 
+### Docker Compose
+
 Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
 
 ```bash
@@ -71,6 +73,10 @@ Configure database and app data backups in your deployment infrastructure.
 The backend stores upload and processing progress in shared storage and Postgres,
 so multiple backend workers can serve the same user flow. All backend workers
 must use the same `DATA_FOLDER` volume and database.
+
+### Kubernetes
+
+See the [Helm chart installation guide](charts/wanderbound/README.md).
 
 ## Development
 

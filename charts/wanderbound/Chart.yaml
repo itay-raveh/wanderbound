@@ -1,0 +1,9 @@
+apiVersion: v2
+name: wanderbound
+description: Turn a Polarsteps export into a print-ready photo album
+type: application
+version: 1.9.0
+appVersion: 1.9.0
+home: https://github.com/itay-raveh/wanderbound
+sources:
+  - https://github.com/itay-raveh/wanderbound
