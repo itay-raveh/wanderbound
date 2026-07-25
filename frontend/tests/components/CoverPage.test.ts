@@ -15,7 +15,7 @@ vi.mock("@/queries/useUserQuery", () => ({
   }),
 }));
 
-function mountCoverPage() {
+function mountCoverPage(isBack = false) {
   const chapter = {
     id: "chapter-2",
     title: "",
@@ -23,6 +23,7 @@ function mountCoverPage() {
     step_ids: [1],
     front_cover_photo: "cover.jpg",
     back_cover_photo: "cover.jpg",
+    front_cover_darkness: 0.2,
   };
   const album = { ...mockAlbum, chapters: [mockAlbum.chapters[0], chapter] };
   const Wrapper = defineComponent({
@@ -35,6 +36,7 @@ function mountCoverPage() {
           album,
           chapter,
           steps: [makeStep({ id: 1, datetime: "2024-01-01T00:00:00Z" })],
+          isBack,
         });
     },
   });
@@ -69,5 +71,17 @@ describe("CoverPage", () => {
     expect(wrapper.get(".front-subtitle").attributes("data-placeholder")).toBe(
       "Chapter subtitle",
     );
+  });
+
+  test("dims only the front cover with the chapter darkness", () => {
+    const front = mountCoverPage();
+    const frontMedia = front.get(".media-item-stub");
+
+    expect(frontMedia.classes()).toContain("cover-dimmed");
+    expect(frontMedia.attributes("style")).toContain("--cover-darkness: 0.2");
+
+    const backMedia = mountCoverPage(true).get(".media-item-stub");
+    expect(backMedia.classes()).not.toContain("cover-dimmed");
+    expect(backMedia.attributes("style")).toBeUndefined();
   });
 });

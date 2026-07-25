@@ -27,6 +27,7 @@ describe("chapterEditing", () => {
         step_ids: [1, 2, 3, 4],
         front_cover_photo: "old.jpg",
         back_cover_photo: "old.jpg",
+        front_cover_darkness: 0.2,
       }),
     ];
     const steps = [
@@ -48,6 +49,7 @@ describe("chapterEditing", () => {
         step_ids: [3, 4],
         front_cover_photo: "three.jpg",
         back_cover_photo: "three.jpg",
+        front_cover_darkness: 0.2,
       },
     ]);
   });

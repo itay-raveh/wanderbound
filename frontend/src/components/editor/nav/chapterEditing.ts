@@ -59,6 +59,7 @@ export function splitChapter(
     step_ids: nextStepIds,
     front_cover_photo: cover,
     back_cover_photo: cover,
+    front_cover_darkness: source.front_cover_darkness ?? 0.45,
   };
 
   const result = cloneChapters(chapters);
