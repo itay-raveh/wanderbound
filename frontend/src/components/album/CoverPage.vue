@@ -34,6 +34,7 @@ const coverQuality = computed(() =>
     ? mediaQuality(
         coverMedia.value,
         COVER_FRACTION,
+        "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
       )

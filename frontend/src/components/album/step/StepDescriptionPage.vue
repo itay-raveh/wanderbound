@@ -23,6 +23,7 @@ const photoQuality = computed(() =>
     ? mediaQuality(
         props.photo,
         PHOTO_PANEL_FRACTION,
+        "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
       )

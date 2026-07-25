@@ -16,14 +16,28 @@ type DpiTier = ReturnType<typeof dpiTier>;
 
 describe("computeDpi", () => {
   it("computes DPI for a full-page photo", () => {
-    const dpi = computeDpi(4000, 3000, { widthFrac: 1, heightFrac: 1 });
+    const dpi = computeDpi(4000, 3000, { widthFrac: 1, heightFrac: 1 }, "cover");
     expect(dpi).toBeCloseTo(4000 / (PAGE_WIDTH_MM / MM_PER_INCH), 0);
   });
 
   it("returns the minimum of width and height DPI", () => {
-    const dpi = computeDpi(4000, 1000, { widthFrac: 0.5, heightFrac: 1 });
+    const dpi = computeDpi(
+      4000,
+      1000,
+      { widthFrac: 0.5, heightFrac: 1 },
+      "cover",
+    );
     const heightDpi = 1000 / (PAGE_HEIGHT_MM / MM_PER_INCH);
     expect(dpi).toBeCloseTo(heightDpi, 1);
+  });
+
+  it("uses the rendered image size for contained portraits", () => {
+    const cell = { widthFrac: 1, heightFrac: 1 };
+    const coverDpi = computeDpi(1688, 3000, cell, "cover");
+    const containDpi = computeDpi(1688, 3000, cell, "contain");
+
+    expect(coverDpi).toBeCloseTo(1688 / (PAGE_WIDTH_MM / MM_PER_INCH), 1);
+    expect(containDpi).toBeCloseTo(3000 / (PAGE_HEIGHT_MM / MM_PER_INCH), 1);
   });
 });
 
@@ -134,6 +148,35 @@ describe("summarizeQuality", () => {
       "print",
     );
     expect(result).toEqual({ caution: 1, warning: 0 });
+  });
+
+  it("does not warn for a contained full-page portrait with print thresholds", () => {
+    const portrait = media("portrait.jpg", 1688, 3000);
+    const steps = [makeStep({ id: 1, pages: [[portrait.name]] })];
+
+    const result = summarizeQuality(
+      steps,
+      undefined,
+      undefined,
+      mediaMap(portrait),
+      "print",
+    );
+
+    expect(result).toEqual({ caution: 0, warning: 0 });
+  });
+
+  it("still warns when the same portrait is used as a full-bleed cover", () => {
+    const portrait = media("portrait.jpg", 1688, 3000);
+
+    const result = summarizeQuality(
+      [],
+      portrait.name,
+      undefined,
+      mediaMap(portrait),
+      "print",
+    );
+
+    expect(result).toEqual({ caution: 0, warning: 1 });
   });
 
   it("handles cover photo appearing in both cover and step.cover", () => {

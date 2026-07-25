@@ -3,7 +3,18 @@ export interface PageFraction {
   heightFrac: number;
 }
 
+export type PhotoFit = "contain" | "cover";
+
 export const FULL_PAGE_FRACTION: PageFraction = { widthFrac: 1, heightFrac: 1 };
+
+const CONTAIN_LAYOUTS = new Set([
+  "layout-1p-0l",
+  "layout-0p-1l",
+  "layout-0p-2l",
+  "layout-1p-1l",
+  "layout-0p-3l",
+  "layout-2p-1l",
+]);
 
 type FractionSpec = { uniform: PageFraction } | { byCellIndex: PageFraction[] };
 
@@ -84,6 +95,10 @@ export function photoPageFraction(
   return (
     spec.byCellIndex[cellIndex] ?? spec.byCellIndex[spec.byCellIndex.length - 1]
   );
+}
+
+export function photoPageFit(layoutClass: string): PhotoFit {
+  return CONTAIN_LAYOUTS.has(layoutClass) ? "contain" : "cover";
 }
 
 /**

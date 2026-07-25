@@ -24,6 +24,7 @@ const coverQuality = computed(() =>
     ? mediaQuality(
         props.step.cover,
         PHOTO_PANEL_FRACTION,
+        "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
       )

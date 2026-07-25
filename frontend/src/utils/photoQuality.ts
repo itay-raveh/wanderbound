@@ -9,8 +9,10 @@ import {
 import {
   FULL_PAGE_FRACTION,
   enforceOrientationOrder,
+  photoPageFit,
   photoPageFraction,
   resolveLayoutClass,
+  type PhotoFit,
 } from "@/utils/photoLayout";
 import { isPortraitByName } from "@/utils/media";
 
@@ -55,10 +57,15 @@ export function computeDpi(
   widthPx: number,
   heightPx: number,
   cell: PageFraction,
+  fit: PhotoFit,
 ): number {
   const cellWidthInches = (cell.widthFrac * PAGE_WIDTH_MM) / MM_PER_INCH;
   const cellHeightInches = (cell.heightFrac * PAGE_HEIGHT_MM) / MM_PER_INCH;
-  return Math.min(widthPx / cellWidthInches, heightPx / cellHeightInches);
+  const widthDpi = widthPx / cellWidthInches;
+  const heightDpi = heightPx / cellHeightInches;
+  return fit === "contain"
+    ? Math.max(widthDpi, heightDpi)
+    : Math.min(widthDpi, heightDpi);
 }
 
 export function dpiTier(
@@ -74,12 +81,13 @@ export function dpiTier(
 export function mediaQuality(
   name: string,
   cell: PageFraction,
+  fit: PhotoFit,
   mediaByName: ReadonlyMap<string, MediaDimensions>,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
-  const dpi = computeDpi(m.width, m.height, cell);
+  const dpi = computeDpi(m.width, m.height, cell, fit);
   return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }
 
@@ -100,13 +108,13 @@ export function summarizeQuality(
   // Cover photos
   if (frontCover)
     count(
-      mediaQuality(frontCover, COVER_FRACTION, mediaByName, preset)?.tier ??
-        "ok",
+      mediaQuality(frontCover, COVER_FRACTION, "cover", mediaByName, preset)
+        ?.tier ?? "ok",
     );
   if (backCover)
     count(
-      mediaQuality(backCover, COVER_FRACTION, mediaByName, preset)?.tier ??
-        "ok",
+      mediaQuality(backCover, COVER_FRACTION, "cover", mediaByName, preset)
+        ?.tier ?? "ok",
     );
 
   const isP = (name: string) => isPortraitByName(name, mediaByName);
@@ -115,8 +123,13 @@ export function summarizeQuality(
     // Step cover (right panel of StepMainPage)
     if (step.cover)
       count(
-        mediaQuality(step.cover, PHOTO_PANEL_FRACTION, mediaByName, preset)
-          ?.tier ?? "ok",
+        mediaQuality(
+          step.cover,
+          PHOTO_PANEL_FRACTION,
+          "cover",
+          mediaByName,
+          preset,
+        )?.tier ?? "ok",
       );
 
     // Photo pages
@@ -127,10 +140,12 @@ export function summarizeQuality(
 
       const ordered = enforceOrientationOrder(filtered, isP);
       const layoutClass = resolveLayoutClass(ordered, isP);
+      const fit = photoPageFit(layoutClass);
       for (let i = 0; i < ordered.length; i++) {
         const cell = photoPageFraction(layoutClass, i);
         count(
-          mediaQuality(ordered[i], cell, mediaByName, preset)?.tier ?? "ok",
+          mediaQuality(ordered[i], cell, fit, mediaByName, preset)?.tier ??
+            "ok",
         );
       }
     }
