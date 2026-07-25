@@ -1,0 +1,31 @@
+image:
+  repository: ghcr.io/itay-raveh/wanderbound
+  tag: ""
+  pullPolicy: IfNotPresent
+
+config: {}
+
+existingSecrets: []
+
+secretEnv: {}
+
+resources: {}
+
+persistence:
+  existingClaim: ""
+  size: 10Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  retain: true
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls: []
+
+sourceMaps:
+  enabled: false
+  existingSecret: ""

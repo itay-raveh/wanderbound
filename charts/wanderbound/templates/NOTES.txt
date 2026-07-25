@@ -1,0 +1,6 @@
+{{- if .Values.ingress.enabled }}
+Wanderbound Ingress host: {{ .Values.ingress.host }}
+{{- else }}
+Forward the service locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "wanderbound.fullname" . }} 8000:8000
+{{- end }}

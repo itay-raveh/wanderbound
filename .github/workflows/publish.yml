@@ -56,6 +56,31 @@ jobs:
       - name: Push exact release tag
         run: docker push "$APP_IMAGE:${{ steps.version.outputs.value }}"
 
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.7.11
+          install_args: helm
+
+      - name: Log Helm in to GHCR
+        run: >-
+          echo "${{ secrets.GITHUB_TOKEN }}" |
+          helm registry login ghcr.io
+          --username "${{ github.actor }}"
+          --password-stdin
+
+      - name: Package exact chart version
+        run: >-
+          helm package charts/wanderbound
+          --destination /tmp
+          --version "${{ steps.version.outputs.value }}"
+          --app-version "${{ steps.version.outputs.value }}"
+
+      - name: Push exact chart version
+        run: >-
+          helm push
+          "/tmp/wanderbound-${{ steps.version.outputs.value }}.tgz"
+          oci://ghcr.io/itay-raveh/charts
+
       - uses: taiki-e/install-action@v2
         if: steps.version.outputs.patch == '0'
         with:

@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wanderbound.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wanderbound.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "wanderbound.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "wanderbound.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 999
+      {{- if .Values.sourceMaps.enabled }}
+      initContainers:
+        - name: sourcemaps
+          image: {{ include "wanderbound.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/upload-sourcemaps
+          envFrom:
+            - configMapRef:
+                name: {{ include "wanderbound.configName" . }}
+            - secretRef:
+                name: {{ .Values.sourceMaps.existingSecret }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: SENTRY_DISABLE_UPDATE_CHECK
+              value: "true"
+          securityContext:
+            {{- include "wanderbound.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      {{- end }}
+      containers:
+        - name: wanderbound
+          image: {{ include "wanderbound.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "wanderbound.configName" . }}
+            {{- range .Values.existingSecrets }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          {{- with .Values.secretEnv }}
+          env:
+            {{- range $name, $source := . }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $source.secretName }}
+                  key: {{ $source.key }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            periodSeconds: 5
+          securityContext:
+            {{- include "wanderbound.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: app-data
+              mountPath: /data
+            - name: dshm
+              mountPath: /dev/shm
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: {{ include "wanderbound.pvcName" . }}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir: {}

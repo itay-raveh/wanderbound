@@ -45,7 +45,7 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 | **Object storage** | S3-compatible storage, Garage for Compose                           |
 | **External APIs**  | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
 
-## Self-Hosting
+## Self-Hosting with Compose
 
 Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
 
@@ -71,6 +71,25 @@ Configure database and app data backups in your deployment infrastructure.
 The backend stores upload and processing progress in shared storage and Postgres,
 so multiple backend workers can serve the same user flow. All backend workers
 must use the same `DATA_FOLDER` volume and database.
+
+## Self-Hosting on Kubernetes
+
+The [Helm chart](charts/wanderbound/README.md) runs the Wanderbound application
+with a Service and persistent data volume. You supply the database, Secrets, and
+any ingress or storage infrastructure you want to use.
+
+```bash
+WANDERBOUND_VERSION='<MAJOR.MINOR.PATCH>'
+helm install wanderbound \
+  oci://ghcr.io/itay-raveh/charts/wanderbound \
+  --namespace wanderbound \
+  --version "$WANDERBOUND_VERSION" \
+  --values values.yaml
+```
+
+The chart keeps its values surface small and passes application configuration
+through without maintaining a second setting inventory. See the chart README
+for prerequisites and a complete first-install example.
 
 ## Development
 
