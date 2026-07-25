@@ -72,20 +72,22 @@ def _gpano_config(
         cropped_width = _integer(values["CroppedAreaImageWidthPixels"])
         cropped_height = _integer(values["CroppedAreaImageHeightPixels"])
         full_width = _integer(values["FullPanoWidthPixels"])
-        full_height = _integer(values["FullPanoHeightPixels"])
+        full_height = _optional_integer(values["FullPanoHeightPixels"])
         cropped_left = _integer(
             values["CroppedAreaLeftPixels"], default=0, allow_zero=True
         )
         cropped_top = _integer(
-            values["CroppedAreaTopPixels"], default=0, allow_zero=True
+            values["CroppedAreaTopPixels"],
+            default=0,
+            allow_zero=True,
+            allow_negative=True,
         )
     except ValueError:
         return None
     if (
         cropped_width > full_width
-        or cropped_height > full_height
         or cropped_left + cropped_width > full_width
-        or cropped_top + cropped_height > full_height
+        or (full_height is not None and cropped_top + cropped_height > full_height)
     ):
         return None
     return PanoramaConfig(
@@ -136,15 +138,20 @@ def _integer(
     *,
     default: int | None = None,
     allow_zero: bool = False,
+    allow_negative: bool = False,
 ) -> int:
     if value is None:
         if default is None:
             raise ValueError("Missing GPano integer")
         return default
     parsed = int(value)
-    if parsed < 0 or (parsed == 0 and not allow_zero):
+    if (parsed < 0 and not allow_negative) or (parsed == 0 and not allow_zero):
         raise ValueError("GPano dimensions must be positive")
     return parsed
+
+
+def _optional_integer(value: str | None) -> int | None:
+    return _integer(value) if value is not None else None
 
 
 def _number(value: str | None, *, default: float) -> float:

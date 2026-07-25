@@ -44,7 +44,9 @@ def _gpano(**attributes: object) -> str:
         "InitialViewPitchDegrees": -3,
     }
     values = {**defaults, **attributes}
-    tags = " ".join(f'GPano:{key}="{value}"' for key, value in values.items())
+    tags = " ".join(
+        f'GPano:{key}="{value}"' for key, value in values.items() if value is not None
+    )
     return (
         '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
@@ -111,6 +113,37 @@ def test_malformed_gpano_falls_back_to_dimension_suggestion(tmp_path: Path) -> N
     assert panorama is not None
     assert panorama.status == "suggested"
     assert panorama.detection == "dimensions"
+
+
+def test_cylindrical_gpano_without_full_height_activates(tmp_path: Path) -> None:
+    source = _jpeg_with_xmp(
+        tmp_path / "samsung.jpg",
+        300,
+        100,
+        _gpano(FullPanoHeightPixels=None),
+    )
+
+    panorama = inspect_panorama(source)
+
+    assert panorama is not None
+    assert panorama.status == "active"
+    assert panorama.detection == "gpano"
+    assert panorama.full_pano_height is None
+
+
+def test_cylindrical_gpano_with_negative_top_offset_activates(tmp_path: Path) -> None:
+    source = _jpeg_with_xmp(
+        tmp_path / "above-horizon.jpg",
+        300,
+        100,
+        _gpano(CroppedAreaTopPixels=-25),
+    )
+
+    panorama = inspect_panorama(source)
+
+    assert panorama is not None
+    assert panorama.status == "active"
+    assert panorama.cropped_area_top == -25
 
 
 def test_gpano_coverage_is_clamped_to_a_partial_cylinder(tmp_path: Path) -> None:

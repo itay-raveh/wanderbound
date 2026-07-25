@@ -3699,8 +3699,7 @@
           "cropped_area_top": {
             "anyOf": [
               {
-                "type": "integer",
-                "minimum": 0.0
+                "type": "integer"
               },
               {
                 "type": "null"

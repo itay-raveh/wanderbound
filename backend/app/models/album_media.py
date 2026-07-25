@@ -25,7 +25,7 @@ class PanoramaConfig(BaseModel):
     cropped_area_width: int | None = PydanticField(default=None, gt=0)
     cropped_area_height: int | None = PydanticField(default=None, gt=0)
     cropped_area_left: int | None = PydanticField(default=None, ge=0)
-    cropped_area_top: int | None = PydanticField(default=None, ge=0)
+    cropped_area_top: int | None = None
     full_pano_width: int | None = PydanticField(default=None, gt=0)
     full_pano_height: int | None = PydanticField(default=None, gt=0)
     captured_fov: float = PydanticField(gt=0, lt=360)
@@ -47,7 +47,8 @@ class PanoramaConfig(BaseModel):
         if (
             self.cropped_area_height is not None
             and self.full_pano_height is not None
-            and self.cropped_area_height > self.full_pano_height
+            and self.cropped_area_top is not None
+            and self.cropped_area_top + self.cropped_area_height > self.full_pano_height
         ):
             raise ValueError("Cropped panorama height exceeds the full panorama")
         return self
