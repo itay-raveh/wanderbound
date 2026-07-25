@@ -49,6 +49,15 @@ function mountReplaceExternalMedia() {
     .result;
 }
 
+function replacementResponse(
+  overrides: Parameters<typeof makeAlbumMedia>[0] = {},
+) {
+  return new Response(JSON.stringify(makeAlbumMedia(overrides)), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 describe("useReplaceExternalMedia", () => {
   afterEach(() => {
     usePhotoFocus().blur();
@@ -78,13 +87,19 @@ describe("useReplaceExternalMedia", () => {
     mockGooglePickerPopup();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
+      vi.fn().mockResolvedValue(
+        replacementResponse({ width: 3000, height: 2000, byte_size: 12_345 }),
+      ),
     );
 
     usePhotoFocus().focus(1, "photo.jpg");
     const result = mountReplaceExternalMedia();
 
-    await expect(result.replaceFromGoogle()).resolves.toBe("photo.jpg");
+    await expect(result.replaceFromGoogle()).resolves.toEqual({
+      mediaName: "photo.jpg",
+      previous: { width: 1920, height: 1080, byteSize: 1234 },
+      replacement: { width: 3000, height: 2000, byteSize: 12_345 },
+    });
     expect(googlePhotosMock.createPickerSession).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(AbortSignal),
@@ -101,7 +116,7 @@ describe("useReplaceExternalMedia", () => {
       vi.fn().mockImplementation(() => {
         expect(googlePhotosMock.pollSession).toHaveBeenCalled();
         expect(onRequestStart).toHaveBeenCalledOnce();
-        return Promise.resolve(new Response("{}", { status: 200 }));
+        return Promise.resolve(replacementResponse());
       }),
     );
 
@@ -111,6 +126,29 @@ describe("useReplaceExternalMedia", () => {
     await result.replaceFromGoogle(onRequestStart);
 
     expect(onRequestStart).toHaveBeenCalledOnce();
+  });
+
+  it("returns an authoritative device replacement receipt", async () => {
+    vi.stubGlobal("Image", PreviewImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:replacement");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        replacementResponse({ width: 3000, height: 2000, byte_size: 45_678 }),
+      ),
+    );
+    usePhotoFocus().focus(1, "photo.jpg");
+    const result = mountReplaceExternalMedia();
+    await result.prepareDeviceReview(
+      new File(["image"], "replacement.jpg", { type: "image/jpeg" }),
+    );
+
+    await expect(result.confirmDeviceReplacement()).resolves.toEqual({
+      mediaName: "photo.jpg",
+      previous: { width: 1920, height: 1080, byteSize: 1234 },
+      replacement: { width: 3000, height: 2000, byteSize: 45_678 },
+    });
   });
 
   it("invalidates print bundle after replacements", () => {

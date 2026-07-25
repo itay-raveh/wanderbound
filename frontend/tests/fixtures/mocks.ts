@@ -55,9 +55,9 @@ export const mockAlbum = {
 };
 
 export const mockMedia = [
-  { name: "cover.jpg", width: 1920, height: 1080 },
-  { name: "photo1.jpg", width: 1920, height: 1080 },
-  { name: "photo2.jpg", width: 1080, height: 1920 },
+  { name: "cover.jpg", width: 1920, height: 1080, byte_size: 4096 },
+  { name: "photo1.jpg", width: 1920, height: 1080, byte_size: 1234 },
+  { name: "photo2.jpg", width: 1080, height: 1920, byte_size: 2048 },
 ];
 
 export const mockStep = {

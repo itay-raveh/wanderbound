@@ -7,6 +7,7 @@ import { deferred, withSetup } from "../helpers";
 import { server } from "../mocks/server";
 import { flushPromises } from "@vue/test-utils";
 import { http, HttpResponse } from "msw";
+import i18n from "@/i18n";
 
 const notify = vi.hoisted(() => ({
   create: vi.fn(),
@@ -25,8 +26,15 @@ function replacementNotification() {
   return notify.update.mock.calls.at(-1)?.[0];
 }
 
+const replacement = {
+  mediaName: "photo.jpg",
+  previous: { width: 1920, height: 1080, byteSize: 1234 },
+  replacement: { width: 3000, height: 2000, byteSize: 12_345 },
+};
+
 describe("replacement notification", () => {
   beforeEach(() => {
+    i18n.global.locale.value = "en";
     notify.create.mockReset();
     notify.update.mockReset();
     notify.create.mockReturnValue(notify.update);
@@ -42,7 +50,7 @@ describe("replacement notification", () => {
       timeout: 0,
       type: "info",
       spinner: true,
-      message: "Replacing media...",
+      message: "Replacing media…",
     });
     undo.clearUndoState();
   });
@@ -51,13 +59,15 @@ describe("replacement notification", () => {
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
     notify.update.mockClear();
-    undo.rememberReplacement("photo.jpg");
+    undo.rememberReplacement(replacement);
 
     expect(replacementNotification()).toMatchObject({
       timeout: 300_000,
       type: "positive",
       spinner: false,
-      message: "Media replaced. Undo is available for 5 minutes.",
+      message: "Media replaced",
+      caption:
+        "\u20661,920 × 1,080 · 1.2KB\u2069 → \u20663,000 × 2,000 · 12.1KB\u2069",
       actions: [
         {
           label: "Undo",
@@ -68,7 +78,7 @@ describe("replacement notification", () => {
         {
           icon: "close",
           color: "white",
-          "aria-label": "Close",
+          "aria-label": "Keep replacement and dismiss",
           handler: expect.any(Function),
         },
       ],
@@ -110,7 +120,7 @@ describe("replacement notification", () => {
   it("discards the undo opportunity when our close action runs", () => {
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
-    undo.rememberReplacement("photo.jpg");
+    undo.rememberReplacement(replacement);
 
     const close = replacementNotification().actions[1];
     close.handler();
@@ -132,7 +142,7 @@ describe("replacement notification", () => {
     );
     const undo = withSetup(() => useMediaUndo(() => "album-1"));
     undo.startReplacement();
-    undo.rememberReplacement("photo.jpg");
+    undo.rememberReplacement(replacement);
 
     const action = replacementNotification().actions[0];
     expect(action.noDismiss).toBe(true);
@@ -140,9 +150,67 @@ describe("replacement notification", () => {
     await flushPromises();
 
     expect(undo.currentUndo.value?.pending).toBe(true);
+    expect(replacementNotification()).toMatchObject({
+      timeout: 0,
+      type: "info",
+      spinner: true,
+      message: "Undoing replacement…",
+      actions: [],
+    });
     request.resolve();
     await flushPromises();
     expect(undo.currentUndo.value).toBeNull();
+  });
+
+  it("keeps Undo recoverable after a failed request", async () => {
+    server.use(
+      http.post(
+        "http://localhost:8000/api/v1/albums/album-1/external-media/undo/photo.jpg",
+        () => HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+    const undo = withSetup(() => useMediaUndo(() => "album-1"));
+    undo.startReplacement();
+    undo.rememberReplacement(replacement);
+
+    replacementNotification().actions[0].handler();
+    await flushPromises();
+
+    expect(undo.currentUndo.value?.pending).toBe(false);
+    expect(replacementNotification()).toMatchObject({
+      timeout: 0,
+      type: "negative",
+      spinner: false,
+      message: "Undo failed. Try again.",
+      actions: [
+        { label: "Try undo again", handler: expect.any(Function) },
+        {
+          icon: "close",
+          "aria-label": "Keep replacement and dismiss",
+          handler: expect.any(Function),
+        },
+      ],
+    });
+    undo.clearUndoState();
+  });
+
+  it("keeps the numeric receipt isolated in the Hebrew interface", () => {
+    i18n.global.locale.value = "he";
+    const undo = withSetup(() => useMediaUndo(() => "album-1"));
+    undo.startReplacement();
+    undo.rememberReplacement(replacement);
+
+    expect(replacementNotification()).toMatchObject({
+      message: "המדיה הוחלפה",
+      caption:
+        "\u20661,920 × 1,080 · 1.2KB\u2069 ← \u20663,000 × 2,000 · 12.1KB\u2069",
+      actions: expect.arrayContaining([
+        expect.objectContaining({
+          "aria-label": "שמירת ההחלפה וסגירה",
+        }),
+      ]),
+    });
+    undo.clearUndoState();
   });
 });
 

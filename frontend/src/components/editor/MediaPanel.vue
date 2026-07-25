@@ -7,7 +7,10 @@ import UpgradeMediaButton from "./UpgradeMediaButton.vue";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
 import { useExternalMediaSources } from "@/composables/useExternalMediaSources";
 import { useMediaUndo } from "@/composables/useMediaUndo";
-import { useReplaceExternalMedia } from "@/composables/useReplaceExternalMedia";
+import {
+  useReplaceExternalMedia,
+  type ReplacementResult,
+} from "@/composables/useReplaceExternalMedia";
 import {
   jumpToNextQualityBadge,
   qualitySummary,
@@ -201,10 +204,10 @@ async function onReplacementFileSelected(event: Event) {
   await replaceMedia.prepareDeviceReview(file);
 }
 
-function settleReplacement(mediaName: string | null, started: boolean) {
+function settleReplacement(result: ReplacementResult | null, started: boolean) {
   if (!started) return;
-  if (mediaName) {
-    undo.rememberReplacement(mediaName);
+  if (result) {
+    undo.rememberReplacement(result);
     return;
   }
   if (replaceError.value) undo.failReplacement(replaceError.value);
@@ -213,17 +216,17 @@ function settleReplacement(mediaName: string | null, started: boolean) {
 
 async function confirmDeviceReplacement() {
   undo.startReplacement();
-  const mediaName = await replaceMedia.confirmDeviceReplacement();
-  settleReplacement(mediaName, true);
+  const result = await replaceMedia.confirmDeviceReplacement();
+  settleReplacement(result, true);
 }
 
 async function replaceFromGoogle() {
   let started = false;
-  const mediaName = await replaceMedia.replaceFromGoogle(() => {
+  const result = await replaceMedia.replaceFromGoogle(() => {
     started = true;
     undo.startReplacement();
   });
-  settleReplacement(mediaName, started);
+  settleReplacement(result, started);
 }
 
 const replaceError = computed(() =>

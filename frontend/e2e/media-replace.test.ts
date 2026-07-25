@@ -78,11 +78,15 @@ test.describe("External media replacement", () => {
     await reviewDialog
       .getByRole("button", { name: /Replace everywhere/i })
       .click();
-    await expect(page.getByText("Replacing media...")).toBeVisible();
+    await expect(page.getByText("Replacing media…")).toBeVisible();
 
     completeReplacement();
     await expect(
-      page.getByText("Media replaced. Undo is available for 5 minutes."),
+      page.getByText("Media replaced"),
+    ).toBeVisible();
+    await expect(page.getByText(/→.*3,000 × 2,000.*12\.1KB/)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Keep replacement and dismiss" }),
     ).toBeVisible();
   });
 });

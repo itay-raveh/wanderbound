@@ -1,4 +1,5 @@
 import { client } from "@/client/client.gen";
+import type { AlbumMedia } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
@@ -30,12 +31,23 @@ interface PreviewInfo {
 
 type MediaDimensions = { width: number; height: number };
 
+export interface ReplacementMetadata extends MediaDimensions {
+  byteSize: number;
+}
+
+export interface ReplacementResult {
+  mediaName: string;
+  previous: ReplacementMetadata;
+  replacement: ReplacementMetadata;
+}
+
 export interface ReplacementReviewState {
   mediaName: string;
   current: {
     kind: "photo" | "video";
     width: number;
     height: number;
+    byteSize: number;
     previewUrl: string;
   };
   replacement: PreviewInfo;
@@ -150,6 +162,7 @@ export function useReplaceExternalMedia() {
           kind: selectedKind.value,
           width: selectedMedia.value.width,
           height: selectedMedia.value.height,
+          byteSize: selectedMedia.value.byte_size,
           previewUrl: currentPreviewUrl(
             albumId.value,
             selectedMediaName.value,
@@ -169,7 +182,7 @@ export function useReplaceExternalMedia() {
     }
   }
 
-  async function confirmDeviceReplacement(): Promise<string | null> {
+  async function confirmDeviceReplacement(): Promise<ReplacementResult | null> {
     const currentReview = review.value;
     if (!currentReview) return null;
     if (currentReview.blockedReason) {
@@ -193,12 +206,17 @@ export function useReplaceExternalMedia() {
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
+      const replacement = (await res.json()) as AlbumMedia;
       await invalidateQueries();
       phase.value = "done";
-      const name = currentReview.mediaName;
+      const result = replacementResult(
+        currentReview.mediaName,
+        currentReview.current,
+        replacement,
+      );
       cleanupReview();
       phase.value = "idle";
-      return name;
+      return result;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       setError(
@@ -212,9 +230,10 @@ export function useReplaceExternalMedia() {
 
   async function replaceFromGoogle(
     onRequestStart?: () => void,
-  ): Promise<string | null> {
+  ): Promise<ReplacementResult | null> {
     const mediaName = selectedMediaName.value;
-    if (!mediaName) {
+    const previous = selectedMedia.value;
+    if (!mediaName || !previous) {
       setError(translate("externalMedia.replace.noSelection"));
       return null;
     }
@@ -254,10 +273,15 @@ export function useReplaceExternalMedia() {
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
+      const replacement = (await res.json()) as AlbumMedia;
       await invalidateQueries();
       phase.value = "done";
       phase.value = "idle";
-      return mediaName;
+      return replacementResult(
+        mediaName,
+        albumMediaMetadata(previous),
+        replacement,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       setError(
@@ -417,4 +441,28 @@ function statusMessage(statusCode: number): string {
   if (statusCode === 403) return t("mediaImport.errors.googleUnavailable");
   if (statusCode === 413) return t("mediaImport.errors.tooLarge");
   return t("externalMedia.replace.error");
+}
+
+function replacementResult(
+  mediaName: string,
+  previous: ReplacementMetadata,
+  replacement: AlbumMedia,
+): ReplacementResult {
+  return {
+    mediaName,
+    previous: {
+      width: previous.width,
+      height: previous.height,
+      byteSize: previous.byteSize,
+    },
+    replacement: albumMediaMetadata(replacement),
+  };
+}
+
+function albumMediaMetadata(media: AlbumMedia): ReplacementMetadata {
+  return {
+    width: media.width,
+    height: media.height,
+    byteSize: media.byte_size,
+  };
 }
