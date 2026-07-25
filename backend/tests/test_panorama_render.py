@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -9,6 +10,7 @@ from pydantic import ValidationError
 from app.core.worker_threads import run_sync
 from app.logic.panorama.render import (
     PanoramaDestination,
+    PanoramaFrameUpdate,
     PanoramaRenderError,
     PanoramaValidationError,
     render_panorama,
@@ -68,8 +70,8 @@ async def test_render_uses_perspective_then_separate_zoom_stage(
 
     filter_graph = command[command.index("-vf") + 1]
     assert filter_graph == (
-        "v360=input=cylindrical:output=flat:ih_fov=180:yaw=12:pitch=-3:"
-        "h_fov=60:w=800:h=400,"
+        "v360=input=cylindrical:output=flat:ih_fov=180:iv_fov=76.2921:"
+        "yaw=12:pitch=-3:h_fov=60:v_fov=32.2042:w=800:h=400,"
         "crop=iw/2:ih/2:(iw-iw/2)/2:(ih-ih/2)/2,"
         "scale=800:400:flags=lanczos"
     )
@@ -107,9 +109,105 @@ async def test_zoom_one_has_no_post_projection_crop(tmp_path: Path) -> None:
 
     filter_graph = command[command.index("-vf") + 1]
     assert filter_graph == (
-        "v360=input=cylindrical:output=flat:ih_fov=180:yaw=12:pitch=-3:"
-        "h_fov=60:w=800:h=400"
+        "v360=input=cylindrical:output=flat:ih_fov=180:iv_fov=76.2921:"
+        "yaw=12:pitch=-3:h_fov=60:v_fov=32.2042:w=800:h=400"
     )
+
+
+@pytest.mark.parametrize(
+    ("cropped_top", "pitch", "expected_vertical_options"),
+    [
+        (
+            0,
+            -20,
+            "iv_fov=57.5184:yaw=12:pitch=8.75918:h_fov=30:v_fov=15.2615",
+        ),
+        (
+            -25,
+            0,
+            "iv_fov=71.1144:yaw=12:pitch=14.1173:h_fov=30:v_fov=15.2615",
+        ),
+    ],
+)
+async def test_gpano_crop_position_sets_vertical_fov_and_pitch_offset(
+    tmp_path: Path,
+    cropped_top: int,
+    pitch: float,
+    expected_vertical_options: str,
+) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 300, 100)
+    output = tmp_path / "frame.jpg"
+    command: list[object] = []
+
+    class Process:
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            await run_sync(Path(command[-1]).write_bytes, b"frame")
+            return b"", b""
+
+    async def create_process(*args: object, **_kwargs: object) -> Process:
+        command.extend(args)
+        return Process()
+
+    config = _config(
+        source_width=300,
+        source_height=100,
+        cropped_area_width=300,
+        cropped_area_height=100,
+        cropped_area_top=cropped_top,
+        full_pano_width=400,
+        full_pano_height=None,
+        captured_fov=270,
+        pitch=pitch,
+        perspective_fov=30,
+        zoom=1,
+    )
+    with patch(
+        "app.logic.panorama.render.asyncio.create_subprocess_exec",
+        side_effect=create_process,
+    ):
+        await render_panorama(source, config, _destination(), output)
+
+    filter_graph = command[command.index("-vf") + 1]
+    assert filter_graph == (
+        "v360=input=cylindrical:output=flat:ih_fov=270:"
+        f"{expected_vertical_options}:w=800:h=400"
+    )
+
+
+async def test_gpano_crop_position_enforces_asymmetric_pitch_bounds(
+    tmp_path: Path,
+) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 300, 100)
+    create_process = AsyncMock()
+
+    with (
+        patch(
+            "app.logic.panorama.render.asyncio.create_subprocess_exec",
+            create_process,
+        ),
+        pytest.raises(PanoramaValidationError, match="pitch"),
+    ):
+        await render_panorama(
+            source,
+            _config(
+                source_width=300,
+                source_height=100,
+                cropped_area_width=300,
+                cropped_area_height=100,
+                cropped_area_top=0,
+                full_pano_width=400,
+                full_pano_height=None,
+                captured_fov=270,
+                pitch=0,
+                perspective_fov=30,
+            ),
+            _destination(),
+            tmp_path / "frame.jpg",
+        )
+
+    create_process.assert_not_awaited()
 
 
 async def test_out_of_bounds_frame_fails_before_subprocess(tmp_path: Path) -> None:
@@ -138,6 +236,39 @@ def test_destination_rejects_unsafe_dimensions() -> None:
         _destination(width_px=20_000)
 
 
+def test_frame_rejects_zoom_above_finite_limit() -> None:
+    with pytest.raises(ValidationError):
+        PanoramaFrameUpdate(
+            yaw=0,
+            pitch=0,
+            perspective_fov=60,
+            zoom=8193,
+        )
+
+
+async def test_zoom_rejects_non_positive_crop_before_subprocess(
+    tmp_path: Path,
+) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 1600, 800)
+    create_process = AsyncMock()
+
+    with (
+        patch(
+            "app.logic.panorama.render.asyncio.create_subprocess_exec",
+            create_process,
+        ),
+        pytest.raises(PanoramaValidationError, match="zoom"),
+    ):
+        await render_panorama(
+            source,
+            _config(zoom=401),
+            _destination(),
+            tmp_path / "frame.jpg",
+        )
+
+    create_process.assert_not_awaited()
+
+
 async def test_failed_render_preserves_existing_output(tmp_path: Path) -> None:
     source = create_test_jpeg(tmp_path / "source.jpg", 1600, 800)
     output = tmp_path / "frame.jpg"
@@ -156,5 +287,48 @@ async def test_failed_render_preserves_existing_output(tmp_path: Path) -> None:
     ):
         await render_panorama(source, _config(), _destination(), output)
 
+    assert output.read_bytes() == b"previous frame"
+    assert await run_sync(lambda: list(tmp_path.glob(".frame.*.jpg"))) == []
+
+
+async def test_cancelled_render_kills_and_reaps_subprocess(tmp_path: Path) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 1600, 800)
+    output = tmp_path / "frame.jpg"
+    output.write_bytes(b"previous frame")
+    started = asyncio.Event()
+
+    class Process:
+        returncode: int | None = None
+        communicate_calls = 0
+        killed = False
+        reaped = False
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            self.communicate_calls += 1
+            if self.communicate_calls == 1:
+                started.set()
+                await asyncio.Event().wait()
+            self.reaped = True
+            return b"", b""
+
+        def kill(self) -> None:
+            self.killed = True
+            self.returncode = -9
+
+    process = Process()
+    with patch(
+        "app.logic.panorama.render.asyncio.create_subprocess_exec",
+        AsyncMock(return_value=process),
+    ):
+        task = asyncio.create_task(
+            render_panorama(source, _config(), _destination(), output)
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert process.killed
+    assert process.reaped
     assert output.read_bytes() == b"previous frame"
     assert await run_sync(lambda: list(tmp_path.glob(".frame.*.jpg"))) == []

@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.api.v1.routes.panoramas import PanoramaApply, update_panorama
 from app.core.worker_threads import run_sync
 from app.logic.panorama.render import PanoramaRenderError
 from app.models.album_media import AlbumMedia, PanoramaConfig
+from app.models.user import User
 from tests.factories import AID, sign_in_with_album_media
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def _panorama(media_name: str, *, revision: int = 3) -> PanoramaConfig:
@@ -141,6 +146,100 @@ async def test_failed_put_preserves_configuration_and_derivative(
     await session.refresh(row)
     assert row.panorama == _panorama(row.name)
     assert not previous.parents[1].joinpath("4").exists()
+
+
+async def test_cancelled_put_removes_uncommitted_derivative(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    row, album_dir = await _scenario(client, session)
+    derivative = (
+        album_dir
+        / ".panoramas"
+        / "rendered"
+        / Path(row.name).stem
+        / "4"
+        / "800x400.jpg"
+    )
+
+    async def cancelled_render(
+        _source: Path,
+        _config: PanoramaConfig,
+        _destination: object,
+        output: Path,
+    ) -> None:
+        await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+        await run_sync(output.write_bytes, b"uncommitted")
+        raise asyncio.CancelledError
+
+    with (
+        patch(
+            "app.api.v1.routes.panoramas.render_panorama",
+            side_effect=cancelled_render,
+        ),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await update_panorama(
+            AID,
+            row.name,
+            PanoramaApply.model_validate(_body()),
+            await session.get_one(User, row.uid),
+            session,
+        )
+
+    assert not derivative.exists()
+    await session.refresh(row)
+    assert row.panorama == _panorama(row.name)
+
+
+async def test_non_database_commit_error_removes_uncommitted_derivative(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row, album_dir = await _scenario(client, session)
+    derivative = (
+        album_dir
+        / ".panoramas"
+        / "rendered"
+        / Path(row.name).stem
+        / "4"
+        / "800x400.jpg"
+    )
+
+    async def render(
+        _source: Path,
+        _config: PanoramaConfig,
+        _destination: object,
+        output: Path,
+    ) -> None:
+        await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+        await run_sync(output.write_bytes, b"uncommitted")
+
+    async def fail_commit() -> None:
+        raise RuntimeError("commit interrupted")
+
+    async with AsyncSession(
+        bind=session.bind,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    ) as update_session:
+        monkeypatch.setattr(update_session, "commit", fail_commit)
+        with (
+            patch("app.api.v1.routes.panoramas.render_panorama", side_effect=render),
+            pytest.raises(RuntimeError, match="commit interrupted"),
+        ):
+            await update_panorama(
+                AID,
+                row.name,
+                PanoramaApply.model_validate(_body()),
+                await update_session.get_one(User, row.uid),
+                update_session,
+            )
+
+    assert not derivative.exists()
+    await session.refresh(row)
+    assert row.panorama == _panorama(row.name)
 
 
 async def test_put_rejects_frame_outside_captured_bounds(

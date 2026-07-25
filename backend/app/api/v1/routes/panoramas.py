@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import structlog
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.worker_threads import run_sync
 from app.logic.layout.media import MediaName
 from app.logic.panorama.render import (
     PanoramaDestination,
@@ -96,32 +98,81 @@ async def update_panorama(
         body.destination.width_px,
         body.destination.height_px,
     )
+    configuration_staged = False
     try:
-        await render_panorama(source, proposed, body.destination, derivative)
+        await _render_derivative(
+            source,
+            proposed,
+            body.destination,
+            derivative,
+            media,
+        )
+        configuration_staged = True
+        media.panorama = proposed
+        session.add(media)
+        await session.commit()
+    except BaseException:
+        await _discard_update(
+            session,
+            derivative,
+            media,
+            rollback=configuration_staged,
+        )
+        raise
+    await session.refresh(media)
+    return media
+
+
+async def _render_derivative(
+    source: Path,
+    config: PanoramaConfig,
+    destination: PanoramaDestination,
+    derivative: Path,
+    media: AlbumMedia,
+) -> None:
+    try:
+        await render_panorama(source, config, destination, derivative)
     except PanoramaValidationError as error:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     except PanoramaRenderError as error:
         logger.exception(
             "panorama.render_failed",
-            user_id=user.id,
-            album_id=aid,
-            media_name=name,
+            user_id=media.uid,
+            album_id=media.aid,
+            media_name=media.name,
         )
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Panorama rendering failed",
         ) from error
 
-    media.panorama = proposed
-    session.add(media)
+
+async def _discard_update(
+    session: SessionDep,
+    derivative: Path,
+    media: AlbumMedia,
+    *,
+    rollback: bool,
+) -> None:
+    if rollback:
+        try:
+            await session.rollback()
+        except BaseException:
+            logger.exception(
+                "panorama.rollback_failed",
+                user_id=media.uid,
+                album_id=media.aid,
+                media_name=media.name,
+            )
     try:
-        await session.commit()
-    except SQLAlchemyError:
-        await session.rollback()
-        derivative.unlink(missing_ok=True)
-        raise
-    await session.refresh(media)
-    return media
+        await run_sync(derivative.unlink, missing_ok=True)
+    except OSError:
+        logger.exception(
+            "panorama.cleanup_failed",
+            user_id=media.uid,
+            album_id=media.aid,
+            media_name=media.name,
+        )
 
 
 @router.delete("/{aid}/media/{name}/panorama")

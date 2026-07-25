@@ -4067,6 +4067,7 @@
           },
           "zoom": {
             "type": "number",
+            "maximum": 8192.0,
             "minimum": 1.0,
             "title": "Zoom"
           },

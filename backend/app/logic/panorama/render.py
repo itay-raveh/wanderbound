@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import secrets
+from contextlib import suppress
 from pathlib import Path
 
 from PIL.Image import Resampling
@@ -30,7 +31,7 @@ class PanoramaFrameUpdate(BaseModel):
     yaw: float = Field(ge=-360, le=360)
     pitch: float = Field(ge=-90, le=90)
     perspective_fov: float = Field(gt=0, lt=180)
-    zoom: float = Field(ge=1)
+    zoom: float = Field(ge=1, le=_MAX_OUTPUT_DIMENSION)
     captured_fov: float | None = Field(default=None, gt=0, lt=360)
 
 
@@ -63,21 +64,14 @@ def validate_panorama_frame(
     if abs(config.yaw) > horizontal_margin:
         raise PanoramaValidationError("Panorama yaw is outside the captured bounds")
 
-    source_width = config.cropped_area_width or config.source_width
-    source_height = config.cropped_area_height or config.source_height
-    focal_length = source_width / math.radians(config.captured_fov)
-    source_vertical_half_fov = math.degrees(
-        math.atan(source_height / (2 * focal_length))
-    )
-    output_vertical_half_fov = math.degrees(
-        math.atan(
-            math.tan(math.radians(config.perspective_fov / 2))
-            / destination.aspect_ratio
-        )
-    )
-    vertical_margin = source_vertical_half_fov - output_vertical_half_fov
-    if vertical_margin < 0 or abs(config.pitch) > vertical_margin:
+    top_elevation, bottom_elevation = _source_vertical_bounds(config)
+    output_vertical_half_fov = _output_vertical_fov(config, destination) / 2
+    minimum_pitch = bottom_elevation + output_vertical_half_fov
+    maximum_pitch = top_elevation - output_vertical_half_fov
+    if not minimum_pitch <= config.pitch <= maximum_pitch:
         raise PanoramaValidationError("Panorama pitch is outside the captured bounds")
+    if config.zoom > min(destination.width_px, destination.height_px):
+        raise PanoramaValidationError("Panorama zoom produces an empty crop")
 
 
 def panorama_render_path(
@@ -129,43 +123,48 @@ async def render_panorama(
     await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
     temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
     filter_graph = _filter_graph(config, destination)
+    process: asyncio.subprocess.Process | None = None
     try:
-        process = await asyncio.create_subprocess_exec(
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-nostdin",
-            "-y",
-            "-i",
-            str(source),
-            "-frames:v",
-            "1",
-            "-vf",
-            filter_graph,
-            "-q:v",
-            "2",
-            str(temporary),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
         try:
-            _stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=_RENDER_TIMEOUT_SECONDS,
+            process = await asyncio.create_subprocess_exec(
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-nostdin",
+                "-y",
+                "-i",
+                str(source),
+                "-frames:v",
+                "1",
+                "-vf",
+                filter_graph,
+                "-q:v",
+                "2",
+                str(temporary),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-        except TimeoutError as error:
-            process.kill()
-            await process.communicate()
-            raise PanoramaRenderError("Panorama rendering timed out") from error
-        if process.returncode != 0:
-            detail = stderr.decode(errors="replace").strip()
-            raise PanoramaRenderError(detail or "FFmpeg failed to render panorama")
-        if not await run_sync(temporary.is_file):
-            raise PanoramaRenderError("FFmpeg did not produce a panorama image")
-        await run_sync(temporary.replace, output)
-    except OSError as error:
-        raise PanoramaRenderError("Unable to run FFmpeg panorama rendering") from error
+            try:
+                _stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=_RENDER_TIMEOUT_SECONDS,
+                )
+            except TimeoutError as error:
+                raise PanoramaRenderError("Panorama rendering timed out") from error
+            if process.returncode != 0:
+                detail = stderr.decode(errors="replace").strip()
+                raise PanoramaRenderError(detail or "FFmpeg failed to render panorama")
+            if not await run_sync(temporary.is_file):
+                raise PanoramaRenderError("FFmpeg did not produce a panorama image")
+            await run_sync(temporary.replace, output)
+        except OSError as error:
+            raise PanoramaRenderError(
+                "Unable to run FFmpeg panorama rendering"
+            ) from error
+    except BaseException:
+        await _kill_and_reap(process)
+        raise
     finally:
         await run_sync(temporary.unlink, missing_ok=True)
 
@@ -174,12 +173,19 @@ def _filter_graph(
     config: PanoramaConfig,
     destination: PanoramaDestination,
 ) -> str:
+    top_elevation, bottom_elevation = _source_vertical_bounds(config)
+    input_vertical_fov = top_elevation - bottom_elevation
+    source_center_pitch = (top_elevation + bottom_elevation) / 2
+    render_pitch = config.pitch - source_center_pitch
+    output_vertical_fov = _output_vertical_fov(config, destination)
     projection = (
         "v360=input=cylindrical:output=flat:"
         f"ih_fov={_number(config.captured_fov)}:"
+        f"iv_fov={_number(input_vertical_fov)}:"
         f"yaw={_number(config.yaw)}:"
-        f"pitch={_number(config.pitch)}:"
+        f"pitch={_number(render_pitch)}:"
         f"h_fov={_number(config.perspective_fov)}:"
+        f"v_fov={_number(output_vertical_fov)}:"
         f"w={destination.width_px}:h={destination.height_px}"
     )
     if config.zoom == 1:
@@ -190,6 +196,40 @@ def _filter_graph(
         f"crop=iw/{zoom}:ih/{zoom}:(iw-iw/{zoom})/2:(ih-ih/{zoom})/2,"
         f"scale={destination.width_px}:{destination.height_px}:flags=lanczos"
     )
+
+
+def _source_vertical_bounds(config: PanoramaConfig) -> tuple[float, float]:
+    source_width = config.cropped_area_width or config.source_width
+    source_height = config.cropped_area_height or config.source_height
+    top = (
+        config.cropped_area_top
+        if config.cropped_area_top is not None
+        else -source_height / 2
+    )
+    focal_length = source_width / math.radians(config.captured_fov)
+    top_elevation = math.degrees(math.atan(-top / focal_length))
+    bottom_elevation = math.degrees(math.atan(-(top + source_height) / focal_length))
+    return top_elevation, bottom_elevation
+
+
+def _output_vertical_fov(
+    config: PanoramaConfig,
+    destination: PanoramaDestination,
+) -> float:
+    return 2 * math.degrees(
+        math.atan(
+            math.tan(math.radians(config.perspective_fov / 2))
+            / destination.aspect_ratio
+        )
+    )
+
+
+async def _kill_and_reap(process: asyncio.subprocess.Process | None) -> None:
+    if process is None or process.returncode is not None:
+        return
+    with suppress(ProcessLookupError):
+        process.kill()
+    await process.communicate()
 
 
 def _number(value: float) -> str:
