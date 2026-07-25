@@ -32,6 +32,7 @@ async def test_read_media_returns_album_media_rows(
             "height": 1080,
             "byte_size": 1234,
             "upgrade_candidate": True,
+            "panorama": None,
             "created_at": media.created_at.isoformat().replace("+00:00", "Z"),
             "updated_at": media.updated_at.isoformat().replace("+00:00", "Z"),
         }
