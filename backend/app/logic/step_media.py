@@ -4,8 +4,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import delete
 from sqlmodel import col, select
 
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.step import Step, StepMediaLayout, StepRead
+from app.models.album_media import (
+    AlbumMedia,
+    StepPageKind,
+    StepPageMedia,
+    StepUnusedMedia,
+)
+from app.models.step import Step, StepMediaLayout, StepPageLayout, StepRead
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,9 +21,10 @@ def _step_to_read(
     page_rows: list[StepPageMedia],
     unused_rows: list[StepUnusedMedia],
 ) -> StepRead:
-    pages_by_index: dict[int, list[str]] = defaultdict(list)
-    for row in sorted(page_rows, key=lambda r: (r.page_index, r.position_index)):
-        pages_by_index[row.page_index].append(row.media_name)
+    pages_by_index: dict[int, tuple[StepPageKind, list[str]]] = {}
+    for row in page_rows:
+        _, media = pages_by_index.setdefault(row.page_index, (row.page_kind, []))
+        media.append(row.media_name)
 
     return StepRead(
         uid=step.uid,
@@ -32,11 +38,11 @@ def _step_to_read(
         elevation=step.elevation,
         weather=step.weather,
         cover=step.cover_media_name,
-        pages=[pages_by_index[i] for i in sorted(pages_by_index)],
-        unused=[
-            row.media_name
-            for row in sorted(unused_rows, key=lambda r: r.position_index)
+        pages=[
+            StepPageLayout(kind=kind, media=media)
+            for kind, media in pages_by_index.values()
         ],
+        unused=[row.media_name for row in unused_rows],
     )
 
 
@@ -158,7 +164,7 @@ async def _validate_media_names(
 
 
 def _layout_names(layout: StepMediaLayout) -> set[str]:
-    names = {name for page in layout.pages for name in page}
+    names = {name for page in layout.pages for name in page.media}
     names.update(layout.unused)
     if layout.cover is not None:
         names.add(layout.cover)
@@ -189,11 +195,10 @@ async def replace_step_media_layout(
             col(StepUnusedMedia.step_id) == step_id,
         )
     )
-
     step.cover_media_name = layout.cover
     session.add(step)
     for page_index, page in enumerate(layout.pages):
-        for position_index, media_name in enumerate(page):
+        for position_index, media_name in enumerate(page.media):
             session.add(
                 StepPageMedia(
                     uid=uid,
@@ -202,6 +207,7 @@ async def replace_step_media_layout(
                     page_index=page_index,
                     position_index=position_index,
                     media_name=media_name,
+                    page_kind=page.kind,
                 )
             )
     for position_index, media_name in enumerate(layout.unused):

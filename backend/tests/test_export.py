@@ -238,7 +238,7 @@ class TestExportUserData:
         steps = _read_zip_json(path, _export_path("albums", AID, "steps.json"))
 
         assert steps[0]["cover"] == "photo1.jpg"
-        assert steps[0]["pages"] == [["page.jpg"]]
+        assert steps[0]["pages"] == [{"kind": "grid", "media": ["page.jpg"]}]
         assert steps[0]["unused"] == ["unused.jpg"]
         assert "cover_media_name" not in steps[0]
         path.unlink(missing_ok=True)

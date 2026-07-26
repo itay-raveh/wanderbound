@@ -135,7 +135,9 @@ export function summarizeQuality(
     // Photo pages
     for (const page of step.pages) {
       // Skip the cover photo (it's displayed on StepMainPage, not photo pages)
-      const filtered = step.cover ? page.filter((p) => p !== step.cover) : page;
+      const filtered = step.cover
+        ? page.media.filter((p) => p !== step.cover)
+        : page.media;
       if (filtered.length === 0) continue;
 
       const ordered = enforceOrientationOrder(filtered, isP);

@@ -4268,10 +4268,7 @@
           },
           "pages": {
             "items": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/components/schemas/StepPageLayout"
             },
             "type": "array",
             "title": "Pages"
@@ -4292,6 +4289,33 @@
         ],
         "title": "StepMediaLayout"
       },
+      "StepPageKind": {
+        "type": "string",
+        "enum": [
+          "grid",
+          "panorama_spread"
+        ]
+      },
+      "StepPageLayout": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/StepPageKind"
+          },
+          "media": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "media"
+        ],
+        "title": "StepPageLayout"
+      },
       "StepRead": {
         "properties": {
           "cover": {
@@ -4308,10 +4332,7 @@
           },
           "pages": {
             "items": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/components/schemas/StepPageLayout"
             },
             "type": "array",
             "title": "Pages"

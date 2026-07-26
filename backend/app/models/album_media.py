@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 import sqlalchemy as sa
 
 # Pydantic resolves this annotation while constructing the SQLModel.
 from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
+
+type StepPageKind = Literal["grid", "panorama_spread"]
 
 
 class AlbumMedia(SQLModel, table=True):
@@ -63,6 +66,9 @@ class StepPageMedia(SQLModel, table=True):
     page_index: int = Field(primary_key=True)
     position_index: int = Field(primary_key=True)
     media_name: str = Field(max_length=255)
+    page_kind: StepPageKind = Field(
+        default="grid", sa_column=sa.Column(sa.String(16), nullable=False)
+    )
 
 
 class StepUnusedMedia(SQLModel, table=True):

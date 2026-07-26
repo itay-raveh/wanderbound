@@ -1,11 +1,13 @@
 from datetime import datetime
+from typing import Self
 from zoneinfo import ZoneInfo
 
-from pydantic import AwareDatetime, computed_field
+from pydantic import AwareDatetime, computed_field, model_validator
 from sqlalchemy import ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON, all_optional
+from app.models.album_media import StepPageKind
 from app.models.polarsteps import Location
 from app.models.weather import Weather
 
@@ -20,9 +22,20 @@ class StepUpdate(StepBase):
     pass
 
 
+class StepPageLayout(SQLModel):
+    kind: StepPageKind
+    media: list[str]
+
+    @model_validator(mode="after")
+    def validate_panorama_spread_media(self) -> Self:
+        if self.kind == "panorama_spread" and len(self.media) != 1:
+            raise ValueError("A panorama spread must contain exactly one media item")
+        return self
+
+
 class StepMediaLayout(SQLModel):
     cover: str | None = Field(max_length=255)
-    pages: list[list[str]]
+    pages: list[StepPageLayout]
     unused: list[str]
 
 

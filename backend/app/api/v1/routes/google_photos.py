@@ -492,7 +492,7 @@ async def match_media(
             album_dir = _album_dir(user, aid)
             step_ids = [s.id for s in step_rows]
             media_by_step = {
-                s.id: [name for page in s.pages for name in page] + s.unused
+                s.id: [name for page in s.pages for name in page.media] + s.unused
                 for s in step_rows
             }
 
