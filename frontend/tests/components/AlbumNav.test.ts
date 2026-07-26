@@ -32,10 +32,11 @@ const NavChapterGroupStub = defineComponent({
       required: true,
     },
   },
-  emits: ["splitChapter"],
+  emits: ["splitChapter", "editMap"],
   template:
     `<div class="nav-chapter-group" :data-group-key="group.key" :data-open="String(open)">
       <button type="button" class="chapter-split-button" @click="$emit('splitChapter')" />
+      <button type="button" class="map-edit-button" @click="$emit('editMap', 0, ['2024-01-01', '2024-01-02'])" />
       <div
         v-for="item in group.headerItems"
         :key="item.key"
@@ -49,6 +50,21 @@ const NavChapterGroupStub = defineComponent({
         :data-range="entry.type === 'map' ? entry.dateRange.join('|') : undefined"
       />
     </div>`,
+});
+
+const NavMapRangesStub = defineComponent({
+  emits: ["addMap"],
+  template:
+    `<button type="button" class="map-add-button" @click="$emit('addMap')" />`,
+});
+
+const MapRangeDialogStub = defineComponent({
+  props: {
+    modelValue: Boolean,
+  },
+  emits: ["save"],
+  template:
+    `<button v-if="modelValue" type="button" class="map-dialog-save" @click="$emit('save', ['2024-01-02', '2024-01-03'])" />`,
 });
 
 function makeSteps(count: number): Step[] {
@@ -260,5 +276,83 @@ describe("AlbumNav", () => {
         },
       ],
     });
+  });
+
+  it("adds a map range and scrolls to its page", async () => {
+    const steps = makeSteps(3);
+    const scrollToSection = vi.fn(() => true);
+    useActiveSection().setScrollOverride({
+      scrollTo: vi.fn(),
+      scrollToSection,
+    });
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        album: albumForSteps(steps),
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [],
+      },
+      global: {
+        stubs: {
+          NavChapterGroup: NavChapterGroupStub,
+          NavMapRanges: NavMapRangesStub,
+          MapRangeDialog: MapRangeDialogStub,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await wrapper.get(".map-add-button").trigger("click");
+    await wrapper.get(".map-dialog-save").trigger("click");
+    await nextTick();
+
+    expect(mutate).toHaveBeenCalledWith({
+      maps_ranges: [["2024-01-02", "2024-01-03"]],
+    });
+    expect(scrollToSection).toHaveBeenCalledWith(
+      "chapter-chapter-1-map-2024-01-02-2024-01-03",
+    );
+  });
+
+  it("replaces an edited map range and scrolls to the replacement", async () => {
+    const steps = makeSteps(3);
+    const scrollToSection = vi.fn(() => true);
+    useActiveSection().setScrollOverride({
+      scrollTo: vi.fn(),
+      scrollToSection,
+    });
+    const wrapper = mountWithPlugins(AlbumNav, {
+      props: {
+        album: albumForSteps(steps),
+        steps,
+        hiddenSteps: [],
+        hiddenHeaders: [],
+        colors: {},
+        mapsRanges: [["2024-01-01", "2024-01-02"]],
+      },
+      global: {
+        stubs: {
+          NavChapterGroup: NavChapterGroupStub,
+          NavMapRanges: NavMapRangesStub,
+          MapRangeDialog: MapRangeDialogStub,
+          QIcon: true,
+          QSelect: true,
+        },
+      },
+    });
+
+    await wrapper.get(".map-edit-button").trigger("click");
+    await wrapper.get(".map-dialog-save").trigger("click");
+    await nextTick();
+
+    expect(mutate).toHaveBeenCalledWith({
+      maps_ranges: [["2024-01-02", "2024-01-03"]],
+    });
+    expect(scrollToSection).toHaveBeenCalledWith(
+      "chapter-chapter-1-map-2024-01-02-2024-01-03",
+    );
   });
 });

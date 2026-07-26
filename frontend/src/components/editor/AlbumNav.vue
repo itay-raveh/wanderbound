@@ -1,9 +1,13 @@
 <script lang="ts" setup>
+import type { DateRange } from "@/client";
 import type { AlbumNavProps } from "./nav/types";
+import { inDateRange, isoDate } from "@/utils/date";
+import { rangeSectionKey } from "@/components/album/albumSections";
 import { useAlbumNavScrollSync } from "./nav/useAlbumNavScrollSync";
 import { useAlbumNavModel } from "./nav/useAlbumNavModel";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
+import MapRangeDialog from "./nav/MapRangeDialog.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import { symOutlinedFlightTakeoff } from "@quasar/extras/material-symbols-outlined";
 
@@ -26,12 +30,10 @@ const {
   albumOptions,
   hiddenSet,
   hiddenHeaderSet,
-  albumColors,
   chapterGroups,
   chapterRows,
   openChapterKey,
   formatMapRange,
-  onMapsRangesChange,
   toggleStep,
   toggleHeader,
   toggleChapter,
@@ -39,7 +41,8 @@ const {
   onDeleteChapter,
   onAdjustChapterBoundaryFromRow,
   deleteMap,
-  mapDateChange,
+  addMap,
+  replaceMap,
 } = useAlbumNavModel(props, selectedAlbumId);
 const {
   activeStepId,
@@ -52,6 +55,36 @@ const {
   openChapterKey,
   listRef,
 });
+
+const mapDialogOpen = ref(false);
+const editingMap = ref<{ rangeIdx: number; dateRange: DateRange } | null>(null);
+
+function openAddMap() {
+  editingMap.value = null;
+  mapDialogOpen.value = true;
+}
+
+function openEditMap(rangeIdx: number, dateRange: DateRange) {
+  editingMap.value = { rangeIdx, dateRange };
+  mapDialogOpen.value = true;
+}
+
+async function saveMap(range: DateRange) {
+  if (editingMap.value) replaceMap(editingMap.value.rangeIdx, range);
+  else addMap(range);
+
+  const firstStep = props.steps.find((step) =>
+    inDateRange(isoDate(step.datetime), range),
+  );
+  const group = firstStep
+    ? chapterGroups.value.find((candidate) =>
+        candidate.stepIds.includes(firstStep.id),
+      )
+    : null;
+  if (!group) return;
+  await nextTick();
+  scrollToMap(rangeSectionKey("map", range, group.chapter));
+}
 </script>
 
 <template>
@@ -81,12 +114,7 @@ const {
     </q-select>
 
     <div v-if="steps.length" class="nav-controls">
-      <NavMapRanges
-        :steps="steps"
-        :maps-ranges="mapsRanges"
-        :colors="albumColors"
-        @update:maps-ranges="onMapsRangesChange"
-      />
+      <NavMapRanges @add-map="openAddMap" />
     </div>
 
     <div ref="listRef" class="nav-list">
@@ -98,8 +126,6 @@ const {
           :active-section-key="activeSectionKey"
           :hidden-set="hiddenSet"
           :hidden-header-set="hiddenHeaderSet"
-          :steps="steps"
-          :colors="albumColors"
           :format-map-range="formatMapRange"
           :lazy-root="listRef ?? null"
           :can-delete="row.canDelete"
@@ -117,10 +143,17 @@ const {
           @toggle-step="toggleStep"
           @toggle-header="toggleHeader"
           @delete-map="deleteMap"
-          @map-date-change="mapDateChange"
+          @edit-map="openEditMap"
         />
       </template>
     </div>
+
+    <MapRangeDialog
+      v-model="mapDialogOpen"
+      :steps="steps"
+      :date-range="editingMap?.dateRange"
+      @save="saveMap"
+    />
   </nav>
 </template>
 

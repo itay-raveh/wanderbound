@@ -45,10 +45,6 @@ export function useAlbumNavModel(
     })),
   );
 
-  function onMapsRangesChange(ranges: DateRange[]) {
-    albumMutation.mutate({ maps_ranges: ranges });
-  }
-
   function toggleStep(stepId: number) {
     albumMutation.mutate({
       hidden_steps: toggleInList(props.hiddenSteps ?? [], stepId),
@@ -118,20 +114,22 @@ export function useAlbumNavModel(
     albumMutation.mutate({ maps_ranges: ranges });
   }
 
-  function mapDateChange(rangeIdx: number, range: DateRange) {
+  function addMap(range: DateRange) {
+    albumMutation.mutate({ maps_ranges: [...(props.mapsRanges ?? []), range] });
+  }
+
+  function replaceMap(rangeIdx: number, range: DateRange) {
     const ranges = [...(props.mapsRanges ?? [])] as DateRange[];
-    const existing = ranges[rangeIdx];
-    if (existing) {
-      ranges[rangeIdx] = [existing[0], range[1]];
-      albumMutation.mutate({ maps_ranges: ranges });
-    }
+    if (!ranges[rangeIdx]) return;
+    ranges.splice(rangeIdx, 1);
+    ranges.push(range);
+    albumMutation.mutate({ maps_ranges: ranges });
   }
 
   return {
     ...data,
     openChapterKey,
     chapterRows,
-    onMapsRangesChange,
     toggleStep,
     toggleHeader,
     toggleChapter,
@@ -139,6 +137,7 @@ export function useAlbumNavModel(
     onDeleteChapter,
     onAdjustChapterBoundaryFromRow,
     deleteMap,
-    mapDateChange,
+    addMap,
+    replaceMap,
   };
 }

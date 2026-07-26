@@ -9,6 +9,7 @@ const { t } = useI18n();
 const props = defineProps<{
   options: ChapterStartOption[];
   modelValue?: number | null;
+  label?: string;
 }>();
 
 const selected = computed(
@@ -24,7 +25,7 @@ defineEmits<{
   <q-select
     :model-value="modelValue"
     :options="options"
-    :label="t('chapters.startsAt')"
+    :label="label ?? t('chapters.startsAt')"
     class="chapter-start-select"
     popup-content-class="chapter-start-popup"
     dense

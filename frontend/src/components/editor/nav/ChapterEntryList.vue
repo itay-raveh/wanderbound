@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { DateRange, StepRead as Step } from "@/client";
+import type { DateRange } from "@/client";
 import type { ChapterVisit, GroupEntry } from "./types";
 import { SHORT_DATE } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -15,8 +15,6 @@ const props = defineProps<{
   activeStepId: number | null;
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
-  steps: Step[];
-  colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
   lazyRoot?: HTMLElement | null;
 }>();
@@ -62,7 +60,7 @@ defineEmits<{
   scrollToMap: [key: string];
   toggleStep: [id: number];
   deleteMap: [rangeIdx: number];
-  mapDateChange: [rangeIdx: number, range: DateRange];
+  editMap: [rangeIdx: number, range: DateRange];
 }>();
 </script>
 
@@ -83,12 +81,10 @@ defineEmits<{
           :range-idx="entry.rangeIdx"
           :active="activeSectionKey === entry.key"
           :color="entry.color"
-          :steps="steps"
-          :colors="colors"
           :format-map-range="formatMapRange"
           @click="$emit('scrollToMap', entry.key)"
           @delete="$emit('deleteMap', entry.rangeIdx)"
-          @date-change="(idx, range) => $emit('mapDateChange', idx, range)"
+          @edit="(idx, range) => $emit('editMap', idx, range)"
         />
         <NavStepItem
           v-else
