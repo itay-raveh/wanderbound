@@ -71,7 +71,7 @@ async def render_panorama(
 ) -> None:
     source_width, source_height = source_size
     output_size = _output_size(source_width, config.aspect_ratio)
-    _validate_frame(config, source_width, source_height, output_size)
+    _validate_frame(config, source_width, source_height)
     await _render_image(
         source,
         _filter_graph(config, source_width, source_height, output_size),
@@ -127,7 +127,6 @@ def _validate_frame(
     config: PanoramaConfig,
     source_width: int,
     source_height: int,
-    output_size: tuple[int, int],
 ) -> None:
     captured_fov = panorama_captured_fov(source_width, source_height)
     if config.perspective_fov > captured_fov:
@@ -143,8 +142,6 @@ def _validate_frame(
     output_vertical_half = _output_vertical_fov(config) / 2
     if abs(config.pitch) > source_vertical_half - output_vertical_half:
         raise PanoramaValidationError("Panorama pitch is outside the captured bounds")
-    if config.zoom > min(output_size):
-        raise PanoramaValidationError("Panorama zoom produces an empty crop")
 
 
 def _filter_graph(

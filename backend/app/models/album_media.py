@@ -28,7 +28,7 @@ class PanoramaConfig(BaseModel):
     yaw: float = PydanticField(default=0, ge=-360, le=360)
     pitch: float = PydanticField(default=0, ge=-90, le=90)
     perspective_fov: float = PydanticField(default=70, gt=0, lt=180)
-    zoom: float = PydanticField(default=1, ge=1)
+    zoom: float = PydanticField(default=1, ge=1, le=2)
     aspect_ratio: float = PydanticField(default=2, gt=0, le=10)
 
 

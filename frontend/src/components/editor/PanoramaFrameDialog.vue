@@ -3,6 +3,7 @@ import type { AlbumMedia } from "@/client";
 import {
   autoFitPanoramaFrame,
   clampPanoramaFrame,
+  MAX_PANORAMA_ZOOM,
   MIN_PANORAMA_ZOOM,
   MIN_PERSPECTIVE_FOV,
   panoramaCameraBounds,
@@ -59,9 +60,6 @@ const viewportStyle = computed(() => ({
 const projectionStyle = computed(() => ({
   "--panorama-zoom": String(draft.value.zoom),
 }));
-const maximumZoom = computed(() =>
-  Math.min(props.media.width, props.media.height),
-);
 const perspectiveLabel = computed(
   () => `${Math.round(draft.value.perspectiveFov)}°`,
 );
@@ -79,12 +77,7 @@ function savedFrame(): PanoramaFrameDraft {
 }
 
 function normalizedFrame(frame: PanoramaFrameDraft): PanoramaFrameDraft {
-  return clampPanoramaFrame(
-    frame,
-    props.media,
-    props.aspectRatio,
-    maximumZoom.value,
-  );
+  return clampPanoramaFrame(frame, props.media, props.aspectRatio);
 }
 
 function currentBounds(frame = draft.value) {
@@ -306,7 +299,7 @@ onBeforeUnmount(cleanupAdapter);
               name="zoom"
               type="range"
               :min="MIN_PANORAMA_ZOOM"
-              :max="maximumZoom"
+              :max="MAX_PANORAMA_ZOOM"
               step="0.1"
               :value="draft.zoom"
               @input="setZoom(numberFromInput($event))"

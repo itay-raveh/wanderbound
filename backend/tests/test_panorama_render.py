@@ -44,12 +44,11 @@ def test_captured_fov_is_derived_from_aspect_ratio() -> None:
     [
         _config(yaw=61),
         _config(pitch=30),
-        _config(zoom=201),
     ],
 )
 def test_frame_rejects_views_outside_source(config: PanoramaConfig) -> None:
     with pytest.raises(PanoramaValidationError):
-        _validate_frame(config, 400, 200, _output_size(400, config.aspect_ratio))
+        _validate_frame(config, 400, 200)
 
 
 def test_filter_keeps_perspective_and_zoom_independent() -> None:

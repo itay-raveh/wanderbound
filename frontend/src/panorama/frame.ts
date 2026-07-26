@@ -23,6 +23,7 @@ export interface PanoramaCameraBounds {
 export const MIN_PERSPECTIVE_FOV = 1;
 const MAX_PERSPECTIVE_FOV = 179;
 export const MIN_PANORAMA_ZOOM = 1;
+export const MAX_PANORAMA_ZOOM = 2;
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
@@ -113,7 +114,6 @@ export function clampPanoramaFrame(
   frame: PanoramaFrameDraft,
   geometry: PanoramaSourceGeometry,
   aspectRatio: number,
-  maximumZoom = Number.MAX_SAFE_INTEGER,
 ): PanoramaFrameDraft {
   const sourceFov = capturedFov(geometry);
   const sourceBounds = verticalSourceBounds(geometry, sourceFov);
@@ -128,7 +128,7 @@ export function clampPanoramaFrame(
     ...normalized,
     yaw: clamp(frame.yaw, bounds.yaw.min, bounds.yaw.max),
     pitch: clamp(frame.pitch, bounds.pitch.min, bounds.pitch.max),
-    zoom: clamp(frame.zoom, MIN_PANORAMA_ZOOM, maximumZoom),
+    zoom: clamp(frame.zoom, MIN_PANORAMA_ZOOM, MAX_PANORAMA_ZOOM),
   };
 }
 
