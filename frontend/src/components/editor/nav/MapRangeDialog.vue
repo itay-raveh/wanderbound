@@ -2,6 +2,7 @@
 import type { DateRange, StepRead as Step } from "@/client";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 import { isoDate, inDateRange, parseLocalDate, SHORT_DATE } from "@/utils/date";
+import { indexSteps } from "@/utils/steps";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, ref, watch } from "vue";
@@ -21,6 +22,17 @@ const { t } = useI18n();
 const { countryName, formatDateRange } = useUserQuery();
 const startStepId = ref<number | null>(null);
 const endStepId = ref<number | null>(null);
+const stepIndex = computed(() => indexSteps(props.steps));
+
+function indexedStep(stepId: number | null) {
+  return stepId == null ? undefined : stepIndex.value.byId.get(stepId);
+}
+
+function stepPosition(stepId: number | null) {
+  return stepId == null
+    ? undefined
+    : stepIndex.value.positionById.get(stepId);
+}
 
 const options = computed(() =>
   props.steps.map((step) => ({
@@ -32,10 +44,8 @@ const options = computed(() =>
 );
 
 const endOptions = computed(() => {
-  const startIndex = props.steps.findIndex(
-    (step) => step.id === startStepId.value,
-  );
-  return startIndex < 0 ? options.value : options.value.slice(startIndex);
+  const startIndex = stepPosition(startStepId.value);
+  return startIndex == null ? options.value : options.value.slice(startIndex);
 });
 
 watch(show, (isOpen) => {
@@ -50,9 +60,11 @@ watch(show, (isOpen) => {
 });
 
 watch(startStepId, (startId) => {
-  const startIndex = props.steps.findIndex((step) => step.id === startId);
-  const endIndex = props.steps.findIndex((step) => step.id === endStepId.value);
-  if (startIndex >= 0 && endIndex < startIndex) endStepId.value = startId;
+  const startIndex = stepPosition(startId);
+  const endIndex = stepPosition(endStepId.value);
+  if (startIndex != null && (endIndex == null || endIndex < startIndex)) {
+    endStepId.value = startId;
+  }
 });
 
 const canSave = computed(
@@ -60,15 +72,21 @@ const canSave = computed(
 );
 
 const selectedRange = computed(() => {
-  const startIndex = props.steps.findIndex(
-    (step) => step.id === startStepId.value,
-  );
-  const endIndex = props.steps.findIndex((step) => step.id === endStepId.value);
-  if (startIndex < 0 || endIndex < startIndex) return null;
+  const start = indexedStep(startStepId.value);
+  const end = indexedStep(endStepId.value);
+  const startIndex = stepPosition(startStepId.value);
+  const endIndex = stepPosition(endStepId.value);
+  if (
+    !start ||
+    !end ||
+    startIndex == null ||
+    endIndex == null ||
+    endIndex < startIndex
+  ) return null;
   return {
     label: formatDateRange(
-      parseLocalDate(props.steps[startIndex].datetime),
-      parseLocalDate(props.steps[endIndex].datetime),
+      parseLocalDate(start.datetime),
+      parseLocalDate(end.datetime),
       SHORT_DATE,
     ),
     stepCount: endIndex - startIndex + 1,
@@ -76,8 +94,8 @@ const selectedRange = computed(() => {
 });
 
 function save() {
-  const start = props.steps.find((step) => step.id === startStepId.value);
-  const end = props.steps.find((step) => step.id === endStepId.value);
+  const start = indexedStep(startStepId.value);
+  const end = indexedStep(endStepId.value);
   if (!start || !end) return;
   emit("save", [isoDate(start.datetime), isoDate(end.datetime)]);
   show.value = false;

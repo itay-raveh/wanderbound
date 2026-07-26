@@ -17,6 +17,7 @@ import { useStepMutation } from "@/queries/useStepMutation";
 import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
+import { indexSteps } from "@/utils/steps";
 import { PAGE_HEIGHT_MM, MM_PX } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -108,6 +109,7 @@ const visibleSteps = computed(() => {
   if (!hidden.size) return props.steps;
   return props.steps.filter((s) => !hidden.has(s.id));
 });
+const visibleStepIndex = computed(() => indexSteps(visibleSteps.value));
 
 const tripStart = computed(() => visibleSteps.value[0]?.datetime ?? "");
 const totalDays = computed(() => {
@@ -454,6 +456,7 @@ if (props.printMode) {
   const photoFocus = usePhotoFocus();
   photoFocus.init({
     steps: () => visibleSteps.value,
+    stepIndex: () => visibleStepIndex.value,
     mutate: (sid, update, focus) => stepMut.mutate({ sid, update, focus }),
     scrollToPhoto,
   });
