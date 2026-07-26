@@ -126,6 +126,11 @@
     "zoom": "זום"
   },
   "panorama": {
+    "treat": "הגדרה כפנורמה",
+    "makeFullPage": "הפיכה לעמוד מלא",
+    "makeSpread": "הפיכה לפריסה של שני עמודים",
+    "layFlatRecommendation": "לתוצאה הטובה ביותר, הדפיסו פריסות פנורמה באלבום Lay-flat.",
+    "dismissRecommendation": "הבנתי",
     "frame": {
       "title": "מסגור פנורמה",
       "body": "גררו לבחירת המבט, ואז התאימו את הפרספקטיבה והחיתוך.",

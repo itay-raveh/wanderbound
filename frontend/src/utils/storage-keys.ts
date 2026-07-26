@@ -6,3 +6,7 @@ export const LAST_ALBUM_KEY = "last-album-id";
 
 /** LocalStorage key for remembering that the media upgrade onboarding was seen. */
 export const MEDIA_UPGRADE_ONBOARDED_KEY = "media-upgrade-onboarded";
+
+/** LocalStorage key for dismissing the general lay-flat spread recommendation. */
+export const LAY_FLAT_RECOMMENDATION_DISMISSED_KEY =
+  "lay-flat-recommendation-dismissed";

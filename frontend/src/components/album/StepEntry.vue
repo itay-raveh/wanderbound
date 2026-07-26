@@ -24,10 +24,14 @@ const props = defineProps<{
 const dropZoneRef = ref<HTMLElement | null>(null);
 const coverDropRef = ref<HTMLElement | null>(null);
 
-const { printMode, isDragging, saveField, onPageUpdate } = useStepLayout(
-  toRef(props, "step"),
-  { dropZoneRef, coverDropRef },
-);
+const {
+  printMode,
+  isDragging,
+  saveField,
+  onPageUpdate,
+  onMakeFullPage,
+  onMakePanoramaSpread,
+} = useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
 
 provide(STEP_ID_KEY, props.step.id);
 
@@ -124,16 +128,28 @@ const hasPhotoDropZone = computed(
         <PanoramaSpreadPage
           :media="selectedPhotoPage.page.media[0]!"
           side="left"
+          @make-full-page="
+            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+          "
         />
         <PanoramaSpreadPage
           :media="selectedPhotoPage.page.media[0]!"
           side="right"
+          @make-full-page="
+            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+          "
         />
       </div>
       <StepPhotoPage
         v-else-if="selectedPhotoPage"
         :page="selectedPhotoPage.page"
         @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event.media)"
+        @make-full-page="
+          onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+        "
+        @make-panorama-spread="
+          onMakePanoramaSpread(selectedPhotoPage.originalIdx, $event)
+        "
       />
       <template
         v-else-if="pageIndex == null"
@@ -144,13 +160,23 @@ const hasPhotoDropZone = computed(
           v-if="page.kind === 'panorama_spread'"
           class="panorama-spread row no-wrap"
         >
-          <PanoramaSpreadPage :media="page.media[0]!" side="left" />
-          <PanoramaSpreadPage :media="page.media[0]!" side="right" />
+          <PanoramaSpreadPage
+            :media="page.media[0]!"
+            side="left"
+            @make-full-page="onMakeFullPage(originalIdx, $event)"
+          />
+          <PanoramaSpreadPage
+            :media="page.media[0]!"
+            side="right"
+            @make-full-page="onMakeFullPage(originalIdx, $event)"
+          />
         </div>
         <StepPhotoPage
           v-else
           :page="page"
           @update:page="onPageUpdate(originalIdx, $event.media)"
+          @make-full-page="onMakeFullPage(originalIdx, $event)"
+          @make-panorama-spread="onMakePanoramaSpread(originalIdx, $event)"
         />
       </template>
 

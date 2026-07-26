@@ -158,6 +158,48 @@ describe("InspectorDrawer", () => {
     expect(url.searchParams.get("d")).toBe("2026-05-13T12:34:56Z");
   });
 
+  it("shows the saved panorama frame in the cover picker", () => {
+    const wrapper = mountWithPlugins(InspectorDrawer, {
+      props: {
+        album: defaultAlbum,
+        sectionKey: "chapter-chapter-1-cover-front",
+        steps: defaultSteps,
+        media: [
+          makeAlbumMedia({
+            name: "wide.jpg",
+            aid: defaultAlbum.id,
+            panorama: {
+              status: "active",
+              detection: "gpano",
+              source_width: 4000,
+              source_height: 1000,
+              captured_fov: 180,
+              revision: 6,
+            },
+          }),
+        ],
+      },
+      global: {
+        stubs: {
+          AlbumProperties: true,
+          CoverCell: CoverCellStub,
+          MediaPanel: true,
+          QVirtualScroll: VirtualScrollStub,
+          QExpansionItem: ExpansionItemStub,
+          QIcon: true,
+          QSeparator: true,
+          UnusedDrawer: true,
+        },
+      },
+    });
+
+    const url = new URL(wrapper.get(".cover-cell").attributes("src"));
+    expect(url.searchParams.get("panorama_revision")).toBe("6");
+    expect(
+      Number(url.searchParams.get("w")) / Number(url.searchParams.get("h")),
+    ).toBeCloseTo(297 / 210, 2);
+  });
+
   it("virtualizes the cover picker for large albums", () => {
     const media = Array.from({ length: 100 }, (_, index) =>
       makeAlbumMedia({

@@ -207,6 +207,33 @@ describe("MediaItem video controls", () => {
     expect(wrapper.find(".quality-badge.warning").exists()).toBe(true);
   });
 
+  test("requests an active panorama rendition at the placement dimensions", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 640,
+      height: 320,
+    } as DOMRect);
+    const wrapper = mountPhotoItem(
+      ref(false),
+      { lazy: false, panoramaDestinationKind: "grid" },
+      {
+        panorama: {
+          status: "active",
+          detection: "gpano",
+          source_width: 4000,
+          source_height: 1000,
+          captured_fov: 180,
+          revision: 9,
+        },
+      },
+    );
+    await nextTick();
+
+    const src = new URL(wrapper.get("img").attributes("src"));
+    expect(src.searchParams.get("w")).toBe("640");
+    expect(src.searchParams.get("h")).toBe("320");
+    expect(src.searchParams.get("panorama_revision")).toBe("9");
+  });
+
   test("registers multiple resolution badges without recursive updates", async () => {
     const first = mountPhotoItem(ref(false), {
       quality: { tier: "warning", dpi: 72 },

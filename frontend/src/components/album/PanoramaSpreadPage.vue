@@ -1,36 +1,83 @@
 <script lang="ts" setup>
-import { computed } from "vue";
+import type { AlbumMedia, PanoramaDestination } from "@/client";
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { mediaUrl } from "@/utils/media";
+import { t } from "@/i18n";
 import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
+
+const PanoramaFrameDialog = defineAsyncComponent(() =>
+  import("@/components/editor/PanoramaFrameDialog.vue").then(
+    (module) => module.default,
+  ),
+);
 
 const props = defineProps<{
   media: string;
   side: "left" | "right";
 }>();
 
-const { albumId, mediaByName } = useAlbum();
+const emit = defineEmits<{
+  "make-full-page": [media: string];
+}>();
+
+const { albumId, mediaByName, placementMediaUrl } = useAlbum();
 const printMode = usePrintMode();
 const EDITOR_RENDER_WIDTH = 2048;
 const PRINT_RENDER_WIDTH = 8192;
-const width = printMode ? PRINT_RENDER_WIDTH : EDITOR_RENDER_WIDTH;
-const height = Math.round((width * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2));
-const src = computed(() => {
-  const base = mediaUrl(props.media, albumId.value);
-  const panorama = mediaByName.value.get(props.media)?.panorama;
-  if (panorama?.status !== "active" || panorama.revision == null) return base;
-  const query = new URLSearchParams({
-    w: String(width),
-    h: String(height),
-    panorama_revision: String(panorama.revision),
-  });
-  return `${base}?${query}`;
+const pageRef = ref<HTMLElement | null>(null);
+const measuredWidth = ref(0);
+const measuredHeight = ref(0);
+let placementObserver: ResizeObserver | null = null;
+
+function updatePlacementSize(): void {
+  const bounds = pageRef.value?.getBoundingClientRect();
+  if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
+  measuredWidth.value = Math.round(bounds.width * 2);
+  measuredHeight.value = Math.round(bounds.height);
+}
+
+onMounted(() => {
+  updatePlacementSize();
+  if (typeof ResizeObserver === "undefined" || !pageRef.value) return;
+  placementObserver = new ResizeObserver(updatePlacementSize);
+  placementObserver.observe(pageRef.value);
 });
+onBeforeUnmount(() => placementObserver?.disconnect());
+
+const width = computed(() =>
+  printMode
+    ? PRINT_RENDER_WIDTH
+    : measuredWidth.value || EDITOR_RENDER_WIDTH,
+);
+const height = computed(() =>
+  printMode
+    ? Math.round((width.value * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2))
+    : measuredHeight.value ||
+      Math.round((width.value * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2)),
+);
+const albumMedia = computed(() => mediaByName.value.get(props.media));
+const src = computed(() => {
+  return placementMediaUrl(props.media, width.value, height.value);
+});
+const dialogOpen = ref(false);
+const destination = computed<PanoramaDestination>(() => ({
+  kind: "panorama_spread",
+  aspect_ratio: width.value / height.value,
+  width_px: width.value,
+  height_px: height.value,
+}));
 </script>
 
 <template>
   <div
+    ref="pageRef"
     :class="['page-container', 'panorama-page', `side-${side}`]"
     :data-media="media"
   >
@@ -40,6 +87,29 @@ const src = computed(() => {
       class="panorama-media"
       :loading="printMode ? 'eager' : 'lazy'"
       decoding="async"
+    />
+    <div v-if="!printMode && side === 'left'" class="panorama-actions">
+      <button
+        type="button"
+        class="panorama-frame-action panorama-action"
+        @click="dialogOpen = true"
+      >
+        {{ t("panorama.frame.title") }}
+      </button>
+      <button
+        type="button"
+        class="panorama-full-page-action panorama-action"
+        @click="emit('make-full-page', media)"
+      >
+        {{ t("panorama.makeFullPage") }}
+      </button>
+    </div>
+    <PanoramaFrameDialog
+      v-if="dialogOpen && albumMedia"
+      v-model="dialogOpen"
+      :album-id="albumId"
+      :media="albumMedia as AlbumMedia"
+      :destination="destination"
     />
   </div>
 </template>
@@ -61,5 +131,27 @@ const src = computed(() => {
 
 .side-right .panorama-media {
   left: -100%;
+}
+
+.panorama-actions {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--gap-md);
+  inset-inline-start: var(--gap-md);
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+.panorama-action {
+  min-height: 2.75rem;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  border: 1px solid var(--q-primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--q-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: 600;
 }
 </style>

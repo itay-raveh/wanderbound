@@ -126,6 +126,11 @@
     "zoom": "Zoom"
   },
   "panorama": {
+    "treat": "Treat as panorama",
+    "makeFullPage": "Make full page",
+    "makeSpread": "Make two-page spread",
+    "layFlatRecommendation": "For the best result, print panorama spreads in a lay-flat photo book.",
+    "dismissRecommendation": "Got it",
     "frame": {
       "title": "Frame panorama",
       "body": "Drag to choose the view, then tune its perspective and crop.",

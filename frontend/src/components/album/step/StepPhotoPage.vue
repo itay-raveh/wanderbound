@@ -24,6 +24,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:page": [page: StepPageLayout];
+  "make-full-page": [media: string];
+  "make-panorama-spread": [media: string];
 }>();
 const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
@@ -109,7 +111,14 @@ const photoQualities = computed(() =>
         :key="photo"
         :media="photo"
         :quality="photoQualities[i]"
+        :panorama-destination-kind="
+          localPage.length === 1 ? 'full_page' : 'grid'
+        "
+        :make-full-page="localPage.length > 1"
+        :make-panorama-spread="localPage.length === 1"
         class="item"
+        @make-full-page="emit('make-full-page', $event)"
+        @make-panorama-spread="emit('make-panorama-spread', $event)"
       />
     </div>
   </div>

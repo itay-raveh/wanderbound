@@ -4,6 +4,9 @@ import { useDragState } from "./useDragState";
 import { usePrintMode } from "./usePrintReady";
 import { inject, provide, ref, watch, type InjectionKey, type Ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
+import { Notify } from "quasar";
+import { t } from "@/i18n";
+import { LAY_FLAT_RECOMMENDATION_DISMISSED_KEY } from "@/utils/storage-keys";
 
 type StepMutateFn = (payload: {
   sid: number;
@@ -53,6 +56,57 @@ export function unusedUpdatePayload(
 
 export function provideStepMutate(fn: StepMutateFn) {
   provide(STEP_MUTATE_KEY, fn);
+}
+
+export function fullPageLayout(
+  step: Step,
+  idx: number,
+  media: string,
+): Step["pages"] | null {
+  const target = step.pages[idx];
+  if (!target || !target.media.includes(media)) return null;
+  const pages = [...step.pages];
+  if (target.kind === "panorama_spread") {
+    pages[idx] = { kind: "grid", media: [media] };
+  } else {
+    if (target.media.length <= 1) return null;
+    pages.splice(
+      idx,
+      1,
+      { ...target, media: target.media.filter((name) => name !== media) },
+      { kind: "grid", media: [media] },
+    );
+  }
+  return pages;
+}
+
+function showLayFlatRecommendation(): void {
+  try {
+    if (localStorage.getItem(LAY_FLAT_RECOMMENDATION_DISMISSED_KEY)) return;
+  } catch {
+    // The recommendation is optional. Storage access must not block layout changes.
+  }
+
+  Notify.create({
+    type: "info",
+    message: t("panorama.layFlatRecommendation"),
+    timeout: 0,
+    actions: [
+      {
+        label: t("panorama.dismissRecommendation"),
+        handler: () => {
+          try {
+            localStorage.setItem(
+              LAY_FLAT_RECOMMENDATION_DISMISSED_KEY,
+              "true",
+            );
+          } catch {
+            // Dismissing the notice remains successful when storage is unavailable.
+          }
+        },
+      },
+    ],
+  });
 }
 
 interface DropRefs {
@@ -124,6 +178,27 @@ export function useStepLayout(
     saveField(unusedUpdatePayload(step.value, unused));
   }
 
+  function onMakeFullPage(idx: number, media: string) {
+    const pages = fullPageLayout(step.value, idx, media);
+    if (!pages) return;
+    saveField({ pages });
+  }
+
+  function onMakePanoramaSpread(idx: number, media: string) {
+    const target = step.value.pages[idx];
+    if (
+      !target ||
+      target.kind !== "grid" ||
+      target.media.length !== 1 ||
+      target.media[0] !== media
+    )
+      return;
+    showLayFlatRecommendation();
+    const pages = [...step.value.pages];
+    pages[idx] = { kind: "panorama_spread", media: [media] };
+    saveField({ pages });
+  }
+
   if (!printMode) {
     // dropZoneRef is null when totalPhotos < 2 (v-if hides the element).
     // Defer SortableJS init until the element actually exists.
@@ -167,6 +242,8 @@ export function useStepLayout(
     isDragging,
     saveField,
     onPageUpdate,
+    onMakeFullPage,
+    onMakePanoramaSpread,
     onUnusedUpdate,
     onCoverUpdate,
   };

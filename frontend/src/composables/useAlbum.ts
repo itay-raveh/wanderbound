@@ -8,6 +8,7 @@ import {
 } from "vue";
 import type { AlbumMedia } from "@/client";
 import type { MediaResolutionWarningPreset } from "@/utils/photoQuality";
+import { placementMediaUrl } from "@/utils/media";
 
 interface AlbumProvide {
   albumId: Ref<string>;
@@ -20,6 +21,7 @@ interface AlbumProvide {
 
 interface AlbumContext extends AlbumProvide {
   mediaByName: ComputedRef<Map<string, AlbumMedia>>;
+  placementMediaUrl: (name: string, width: number, height: number) => string;
 }
 
 const KEY: InjectionKey<AlbumContext> = Symbol("album");
@@ -30,7 +32,18 @@ export function provideAlbum(ctx: AlbumProvide): AlbumContext {
     for (const m of ctx.media.value) map.set(m.name, m);
     return map;
   });
-  const albumCtx: AlbumContext = { ...ctx, mediaByName };
+  const albumCtx: AlbumContext = {
+    ...ctx,
+    mediaByName,
+    placementMediaUrl: (name, width, height) =>
+      placementMediaUrl(
+        name,
+        ctx.albumId.value,
+        mediaByName.value.get(name),
+        width,
+        height,
+      ),
+  };
   provide(KEY, albumCtx);
   return albumCtx;
 }

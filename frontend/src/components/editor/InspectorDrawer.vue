@@ -9,9 +9,11 @@ import { provideAlbum } from "@/composables/useAlbum";
 import {
   THUMB_WIDTHS,
   mediaThumbUrl,
+  placementMediaUrl,
   isVideo,
   isPortrait,
 } from "@/utils/media";
+import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
   type MediaResolutionWarningPreset,
@@ -103,6 +105,27 @@ const landscapeMedia = computed(() =>
 const COVER_GRID_COLUMNS = 2;
 const COVER_GRID_ROW_SIZE = 92;
 const COVER_GRID_SLICE_ROWS = 8;
+const COVER_GRID_RENDER_HEIGHT = COVER_GRID_ROW_SIZE;
+const COVER_GRID_RENDER_WIDTH = Math.round(
+  (COVER_GRID_RENDER_HEIGHT * PAGE_WIDTH_MM) / PAGE_HEIGHT_MM,
+);
+
+function coverPickerUrl(media: AlbumMedia): string {
+  if (media.panorama?.status === "active")
+    return placementMediaUrl(
+      media.name,
+      props.album.id,
+      media,
+      COVER_GRID_RENDER_WIDTH,
+      COVER_GRID_RENDER_HEIGHT,
+    );
+  return mediaThumbUrl(
+    media.name,
+    props.album.id,
+    THUMB_WIDTHS[0],
+    media.updated_at,
+  );
+}
 
 const landscapeRows = computed(() => {
   const rows: AlbumMedia[][] = [];
@@ -265,14 +288,7 @@ const importTargetLabel = computed<string | null>(() => {
               <CoverCell
                 v-for="(media, columnIndex) in row"
                 :key="media.name"
-                :src="
-                  mediaThumbUrl(
-                    media.name,
-                    album.id,
-                    THUMB_WIDTHS[0],
-                    media.updated_at,
-                  )
-                "
+                :src="coverPickerUrl(media)"
                 :selected="media.name === activeCoverPhoto"
                 :label="
                   t('album.selectCoverPhoto', {

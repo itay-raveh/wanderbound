@@ -11,7 +11,10 @@ import AlignmentPage from "./album/AlignmentPage.vue";
 import PanoramaSpreadPage from "./album/PanoramaSpreadPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { provideStepMutate } from "@/composables/useStepLayout";
+import {
+  fullPageLayout,
+  provideStepMutate,
+} from "@/composables/useStepLayout";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
@@ -80,6 +83,15 @@ const props = defineProps<{
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
 }>();
+
+let mutateStepLayout:
+  | ((payload: { sid: number; update: { pages: Step["pages"] } }) => void)
+  | null = null;
+
+function makeFullPage(step: Step, pageIndex: number, media: string): void {
+  const pages = fullPageLayout(step, pageIndex, media);
+  if (pages) mutateStepLayout?.({ sid: step.id, update: { pages } });
+}
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(
@@ -232,6 +244,7 @@ if (props.printMode) {
   providePrintMode();
 } else {
   const stepMut = useStepMutation(() => props.album.id);
+  mutateStepLayout = (payload) => stepMut.mutate(payload);
   provideStepMutate((payload) => stepMut.mutate(payload));
 
   const undoStack = useUndoStack();
@@ -667,7 +680,13 @@ if (props.printMode) {
               v-else-if="item.type === 'panorama-spread'"
               class="panorama-spread row no-wrap"
             >
-              <PanoramaSpreadPage :media="item.media" side="left" />
+              <PanoramaSpreadPage
+                :media="item.media"
+                side="left"
+                @make-full-page="
+                  makeFullPage(item.step, item.originalPageIndex, $event)
+                "
+              />
               <PanoramaSpreadPage :media="item.media" side="right" />
             </div>
             <StepEntry

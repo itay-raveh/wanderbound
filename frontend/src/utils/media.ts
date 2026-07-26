@@ -1,8 +1,33 @@
 import { client } from "@/client/client.gen";
+import type { AlbumMedia } from "@/client";
 import { PAGE_WIDTH_MM } from "@/utils/pageSize";
 
 export function mediaUrl(name: string, albumId: string): string {
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
+}
+
+export function placementMediaUrl(
+  name: string,
+  albumId: string,
+  media: AlbumMedia | undefined,
+  width: number,
+  height: number,
+): string {
+  const base = mediaUrl(name, albumId);
+  const panorama = media?.panorama;
+  if (
+    panorama?.status !== "active" ||
+    panorama.revision == null ||
+    width <= 0 ||
+    height <= 0
+  )
+    return base;
+  const query = new URLSearchParams({
+    w: String(Math.round(width)),
+    h: String(Math.round(height)),
+    panorama_revision: String(panorama.revision),
+  });
+  return `${base}?${query}`;
 }
 
 export function isVideo(name: string): boolean {
