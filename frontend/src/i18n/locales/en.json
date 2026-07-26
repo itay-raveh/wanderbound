@@ -130,6 +130,10 @@
     "treat": "Treat as panorama",
     "makeFullPage": "Make full page",
     "makeSpread": "Make two-page spread",
+    "alignment": {
+      "title": "Page added for the panorama",
+      "body": "This keeps the panorama on two facing pages. The topographic page will be printed. This explanation only appears in the editor."
+    },
     "frame": {
       "title": "Frame panorama",
       "body": "Drag to choose the view, then tune its perspective and crop.",
