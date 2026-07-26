@@ -54,6 +54,7 @@ const disabling = computed(
 );
 const viewportStyle = computed(() => ({
   aspectRatio: String(props.aspectRatio),
+  maxWidth: `${props.aspectRatio * 50}vh`,
 }));
 const projectionStyle = computed(() => ({
   "--panorama-zoom": String(draft.value.zoom),
@@ -409,6 +410,7 @@ onBeforeUnmount(cleanupAdapter);
 .panorama-viewport {
   position: relative;
   width: 100%;
+  margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);

@@ -108,6 +108,7 @@ async function mockPanoramaAlbum(page: Page) {
 test("frames a panorama globally and prints a two-page spread", async ({
   authedPage: page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 760 });
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
   await scrollToStep(page, "Amsterdam");
@@ -119,6 +120,13 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await treat.click();
   const dialog = page.getByRole("dialog", { name: "Frame panorama" });
   await expect(dialog).toBeVisible();
+  await expect
+    .poll(() =>
+      dialog
+        .locator(".panorama-dialog")
+        .evaluate((element) => element.scrollHeight <= element.clientHeight),
+    )
+    .toBe(true);
   const preview = dialog.getByRole("region", {
     name: "Interactive panorama preview",
   });
