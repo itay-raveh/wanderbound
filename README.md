@@ -4,8 +4,10 @@
 
 <h1 align="center">Wanderbound</h1>
 
+<p align="center"><a href="https://wanderbound.raveh.dev">https://wanderbound.raveh.dev</a></p>
+
 <p align="center">
-  Turn a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into a print-ready photo album.
+  Turn a <a href="https://www.polarsteps.com/">Polarsteps</a> data export into an amazing album, exported as a PDF you can print yourself!
 </p>
 
 <p align="center">
@@ -15,19 +17,17 @@
 </p>
 
 <p align="center">
-  <img src="frontend/public/landing/step-page-dark.jpg" width="720" alt="Generated album page with destination info, photo, coordinates, and weather">
+  <img src="frontend/public/landing/step-page-dark.jpg" width="400" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
-Upload your Polarsteps ZIP and get a laid-out album - covers, overview page,
-maps, photo pages - that you can edit in the browser and export to PDF.
+- Start from an intelligently laid out album, then edit with full freedom
+- Backfills enhanced weather and elevation data, and automaticly recognizes known mountion peaks
+- Upgrades compressed Polarsteps photos with originals from Google Photos
+- Add maps with your GPS data. Automaticaly recognizes hikes, flights, and roads
+- Include your videos in the album by selecting one frame, right within our editor
+- Full RTL and localization support
 
-- Photo layout algorithm packs images into grids, with drag-and-drop reordering
-- Upgrade low-resolution Polarsteps photos with originals from Google Photos
-- GPS tracks classified into flights, hikes, drives, and walks - add map pages
-  with satellite imagery and elevation profiles
-- Videos in albums - scrub frame-by-frame to pick a poster image
-- Full RTL and localization support (English and Hebrew)
-- PDF export via headless Chromium
+See planned features, or ask for your own, [here](https://github.com/itay-raveh/wanderbound/issues?q=is%3Aissue%20state%3Aopen%20label%3Aenhancement).
 
 <p align="center">
   <img src="frontend/public/landing/hike-map-dark.jpg" width="240" alt="Map page with satellite imagery and elevation profile">&nbsp;
@@ -37,58 +37,62 @@ maps, photo pages - that you can edit in the browser and export to PDF.
 
 ## Tech Stack
 
-|                   |                                                                      |
-|-------------------|----------------------------------------------------------------------|
-| **Backend**        | Python 3.14, FastAPI, SQLAlchemy, Polars, Playwright, Pillow, ffmpeg |
-| **Frontend**       | Vue 3, TypeScript, Quasar, Uppy, Mapbox GL JS                       |
-| **Database**       | PostgreSQL 18                                                       |
-| **Object storage** | S3-compatible storage, Garage for Compose                           |
-| **External APIs**  | Open-Meteo (elevations + weather), Mapbox (tiles + routing), Google Photos Picker (photo upgrade), OpenStreetMap Overpass (named peaks) |
+|                    |                                                                     |
+|--------------------|---------------------------------------------------------------------|
+| **Backend**        | FastAPI, SQLAlchemy, Polars, Playwright, DBOS, PyAv, ffmpeg         |
+| **Frontend**       | Vue, Quasar, Uppy, Mapbox, Turf                                     |
+| **Storage**        | PostgreSQL, S3                                                      |
+| **External APIs**  | Open-Meteo, Mapbox, Google Photos Picker, OpenStreetMap Overpass    |
 
 ## Self-Hosting
 
-### Docker Compose
-
-Requires [Docker](https://docs.docker.com/get-docker/) with Compose.
-
-```bash
-git clone https://github.com/itay-raveh/wanderbound.git
-cd wanderbound
-
-cp .env.example .env
-# Fill in the required values
-
-docker compose up -d
-```
-
-Open `http://localhost:8000`.
-
-For production, set `APP_VERSION` to an exact released `MAJOR.MINOR.PATCH` tag,
-`DOMAIN`, and `ENVIRONMENT=production` in `.env`, then run
-`docker compose -f compose.yml up -d`.
-
-The Compose stack runs the app, database, and S3-compatible object storage.
-Configure database and app data backups in your deployment infrastructure.
-
-The backend stores upload and processing progress in shared storage and Postgres,
-so multiple backend workers can serve the same user flow. All backend workers
-must use the same `DATA_FOLDER` volume and database.
+You can see [the setup for the public instance](https://github.com/itay-raveh/infra) for insparation.
 
 ### Kubernetes
 
-See the [Helm chart installation guide](charts/wanderbound/README.md).
+We provide a Helm chart, see the [installation guide](charts/wanderbound/README.md).
 
-## Development
+### Docker Compose
 
 [mise](https://mise.jdx.dev/) manages tool versions and all project
 commands. Install it, then:
 
 ```bash
-mise run setup               # Install dependencies and generate assets
-mise run dev                 # Start FastAPI, Vite, and dependencies
+git clone https://github.com/itay-raveh/wanderbound.git
+cd wanderbound
+
+mise run setup
 ```
 
-Open `http://localhost:5173`.
+Fill in the values in the created `.env` file.
 
-Run `mise tasks` to see all available commands. Extra arguments pass
-through - e.g., `mise run test:backend -- -k test_auth`.
+Run at <https://localhost:8000>:
+
+```bash
+docker compose up -d
+```
+
+This will spin up Wanderbound, PostgresSQL (DB), and Garage (S3).
+
+For production, set `ENVIRONMENT=production`, `APP_VERSION` to one of our [tags](https://github.com/itay-raveh/wanderbound/tags),
+and `DOMAIN`, then use:
+
+```bash
+docker compose -f compose.yml up -d
+```
+
+## Development
+
+Clone, run `mise run setup` and fill in `.env`, as described above.
+
+To see other project commands:
+
+```bash
+mise tasks
+```
+
+To run the local dev stack at <https://localhost:5173>:
+
+```bash
+mise run dev
+```
