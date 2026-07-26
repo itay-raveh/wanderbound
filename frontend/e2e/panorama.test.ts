@@ -117,6 +117,13 @@ test("frames a panorama globally and prints a two-page spread", async ({
     .locator(`[data-media="${panoramaName}"]`)
     .getByRole("button", { name: "Treat as panorama" });
   await expect(treat).toBeVisible({ timeout: 5_000 });
+  const [buttonBox, imageBox] = await Promise.all([
+    treat.boundingBox(),
+    page.locator(`[data-media="${panoramaName}"]`).boundingBox(),
+  ]);
+  expect(buttonBox!.x + buttonBox!.width / 2).toBeLessThan(
+    imageBox!.x + imageBox!.width / 2,
+  );
   await treat.click();
   const dialog = page.getByRole("dialog", { name: "Frame panorama" });
   await expect(dialog).toBeVisible();

@@ -390,7 +390,7 @@ function onVideoKey(e: KeyboardEvent) {
     </button>
     <div
       v-if="hasPanoramaAction"
-      class="panorama-actions column items-end"
+      class="panorama-actions column items-start"
       @click.stop
     >
       <button
@@ -598,7 +598,7 @@ function onVideoKey(e: KeyboardEvent) {
   position: absolute;
   z-index: 3;
   inset-block-start: var(--gap-md);
-  inset-inline-end: var(--gap-md);
+  inset-inline-start: var(--gap-md);
   gap: var(--gap-sm);
 }
 
