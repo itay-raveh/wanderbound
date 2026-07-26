@@ -19,7 +19,7 @@ from app.models.album import Album
 from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
-from app.models.step import StepRead
+from app.models.step import StepPageLayout, StepRead
 from app.models.user import User
 from tests.factories import (
     collect_async,
@@ -56,7 +56,7 @@ def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> 
 def _step(
     step_id: int = 1,
     *,
-    pages: list[list[str]] | None = None,
+    pages: list[StepPageLayout] | None = None,
     unused: list[str] | None = None,
     cover: str | None = None,
     name: str = "Old Name",
@@ -124,7 +124,7 @@ def _media(name: str, *, portrait: bool) -> Media:
 
 class TestPickCover:
     def test_prefers_portrait(self) -> None:
-        pages = [["a.jpg", "b.jpg"]]
+        pages = [StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"])]
         unused = ["c.jpg"]
         media = {
             n: _media(n, portrait=p)
@@ -133,7 +133,7 @@ class TestPickCover:
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
     def test_portrait_in_unused(self) -> None:
-        pages = [["land.jpg"]]
+        pages = [StepPageLayout(kind="grid", media=["land.jpg"])]
         unused = ["port.jpg"]
         media = {
             "land.jpg": _media("land.jpg", portrait=False),
@@ -144,25 +144,39 @@ class TestPickCover:
 
 class TestReconcileStep:
     def test_missing_media_removed_from_pages(self) -> None:
-        step = _step(pages=[["a.jpg", "b.jpg"], ["c.jpg"]], cover="a.jpg")
+        step = _step(
+            pages=[
+                StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"]),
+                StepPageLayout(kind="grid", media=["c.jpg"]),
+            ],
+            cover="a.jpg",
+        )
         ps = _ps_step(1)
         all_on_disk = {"a.jpg", "c.jpg"}
         disk_media = {"a.jpg", "c.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [["a.jpg"], ["c.jpg"]]
+        assert result.pages == [
+            StepPageLayout(kind="grid", media=["a.jpg"]),
+            StepPageLayout(kind="grid", media=["c.jpg"]),
+        ]
 
     def test_empty_page_dropped(self) -> None:
-        step = _step(pages=[["a.jpg"], ["b.jpg"]])
+        step = _step(
+            pages=[
+                StepPageLayout(kind="grid", media=["a.jpg"]),
+                StepPageLayout(kind="grid", media=["b.jpg"]),
+            ]
+        )
         ps = _ps_step(1)
         all_on_disk = {"a.jpg"}
         disk_media = {"a.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [["a.jpg"]]
+        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
 
     def test_new_media_added_to_unused(self) -> None:
-        step = _step(pages=[["a.jpg"]])
+        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
         ps = _ps_step(1)
         all_on_disk = {"a.jpg", "new.jpg"}
         disk_media = {"a.jpg", "new.jpg"}
@@ -171,7 +185,10 @@ class TestReconcileStep:
         assert "new.jpg" in result.unused
 
     def test_missing_cover_picks_new(self) -> None:
-        step = _step(pages=[["remain.jpg"]], cover="gone.jpg")
+        step = _step(
+            pages=[StepPageLayout(kind="grid", media=["remain.jpg"])],
+            cover="gone.jpg",
+        )
         ps = _ps_step(1)
         all_on_disk = {"remain.jpg"}
         disk_media = {"remain.jpg"}
@@ -181,7 +198,11 @@ class TestReconcileStep:
         assert result.cover == "remain.jpg"
 
     def test_cover_none_when_all_media_gone(self) -> None:
-        step = _step(pages=[["a.jpg"]], unused=["b.jpg"], cover="a.jpg")
+        step = _step(
+            pages=[StepPageLayout(kind="grid", media=["a.jpg"])],
+            unused=["b.jpg"],
+            cover="a.jpg",
+        )
         ps = _ps_step(1)
 
         result = _reconcile_step(step, ps, set(), set(), {})
@@ -201,14 +222,14 @@ class TestReconcileStep:
         assert result.location == _LOC2
 
     def test_new_media_not_on_disk_ignored(self) -> None:
-        step = _step(pages=[["a.jpg"]])
+        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
         ps = _ps_step(1)
         disk_media = {"a.jpg", "ghost.jpg"}
         all_on_disk = {"a.jpg"}  # ghost.jpg not in flattened dir
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
         assert "ghost.jpg" not in result.unused
-        assert result.pages == [["a.jpg"]]
+        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
 
 
 class TestFixAlbumCovers:
@@ -353,7 +374,13 @@ class TestReconcileTripRebuildsSegments:
         )
         (trip_dir / media_name).write_bytes(b"\xff\xd8")
 
-        existing_steps = [_existing_step(1, pages=[[media_name]], cover=media_name)]
+        existing_steps = [
+            _existing_step(
+                1,
+                pages=[StepPageLayout(kind="grid", media=[media_name])],
+                cover=media_name,
+            )
+        ]
         existing_media = make_album_media(
             _UID,
             _RECONCILE_AID,
@@ -411,7 +438,13 @@ class TestReconcileTripRebuildsSegments:
         _, db_out = await _collect_reconcile(
             trip_dir,
             _existing_album(front_cover_photo=media_name, back_cover_photo=media_name),
-            [_existing_step(1, pages=[[media_name]], cover=media_name)],
+            [
+                _existing_step(
+                    1,
+                    pages=[StepPageLayout(kind="grid", media=[media_name])],
+                    cover=media_name,
+                )
+            ],
             existing_media_rows=[existing_media],
         )
 

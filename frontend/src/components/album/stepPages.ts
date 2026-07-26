@@ -1,4 +1,4 @@
-import type { AlbumMedia, StepRead as Step } from "@/client";
+import type { AlbumMedia, StepPageLayout, StepRead as Step } from "@/client";
 import {
   layoutDescription,
   type JustifiedLine,
@@ -21,16 +21,16 @@ export type StepPagePlan = {
 };
 
 export function filterCoverFromPages(
-  pages: string[][],
+  pages: StepPageLayout[],
   cover: string | null | undefined,
 ): IndexedPage[] {
   if (!cover) {
-    return pages.map((page, i) => ({ originalIdx: i, page }));
+    return pages.map((page, i) => ({ originalIdx: i, page: page.media }));
   }
   return pages
     .map((page, i) => ({
       originalIdx: i,
-      page: page.filter((p) => p !== cover),
+      page: page.media.filter((p) => p !== cover),
     }))
     .filter(({ page }) => page.length > 0);
 }
@@ -74,7 +74,8 @@ export function planStepPages(
         .filter(({ page }) => page.length > 0)
     : rawPhotoPages;
   const totalPhotos =
-    step.pages.reduce((n, page) => n + page.length, 0) + step.unused.length;
+    step.pages.reduce((n, page) => n + page.media.length, 0) +
+    step.unused.length;
 
   return {
     sidebarLines: descriptionPages[0] ?? [],

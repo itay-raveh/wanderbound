@@ -33,15 +33,28 @@ const drivingSegment = (start_time: number, end_time: number) =>
 describe("filterCoverFromPages", () => {
   it.each([
     [
-      [["cover", "p1"], ["p2"]],
+      [
+        { kind: "grid" as const, media: ["cover", "p1"] },
+        { kind: "grid" as const, media: ["p2"] },
+      ],
       [
         { originalIdx: 0, page: ["p1"] },
         { originalIdx: 1, page: ["p2"] },
       ],
     ],
-    [[["cover"], ["p1", "p2"]], [{ originalIdx: 1, page: ["p1", "p2"] }]],
     [
-      [["cover", "p1"], ["cover", "p2"], ["p3"]],
+      [
+        { kind: "grid" as const, media: ["cover"] },
+        { kind: "grid" as const, media: ["p1", "p2"] },
+      ],
+      [{ originalIdx: 1, page: ["p1", "p2"] }],
+    ],
+    [
+      [
+        { kind: "grid" as const, media: ["cover", "p1"] },
+        { kind: "grid" as const, media: ["cover", "p2"] },
+        { kind: "grid" as const, media: ["p3"] },
+      ],
       [
         { originalIdx: 0, page: ["p1"] },
         { originalIdx: 1, page: ["p2"] },
@@ -58,7 +71,10 @@ describe("stepPageCount", () => {
     const step = makeStep({
       description: "x".repeat(120),
       cover: null,
-      pages: [["portrait.jpg"], ["landscape.jpg"]],
+      pages: [
+        { kind: "grid", media: ["portrait.jpg"] },
+        { kind: "grid", media: ["landscape.jpg"] },
+      ],
     });
     const mediaByName = new Map([
       ["portrait.jpg", { name: "portrait.jpg", width: 800, height: 1200 }],

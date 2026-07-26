@@ -29,6 +29,7 @@ from app.logic.media_upgrade.pipeline import (
     UpgradeFailed,
     _clear_caches,
 )
+from app.models.step import StepPageLayout
 from app.models.user import User
 from app.services.google_photos import _clear_media_items_cache
 
@@ -241,7 +242,7 @@ class TestMatchMedia:
             description="",
             timezone_id="UTC",
             weather=make_weather(icon="clear"),
-            pages=[["photo.jpg"]],
+            pages=[StepPageLayout(kind="grid", media=["photo.jpg"])],
         )
         http = pin_http_clients()
         http.gphotos_oauth.refresh_token.return_value = OAuth2Token(

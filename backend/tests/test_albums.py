@@ -33,7 +33,7 @@ def _assert_step_layout(
     data: dict[str, object],
     *,
     cover: str | None,
-    pages: list[list[str]],
+    pages: list[dict[str, object]],
     unused: list[str],
 ) -> None:
     assert data["cover"] == cover
@@ -527,7 +527,7 @@ class TestUpdateStep:
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "New Name"
-        assert data["pages"] == [["photo1.jpg"]]
+        assert data["pages"] == [{"kind": "grid", "media": ["photo1.jpg"]}]
         assert data["unused"] == ["photo2.jpg"]
         assert data["description"] == "A test step."
         assert data["cover"] is None
@@ -540,7 +540,10 @@ class TestUpdateStep:
     ) -> None:
         expected_layout = {
             "cover": "cover.jpg",
-            "pages": [["a.jpg", "b.jpg"], ["c.jpg"]],
+            "pages": [
+                {"kind": "grid", "media": ["a.jpg", "b.jpg"]},
+                {"kind": "panorama_spread", "media": ["c.jpg"]},
+            ],
             "unused": ["unused.jpg"],
         }
         for name in ("a.jpg", "b.jpg", "c.jpg", "cover.jpg", "unused.jpg"):
@@ -557,6 +560,21 @@ class TestUpdateStep:
         assert get_resp.status_code == 200
         _assert_step_layout(get_resp.json()[0], **expected_layout)
 
+    @pytest.mark.usefixtures("signed_album")
+    @pytest.mark.parametrize("media", [[], ["a.jpg", "b.jpg"]])
+    async def test_panorama_spread_requires_one_media(
+        self,
+        album_routes: AlbumRoutes,
+        media: list[str],
+    ) -> None:
+        resp = await album_routes.update_media_layout(
+            cover=None,
+            pages=[{"kind": "panorama_spread", "media": media}],
+            unused=[],
+        )
+
+        assert resp.status_code == 422
+
     async def test_media_layout_update_rejects_missing_album_media(
         self,
         session: AsyncSession,
@@ -567,7 +585,9 @@ class TestUpdateStep:
         await session.commit()
 
         resp = await album_routes.update_media_layout(
-            cover=None, pages=[["missing.jpg"]], unused=[]
+            cover=None,
+            pages=[{"kind": "grid", "media": ["missing.jpg"]}],
+            unused=[],
         )
 
         assert resp.status_code == 400

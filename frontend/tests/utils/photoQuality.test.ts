@@ -152,7 +152,12 @@ describe("summarizeQuality", () => {
 
   it("does not warn for a contained full-page portrait with print thresholds", () => {
     const portrait = media("portrait.jpg", 1688, 3000);
-    const steps = [makeStep({ id: 1, pages: [[portrait.name]] })];
+    const steps = [
+      makeStep({
+        id: 1,
+        pages: [{ kind: "grid", media: [portrait.name] }],
+      }),
+    ];
 
     const result = summarizeQuality(
       steps,
@@ -181,7 +186,11 @@ describe("summarizeQuality", () => {
 
   it("handles cover photo appearing in both cover and step.cover", () => {
     const steps: Step[] = [
-      makeStep({ id: 1, cover: "lo.jpg", pages: [["lo.jpg"]] }),
+      makeStep({
+        id: 1,
+        cover: "lo.jpg",
+        pages: [{ kind: "grid", media: ["lo.jpg"] }],
+      }),
     ];
     const result = summarizeQuality(
       steps,
@@ -199,7 +208,12 @@ describe("summarizeQuality", () => {
     const steps = [
       makeStep({
         id: 1,
-        pages: [["landscape.jpg", "portrait.jpg", "landscape.jpg"]],
+        pages: [
+          {
+            kind: "grid",
+            media: ["landscape.jpg", "portrait.jpg", "landscape.jpg"],
+          },
+        ],
       }),
     ];
     const result = summarizeQuality(

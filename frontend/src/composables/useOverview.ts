@@ -35,7 +35,8 @@ export function computeOverview(
   homeLocation: { lat: number; lon: number } | null,
 ): Overview {
   const totalPhotos = steps.reduce(
-    (sum, s) => sum + s.pages.reduce((ps, page) => ps + page.length, 0),
+    (sum, s) =>
+      sum + s.pages.reduce((ps, page) => ps + page.media.length, 0),
     0,
   );
 

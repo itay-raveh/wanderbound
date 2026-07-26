@@ -25,7 +25,7 @@ from app.models.album_media import (
 )
 from app.models.polarsteps import Location, Point, PSStep
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step, StepRead
+from app.models.step import Step, StepPageLayout, StepRead
 from app.models.user import PSUser, User
 from app.models.weather import Weather, WeatherData
 
@@ -487,7 +487,7 @@ def make_step_read(
     elevation: int = 0,
     weather: Weather | None = None,
     cover: str | None = None,
-    pages: list[list[str]] | None = None,
+    pages: list[StepPageLayout] | None = None,
     unused: list[str] | None = None,
 ) -> StepRead:
     return StepRead(

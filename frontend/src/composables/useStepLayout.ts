@@ -16,8 +16,11 @@ const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 function stripPhotos(step: Step, photoSet: Set<string>) {
   return {
     pages: step.pages
-      .map((page) => page.filter((p) => !photoSet.has(p)))
-      .filter((page) => page.length > 0),
+      .map((page) => ({
+        ...page,
+        media: page.media.filter((name) => !photoSet.has(name)),
+      }))
+      .filter((page) => page.media.length > 0),
     unused: step.unused.filter((p) => !photoSet.has(p)),
   };
 }
@@ -86,7 +89,9 @@ export function useStepLayout(
 
   function onPageUpdate(idx: number, page: string[]) {
     const s = step.value;
-    const existing = new Set(s.pages[idx]);
+    const target = s.pages[idx];
+    if (!target) return;
+    const existing = new Set(target.media);
     const added = page.filter((p) => !existing.has(p));
 
     if (added.length > 0) {
@@ -96,14 +101,19 @@ export function useStepLayout(
       const addedSet = new Set(added);
       const pages = s.pages
         .map((p, i) =>
-          i === idx ? page : p.filter((photo) => !addedSet.has(photo)),
+          i === idx
+            ? { ...p, media: page }
+            : {
+                ...p,
+                media: p.media.filter((photo) => !addedSet.has(photo)),
+              },
         )
-        .filter((p) => p.length > 0);
+        .filter((p) => p.media.length > 0);
       const unused = s.unused.filter((p) => !addedSet.has(p));
       saveField({ pages, unused });
     } else {
       const pages = [...s.pages];
-      pages[idx] = page;
+      pages[idx] = { ...target, media: page };
       saveField({ pages });
     }
   }
@@ -124,7 +134,10 @@ export function useStepLayout(
         const photos = [...dropZoneList.value];
         dropZoneList.value = [];
         const cleaned = withoutPhotos(new Set(photos));
-        saveField({ ...cleaned, pages: [...cleaned.pages, photos] });
+        saveField({
+          ...cleaned,
+          pages: [...cleaned.pages, { kind: "grid", media: photos }],
+        });
       },
     });
     watch(dropZoneRef, (el) => {
