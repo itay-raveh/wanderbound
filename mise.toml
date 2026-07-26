@@ -17,6 +17,7 @@ prek = "0.4.8"
 [tasks.setup]
 description = "Bootstrap dev environment from fresh clone"
 run = [
+    "git lfs pull",
     "cp -n .env.example .env || true",
     "uv sync",
     "bun install",
