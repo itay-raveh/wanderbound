@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -53,25 +54,38 @@ def panorama_original_path(album_dir: Path, original_path: str | None) -> Path |
     return candidate
 
 
+def panorama_asset_paths(
+    album_dir: Path,
+    media_name: str,
+    panorama: PanoramaConfig | None,
+) -> list[Path]:
+    stem = Path(media_name).stem
+    candidates: list[Path] = []
+    original = panorama_original_path(
+        album_dir, panorama.original_path if panorama else None
+    )
+    if original is not None:
+        candidates.append(original)
+    originals = album_dir / _ORIGINALS_DIRECTORY
+    if originals.exists():
+        candidates.extend(originals.glob(f"{stem}.*"))
+    preview = album_dir / _PREVIEW_DIRECTORY
+    if preview.exists():
+        candidates.extend(preview.glob(f"{stem}.*"))
+        candidates.append(preview / stem)
+    candidates.append(album_dir / _RENDERED_DIRECTORY / stem)
+    return list(dict.fromkeys(path for path in candidates if path.exists()))
+
+
 def remove_panorama_assets(
     album_dir: Path,
     media_name: str,
     panorama: PanoramaConfig | None,
 ) -> None:
     """Remove only derived assets belonging to one media item."""
-    stem = Path(media_name).stem
-    original = panorama_original_path(
-        album_dir, panorama.original_path if panorama else None
-    )
-    if original is not None:
-        original.unlink(missing_ok=True)
-    originals = album_dir / _ORIGINALS_DIRECTORY
-    if originals.exists():
-        for candidate in originals.glob(f"{stem}.*"):
-            candidate.unlink(missing_ok=True)
-    preview = album_dir / _PREVIEW_DIRECTORY
-    if preview.exists():
-        for candidate in preview.glob(f"{stem}.*"):
-            candidate.unlink(missing_ok=True)
-        shutil.rmtree(preview / stem, ignore_errors=True)
-    shutil.rmtree(album_dir / _RENDERED_DIRECTORY / stem, ignore_errors=True)
+    for path in panorama_asset_paths(album_dir, media_name, panorama):
+        if path.is_dir():
+            with suppress(FileNotFoundError):
+                shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)

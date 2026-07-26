@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import shutil
+import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,8 +21,9 @@ if TYPE_CHECKING:
 
 from app.core.db import get_engine
 from app.core.worker_threads import run_sync
+from app.logic.external_media.files import MediaAssetTransition
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
-from app.logic.panorama.storage import panorama_original_path, remove_panorama_assets
+from app.logic.panorama.storage import panorama_original_path
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
 from app.models.user import User
@@ -53,14 +56,237 @@ def _video_poster(path: Path) -> Path:
     return path.with_suffix(".jpg")
 
 
-async def _unlink_snapshot(
-    path: Path, original_snapshot_path: Path | None = None
-) -> None:
+def undo_snapshot_path(album_dir: Path, stored_path: str) -> Path:
+    candidate = (album_dir / stored_path).resolve()
+    undo_dir = (album_dir / UNDO_DIR).resolve()
+    try:
+        relative = candidate.relative_to(undo_dir)
+    except ValueError as error:
+        raise ValueError("Undo snapshot path must remain beneath .undo") from error
+    if not relative.parts:
+        raise ValueError("Undo snapshot path must name a file beneath .undo")
+    return candidate
+
+
+def _require_readable_file(path: Path, label: str) -> None:
+    if not path.is_file():
+        raise ValueError(f"{label} missing or unreadable")
+    try:
+        with path.open("rb") as source:
+            source.read(1)
+    except OSError as error:
+        raise ValueError(f"{label} missing or unreadable") from error
+
+
+def _discard_tree(path: Path) -> None:
+    with contextlib.suppress(FileNotFoundError):
+        shutil.rmtree(path)
+
+
+async def _unlink_snapshot(album_dir: Path, row: AlbumMediaUndoSnapshot) -> None:
+    path = undo_snapshot_path(album_dir, row.snapshot_path)
+    original = (
+        undo_snapshot_path(album_dir, row.original_snapshot_path)
+        if row.original_snapshot_path
+        else None
+    )
     await run_sync(path.unlink, missing_ok=True)
     if is_video(path.name):
         await run_sync(_video_poster(path).unlink, missing_ok=True)
-    if original_snapshot_path is not None:
-        await run_sync(original_snapshot_path.unlink, missing_ok=True)
+    if original is not None:
+        await run_sync(original.unlink, missing_ok=True)
+
+
+class UndoSnapshotUpdate:
+    def __init__(
+        self,
+        snapshot: AlbumMediaUndoSnapshot,
+        workspace: Path,
+        activated: list[tuple[Path, Path]],
+        previous: list[tuple[Path, Path]],
+        previous_values: dict[str, object] | None,
+    ) -> None:
+        self.snapshot = snapshot
+        self.workspace = workspace
+        self.activated = activated
+        self.previous = previous
+        self.previous_values = previous_values
+
+    def rollback(self) -> None:
+        for destination, staged in reversed(self.activated):
+            if destination.exists():
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                destination.replace(staged)
+        self.activated.clear()
+        for backup, original in reversed(self.previous):
+            if backup.exists():
+                original.parent.mkdir(parents=True, exist_ok=True)
+                backup.replace(original)
+        self.previous.clear()
+        if self.previous_values is not None:
+            for name, value in self.previous_values.items():
+                setattr(self.snapshot, name, value)
+        self.discard()
+
+    def finish(self) -> None:
+        if self.workspace.exists():
+            shutil.rmtree(self.workspace)
+
+    def discard(self) -> None:
+        _discard_tree(self.workspace)
+
+
+@dataclass(frozen=True)
+class StagedUndoAssets:
+    workspace: Path
+    moves: list[tuple[Path, Path]]
+    original_snapshot_path: str | None
+
+
+async def _stage_undo_assets(
+    *,
+    source: Path,
+    undo_dir: Path,
+    media_name: str,
+    row: AlbumMedia | None,
+) -> StagedUndoAssets:
+    workspace = undo_dir / ".staging" / uuid.uuid4().hex
+    moves: list[tuple[Path, Path]] = []
+    original_snapshot_path: str | None = None
+    try:
+        staged_primary = workspace / "new" / media_name
+        await run_sync(staged_primary.parent.mkdir, parents=True, exist_ok=True)
+        await run_sync(shutil.copy2, source, staged_primary)
+        moves.append((staged_primary, undo_dir / media_name))
+
+        source_poster = _video_poster(source)
+        if is_video(media_name) and source_poster.exists():
+            staged_poster = _video_poster(staged_primary)
+            await run_sync(shutil.copy2, source_poster, staged_poster)
+            moves.append((staged_poster, _video_poster(undo_dir / media_name)))
+
+        original = panorama_original_path(
+            undo_dir.parent,
+            row.panorama.original_path if row and row.panorama else None,
+        )
+        if original is not None and original.exists():
+            staged_original = workspace / "new" / "panorama-originals" / original.name
+            snapshot_original = undo_dir / "panorama-originals" / original.name
+            await run_sync(staged_original.parent.mkdir, parents=True, exist_ok=True)
+            await run_sync(shutil.copy2, original, staged_original)
+            moves.append((staged_original, snapshot_original))
+            original_snapshot_path = str(snapshot_original.relative_to(undo_dir.parent))
+    except BaseException:
+        await run_sync(_discard_tree, workspace)
+        raise
+    return StagedUndoAssets(workspace, moves, original_snapshot_path)
+
+
+def _snapshot_values(snapshot: AlbumMediaUndoSnapshot) -> dict[str, object]:
+    return {
+        "snapshot_path": snapshot.snapshot_path,
+        "perceptual_hashes": snapshot.perceptual_hashes,
+        "panorama": snapshot.panorama,
+        "original_snapshot_path": snapshot.original_snapshot_path,
+        "upgrade_candidate": snapshot.upgrade_candidate,
+        "created_at": snapshot.created_at,
+        "expires_at": snapshot.expires_at,
+    }
+
+
+def _snapshot_paths(
+    album_dir: Path,
+    media_name: str,
+    existing: AlbumMediaUndoSnapshot | None,
+    staged: StagedUndoAssets,
+) -> list[Path]:
+    paths: list[Path] = []
+    if existing is not None:
+        primary = undo_snapshot_path(album_dir, existing.snapshot_path)
+        paths.append(primary)
+        if is_video(media_name):
+            paths.append(_video_poster(primary))
+        if existing.original_snapshot_path:
+            paths.append(undo_snapshot_path(album_dir, existing.original_snapshot_path))
+    paths.extend(destination for _, destination in staged.moves)
+    return list(dict.fromkeys(paths))
+
+
+def _activate_snapshot_update(
+    update: UndoSnapshotUpdate,
+    undo_dir: Path,
+    previous_paths: list[Path],
+    staged_moves: list[tuple[Path, Path]],
+) -> None:
+    for current in previous_paths:
+        if current.exists():
+            backup = update.workspace / "previous" / current.relative_to(undo_dir)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            current.replace(backup)
+            update.previous.append((backup, current))
+    for staged, destination in staged_moves:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        staged.replace(destination)
+        update.activated.append((destination, staged))
+
+
+@dataclass(frozen=True)
+class PreparedUndoRestore:
+    snapshot: Path
+    media: Media
+    original: tuple[Path, Path] | None
+
+
+async def _prepare_undo_restore(
+    album_dir: Path,
+    media_name: str,
+    snapshot: AlbumMediaUndoSnapshot,
+) -> PreparedUndoRestore:
+    snapshot_path = undo_snapshot_path(album_dir, snapshot.snapshot_path)
+    await run_sync(_require_readable_file, snapshot_path, "Undo snapshot")
+
+    replacement_original = None
+    if snapshot.original_snapshot_path is not None:
+        original_snapshot = undo_snapshot_path(
+            album_dir, snapshot.original_snapshot_path
+        )
+        await run_sync(
+            _require_readable_file,
+            original_snapshot,
+            "Panorama original snapshot",
+        )
+        active_original = panorama_original_path(
+            album_dir,
+            snapshot.panorama.original_path if snapshot.panorama else None,
+        )
+        if active_original is None:
+            raise ValueError("Panorama original snapshot is invalid")
+        replacement_original = (original_snapshot, active_original)
+
+    if is_video(media_name):
+        snapshot_poster = _video_poster(snapshot_path)
+        if not snapshot_poster.exists():
+            await extract_frame(snapshot_path)
+        await run_sync(_require_readable_file, snapshot_poster, "Undo snapshot poster")
+        restored = await Media.probe(snapshot_path)
+    else:
+        restored = await run_sync(Media.load, snapshot_path)
+    return PreparedUndoRestore(snapshot_path, restored, replacement_original)
+
+
+def _restore_row_values(
+    row: AlbumMedia,
+    prepared: PreparedUndoRestore,
+    snapshot: AlbumMediaUndoSnapshot,
+    target: Path,
+) -> None:
+    row.width = prepared.media.width
+    row.height = prepared.media.height
+    row.byte_size = target.stat().st_size
+    row.perceptual_hashes = snapshot.perceptual_hashes
+    row.panorama = snapshot.panorama
+    row.upgrade_candidate = snapshot.upgrade_candidate
+    row.updated_at = datetime.now(UTC)
 
 
 def enqueue_undo_snapshot_prune(
@@ -130,13 +356,12 @@ async def create_undo_snapshot(
     aid: str,
     album_dir: Path,
     media_name: str,
-) -> AlbumMediaUndoSnapshot | None:
+) -> UndoSnapshotUpdate | None:
     source = album_dir / media_name
     if not source.exists():
         return None
     undo_dir = album_dir / UNDO_DIR
     await run_sync(undo_dir.mkdir, parents=True, exist_ok=True)
-    snapshot_path = undo_dir / media_name
     now = datetime.now(UTC)
     await prune_expired_undo_snapshots(
         session,
@@ -147,43 +372,65 @@ async def create_undo_snapshot(
     )
     row = await session.get(AlbumMedia, (uid, aid, media_name))
     existing = await session.get(AlbumMediaUndoSnapshot, (uid, aid, media_name))
-    if existing is not None:
-        await _unlink_snapshot(
-            album_dir / existing.snapshot_path,
-            album_dir / existing.original_snapshot_path
-            if existing.original_snapshot_path
-            else None,
-        )
-        await session.delete(existing)
-        await session.flush()
-    await run_sync(shutil.copy2, source, snapshot_path)
-    source_poster = _video_poster(source)
-    if is_video(media_name) and source_poster.exists():
-        await run_sync(shutil.copy2, source_poster, _video_poster(snapshot_path))
-    original_snapshot_path: str | None = None
-    original = panorama_original_path(
-        album_dir, row.panorama.original_path if row and row.panorama else None
-    )
-    if original is not None and original.exists():
-        snapshot_original = undo_dir / "panorama-originals" / original.name
-        await run_sync(snapshot_original.parent.mkdir, parents=True, exist_ok=True)
-        await run_sync(shutil.copy2, original, snapshot_original)
-        original_snapshot_path = str(snapshot_original.relative_to(album_dir))
-    snap = AlbumMediaUndoSnapshot(
-        uid=uid,
-        aid=aid,
+    staged = await _stage_undo_assets(
+        source=source,
+        undo_dir=undo_dir,
         media_name=media_name,
-        snapshot_path=str(Path(UNDO_DIR) / media_name),
-        perceptual_hashes=row.perceptual_hashes if row else None,
-        panorama=row.panorama if row else None,
-        original_snapshot_path=original_snapshot_path,
-        upgrade_candidate=row.upgrade_candidate if row else True,
-        created_at=now,
-        expires_at=now + UNDO_TTL,
+        row=row,
     )
-    session.add(snap)
-    await session.flush()
-    return snap
+
+    previous_values: dict[str, object] | None = None
+    if existing is None:
+        snap = AlbumMediaUndoSnapshot(
+            uid=uid,
+            aid=aid,
+            media_name=media_name,
+            snapshot_path=str(Path(UNDO_DIR) / media_name),
+            perceptual_hashes=row.perceptual_hashes if row else None,
+            panorama=row.panorama if row else None,
+            original_snapshot_path=staged.original_snapshot_path,
+            upgrade_candidate=row.upgrade_candidate if row else True,
+            created_at=now,
+            expires_at=now + UNDO_TTL,
+        )
+    else:
+        snap = existing
+        previous_values = _snapshot_values(snap)
+
+    try:
+        previous_paths = _snapshot_paths(album_dir, media_name, existing, staged)
+    except BaseException:
+        await run_sync(_discard_tree, staged.workspace)
+        raise
+    update = UndoSnapshotUpdate(
+        snap,
+        staged.workspace,
+        [],
+        [],
+        previous_values,
+    )
+    try:
+        await run_sync(
+            _activate_snapshot_update,
+            update,
+            undo_dir,
+            previous_paths,
+            staged.moves,
+        )
+
+        snap.snapshot_path = str(Path(UNDO_DIR) / media_name)
+        snap.perceptual_hashes = row.perceptual_hashes if row else None
+        snap.panorama = row.panorama if row else None
+        snap.original_snapshot_path = staged.original_snapshot_path
+        snap.upgrade_candidate = row.upgrade_candidate if row else True
+        snap.created_at = now
+        snap.expires_at = now + UNDO_TTL
+        session.add(snap)
+        await session.flush()
+    except BaseException:
+        await run_sync(update.rollback)
+        raise
+    return update
 
 
 async def restore_undo_snapshot(
@@ -204,45 +451,38 @@ async def restore_undo_snapshot(
     if _as_utc(snap.expires_at) <= datetime.now(UTC):
         raise ValueError("Undo snapshot expired")
 
-    snapshot_path = album_dir / snap.snapshot_path
-    if not snapshot_path.exists():
-        raise ValueError("Undo snapshot missing")
-
+    prepared = await _prepare_undo_restore(album_dir, media_name, snap)
     target = album_dir / media_name
-    await run_sync(remove_panorama_assets, album_dir, media_name, row.panorama)
-    await run_sync(shutil.move, snapshot_path, target)
-    await run_sync(delete_thumbnails, target)
-    if is_video(media_name):
-        snapshot_poster = _video_poster(snapshot_path)
-        target_poster = _video_poster(target)
-        if snapshot_poster.exists():
-            await run_sync(shutil.move, snapshot_poster, target_poster)
-        else:
-            await extract_frame(target)
-    restored = (
-        await Media.probe(target)
-        if is_video(media_name)
-        else await run_sync(Media.load, target)
-    )
-    row.width = restored.width
-    row.height = restored.height
-    row.byte_size = target.stat().st_size
-    row.perceptual_hashes = snap.perceptual_hashes
-    if snap.original_snapshot_path is not None:
-        original = panorama_original_path(
-            album_dir, snap.panorama.original_path if snap.panorama else None
+    transition = MediaAssetTransition(album_dir, media_name)
+    previous_values = {
+        "width": row.width,
+        "height": row.height,
+        "byte_size": row.byte_size,
+        "perceptual_hashes": row.perceptual_hashes,
+        "panorama": row.panorama,
+        "upgrade_candidate": row.upgrade_candidate,
+        "updated_at": row.updated_at,
+    }
+    try:
+        await run_sync(
+            transition.activate,
+            prepared.snapshot,
+            row.panorama,
+            replacement_original=prepared.original,
         )
-        if original is None:
-            raise ValueError("Panorama original snapshot is invalid")
-        original.parent.mkdir(parents=True, exist_ok=True)
-        await run_sync(shutil.move, album_dir / snap.original_snapshot_path, original)
-    row.panorama = snap.panorama
-    row.upgrade_candidate = snap.upgrade_candidate
-    row.updated_at = datetime.now(UTC)
-    session.add(row)
-    await session.delete(snap)
-    await session.flush()
-    return row
+        await run_sync(delete_thumbnails, target)
+        _restore_row_values(row, prepared, snap, target)
+        session.add(row)
+        await session.delete(snap)
+        await session.flush()
+    except BaseException:
+        await run_sync(transition.rollback)
+        for name, value in previous_values.items():
+            setattr(row, name, value)
+        raise
+    else:
+        await run_sync(transition.finish)
+        return row
 
 
 async def prune_expired_undo_snapshots(
@@ -264,12 +504,7 @@ async def prune_expired_undo_snapshots(
         )
     ).all()
     for row in rows:
-        await _unlink_snapshot(
-            album_dir / row.snapshot_path,
-            album_dir / row.original_snapshot_path
-            if row.original_snapshot_path
-            else None,
-        )
+        await _unlink_snapshot(album_dir, row)
         await session.delete(row)
     await session.flush()
     return len(rows)
@@ -293,12 +528,7 @@ async def prune_all_expired_undo_snapshots(
         user = await session.get(User, row.uid)
         if user is not None:
             album_dir = user.trips_folder / row.aid
-            await _unlink_snapshot(
-                album_dir / row.snapshot_path,
-                album_dir / row.original_snapshot_path
-                if row.original_snapshot_path
-                else None,
-            )
+            await _unlink_snapshot(album_dir, row)
         await session.delete(row)
         removed += 1
     await session.flush()

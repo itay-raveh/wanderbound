@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,6 +12,7 @@ from fastapi import BackgroundTasks
 from app.core.config import get_settings
 from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.undo import (
+    create_undo_snapshot,
     enqueue_undo_snapshot_prune,
     prune_all_expired_undo_snapshots,
     prune_expired_undo_snapshots,
@@ -19,6 +21,7 @@ from app.logic.external_media.undo import (
 )
 from app.logic.layout.media import Media
 from app.logic.media_import import SavedInput
+from app.logic.panorama.storage import remove_panorama_assets
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot, PanoramaConfig
 
@@ -170,6 +173,9 @@ async def _restore_video_undo(
     *,
     create_frame_patch: bool = False,
 ) -> AsyncMock:
+    async def generate_poster(snapshot: Path) -> None:
+        snapshot.with_suffix(".jpg").write_bytes(b"generated poster")
+
     with (
         patch(
             "app.logic.external_media.undo.Media.probe",
@@ -177,7 +183,7 @@ async def _restore_video_undo(
         ),
         patch(
             "app.logic.external_media.undo.extract_frame",
-            AsyncMock(),
+            AsyncMock(side_effect=generate_poster),
             create=create_frame_patch,
         ) as extract_frame,
     ):
@@ -198,6 +204,8 @@ def _add_undo_snapshot(
     perceptual_hashes: list[str] | None = None,
     created_at: datetime | None = None,
     expires_at: datetime | None = None,
+    panorama: PanoramaConfig | None = None,
+    original_snapshot_path: str | None = None,
 ) -> None:
     now = created_at or datetime.now(UTC)
     session.add(
@@ -207,6 +215,8 @@ def _add_undo_snapshot(
             media_name=media_name,
             snapshot_path=str(Path(".undo") / media_name),
             perceptual_hashes=perceptual_hashes,
+            panorama=panorama,
+            original_snapshot_path=original_snapshot_path,
             upgrade_candidate=True,
             created_at=now,
             expires_at=expires_at or now + timedelta(minutes=5),
@@ -343,6 +353,281 @@ async def test_replace_preserves_the_replacement_panorama_original(
     assert replaced.panorama.status == "suggested"
     assert replaced.panorama.original_path is not None
     assert (tmp_path / replaced.panorama.original_path).read_bytes() == source_bytes
+
+
+async def test_replace_hash_failure_preserves_active_media_and_panorama_assets(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    primary_bytes = target.read_bytes()
+    original = create_test_jpeg(
+        tmp_path / ".panoramas" / "originals" / f"{target.stem}.jpg",
+        2400,
+        600,
+    )
+    preview = create_test_jpeg(
+        tmp_path / ".panoramas" / "preview" / f"{target.stem}.jpg",
+        800,
+        200,
+    )
+    rendered = create_test_jpeg(
+        tmp_path / ".panoramas" / "rendered" / target.stem / "3" / "800x400.jpg",
+        800,
+        400,
+    )
+    media.panorama = _active_panorama(str(original.relative_to(tmp_path)))
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    with (
+        patch(
+            "app.logic.external_media.album_media.try_compute_serialized_media_hash",
+            side_effect=OSError("hash failed"),
+        ),
+        pytest.raises(OSError, match="hash failed"),
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert target.read_bytes() == primary_bytes
+    assert original.exists()
+    assert preview.exists()
+    assert rendered.exists()
+
+
+async def test_replace_flush_failure_restores_files_and_previous_snapshot_state(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    primary_bytes = target.read_bytes()
+    original = create_test_jpeg(
+        tmp_path / ".panoramas" / "originals" / f"{target.stem}.jpg",
+        2400,
+        600,
+    )
+    media.panorama = _active_panorama(str(original.relative_to(tmp_path)))
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+    real_flush = session.flush
+
+    async def fail_after_activation(*args: object, **kwargs: object) -> None:
+        if target.read_bytes() != primary_bytes:
+            raise OSError("flush failed")
+        await real_flush(*args, **kwargs)
+
+    with (
+        patch.object(session, "flush", side_effect=fail_after_activation),
+        pytest.raises(OSError, match="flush failed"),
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert target.read_bytes() == primary_bytes
+    assert original.exists()
+    assert not (tmp_path / ".undo" / VALID_NAME).exists()
+
+
+async def test_repeated_snapshot_copy_failure_preserves_previous_snapshot(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    undo_dir = tmp_path / ".undo"
+    old_snapshot = create_test_jpeg(undo_dir / VALID_NAME, 320, 240)
+    old_snapshot_bytes = old_snapshot.read_bytes()
+    old_original_snapshot = create_test_jpeg(
+        undo_dir / "panorama-originals" / f"{Path(VALID_NAME).stem}.jpg",
+        1200,
+        300,
+    )
+    old_original_bytes = old_original_snapshot.read_bytes()
+    active_original = create_test_jpeg(
+        tmp_path / ".panoramas" / "originals" / f"{Path(VALID_NAME).stem}.jpg",
+        2400,
+        600,
+    )
+    media.panorama = _active_panorama(str(active_original.relative_to(tmp_path)))
+    session.add(media)
+    _add_undo_snapshot(
+        session,
+        media_name=VALID_NAME,
+        panorama=media.panorama,
+        original_snapshot_path=str(old_original_snapshot.relative_to(tmp_path)),
+    )
+    await session.commit()
+    real_copy2 = shutil.copy2
+
+    def fail_retained_original(source: Path, target: Path) -> Path:
+        if Path(source) == active_original:
+            raise OSError("copy failed")
+        return Path(real_copy2(source, target))
+
+    with (
+        patch(
+            "app.logic.external_media.undo.shutil.copy2",
+            side_effect=fail_retained_original,
+        ),
+        pytest.raises(OSError, match="copy failed"),
+    ):
+        await create_undo_snapshot(
+            session,
+            uid=album.uid,
+            aid=album.id,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert old_snapshot.read_bytes() == old_snapshot_bytes
+    assert old_original_snapshot.read_bytes() == old_original_bytes
+
+
+async def test_undo_rejects_unreadable_original_snapshot_before_replacing_media(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    current_original = create_test_jpeg(
+        tmp_path / ".panoramas" / "originals" / f"{target.stem}.jpg",
+        2400,
+        600,
+    )
+    media.panorama = _active_panorama(str(current_original.relative_to(tmp_path)))
+    session.add(media)
+    undo_dir = tmp_path / ".undo"
+    create_test_jpeg(undo_dir / VALID_NAME, 1200, 900)
+    unreadable_original = undo_dir / "panorama-originals" / f"{target.stem}.jpg"
+    unreadable_original.mkdir(parents=True)
+    _add_undo_snapshot(
+        session,
+        media_name=VALID_NAME,
+        panorama=media.panorama,
+        original_snapshot_path=str(unreadable_original.relative_to(tmp_path)),
+    )
+    await session.commit()
+
+    with pytest.raises(ValueError, match="original snapshot"):
+        await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert target.read_bytes() == current_bytes
+    assert current_original.exists()
+
+
+async def test_undo_flush_failure_restores_current_and_snapshot_assets(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    current_original = create_test_jpeg(
+        tmp_path / ".panoramas" / "originals" / f"{target.stem}.jpg",
+        2400,
+        600,
+    )
+    current_original_bytes = current_original.read_bytes()
+    media.panorama = _active_panorama(str(current_original.relative_to(tmp_path)))
+    session.add(media)
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    snapshot_original = create_test_jpeg(
+        tmp_path / ".undo" / "panorama-originals" / f"{target.stem}.jpg",
+        3600,
+        900,
+    )
+    snapshot_original_bytes = snapshot_original.read_bytes()
+    _add_undo_snapshot(
+        session,
+        media_name=VALID_NAME,
+        panorama=media.panorama.model_copy(update={"source_width": 3600}),
+        original_snapshot_path=str(snapshot_original.relative_to(tmp_path)),
+    )
+    await session.commit()
+
+    with (
+        patch.object(session, "flush", side_effect=OSError("flush failed")),
+        pytest.raises(OSError, match="flush failed"),
+    ):
+        await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert target.read_bytes() == current_bytes
+    assert current_original.read_bytes() == current_original_bytes
+    assert snapshot.read_bytes() == snapshot_bytes
+    assert snapshot_original.read_bytes() == snapshot_original_bytes
+
+
+async def test_expired_snapshot_rejects_original_path_outside_undo(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    target_bytes = target.read_bytes()
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 320, 240)
+    _add_undo_snapshot(
+        session,
+        media_name=VALID_NAME,
+        original_snapshot_path=VALID_NAME,
+        expires_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    await session.commit()
+
+    with pytest.raises(ValueError, match="Undo snapshot path"):
+        await prune_expired_undo_snapshots(
+            session,
+            uid=album.uid,
+            aid=album.id,
+            album_dir=tmp_path,
+        )
+
+    assert target.read_bytes() == target_bytes
+    assert snapshot.exists()
+
+
+def test_panorama_directory_cleanup_propagates_io_failures(tmp_path: Path) -> None:
+    rendered = tmp_path / ".panoramas" / "rendered" / Path(VALID_NAME).stem
+    rendered.mkdir(parents=True)
+
+    def fail_unless_ignored(path: Path, *, ignore_errors: bool = False) -> None:
+        del path
+        if not ignore_errors:
+            raise PermissionError("cleanup failed")
+
+    with (
+        patch(
+            "app.logic.panorama.storage.shutil.rmtree",
+            side_effect=fail_unless_ignored,
+        ),
+        pytest.raises(PermissionError, match="cleanup failed"),
+    ):
+        remove_panorama_assets(tmp_path, VALID_NAME, None)
 
 
 async def test_expired_panorama_undo_copy_does_not_delete_active_original(
@@ -546,4 +831,5 @@ async def test_video_undo_regenerates_restored_poster(
         session, album, tmp_path, create_frame_patch=True
     )
 
-    extract_frame.assert_awaited_once_with(target)
+    extract_frame.assert_awaited_once_with(tmp_path / ".undo" / VALID_VIDEO_NAME)
+    assert target.with_suffix(".jpg").read_bytes() == b"generated poster"

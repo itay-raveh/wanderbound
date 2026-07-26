@@ -34,6 +34,7 @@ type PanoramaDimensions = {
   source_width: number;
   cropped_area_width?: number | null;
   captured_fov: number;
+  pitch?: number;
   perspective_fov?: number;
   zoom?: number;
 };
@@ -105,12 +106,19 @@ function effectivePanoramaDimensions(
   const perspectiveVerticalFov =
     2 * Math.atan(Math.tan(perspectiveFov / 2) / cellAspect);
   const cylinderFocalLength = sourceWidth / capturedFov;
+  const pitch = ((panorama.pitch ?? 0) * Math.PI) / 180;
+  const halfVerticalFov = perspectiveVerticalFov / 2;
   const zoom = panorama.zoom ?? 1;
 
   return {
     width: (sourceWidth * perspectiveFov) / capturedFov / zoom,
     height:
-      (2 * cylinderFocalLength * Math.tan(perspectiveVerticalFov / 2)) / zoom,
+      (cylinderFocalLength *
+        Math.abs(
+          Math.tan(pitch + halfVerticalFov) -
+            Math.tan(pitch - halfVerticalFov),
+        )) /
+      zoom,
   };
 }
 

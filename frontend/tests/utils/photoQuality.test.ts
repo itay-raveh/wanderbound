@@ -256,6 +256,32 @@ describe("summarizeQuality", () => {
     expect(zoomed?.dpi).toBe(Math.round((unzoomed?.dpi ?? 0) / 2));
   });
 
+  it("accounts for nonzero pitch in cylindrical vertical source pixels", () => {
+    const wide = media("wide.jpg", 8000, 1000);
+    wide.panorama = {
+      status: "active",
+      detection: "gpano",
+      source_width: 8000,
+      source_height: 1000,
+      cropped_area_width: 8000,
+      cropped_area_height: 1000,
+      captured_fov: 240,
+      pitch: 25,
+      perspective_fov: 60,
+      zoom: 1,
+      revision: 1,
+    };
+
+    const quality = mediaQuality(
+      wide.name,
+      { widthFrac: 1, heightFrac: 1 },
+      "contain",
+      mediaMap(wide),
+    );
+
+    expect(quality?.dpi).toBe(238);
+  });
+
   it("uses two A4 page widths for a panorama spread quality warning", () => {
     const wide = media("wide.jpg", 8000, 1000);
     wide.panorama = {

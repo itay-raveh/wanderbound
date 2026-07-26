@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,6 +8,7 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.worker_threads import run_sync
+from app.logic.external_media.files import MediaAssetTransition
 from app.logic.layout.media import (
     Media,
     delete_thumbnails,
@@ -23,18 +23,25 @@ from app.logic.media_import import (
     process_saved_media,
 )
 from app.logic.media_upgrade.hashes import try_compute_serialized_media_hash
-from app.logic.panorama.storage import (
-    preserve_panorama_original,
-    remove_panorama_assets,
-)
+from app.logic.panorama.storage import preserve_panorama_original
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, PanoramaConfig
 
-from .undo import create_undo_snapshot
+from .undo import UndoSnapshotUpdate, create_undo_snapshot
 
 
 class MediaNotFoundError(ValueError):
     pass
+
+
+def _rollback_snapshot(update: UndoSnapshotUpdate | None) -> None:
+    if update is not None:
+        update.rollback()
+
+
+def _finish_snapshot(update: UndoSnapshotUpdate | None) -> None:
+    if update is not None:
+        update.finish()
 
 
 def _unpack_replacement(
@@ -57,22 +64,26 @@ async def _replacement_panorama(
     replacement: Media,
     album_dir: Path,
     media_name: str,
-) -> PanoramaConfig | None:
+    transition: MediaAssetTransition,
+) -> tuple[PanoramaConfig | None, tuple[Path, Path] | None]:
     if (
         not isinstance(replacement, ImportedMedia)
         or replacement.panorama is None
         or replacement.source_path is None
     ):
-        return None
+        return None, None
     original = await run_sync(
         preserve_panorama_original,
         replacement.source_path,
-        album_dir,
+        transition.staging_dir,
         media_name,
         limiter=media_limiter,
     )
-    return replacement.panorama.model_copy(
-        update={"original_path": str(original.relative_to(album_dir))}
+    relative = original.relative_to(transition.staging_dir)
+    destination = album_dir / relative
+    return (
+        replacement.panorama.model_copy(update={"original_path": str(relative)}),
+        (original, destination),
     )
 
 
@@ -92,6 +103,17 @@ async def replace_album_media_from_saved(
     if row is None:
         raise MediaNotFoundError("Media not found")
     written: list[Path] = []
+    transition = MediaAssetTransition(album_dir, media_name)
+    snapshot_update: UndoSnapshotUpdate | None = None
+    previous_values = {
+        "width": row.width,
+        "height": row.height,
+        "byte_size": row.byte_size,
+        "perceptual_hashes": row.perceptual_hashes,
+        "panorama": row.panorama,
+        "upgrade_candidate": row.upgrade_candidate,
+        "updated_at": row.updated_at,
+    }
     try:
         imported, written = await process_saved_media(
             album_dir=album_dir,
@@ -99,8 +121,22 @@ async def replace_album_media_from_saved(
         )
         replacement, replacement_path = _unpack_replacement(imported, written)
         _validate_replacement_kind(row, replacement.name)
+        if is_video(media_name) and not replacement_path.with_suffix(".jpg").exists():
+            await extract_frame(replacement_path)
+        byte_size = replacement_path.stat().st_size
+        perceptual_hashes = await run_sync(
+            try_compute_serialized_media_hash,
+            replacement_path,
+            limiter=media_limiter,
+        )
+        replacement_panorama, replacement_original = await _replacement_panorama(
+            replacement,
+            album_dir,
+            media_name,
+            transition,
+        )
 
-        await create_undo_snapshot(
+        snapshot_update = await create_undo_snapshot(
             session,
             uid=album.uid,
             aid=album.id,
@@ -108,30 +144,32 @@ async def replace_album_media_from_saved(
             media_name=media_name,
         )
         target = album_dir / media_name
-        await run_sync(shutil.move, replacement_path, target)
-        if replacement_path.suffix == ".mp4":
-            await run_sync(replacement_path.with_suffix(".jpg").unlink, missing_ok=True)
-        written = []
-        await run_sync(remove_panorama_assets, album_dir, media_name, row.panorama)
-        row.panorama = await _replacement_panorama(replacement, album_dir, media_name)
+        await run_sync(
+            transition.activate,
+            replacement_path,
+            row.panorama,
+            replacement_original=replacement_original,
+        )
         await run_sync(delete_thumbnails, target)
-        if row.kind == "video":
-            await extract_frame(target)
 
         row.width = replacement.width
         row.height = replacement.height
-        row.byte_size = target.stat().st_size
-        row.perceptual_hashes = await run_sync(
-            try_compute_serialized_media_hash,
-            target,
-            limiter=media_limiter,
-        )
+        row.byte_size = byte_size
+        row.perceptual_hashes = perceptual_hashes
+        row.panorama = replacement_panorama
         row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)
         session.add(row)
         await session.flush()
     except BaseException:
+        await run_sync(transition.rollback)
+        await run_sync(_rollback_snapshot, snapshot_update)
+        for name, value in previous_values.items():
+            setattr(row, name, value)
         await cleanup_imported_paths(written)
         raise
     else:
+        await run_sync(transition.finish)
+        await run_sync(_finish_snapshot, snapshot_update)
+        written = []
         return row
