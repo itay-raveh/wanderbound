@@ -6,7 +6,7 @@ export function mergeImportedUnused(
 ): Step {
   const alreadyPlaced = new Set([
     ...step.unused,
-    ...step.pages.flat(),
+    ...step.pages.flatMap((page) => page.media),
     ...(step.cover ? [step.cover] : []),
   ]);
   const imported = names.filter((name) => !alreadyPlaced.has(name));

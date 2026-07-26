@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { AlbumMedia } from "@/client";
 import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
@@ -6,9 +7,10 @@ import { registerQualityBadge } from "@/composables/usePhotoQuality";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
-import { useElementVisibility } from "@vueuse/core";
+import { useElementVisibility, useResizeObserver } from "@vueuse/core";
 import {
   isVideo as checkVideo,
+  isPanorama,
   mediaUrl,
   mediaThumbUrl,
   posterPath,
@@ -16,7 +18,16 @@ import {
   SIZES_HALF,
   THUMB_WIDTHS,
 } from "@/utils/media";
-import { computed, inject, nextTick, ref, watch, watchEffect } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  inject,
+  nextTick,
+  onMounted,
+  ref,
+  watch,
+  watchEffect,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import {
   matPlayArrow,
@@ -28,6 +39,12 @@ import {
 
 const { t } = useI18n();
 
+const PanoramaFrameDialog = defineAsyncComponent(() =>
+  import("@/components/editor/PanoramaFrameDialog.vue").then(
+    (module) => module.default,
+  ),
+);
+
 const props = withDefaults(
   defineProps<{
     media: string;
@@ -38,11 +55,19 @@ const props = withDefaults(
     quality?: PhotoQuality | null;
     lazyRoot?: HTMLElement | null;
     lazy?: boolean;
+    panoramaDestinationKind?: string;
+    makeFullPage?: boolean;
+    makePanoramaSpread?: boolean;
   }>(),
   { focusable: true, alt: "", lazy: true },
 );
 
-const { albumId, mediaByName } = useAlbum();
+const emit = defineEmits<{
+  "make-full-page": [media: string];
+  "make-panorama-spread": [media: string];
+}>();
+
+const { albumId, mediaByName, placementMediaUrl } = useAlbum();
 const printMode = usePrintMode();
 const supportsIntersectionObserver =
   typeof window !== "undefined" && "IntersectionObserver" in window;
@@ -52,6 +77,18 @@ const shouldLoadImmediately = computed(
 
 const programmaticScroll = inject(PROGRAMMATIC_SCROLL_KEY, ref(false));
 const rootRef = ref<HTMLElement | null>(null);
+const placementWidth = ref(0);
+const placementHeight = ref(0);
+
+function updatePlacementSize(): void {
+  const bounds = rootRef.value?.getBoundingClientRect();
+  if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
+  placementWidth.value = bounds.width;
+  placementHeight.value = bounds.height;
+}
+
+useResizeObserver(rootRef, updatePlacementSize);
+onMounted(updatePlacementSize);
 const visible = useElementVisibility(rootRef, {
   scrollTarget: computed(() => props.lazyRoot ?? null),
   rootMargin: "300px",
@@ -103,7 +140,37 @@ const mediaCacheKey = computed(() => {
   return m?.updated_at;
 });
 
+const albumMedia = computed(() => mediaByName.value.get(props.media));
+const panorama = computed(() => albumMedia.value?.panorama);
+const activePanorama = computed(() => panorama.value != null);
+const hasPanoramaAction = computed(
+  () =>
+    !printMode &&
+    !isVideo.value &&
+    props.panoramaDestinationKind != null &&
+    isPanorama(albumMedia.value),
+);
+const panoramaActionLabel = computed(() =>
+  panorama.value ? t("panorama.frame.title") : t("panorama.treat"),
+);
+const panoramaDialogOpen = ref(false);
+const panoramaAspectRatio = computed<number | null>(() => {
+  if (
+    !props.panoramaDestinationKind ||
+    placementWidth.value <= 0 ||
+    placementHeight.value <= 0
+  )
+    return null;
+  return placementWidth.value / placementHeight.value;
+});
+
+function openPanoramaFrame(): void {
+  updatePlacementSize();
+  if (panoramaAspectRatio.value) panoramaDialogOpen.value = true;
+}
+
 const src = computed(() => {
+  if (activePanorama.value) return placementMediaUrl(props.media);
   const base = mediaUrl(props.media, albumId.value);
   return mediaCacheKey.value
     ? `${base}?d=${encodeURIComponent(mediaCacheKey.value)}`
@@ -111,6 +178,7 @@ const src = computed(() => {
 });
 
 const imageSrc = computed(() => {
+  if (activePanorama.value) return src.value;
   if (printMode) return src.value;
   return mediaThumbUrl(
     isVideo.value ? posterPath(props.media) : props.media,
@@ -140,11 +208,12 @@ const posterSrc = computed(() => {
 });
 
 const imgSrcset = computed(() => {
-  if (printMode) return undefined;
+  if (printMode || activePanorama.value) return undefined;
   const name = isVideo.value ? posterPath(props.media) : props.media;
   const base = mediaUrl(name, albumId.value);
   const extra: string[] = [];
-  if (mediaCacheKey.value) extra.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
+  if (mediaCacheKey.value)
+    extra.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
   if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
   const suffix = extra.length ? `&${extra.join("&")}` : "";
   return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");
@@ -321,6 +390,43 @@ function onVideoKey(e: KeyboardEvent) {
         }}
       </q-tooltip>
     </button>
+    <div
+      v-if="hasPanoramaAction"
+      class="panorama-actions column items-end"
+      @click.stop
+    >
+      <button
+        type="button"
+        class="panorama-frame-action panorama-action"
+        @click="openPanoramaFrame"
+      >
+        {{ panoramaActionLabel }}
+      </button>
+      <button
+        v-if="activePanorama && makeFullPage"
+        type="button"
+        class="panorama-full-page-action panorama-action"
+        @click="emit('make-full-page', media)"
+      >
+        {{ t("panorama.makeFullPage") }}
+      </button>
+      <button
+        v-if="activePanorama && makePanoramaSpread"
+        type="button"
+        class="panorama-spread-action panorama-action"
+        @click="emit('make-panorama-spread', media)"
+      >
+        {{ t("panorama.makeSpread") }}
+      </button>
+    </div>
+    <PanoramaFrameDialog
+      v-if="panoramaDialogOpen && albumMedia && panoramaAspectRatio"
+      v-model="panoramaDialogOpen"
+      :album-id="albumId"
+      :media="albumMedia as AlbumMedia"
+      :aspect-ratio="panoramaAspectRatio"
+      :show-seam="panoramaDestinationKind === 'panorama_spread'"
+    />
   </div>
 </template>
 
@@ -498,12 +604,39 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
+.panorama-actions {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: var(--gap-md);
+  inset-inline-end: var(--gap-md);
+  gap: var(--gap-sm);
+}
+
+.panorama-action {
+  min-height: 2.75rem;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  border: 1px solid var(--q-primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--q-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: 600;
+}
+
+.panorama-action:focus-visible {
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: 0.125rem;
+}
+
 @media print {
   .play-overlay,
   .frame-bar,
   .quality-badge {
     display: none !important;
   }
+
 }
 
 @media (pointer: coarse) {

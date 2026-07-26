@@ -1,4 +1,8 @@
-import type { AlbumMedia, StepPageLayout, StepRead as Step } from "@/client";
+import type {
+  AlbumMedia,
+  StepPageLayout,
+  StepRead as Step,
+} from "@/client";
 import {
   layoutDescription,
   type JustifiedLine,
@@ -7,15 +11,24 @@ import { isPortrait } from "@/utils/media";
 
 export interface IndexedPage {
   originalIdx: number;
-  page: string[];
+  page: StepPageLayout;
 }
+
+type PlannedStepPage =
+  | { kind: "step"; photoIds: string[] }
+  | {
+      kind: StepPageLayout["kind"];
+      photoIds: string[];
+      originalIdx: number;
+      page: StepPageLayout;
+    };
 
 export type StepPagePlan = {
   sidebarLines: JustifiedLine[];
   continuationPages: JustifiedLine[][];
   continuationPhotos: string[];
   photoPages: IndexedPage[];
-  editorPagePhotoIds: string[][];
+  editorPages: PlannedStepPage[];
   totalPhotos: number;
   hasPhotoDropZone: boolean;
 };
@@ -25,14 +38,14 @@ export function filterCoverFromPages(
   cover: string | null | undefined,
 ): IndexedPage[] {
   if (!cover) {
-    return pages.map((page, i) => ({ originalIdx: i, page: page.media }));
+    return pages.map((page, i) => ({ originalIdx: i, page }));
   }
   return pages
     .map((page, i) => ({
       originalIdx: i,
-      page: page.media.filter((p) => p !== cover),
+      page: { ...page, media: page.media.filter((name) => name !== cover) },
     }))
-    .filter(({ page }) => page.length > 0);
+    .filter(({ page }) => page.media.length > 0);
 }
 
 function selectContinuationPhotos(
@@ -43,7 +56,8 @@ function selectContinuationPhotos(
   if (needed === 0) return [];
   const result: string[] = [];
   for (const { page } of photoPages) {
-    for (const name of page) {
+    if (page.kind !== "grid") continue;
+    for (const name of page.media) {
       const media = mediaByName.get(name);
       if (media && isPortrait(media)) result.push(name);
       if (result.length >= needed) return result;
@@ -69,9 +83,12 @@ export function planStepPages(
     ? rawPhotoPages
         .map(({ originalIdx, page }) => ({
           originalIdx,
-          page: page.filter((p) => !used.has(p)),
+          page: {
+            ...page,
+            media: page.media.filter((name) => !used.has(name)),
+          },
         }))
-        .filter(({ page }) => page.length > 0)
+        .filter(({ page }) => page.media.length > 0)
     : rawPhotoPages;
   const totalPhotos =
     step.pages.reduce((n, page) => n + page.media.length, 0) +
@@ -82,12 +99,18 @@ export function planStepPages(
     continuationPages,
     continuationPhotos,
     photoPages,
-    editorPagePhotoIds: [
-      [],
-      ...continuationPages.map((_, i) =>
-        continuationPhotos[i] ? [continuationPhotos[i]] : [],
-      ),
-      ...photoPages.map(({ page }) => page),
+    editorPages: [
+      { kind: "step", photoIds: [] },
+      ...continuationPages.map((_, i) => ({
+        kind: "step" as const,
+        photoIds: continuationPhotos[i] ? [continuationPhotos[i]] : [],
+      })),
+      ...photoPages.map(({ originalIdx, page }) => ({
+        kind: page.kind,
+        photoIds: page.media,
+        originalIdx,
+        page,
+      })),
     ],
     totalPhotos,
     hasPhotoDropZone: totalPhotos >= 2,

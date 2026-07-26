@@ -3,6 +3,7 @@ import type { StepRead as Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepDescriptionPage from "./step/StepDescriptionPage.vue";
+import PanoramaSpreadPage from "./PanoramaSpreadPage.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextLayout } from "@/composables/useTextLayout";
@@ -23,10 +24,14 @@ const props = defineProps<{
 const dropZoneRef = ref<HTMLElement | null>(null);
 const coverDropRef = ref<HTMLElement | null>(null);
 
-const { printMode, isDragging, saveField, onPageUpdate } = useStepLayout(
-  toRef(props, "step"),
-  { dropZoneRef, coverDropRef },
-);
+const {
+  printMode,
+  isDragging,
+  saveField,
+  onPageUpdate,
+  onMakeFullPage,
+  onMakePanoramaSpread,
+} = useStepLayout(toRef(props, "step"), { dropZoneRef, coverDropRef });
 
 provide(STEP_ID_KEY, props.step.id);
 
@@ -116,18 +121,64 @@ const hasPhotoDropZone = computed(
         @update:description="saveField({ description: $event })"
       />
 
+      <div
+        v-if="selectedPhotoPage?.page.kind === 'panorama_spread'"
+        class="panorama-spread row no-wrap"
+      >
+        <PanoramaSpreadPage
+          :media="selectedPhotoPage.page.media[0]!"
+          side="left"
+          @make-full-page="
+            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+          "
+        />
+        <PanoramaSpreadPage
+          :media="selectedPhotoPage.page.media[0]!"
+          side="right"
+          @make-full-page="
+            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+          "
+        />
+      </div>
       <StepPhotoPage
-        v-if="selectedPhotoPage"
+        v-else-if="selectedPhotoPage"
         :page="selectedPhotoPage.page"
-        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event)"
+        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event.media)"
+        @make-full-page="
+          onMakeFullPage(selectedPhotoPage.originalIdx, $event)
+        "
+        @make-panorama-spread="
+          onMakePanoramaSpread(selectedPhotoPage.originalIdx, $event)
+        "
       />
-      <StepPhotoPage
+      <template
         v-else-if="pageIndex == null"
         v-for="{ originalIdx, page } in photoPages"
         :key="`page-${originalIdx}`"
-        :page="page"
-        @update:page="onPageUpdate(originalIdx, $event)"
-      />
+      >
+        <div
+          v-if="page.kind === 'panorama_spread'"
+          class="panorama-spread row no-wrap"
+        >
+          <PanoramaSpreadPage
+            :media="page.media[0]!"
+            side="left"
+            @make-full-page="onMakeFullPage(originalIdx, $event)"
+          />
+          <PanoramaSpreadPage
+            :media="page.media[0]!"
+            side="right"
+            @make-full-page="onMakeFullPage(originalIdx, $event)"
+          />
+        </div>
+        <StepPhotoPage
+          v-else
+          :page="page"
+          @update:page="onPageUpdate(originalIdx, $event.media)"
+          @make-full-page="onMakeFullPage(originalIdx, $event)"
+          @make-panorama-spread="onMakePanoramaSpread(originalIdx, $event)"
+        />
+      </template>
 
       <div
         v-if="pageIndex == null && !printMode && hasPhotoDropZone"
@@ -152,6 +203,15 @@ const hasPhotoDropZone = computed(
 .step-entry {
   --meta-width: calc(var(--meta-ratio) * 100%);
   position: relative;
+}
+
+.panorama-spread {
+  width: calc(var(--page-width) * var(--editor-zoom, 1) * 2);
+  margin: 0 auto;
+
+  :deep(.page-container) {
+    margin-inline: 0;
+  }
 }
 
 .cover-drop-overlay {

@@ -29,7 +29,16 @@ export interface PhotoQuality {
   dpi: number;
 }
 
-type MediaDimensions = { width: number; height: number };
+type PanoramaDimensions = {
+  pitch?: number;
+  perspective_fov?: number;
+  zoom?: number;
+};
+type MediaDimensions = {
+  width: number;
+  height: number;
+  panorama?: PanoramaDimensions | null;
+};
 
 const DPI_CAUTION_DEFAULT = 100;
 const DPI_WARNING_DEFAULT = 75;
@@ -78,6 +87,37 @@ export function dpiTier(
   return "ok";
 }
 
+function effectivePanoramaDimensions(
+  media: MediaDimensions,
+  cell: PageFraction,
+): MediaDimensions | null {
+  const panorama = media.panorama;
+  if (!panorama) return null;
+
+  const sourceWidth = media.width;
+  const capturedFov =
+    (Math.min(359, (90 * media.width) / media.height) * Math.PI) / 180;
+  const perspectiveFov = ((panorama.perspective_fov ?? 70) * Math.PI) / 180;
+  const cellAspect =
+    (cell.widthFrac * PAGE_WIDTH_MM) / (cell.heightFrac * PAGE_HEIGHT_MM);
+  const perspectiveVerticalFov =
+    2 * Math.atan(Math.tan(perspectiveFov / 2) / cellAspect);
+  const cylinderFocalLength = sourceWidth / capturedFov;
+  const pitch = ((panorama.pitch ?? 0) * Math.PI) / 180;
+  const halfVerticalFov = perspectiveVerticalFov / 2;
+  const zoom = panorama.zoom ?? 1;
+
+  return {
+    width: (sourceWidth * perspectiveFov) / capturedFov / zoom,
+    height:
+      (cylinderFocalLength *
+        Math.abs(
+          Math.tan(pitch + halfVerticalFov) - Math.tan(pitch - halfVerticalFov),
+        )) /
+      zoom,
+  };
+}
+
 export function mediaQuality(
   name: string,
   cell: PageFraction,
@@ -87,7 +127,8 @@ export function mediaQuality(
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
-  const dpi = computeDpi(m.width, m.height, cell, fit);
+  const dimensions = effectivePanoramaDimensions(m, cell) ?? m;
+  const dpi = computeDpi(dimensions.width, dimensions.height, cell, fit);
   return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }
 
@@ -136,9 +177,22 @@ export function summarizeQuality(
     for (const page of step.pages) {
       // Skip the cover photo (it's displayed on StepMainPage, not photo pages)
       const filtered = step.cover
-        ? page.media.filter((p) => p !== step.cover)
+        ? page.media.filter((name) => name !== step.cover)
         : page.media;
       if (filtered.length === 0) continue;
+
+      if (page.kind === "panorama_spread") {
+        count(
+          mediaQuality(
+            filtered[0],
+            { widthFrac: 2, heightFrac: 1 },
+            "cover",
+            mediaByName,
+            preset,
+          )?.tier ?? "ok",
+        );
+        continue;
+      }
 
       const ordered = enforceOrientationOrder(filtered, isP);
       const layoutClass = resolveLayoutClass(ordered, isP);

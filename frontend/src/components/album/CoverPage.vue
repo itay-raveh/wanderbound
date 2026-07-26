@@ -67,6 +67,7 @@ function saveText(field: "title" | "subtitle", value: string) {
       v-if="coverMedia"
       :media="coverMedia"
       fit-cover
+      panorama-destination-kind="cover"
       :quality="coverQuality"
       :class="['fit', { 'cover-dimmed': !isBack }]"
       :style="

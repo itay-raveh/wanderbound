@@ -13,23 +13,28 @@ import {
   resolveLayoutClass,
 } from "@/utils/photoLayout";
 import { mediaQuality } from "@/utils/photoQuality";
+import type { StepPageLayout } from "@/client";
 
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 const printMode = usePrintMode();
 
 const props = defineProps<{
-  page: string[];
+  page: StepPageLayout;
 }>();
 
 const emit = defineEmits<{
-  "update:page": [page: string[]];
+  "update:page": [page: StepPageLayout];
+  "make-full-page": [media: string];
+  "make-panorama-spread": [media: string];
 }>();
 const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
-const localPage = ref(enforceOrientationOrder([...props.page], isPortrait));
+const localPage = ref(
+  enforceOrientationOrder([...props.page.media], isPortrait),
+);
 watch(
-  () => props.page,
+  () => props.page.media,
   (val) => {
     const enforced = enforceOrientationOrder(val, isPortrait);
     if (
@@ -49,7 +54,7 @@ const pageVisible = useElementVisibility(containerRef, {
 
 function syncPage() {
   localPage.value = enforceOrientationOrder(localPage.value, isPortrait);
-  emit("update:page", [...localPage.value]);
+  emit("update:page", { ...props.page, media: [...localPage.value] });
 }
 
 if (!printMode) {
@@ -106,7 +111,14 @@ const photoQualities = computed(() =>
         :key="photo"
         :media="photo"
         :quality="photoQualities[i]"
+        :panorama-destination-kind="
+          localPage.length === 1 ? 'full_page' : 'grid'
+        "
+        :make-full-page="localPage.length > 1"
+        :make-panorama-spread="localPage.length === 1"
         class="item"
+        @make-full-page="emit('make-full-page', $event)"
+        @make-panorama-spread="emit('make-panorama-spread', $event)"
       />
     </div>
   </div>

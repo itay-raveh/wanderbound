@@ -7,9 +7,14 @@ import type {
 } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import CoverPage from "./album/CoverPage.vue";
+import AlignmentPage from "./album/AlignmentPage.vue";
+import PanoramaSpreadPage from "./album/PanoramaSpreadPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { providePrintMode } from "@/composables/usePrintReady";
-import { provideStepMutate } from "@/composables/useStepLayout";
+import {
+  fullPageLayout,
+  provideStepMutate,
+} from "@/composables/useStepLayout";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
@@ -25,11 +30,11 @@ import {
 } from "@/utils/photoQuality";
 import { setSafeMargin } from "@/composables/useSafeMargin";
 import { setQualitySummary } from "@/composables/usePhotoQuality";
-import { visibleHeaderKeys, sectionKey } from "./album/albumSections";
+import { visibleHeaderKeys } from "./album/albumSections";
 import {
   buildChapterRenderGroups,
   buildEditorItems,
-  countChapterRenderPages,
+  buildPhysicalRenderItems,
   type ChapterRenderGroup,
 } from "./album/albumRenderPlan";
 import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
@@ -78,6 +83,15 @@ const props = defineProps<{
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
 }>();
+
+let mutateStepLayout:
+  | ((payload: { sid: number; update: { pages: Step["pages"] } }) => void)
+  | null = null;
+
+function makeFullPage(step: Step, pageIndex: number, media: string): void {
+  const pages = fullPageLayout(step, pageIndex, media);
+  if (pages) mutateStepLayout?.({ sid: step.id, update: { pages } });
+}
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(
@@ -164,9 +178,6 @@ if (!props.printMode) {
   });
 }
 
-const expectedPageCount = computed(
-  () => countChapterRenderPages(chapterRenderGroups.value, mediaByName.value),
-);
 const listRef = ref<HTMLElement | null>(null);
 const pageContentSuspended = ref(false);
 const scrollMargin = ref(0);
@@ -183,6 +194,10 @@ const editorPhotoDropZoneHeight = 96;
 const editorItems = computed(() =>
   buildEditorItems(chapterRenderGroups.value, mediaByName.value),
 );
+const physicalRenderItems = computed(() =>
+  buildPhysicalRenderItems(editorItems.value),
+);
+const expectedPageCount = computed(() => physicalRenderItems.value.length);
 
 const { virtualizer, items, size, version } = useWindowVirtualizer(
   computed(() => {
@@ -206,7 +221,13 @@ function sectionIdAt(vIndex: number) {
   const item = editorItems.value[vIndex];
   if (!item) return null;
   if (item.type === "header") return item.key;
-  if (item.type === "step-page" || item.type === "step-add-zone")
+  if (
+    item.type === "step-page" ||
+    item.type === "grid" ||
+    item.type === "panorama-spread" ||
+    item.type === "alignment" ||
+    item.type === "step-add-zone"
+  )
     return item.step.id;
   return item.key;
 }
@@ -222,6 +243,7 @@ if (props.printMode) {
   providePrintMode();
 } else {
   const stepMut = useStepMutation(() => props.album.id);
+  mutateStepLayout = (payload) => stepMut.mutate(payload);
   provideStepMutate((payload) => stepMut.mutate(payload));
 
   const undoStack = useUndoStack();
@@ -282,7 +304,12 @@ if (props.printMode) {
   const photoIdToVIdx = computed(() => {
     const map = new Map<string, number>();
     editorItems.value.forEach((item, i) => {
-      if (item.type !== "step-page") return;
+      if (
+        item.type !== "step-page" &&
+        item.type !== "grid" &&
+        item.type !== "panorama-spread"
+      )
+        return;
       for (const photoId of item.photoIds) {
         map.set(`${item.step.id}\0${photoId}`, i);
       }
@@ -509,49 +536,62 @@ if (props.printMode) {
     :data-expected-pages="expectedPageCount"
     :style="albumStyle"
   >
-    <template v-for="group in chapterRenderGroups" :key="group.chapter.id">
+    <template v-for="item in physicalRenderItems" :key="item.key">
       <CoverPage
-        v-if="group.headerKeys.includes('cover-front')"
+        v-if="item.type === 'header' && item.headerKey === 'cover-front'"
         :album="album"
-        :chapter="group.chapter"
-        :steps="group.steps"
+        :chapter="item.chapter"
+        :steps="item.steps"
       />
       <CoverPage
-        v-if="group.headerKeys.includes('cover-back')"
+        v-else-if="item.type === 'header' && item.headerKey === 'cover-back'"
         :album="album"
-        :chapter="group.chapter"
-        :steps="group.steps"
+        :chapter="item.chapter"
+        :steps="item.steps"
         is-back
       />
       <OverviewPage
-        v-if="group.headerKeys.includes('overview')"
+        v-else-if="item.type === 'header' && item.headerKey === 'overview'"
         :album="album"
-        :segments="group.segments"
-        :steps="group.steps"
+        :segments="item.segments"
+        :steps="item.steps"
       />
-      <div v-if="group.headerKeys.includes('full-map')" class="map-wrapper">
-        <MapPage :segment-outlines="group.segments" :steps="group.steps" />
+      <div
+        v-else-if="item.type === 'header' && item.headerKey === 'full-map'"
+        class="map-wrapper"
+      >
+        <MapPage :segment-outlines="item.segments" :steps="item.steps" />
       </div>
-
-      <template v-for="section in group.sections" :key="sectionKey(section)">
-        <template v-if="section.type === 'map' || section.type === 'hike'">
-          <div class="map-wrapper">
-            <MapPage
-              v-if="section.type === 'map'"
-              :segment-outlines="section.segments"
-              :steps="section.steps"
-            />
-            <HikeMapPage
-              v-else
-              :segments="section.segments"
-              :steps="section.steps"
-              :hike-segment="section.hikeSegment"
-              :all-segments="segmentOutlines"
-            />
-          </div>
-        </template>
-        <StepEntry v-else :step="section.step" />
-      </template>
+      <div v-else-if="item.type === 'map'" class="map-wrapper">
+        <MapPage
+          :segment-outlines="item.section.segments"
+          :steps="item.section.steps"
+        />
+      </div>
+      <div v-else-if="item.type === 'hike'" class="map-wrapper">
+        <HikeMapPage
+          :segments="item.section.segments"
+          :steps="item.section.steps"
+          :hike-segment="item.section.hikeSegment"
+          :all-segments="segmentOutlines"
+        />
+      </div>
+      <StepEntry
+        v-else-if="item.type === 'step-page' || item.type === 'grid'"
+        :step="item.step"
+        :page-index="item.pageIndex"
+      />
+      <AlignmentPage v-else-if="item.type === 'alignment'" />
+      <PanoramaSpreadPage
+        v-else-if="item.type === 'panorama-spread-left'"
+        :media="item.media"
+        side="left"
+      />
+      <PanoramaSpreadPage
+        v-else-if="item.type === 'panorama-spread-right'"
+        :media="item.media"
+        side="right"
+      />
     </template>
   </div>
 
@@ -631,10 +671,24 @@ if (props.printMode) {
               />
             </div>
             <StepEntry
-              v-else-if="item.type === 'step-page'"
+              v-else-if="item.type === 'step-page' || item.type === 'grid'"
               :step="item.step"
               :page-index="item.pageIndex"
             />
+            <AlignmentPage v-else-if="item.type === 'alignment'" />
+            <div
+              v-else-if="item.type === 'panorama-spread'"
+              class="panorama-spread row no-wrap"
+            >
+              <PanoramaSpreadPage
+                :media="item.media"
+                side="left"
+                @make-full-page="
+                  makeFullPage(item.step, item.originalPageIndex, $event)
+                "
+              />
+              <PanoramaSpreadPage :media="item.media" side="right" />
+            </div>
             <StepEntry
               v-else-if="item.type === 'step-add-zone'"
               :step="item.step"
@@ -663,6 +717,15 @@ if (props.printMode) {
   background-color: var(--page-bg, var(--bg));
   font-family: var(--font-album);
   contain: strict; // strict containment creates a positioning context for ::after
+}
+
+.panorama-spread {
+  width: calc(var(--page-width) * var(--editor-zoom) * 2);
+  margin: 0 auto;
+
+  :deep(.page-container) {
+    margin-inline: 0;
+  }
 }
 
 // Editor mode: zoom shrinks pages for preview.

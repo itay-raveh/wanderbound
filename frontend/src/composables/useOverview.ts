@@ -36,7 +36,7 @@ export function computeOverview(
 ): Overview {
   const totalPhotos = steps.reduce(
     (sum, s) =>
-      sum + s.pages.reduce((ps, page) => ps + page.media.length, 0),
+      sum + s.pages.reduce((pageSum, page) => pageSum + page.media.length, 0),
     0,
   );
 

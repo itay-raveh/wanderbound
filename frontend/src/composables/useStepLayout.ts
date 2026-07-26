@@ -55,6 +55,28 @@ export function provideStepMutate(fn: StepMutateFn) {
   provide(STEP_MUTATE_KEY, fn);
 }
 
+export function fullPageLayout(
+  step: Step,
+  idx: number,
+  media: string,
+): Step["pages"] | null {
+  const target = step.pages[idx];
+  if (!target || !target.media.includes(media)) return null;
+  const pages = [...step.pages];
+  if (target.kind === "panorama_spread") {
+    pages[idx] = { kind: "grid", media: [media] };
+  } else {
+    if (target.media.length <= 1) return null;
+    pages.splice(
+      idx,
+      1,
+      { ...target, media: target.media.filter((name) => name !== media) },
+      { kind: "grid", media: [media] },
+    );
+  }
+  return pages;
+}
+
 interface DropRefs {
   dropZoneRef: Ref<HTMLElement | null>;
   coverDropRef: Ref<HTMLElement | null>;
@@ -87,12 +109,14 @@ export function useStepLayout(
     saveField(coverUpdatePayload(step.value, cover));
   }
 
-  function onPageUpdate(idx: number, page: string[]) {
+  function onPageUpdate(idx: number, media: string[]) {
     const s = step.value;
     const target = s.pages[idx];
-    if (!target) return;
+    if (!target || (target.kind === "panorama_spread" && media.length !== 1))
+      return;
+
     const existing = new Set(target.media);
-    const added = page.filter((p) => !existing.has(p));
+    const added = media.filter((name) => !existing.has(name));
 
     if (added.length > 0) {
       // Cross-list move: replace target page in-place, strip dragged photos
@@ -102,10 +126,10 @@ export function useStepLayout(
       const pages = s.pages
         .map((p, i) =>
           i === idx
-            ? { ...p, media: page }
+            ? { ...p, media }
             : {
                 ...p,
-                media: p.media.filter((photo) => !addedSet.has(photo)),
+                media: p.media.filter((name) => !addedSet.has(name)),
               },
         )
         .filter((p) => p.media.length > 0);
@@ -113,13 +137,33 @@ export function useStepLayout(
       saveField({ pages, unused });
     } else {
       const pages = [...s.pages];
-      pages[idx] = { ...target, media: page };
+      pages[idx] = { ...target, media };
       saveField({ pages });
     }
   }
 
   function onUnusedUpdate(unused: string[]) {
     saveField(unusedUpdatePayload(step.value, unused));
+  }
+
+  function onMakeFullPage(idx: number, media: string) {
+    const pages = fullPageLayout(step.value, idx, media);
+    if (!pages) return;
+    saveField({ pages });
+  }
+
+  function onMakePanoramaSpread(idx: number, media: string) {
+    const target = step.value.pages[idx];
+    if (
+      !target ||
+      target.kind !== "grid" ||
+      target.media.length !== 1 ||
+      target.media[0] !== media
+    )
+      return;
+    const pages = [...step.value.pages];
+    pages[idx] = { kind: "panorama_spread", media: [media] };
+    saveField({ pages });
   }
 
   if (!printMode) {
@@ -165,6 +209,8 @@ export function useStepLayout(
     isDragging,
     saveField,
     onPageUpdate,
+    onMakeFullPage,
+    onMakePanoramaSpread,
     onUnusedUpdate,
     onCoverUpdate,
   };
