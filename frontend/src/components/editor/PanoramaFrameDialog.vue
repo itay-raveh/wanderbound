@@ -43,7 +43,7 @@ const draft = ref<PanoramaFrameDraft>({
   perspectiveFov: 70,
   zoom: 1,
 });
-const initialFit = ref<PanoramaFrameDraft>({ ...draft.value });
+const savedOnOpen = ref<PanoramaFrameDraft>({ ...draft.value });
 const loading = ref(false);
 const applying = ref(false);
 const loadError = ref(false);
@@ -52,6 +52,7 @@ let resizeObserver: ResizeObserver | null = null;
 let openGeneration = 0;
 let pinchStartDistance = 0;
 let pinchStartZoom = 1;
+let pinchOwned = false;
 
 const panorama = computed(() => props.media.panorama);
 const isSpread = computed(
@@ -131,8 +132,10 @@ function currentBounds(frame = draft.value) {
   );
 }
 
-function panoramaSourceUrl(): string {
-  return `/api/v1/albums/${encodeURIComponent(props.albumId)}/media/${encodeURIComponent(props.media.name)}/panorama-source`;
+function panoramaSourceUrl(frame: PanoramaFrameDraft): string {
+  const base = `/api/v1/albums/${encodeURIComponent(props.albumId)}/media/${encodeURIComponent(props.media.name)}/panorama-source`;
+  if (panorama.value?.detection === "gpano") return base;
+  return `${base}?captured_fov=${encodeURIComponent(effectiveCapturedFov(frame))}`;
 }
 
 function cleanupAdapter(): void {
@@ -142,19 +145,15 @@ function cleanupAdapter(): void {
   adapter?.destroy();
   adapter = null;
   loading.value = false;
+  pinchOwned = false;
+  pinchStartDistance = 0;
 }
 
-async function initializeViewer(): Promise<void> {
+async function loadViewer(frame: PanoramaFrameDraft): Promise<void> {
   cleanupAdapter();
   if (!props.modelValue || !panorama.value) return;
   const generation = openGeneration;
-  const fitted = autoFitPanoramaFrame(
-    savedFrame(),
-    sourceGeometry(),
-    props.destination.aspect_ratio,
-  );
-  initialFit.value = fitted;
-  draft.value = { ...fitted };
+  draft.value = { ...frame };
   loadError.value = false;
   loading.value = true;
   await nextTick();
@@ -170,9 +169,10 @@ async function initializeViewer(): Promise<void> {
     nextAdapter = createdAdapter;
     adapter = createdAdapter;
     await createdAdapter.load({
-      src: panoramaSourceUrl(),
+      src: panoramaSourceUrl(frame),
       frame: draft.value,
       bounds: currentBounds(),
+      accessibleLabel: t("panorama.frame.preview"),
       onChange: (frame) => {
         draft.value = normalizedFrame(frame);
       },
@@ -195,6 +195,12 @@ async function initializeViewer(): Promise<void> {
   }
 }
 
+async function initializeViewer(): Promise<void> {
+  const saved = normalizedFrame(savedFrame());
+  savedOnOpen.value = saved;
+  await loadViewer(saved);
+}
+
 function setPerspective(value: number): void {
   const next = normalizedFrame({ ...draft.value, perspectiveFov: value });
   draft.value = next;
@@ -209,9 +215,7 @@ function setZoom(value: number): void {
 
 function setCapturedWidth(value: number): void {
   const next = normalizedFrame({ ...draft.value, capturedFov: value });
-  draft.value = next;
-  adapter?.setPerspective(next.perspectiveFov, currentBounds(next));
-  adapter?.lookAt(next, currentBounds(next));
+  void loadViewer(next);
 }
 
 function numberFromInput(event: Event): number {
@@ -219,12 +223,16 @@ function numberFromInput(event: Event): number {
 }
 
 function resetFrame(): void {
-  draft.value = { ...initialFit.value };
+  draft.value = autoFitPanoramaFrame(
+    draft.value,
+    sourceGeometry(),
+    props.destination.aspect_ratio,
+  );
   adapter?.reset(draft.value, currentBounds());
 }
 
 function cancel(): void {
-  draft.value = { ...initialFit.value };
+  draft.value = { ...savedOnOpen.value };
   emit("update:modelValue", false);
 }
 
@@ -271,22 +279,31 @@ function touchDistance(touches: TouchList): number {
 }
 
 function onTouchStart(event: TouchEvent): void {
-  if (event.touches.length < 2) return;
+  if (!pinchOwned && event.touches.length < 2) return;
   event.preventDefault();
   event.stopPropagation();
+  if (pinchOwned) return;
+  pinchOwned = true;
+  adapter?.cancelInteraction();
   pinchStartDistance = touchDistance(event.touches);
   pinchStartZoom = draft.value.zoom;
 }
 
 function onTouchMove(event: TouchEvent): void {
-  if (event.touches.length < 2 || pinchStartDistance <= 0) return;
+  if (!pinchOwned) return;
   event.preventDefault();
   event.stopPropagation();
+  if (event.touches.length < 2 || pinchStartDistance <= 0) return;
   setZoom(pinchStartZoom * (touchDistance(event.touches) / pinchStartDistance));
 }
 
 function onTouchEnd(event: TouchEvent): void {
-  if (event.touches.length < 2) pinchStartDistance = 0;
+  if (!pinchOwned) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.touches.length > 0) return;
+  pinchOwned = false;
+  pinchStartDistance = 0;
 }
 
 watch(
@@ -304,6 +321,8 @@ onBeforeUnmount(cleanupAdapter);
 <template>
   <q-dialog
     :model-value="modelValue"
+    aria-labelledby="panorama-frame-title"
+    aria-describedby="panorama-frame-description"
     persistent
     @hide="cleanupAdapter"
     @update:model-value="(value) => emit('update:modelValue', value)"
@@ -311,8 +330,10 @@ onBeforeUnmount(cleanupAdapter);
     <q-card class="panorama-dialog">
       <q-card-section class="panorama-header">
         <div>
-          <h2 class="panorama-title">{{ t("panorama.frame.title") }}</h2>
-          <p class="panorama-subtitle">
+          <h2 id="panorama-frame-title" class="panorama-title">
+            {{ t("panorama.frame.title") }}
+          </h2>
+          <p id="panorama-frame-description" class="panorama-subtitle">
             {{ t("panorama.frame.body") }}
           </p>
         </div>
@@ -339,10 +360,19 @@ onBeforeUnmount(cleanupAdapter);
               <div ref="viewerRoot" class="panorama-viewer-root" />
             </div>
             <div v-if="isSpread" class="spread-seam" aria-hidden="true" />
-            <div v-if="loading" class="viewport-status">
+            <div
+              v-if="loading"
+              class="viewport-status"
+              role="status"
+              aria-live="polite"
+            >
               {{ t("panorama.frame.loading") }}
             </div>
-            <div v-else-if="loadError" class="viewport-status viewport-error">
+            <div
+              v-else-if="loadError"
+              class="viewport-status viewport-error"
+              role="alert"
+            >
               {{ t("panorama.frame.unsupported") }}
             </div>
           </div>

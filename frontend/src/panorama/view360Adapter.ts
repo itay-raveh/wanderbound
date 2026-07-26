@@ -13,6 +13,7 @@ interface PanoramaViewerLoadOptions {
   src: string;
   frame: PanoramaFrameDraft;
   bounds: PanoramaCameraBounds;
+  accessibleLabel: string;
   onChange: (frame: PanoramaFrameDraft) => void;
 }
 
@@ -25,11 +26,16 @@ export interface PanoramaViewerAdapter {
   ): void;
   resize(): void;
   reset(frame: PanoramaFrameDraft, bounds: PanoramaCameraBounds): void;
+  cancelInteraction(): void;
   destroy(): void;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function signedYaw(value: number): number {
+  return ((value + 180) % 360 + 360) % 360 - 180;
 }
 
 export function createPanoramaViewerAdapter(
@@ -40,38 +46,50 @@ export function createPanoramaViewerAdapter(
   let frame: PanoramaFrameDraft | null = null;
   let bounds: PanoramaCameraBounds | null = null;
   let onChange: ((next: PanoramaFrameDraft) => void) | null = null;
+  let loadGeneration = 0;
 
   function boundedFrame(next: PanoramaFrameDraft): PanoramaFrameDraft {
     if (!bounds) return next;
     return {
       ...next,
-      yaw: clamp(next.yaw, bounds.yaw.min, bounds.yaw.max),
+      yaw: clamp(signedYaw(next.yaw), bounds.yaw.min, bounds.yaw.max),
       pitch: clamp(next.pitch, bounds.pitch.min, bounds.pitch.max),
     };
+  }
+
+  function enforceCameraState(target: PanoramaFrameDraft): void {
+    if (!viewer) return;
+    viewer.camera.restrictZoomRange(1, 1);
+    viewer.camera.lookAt({ yaw: target.yaw, pitch: target.pitch, zoom: 1 });
+    viewer.control.sync();
   }
 
   function applyLookAt(next: PanoramaFrameDraft, emit: boolean): void {
     if (!viewer) return;
     frame = boundedFrame(next);
-    viewer.camera.lookAt({ yaw: frame.yaw, pitch: frame.pitch, zoom: 1 });
-    viewer.control.sync();
+    enforceCameraState(frame);
     viewer.renderFrame(0);
     if (emit) onChange?.({ ...frame });
   }
 
   function handleViewChange(event: ViewChangeEvent): void {
     if (!frame || !viewer) return;
-    const next = boundedFrame({ ...frame, yaw: event.yaw, pitch: event.pitch });
-    if (next.yaw !== event.yaw || next.pitch !== event.pitch) {
-      viewer.camera.lookAt({ yaw: next.yaw, pitch: next.pitch, zoom: 1 });
-      viewer.control.sync();
-      viewer.renderFrame(0);
+    const eventYaw = signedYaw(event.yaw);
+    const next = boundedFrame({ ...frame, yaw: eventYaw, pitch: event.pitch });
+    if (
+      next.yaw !== eventYaw
+      || next.pitch !== event.pitch
+      || event.zoom !== 1
+      || viewer.camera.zoom !== 1
+    ) {
+      enforceCameraState(next);
     }
     frame = next;
     onChange?.({ ...next });
   }
 
   function destroy(): void {
+    loadGeneration += 1;
     viewer?.destroy();
     viewer = null;
     canvas?.remove();
@@ -85,19 +103,21 @@ export function createPanoramaViewerAdapter(
   return {
     async load(options) {
       destroy();
+      const generation = loadGeneration;
       frame = { ...options.frame };
       bounds = options.bounds;
       onChange = options.onChange;
       root.classList.add("view360-container");
       canvas = document.createElement("canvas");
       canvas.className = "view360-canvas";
+      canvas.setAttribute("aria-label", options.accessibleLabel);
       root.append(canvas);
 
       const projection = new CylindricalProjection({
         src: options.src,
         partial: true,
       });
-      viewer = new View360(root, {
+      const createdViewer = new View360(root, {
         projection,
         autoInit: false,
         autoResize: false,
@@ -114,8 +134,19 @@ export function createPanoramaViewerAdapter(
         scrollable: false,
         wheelScrollable: false,
       });
-      viewer.on(EVENTS.VIEW_CHANGE, handleViewChange);
-      await viewer.init();
+      viewer = createdViewer;
+      createdViewer.on(EVENTS.VIEW_CHANGE, handleViewChange);
+      try {
+        await createdViewer.init();
+      } catch (error) {
+        createdViewer.destroy();
+        if (viewer === createdViewer) destroy();
+        throw error;
+      }
+      if (generation !== loadGeneration || viewer !== createdViewer) {
+        createdViewer.destroy();
+        return;
+      }
       applyLookAt(frame, false);
     },
     lookAt(next, nextBounds) {
@@ -138,6 +169,14 @@ export function createPanoramaViewerAdapter(
       frame = { ...next };
       viewer.fov = frame.perspectiveFov;
       applyLookAt(frame, true);
+    },
+    cancelInteraction() {
+      if (!viewer || !frame) return;
+      const activeViewer = viewer;
+      activeViewer.control.disable();
+      void activeViewer.control.enable().then(() => {
+        if (viewer === activeViewer && frame) enforceCameraState(frame);
+      });
     },
     destroy,
   };

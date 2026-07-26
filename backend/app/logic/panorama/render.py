@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import math
 import secrets
 from contextlib import suppress
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PIL.Image import Resampling
 from pydantic import BaseModel, Field, model_validator
@@ -12,6 +15,9 @@ from pydantic import BaseModel, Field, model_validator
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import media_limiter, open_oriented
 from app.models.album_media import PanoramaConfig
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 _MAX_OUTPUT_DIMENSION = 8192
 _MAX_OUTPUT_PIXELS = 8192 * 4096
@@ -91,8 +97,43 @@ def panorama_render_path(
     )
 
 
-def panorama_preview_path(album_dir: Path, media_name: str) -> Path:
-    return album_dir / ".panoramas" / "preview" / f"{Path(media_name).stem}.jpg"
+def panorama_preview_path(
+    album_dir: Path,
+    media_name: str,
+    source: Path,
+    config: PanoramaConfig,
+) -> Path:
+    source_stat = source.stat()
+    geometry = {
+        key: value
+        for key, value in config.model_dump().items()
+        if key
+        in {
+            "detection",
+            "source_width",
+            "source_height",
+            "cropped_area_width",
+            "cropped_area_height",
+            "cropped_area_top",
+            "full_pano_width",
+            "full_pano_height",
+            "captured_fov",
+        }
+    }
+    cache_input = json.dumps(
+        {
+            "source": str(source.resolve()),
+            "source_size": source_stat.st_size,
+            "source_mtime_ns": source_stat.st_mtime_ns,
+            "geometry": geometry,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    digest = hashlib.sha256(cache_input).hexdigest()[:24]
+    return (
+        album_dir / ".panoramas" / "preview" / Path(media_name).stem / f"{digest}.jpg"
+    )
 
 
 def resolve_panorama_source(
@@ -257,21 +298,74 @@ def _number(value: float) -> str:
     return format(value, "g")
 
 
-def _create_preview_sync(source: Path, output: Path) -> None:
+def _preview_size(source_width: int, captured_fov: float) -> tuple[int, int]:
+    coverage = math.radians(captured_fov)
+    width = min(source_width, _PREVIEW_MAX_WIDTH)
+    height = max(1, round(width / coverage))
+    if height > _PREVIEW_MAX_WIDTH:
+        height = _PREVIEW_MAX_WIDTH
+        width = max(1, round(height * coverage))
+    return width, height
+
+
+def _edge_extended_canvas(
+    source: Image.Image,
+    size: tuple[int, int],
+    source_y: int,
+) -> Image.Image:
+    width, height = size
+    top_edge = source.crop((0, 0, width, 1)).resize((width, height))
+    canvas = top_edge.copy()
+    source_bottom = source_y + source.height
+    if source_bottom < height:
+        bottom_edge = source.crop((0, source.height - 1, width, source.height)).resize(
+            (width, height - max(0, source_bottom))
+        )
+        canvas.paste(bottom_edge, (0, max(0, source_bottom)))
+    canvas.paste(source, (0, source_y))
+    return canvas
+
+
+def _create_preview_sync(
+    source: Path,
+    config: PanoramaConfig,
+    output: Path,
+) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
     try:
         with open_oriented(source) as image:
-            ratio = min(1, _PREVIEW_MAX_WIDTH / image.width)
-            size = (round(image.width * ratio), round(image.height * ratio))
-            preview = image.convert("RGB")
-            if preview.size != size:
-                preview = preview.resize(size, Resampling.LANCZOS)
+            source_width = config.cropped_area_width or config.source_width
+            source_height = config.cropped_area_height or config.source_height
+            width, height = _preview_size(source_width, config.captured_fov)
+            scale = width / source_width
+            resized_height = max(1, round(source_height * scale))
+            resized = image.convert("RGB").resize(
+                (width, resized_height),
+                Resampling.LANCZOS,
+            )
+            source_top = (
+                config.cropped_area_top
+                if config.cropped_area_top is not None
+                else -source_height / 2
+            )
+            source_y = round(height / 2 + source_top * scale)
+            preview = _edge_extended_canvas(resized, (width, height), source_y)
             preview.save(temporary, "JPEG", quality=85)
         temporary.replace(output)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-async def create_panorama_preview(source: Path, output: Path) -> None:
-    await run_sync(_create_preview_sync, source, output, limiter=media_limiter)
+async def create_panorama_preview(
+    source: Path,
+    config: PanoramaConfig,
+    output: Path,
+) -> None:
+    await run_sync(
+        _create_preview_sync,
+        source,
+        config,
+        output,
+        limiter=media_limiter,
+    )

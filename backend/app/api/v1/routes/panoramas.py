@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -201,18 +202,27 @@ async def get_panorama_source(
     name: MediaName,
     user: UserDep,
     session: SessionDep,
+    captured_fov: Annotated[float | None, Query(gt=0, lt=360)] = None,
 ) -> FileResponse:
     media = await session.get(AlbumMedia, (user.id, aid, name))
     if media is None or media.panorama is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    config = media.panorama
+    if captured_fov is not None:
+        if config.detection == "gpano" and captured_fov != config.captured_fov:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Captured FOV cannot override GPano metadata",
+            )
+        config = config.model_copy(update={"captured_fov": captured_fov})
     album_dir = _album_dir(user, aid)
     try:
-        source = resolve_panorama_source(album_dir, name, media.panorama)
+        source = resolve_panorama_source(album_dir, name, config)
     except FileNotFoundError as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND) from error
-    preview = panorama_preview_path(album_dir, name)
+    preview = panorama_preview_path(album_dir, name, source, config)
     if not preview.is_file():
-        await create_panorama_preview(source, preview)
+        await create_panorama_preview(source, config, preview)
     return FileResponse(
         preview,
         media_type="image/jpeg",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from pathlib import Path
 from typing import cast
 from unittest.mock import AsyncMock, patch
@@ -15,6 +16,8 @@ from app.logic.panorama.render import (
     PanoramaFrameUpdate,
     PanoramaRenderError,
     PanoramaValidationError,
+    create_panorama_preview,
+    panorama_preview_path,
     render_panorama,
 )
 from app.models.album_media import PanoramaConfig
@@ -44,6 +47,102 @@ def _destination(**updates: object) -> PanoramaDestination:
         "height_px": 400,
     }
     return PanoramaDestination.model_validate(values | updates)
+
+
+async def test_preview_aspect_encodes_captured_horizontal_radians(
+    tmp_path: Path,
+) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 300, 64)
+    output = tmp_path / "preview.jpg"
+    config = _config(
+        source_width=300,
+        source_height=64,
+        cropped_area_width=300,
+        cropped_area_height=64,
+        cropped_area_top=-32,
+        captured_fov=270,
+    )
+
+    await create_panorama_preview(source, config, output)
+
+    with Image.open(output) as preview:
+        assert preview.width == 300
+        assert math.isclose(
+            preview.width / preview.height,
+            math.radians(270),
+            rel_tol=0.01,
+        )
+
+
+async def test_preview_places_gpano_horizon_at_canvas_center(tmp_path: Path) -> None:
+    source = tmp_path / "source.png"
+    image = Image.new("RGB", (300, 101), color=(30, 220, 30))
+    ImageDraw.Draw(image).rectangle((0, 22, 299, 28), fill=(240, 20, 240))
+    image.save(source)
+    output = tmp_path / "preview.jpg"
+    config = _config(
+        source_width=300,
+        source_height=101,
+        cropped_area_width=300,
+        cropped_area_height=101,
+        cropped_area_top=-25,
+        captured_fov=270,
+    )
+
+    await create_panorama_preview(source, config, output)
+
+    with Image.open(output) as preview:
+        center = cast(
+            "tuple[int, int, int]", preview.getpixel((150, preview.height // 2))
+        )
+        assert center[0] > 180
+        assert center[1] < 80
+        assert center[2] > 180
+
+
+async def test_preview_extends_source_edges_into_vertical_padding(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.png"
+    Image.new("RGB", (300, 21), color=(40, 220, 40)).save(source)
+    output = tmp_path / "preview.jpg"
+    config = _config(
+        source_width=300,
+        source_height=21,
+        cropped_area_width=300,
+        cropped_area_height=21,
+        cropped_area_top=-10,
+        captured_fov=270,
+    )
+
+    await create_panorama_preview(source, config, output)
+
+    with Image.open(output) as preview:
+        for y in (0, preview.height - 1):
+            edge = cast("tuple[int, int, int]", preview.getpixel((150, y)))
+            assert all(
+                abs(actual - expected) <= 15
+                for actual, expected in zip(edge, (40, 220, 40), strict=True)
+            )
+
+
+def test_preview_cache_key_tracks_source_and_projection_config(tmp_path: Path) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 300, 64)
+    album_dir = tmp_path / "album"
+    config = _config(source_width=300, source_height=64, captured_fov=180)
+
+    initial = panorama_preview_path(album_dir, "source.jpg", source, config)
+    coverage_changed = panorama_preview_path(
+        album_dir,
+        "source.jpg",
+        source,
+        config.model_copy(update={"captured_fov": 270}),
+    )
+    source.write_bytes(source.read_bytes() + b"changed")
+    source_changed = panorama_preview_path(album_dir, "source.jpg", source, config)
+
+    assert initial != coverage_changed
+    assert initial != source_changed
 
 
 async def test_render_uses_perspective_then_separate_zoom_stage(

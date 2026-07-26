@@ -8,6 +8,7 @@ import { deferred, makeAlbumMedia } from "../helpers";
 const adapterFake = vi.hoisted(() => {
   const adapter = {
     destroy: vi.fn(),
+    cancelInteraction: vi.fn(),
     load: vi.fn().mockResolvedValue(undefined),
     lookAt: vi.fn(),
     reset: vi.fn(),
@@ -110,8 +111,11 @@ describe("PanoramaFrameDialog", () => {
     adapterFake.adapter.load.mockResolvedValue(undefined);
   });
 
-  it("lazy-loads a destination-shaped partial panorama and shows a spread seam", async () => {
-    const wrapper = mountDialog();
+  it("lazy-loads the saved frame and shows a destination-shaped spread seam", async () => {
+    const media = panoramaMedia();
+    media.panorama!.yaw = -12;
+    media.panorama!.pitch = -4;
+    const wrapper = mountDialog({ media });
 
     expect(adapterFake.create).not.toHaveBeenCalled();
 
@@ -123,17 +127,20 @@ describe("PanoramaFrameDialog", () => {
       expect.objectContaining({
         src: "/api/v1/albums/a1/media/wide%20view.jpg/panorama-source",
         frame: expect.objectContaining({
-          perspectiveFov: 115.0367268189405,
-          zoom: 1,
+          yaw: -12,
+          pitch: -4,
+          perspectiveFov: 60,
+          zoom: 1.5,
         }),
+        accessibleLabel: "Interactive panorama preview",
       }),
     );
     expect(wrapper.get(".panorama-viewport").attributes("style")).toContain(
       "aspect-ratio: 2",
     );
     expect(wrapper.find(".spread-seam").exists()).toBe(true);
-    expect(wrapper.text()).toContain("115°");
-    expect(wrapper.text()).toContain("1.0×");
+    expect(wrapper.text()).toContain("60°");
+    expect(wrapper.text()).toContain("1.5×");
   });
 
   it("keeps Perspective separate from ordinary wheel and pinch Zoom", async () => {
@@ -143,10 +150,10 @@ describe("PanoramaFrameDialog", () => {
 
     await viewport.trigger("wheel", { deltaY: -100 });
 
-    expect(wrapper.text()).toContain("1.1×");
+    expect(wrapper.text()).toContain("1.6×");
     expect(adapterFake.adapter.setPerspective).not.toHaveBeenCalled();
     expect(wrapper.get(".panorama-projection-layer").attributes("style")).toContain(
-      "--panorama-zoom: 1.1",
+      "--panorama-zoom: 1.6",
     );
 
     const perspective = wrapper.get<HTMLInputElement>(
@@ -173,8 +180,9 @@ describe("PanoramaFrameDialog", () => {
       ],
     });
 
-    expect(wrapper.text()).toContain("1.7×");
+    expect(wrapper.text()).toContain("2.4×");
     expect(adapterFake.adapter.setPerspective).toHaveBeenCalledTimes(1);
+    expect(adapterFake.adapter.cancelInteraction).toHaveBeenCalledOnce();
   });
 
   it("resets to auto-fit, rolls transient changes back on Cancel, and cleans up", async () => {
@@ -205,7 +213,7 @@ describe("PanoramaFrameDialog", () => {
 
     await wrapper.setProps({ modelValue: true });
     await flushPromises();
-    expect(wrapper.text()).toContain("1.0×");
+    expect(wrapper.text()).toContain("1.5×");
 
     wrapper.unmount();
     expect(adapterFake.adapter.destroy).toHaveBeenCalledTimes(2);
@@ -216,13 +224,81 @@ describe("PanoramaFrameDialog", () => {
     await flushPromises();
     expect(gpano.find('input[name="captured-width"]').exists()).toBe(false);
     gpano.unmount();
+    vi.clearAllMocks();
 
     const estimated = mountDialog({
       modelValue: true,
       media: panoramaMedia("dimensions"),
     });
     await flushPromises();
-    expect(estimated.get('input[name="captured-width"]').exists()).toBe(true);
+    const capturedWidth = estimated.get<HTMLInputElement>(
+      'input[name="captured-width"]',
+    );
+    expect(capturedWidth.exists()).toBe(true);
+
+    await capturedWidth.setValue("240");
+    await flushPromises();
+
+    expect(adapterFake.adapter.destroy).toHaveBeenCalledOnce();
+    expect(adapterFake.adapter.load).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        src: "/api/v1/albums/a1/media/wide%20view.jpg/panorama-source?captured_fov=240",
+        frame: expect.objectContaining({ capturedFov: 240 }),
+      }),
+    );
+  });
+
+  it("owns pinch until every touch ends", async () => {
+    const wrapper = mountDialog({ modelValue: true });
+    await flushPromises();
+    const viewport = wrapper.get(".panorama-viewport").element;
+    const bubbled = vi.fn();
+    wrapper.element.addEventListener("touchend", bubbled);
+    const touchEvent = (type: string, touches: Array<{ clientX: number; clientY: number }>) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "touches", { value: touches });
+      return event;
+    };
+
+    viewport.dispatchEvent(
+      touchEvent("touchstart", [
+        { clientX: 0, clientY: 0 },
+        { clientX: 100, clientY: 0 },
+      ]),
+    );
+    const oneFingerEnd = touchEvent("touchend", [{ clientX: 0, clientY: 0 }]);
+    viewport.dispatchEvent(oneFingerEnd);
+    const finalEnd = touchEvent("touchend", []);
+    viewport.dispatchEvent(finalEnd);
+
+    expect(oneFingerEnd.defaultPrevented).toBe(true);
+    expect(finalEnd.defaultPrevented).toBe(true);
+    expect(bubbled).not.toHaveBeenCalled();
+    expect(adapterFake.adapter.cancelInteraction).toHaveBeenCalledOnce();
+  });
+
+  it("connects dialog labels and announces loading failures", async () => {
+    let rejectLoad!: (reason: unknown) => void;
+    const loading = new Promise<void>((_resolve, reject) => {
+      rejectLoad = reject;
+    });
+    adapterFake.adapter.load.mockReturnValueOnce(loading);
+    const wrapper = mountDialog({ modelValue: true });
+    await Promise.resolve();
+
+    expect(wrapper.attributes("aria-labelledby")).toBe("panorama-frame-title");
+    expect(wrapper.attributes("aria-describedby")).toBe(
+      "panorama-frame-description",
+    );
+    expect(wrapper.get(".viewport-status").attributes()).toMatchObject({
+      role: "status",
+      "aria-live": "polite",
+    });
+
+    rejectLoad(new Error("WebGL unavailable"));
+    await flushPromises();
+
+    expect(wrapper.get(".viewport-error").attributes("role")).toBe("alert");
   });
 
   it("emits applied only after the backend returns the committed media row", async () => {
@@ -241,8 +317,8 @@ describe("PanoramaFrameDialog", () => {
       frame: {
         yaw: 0,
         pitch: 0,
-        perspective_fov: 115.0367268189405,
-        zoom: 1,
+        perspective_fov: 60,
+        zoom: 1.5,
       },
       destination,
     });
