@@ -24,6 +24,7 @@ from app.logic.external_media.album_media import (
     MediaNotFoundError,
     replace_album_media_from_saved,
 )
+from app.logic.external_media.files import commit_media_operation
 from app.logic.external_media.operations import (
     add_device_media,
     download_google_item_to_saved,
@@ -173,7 +174,7 @@ async def replace_device(  # noqa: PLR0913
                     status.HTTP_400_BAD_REQUEST,
                     "Select exactly one replacement",
                 )
-            row = await replace_album_media_from_saved(
+            operation = await replace_album_media_from_saved(
                 session,
                 album=album,
                 album_dir=target_album_dir,
@@ -186,7 +187,7 @@ async def replace_device(  # noqa: PLR0913
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
-    await session.commit()
+        row = await commit_media_operation(session, operation)
     enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row
 
@@ -200,7 +201,7 @@ async def undo_replacement(
 ) -> AlbumMedia:
     album = await _get_album_or_404(aid, user, session)
     try:
-        row = await restore_undo_snapshot(
+        operation = await restore_undo_snapshot(
             session,
             album=album,
             album_dir=album_dir(user, aid),
@@ -208,8 +209,7 @@ async def undo_replacement(
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
-    await session.commit()
-    return row
+    return await commit_media_operation(session, operation)
 
 
 @router.post(
@@ -323,7 +323,7 @@ async def replace_google_media(  # noqa: PLR0913
         except (OverflowError, DownloadTooLargeError) as exc:
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
         try:
-            row = await replace_album_media_from_saved(
+            operation = await replace_album_media_from_saved(
                 session,
                 album=album,
                 album_dir=target_album_dir,
@@ -334,6 +334,6 @@ async def replace_google_media(  # noqa: PLR0913
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
-    await session.commit()
+        row = await commit_media_operation(session, operation)
     enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row

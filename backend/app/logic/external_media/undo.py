@@ -25,11 +25,19 @@ from app.core.worker_threads import run_sync
 from app.logic.external_media.files import (
     CleanupAction,
     MediaAssetTransition,
+    OperationWitness,
+    PendingMediaOperation,
     finalize_workspace,
+    mark_recovery_ready,
+    mark_workspace_committed,
     rebase_workspace_path,
+    recover_workspace,
+    recovery_witness,
+    recovery_workspaces,
     register_workspace,
     run_best_effort_cleanup,
     sweep_pending_workspaces,
+    write_recovery_manifest,
 )
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.logic.panorama.storage import panorama_original_path
@@ -47,7 +55,7 @@ _undo_prune_tasks: set[asyncio.Task[None]] = set()
 
 @asynccontextmanager
 async def lifespan() -> AsyncGenerator[None]:
-    await _prune_all_expired_undo_snapshots_once()
+    await _prune_all_expired_undo_snapshots_once(recover_all_pending=True)
     task = asyncio.create_task(_prune_all_expired_undo_snapshots_loop())
     try:
         yield
@@ -111,32 +119,71 @@ class UndoSnapshotUpdate:
         self,
         snapshot: AlbumMediaUndoSnapshot,
         workspace: Path,
-        activated: list[tuple[Path, Path]],
-        previous: list[tuple[Path, Path]],
         previous_values: dict[str, object] | None,
+        witness: OperationWitness,
     ) -> None:
         self.snapshot = snapshot
         self.album_dir = workspace.parents[2]
         self.workspace = workspace
-        self.activated = activated
-        self.previous = previous
+        self.activated: list[tuple[Path, Path]] = []
+        self.previous: list[tuple[Path, Path]] = []
         self.previous_values = previous_values
+        self.witness = witness
 
-    def rollback(self) -> None:
+    def prepare_recovery(
+        self,
+        undo_dir: Path,
+        previous_paths: list[Path],
+        staged_moves: list[tuple[Path, Path]],
+    ) -> None:
+        write_recovery_manifest(
+            self.album_dir,
+            self.workspace,
+            self.witness,
+            [
+                (
+                    self.workspace / "previous" / current.relative_to(undo_dir),
+                    current,
+                )
+                for current in previous_paths
+                if current.exists()
+            ],
+            [(destination, staged) for staged, destination in staged_moves],
+        )
+
+    def rollback_activated(self) -> None:
         for destination, staged in reversed(self.activated):
             if destination.exists():
                 staged.parent.mkdir(parents=True, exist_ok=True)
                 destination.replace(staged)
         self.activated.clear()
+
+    def rollback_previous(self) -> None:
         for backup, original in reversed(self.previous):
             if backup.exists():
                 original.parent.mkdir(parents=True, exist_ok=True)
                 backup.replace(original)
         self.previous.clear()
+
+    def rollback_values(self) -> None:
         if self.previous_values is not None:
             for name, value in self.previous_values.items():
                 setattr(self.snapshot, name, value)
+
+    def rollback(self) -> None:
+        self.rollback_activated()
+        self.rollback_previous()
+        self.rollback_values()
         self.discard()
+
+    async def rollback_best_effort(self) -> None:
+        await run_best_effort_cleanup(
+            "external_media.undo_snapshot_compensation_failed",
+            ("activated", partial(run_sync, self.rollback_activated)),
+            ("previous", partial(run_sync, self.rollback_previous)),
+            ("row", partial(run_sync, self.rollback_values)),
+            ("workspace", partial(run_sync, self.discard)),
+        )
 
     def register_cleanup(self) -> None:
         previous_workspace = self.workspace
@@ -157,6 +204,7 @@ class UndoSnapshotUpdate:
         ]
 
     def finish(self) -> None:
+        mark_workspace_committed(self.workspace)
         finalize_workspace(self.album_dir, self.workspace)
 
     def discard(self) -> None:
@@ -245,12 +293,14 @@ def _activate_snapshot_update(
     previous_paths: list[Path],
     staged_moves: list[tuple[Path, Path]],
 ) -> None:
+    update.prepare_recovery(undo_dir, previous_paths, staged_moves)
     for current in previous_paths:
         if current.exists():
             backup = update.workspace / "previous" / current.relative_to(undo_dir)
             backup.parent.mkdir(parents=True, exist_ok=True)
             current.replace(backup)
             update.previous.append((backup, current))
+    mark_recovery_ready(update.workspace)
     for staged, destination in staged_moves:
         destination.parent.mkdir(parents=True, exist_ok=True)
         staged.replace(destination)
@@ -437,9 +487,8 @@ async def create_undo_snapshot(
     update = UndoSnapshotUpdate(
         snap,
         staged.workspace,
-        [],
-        [],
         previous_values,
+        OperationWitness(uid, aid, media_name, now),
     )
     try:
         await run_sync(
@@ -461,7 +510,7 @@ async def create_undo_snapshot(
         await run_sync(update.register_cleanup)
         await session.flush()
     except BaseException:
-        await run_sync(update.rollback)
+        await update.rollback_best_effort()
         raise
     return update
 
@@ -472,7 +521,7 @@ async def restore_undo_snapshot(
     album: Album,
     album_dir: Path,
     media_name: str,
-) -> AlbumMedia:
+) -> PendingMediaOperation[AlbumMedia]:
     row = await session.get_one(
         AlbumMedia,
         (album.uid, album.id, media_name),
@@ -487,6 +536,9 @@ async def restore_undo_snapshot(
     prepared = await _prepare_undo_restore(album_dir, media_name, snap)
     target = album_dir / media_name
     transition = MediaAssetTransition(album_dir, media_name)
+    transition.set_recovery_witness(
+        OperationWitness(album.uid, album.id, media_name, None)
+    )
     previous_values = {
         "width": row.width,
         "height": row.height,
@@ -520,11 +572,17 @@ async def restore_undo_snapshot(
         )
         raise
     else:
-        await run_best_effort_cleanup(
-            "external_media.undo_finalization_failed",
-            ("media_transition", partial(run_sync, transition.finish)),
+        return PendingMediaOperation(
+            result=row,
+            rollback_actions=(
+                ("media_transition", partial(run_sync, transition.rollback)),
+                (
+                    "media_row",
+                    partial(run_sync, _reset_row_values, row, previous_values),
+                ),
+            ),
+            finalizers=(("media_transition", partial(run_sync, transition.finish)),),
         )
-        return row
 
 
 async def prune_expired_undo_snapshots(
@@ -536,6 +594,7 @@ async def prune_expired_undo_snapshots(
     now: datetime | None = None,
 ) -> int:
     now = now or datetime.now(UTC)
+    await recover_pending_workspaces(session, album_dir, now - UNDO_TTL)
     await run_sync(sweep_pending_workspaces, album_dir, now - UNDO_TTL)
     rows = (
         await session.exec(
@@ -557,8 +616,19 @@ async def prune_all_expired_undo_snapshots(
     session: AsyncSession,
     *,
     now: datetime | None = None,
+    recover_all_pending: bool = False,
 ) -> int:
     now = now or datetime.now(UTC)
+    albums = (await session.exec(select(Album))).all()
+    recovery_cutoff = (
+        datetime.max.replace(tzinfo=UTC) if recover_all_pending else now - UNDO_TTL
+    )
+    for album in albums:
+        user = await session.get(User, album.uid)
+        if user is not None:
+            album_dir = user.trips_folder / album.id
+            await recover_pending_workspaces(session, album_dir, recovery_cutoff)
+            await run_sync(sweep_pending_workspaces, album_dir, now - UNDO_TTL)
     rows = (
         await session.exec(
             select(AlbumMediaUndoSnapshot).where(
@@ -574,22 +644,54 @@ async def prune_all_expired_undo_snapshots(
             await _unlink_snapshot(album_dir, row)
         await session.delete(row)
         removed += 1
-    albums = (await session.exec(select(Album))).all()
-    for album in albums:
-        user = await session.get(User, album.uid)
-        if user is not None:
-            await run_sync(
-                sweep_pending_workspaces,
-                user.trips_folder / album.id,
-                now - UNDO_TTL,
-            )
     await session.flush()
     return removed
 
 
-async def _prune_all_expired_undo_snapshots_once() -> None:
+async def recover_pending_workspaces(
+    session: AsyncSession,
+    album_dir: Path,
+    cutoff: datetime,
+) -> None:
+    workspaces = await run_sync(recovery_workspaces, album_dir, cutoff)
+    for workspace in workspaces:
+        try:
+            witness = await run_sync(recovery_witness, workspace)
+            if witness is None:
+                continue
+            snapshot = await session.get(
+                AlbumMediaUndoSnapshot,
+                (witness.uid, witness.aid, witness.media_name),
+            )
+            committed = (
+                snapshot is None
+                if witness.snapshot_created_at is None
+                else snapshot is not None
+                and _as_utc(snapshot.created_at) == _as_utc(witness.snapshot_created_at)
+            )
+            await run_sync(
+                recover_workspace,
+                album_dir,
+                workspace,
+                committed=committed,
+            )
+        except OSError, TypeError, ValueError:
+            logger.warning(
+                "external_media.pending_recovery_failed",
+                workspace=str(workspace),
+                exc_info=True,
+            )
+
+
+async def _prune_all_expired_undo_snapshots_once(
+    *,
+    recover_all_pending: bool = False,
+) -> None:
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-        removed = await prune_all_expired_undo_snapshots(session)
+        removed = await prune_all_expired_undo_snapshots(
+            session,
+            recover_all_pending=recover_all_pending,
+        )
         await session.commit()
     if removed:
         logger.info("external_media.undo_pruned", count=removed)

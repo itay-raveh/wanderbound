@@ -4,20 +4,25 @@ import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
 
 from app.core.config import get_settings
 from app.logic.external_media.album_media import replace_album_media_from_saved
-from app.logic.external_media.files import MediaAssetTransition
+from app.logic.external_media.files import (
+    MediaAssetTransition,
+    PendingMediaOperation,
+    commit_media_operation,
+)
 from app.logic.external_media.undo import (
     UndoSnapshotUpdate,
     create_undo_snapshot,
     enqueue_undo_snapshot_prune,
     prune_all_expired_undo_snapshots,
     prune_expired_undo_snapshots,
+    recover_pending_workspaces,
     restore_undo_snapshot,
     schedule_undo_snapshot_prune,
 )
@@ -47,6 +52,40 @@ VALID_VIDEO_NAME = (
 )
 VALID_VIDEO_POSTER_NAME = VALID_VIDEO_NAME.replace(".mp4", ".jpg")
 OLD_NAME = MISSING_MEDIA_NAME
+
+
+async def _commit_operation(
+    session: AsyncSession,
+    operation: PendingMediaOperation[AlbumMedia],
+) -> AlbumMedia:
+    await session.commit()
+    await operation.finalize()
+    return operation.result
+
+
+async def test_commit_failure_attempts_every_compensation_and_preserves_error(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    _album, media = await _album_with_photo(session, tmp_path)
+    first = AsyncMock(side_effect=OSError("first rollback failed"))
+    second = AsyncMock()
+    database_rollback = AsyncMock(side_effect=OSError("database rollback failed"))
+    failed_session = MagicMock()
+    failed_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    failed_session.rollback = database_rollback
+    operation = PendingMediaOperation(
+        result=media,
+        rollback_actions=(("first", first), ("second", second)),
+        finalizers=(),
+    )
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await commit_media_operation(failed_session, operation)
+
+    first.assert_awaited_once_with()
+    second.assert_awaited_once_with()
+    database_rollback.assert_awaited_once_with()
 
 
 async def _album_with_photo(
@@ -252,13 +291,14 @@ async def test_replace_preserves_media_name_and_creates_undo(
     replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
     await session.commit()
 
-    result = await replace_album_media_from_saved(
+    operation = await replace_album_media_from_saved(
         session,
         album=album,
         album_dir=album_dir,
         media_name=VALID_NAME,
         saved=_saved_input(replacement),
     )
+    result = await _commit_operation(session, operation)
 
     assert result.name == VALID_NAME
     row = await session.get_one(AlbumMedia, (uid, AID, VALID_NAME))
@@ -300,13 +340,14 @@ async def test_replace_and_undo_restore_retained_panorama_original(
     replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
     await session.commit()
 
-    await replace_album_media_from_saved(
+    operation = await replace_album_media_from_saved(
         session,
         album=album,
         album_dir=tmp_path,
         media_name=VALID_NAME,
         saved=_saved_input(replacement),
     )
+    await _commit_operation(session, operation)
 
     snap = await session.get_one(AlbumMediaUndoSnapshot, (album.uid, AID, VALID_NAME))
     row = await session.get_one(AlbumMedia, (album.uid, AID, VALID_NAME))
@@ -320,12 +361,13 @@ async def test_replace_and_undo_restore_retained_panorama_original(
     assert not preview.exists()
     assert not rendered.exists()
 
-    restored = await restore_undo_snapshot(
+    operation = await restore_undo_snapshot(
         session,
         album=album,
         album_dir=tmp_path,
         media_name=VALID_NAME,
     )
+    restored = await _commit_operation(session, operation)
 
     assert restored.panorama == panorama
     assert panorama_original.read_bytes() == b"retained panorama original"
@@ -343,13 +385,14 @@ async def test_replace_preserves_the_replacement_panorama_original(
     source_bytes = replacement.read_bytes()
     await session.commit()
 
-    replaced = await replace_album_media_from_saved(
+    operation = await replace_album_media_from_saved(
         session,
         album=album,
         album_dir=tmp_path,
         media_name=VALID_NAME,
         saved=_saved_input(replacement),
     )
+    replaced = await _commit_operation(session, operation)
 
     assert replaced.panorama is not None
     assert replaced.panorama.status == "suggested"
@@ -460,13 +503,14 @@ async def test_replace_snapshot_finalizer_failure_keeps_successful_replacement(
         "finish",
         side_effect=OSError("snapshot cleanup failed"),
     ):
-        result = await replace_album_media_from_saved(
+        operation = await replace_album_media_from_saved(
             session,
             album=album,
             album_dir=tmp_path,
             media_name=VALID_NAME,
             saved=_saved_input(replacement),
         )
+        result = await _commit_operation(session, operation)
 
     assert result.width == 1600
     assert result.height == 1200
@@ -532,13 +576,14 @@ async def test_failed_finalizer_is_retried_by_album_prune(
         "app.logic.external_media.files.shutil.rmtree",
         side_effect=fail_transition_cleanup,
     ):
-        await replace_album_media_from_saved(
+        operation = await replace_album_media_from_saved(
             session,
             album=album,
             album_dir=tmp_path,
             media_name=VALID_NAME,
             saved=_saved_input(replacement),
         )
+        await _commit_operation(session, operation)
 
     pending_root = tmp_path / ".media-cleanup-pending"
     pending = list(pending_root.iterdir())
@@ -558,6 +603,11 @@ async def test_failed_finalizer_is_retried_by_album_prune(
         )
     assert all(path.exists() for path in pending)
 
+    await recover_pending_workspaces(
+        session,
+        tmp_path,
+        datetime.max.replace(tzinfo=UTC),
+    )
     await prune_expired_undo_snapshots(
         session,
         uid=album.uid,
@@ -565,6 +615,90 @@ async def test_failed_finalizer_is_retried_by_album_prune(
         album_dir=tmp_path,
         now=future,
     )
+    assert not pending_root.exists()
+
+
+async def test_restart_before_replace_commit_restores_pending_operation(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+    transaction = await session.begin_nested()
+
+    await replace_album_media_from_saved(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+        saved=_saved_input(replacement),
+    )
+
+    pending_root = tmp_path / ".media-cleanup-pending"
+    assert len(list(pending_root.iterdir())) == 2
+    await transaction.rollback()
+    await recover_pending_workspaces(
+        session,
+        tmp_path,
+        datetime.max.replace(tzinfo=UTC),
+    )
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+    )
+
+    row = await session.get_one(AlbumMedia, (1, AID, VALID_NAME))
+    assert row.width == 640
+    assert row.height == 480
+    assert target.read_bytes() == original_bytes
+    assert not (tmp_path / ".undo" / VALID_NAME).exists()
+    assert not pending_root.exists()
+
+
+async def test_restart_after_replace_commit_finalizes_pending_operation(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    await replace_album_media_from_saved(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+        saved=_saved_input(replacement),
+    )
+    await session.commit()
+
+    pending_root = tmp_path / ".media-cleanup-pending"
+    assert len(list(pending_root.iterdir())) == 2
+    replacement_bytes = target.read_bytes()
+    await recover_pending_workspaces(
+        session,
+        tmp_path,
+        datetime.max.replace(tzinfo=UTC),
+    )
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+    )
+
+    row = await session.get_one(AlbumMedia, (1, AID, VALID_NAME))
+    assert row.width == 1600
+    assert row.height == 1200
+    assert replacement_bytes != original_bytes
+    assert target.read_bytes() == replacement_bytes
     assert not pending_root.exists()
 
 
@@ -683,6 +817,61 @@ async def test_repeated_snapshot_copy_failure_preserves_previous_snapshot(
     assert old_original_snapshot.read_bytes() == old_original_bytes
 
 
+async def test_snapshot_registration_failure_attempts_each_rollback_action(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    old_snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 320, 240)
+    old_snapshot_bytes = old_snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+    snapshot_row = await session.get_one(
+        AlbumMediaUndoSnapshot,
+        (album.uid, album.id, VALID_NAME),
+    )
+    old_created_at = snapshot_row.created_at
+    real_replace = Path.replace
+    registration_failed = False
+
+    def fail_registration_and_first_rollback(
+        path: Path,
+        target_path: Path,
+    ) -> Path:
+        nonlocal registration_failed
+        target_path = Path(target_path)
+        if ".staging" in path.parts and ".media-cleanup-pending" in target_path.parts:
+            registration_failed = True
+            raise OSError("registration failed")
+        if (
+            registration_failed
+            and path == old_snapshot
+            and ".staging" in target_path.parts
+        ):
+            raise OSError("rollback move failed")
+        return real_replace(path, target_path)
+
+    with (
+        patch.object(
+            Path,
+            "replace",
+            autospec=True,
+            side_effect=fail_registration_and_first_rollback,
+        ),
+        pytest.raises(OSError, match="registration failed"),
+    ):
+        await create_undo_snapshot(
+            session,
+            uid=album.uid,
+            aid=album.id,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert old_snapshot.read_bytes() == old_snapshot_bytes
+    assert snapshot_row.created_at == old_created_at
+
+
 async def test_undo_rejects_unreadable_original_snapshot_before_replacing_media(
     session: AsyncSession,
     tmp_path: Path,
@@ -785,17 +974,106 @@ async def test_undo_finalizer_failure_keeps_successful_restore(
         "finish",
         side_effect=OSError("transition cleanup failed"),
     ):
-        result = await restore_undo_snapshot(
+        operation = await restore_undo_snapshot(
             session,
             album=album,
             album_dir=tmp_path,
             media_name=VALID_NAME,
         )
+        result = await _commit_operation(session, operation)
 
     assert result.width == 1200
     assert result.height == 900
     assert target.read_bytes() == snapshot_bytes
     assert not snapshot.exists()
+
+
+async def test_restart_before_undo_commit_restores_pending_operation(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+    transaction = await session.begin_nested()
+
+    await restore_undo_snapshot(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+    )
+
+    pending_root = tmp_path / ".media-cleanup-pending"
+    assert len(list(pending_root.iterdir())) == 1
+    await transaction.rollback()
+    session.expire_all()
+    assert await session.get(AlbumMediaUndoSnapshot, (1, AID, VALID_NAME)) is not None
+    await recover_pending_workspaces(
+        session,
+        tmp_path,
+        datetime.max.replace(tzinfo=UTC),
+    )
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+    )
+
+    row = await session.get_one(AlbumMedia, (1, AID, VALID_NAME))
+    assert row.width == 640
+    assert row.height == 480
+    assert target.read_bytes() == current_bytes
+    assert snapshot.read_bytes() == snapshot_bytes
+    assert not pending_root.exists()
+
+
+async def test_restart_after_undo_commit_finalizes_pending_operation(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+
+    await restore_undo_snapshot(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+    )
+    await session.commit()
+
+    pending_root = tmp_path / ".media-cleanup-pending"
+    assert len(list(pending_root.iterdir())) == 1
+    await recover_pending_workspaces(
+        session,
+        tmp_path,
+        datetime.max.replace(tzinfo=UTC),
+    )
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+    )
+
+    row = await session.get_one(AlbumMedia, (1, AID, VALID_NAME))
+    assert row.width == 1200
+    assert row.height == 900
+    assert target.read_bytes() == snapshot_bytes
+    assert target.read_bytes() != current_bytes
+    assert await session.get(AlbumMediaUndoSnapshot, (1, AID, VALID_NAME)) is None
+    assert not pending_root.exists()
 
 
 async def test_undo_cleanup_registration_failure_restores_previous_state(

@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.api.v1.routes.external_media import add_google_media
 from app.core.http_clients import HttpClients
 from app.logic.external_media.operations import download_google_item_to_saved
@@ -82,6 +84,34 @@ async def test_device_replace_updates_existing_media(
     row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
     assert row.width == 1200
     assert row.height == 800
+
+
+async def test_device_replace_commit_failure_restores_database_and_files(
+    session: AsyncSession,
+    album_media_scenario: AlbumMediaFactory,
+    external_media: ExternalMediaRoutes,
+) -> None:
+    scenario = await album_media_scenario(write_media=True)
+    target = scenario.album_dir / scenario.media_name
+    original_bytes = target.read_bytes()
+    row = await session.get_one(AlbumMedia, (scenario.uid, AID, scenario.media_name))
+    rollback = AsyncMock()
+
+    with (
+        patch.object(
+            session, "commit", AsyncMock(side_effect=OSError("commit failed"))
+        ),
+        patch.object(session, "rollback", rollback),
+        pytest.raises(OSError, match="commit failed"),
+    ):
+        await external_media.replace_device(scenario.media_name)
+
+    rollback.assert_awaited_once_with()
+    assert row.width == 640
+    assert row.height == 480
+    assert target.read_bytes() == original_bytes
+    assert not (scenario.album_dir / ".undo" / scenario.media_name).exists()
+    assert not list(scenario.album_dir.glob(".replace-device-*"))
 
 
 async def test_device_replace_schedules_undo_snapshot_prune(

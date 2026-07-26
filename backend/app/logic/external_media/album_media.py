@@ -12,6 +12,8 @@ from app.core.worker_threads import run_sync
 from app.logic.external_media.files import (
     CleanupAction,
     MediaAssetTransition,
+    OperationWitness,
+    PendingMediaOperation,
     run_best_effort_cleanup,
 )
 from app.logic.layout.media import (
@@ -39,9 +41,17 @@ class MediaNotFoundError(ValueError):
     pass
 
 
-def _rollback_snapshot(update: UndoSnapshotUpdate | None) -> None:
+def _require_snapshot_update(
+    update: UndoSnapshotUpdate | None,
+) -> UndoSnapshotUpdate:
+    if update is None:
+        raise ValueError("Cannot replace a missing media asset")
+    return update
+
+
+async def _rollback_snapshot(update: UndoSnapshotUpdate | None) -> None:
     if update is not None:
-        update.rollback()
+        await update.rollback_best_effort()
 
 
 def _finish_snapshot(update: UndoSnapshotUpdate | None) -> None:
@@ -104,7 +114,7 @@ async def replace_album_media_from_saved(
     album_dir: Path,
     media_name: str,
     saved: SavedInput,
-) -> AlbumMedia:
+) -> PendingMediaOperation[AlbumMedia]:
     row = await session.get(
         AlbumMedia,
         (album.uid, album.id, media_name),
@@ -153,6 +163,15 @@ async def replace_album_media_from_saved(
             album_dir=album_dir,
             media_name=media_name,
         )
+        snapshot_update = _require_snapshot_update(snapshot_update)
+        transition.set_recovery_witness(
+            OperationWitness(
+                album.uid,
+                album.id,
+                media_name,
+                snapshot_update.snapshot.created_at,
+            )
+        )
         target = album_dir / media_name
         await run_sync(
             transition.activate,
@@ -175,7 +194,7 @@ async def replace_album_media_from_saved(
     except BaseException:
         compensations: tuple[CleanupAction, ...] = (
             ("media_transition", partial(run_sync, transition.rollback)),
-            ("undo_snapshot", partial(run_sync, _rollback_snapshot, snapshot_update)),
+            ("undo_snapshot", partial(_rollback_snapshot, snapshot_update)),
             ("media_row", partial(run_sync, _restore_row, row, previous_values)),
             ("imported_files", partial(cleanup_imported_paths, written)),
         )
@@ -185,13 +204,16 @@ async def replace_album_media_from_saved(
         )
         raise
     else:
-        finalizers: tuple[CleanupAction, ...] = (
-            ("media_transition", partial(run_sync, transition.finish)),
-            ("undo_snapshot", partial(run_sync, _finish_snapshot, snapshot_update)),
+        return PendingMediaOperation(
+            result=row,
+            rollback_actions=(
+                ("media_transition", partial(run_sync, transition.rollback)),
+                ("undo_snapshot", snapshot_update.rollback_best_effort),
+                ("media_row", partial(run_sync, _restore_row, row, previous_values)),
+                ("imported_files", partial(cleanup_imported_paths, written)),
+            ),
+            finalizers=(
+                ("media_transition", partial(run_sync, transition.finish)),
+                ("undo_snapshot", partial(run_sync, _finish_snapshot, snapshot_update)),
+            ),
         )
-        await run_best_effort_cleanup(
-            "external_media.replace_finalization_failed",
-            *finalizers,
-        )
-        written = []
-        return row
