@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -295,11 +294,7 @@ async def test_panorama_source_is_normalized_and_cached(
     assert response.content == preview.read_bytes()
     assert repeated.content == response.content
     with Image.open(preview) as normalized:
-        assert math.isclose(
-            normalized.width / normalized.height,
-            math.radians(180),
-            rel_tol=0.01,
-        )
+        assert normalized.width / normalized.height == 2
 
 
 async def test_panorama_source_accepts_validated_metadata_free_coverage(
@@ -315,17 +310,18 @@ async def test_panorama_source_accepts_validated_metadata_free_coverage(
 
     default = await client.get(url)
     proposed = await client.get(url, params={"captured_fov": 270})
+    fractional = await client.get(url, params={"captured_fov": 270.5})
     invalid = await client.get(url, params={"captured_fov": 360})
 
     assert default.status_code == 200
     assert proposed.status_code == 200
+    assert fractional.status_code == 422
     assert invalid.status_code == 422
     previews = list((album_dir / ".panoramas" / "preview").rglob("*.jpg"))
     assert len(previews) == 2
     with Image.open(previews[0]) as first, Image.open(previews[1]) as second:
-        ratios = sorted((first.width / first.height, second.width / second.height))
-    assert math.isclose(ratios[0], math.radians(180), rel_tol=0.01)
-    assert math.isclose(ratios[1], math.radians(270), rel_tol=0.01)
+        assert first.width / first.height == 2
+        assert second.width / second.height == 2
     await session.refresh(row)
     assert row.panorama is not None
     assert row.panorama.captured_fov == 180

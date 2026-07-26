@@ -7,21 +7,16 @@ import math
 import secrets
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from PIL.Image import Resampling
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.worker_threads import run_sync
-from app.logic.layout.media import media_limiter, open_oriented
 from app.models.album_media import PanoramaConfig
-
-if TYPE_CHECKING:
-    from PIL import Image
 
 _MAX_OUTPUT_DIMENSION = 8192
 _MAX_OUTPUT_PIXELS = 8192 * 4096
 _PREVIEW_MAX_WIDTH = 2048
+_PREVIEW_FORMAT_VERSION = 2
 _RENDER_TIMEOUT_SECONDS = 60
 
 
@@ -125,6 +120,7 @@ def panorama_preview_path(
             "source": str(source.resolve()),
             "source_size": source_stat.st_size,
             "source_mtime_ns": source_stat.st_mtime_ns,
+            "preview_format": _PREVIEW_FORMAT_VERSION,
             "geometry": geometry,
         },
         sort_keys=True,
@@ -161,9 +157,13 @@ async def render_panorama(
     if not await run_sync(source.is_file):
         raise PanoramaValidationError("Panorama source does not exist")
 
+    filter_graph = _filter_graph(config, destination)
+    await _render_image(source, filter_graph, output)
+
+
+async def _render_image(source: Path, filter_graph: str, output: Path) -> None:
     await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
     temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
-    filter_graph = _filter_graph(config, destination)
     process: asyncio.subprocess.Process | None = None
     try:
         try:
@@ -299,62 +299,33 @@ def _number(value: float) -> str:
 
 
 def _preview_size(source_width: int, captured_fov: float) -> tuple[int, int]:
-    coverage = math.radians(captured_fov)
-    width = min(source_width, _PREVIEW_MAX_WIDTH)
-    height = max(1, round(width / coverage))
-    if height > _PREVIEW_MAX_WIDTH:
-        height = _PREVIEW_MAX_WIDTH
-        width = max(1, round(height * coverage))
-    return width, height
+    full_width = round(source_width * 360 / captured_fov)
+    width = max(2, min(full_width, _PREVIEW_MAX_WIDTH))
+    if width % 2:
+        width -= 1
+    return width, width // 2
 
 
-def _edge_extended_canvas(
-    source: Image.Image,
-    size: tuple[int, int],
-    source_y: int,
-) -> Image.Image:
-    width, height = size
-    top_edge = source.crop((0, 0, width, 1)).resize((width, height))
-    canvas = top_edge.copy()
-    source_bottom = source_y + source.height
-    if source_bottom < height:
-        bottom_edge = source.crop((0, source.height - 1, width, source.height)).resize(
-            (width, height - max(0, source_bottom))
-        )
-        canvas.paste(bottom_edge, (0, max(0, source_bottom)))
-    canvas.paste(source, (0, source_y))
-    return canvas
-
-
-def _create_preview_sync(
-    source: Path,
-    config: PanoramaConfig,
-    output: Path,
-) -> None:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
-    try:
-        with open_oriented(source) as image:
-            source_width = config.cropped_area_width or config.source_width
-            source_height = config.cropped_area_height or config.source_height
-            width, height = _preview_size(source_width, config.captured_fov)
-            scale = width / source_width
-            resized_height = max(1, round(source_height * scale))
-            resized = image.convert("RGB").resize(
-                (width, resized_height),
-                Resampling.LANCZOS,
-            )
-            source_top = (
-                config.cropped_area_top
-                if config.cropped_area_top is not None
-                else -source_height / 2
-            )
-            source_y = round(height / 2 + source_top * scale)
-            preview = _edge_extended_canvas(resized, (width, height), source_y)
-            preview.save(temporary, "JPEG", quality=85)
-        temporary.replace(output)
-    finally:
-        temporary.unlink(missing_ok=True)
+def _preview_filter_graph(config: PanoramaConfig) -> str:
+    virtual_height, source_y, input_vertical_fov = _virtual_input_geometry(config)
+    source_width = config.cropped_area_width or config.source_width
+    source_height = config.cropped_area_height or config.source_height
+    width, height = _preview_size(source_width, config.captured_fov)
+    projection = (
+        "v360=input=cylindrical:output=equirect:"
+        f"ih_fov={_number(config.captured_fov)}:"
+        f"iv_fov={_number(input_vertical_fov)}:"
+        f"w={width}:h={height}"
+    )
+    if virtual_height == source_height and source_y == 0:
+        return projection
+    bottom_padding = virtual_height - source_y - source_height
+    return (
+        "format=gbrp,"
+        f"pad=width=iw:height={virtual_height}:x=0:y={source_y}:color=black,"
+        f"fillborders=top={source_y}:bottom={bottom_padding}:mode=smear,"
+        f"{projection}"
+    )
 
 
 async def create_panorama_preview(
@@ -362,10 +333,4 @@ async def create_panorama_preview(
     config: PanoramaConfig,
     output: Path,
 ) -> None:
-    await run_sync(
-        _create_preview_sync,
-        source,
-        config,
-        output,
-        limiter=media_limiter,
-    )
+    await _render_image(source, _preview_filter_graph(config), output)

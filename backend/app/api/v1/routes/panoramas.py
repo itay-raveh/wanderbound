@@ -202,7 +202,7 @@ async def get_panorama_source(
     name: MediaName,
     user: UserDep,
     session: SessionDep,
-    captured_fov: Annotated[float | None, Query(gt=0, lt=360)] = None,
+    captured_fov: Annotated[int | None, Query(ge=1, le=359)] = None,
 ) -> FileResponse:
     media = await session.get(AlbumMedia, (user.id, aid, name))
     if media is None or media.panorama is None:

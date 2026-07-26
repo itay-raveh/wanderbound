@@ -2283,9 +2283,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "number",
-                  "exclusiveMaximum": 360,
-                  "exclusiveMinimum": 0
+                  "type": "integer",
+                  "maximum": 359,
+                  "minimum": 1
                 },
                 {
                   "type": "null"

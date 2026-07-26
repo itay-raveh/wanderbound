@@ -111,7 +111,7 @@ function savedFrame(): PanoramaFrameDraft {
     zoom: config.zoom ?? 1,
     ...(config.detection === "gpano"
       ? {}
-      : { capturedFov: config.captured_fov }),
+      : { capturedFov: Math.round(config.captured_fov) }),
   };
 }
 
@@ -135,7 +135,7 @@ function currentBounds(frame = draft.value) {
 function panoramaSourceUrl(frame: PanoramaFrameDraft): string {
   const base = `/api/v1/albums/${encodeURIComponent(props.albumId)}/media/${encodeURIComponent(props.media.name)}/panorama-source`;
   if (panorama.value?.detection === "gpano") return base;
-  return `${base}?captured_fov=${encodeURIComponent(effectiveCapturedFov(frame))}`;
+  return `${base}?captured_fov=${encodeURIComponent(Math.round(effectiveCapturedFov(frame)))}`;
 }
 
 function cleanupAdapter(): void {

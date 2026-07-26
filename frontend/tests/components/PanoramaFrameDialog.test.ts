@@ -248,6 +248,21 @@ describe("PanoramaFrameDialog", () => {
     );
   });
 
+  it("normalizes metadata-free captured width to the integer API precision", async () => {
+    const media = panoramaMedia("dimensions");
+    media.panorama!.captured_fov = 180.4;
+    mountDialog({ modelValue: true, media });
+
+    await flushPromises();
+
+    expect(adapterFake.adapter.load).toHaveBeenCalledWith(
+      expect.objectContaining({
+        src: "/api/v1/albums/a1/media/wide%20view.jpg/panorama-source?captured_fov=180",
+        frame: expect.objectContaining({ capturedFov: 180 }),
+      }),
+    );
+  });
+
   it("owns pinch until every touch ends", async () => {
     const wrapper = mountDialog({ modelValue: true });
     await flushPromises();

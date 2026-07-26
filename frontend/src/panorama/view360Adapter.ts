@@ -1,6 +1,6 @@
 import "@egjs/view360/css/base.css";
 import View360, {
-  CylindricalProjection,
+  EquirectProjection,
   EVENTS,
   type ViewChangeEvent,
 } from "@egjs/view360";
@@ -61,6 +61,9 @@ export function createPanoramaViewerAdapter(
     if (!viewer) return;
     viewer.camera.restrictZoomRange(1, 1);
     viewer.camera.lookAt({ yaw: target.yaw, pitch: target.pitch, zoom: 1 });
+    // lookAt circulates negative yaw before beta.7 sync clamps signed ranges.
+    // https://github.com/naver/egjs-view360/issues/454
+    viewer.camera.yaw = target.yaw;
     viewer.control.sync();
   }
 
@@ -113,9 +116,8 @@ export function createPanoramaViewerAdapter(
       canvas.setAttribute("aria-label", options.accessibleLabel);
       root.append(canvas);
 
-      const projection = new CylindricalProjection({
+      const projection = new EquirectProjection({
         src: options.src,
-        partial: true,
       });
       const createdViewer = new View360(root, {
         projection,

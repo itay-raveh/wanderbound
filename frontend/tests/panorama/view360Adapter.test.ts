@@ -34,6 +34,8 @@ const view360Fake = vi.hoisted(() => {
     renderFrame: ReturnType<typeof vi.fn>;
     resize = vi.fn();
     private _fov: number;
+    private _controlYaw: number;
+    private _controlPitch: number;
     handlers = new Map<string, (event: unknown) => void>();
 
     constructor(
@@ -41,6 +43,8 @@ const view360Fake = vi.hoisted(() => {
       public options: Record<string, unknown>,
     ) {
       this._fov = options.fov as number;
+      this._controlYaw = options.initialYaw as number;
+      this._controlPitch = options.initialPitch as number;
       this.camera = {
         yaw: options.initialYaw as number,
         pitch: options.initialPitch as number,
@@ -60,9 +64,24 @@ const view360Fake = vi.hoisted(() => {
       this.control = {
         disable: vi.fn(),
         enable: vi.fn().mockResolvedValue(undefined),
-        sync: vi.fn(),
+        sync: vi.fn(() => {
+          const yawRange = options.yawRange as { min: number; max: number };
+          const pitchRange = options.pitchRange as { min: number; max: number };
+          this._controlYaw = Math.min(
+            yawRange.max,
+            Math.max(yawRange.min, this.camera.yaw),
+          );
+          this._controlPitch = Math.min(
+            pitchRange.max,
+            Math.max(pitchRange.min, this.camera.pitch),
+          );
+        }),
         update: vi.fn(() => {
-          this.camera.lookAt({ zoom: this.camera.zoomRange.min });
+          this.camera.lookAt({
+            yaw: this._controlYaw,
+            pitch: this._controlPitch,
+            zoom: this.camera.zoomRange.min,
+          });
         }),
       };
       this.renderFrame = vi.fn(() => this.control.update());
@@ -92,7 +111,7 @@ const view360Fake = vi.hoisted(() => {
 
 vi.mock("@egjs/view360", () => ({
   default: view360Fake.FakeViewer,
-  CylindricalProjection: view360Fake.FakeProjection,
+  EquirectProjection: view360Fake.FakeProjection,
   EVENTS: { VIEW_CHANGE: "viewChange" },
 }));
 
@@ -105,7 +124,7 @@ describe("View360 panorama adapter", () => {
     view360Fake.state.initPromise = Promise.resolve();
   });
 
-  it("loads a bounded partial cylinder with library zoom disabled", async () => {
+  it("loads the normalized equirectangular source with library zoom disabled", async () => {
     const root = document.createElement("div");
     const onChange = vi.fn();
     const adapter = createPanoramaViewerAdapter(root);
@@ -129,7 +148,6 @@ describe("View360 panorama adapter", () => {
     expect(view360Fake.projections).toEqual([
       {
         src: "/api/v1/albums/a1/media/pano.jpg/panorama-source",
-        partial: true,
       },
     ]);
     expect(root.querySelector("canvas.view360-canvas")).not.toBeNull();
@@ -155,6 +173,49 @@ describe("View360 panorama adapter", () => {
     expect(
       view360Fake.viewers[0]?.camera.restrictZoomRange,
     ).toHaveBeenLastCalledWith(1, 1);
+  });
+
+  it("keeps negative yaw through exact-beta-style control synchronization", async () => {
+    const root = document.createElement("div");
+    const onChange = vi.fn();
+    const adapter = createPanoramaViewerAdapter(root);
+    const bounds = {
+      yaw: { min: -50, max: 50 },
+      pitch: { min: -15, max: 15 },
+    };
+    const frame = {
+      yaw: -25,
+      pitch: 0,
+      perspectiveFov: 70,
+      zoom: 1.8,
+      capturedFov: 190,
+    };
+
+    await adapter.load({
+      src: "/panorama.jpg",
+      frame,
+      bounds,
+      accessibleLabel: "Interactive panorama preview",
+      onChange,
+    });
+    const viewer = view360Fake.viewers[0];
+    expect(viewer?.camera.yaw).toBe(335);
+
+    adapter.lookAt({ ...frame, yaw: -30, zoom: 2 }, bounds);
+    expect(viewer?.camera.yaw).toBe(330);
+
+    adapter.setPerspective(55, bounds);
+    expect(viewer?.camera.yaw).toBe(330);
+
+    adapter.reset({ ...frame, yaw: -35 }, bounds);
+    expect(viewer?.camera.yaw).toBe(325);
+
+    viewer?.emit("viewChange", { yaw: 330, pitch: -30, zoom: 2 });
+    viewer?.renderFrame(0);
+    expect(viewer?.camera.yaw).toBe(330);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ yaw: -30, pitch: -15 }),
+    );
   });
 
   it("converts wrapped camera yaw to signed bounded frame drafts", async () => {

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import math
 from pathlib import Path
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 from pydantic import ValidationError
 
 from app.core.worker_threads import run_sync
@@ -49,7 +48,7 @@ def _destination(**updates: object) -> PanoramaDestination:
     return PanoramaDestination.model_validate(values | updates)
 
 
-async def test_preview_aspect_encodes_captured_horizontal_radians(
+async def test_preview_is_full_equirectangular_for_sphere_projection(
     tmp_path: Path,
 ) -> None:
     source = create_test_jpeg(tmp_path / "source.jpg", 300, 64)
@@ -66,12 +65,95 @@ async def test_preview_aspect_encodes_captured_horizontal_radians(
     await create_panorama_preview(source, config, output)
 
     with Image.open(output) as preview:
-        assert preview.width == 300
-        assert math.isclose(
-            preview.width / preview.height,
-            math.radians(270),
-            rel_tol=0.01,
+        assert preview.size == (400, 200)
+
+
+async def test_preview_keeps_tall_source_edges_outside_partial_cylinder_height(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.png"
+    image = Image.new("RGB", (400, 200), color=(30, 220, 30))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 399, 19), fill=(240, 20, 20))
+    draw.rectangle((0, 180, 399, 199), fill=(20, 20, 240))
+    image.save(source)
+    output = tmp_path / "preview.jpg"
+    config = _config(
+        detection="dimensions",
+        source_width=400,
+        source_height=200,
+        captured_fov=180,
+    )
+
+    await create_panorama_preview(source, config, output)
+
+    with Image.open(output) as preview:
+        assert preview.size == (800, 400)
+        center_column = [
+            cast("tuple[int, int, int]", preview.getpixel((400, y)))
+            for y in range(preview.height)
+        ]
+        assert any(
+            red > 180 and green < 80 and blue < 80 for red, green, blue in center_column
         )
+        assert any(
+            blue > 180 and red < 80 and green < 80 for red, green, blue in center_column
+        )
+
+
+async def test_preview_reprojects_to_the_same_allowed_frame_as_source(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.png"
+    image = Image.new("RGB", (400, 200), color=(30, 220, 30))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 199, 99), fill=(240, 20, 20))
+    draw.rectangle((200, 100, 399, 199), fill=(20, 20, 240))
+    image.save(source)
+    preview = tmp_path / "preview.jpg"
+    direct = tmp_path / "direct.jpg"
+    through_preview = tmp_path / "through-preview.jpg"
+    config = _config(
+        detection="dimensions",
+        source_width=400,
+        source_height=200,
+        captured_fov=180,
+        yaw=-20,
+        pitch=8,
+        perspective_fov=60,
+        zoom=1,
+    )
+    destination = _destination(width_px=200, height_px=100)
+
+    await create_panorama_preview(source, config, preview)
+    await render_panorama(source, config, destination, direct)
+    process = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-y",
+        "-i",
+        str(preview),
+        "-frames:v",
+        "1",
+        "-vf",
+        "v360=input=equirect:output=flat:yaw=-20:pitch=8:"
+        "h_fov=60:v_fov=32.2042:w=200:h=100",
+        str(through_preview),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _stdout, stderr = await process.communicate()
+    assert process.returncode == 0, stderr.decode(errors="replace")
+
+    with Image.open(direct) as expected, Image.open(through_preview) as actual:
+        difference = ImageChops.difference(
+            expected.convert("RGB"),
+            actual.convert("RGB"),
+        )
+        assert max(ImageStat.Stat(difference).mean) < 8
 
 
 async def test_preview_places_gpano_horizon_at_canvas_center(tmp_path: Path) -> None:
