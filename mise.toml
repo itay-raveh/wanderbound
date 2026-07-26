@@ -70,11 +70,7 @@ run = "scripts/run_direct_upload_integration.sh"
 
 [tasks.test]
 description = "Run all tests"
-depends = ["test:backend", "test:frontend", "test:e2e", "test:helm"]
-
-[tasks."test:helm"]
-description = "Validate and render the Helm chart contract"
-run = "uv run scripts/check_helm_chart.py"
+depends = ["test:backend", "test:frontend", "test:e2e"]
 
 # -- Linting ------------------------------------------------------
 
@@ -91,6 +87,10 @@ run = [
 description = "Lint frontend (eslint)"
 dir = "frontend"
 run = "bun run lint"
+
+[tasks."lint:helm"]
+description = "Lint the Helm chart"
+run = "helm lint --strict charts/wanderbound"
 
 [tasks.lint]
 description = "Run all linters"
