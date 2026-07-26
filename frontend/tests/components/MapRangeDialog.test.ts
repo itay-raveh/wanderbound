@@ -1,7 +1,7 @@
 import { defineComponent, nextTick } from "vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import MapRangeDialog from "@/components/editor/nav/MapRangeDialog.vue";
-import ChapterStartSelect from "@/components/editor/nav/ChapterStartSelect.vue";
+import StepSelect from "@/components/editor/nav/StepSelect.vue";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 
 vi.mock("@/queries/useUserQuery", () => ({
@@ -62,7 +62,7 @@ describe("MapRangeDialog", () => {
     await nextTick();
 
     expect(wrapper.findComponent(PromptDialog).exists()).toBe(true);
-    expect(wrapper.findAllComponents(ChapterStartSelect)).toHaveLength(2);
+    expect(wrapper.findAllComponents(StepSelect)).toHaveLength(2);
   });
 
   it("uses step dropdowns and prevents an ending step before the start", async () => {
@@ -71,7 +71,7 @@ describe("MapRangeDialog", () => {
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(ChapterStartSelect);
+    const selects = wrapper.findAllComponents(StepSelect);
     expect(selects[0].props("modelValue")).toBe(1);
     expect(selects[1].props("modelValue")).toBe(3);
 
@@ -90,7 +90,7 @@ describe("MapRangeDialog", () => {
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(ChapterStartSelect);
+    const selects = wrapper.findAllComponents(StepSelect);
     selects[0].vm.$emit("update:modelValue", 2);
     selects[1].vm.$emit("update:modelValue", 3);
     await nextTick();
@@ -106,7 +106,7 @@ describe("MapRangeDialog", () => {
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(ChapterStartSelect);
+    const selects = wrapper.findAllComponents(StepSelect);
     expect(selects[0].props("options")).toMatchObject([
       { label: "Buenos Aires" },
       { label: "Ushuaia" },

@@ -100,10 +100,10 @@ describe("NavChapterGroup", () => {
     await wrapper.get('button[aria-label="Chapter actions"]').trigger("click");
     await nextTick();
 
-    const selected = document.body.querySelector(".chapter-start-selected");
+    const selected = document.body.querySelector(".step-select-selected");
     expect(selected).toBeInstanceOf(HTMLElement);
     expect(selected?.getAttribute("dir")).toBe("ltr");
-    expect(selected?.querySelector(".chapter-start-label")?.getAttribute("dir")).toBe(
+    expect(selected?.querySelector(".step-select-label")?.getAttribute("dir")).toBe(
       "auto",
     );
     expect(selected?.querySelector("img")?.getAttribute("src")).toBe(

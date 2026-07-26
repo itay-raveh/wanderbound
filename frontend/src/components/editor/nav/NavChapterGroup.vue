@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { DateRange } from "@/client";
-import type { ChapterStartOption, ChapterVisit } from "./types";
+import type { ChapterVisit, StepSelectOption } from "./types";
 import type { HeaderKey } from "@/components/album/albumSections";
 import { useI18n } from "vue-i18n";
 import { ref } from "vue";
@@ -27,7 +27,7 @@ defineProps<{
   canDelete?: boolean;
   canSplit?: boolean;
   mergeTarget?: "previous" | "next";
-  startOptions?: ChapterStartOption[];
+  startOptions?: StepSelectOption[];
   startStepId?: number | null;
 }>();
 

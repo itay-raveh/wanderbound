@@ -27,7 +27,7 @@ export interface StepItem {
   detail: string;
 }
 
-export interface ChapterStartOption {
+export interface StepSelectOption {
   label: string;
   value: number;
   countryCode: string;

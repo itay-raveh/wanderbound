@@ -1,9 +1,9 @@
 import { mountWithPlugins } from "../helpers";
-import ChapterStartSelect from "@/components/editor/nav/ChapterStartSelect.vue";
+import StepSelect from "@/components/editor/nav/StepSelect.vue";
 
-describe("ChapterStartSelect", () => {
+describe("StepSelect", () => {
   it("owns the shared row shell used by every step selector", () => {
-    const wrapper = mountWithPlugins(ChapterStartSelect, {
+    const wrapper = mountWithPlugins(StepSelect, {
       props: {
         modelValue: 1,
         options: [
@@ -17,7 +17,7 @@ describe("ChapterStartSelect", () => {
       },
     });
 
-    const row = wrapper.get(".chapter-start-item");
-    expect(row.find(".chapter-start-select").exists()).toBe(true);
+    const row = wrapper.get(".step-select-item");
+    expect(row.find(".step-select").exists()).toBe(true);
   });
 });

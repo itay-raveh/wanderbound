@@ -1,5 +1,5 @@
 import type { AlbumChapter, StepRead as Step } from "@/client";
-import type { ChapterStartOption } from "./types";
+import type { StepSelectOption } from "./types";
 
 type ChapterBoundaryOptionsInput = {
   left: AlbumChapter;
@@ -17,7 +17,7 @@ export function chapterBoundaryOptions({
   right,
   steps,
   countryName,
-}: ChapterBoundaryOptionsInput): ChapterStartOption[] {
+}: ChapterBoundaryOptionsInput): StepSelectOption[] {
   const stepsById = new Map(steps.map((step) => [step.id, step]));
   const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
   return combined.slice(1).map((stepId) => {

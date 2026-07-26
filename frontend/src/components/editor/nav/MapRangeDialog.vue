@@ -6,7 +6,7 @@ import { useUserQuery } from "@/queries/useUserQuery";
 import { symOutlinedMap } from "@quasar/extras/material-symbols-outlined";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import ChapterStartSelect from "./ChapterStartSelect.vue";
+import StepSelect from "./StepSelect.vue";
 
 const show = defineModel<boolean>({ required: true });
 const props = defineProps<{
@@ -98,13 +98,13 @@ function save() {
   >
     <div class="map-range-content">
       <q-list dense class="map-range-fields">
-        <ChapterStartSelect
+        <StepSelect
           v-model="startStepId"
           :options="options"
           :label="t('nav.startStep')"
         />
         <q-separator class="map-range-field-separator" />
-        <ChapterStartSelect
+        <StepSelect
           v-model="endStepId"
           :options="endOptions"
           :label="t('nav.endStep')"

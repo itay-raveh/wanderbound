@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { ChapterStartOption } from "./types";
+import type { StepSelectOption } from "./types";
 import { useI18n } from "vue-i18n";
-import ChapterStartSelect from "./ChapterStartSelect.vue";
+import StepSelect from "./StepSelect.vue";
 import {
   symOutlinedCallMerge,
   symOutlinedCallSplit,
@@ -13,7 +13,7 @@ const props = defineProps<{
   canDelete?: boolean;
   canSplit?: boolean;
   mergeTarget?: "previous" | "next";
-  startOptions?: ChapterStartOption[];
+  startOptions?: StepSelectOption[];
   startStepId?: number | null;
 }>();
 
@@ -26,7 +26,7 @@ defineEmits<{
 
 <template>
   <q-list dense class="chapter-action-menu">
-    <ChapterStartSelect
+    <StepSelect
       v-if="startOptions?.length"
       :model-value="props.startStepId"
       :options="startOptions"

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { ChapterStartOption } from "./types";
+import type { StepSelectOption } from "./types";
 import { flagUrl } from "@/utils/media";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -7,7 +7,7 @@ import { useI18n } from "vue-i18n";
 const { t } = useI18n();
 
 const props = defineProps<{
-  options: ChapterStartOption[];
+  options: StepSelectOption[];
   modelValue?: number | null;
   label?: string;
 }>();
@@ -23,14 +23,14 @@ defineEmits<{
 </script>
 
 <template>
-  <q-item class="chapter-start-item">
+  <q-item class="step-select-item">
     <q-item-section>
       <q-select
         :model-value="modelValue"
         :options="options"
         :label="label ?? t('chapters.startsAt')"
-        class="chapter-start-select"
-        popup-content-class="chapter-start-popup"
+        class="step-select"
+        popup-content-class="step-select-popup"
         dense
         borderless
         emit-value
@@ -39,13 +39,13 @@ defineEmits<{
         @update:model-value="$emit('update:modelValue', Number($event))"
       >
         <template #selected>
-          <div v-if="selected" class="chapter-start-selected" dir="ltr">
+          <div v-if="selected" class="step-select-selected" dir="ltr">
             <img
               :src="flagUrl(selected.countryCode)"
               :alt="selected.countryLabel"
-              class="chapter-start-flag"
+              class="step-select-flag"
             />
-            <span class="chapter-start-label" dir="auto">
+            <span class="step-select-label" dir="auto">
               {{ selected.label }}
             </span>
           </div>
@@ -53,21 +53,21 @@ defineEmits<{
         <template #option="scope">
           <q-item
             v-bind="scope.itemProps"
-            class="chapter-start-option"
+            class="step-select-option"
             dir="ltr"
           >
-            <q-item-section side class="chapter-start-option-flag">
+            <q-item-section side class="step-select-option-flag">
               <img
                 :src="flagUrl(scope.opt.countryCode)"
                 :alt="scope.opt.countryLabel"
-                class="chapter-start-flag"
+                class="step-select-flag"
               />
             </q-item-section>
-            <q-item-section class="chapter-start-option-text">
-              <span class="chapter-start-label" dir="auto">
+            <q-item-section class="step-select-option-text">
+              <span class="step-select-label" dir="auto">
                 {{ scope.opt.label }}
               </span>
-              <span v-if="scope.opt.detail" class="chapter-start-option-detail">
+              <span v-if="scope.opt.detail" class="step-select-option-detail">
                 {{ scope.opt.detail }}
               </span>
             </q-item-section>
@@ -79,13 +79,13 @@ defineEmits<{
 </template>
 
 <style lang="scss" scoped>
-.chapter-start-item {
+.step-select-item {
   min-height: 3.25rem;
   padding: 0 var(--gap-sm);
   border-radius: var(--radius-sm);
 }
 
-.chapter-start-select {
+.step-select {
   min-width: 0;
 
   :deep(.q-field__control) {
@@ -106,8 +106,8 @@ defineEmits<{
   }
 }
 
-.chapter-start-selected,
-:global(.chapter-start-option) {
+.step-select-selected,
+:global(.step-select-option) {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
@@ -115,18 +115,18 @@ defineEmits<{
   text-align: left;
 }
 
-.chapter-start-selected {
+.step-select-selected {
   width: 100%;
 }
 
-.chapter-start-flag {
+.step-select-flag {
   width: 0.875rem;
   height: 0.625rem;
   flex: 0 0 auto;
   border-radius: var(--radius-xs);
 }
 
-.chapter-start-label {
+.step-select-label {
   min-width: 0;
   overflow: hidden;
   text-align: left;
@@ -134,26 +134,26 @@ defineEmits<{
   white-space: nowrap;
 }
 
-:global(.chapter-start-popup) {
+:global(.step-select-popup) {
   direction: ltr;
   text-align: left;
 }
 
-:global(.chapter-start-option) {
+:global(.step-select-option) {
   min-height: 2.25rem;
   padding-inline: var(--gap-sm);
 }
 
-:global(.chapter-start-option-flag) {
+:global(.step-select-option-flag) {
   min-width: unset;
   padding-inline-end: 0;
 }
 
-:global(.chapter-start-option-text) {
+:global(.step-select-option-text) {
   min-width: 0;
 }
 
-:global(.chapter-start-option-detail) {
+:global(.step-select-option-detail) {
   color: var(--text-muted);
   font-size: var(--type-xs);
 }
