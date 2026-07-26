@@ -1,7 +1,9 @@
 <script lang="ts" setup>
+import { usePrintMode } from "@/composables/usePrintReady";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
+const printMode = usePrintMode();
 </script>
 
 <template>
@@ -9,7 +11,7 @@ const { t } = useI18n();
     <div class="page-container alignment-artwork">
       <img src="/topo-contours.svg" alt="" />
     </div>
-    <div class="alignment-help">
+    <div v-if="!printMode" class="alignment-help">
       {{ t("album.panoramaAlignment") }}
     </div>
   </div>
