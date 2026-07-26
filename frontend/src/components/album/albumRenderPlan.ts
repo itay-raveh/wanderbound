@@ -9,7 +9,6 @@ import {
   buildSections,
   chapterHeaderSectionKey,
   sectionKey,
-  sectionPageCount,
   segmentsOverlapping,
   type HeaderKey,
   type Section,
@@ -43,7 +42,39 @@ export type EditorItem =
       pageIndex: number;
       photoIds: string[];
     }
+  | {
+      type: "grid";
+      key: string;
+      step: Step;
+      pageIndex: number;
+      originalPageIndex: number;
+      page: Step["pages"][number];
+      photoIds: string[];
+    }
+  | {
+      type: "panorama-spread";
+      key: string;
+      step: Step;
+      pageIndex: number;
+      originalPageIndex: number;
+      media: string;
+      photoIds: string[];
+    }
+  | {
+      type: "alignment";
+      key: string;
+      step: Step;
+    }
   | { type: "step-add-zone"; key: string; step: Step };
+
+export type PhysicalRenderItem =
+  | Exclude<EditorItem, { type: "step-add-zone" | "panorama-spread" }>
+  | {
+      type: "panorama-spread-left" | "panorama-spread-right";
+      key: string;
+      step: Step;
+      media: string;
+    };
 
 export function buildChapterRenderGroups(
   album: AlbumMeta,
@@ -86,16 +117,7 @@ export function countChapterRenderPages(
   groups: ChapterRenderGroup[],
   mediaByName: ReadonlyMap<string, AlbumMedia>,
 ): number {
-  return groups.reduce(
-    (total, group) =>
-      total +
-      group.headerKeys.length +
-      group.sections.reduce(
-        (sum, section) => sum + sectionPageCount(section, mediaByName),
-        0,
-      ),
-    0,
-  );
+  return buildPhysicalRenderItems(buildEditorItems(groups, mediaByName)).length;
 }
 
 export function buildEditorItems(
@@ -103,36 +125,78 @@ export function buildEditorItems(
   mediaByName: ReadonlyMap<string, AlbumMedia>,
 ): EditorItem[] {
   const result: EditorItem[] = [];
+  let physicalPageCount = 0;
   groups.forEach((group) => {
-    result.push(
-      ...group.headerKeys.map((headerKey) => ({
+    for (const headerKey of group.headerKeys) {
+      result.push({
         type: "header" as const,
         key: chapterHeaderSectionKey(group.chapter.id, headerKey),
         headerKey,
         chapter: group.chapter,
         steps: group.steps,
         segments: group.segments,
-      })),
-    );
+      });
+      physicalPageCount++;
+    }
     group.sections.forEach((section) => {
       if (section.type === "map") {
         result.push({ type: "map", key: sectionKey(section), section });
+        physicalPageCount++;
         return;
       }
       if (section.type === "hike") {
         result.push({ type: "hike", key: sectionKey(section), section });
+        physicalPageCount++;
         return;
       }
       const stepPlan = planStepPages(section.step, mediaByName);
-      const stepPages = stepPlan.editorPagePhotoIds;
+      const stepPages = stepPlan.editorPages;
       for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
+        const page = stepPages[pageIndex];
+        if (!page) continue;
+        const key = `${sectionKey(section)}-page-${pageIndex}`;
+        if (page.kind === "step") {
+          result.push({
+            type: "step-page",
+            key,
+            step: section.step,
+            pageIndex,
+            photoIds: page.photoIds,
+          });
+          physicalPageCount++;
+          continue;
+        }
+        if (page.kind === "grid") {
+          result.push({
+            type: "grid",
+            key,
+            step: section.step,
+            pageIndex,
+            originalPageIndex: page.originalIdx,
+            page: page.page,
+            photoIds: page.photoIds,
+          });
+          physicalPageCount++;
+          continue;
+        }
+        if (physicalPageCount % 2 === 0) {
+          result.push({
+            type: "alignment",
+            key: `${key}-alignment`,
+            step: section.step,
+          });
+          physicalPageCount++;
+        }
         result.push({
-          type: "step-page",
-          key: `${sectionKey(section)}-page-${pageIndex}`,
+          type: "panorama-spread",
+          key,
           step: section.step,
           pageIndex,
-          photoIds: stepPages[pageIndex] ?? [],
+          originalPageIndex: page.originalIdx,
+          media: page.photoIds[0],
+          photoIds: page.photoIds,
         });
+        physicalPageCount += 2;
       }
       if (stepPlan.hasPhotoDropZone) {
         result.push({
@@ -144,4 +208,27 @@ export function buildEditorItems(
     });
   });
   return result;
+}
+
+export function buildPhysicalRenderItems(
+  editorItems: EditorItem[],
+): PhysicalRenderItem[] {
+  return editorItems.flatMap((item): PhysicalRenderItem[] => {
+    if (item.type === "step-add-zone") return [];
+    if (item.type !== "panorama-spread") return [item];
+    return [
+      {
+        type: "panorama-spread-left",
+        key: `${item.key}-left`,
+        step: item.step,
+        media: item.media,
+      },
+      {
+        type: "panorama-spread-right",
+        key: `${item.key}-right`,
+        step: item.step,
+        media: item.media,
+      },
+    ];
+  });
 }

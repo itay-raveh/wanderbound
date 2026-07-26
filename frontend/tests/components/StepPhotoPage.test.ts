@@ -32,7 +32,10 @@ describe("StepPhotoPage", () => {
     const Parent = defineComponent({
       setup() {
         provideTestAlbum();
-        return () => h(StepPhotoPage, { page: ["one.jpg", "two.jpg"] });
+        return () =>
+          h(StepPhotoPage, {
+            page: { kind: "grid", media: ["one.jpg", "two.jpg"] },
+          });
       },
     });
 

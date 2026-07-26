@@ -58,7 +58,10 @@ function makeLargeSteps(photosPerStep = PHOTOS_PER_STEP) {
       cover: photos[0],
       pages: Array.from(
         { length: Math.ceil(photos.length / 4) },
-        (_, pageIndex) => photos.slice(pageIndex * 4, pageIndex * 4 + 4),
+        (_, pageIndex) => ({
+          kind: "grid",
+          media: photos.slice(pageIndex * 4, pageIndex * 4 + 4),
+        }),
       ),
       unused: [],
       datetime: new Date(timestamp * 1000).toISOString(),

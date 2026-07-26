@@ -39,14 +39,38 @@ function lastUpdate(
 describe("onCoverUpdate", () => {
   it.each([
     [
-      { cover: null, pages: [["p1", "p2"], ["p3"]], unused: [] },
+      {
+        cover: null,
+        pages: [
+          { kind: "grid" as const, media: ["p1", "p2"] },
+          { kind: "grid" as const, media: ["p3"] },
+        ],
+        unused: [],
+      },
       "p2",
-      { cover: "p2", pages: [["p1"], ["p3"]], unused: [] },
+      {
+        cover: "p2",
+        pages: [
+          { kind: "grid", media: ["p1"] },
+          { kind: "grid", media: ["p3"] },
+        ],
+        unused: [],
+      },
     ],
     [
-      { cover: "old_cover", pages: [["p1", "new_cover"]], unused: ["u1"] },
+      {
+        cover: "old_cover",
+        pages: [
+          { kind: "grid" as const, media: ["p1", "new_cover"] },
+        ],
+        unused: ["u1"],
+      },
       "new_cover",
-      { cover: "new_cover", pages: [["p1"]], unused: ["u1", "old_cover"] },
+      {
+        cover: "new_cover",
+        pages: [{ kind: "grid", media: ["p1"] }],
+        unused: ["u1", "old_cover"],
+      },
     ],
     [
       { cover: null, pages: [], unused: ["u1", "new_cover", "u2"] },
@@ -69,23 +93,41 @@ describe("onPageUpdate", () => {
     [
       {
         pages: [
-          ["a", "b"],
-          ["c", "d"],
+          { kind: "grid" as const, media: ["a", "b"] },
+          { kind: "grid" as const, media: ["c", "d"] },
         ],
         unused: [],
       },
       ["a", "b", "c"],
-      { pages: [["a", "b", "c"], ["d"]], unused: [] },
+      {
+        pages: [
+          { kind: "grid", media: ["a", "b", "c"] },
+          { kind: "grid", media: ["d"] },
+        ],
+        unused: [],
+      },
     ],
     [
-      { pages: [["a"]], unused: ["u1", "u2"] },
+      {
+        pages: [{ kind: "grid" as const, media: ["a"] }],
+        unused: ["u1", "u2"],
+      },
       ["a", "u1"],
-      { pages: [["a", "u1"]], unused: ["u2"] },
+      {
+        pages: [{ kind: "grid", media: ["a", "u1"] }],
+        unused: ["u2"],
+      },
     ],
     [
-      { pages: [["a"], ["b"]], unused: [] },
+      {
+        pages: [
+          { kind: "grid" as const, media: ["a"] },
+          { kind: "grid" as const, media: ["b"] },
+        ],
+        unused: [],
+      },
       ["a", "b"],
-      { pages: [["a", "b"]] },
+      { pages: [{ kind: "grid", media: ["a", "b"] }] },
     ],
   ])("updates page placement", (stepPatch, page, expected) => {
     const { result, mutateSpy } = mountStepLayout(
@@ -95,5 +137,51 @@ describe("onPageUpdate", () => {
     result.onPageUpdate(0, page);
 
     expect(lastUpdate(mutateSpy)).toMatchObject(expected);
+  });
+
+  it("moves a panorama into a grid without leaving half a spread", () => {
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({
+        pages: [
+          { kind: "grid", media: ["grid.jpg"] },
+          { kind: "panorama_spread", media: ["panorama.jpg"] },
+        ],
+      }),
+    );
+
+    result.onPageUpdate(0, ["grid.jpg", "panorama.jpg"]);
+
+    expect(lastUpdate(mutateSpy)).toMatchObject({
+      pages: [{ kind: "grid", media: ["grid.jpg", "panorama.jpg"] }],
+    });
+  });
+
+  it("rejects a multi-media panorama before mutating", () => {
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({
+        pages: [{ kind: "panorama_spread", media: ["panorama.jpg"] }],
+      }),
+    );
+
+    result.onPageUpdate(0, ["panorama.jpg", "other.jpg"]);
+
+    expect(mutateSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("onUnusedUpdate", () => {
+  it("removes a panorama spread as one logical page", () => {
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({
+        pages: [{ kind: "panorama_spread", media: ["panorama.jpg"] }],
+      }),
+    );
+
+    result.onUnusedUpdate(["panorama.jpg"]);
+
+    expect(lastUpdate(mutateSpy)).toMatchObject({
+      pages: [],
+      unused: ["panorama.jpg"],
+    });
   });
 });

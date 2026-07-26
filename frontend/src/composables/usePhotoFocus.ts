@@ -27,7 +27,7 @@ let awaitingStepTransition = false;
 
 /** Cover is shown on StepMainPage (not focusable) - skip it in navigation. */
 function pagedPhotos(step: Step): string[] {
-  const all = step.pages.flat();
+  const all = step.pages.flatMap((page) => page.media);
   return step.cover ? all.filter((p) => p !== step.cover) : all;
 }
 

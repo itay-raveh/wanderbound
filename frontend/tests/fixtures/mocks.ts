@@ -79,7 +79,7 @@ export const mockStep = {
     night: null,
   },
   cover: "photo1.jpg",
-  pages: [["photo1.jpg", "photo2.jpg"]],
+  pages: [{ kind: "grid", media: ["photo1.jpg", "photo2.jpg"] }],
   unused: [],
   datetime: "2024-01-01T12:00:00+01:00",
 };
@@ -126,7 +126,12 @@ export const mockFocusSteps = [
     elevation: 25,
     weather: { day: { temp: 28, feels_like: 30, icon: "clear-day" }, night: null },
     cover: focusPhotos[0],
-    pages: [[focusPhotos[0], focusPhotos[1], focusPhotos[2], focusPhotos[3]]],
+    pages: [
+      {
+        kind: "grid",
+        media: [focusPhotos[0], focusPhotos[1], focusPhotos[2], focusPhotos[3]],
+      },
+    ],
     unused: [],
     datetime: "2024-01-01T12:00:00-03:00",
   },
@@ -140,7 +145,13 @@ export const mockFocusSteps = [
     elevation: 15,
     weather: { day: { temp: 10, feels_like: 7, icon: "cloudy" }, night: null },
     cover: focusPhotos[4],
-    pages: [[focusPhotos[4], focusPhotos[5], focusPhotos[6]], [focusPhotos[7]]],
+    pages: [
+      {
+        kind: "grid",
+        media: [focusPhotos[4], focusPhotos[5], focusPhotos[6]],
+      },
+      { kind: "grid", media: [focusPhotos[7]] },
+    ],
     unused: [],
     datetime: "2024-01-03T10:00:00-03:00",
   },
@@ -154,7 +165,18 @@ export const mockFocusSteps = [
     elevation: 520,
     weather: { day: { temp: 32, feels_like: 34, icon: "clear-day" }, night: null },
     cover: focusPhotos[8],
-    pages: [[focusPhotos[8], focusPhotos[9], FOCUS_VIDEO, focusPhotos[10], focusPhotos[11]]],
+    pages: [
+      {
+        kind: "grid",
+        media: [
+          focusPhotos[8],
+          focusPhotos[9],
+          FOCUS_VIDEO,
+          focusPhotos[10],
+          focusPhotos[11],
+        ],
+      },
+    ],
     unused: [],
     datetime: "2024-01-06T14:00:00-03:00",
   },

@@ -33,19 +33,37 @@ const drivingSegment = (start_time: number, end_time: number) =>
 describe("filterCoverFromPages", () => {
   it.each([
     [
-      [["cover", "p1"], ["p2"]],
       [
-        { originalIdx: 0, page: ["p1"] },
-        { originalIdx: 1, page: ["p2"] },
+        { kind: "grid" as const, media: ["cover", "p1"] },
+        { kind: "grid" as const, media: ["p2"] },
+      ],
+      [
+        { originalIdx: 0, page: { kind: "grid", media: ["p1"] } },
+        { originalIdx: 1, page: { kind: "grid", media: ["p2"] } },
       ],
     ],
-    [[["cover"], ["p1", "p2"]], [{ originalIdx: 1, page: ["p1", "p2"] }]],
     [
-      [["cover", "p1"], ["cover", "p2"], ["p3"]],
       [
-        { originalIdx: 0, page: ["p1"] },
-        { originalIdx: 1, page: ["p2"] },
-        { originalIdx: 2, page: ["p3"] },
+        { kind: "grid" as const, media: ["cover"] },
+        { kind: "grid" as const, media: ["p1", "p2"] },
+      ],
+      [
+        {
+          originalIdx: 1,
+          page: { kind: "grid", media: ["p1", "p2"] },
+        },
+      ],
+    ],
+    [
+      [
+        { kind: "grid" as const, media: ["cover", "p1"] },
+        { kind: "grid" as const, media: ["cover", "p2"] },
+        { kind: "grid" as const, media: ["p3"] },
+      ],
+      [
+        { originalIdx: 0, page: { kind: "grid", media: ["p1"] } },
+        { originalIdx: 1, page: { kind: "grid", media: ["p2"] } },
+        { originalIdx: 2, page: { kind: "grid", media: ["p3"] } },
       ],
     ],
   ])("filters cover entries from %j", (pages, expected) => {
@@ -58,7 +76,10 @@ describe("stepPageCount", () => {
     const step = makeStep({
       description: "x".repeat(120),
       cover: null,
-      pages: [["portrait.jpg"], ["landscape.jpg"]],
+      pages: [
+        { kind: "grid", media: ["portrait.jpg"] },
+        { kind: "grid", media: ["landscape.jpg"] },
+      ],
     });
     const mediaByName = new Map([
       ["portrait.jpg", { name: "portrait.jpg", width: 800, height: 1200 }],
@@ -66,11 +87,9 @@ describe("stepPageCount", () => {
     ]);
 
     expect(stepPageCount(step, mediaByName)).toBe(3);
-    expect(planStepPages(step, mediaByName).editorPagePhotoIds).toEqual([
-      [],
-      ["portrait.jpg"],
-      ["landscape.jpg"],
-    ]);
+    expect(
+      planStepPages(step, mediaByName).editorPages.map((page) => page.photoIds),
+    ).toEqual([[], ["portrait.jpg"], ["landscape.jpg"]]);
   });
 });
 

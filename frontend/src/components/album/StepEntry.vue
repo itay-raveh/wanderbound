@@ -3,6 +3,7 @@ import type { StepRead as Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
 import StepPhotoPage from "./step/StepPhotoPage.vue";
 import StepDescriptionPage from "./step/StepDescriptionPage.vue";
+import PanoramaSpreadPage from "./PanoramaSpreadPage.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
 import { STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { useTextLayout } from "@/composables/useTextLayout";
@@ -116,18 +117,42 @@ const hasPhotoDropZone = computed(
         @update:description="saveField({ description: $event })"
       />
 
+      <div
+        v-if="selectedPhotoPage?.page.kind === 'panorama_spread'"
+        class="panorama-spread row no-wrap"
+      >
+        <PanoramaSpreadPage
+          :media="selectedPhotoPage.page.media[0]!"
+          side="left"
+        />
+        <PanoramaSpreadPage
+          :media="selectedPhotoPage.page.media[0]!"
+          side="right"
+        />
+      </div>
       <StepPhotoPage
-        v-if="selectedPhotoPage"
+        v-else-if="selectedPhotoPage"
         :page="selectedPhotoPage.page"
-        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event)"
+        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event.media)"
       />
-      <StepPhotoPage
+      <template
         v-else-if="pageIndex == null"
         v-for="{ originalIdx, page } in photoPages"
         :key="`page-${originalIdx}`"
-        :page="page"
-        @update:page="onPageUpdate(originalIdx, $event)"
-      />
+      >
+        <div
+          v-if="page.kind === 'panorama_spread'"
+          class="panorama-spread row no-wrap"
+        >
+          <PanoramaSpreadPage :media="page.media[0]!" side="left" />
+          <PanoramaSpreadPage :media="page.media[0]!" side="right" />
+        </div>
+        <StepPhotoPage
+          v-else
+          :page="page"
+          @update:page="onPageUpdate(originalIdx, $event.media)"
+        />
+      </template>
 
       <div
         v-if="pageIndex == null && !printMode && hasPhotoDropZone"
@@ -152,6 +177,15 @@ const hasPhotoDropZone = computed(
 .step-entry {
   --meta-width: calc(var(--meta-ratio) * 100%);
   position: relative;
+}
+
+.panorama-spread {
+  width: calc(var(--page-width) * var(--editor-zoom, 1) * 2);
+  margin: 0 auto;
+
+  :deep(.page-container) {
+    margin-inline: 0;
+  }
 }
 
 .cover-drop-overlay {

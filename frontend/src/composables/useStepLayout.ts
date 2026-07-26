@@ -16,8 +16,11 @@ const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 function stripPhotos(step: Step, photoSet: Set<string>) {
   return {
     pages: step.pages
-      .map((page) => page.filter((p) => !photoSet.has(p)))
-      .filter((page) => page.length > 0),
+      .map((page) => ({
+        ...page,
+        media: page.media.filter((name) => !photoSet.has(name)),
+      }))
+      .filter((page) => page.media.length > 0),
     unused: step.unused.filter((p) => !photoSet.has(p)),
   };
 }
@@ -84,10 +87,14 @@ export function useStepLayout(
     saveField(coverUpdatePayload(step.value, cover));
   }
 
-  function onPageUpdate(idx: number, page: string[]) {
+  function onPageUpdate(idx: number, media: string[]) {
     const s = step.value;
-    const existing = new Set(s.pages[idx]);
-    const added = page.filter((p) => !existing.has(p));
+    const target = s.pages[idx];
+    if (!target || (target.kind === "panorama_spread" && media.length !== 1))
+      return;
+
+    const existing = new Set(target.media);
+    const added = media.filter((name) => !existing.has(name));
 
     if (added.length > 0) {
       // Cross-list move: replace target page in-place, strip dragged photos
@@ -96,14 +103,19 @@ export function useStepLayout(
       const addedSet = new Set(added);
       const pages = s.pages
         .map((p, i) =>
-          i === idx ? page : p.filter((photo) => !addedSet.has(photo)),
+          i === idx
+            ? { ...p, media }
+            : {
+                ...p,
+                media: p.media.filter((name) => !addedSet.has(name)),
+              },
         )
-        .filter((p) => p.length > 0);
+        .filter((p) => p.media.length > 0);
       const unused = s.unused.filter((p) => !addedSet.has(p));
       saveField({ pages, unused });
     } else {
       const pages = [...s.pages];
-      pages[idx] = page;
+      pages[idx] = { ...target, media };
       saveField({ pages });
     }
   }
@@ -124,7 +136,10 @@ export function useStepLayout(
         const photos = [...dropZoneList.value];
         dropZoneList.value = [];
         const cleaned = withoutPhotos(new Set(photos));
-        saveField({ ...cleaned, pages: [...cleaned.pages, photos] });
+        saveField({
+          ...cleaned,
+          pages: [...cleaned.pages, { kind: "grid", media: photos }],
+        });
       },
     });
     watch(dropZoneRef, (el) => {

@@ -13,23 +13,26 @@ import {
   resolveLayoutClass,
 } from "@/utils/photoLayout";
 import { mediaQuality } from "@/utils/photoQuality";
+import type { StepPageLayout } from "@/client";
 
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 const printMode = usePrintMode();
 
 const props = defineProps<{
-  page: string[];
+  page: StepPageLayout;
 }>();
 
 const emit = defineEmits<{
-  "update:page": [page: string[]];
+  "update:page": [page: StepPageLayout];
 }>();
 const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
-const localPage = ref(enforceOrientationOrder([...props.page], isPortrait));
+const localPage = ref(
+  enforceOrientationOrder([...props.page.media], isPortrait),
+);
 watch(
-  () => props.page,
+  () => props.page.media,
   (val) => {
     const enforced = enforceOrientationOrder(val, isPortrait);
     if (
@@ -49,7 +52,7 @@ const pageVisible = useElementVisibility(containerRef, {
 
 function syncPage() {
   localPage.value = enforceOrientationOrder(localPage.value, isPortrait);
-  emit("update:page", [...localPage.value]);
+  emit("update:page", { ...props.page, media: [...localPage.value] });
 }
 
 if (!printMode) {
