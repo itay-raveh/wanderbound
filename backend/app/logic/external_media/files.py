@@ -2,15 +2,32 @@ from __future__ import annotations
 
 import shutil
 import uuid
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import structlog
 
 from app.logic.layout.media import is_video
 from app.logic.panorama.storage import panorama_asset_paths
 
 if TYPE_CHECKING:
     from app.models.album_media import PanoramaConfig
+
+logger = structlog.get_logger(__name__)
+type CleanupAction = tuple[str, Callable[[], Awaitable[object]]]
+
+
+async def run_best_effort_cleanup(
+    event: str,
+    *actions: CleanupAction,
+) -> None:
+    for action_name, action in actions:
+        try:
+            await action()
+        except BaseException:  # noqa: BLE001
+            logger.warning(event, action=action_name, exc_info=True)
 
 
 class MediaAssetTransition:

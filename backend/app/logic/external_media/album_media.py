@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -8,7 +9,11 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.worker_threads import run_sync
-from app.logic.external_media.files import MediaAssetTransition
+from app.logic.external_media.files import (
+    CleanupAction,
+    MediaAssetTransition,
+    run_best_effort_cleanup,
+)
 from app.logic.layout.media import (
     Media,
     delete_thumbnails,
@@ -42,6 +47,11 @@ def _rollback_snapshot(update: UndoSnapshotUpdate | None) -> None:
 def _finish_snapshot(update: UndoSnapshotUpdate | None) -> None:
     if update is not None:
         update.finish()
+
+
+def _restore_row(row: AlbumMedia, values: dict[str, object]) -> None:
+    for name, value in values.items():
+        setattr(row, name, value)
 
 
 def _unpack_replacement(
@@ -162,14 +172,25 @@ async def replace_album_media_from_saved(
         session.add(row)
         await session.flush()
     except BaseException:
-        await run_sync(transition.rollback)
-        await run_sync(_rollback_snapshot, snapshot_update)
-        for name, value in previous_values.items():
-            setattr(row, name, value)
-        await cleanup_imported_paths(written)
+        compensations: tuple[CleanupAction, ...] = (
+            ("media_transition", partial(run_sync, transition.rollback)),
+            ("undo_snapshot", partial(run_sync, _rollback_snapshot, snapshot_update)),
+            ("media_row", partial(run_sync, _restore_row, row, previous_values)),
+            ("imported_files", partial(cleanup_imported_paths, written)),
+        )
+        await run_best_effort_cleanup(
+            "external_media.replace_compensation_failed",
+            *compensations,
+        )
         raise
     else:
-        await run_sync(transition.finish)
-        await run_sync(_finish_snapshot, snapshot_update)
+        finalizers: tuple[CleanupAction, ...] = (
+            ("media_transition", partial(run_sync, transition.finish)),
+            ("undo_snapshot", partial(run_sync, _finish_snapshot, snapshot_update)),
+        )
+        await run_best_effort_cleanup(
+            "external_media.replace_finalization_failed",
+            *finalizers,
+        )
         written = []
         return row

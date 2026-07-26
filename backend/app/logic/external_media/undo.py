@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,7 +22,11 @@ if TYPE_CHECKING:
 
 from app.core.db import get_engine
 from app.core.worker_threads import run_sync
-from app.logic.external_media.files import MediaAssetTransition
+from app.logic.external_media.files import (
+    CleanupAction,
+    MediaAssetTransition,
+    run_best_effort_cleanup,
+)
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.logic.panorama.storage import panorama_original_path
 from app.models.album import Album
@@ -289,6 +294,11 @@ def _restore_row_values(
     row.updated_at = datetime.now(UTC)
 
 
+def _reset_row_values(row: AlbumMedia, values: dict[str, object]) -> None:
+    for name, value in values.items():
+        setattr(row, name, value)
+
+
 def enqueue_undo_snapshot_prune(
     background_tasks: BackgroundTasks,
     uid: int,
@@ -476,12 +486,20 @@ async def restore_undo_snapshot(
         await session.delete(snap)
         await session.flush()
     except BaseException:
-        await run_sync(transition.rollback)
-        for name, value in previous_values.items():
-            setattr(row, name, value)
+        compensations: tuple[CleanupAction, ...] = (
+            ("media_transition", partial(run_sync, transition.rollback)),
+            ("media_row", partial(run_sync, _reset_row_values, row, previous_values)),
+        )
+        await run_best_effort_cleanup(
+            "external_media.undo_compensation_failed",
+            *compensations,
+        )
         raise
     else:
-        await run_sync(transition.finish)
+        await run_best_effort_cleanup(
+            "external_media.undo_finalization_failed",
+            ("media_transition", partial(run_sync, transition.finish)),
+        )
         return row
 
 

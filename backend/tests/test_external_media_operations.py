@@ -11,7 +11,9 @@ from fastapi import BackgroundTasks
 
 from app.core.config import get_settings
 from app.logic.external_media.album_media import replace_album_media_from_saved
+from app.logic.external_media.files import MediaAssetTransition
 from app.logic.external_media.undo import (
+    UndoSnapshotUpdate,
     create_undo_snapshot,
     enqueue_undo_snapshot_prune,
     prune_all_expired_undo_snapshots,
@@ -443,6 +445,96 @@ async def test_replace_flush_failure_restores_files_and_previous_snapshot_state(
     assert not (tmp_path / ".undo" / VALID_NAME).exists()
 
 
+async def test_replace_snapshot_finalizer_failure_keeps_successful_replacement(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    with patch.object(
+        UndoSnapshotUpdate,
+        "finish",
+        side_effect=OSError("snapshot cleanup failed"),
+    ):
+        result = await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert result.width == 1600
+    assert result.height == 1200
+    assert target.read_bytes() != original_bytes
+    assert (tmp_path / ".undo" / VALID_NAME).exists()
+
+
+async def test_replace_rollback_failure_attempts_all_later_compensations(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    original_panorama = _active_panorama(
+        str(Path(".panoramas") / "originals" / f"{target.stem}.jpg")
+    )
+    media.panorama = original_panorama
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+    real_flush = session.flush
+    real_rollback = MediaAssetTransition.rollback
+
+    async def fail_after_activation(*args: object, **kwargs: object) -> None:
+        if target.read_bytes() != original_bytes:
+            raise OSError("operation failed")
+        await real_flush(*args, **kwargs)
+
+    def rollback_then_fail(transition: MediaAssetTransition) -> None:
+        real_rollback(transition)
+        raise OSError("rollback failed")
+
+    with (
+        patch(
+            "app.logic.external_media.album_media.process_saved_media",
+            AsyncMock(
+                return_value=(
+                    [Media(name=replacement.name, width=1600, height=1200)],
+                    [replacement],
+                )
+            ),
+        ),
+        patch.object(session, "flush", side_effect=fail_after_activation),
+        patch.object(
+            MediaAssetTransition,
+            "rollback",
+            autospec=True,
+            side_effect=rollback_then_fail,
+        ),
+        pytest.raises(OSError, match="operation failed"),
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert target.read_bytes() == original_bytes
+    assert not (tmp_path / ".undo" / VALID_NAME).exists()
+    assert media.width == 640
+    assert media.height == 480
+    assert media.panorama == original_panorama
+    assert not replacement.exists()
+
+
 async def test_repeated_snapshot_copy_failure_preserves_previous_snapshot(
     session: AsyncSession,
     tmp_path: Path,
@@ -581,6 +673,75 @@ async def test_undo_flush_failure_restores_current_and_snapshot_assets(
     assert current_original.read_bytes() == current_original_bytes
     assert snapshot.read_bytes() == snapshot_bytes
     assert snapshot_original.read_bytes() == snapshot_original_bytes
+
+
+async def test_undo_finalizer_failure_keeps_successful_restore(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+
+    with patch.object(
+        MediaAssetTransition,
+        "finish",
+        side_effect=OSError("transition cleanup failed"),
+    ):
+        result = await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert result.width == 1200
+    assert result.height == 900
+    assert target.read_bytes() == snapshot_bytes
+    assert not snapshot.exists()
+
+
+async def test_undo_rollback_failure_still_restores_row_and_original_error(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+    real_rollback = MediaAssetTransition.rollback
+
+    def rollback_then_fail(transition: MediaAssetTransition) -> None:
+        real_rollback(transition)
+        raise OSError("rollback failed")
+
+    with (
+        patch.object(session, "flush", side_effect=OSError("operation failed")),
+        patch.object(
+            MediaAssetTransition,
+            "rollback",
+            autospec=True,
+            side_effect=rollback_then_fail,
+        ),
+        pytest.raises(OSError, match="operation failed"),
+    ):
+        await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert target.read_bytes() == current_bytes
+    assert snapshot.read_bytes() == snapshot_bytes
+    assert media.width == 640
+    assert media.height == 480
 
 
 async def test_expired_snapshot_rejects_original_path_outside_undo(
