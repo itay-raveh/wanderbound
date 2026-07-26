@@ -23,54 +23,68 @@ defineEmits<{
 </script>
 
 <template>
-  <q-select
-    :model-value="modelValue"
-    :options="options"
-    :label="label ?? t('chapters.startsAt')"
-    class="chapter-start-select"
-    popup-content-class="chapter-start-popup"
-    dense
-    borderless
-    emit-value
-    map-options
-    options-dense
-    @update:model-value="$emit('update:modelValue', Number($event))"
-  >
-    <template #selected>
-      <div v-if="selected" class="chapter-start-selected" dir="ltr">
-        <img
-          :src="flagUrl(selected.countryCode)"
-          :alt="selected.countryLabel"
-          class="chapter-start-flag"
-        />
-        <span class="chapter-start-label" dir="auto">
-          {{ selected.label }}
-        </span>
-      </div>
-    </template>
-    <template #option="scope">
-      <q-item v-bind="scope.itemProps" class="chapter-start-option" dir="ltr">
-        <q-item-section side class="chapter-start-option-flag">
-          <img
-            :src="flagUrl(scope.opt.countryCode)"
-            :alt="scope.opt.countryLabel"
-            class="chapter-start-flag"
-          />
-        </q-item-section>
-        <q-item-section class="chapter-start-option-text">
-          <span class="chapter-start-label" dir="auto">
-            {{ scope.opt.label }}
-          </span>
-          <span v-if="scope.opt.detail" class="chapter-start-option-detail">
-            {{ scope.opt.detail }}
-          </span>
-        </q-item-section>
-      </q-item>
-    </template>
-  </q-select>
+  <q-item class="chapter-start-item">
+    <q-item-section>
+      <q-select
+        :model-value="modelValue"
+        :options="options"
+        :label="label ?? t('chapters.startsAt')"
+        class="chapter-start-select"
+        popup-content-class="chapter-start-popup"
+        dense
+        borderless
+        emit-value
+        map-options
+        options-dense
+        @update:model-value="$emit('update:modelValue', Number($event))"
+      >
+        <template #selected>
+          <div v-if="selected" class="chapter-start-selected" dir="ltr">
+            <img
+              :src="flagUrl(selected.countryCode)"
+              :alt="selected.countryLabel"
+              class="chapter-start-flag"
+            />
+            <span class="chapter-start-label" dir="auto">
+              {{ selected.label }}
+            </span>
+          </div>
+        </template>
+        <template #option="scope">
+          <q-item
+            v-bind="scope.itemProps"
+            class="chapter-start-option"
+            dir="ltr"
+          >
+            <q-item-section side class="chapter-start-option-flag">
+              <img
+                :src="flagUrl(scope.opt.countryCode)"
+                :alt="scope.opt.countryLabel"
+                class="chapter-start-flag"
+              />
+            </q-item-section>
+            <q-item-section class="chapter-start-option-text">
+              <span class="chapter-start-label" dir="auto">
+                {{ scope.opt.label }}
+              </span>
+              <span v-if="scope.opt.detail" class="chapter-start-option-detail">
+                {{ scope.opt.detail }}
+              </span>
+            </q-item-section>
+          </q-item>
+        </template>
+      </q-select>
+    </q-item-section>
+  </q-item>
 </template>
 
 <style lang="scss" scoped>
+.chapter-start-item {
+  min-height: 3.25rem;
+  padding: 0 var(--gap-sm);
+  border-radius: var(--radius-sm);
+}
+
 .chapter-start-select {
   min-width: 0;
 

@@ -93,18 +93,19 @@ function save() {
       >
         {{ dateRange ? t("nav.editMap") : t("nav.addMap") }}
       </h3>
-      <div class="map-range-fields">
+      <q-list dense class="map-range-fields">
         <ChapterStartSelect
           v-model="startStepId"
           :options="options"
           :label="t('nav.startStep')"
         />
+        <q-separator class="map-range-field-separator" />
         <ChapterStartSelect
           v-model="endStepId"
           :options="endOptions"
           :label="t('nav.endStep')"
         />
-      </div>
+      </q-list>
       <p v-if="selectedRange" class="map-range-summary text-muted">
         <span>{{ selectedRange.label }}</span>
         <span aria-hidden="true">&middot;</span>
@@ -129,7 +130,7 @@ function save() {
 <style lang="scss" scoped>
 .map-range-dialog {
   width: min(28rem, calc(100vw - 2rem));
-  padding: var(--gap-xl);
+  padding: 1.75rem;
 }
 
 .map-range-title {
@@ -138,15 +139,12 @@ function save() {
 }
 
 .map-range-fields {
-  display: grid;
-  gap: var(--gap-md);
+  color: var(--text-bright);
+}
 
-  :deep(.chapter-start-select) {
-    padding-inline: var(--gap-md);
-    border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--surface) 76%, transparent);
-  }
+.map-range-field-separator {
+  margin: var(--gap-xs) 0;
+  background: var(--border-color);
 }
 
 .map-range-summary {
@@ -161,6 +159,6 @@ function save() {
   display: flex;
   justify-content: flex-end;
   gap: var(--gap-sm);
-  margin-top: var(--gap-xl);
+  margin-top: var(--gap-lg);
 }
 </style>
