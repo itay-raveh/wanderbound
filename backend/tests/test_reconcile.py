@@ -251,6 +251,18 @@ class TestFixAlbumCovers:
         assert album.chapters[0].front_cover_photo == "step_cover.jpg"
         assert album.chapters[0].back_cover_photo == "step_cover.jpg"
 
+    def test_panorama_cover_is_replaced(self) -> None:
+        album = _album(
+            front_cover_photo="panorama.jpg",
+            back_cover_photo="panorama.jpg",
+        )
+        eligible_covers = {"cover.jpg"}
+
+        _fix_album_covers(album, eligible_covers, "cover.jpg", [])
+
+        assert album.chapters[0].front_cover_photo == "cover.jpg"
+        assert album.chapters[0].back_cover_photo == "cover.jpg"
+
 
 _RECONCILE_AID = "test-trip_1"
 _LOC_B = Location(name="B", detail="", country_code="nl", lat=52.5, lon=5.0)

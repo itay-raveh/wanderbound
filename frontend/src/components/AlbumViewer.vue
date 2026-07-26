@@ -41,6 +41,10 @@ import { useActiveSection, pickBestItem } from "@/composables/useActiveSection";
 import { useWindowVirtualizer } from "@/composables/useWindowVirtualizer";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import {
+  PANORAMA_FRAME_KEY,
+  type PanoramaFrameRequest,
+} from "@/composables/usePanoramaFrame";
+import {
   computed,
   defineAsyncComponent,
   defineComponent,
@@ -76,6 +80,9 @@ const OverviewPage = defineAsyncComponent({
   errorComponent: EmptyPage,
   timeout: 10_000,
 });
+const PanoramaFrameDialog = defineAsyncComponent(() =>
+  import("./editor/PanoramaFrameDialog.vue").then((module) => module.default),
+);
 const props = defineProps<{
   album: AlbumMeta;
   media: AlbumMedia[];
@@ -98,6 +105,19 @@ const albumColors = computed(
   () => (props.album.colors ?? {}) as Record<string, string>,
 );
 const albumMedia = computed(() => props.media);
+const panoramaFrame = ref<PanoramaFrameRequest | null>(null);
+const panoramaFrameMedia = computed(() =>
+  props.media.find((media) => media.name === panoramaFrame.value?.media),
+);
+const panoramaFrameOpen = computed({
+  get: () => panoramaFrame.value != null,
+  set: (open: boolean) => {
+    if (!open) panoramaFrame.value = null;
+  },
+});
+provide(PANORAMA_FRAME_KEY, (request) => {
+  panoramaFrame.value = request;
+});
 
 const safeMarginMm = computed(() => props.album.safe_margin_mm ?? 0);
 watchEffect(() => setSafeMargin(safeMarginMm.value));
@@ -707,6 +727,15 @@ if (props.printMode) {
       showing
     />
   </div>
+
+  <PanoramaFrameDialog
+    v-if="panoramaFrame && panoramaFrameMedia"
+    v-model="panoramaFrameOpen"
+    :album-id="albumId"
+    :media="panoramaFrameMedia"
+    :aspect-ratio="panoramaFrame.aspectRatio"
+    :show-seam="panoramaFrame.showSeam"
+  />
 </template>
 
 <style lang="scss" scoped>

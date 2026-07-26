@@ -1,8 +1,8 @@
 import { flushPromises } from "@vue/test-utils";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { ref, type Ref } from "vue";
+import { nextTick, ref, type Ref } from "vue";
 import AlbumViewer from "@/components/AlbumViewer.vue";
-import { mountWithPlugins, makeStep } from "../helpers";
+import { makeAlbumMedia, mountWithPlugins, makeStep } from "../helpers";
 import type { AlbumMeta } from "@/client";
 import { useActiveSection } from "@/composables/useActiveSection";
 
@@ -231,5 +231,63 @@ describe("AlbumViewer", () => {
 
     expect(wrapper.find(".hike-map").exists()).toBe(true);
     expect(wrapper.find(".map-page").exists()).toBe(false);
+  });
+
+  test("keeps the panorama dialog open when its virtual page unmounts", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 400,
+      height: 200,
+      top: 0,
+      right: 400,
+      bottom: 200,
+      left: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    virtualItems.value = [
+      {
+        key: "photo-page",
+        index: 1,
+        start: 2365,
+        size: 2365,
+        end: 4730,
+      },
+    ];
+    const album = makeAlbum();
+    album.hidden_headers = [
+      "cover-front",
+      "cover-back",
+      "overview",
+      "full-map",
+    ];
+    const panorama = makeAlbumMedia({
+      name: "wide.jpg",
+      width: 4000,
+      height: 1000,
+      panorama_candidate: true,
+    });
+    const wrapper = mountWithPlugins(AlbumViewer, {
+      attachTo: document.body,
+      props: {
+        album,
+        media: [panorama],
+        steps: [
+          makeStep({ pages: [{ kind: "grid", media: [panorama.name] }] }),
+        ],
+        segmentOutlines: [],
+      },
+    });
+
+    await wrapper.get(".panorama-frame-action").trigger("click");
+    await flushPromises();
+    await vi.waitFor(() =>
+      expect(document.body.querySelector(".panorama-dialog")).not.toBeNull(),
+    );
+
+    virtualItems.value = [];
+    await nextTick();
+
+    expect(document.body.querySelector(".panorama-dialog")).not.toBeNull();
   });
 });

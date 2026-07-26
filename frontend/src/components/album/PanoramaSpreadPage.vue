@@ -1,16 +1,10 @@
 <script lang="ts" setup>
-import type { AlbumMedia } from "@/client";
-import { computed, defineAsyncComponent, ref } from "vue";
+import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { t } from "@/i18n";
 import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
-
-const PanoramaFrameDialog = defineAsyncComponent(() =>
-  import("@/components/editor/PanoramaFrameDialog.vue").then(
-    (module) => module.default,
-  ),
-);
+import { computed } from "vue";
 
 const props = defineProps<{
   media: string;
@@ -21,12 +15,19 @@ const emit = defineEmits<{
   "make-full-page": [media: string];
 }>();
 
-const { albumId, mediaByName, placementMediaUrl } = useAlbum();
+const { placementMediaUrl } = useAlbum();
+const openPanoramaDialog = usePanoramaFrame();
 const printMode = usePrintMode();
 const spreadAspectRatio = (PAGE_WIDTH_MM * 2) / PAGE_HEIGHT_MM;
-const albumMedia = computed(() => mediaByName.value.get(props.media));
 const src = computed(() => placementMediaUrl(props.media));
-const dialogOpen = ref(false);
+
+function openPanoramaFrame(): void {
+  openPanoramaDialog?.({
+    media: props.media,
+    aspectRatio: spreadAspectRatio,
+    showSeam: true,
+  });
+}
 </script>
 
 <template>
@@ -45,7 +46,7 @@ const dialogOpen = ref(false);
       <button
         type="button"
         class="panorama-frame-action panorama-action"
-        @click="dialogOpen = true"
+        @click="openPanoramaFrame"
       >
         {{ t("panorama.frame.title") }}
       </button>
@@ -57,14 +58,6 @@ const dialogOpen = ref(false);
         {{ t("panorama.makeFullPage") }}
       </button>
     </div>
-    <PanoramaFrameDialog
-      v-if="dialogOpen && albumMedia"
-      v-model="dialogOpen"
-      :album-id="albumId"
-      :media="albumMedia as AlbumMedia"
-      :aspect-ratio="spreadAspectRatio"
-      show-seam
-    />
   </div>
 </template>
 

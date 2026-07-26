@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from app.logic.layout.media import Media
 from app.logic.trip_processing import (
+    _pick_landscape_cover,
     default_media_resolution_warning_preset,
+    prepare_media,
     resolve_international_waters,
     segment_timezone,
 )
@@ -31,6 +38,41 @@ class TestDefaultMediaResolutionWarningPreset:
             default_media_resolution_warning_preset(user)
             == DEMO_MEDIA_RESOLUTION_WARNING_PRESET
         )
+
+
+def _cover_media(path: Path) -> Media:
+    if path.name == "panorama.jpg":
+        return Media(name=path.name, width=3000, height=900)
+    return Media(name=path.name, width=1600, height=1000)
+
+
+def test_cover_fallback_skips_panorama(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "panorama.jpg").touch()
+    (tmp_path / "landscape.jpg").touch()
+
+    monkeypatch.setattr("app.logic.trip_processing.Media.load", _cover_media)
+
+    assert _pick_landscape_cover(tmp_path) == ("landscape.jpg", "l")
+
+
+@pytest.mark.anyio
+async def test_exported_panorama_is_replaced_as_cover(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "panorama.jpg").touch()
+    (tmp_path / "landscape.jpg").touch()
+
+    monkeypatch.setattr("app.logic.trip_processing.flatten_media", lambda _: None)
+    monkeypatch.setattr("app.logic.trip_processing.Media.load", _cover_media)
+
+    assert await prepare_media(tmp_path, "panorama.jpg") == (
+        "landscape.jpg",
+        "l",
+    )
 
 
 def _step(name: str, country_code: str, timestamp: float = 0) -> PSStep:

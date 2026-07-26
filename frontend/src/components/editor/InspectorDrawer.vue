@@ -8,6 +8,7 @@ import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   THUMB_WIDTHS,
+  isPanorama,
   mediaThumbUrl,
   placementMediaUrl,
   isVideo,
@@ -99,7 +100,9 @@ watch(
 );
 
 const landscapeMedia = computed(() =>
-  props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
+  props.media.filter(
+    (m) => !isPortrait(m) && !isPanorama(m) && !isVideo(m.name),
+  ),
 );
 const COVER_GRID_COLUMNS = 2;
 const COVER_GRID_ROW_SIZE = 92;

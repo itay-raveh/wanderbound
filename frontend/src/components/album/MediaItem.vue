@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { AlbumMedia } from "@/client";
 import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
@@ -7,6 +6,7 @@ import { registerQualityBadge } from "@/composables/usePhotoQuality";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
+import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { useElementVisibility, useResizeObserver } from "@vueuse/core";
 import {
   isVideo as checkVideo,
@@ -20,7 +20,6 @@ import {
 } from "@/utils/media";
 import {
   computed,
-  defineAsyncComponent,
   inject,
   nextTick,
   onMounted,
@@ -38,12 +37,6 @@ import {
 } from "@quasar/extras/material-icons";
 
 const { t } = useI18n();
-
-const PanoramaFrameDialog = defineAsyncComponent(() =>
-  import("@/components/editor/PanoramaFrameDialog.vue").then(
-    (module) => module.default,
-  ),
-);
 
 const props = withDefaults(
   defineProps<{
@@ -68,6 +61,7 @@ const emit = defineEmits<{
 }>();
 
 const { albumId, mediaByName, placementMediaUrl } = useAlbum();
+const openPanoramaDialog = usePanoramaFrame();
 const printMode = usePrintMode();
 const supportsIntersectionObserver =
   typeof window !== "undefined" && "IntersectionObserver" in window;
@@ -153,7 +147,6 @@ const hasPanoramaAction = computed(
 const panoramaActionLabel = computed(() =>
   panorama.value ? t("panorama.frame.title") : t("panorama.treat"),
 );
-const panoramaDialogOpen = ref(false);
 const panoramaAspectRatio = computed<number | null>(() => {
   if (
     !props.panoramaDestinationKind ||
@@ -166,7 +159,12 @@ const panoramaAspectRatio = computed<number | null>(() => {
 
 function openPanoramaFrame(): void {
   updatePlacementSize();
-  if (panoramaAspectRatio.value) panoramaDialogOpen.value = true;
+  if (!panoramaAspectRatio.value) return;
+  openPanoramaDialog?.({
+    media: props.media,
+    aspectRatio: panoramaAspectRatio.value,
+    showSeam: props.panoramaDestinationKind === "panorama_spread",
+  });
 }
 
 const src = computed(() => {
@@ -419,14 +417,6 @@ function onVideoKey(e: KeyboardEvent) {
         {{ t("panorama.makeSpread") }}
       </button>
     </div>
-    <PanoramaFrameDialog
-      v-if="panoramaDialogOpen && albumMedia && panoramaAspectRatio"
-      v-model="panoramaDialogOpen"
-      :album-id="albumId"
-      :media="albumMedia as AlbumMedia"
-      :aspect-ratio="panoramaAspectRatio"
-      :show-seam="panoramaDestinationKind === 'panorama_spread'"
-    />
   </div>
 </template>
 

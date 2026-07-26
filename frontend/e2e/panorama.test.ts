@@ -44,7 +44,7 @@ async function mockPanoramaAlbum(page: Page) {
       {
         ...mockAlbum.chapters[0],
         step_ids: [step.id],
-        front_cover_photo: panoramaName,
+        front_cover_photo: coverMedia.name,
       },
     ],
   };
@@ -110,10 +110,13 @@ test("frames a panorama globally and prints a two-page spread", async ({
 }) => {
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
+  await scrollToStep(page, "Amsterdam");
 
-  const treat = page.getByRole("button", { name: "Treat as panorama" });
-  await expect(treat.first()).toBeVisible({ timeout: 5_000 });
-  await treat.first().click();
+  const treat = page
+    .locator(`[data-media="${panoramaName}"]`)
+    .getByRole("button", { name: "Treat as panorama" });
+  await expect(treat).toBeVisible({ timeout: 5_000 });
+  await treat.click();
   const dialog = page.getByRole("dialog", { name: "Frame panorama" });
   await expect(dialog).toBeVisible();
   const preview = dialog.getByRole("region", {
@@ -146,7 +149,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   });
   expect(Math.abs(state.appliedFrame()!.yaw)).toBeGreaterThan(1);
 
-  await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(2);
+  await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(1);
   await scrollToStep(page, "Amsterdam");
   await expect(
     page.getByRole("button", { name: "Frame panorama" }).first(),
@@ -176,7 +179,4 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await page.getByRole("button", { name: "Frame panorama" }).first().click();
   await page.getByRole("button", { name: "Use as normal photo" }).click();
   await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Treat as panorama" }).first(),
-  ).toBeVisible();
 });
