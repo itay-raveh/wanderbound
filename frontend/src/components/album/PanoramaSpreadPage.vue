@@ -18,19 +18,22 @@ const width = printMode ? PRINT_RENDER_WIDTH : EDITOR_RENDER_WIDTH;
 const height = Math.round((width * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2));
 const src = computed(() => {
   const base = mediaUrl(props.media, albumId.value);
-  const revision = mediaByName.value.get(props.media)?.panorama?.revision;
-  if (revision == null) return base;
+  const panorama = mediaByName.value.get(props.media)?.panorama;
+  if (panorama?.status !== "active" || panorama.revision == null) return base;
   const query = new URLSearchParams({
     w: String(width),
     h: String(height),
-    panorama_revision: String(revision),
+    panorama_revision: String(panorama.revision),
   });
   return `${base}?${query}`;
 });
 </script>
 
 <template>
-  <div :class="['page-container', 'panorama-page', `side-${side}`]">
+  <div
+    :class="['page-container', 'panorama-page', `side-${side}`]"
+    :data-media="media"
+  >
     <img
       :src="src"
       alt=""
