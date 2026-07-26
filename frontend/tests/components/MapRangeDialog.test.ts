@@ -1,6 +1,8 @@
 import { defineComponent, nextTick } from "vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import MapRangeDialog from "@/components/editor/nav/MapRangeDialog.vue";
+import ChapterStartSelect from "@/components/editor/nav/ChapterStartSelect.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 
 vi.mock("@/queries/useUserQuery", () => ({
   useUserQuery: () => {
@@ -18,17 +20,6 @@ vi.mock("@/queries/useUserQuery", () => ({
     };
   },
 }));
-
-const StepSelectStub = defineComponent({
-  name: "ChapterStartSelect",
-  props: {
-    modelValue: Number,
-    options: Array,
-    label: String,
-  },
-  emits: ["update:modelValue"],
-  template: "<div />",
-});
 
 const DialogStub = defineComponent({
   props: { modelValue: Boolean },
@@ -55,7 +46,6 @@ function mountDialog() {
     },
     global: {
       stubs: {
-        ChapterStartSelect: StepSelectStub,
         QDialog: DialogStub,
         QCard: { template: "<div><slot /></div>" },
         QBtn: ButtonStub,
@@ -65,13 +55,23 @@ function mountDialog() {
 }
 
 describe("MapRangeDialog", () => {
+  it("uses the shared prompt shell and chapter step selectors", async () => {
+    const wrapper = mountDialog();
+
+    await wrapper.setProps({ modelValue: true });
+    await nextTick();
+
+    expect(wrapper.findComponent(PromptDialog).exists()).toBe(true);
+    expect(wrapper.findAllComponents(ChapterStartSelect)).toHaveLength(2);
+  });
+
   it("uses step dropdowns and prevents an ending step before the start", async () => {
     const wrapper = mountDialog();
 
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(StepSelectStub);
+    const selects = wrapper.findAllComponents(ChapterStartSelect);
     expect(selects[0].props("modelValue")).toBe(1);
     expect(selects[1].props("modelValue")).toBe(3);
 
@@ -90,28 +90,33 @@ describe("MapRangeDialog", () => {
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(StepSelectStub);
+    const selects = wrapper.findAllComponents(ChapterStartSelect);
     selects[0].vm.$emit("update:modelValue", 2);
     selects[1].vm.$emit("update:modelValue", 3);
     await nextTick();
-    await wrapper.get(".map-range-save").trigger("click");
+    await wrapper.get(".confirm-btn").trigger("click");
 
     expect(wrapper.emitted("save")).toEqual([
       [["2024-01-02", "2024-01-03"]],
     ]);
   });
 
-  it("shows date context for each option and summarizes the selected range", async () => {
+  it("uses chapter-style options and summarizes the selected range", async () => {
     const wrapper = mountDialog();
     await wrapper.setProps({ modelValue: true });
     await nextTick();
 
-    const selects = wrapper.findAllComponents(StepSelectStub);
+    const selects = wrapper.findAllComponents(ChapterStartSelect);
     expect(selects[0].props("options")).toMatchObject([
-      { label: "Buenos Aires", detail: "2024-01-01" },
-      { label: "Ushuaia", detail: "2024-01-02" },
-      { label: "Santiago", detail: "2024-01-03" },
+      { label: "Buenos Aires" },
+      { label: "Ushuaia" },
+      { label: "Santiago" },
     ]);
+    expect(
+      (selects[0].props("options") as Record<string, unknown>[]).every(
+        (option) => !("detail" in option),
+      ),
+    ).toBe(true);
     expect(wrapper.get(".map-range-summary").text()).toContain(
       "2024-01-01 – 2024-01-03",
     );
